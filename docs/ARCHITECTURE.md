@@ -2,7 +2,7 @@
 
 > **Scope of this file.** How the system is built — backend, frontend, data model, and the hard-won implementation lore.
 > **Write here:** system structure, data model, API surface, component maps, state flow, security architecture, dev-environment facts, and any non-obvious trap that cost real time.
-> **Don't write here:** code-style rules (→ `CONVENTIONS.md`), why the product exists or how it should feel (→ `PRODUCT.md`), unbuilt features (→ `README.md` → Backlog).
+> **Don't write here:** code-style rules (→ `CONVENTIONS.md`), why the product exists or how it should feel (→ `PRODUCT.md`), unbuilt features (→ `BACKLOG.md`); how to run and deploy it (→ `RUNNING.md`).
 > **Modify this file whenever the design genuinely changes.** Keep it honest about what exists vs. what's intended.
 
 ---
@@ -566,7 +566,7 @@ A phone's keyboard can't be checked this way.
 
 ## Deploy
 
-Not yet. The intent, carried from the Board: the VPS behind nginx, under pm2, deployed by hand from `main` (`git pull && pnpm install && pnpm build && pm2 restart …`), so whatever reaches `main` reaches the owner's real data on their next pull. Two things the deploy must carry since media (step 15): nginx's `client_max_body_size` for `/api/media/` has to allow the largest file (`40m`; its default of 1 MB would refuse most clips before the API sees them), and for `/api/dictionaries/` the largest dictionary (`200m`, `DICTIONARY_MAX_BYTES`); and a backup is the whole `PANKI_DATA_DIR`, the `media` and `dictionaries` folders with the databases, since a row without its file is a card that can't play.
+Under way (2026-10-17: the repository is on GitHub, `Gameoholic/panki-vibe-coded`; the pull-and-restart block is the README, the first-time steps `RUNNING.md`). The intent, carried from the Board: the VPS behind nginx, under pm2, deployed by hand from `main` (`git pull && pnpm install && pnpm build && pm2 restart …`), so whatever reaches `main` reaches the owner's real data on their next pull. Two things the deploy must carry since media (step 15): nginx's `client_max_body_size` for `/api/media/` has to allow the largest file (`40m`; its default of 1 MB would refuse most clips before the API sees them), and for `/api/dictionaries/` the largest dictionary (`200m`, `DICTIONARY_MAX_BYTES`); and a backup is the whole `PANKI_DATA_DIR`, the `media` and `dictionaries` folders with the databases, since a row without its file is a card that can't play.
 
 ## Traps carried over from the Board (a web app)
 

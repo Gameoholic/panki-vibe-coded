@@ -2,7 +2,7 @@
 
 > **Scope of this file.** Why this exists, who it's for, what it must feel like, and the current product behaviour + visual language.
 > **Write here:** the owner's goals and pain points, product principles, what each current feature *is* from the user's view, deliberate scope decisions, and the design language + its rationale.
-> **Don't write here:** how features are implemented (→ `ARCHITECTURE.md`), code style (→ `CONVENTIONS.md`), or unbuilt ideas (→ `README.md` → Backlog).
+> **Don't write here:** how features are implemented (→ `ARCHITECTURE.md`), code style (→ `CONVENTIONS.md`), or unbuilt ideas (→ `BACKLOG.md`).
 
 ---
 
@@ -242,7 +242,7 @@ The principles underneath, carried from the Board:
 - **2026-10-09 — No Anki import, no history carry-over, and no option for either.** The owner starts fresh in Panki's own format and asked that nothing be built with Anki compatibility in mind. Importing stays a loose backlog idea at most.
 - **2026-10-09 — Nothing generated.** No text-to-speech, no AI subtitles, no LLM-written content: it can be wrong. Audio comes from real clips or human recordings. *Set aside for one thing on 2026-10-17: a video's transcript, by a speech engine, named as Panki's wherever it shows ("AI subtitles", above). Everything else stands.*
 - **2026-10-09 — Android only.** No iPhone work.
-- **2026-10-09 — The simplest thing first.** Step 1 is one deck, add and review, no scheduling. The owner adds steps one at a time and keeps the backlog in `README.md`.
+- **2026-10-09 — The simplest thing first.** Step 1 is one deck, add and review, no scheduling. The owner adds steps one at a time and keeps the backlog in `docs/BACKLOG.md` (the README's until 2026-10-17).
 - **2026-10-09 — Review is one deck at a time.** No "every deck in one pile"; the Review door asks which deck. The owner's note when picking the navigation.
 - **2026-10-09 — Delete hides, never destroys.** A deleted deck and its cards stay in the database with the removal time; renaming keeps the old names. There is no restore in the app yet; it comes when the owner asks, and the data is there for it. The same for a card type and for a hidden field.
 - **2026-10-11 — A deleted card is hidden, and out of everything.** The same rule as a deck's: it stays in the database with the time it left. It no longer counts among the deck's cards, the ladder, what's coming up or what was added; the answers it was given stay in the review history, because they happened.

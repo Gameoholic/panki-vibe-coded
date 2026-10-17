@@ -2,7 +2,7 @@
 
 > **Scope of this file.** How we write code here and how we work together. The rules that keep a hundred-developer codebase clean — applied to a one-developer one.
 > **Write here:** code style, the prime directives, reuse rules, dependency policy, security coding rules, data discipline, and the working process.
-> **Don't write here:** system structure or implementation lore (→ `ARCHITECTURE.md`), product rationale (→ `PRODUCT.md`), or future features (→ `README.md` → Backlog).
+> **Don't write here:** system structure or implementation lore (→ `ARCHITECTURE.md`), product rationale (→ `PRODUCT.md`), or future features (→ `BACKLOG.md`).
 
 **Where these came from.** They were carried over from the owner's last project, the Board, where each was earned — most of them by Claude getting it wrong first. An example marked *(Board)* shows what a rule looked like there; swap in Panki's own example once it has one.
 
