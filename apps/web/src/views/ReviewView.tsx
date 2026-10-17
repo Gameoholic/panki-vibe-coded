@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { againPlaceOf, isBurned, isNew, mainAnswers, resolve, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsType } from "@panki/contracts";
+import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type Outcome, type ReviewSessionEnd, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
+import { FlowCanvas } from "../components/FlowCanvas";
+import { Icon } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
 import { shuffle } from "../shuffle";
@@ -52,13 +54,23 @@ function kindOf(card: Card): Kind {
   return isNew(card.place) ? "new" : "review";
 }
 
+/**
+ * Whether a card comes back in this same review after an answer: only an ask-again with no wait (or a retry) keeps
+ * it in. Reaching an end of the chart (up, down, go to a stage, burned) is the end of the card for this sitting, even
+ * where the stage it lands on has no wait: it's due again at once, but for the next review, as the home will say
+ * (the owner, 2026-10-17, after Forgot → Ok sent a card "Down one → Lesson · no wait" and the review asked it again as
+ * if the chart went on: "the moment we hit one of those end nodes, that's it for the card this session… for ALL SRS
+ * logic").
+ */
+const comesBack = (outcome: Outcome) => outcome.again && outcome.wait === 0;
+
 /** How many answers a card still takes to leave the review, each one the best answer; rules that loop are cut off at `STEPS_MAX`. */
 const STEPS_MAX = 9;
 function stepsLeft(srsType: SrsType, card: Card, best: string): number {
   let place = card.place;
   for (let steps = 1; steps < STEPS_MAX; steps++) {
     const outcome = resolve(srsType, place, best);
-    if (outcome.wait !== 0) return steps;
+    if (!comesBack(outcome)) return steps;
     place = outcome.place;
   }
   return STEPS_MAX;
@@ -107,12 +119,63 @@ function advance(line: Line, cardId: string, comesBack: boolean, againPlace: Dec
   return { active, waiting: line.waiting };
 }
 
-/** Where an answer sends the card, under its name: "Apprentice 3 · 1 d", "again tomorrow", "Burned ✓". */
-function answerWords(srsType: SrsType, card: Card, answerId: string): string {
+/**
+ * Where an answer sends the card, under its name: a mark for the direction (+1, −1, ±0 along the ladder; ↻ asked
+ * again; ✓ burned: the owner, 2026-10-17, "so it's more clear whether we're upgrading or downgrading") and the words,
+ * "Apprentice 3 · 1 d", "again tomorrow", "Burned ✓".
+ */
+type Lead = { dir: "up" | "down" | "same" | "again" | "burn"; mark: string; words: string };
+function answerLead(srsType: SrsType, card: Card, answerId: string): Lead {
   const r = resolve(srsType, card.place, answerId);
-  if (r.burned || r.wait === null) return `${srsType.burnedName} ✓`;
-  if (r.again) return `again ${againWords(r.wait)}`;
-  return `${placeName(srsType, r.place)} · ${spanWords(r.wait)}`;
+  if (r.burned || r.wait === null) return { dir: "burn", mark: "✓", words: srsType.burnedName };
+  if (r.again) return { dir: "again", mark: "↻", words: `again ${againWords(r.wait)}` };
+  const by = stageIndex(srsType, r.place) - stageIndex(srsType, card.place);
+  return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", mark: by > 0 ? `+${by}` : by < 0 ? `−${-by}` : "±0", words: `${placeName(srsType, r.place)} · ${spanWords(r.wait)}` };
+}
+
+/** The lead under an answer's name: its mark in the direction's colour, then the words. */
+function Lead({ lead }: { lead: Lead }) {
+  return (
+    <span className="to">
+      <span className={`to-mark is-${lead.dir}`}>{lead.mark}</span>
+      {lead.words}
+    </span>
+  );
+}
+
+/**
+ * The card on its chart (the owner, 2026-10-17: "show the flowchart for this stage, and highlight what node we're on,
+ * and what node clicking this button will transfer it to"): which rules the card follows (its stage's own, or the
+ * default ones worked out for its stage), the box it's at (the root, or the ask-again it's inside, by its path), and
+ * the box the answer under the mouse leads to (the same path one longer; "Keep asking" turns back into the box it
+ * left, as its loop on the chart), none while no answer is under it. Shown under the answers while the Chart button
+ * is on (a glance that popped up on hover lasted an evening: it was small, couldn't be moved, and came up uninvited
+ * while the owner was only deciding, 2026-10-18).
+ */
+function chartOf(srsType: SrsType, card: Card, answerId: string | null): { scope: string; now: string; next: string | null; stage: number } {
+  const idx = stageIndex(srsType, card.place);
+  const stage = srsType.stages[idx];
+  const scope = stage && srsType.overrides[stage.id] ? stage.id : "all";
+  const now = card.place.node.length > 0 ? card.place.node.join(",") : "root";
+  const step = answerId === null ? undefined : branchAt(flowOf(srsType, idx), card.place.node)[answerId];
+  const next = answerId === null || step?.kind === "hidden" ? null : [...card.place.node, answerId].join(",");
+  return { scope, now, next, stage: idx };
+}
+/** Whether the chart is open under the answers: this device's, kept across reviews. */
+const CHART_KEY = "panki.review.chart";
+function readChartOpen(): boolean {
+  try {
+    return localStorage.getItem(CHART_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeChartOpen(open: boolean) {
+  try {
+    localStorage.setItem(CHART_KEY, open ? "1" : "0");
+  } catch {
+    // Nothing kept: it opens closed next time, which is only a press away.
+  }
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
@@ -126,10 +189,23 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
+  /** The answer a mouse is on, whose box on the chart lights up; null with none under it. */
+  const [hover, setHover] = useState<string | null>(null);
+  const [chartOpen, setChartOpen] = useState(readChartOpen);
+  function toggleChart() {
+    setChartOpen((was) => {
+      writeChartOpen(!was);
+      return !was;
+    });
+  }
+  const rest = (id: string) => setHover(id);
+  const leave = () => setHover(null);
   /** How many more new cards to start once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
   const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
   const cardId = line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
+  // A new card on screen, or the answers going away, takes the glance down with them.
+  useEffect(leave, [cardId, revealed]); // eslint-disable-line react-hooks/exhaustive-deps -- `leave` is the same each time
 
   const sitting = useRef<Sitting | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -223,8 +299,8 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
       });
       setById((m) => new Map(m).set(saved.id, saved));
       setCounts((c) => ({ ...c, [answerId]: (c[answerId] ?? 0) + 1 }));
-      // Only a card with no wait at all comes back in this review; anything with a wait is for a later one.
-      setLine((l) => advance(l, card.id, outcome.wait === 0, againPlaceOf(deck.settings)));
+      // Only a card asked again right away comes back in this review; one that reached an end of the chart is for a later one, whatever its wait.
+      setLine((l) => advance(l, card.id, comesBack(outcome), againPlaceOf(deck.settings)));
       setAnswered((n) => n + 1);
       setRevealed(false);
     } catch (e) {
@@ -249,10 +325,10 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
         setAsking(null);
         return;
       }
-      // The same key again is the yes to an answer that asked first.
+      // The same key again is the yes to an answer that asked first. A key whose answer isn't offered here does nothing.
       const n = Number(e.key);
       const picked = answers[n - 1];
-      if (revealed && picked) {
+      if (revealed && picked && offered(srsType, card.place, picked.id)) {
         e.preventDefault();
         press(picked.id);
       }
@@ -362,7 +438,7 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
       {revealed && asked ? (
         <div className="panel panel-alarm review-ask">
           <p id="review-question" className="question">
-            {asked.name}? This card goes to {answerWords(srsType, card, asked.id)}.
+            {asked.name}? This card goes to {answerLead(srsType, card, asked.id).words}.
           </p>
           <div className="add-actions">
             <Button id="review-keep" disabled={busy} onClick={() => setAsking(null)}>
@@ -377,11 +453,21 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
         <>
           <div className="review-actions">
             {revealed ? (
+              // An answer the chart doesn't offer at this point (its rule here is "Not offered") has no button; the others keep their keys.
               answers.map((a, i) =>
-                a.aside ? null : (
-                  <Button key={a.id} variant="answer" className={answerClass(answers, i)} data-answer={a.id} disabled={busy} onClick={() => press(a.id)}>
+                a.aside || !offered(srsType, card.place, a.id) ? null : (
+                  <Button
+                    key={a.id}
+                    variant="answer"
+                    className={answerClass(answers, i)}
+                    data-answer={a.id}
+                    disabled={busy}
+                    onClick={() => press(a.id)}
+                    onMouseEnter={() => rest(a.id)}
+                    onMouseLeave={leave}
+                  >
                     <span className="name">{a.name}</span>
-                    <span className="to">{answerWords(srsType, card, a.id)}</span>
+                    <Lead lead={answerLead(srsType, card, a.id)} />
                     <span className="key">{i + 1}</span>
                   </Button>
                 ),
@@ -392,19 +478,37 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
               </Button>
             )}
           </div>
-          {revealed && answers.some((a) => a.aside) ? (
+          {revealed && answers.some((a) => a.aside && offered(srsType, card.place, a.id)) ? (
             <div className="review-asides">
               {answers.map((a, i) =>
-                a.aside ? (
-                  <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={busy} onClick={() => press(a.id)}>
+                a.aside && offered(srsType, card.place, a.id) ? (
+                  <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={busy} onClick={() => press(a.id)} onMouseEnter={() => rest(a.id)} onMouseLeave={leave}>
                     <span className="name">{a.name}</span>
-                    <span className="to">{answerWords(srsType, card, a.id)}</span>
+                    <Lead lead={answerLead(srsType, card, a.id)} />
                     <span className="key">{i + 1}</span>
                   </Button>
                 ) : null,
               )}
             </div>
           ) : null}
+          {/* Under the answers (the owner's place for it, 2026-10-18): the card's chart, on or off, kept on this device. */}
+          <div className="review-chart-row">
+            <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
+              <Icon name="srs" />
+              Chart
+            </Button>
+          </div>
+          {/* The card's chart, while the Chart button is on: its box lit, and the box the answer under the mouse leads to. */}
+          {chartOpen
+            ? (() => {
+                const glance = chartOf(srsType, card, revealed ? hover : null);
+                return (
+                  <div className="review-chart">
+                    <FlowCanvas type={srsType} scope={glance.scope} onScope={() => undefined} onChange={() => undefined} onUndo={() => undefined} onRedo={() => undefined} canUndo={false} canRedo={false} glance={glance} />
+                  </div>
+                );
+              })()
+            : null}
         </>
       )}
     </section>

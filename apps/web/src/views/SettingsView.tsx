@@ -314,8 +314,25 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
             {failure}
           </p>
         ) : null}
-        <Setting id="speed" label="Speed" control={<Dropdown id="transcribe-speed" label="Speed" options={SPEED_OPTIONS} value={current.speed} onChange={(speed) => patch({ speed })} />} />
-        <Setting id="lead" label="Lead" control={<NumberField id="transcribe-lead" label="Minutes ahead" value={current.lead} min={1} max={180} suffix="min" onChange={(lead) => patch({ lead })} />} />
+        {/* The lines under these two are at the owner's ask (2026-10-17: "how/when they should play with it and how it could affect performance"); each says what the value set right now does. */}
+        <Setting
+          id="speed"
+          label="Speed"
+          control={<Dropdown id="transcribe-speed" label="Speed" options={SPEED_OPTIONS} value={current.speed} onChange={(speed) => patch({ speed })} />}
+          why={
+            current.speed === 1
+              ? "Transcribes as fast as the video plays, so the words arrive just in time and a jump ahead waits. Raise it on a machine that keeps up."
+              : current.speed <= 3
+                ? `Transcribes ${current.speed} minutes of video per minute watched, and the engine hears everything it listens for. Lower it if the video's page stutters: the second player runs on each viewer's own machine.`
+                : `Transcribes ${current.speed} minutes of video per minute watched, but above 3× the voice loses its s and sh sounds. Lower it if the words come out wrong.`
+          }
+        />
+        <Setting
+          id="lead"
+          label="Lead"
+          control={<NumberField id="transcribe-lead" label="Minutes ahead" value={current.lead} min={1} max={180} suffix="min" onChange={(lead) => patch({ lead })} />}
+          why={`Runs ${count(current.lead, "minute", "minutes")} ahead of the viewer, then waits for them. A video left early still costs that much sound; a longer lead rides out longer jumps, a shorter one costs less to quit.`}
+        />
         {/* What's the viewer's own (whether it starts by itself, what it does while paused, whether the transcript replaces the site's captions) is on the extension's page since 2026-10-17, by the owner's word: only what costs is set here. */}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
       </section>

@@ -5,6 +5,7 @@ import { OptionsTab } from "./messages";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_PREFS, TranscribePaused, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
+import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./transcribe/subtitleStyle";
 
 /**
  * What the extension keeps on this browser, in its own storage: where Panki is, the sign-in, what fills each deck's
@@ -14,12 +15,36 @@ import { DEFAULT_PREFS, TranscribePaused, TranscribeTrigger, type TranscribePref
  * read it; a page's script never does, so the sign-in's secret never sits in someone else's page. Read defensively: a
  * key that's missing or broken is its empty value, never a crash.
  */
-const Stored = z.object({
+/**
+ * One sign-in: who, at which Panki, with the session's secret. The one in use is `address` / `token` / `userName`
+ * (kept apart, so the worker and every page read the sign-in as they always have); the others wait in `profiles`.
+ */
+const Profile = z.object({
   /** Panki's origin, "https://panki.example". */
-  address: z.string().nullable().catch(null),
+  address: z.string(),
   /** The session's secret, from a bearer sign-in. Never logged, never sent anywhere but `address`. */
+  token: z.string(),
+  userName: z.string(),
+  /** A name of the owner's own for it ("Prod", "Dev"); empty is none, and it's shown by `userName` then (`profileWords`). */
+  name: z.string().catch(""),
+});
+export type Profile = z.infer<typeof Profile>;
+export const PROFILE_NAME_MAX = 40;
+
+/** What a profile is called: its own name, or the account's. */
+export const profileWords = (profile: Profile): string => profile.name || profile.userName;
+
+const Stored = z.object({
+  address: z.string().nullable().catch(null),
   token: z.string().nullable().catch(null),
   userName: z.string().nullable().catch(null),
+  /** The name of the owner's own for the sign-in in use; a profile's `name`, kept apart as the rest of it is. */
+  profileName: z.string().catch(""),
+  /**
+   * The sign-ins kept beside the one in use, to switch to on the options page (the owner, 2026-10-17: one Panki for
+   * real and one for trying things). Each is a session of its own on its Panki; the one in use is never among them.
+   */
+  profiles: z.array(Profile).catch([]),
   /** Deck id → which field takes which piece. */
   maps: z.record(z.string(), FieldMap).catch({}),
   /**
@@ -65,13 +90,18 @@ const Stored = z.object({
   transcribeTrigger: TranscribeTrigger.catch(DEFAULT_PREFS.trigger),
   transcribePaused: TranscribePaused.catch(DEFAULT_PREFS.paused),
   transcribeOverVideo: z.boolean().catch(DEFAULT_PREFS.overVideo),
+  /** How the transcript looks over the video (`transcribe/subtitleStyle.ts`), set in the strip's Subtitles menu. */
+  subtitleStyle: SubtitleStyle.catch(DEFAULT_SUBTITLE_STYLE),
+  /** Whether the word being said carries its mark, on the line under the player and on the subtitles over the video (`transcribe/prefs.ts`). */
+  markUnder: z.boolean().catch(DEFAULT_PREFS.markUnder),
+  markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
   // `meaningPick` was a key here (2026-10-14): which meanings a card got. The owner had it taken out the next day, the
   // ones ticked in the drawer being enough; a browser that still has it keeps it unread.
 });
 export type Stored = z.infer<typeof Stored>;
 
 /** The viewer's transcribing preferences as one value, as the page gets them with the transcript. */
-export const prefsOf = (store: Stored): TranscribePrefs => ({ trigger: store.transcribeTrigger, paused: store.transcribePaused, overVideo: store.transcribeOverVideo });
+export const prefsOf = (store: Stored): TranscribePrefs => ({ trigger: store.transcribeTrigger, paused: store.transcribePaused, overVideo: store.transcribeOverVideo, style: store.subtitleStyle, markUnder: store.markUnder, markOver: store.markOver });
 
 export async function readStore(): Promise<Stored> {
   return Stored.parse(await chrome.storage.local.get(null));
@@ -81,7 +111,39 @@ export async function writeStore(patch: Partial<Stored>): Promise<void> {
   await chrome.storage.local.set(patch);
 }
 
-/** The sign-in forgotten, here only: what fills the decks' fields stays for the next one. */
+/** The sign-in in use forgotten, here only: what fills the decks' fields stays for the next one, and the kept profiles stay to switch to. */
 export async function forgetSignIn(): Promise<void> {
   await chrome.storage.local.set({ token: null, userName: null } satisfies Partial<Stored>);
+}
+
+/** The same account at the same Panki: one profile, whatever its session. */
+export const sameProfile = (a: Profile, b: Profile): boolean => a.address === b.address && a.userName === b.userName;
+
+/** The sign-in in use as a profile, or null while no one is signed in. */
+export const activeProfile = (store: Stored): Profile | null => (store.address && store.token && store.userName ? { address: store.address, token: store.token, userName: store.userName, name: store.profileName } : null);
+
+/**
+ * A profile made the one in use. The one in use so far, if any, goes among the kept ones; a kept profile of the same
+ * account is replaced, so signing in afresh never leaves an old session listed twice.
+ */
+export async function useProfile(next: Profile): Promise<void> {
+  const store = await readStore();
+  const active = activeProfile(store);
+  const profiles = [...store.profiles.filter((p) => !sameProfile(p, next)), ...(active && !sameProfile(active, next) ? [active] : [])];
+  await writeStore({ address: next.address, token: next.token, userName: next.userName, profileName: next.name, profiles });
+}
+
+/** A kept profile dropped, here only. */
+export async function forgetProfile(gone: Profile): Promise<void> {
+  const store = await readStore();
+  await writeStore({ profiles: store.profiles.filter((p) => !sameProfile(p, gone)) });
+}
+
+/** A profile given a name of the owner's own, or its name taken back (null or empty): the one in use or a kept one. */
+export async function renameProfile(which: Profile, name: string | null): Promise<void> {
+  const store = await readStore();
+  const next = (name ?? "").trim().slice(0, PROFILE_NAME_MAX);
+  const active = activeProfile(store);
+  if (active && sameProfile(which, active)) await writeStore({ profileName: next });
+  else await writeStore({ profiles: store.profiles.map((p) => (sameProfile(p, which) ? { ...p, name: next } : p)) });
 }

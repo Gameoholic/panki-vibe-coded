@@ -14,10 +14,11 @@ import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
-import { PankiError, panki, type Door } from "../panki";
+import { PankiError, panki } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
-import { forgetSignIn, readStore, writeStore, type Stored } from "../storage";
-import type { TranscribePaused, TranscribeTrigger } from "../transcribe/prefs";
+import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
+import { Rename } from "../ui/Rename";
+import type { TranscribePaused } from "../transcribe/prefs";
 import { deviceTheme } from "../ui/mount";
 import { Dictionaries, Looking } from "./Dictionary";
 import { PopupLayoutPanel } from "./PopupLayout";
@@ -44,10 +45,13 @@ const NONE_WORD = "None";
 /** Where a field filled with nothing gets its value, said beside None as each piece says its source. */
 const TYPED_WORD = "Typed by you";
 
-function SignIn({ known, onDone }: { known: string; onDone: () => void }) {
+/** The sign-in form. Signing in makes that account the one in use; one in use already is kept as a profile. `onCancel` is there when it was opened beside the profiles. */
+function SignIn({ known, onDone, onCancel }: { known: string; onDone: () => void; onCancel?: () => void }) {
   const [address, setAddress] = useState(known);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  /** What to call this sign-in here ("Prod", "Dev"); empty, it's called by the account's name. */
+  const [profileName, setProfileName] = useState("");
   const [errors, setErrors] = useState<{ address?: string; name?: string; password?: string }>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,7 +76,7 @@ function SignIn({ known, onDone }: { known: string; onDone: () => void }) {
         return;
       }
       const me = await panki.signIn(origin, parsed.data.name, parsed.data.password);
-      await writeStore({ address: origin, token: me.token, userName: me.user.name });
+      await useProfile({ address: origin, token: me.token, userName: me.user.name, name: profileName.trim() });
       onDone();
     } catch (e) {
       setFailure(said(e));
@@ -90,11 +94,17 @@ function SignIn({ known, onDone }: { known: string; onDone: () => void }) {
         <TextField id="panki-address" label="Where your Panki is" autoComplete="off" autoFocus={known === ""} value={address} onChange={setAddress} error={errors.address} />
         <TextField id="panki-name" label="Name" autoComplete="username" autoFocus={known !== ""} value={name} onChange={setName} error={errors.name} />
         <TextField id="panki-password" label="Password" type="password" autoComplete="current-password" value={password} onChange={setPassword} error={errors.password} />
+        <TextField id="panki-profile-name" label="Profile name (optional)" autoComplete="off" value={profileName} onChange={(typed) => setProfileName(typed.slice(0, PROFILE_NAME_MAX))} />
         <div className="add-actions">
           {failure ? (
             <span className="form-failure" role="alert">
               {failure}
             </span>
+          ) : null}
+          {onCancel ? (
+            <Button variant="ghost" disabled={busy} onClick={onCancel}>
+              Cancel
+            </Button>
           ) : null}
           <Button type="submit" variant="primary" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
@@ -105,29 +115,90 @@ function SignIn({ known, onDone }: { known: string; onDone: () => void }) {
   );
 }
 
-function Account({ store, door, onChanged }: { store: Stored; door: Door; onChanged: () => void }) {
+/**
+ * Every sign-in this browser keeps, a row each: the one in use, and the others to switch to (the owner, 2026-10-17:
+ * a real Panki and one for trying things, switched between on the extension alone). Switching is instant, the
+ * sessions all stay open on their Pankis; Sign out ends that one's session and drops it here.
+ */
+function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
-  async function signOut() {
+  const active = activeProfile(store);
+  const rows = [...(active ? [active] : []), ...store.profiles];
+  async function run(work: () => Promise<void>) {
     setBusy(true);
+    try {
+      await work();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function signOut(profile: Profile) {
     // Told to Panki so the device leaves its list; forgotten here whether or not Panki could be reached.
-    await panki.signOut(door).catch(() => undefined);
-    await forgetSignIn();
-    onChanged();
+    await panki.signOut(profile).catch(() => undefined);
+    if (active && sameProfile(profile, active)) await forgetSignIn();
+    else await forgetProfile(profile);
   }
   return (
-    <section className="panel" aria-labelledby="account-title">
-      <h2 id="account-title" className="panel-title">
-        Signed in
+    <section className="panel" aria-labelledby="profiles-title">
+      <h2 id="profiles-title" className="panel-title">
+        Profiles
       </h2>
-      <p className="options-who">
-        <strong>{store.userName}</strong> at {store.address}
-      </p>
-      <div className="add-actions add-actions-start">
-        <Button disabled={busy} onClick={() => void signOut()}>
-          Sign out
-        </Button>
+      <div className="kept-rows">
+        {rows.map((profile) => {
+          const inUse = active !== null && sameProfile(profile, active);
+          return (
+            <div key={`${profile.address} ${profile.userName}`} className="kept-row">
+              <Rename
+                id={`profile-${profile.address}-${profile.userName}`}
+                className="kept-name"
+                shown={profileWords(profile)}
+                below={<span className="row-sub">{[profile.name ? profile.userName : "", profile.address, inUse ? "In use" : ""].filter((part) => part !== "").join(" · ")}</span>}
+                canReset={profile.name !== ""}
+                max={PROFILE_NAME_MAX}
+                onKeep={async (name) => {
+                  await renameProfile(profile, name);
+                  onChanged();
+                }}
+              />
+              <span className="add-actions">
+                {inUse ? null : (
+                  <Button variant="primary" disabled={busy} onClick={() => void run(() => useProfile(profile))}>
+                    Switch
+                  </Button>
+                )}
+                <Button className="is-danger" disabled={busy} onClick={() => void run(() => signOut(profile))}>
+                  Sign out
+                </Button>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </section>
+  );
+}
+
+/** The Account tab: the profiles kept, and the sign-in form, by itself while there's none, or opened under them to add another. */
+function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const any = activeProfile(store) !== null || store.profiles.length > 0;
+  const done = () => {
+    setAdding(false);
+    onChanged();
+  };
+  if (!any) return <SignIn known={store.address ?? ""} onDone={done} />;
+  return (
+    <>
+      <Profiles store={store} onChanged={onChanged} />
+      {adding ? (
+        <SignIn known={store.address ?? ""} onDone={done} onCancel={() => setAdding(false)} />
+      ) : (
+        <div className="add-actions add-actions-start">
+          <Button onClick={() => setAdding(true)}>Add another account</Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -162,10 +233,7 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
  * client side"; what it costs stays an admin's, in Panki's Settings). Kept the moment it's changed; a video page reads
  * it again with the transcript as it gets the focus. The words are the ones Panki's Settings had (the owner's own).
  */
-const TRIGGER_OPTIONS = [
-  { id: "auto", label: "Always" },
-  { id: "press", label: "Only when I press Transcribe" },
-] as const satisfies readonly { id: TranscribeTrigger; label: string }[];
+// Whether it starts by itself is switched in the strip's menu alone (Auto transcribe); its row here went at the owner's word, 2026-10-17.
 const PAUSED_OPTIONS = [
   { id: "keep", label: "Keeps its lead" },
   { id: "stop", label: "Stops at once" },
@@ -177,19 +245,38 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         Transcribing
       </h2>
       <Setting
-        id="transcribe-trigger"
-        label="Transcribe"
-        control={<Segmented idPrefix="transcribe-trigger" label="Transcribe" options={TRIGGER_OPTIONS} value={store.transcribeTrigger} onChange={(transcribeTrigger) => void writeStore({ transcribeTrigger }).then(onChanged)} />}
-      />
-      <Setting
         id="transcribe-paused"
         label="While paused"
         control={<Segmented idPrefix="transcribe-paused" label="While paused" options={PAUSED_OPTIONS} value={store.transcribePaused} onChange={(transcribePaused) => void writeStore({ transcribePaused }).then(onChanged)} />}
       />
       <Setting
         id="transcribe-over-video"
-        label="Replace YouTube subtitles"
+        label="Replace YouTube subtitles with Panki's"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
+      />
+    </section>
+  );
+}
+
+// How the transcript looks over the video is set on the video page itself (`ui/SubtitleMenu.tsx`), by the owner's word, 2026-10-17.
+
+/**
+ * Whether the word being said carries its mark: on the line under the player, and on the subtitles over the video,
+ * each its own (the owner, 2026-10-18: "show/hide the blue thing… separate for the YouTube subtitles and the Panki
+ * tab"). The second is only a choice while the transcript replaces the site's subtitles. Kept the moment it's changed.
+ */
+function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  return (
+    <section className="panel" aria-labelledby="current-word-title">
+      {/* The owner's own words for the two places (2026-10-18, "not clear what this is talking about"): the Panki tab under the player, the YouTube subtitles on the picture. */}
+      <h2 id="current-word-title" className="panel-title">
+        Spoken word underline
+      </h2>
+      <Setting id="mark-under" label="Panki tab" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
+      <Setting
+        id="mark-over"
+        label="Video subtitles"
+        control={<Toggle id="mark-over-on" says={{ on: "Shown", off: "Hidden" }} on={store.markOver} disabled={!store.transcribeOverVideo} onChange={(markOver) => void writeStore({ markOver }).then(onChanged)} />}
       />
     </section>
   );
@@ -399,10 +486,11 @@ function Options() {
           </div>
           <div className="options-tab" hidden={tab !== "youtube"}>
             <Transcribing store={store} onChanged={refresh} />
+            <CurrentWord store={store} onChanged={refresh} />
             <Clips store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
-            {door ? <Account store={store} door={door} onChanged={refresh} /> : <SignIn known={store.address ?? ""} onDone={refresh} />}
+            <AccountTab store={store} onChanged={refresh} />
           </div>
         </main>
       )}

@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { MediaId, holdsFile, holdsPitch, holdsWords, linkOf, pitchesOf, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
+import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import { dueWords } from "../srsKinds";
@@ -34,8 +34,8 @@ function cell(card: Card, field: CardField, className: string) {
   if (file) return <MediaView key={field.id} kind={file} src={api.mediaUrl(value)} label={field.name} size="row" />;
   // A file's id with no file behind it says nothing to anyone: it's left out rather than shown as words.
   if (holdsFile(field.kind) && MediaId.safeParse(value).success) return null;
-  const link = linkOf(field.kind, value);
-  if (link) return <LinkView key={field.id} link={link} label={field.name} size="row" />;
+  const meta = metaOf(field.kind, value);
+  if (meta) return <LinkView key={field.id} meta={meta} label={field.name} size="row" />;
   // A pitch accent drawn over its reading, when the value reads as one.
   if (holdsPitch(field.kind) && pitchesOf(value).length > 0) {
     return (

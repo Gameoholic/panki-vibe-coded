@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
-import { MediaId, holdsFile, holdsLink, holdsPitch, isTyped, linkOf, partsOn, pitchesOf, type CardField, type CardPlace, type CardSide, type CardType, type LayoutPart, type MediaKind, type SrsType } from "@panki/contracts";
+import { MediaId, holdsFile, holdsLink, holdsPitch, isTyped, metaOf, partsOn, pitchesOf, type CardField, type CardPlace, type CardSide, type CardType, type LayoutPart, type MediaKind, type SrsType } from "@panki/contracts";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
 import { langOf } from "../words";
@@ -228,8 +228,8 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
       // A file's id with no file behind it says nothing to anyone: it's left out rather than shown as words.
       const missingFile = file !== null || (holdsFile(field.kind) && MediaId.safeParse(value).success);
       if (!missingFile) {
-        const link = linkOf(field.kind, value);
-        if (link) return <LinkView link={link} label={field.name} />;
+        const meta = metaOf(field.kind, value);
+        if (meta) return <LinkView meta={meta} label={field.name} />;
         // A pitch accent drawn over its reading, in the part's size and colour; as it was typed when it doesn't read as one.
         if (holdsPitch(field.kind) && pitchesOf(value).length > 0) return words(part, field, <PitchAccents value={value} />, false, value);
         return words(part, field, value);

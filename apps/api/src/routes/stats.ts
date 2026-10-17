@@ -14,7 +14,7 @@ export function statsRouter(dbOf: DbOf, now: () => number) {
       return;
     }
     const deckId = DeckId.safeParse(scope);
-    if (!deckId.success || !db.getDeck(deckId.data, now())) {
+    if (!deckId.success || !db.hasDeck(deckId.data)) {
       res.status(404).json({ error: { message: "That deck doesn't exist." } });
       return;
     }

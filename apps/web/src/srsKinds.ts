@@ -32,7 +32,7 @@ export const WAIT_UNITS: Record<WaitUnit, { one: string; many: string; short: st
 export const WAIT_UNIT_OPTIONS = WaitUnit.options.map((id) => ({ id, label: WAIT_UNITS[id].short }));
 
 /** The fixed steps, in the menu's order. The ask-agains (`AGAIN_OPTIONS`) and "go to a stage" are made per type. */
-export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "retry";
+export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "retry" | "hidden";
 export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step }[] = [
   { id: "up1", step: { kind: "move", by: 1 } },
   { id: "up2", step: { kind: "move", by: 2 } },
@@ -41,6 +41,8 @@ export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step }[] = [
   { id: "down2", step: { kind: "move", by: -2 } },
   { id: "burn", step: { kind: "burn" } },
   { id: "retry", step: { kind: "retry" } },
+  // The answer isn't offered at that point of the chart (the owner, 2026-10-17: no Bury inside an ask-again).
+  { id: "hidden", step: { kind: "hidden" } },
 ];
 /** The two ways to ask again before deciding: after a wait (a later review), or right away (the same review). */
 export const AGAIN_OPTIONS: readonly { id: "again" | "again-now"; label: string; now: boolean }[] = [
@@ -70,6 +72,7 @@ export function stepLabel(type: Named, step: Step | undefined): string {
   if (step.kind === "move") return MOVE_WORDS[step.by] ?? "Stays";
   if (step.kind === "burn") return type.burnedName;
   if (step.kind === "retry") return "Keep asking";
+  if (step.kind === "hidden") return "Button hidden";
   if (step.kind === "again") return `Ask again ${step.now ? "right away" : waitWords(step.wait)}`;
   return `Go to ${stageName(type, type.stages.findIndex((s) => s.id === step.stage))}`;
 }

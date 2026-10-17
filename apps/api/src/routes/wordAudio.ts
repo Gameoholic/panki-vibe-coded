@@ -36,7 +36,7 @@ export function wordAudioRouter(shared: Shared, serverKeys: Record<WordAudioSour
       res.status(400).json({ error: { message: "That setting isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    shared.updateWordAudio(parsed.data, now());
+    shared.updateWordAudio(parsed.data, now(), signedIn(res).user.id);
     res.json({ wordAudio: statusOf(res) });
   });
 
@@ -52,7 +52,7 @@ export function wordAudioRouter(shared: Shared, serverKeys: Record<WordAudioSour
       res.status(400).json({ error: { message: "That isn't a key.", path: ["key"] } });
       return;
     }
-    shared.setKey(source.data, parsed.data.key, now());
+    shared.setKey(source.data, parsed.data.key, now(), signedIn(res).user.id);
     res.json({ wordAudio: statusOf(res) });
   });
 

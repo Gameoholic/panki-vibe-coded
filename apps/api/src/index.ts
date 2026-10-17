@@ -34,12 +34,21 @@ const server = createApp({
   console.log(`Panki API on http://${env.host}:${env.port} · data in ${env.dataDir} · day turns over on ${env.timeZone}`);
 });
 
+// Stopped (pm2 sends SIGINT, then kills what's still there a moment and a half later): nothing new is taken, what's under
+// way is let finish, then the databases are closed. Past the deadline the process goes as it is; every committed write is
+// already safe in SQLite's journal, and a request cut short is answered again by the browser (every write is retried safely).
+const STOP_DEADLINE_MS = 1_500;
+let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    server.close();
-    dbs.closeAll();
-    shared.close();
-    auth.close();
-    process.exit(0);
+    if (stopping) return;
+    stopping = true;
+    server.close(() => {
+      dbs.closeAll();
+      shared.close();
+      auth.close();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), STOP_DEADLINE_MS).unref();
   });
 }

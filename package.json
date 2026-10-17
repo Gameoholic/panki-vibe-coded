@@ -15,7 +15,8 @@
     "user:password": "pnpm --filter @panki/api run user:password",
     "user:list": "pnpm --filter @panki/api run user:list",
     "user:admin": "pnpm --filter @panki/api run user:admin",
-    "space": "pnpm --filter @panki/api run space"
+    "space": "pnpm --filter @panki/api run space",
+    "backup": "pnpm --filter @panki/api run backup"
   },
   "devDependencies": {
     "tsx": "^4.23.15",

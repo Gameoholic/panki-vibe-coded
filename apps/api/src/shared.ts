@@ -228,6 +228,25 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("ALTER TABLE transcript_pieces ADD COLUMN removed_at INTEGER");
     db.exec("ALTER TABLE transcript_quiet ADD COLUMN removed_at INTEGER");
   },
+  (db) => {
+    // What everyone shares is changed by whichever admin, and a transcript forgotten by whoever asks: from here on the
+    // rows say who (2026-10-17; a row from before reads as nobody). And every ask to forget is kept as it came, whether
+    // or not anything stood in the stretch, since the pieces' `removed_at` alone can't tell one ask from the next.
+    db.exec("ALTER TABLE settings_changes ADD COLUMN user_id TEXT");
+    db.exec("ALTER TABLE service_key_changes ADD COLUMN user_id TEXT");
+    db.exec("ALTER TABLE dictionary_files ADD COLUMN removed_by TEXT");
+    db.exec(`
+      CREATE TABLE transcript_forgets (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL REFERENCES transcripts(video_id),
+        start_ms INTEGER,
+        end_ms INTEGER,
+        user_id TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX transcript_forgets_video_id ON transcript_forgets (video_id)");
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -265,6 +284,8 @@ export function openShared(dataDir: string) {
   const db = new DatabaseSync(path.join(dataDir, "shared.sqlite"));
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
+  // A command run beside the API (`pnpm backup`) may hold the file for a moment: a locked write waits instead of failing.
+  db.exec("PRAGMA busy_timeout = 5000");
   migrate(db);
 
   function transaction<T>(work: () => T): T {
@@ -282,7 +303,7 @@ export function openShared(dataDir: string) {
   const selectKey = db.prepare("SELECT key FROM service_keys WHERE service = ?");
   const upsertKey = db.prepare("INSERT INTO service_keys (service, key, set_at) VALUES (?, ?, ?) ON CONFLICT (service) DO UPDATE SET key = excluded.key, set_at = excluded.set_at");
   const deleteKey = db.prepare("DELETE FROM service_keys WHERE service = ?");
-  const insertKeyChange = db.prepare("INSERT INTO service_key_changes (service, what, at) VALUES (?, ?, ?)");
+  const insertKeyChange = db.prepare("INSERT INTO service_key_changes (service, what, at, user_id) VALUES (?, ?, ?, ?)");
   const insertCall = db.prepare("INSERT INTO service_calls (service, at) VALUES (?, ?)");
   const countCalls = db.prepare("SELECT COUNT(*) AS n FROM service_calls WHERE service = ? AND at >= ?");
 
@@ -295,11 +316,11 @@ export function openShared(dataDir: string) {
   const insertDictionaryFile = db.prepare(
     "INSERT OR IGNORE INTO dictionary_files (id, title, revision, description, bytes, sha256, uploaded_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   );
-  const removeDictionaryFile = db.prepare("UPDATE dictionary_files SET removed_at = ? WHERE id = ? AND removed_at IS NULL");
+  const removeDictionaryFile = db.prepare("UPDATE dictionary_files SET removed_at = ?, removed_by = ? WHERE id = ? AND removed_at IS NULL");
 
   const selectSettings = db.prepare("SELECT key, value FROM settings");
   const upsertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value");
-  const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES (?, ?, ?, ?)");
+  const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at, user_id) VALUES (?, ?, ?, ?, ?)");
 
   const selectTranscript = db.prepare("SELECT language FROM transcripts WHERE video_id = ?");
   const insertTranscript = db.prepare("INSERT OR IGNORE INTO transcripts (video_id, language, language_probability, created_at, updated_at) VALUES (?, NULL, NULL, ?, ?)");
@@ -325,6 +346,7 @@ export function openShared(dataDir: string) {
   );
   const forgetQuiet = db.prepare("UPDATE transcript_quiet SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL AND start_ms < ? AND end_ms > ?");
   const forgetLanguage = db.prepare("UPDATE transcripts SET language = NULL, language_probability = NULL, updated_at = ? WHERE video_id = ?");
+  const insertForget = db.prepare("INSERT INTO transcript_forgets (video_id, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?)");
   const selectQuiet = db.prepare("SELECT 1 FROM transcript_quiet WHERE id = ? AND video_id = ?");
   const insertQuiet = db.prepare("INSERT OR IGNORE INTO transcript_quiet (id, video_id, start_ms, end_ms, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)");
   const selectPiece = db.prepare(
@@ -363,8 +385,8 @@ export function openShared(dataDir: string) {
     }
     return parse(merged);
   }
-  /** Each setting of a group given is stored when it differs from what it reads as now, with a row of what it changed from and to. */
-  function updateGroup<T extends Record<string, unknown>>(group: Group<T>, patch: Partial<T>, now: number): T {
+  /** Each setting of a group given is stored when it differs from what it reads as now, with a row of what it changed from and to, and who changed it. */
+  function updateGroup<T extends Record<string, unknown>>(group: Group<T>, patch: Partial<T>, now: number, userId: string): T {
     return transaction(() => {
       const before = groupFrom(group, selectSettings.all() as SettingRow[]);
       for (const key of Object.keys(group.defaults) as (keyof T & string)[]) {
@@ -373,7 +395,7 @@ export function openShared(dataDir: string) {
         const [from, to] = [JSON.stringify(before[key]), JSON.stringify(value)];
         if (from === to) continue;
         upsertSetting.run(key, to);
-        insertSettingChange.run(key, from, to, now);
+        insertSettingChange.run(key, from, to, now, userId);
       }
       return groupFrom(group, selectSettings.all() as SettingRow[]);
     });
@@ -386,12 +408,12 @@ export function openShared(dataDir: string) {
       const row = selectKey.get(service) as { key: string } | undefined;
       return row?.key ?? null;
     },
-    /** Keeps a service's key, or forgets it (null). That it was set or forgotten, and when, is kept; the key's old values are not. */
-    setKey(service: Service, key: string | null, now: number): void {
+    /** Keeps a service's key, or forgets it (null). That it was set or forgotten, when and by whom is kept; the key's old values are not. */
+    setKey(service: Service, key: string | null, now: number, userId: string): void {
       transaction(() => {
         if (key === null) deleteKey.run(service);
         else upsertKey.run(service, key, now);
-        insertKeyChange.run(service, key === null ? "forgotten" : "set", now);
+        insertKeyChange.run(service, key === null ? "forgotten" : "set", now, userId);
       });
     },
     /** One request made to a service that counts them. */
@@ -427,23 +449,23 @@ export function openShared(dataDir: string) {
       insertDictionaryFile.run(file.id, file.title, file.revision, file.description, file.bytes, file.sha256, uploadedAt, uploadedBy);
       return ServerDictionary.parse(selectAnyDictionaryFile.get(file.id));
     },
-    /** Takes one off the list, keeping its row with the time it went; whether there was one to take off. */
-    removeDictionaryFile(id: string, now: number): boolean {
-      return removeDictionaryFile.run(now, id).changes > 0;
+    /** Takes one off the list, keeping its row with the time it went and who took it off; whether there was one to take off. */
+    removeDictionaryFile(id: string, now: number, userId: string): boolean {
+      return removeDictionaryFile.run(now, userId, id).changes > 0;
     },
 
     getTranscription(): Transcription {
       return transcriptionFrom(selectSettings.all() as SettingRow[]);
     },
-    updateTranscription(patch: TranscriptionUpdate, now: number): Transcription {
-      return updateGroup(TRANSCRIPTION, patch, now);
+    updateTranscription(patch: TranscriptionUpdate, now: number, userId: string): Transcription {
+      return updateGroup(TRANSCRIPTION, patch, now, userId);
     },
     /** Where word audio comes from, for everyone. */
     getWordAudio(): WordAudio {
       return groupFrom(WORD_AUDIO, selectSettings.all() as SettingRow[]);
     },
-    updateWordAudio(patch: WordAudioUpdate, now: number): WordAudio {
-      return updateGroup(WORD_AUDIO, patch, now);
+    updateWordAudio(patch: WordAudioUpdate, now: number, userId: string): WordAudio {
+      return updateGroup(WORD_AUDIO, patch, now, userId);
     },
 
     /** A video's transcript as it stands: the living words in order, each as its latest fix, and the stretches kept so far. A video never transcribed is empty. */
@@ -519,10 +541,13 @@ export function openShared(dataDir: string) {
      * A transcript forgotten, a stretch of it or the whole (null): every piece and every quiet reaching into the stretch
      * stands aside with its words (`removed_at`, never deleted), so the stretch is uncovered and transcribed afresh when
      * a run passes it; the whole video forgotten forgets what language it was heard as too, to start from scratch. What
-     * was paid for stays counted (`secondsTranscribed`).
+     * was paid for stays counted (`secondsTranscribed`). The ask itself is kept (`transcript_forgets`), with who made it.
      */
-    forget(videoId: string, stretch: Stretch | null, now: number): void {
+    forget(videoId: string, stretch: Stretch | null, now: number, userId: string): void {
       transaction(() => {
+        // A video asked about is one the store knows, so the ask has a transcript to belong to (an empty one, when it was never heard).
+        insertTranscript.run(videoId, now, now);
+        insertForget.run(videoId, stretch?.startMs ?? null, stretch?.endMs ?? null, userId, now);
         const startMs = stretch?.startMs ?? 0;
         const endMs = stretch?.endMs ?? Number.MAX_SAFE_INTEGER;
         forgetPieces.run(now, videoId, endMs, startMs);
@@ -595,7 +620,7 @@ function gatherForvoKey(shared: Shared, db: Db, user: User, now: () => number): 
   }
   // Written to the shared store before it's taken from the account, so a stop between the two loses nothing: the next
   // start finds the same key in both and takes the account's.
-  if (kept === null) shared.setKey("forvo", own, now());
+  if (kept === null) shared.setKey("forvo", own, now(), user.id);
   db.takeForvoKey(now());
   console.log(`Moved ${user.name}'s Forvo key to the shared store.`);
 }

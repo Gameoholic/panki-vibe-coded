@@ -49,7 +49,7 @@ export function transcriptionRouter(shared: Shared, engines: Engines, engineKeys
       res.status(400).json({ error: { message: "That setting isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    shared.updateTranscription(parsed.data, now());
+    shared.updateTranscription(parsed.data, now(), signedIn(res).user.id);
     res.json({ transcription: statusOf(res) });
   });
 
@@ -65,7 +65,7 @@ export function transcriptionRouter(shared: Shared, engines: Engines, engineKeys
       res.status(400).json({ error: { message: "That isn't a key.", path: ["key"] } });
       return;
     }
-    shared.setKey(engine.data, parsed.data.key, now());
+    shared.setKey(engine.data, parsed.data.key, now(), signedIn(res).user.id);
     res.json({ transcription: statusOf(res) });
   });
 

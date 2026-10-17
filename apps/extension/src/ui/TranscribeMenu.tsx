@@ -13,8 +13,8 @@ import type { TranscribeState, TranscribeStatus } from "../transcribe/transcribe
  * The strip's menu: everything about transcribing this video, in one place at the right of the head (the owner,
  * 2026-10-17, of the two bare buttons that stood there: "a little better and more polished"). How much of the video
  * is transcribed and how it stands; then what to do about it: start from here or stop, the whole video in the
- * background, a part of it typed as two times; whether it starts by itself (this viewer's own, the same switch as on
- * the options page); and forgetting a part or the whole transcript, to start from scratch, which asks in place. The
+ * background, a part of it typed as two times; Auto transcribe, whether it starts by itself (this viewer's own; the
+ * one place it's switched since the options page lost its copy, 2026-10-17); and forgetting a part or the whole transcript, to start from scratch, which asks in place. The
  * panel stands under its button, closes on a press outside or Escape, and is this file's alone; what each item does
  * is the strip's (`content/youtube.tsx`).
  */
@@ -173,7 +173,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
           ) : null}
           {asking === "part" ? <StretchForm key="part" id="panki-part" at={at} duration={duration} action="Transcribe" onDone={(stretch) => done(() => onStretch(stretch))} /> : null}
           <div className="strip-menu-row">
-            <span>Starts by itself</span>
+            <span>Auto transcribe</span>
             <Toggle id="panki-transcribe-auto" says={{ on: "On", off: "Off" }} on={state.prefs.trigger === "auto"} onChange={onAuto} />
           </div>
           {hasAny ? (

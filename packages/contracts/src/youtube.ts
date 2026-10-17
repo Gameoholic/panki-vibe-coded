@@ -34,3 +34,46 @@ export function youtubeLinkOf(text: string): YouTubeLink | null {
 export function youtubeUrl(link: YouTubeLink): string {
   return `https://www.youtube.com/watch?v=${encodeURIComponent(link.videoId)}${link.seconds === null ? "" : `&t=${Math.max(0, Math.floor(link.seconds))}s`}`;
 }
+
+/**
+ * What a YouTube metadata field holds (the owner, 2026-10-18, in place of a field that held the link alone): the
+ * video, where in it, what it's called, and whose it is. Its value on a card is `youtubeMetaValue`'s JSON; a value
+ * that's a bare address (every card from before) reads as the link with nothing else known.
+ */
+export type YouTubeMeta = {
+  link: YouTubeLink;
+  title: string;
+  channel: { name: string; url: string } | null;
+};
+const TITLE_MAX = 300;
+const NAME_MAX = 100;
+const URL_MAX = 2000;
+const isWeb = (url: string) => /^https?:\/\//i.test(url) && url.length <= URL_MAX;
+
+/** The metadata a value is: the JSON, or a bare address; null when it's neither. */
+export function youtubeMetaOf(value: string): YouTubeMeta | null {
+  const text = value.trim();
+  if (!text.startsWith("{")) {
+    const link = youtubeLinkOf(text);
+    return link ? { link, title: "", channel: null } : null;
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as { url?: unknown; title?: unknown; channel?: unknown };
+  const link = typeof r.url === "string" ? youtubeLinkOf(r.url) : null;
+  if (!link) return null;
+  const title = typeof r.title === "string" ? r.title.trim().slice(0, TITLE_MAX) : "";
+  const c = typeof r.channel === "object" && r.channel !== null ? (r.channel as { name?: unknown; url?: unknown }) : null;
+  const channel = c && typeof c.name === "string" && c.name.trim() !== "" && typeof c.url === "string" && isWeb(c.url.trim()) ? { name: c.name.trim().slice(0, NAME_MAX), url: c.url.trim() } : null;
+  return { link, title, channel };
+}
+
+/** The metadata as a field's value: the address written afresh from the link, the title and the channel beside it. */
+export function youtubeMetaValue(meta: YouTubeMeta): string {
+  return JSON.stringify({ url: youtubeUrl(meta.link), title: meta.title.trim().slice(0, TITLE_MAX), ...(meta.channel ? { channel: { name: meta.channel.name.trim().slice(0, NAME_MAX), url: meta.channel.url.trim() } } : {}) });
+}

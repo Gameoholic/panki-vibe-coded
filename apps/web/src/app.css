@@ -836,6 +836,42 @@ canvas.media-frame {
   width: 14px;
   height: 14px;
 }
+/* A video's metadata on a card (components/LinkView.tsx): the chip, and beside it the title over the channel, small
+   and quiet, the title cut to two lines, so a long YouTube title never crowds the card's own words. */
+.video-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(100%, 440px);
+  padding: 6px 12px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: left;
+}
+.video-meta .link-chip {
+  flex: none;
+}
+.video-about {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.video-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.video-channel {
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.8;
+}
 /* A link on a card (components/LinkView.tsx): a chip that opens it in a tab of its own. It's an address to follow, so
    it's the one chip that isn't a button; it's drawn as one all the same, never as the browser's underlined blue. */
 .btn-chip.link-chip {
@@ -1610,10 +1646,82 @@ canvas.media-frame {
   color: var(--muted);
 }
 .review-actions {
+  /* Positioned for the tip over the answer a mouse rests on (where the card is on its chart, where the answer leads). */
+  position: relative;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 8px;
+}
+/* The card's chart under the answers, opened by the Chart button and kept open across cards: the box the card is at
+   lit, and the one the answer under the mouse leads to; panned and zoomed like the editor's, nothing on it changed. */
+.review-chart {
+  margin-top: 12px;
+}
+.review-chart-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+.btn.review-chart-toggle {
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.btn.review-chart-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.review-chart .canvas {
+  height: 380px;
+}
+.canvas.is-peek .canvas-top,
+.canvas.is-peek .edge-plus {
+  display: none;
+}
+/* Until the frame has been measured the chart has no fitted view: shown only once it has, never a frame off in the corner first. */
+.canvas.is-unfit .viewport {
+  visibility: hidden;
+}
+.canvas.is-peek .fnode,
+.canvas.is-peek .edge-label {
+  opacity: 0.55;
+}
+.canvas.is-peek .fnode.is-now,
+.canvas.is-peek .fnode.is-next {
+  opacity: 1;
+}
+.fnode.is-now {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+.fnode.is-next {
+  box-shadow: 0 0 0 3px var(--good);
+}
+.canvas.is-peek .edge {
+  opacity: 0.35;
+}
+.canvas.is-peek .edge.is-next {
+  opacity: 1;
+  stroke-width: 3;
+}
+/* The mark before an answer's lead: which way it moves the card (+1, −1, ±0), asked again (↻), or burned (✓). */
+.to-mark {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: var(--surface-2);
+}
+.to-mark.is-up {
+  color: var(--good);
+  background: var(--good-soft);
+}
+.to-mark.is-down {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 /* The answers set apart (start over, already knew it): a quieter row under the main ones, out of the thumb's way. */
 .review-asides {
@@ -2731,6 +2839,16 @@ canvas.media-frame {
 .fnode.burn .s {
   color: var(--good);
   opacity: 0.8;
+}
+/* An answer not offered at that point of the chart: a greyed, locked box, so it reads as a door that's shut. */
+.fnode.hidden {
+  background: var(--surface-2);
+  color: var(--muted);
+  border-style: dashed;
+}
+.fnode.hidden .t,
+.fnode.hidden .s {
+  color: var(--muted);
 }
 .fnode.start .t,
 .fnode.down1 .t,

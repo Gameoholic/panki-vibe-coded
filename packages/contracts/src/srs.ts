@@ -16,7 +16,7 @@ export const Wait = z.object({ n: z.number().int().min(1).max(WAIT_MAX), unit: W
 export type Wait = z.infer<typeof Wait>;
 export const waitMinutes = (wait: Wait) => wait.n * MINUTES_PER_UNIT[wait.unit];
 
-/** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, in the same review. */
+/** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, but for the next review: reaching a stage is the end of the chart for that sitting, only an ask-again with no wait keeps a card in the one under way (the owner, 2026-10-17). */
 export const StageWait = Wait.extend({ n: z.number().int().min(0).max(WAIT_MAX) });
 export const SrsStage = z.object({ id: SrsStageId, name: z.string().trim().max(60), wait: StageWait });
 export type SrsStage = z.infer<typeof SrsStage>;
@@ -40,12 +40,15 @@ export function mainAnswers<A extends { aside?: boolean | undefined }>(answers: 
  * An ask-again with `now` has no wait at all: the card is asked again in the same review, and its `wait` is kept
  * only so switching it off brings the old wait back. `retry` asks the same thing again right away without moving
  * anywhere, not even deeper into the ask-again it's in: inside a right-away ask-again it keeps a card in the review
- * until another answer lets it out.
+ * until another answer lets it out. `hidden` takes the answer away at that point: its button isn't offered at all
+ * (the owner, 2026-10-17: no Bury inside an ask-again, "there's no reason to bury a card if I already failed it");
+ * sent all the same, it does nothing (`STAY`).
  */
 export type Step =
   | { kind: "move"; by: number }
   | { kind: "burn" }
   | { kind: "retry" }
+  | { kind: "hidden" }
   | { kind: "to"; stage: string }
   | { kind: "again"; wait: Wait; then: Flow; capped?: boolean | undefined; now?: boolean | undefined };
 /** A rule for every answer, by answer id. An answer with no rule stays where it is. */
@@ -56,6 +59,7 @@ export const Step: z.ZodType<Step, Step> = z.lazy(() =>
     z.object({ kind: z.literal("move"), by: z.number().int().min(-MOVE_MAX).max(MOVE_MAX) }),
     z.object({ kind: z.literal("burn") }),
     z.object({ kind: z.literal("retry") }),
+    z.object({ kind: z.literal("hidden") }),
     z.object({ kind: z.literal("to"), stage: SrsStageId }),
     z.object({ kind: z.literal("again"), wait: Wait, then: Flow, capped: z.boolean().optional(), now: z.boolean().optional() }),
   ]),
@@ -253,6 +257,11 @@ export type Outcome = {
 };
 const BURNED: Outcome = { place: BURNED_PLACE, wait: null, again: false, burned: true };
 
+/** Whether an answer is offered to a card where it stands: every answer is, but one whose rule there is `hidden`. */
+export function offered(type: Pick<SrsLadder, "stages" | "flow" | "overrides">, place: CardPlace, answerId: string): boolean {
+  return branchAt(flowOf(type, stageIndex(type, place)), place.node)[answerId]?.kind !== "hidden";
+}
+
 /** What answering does to a card: where it goes and how long it waits. Pure: the API records it, the web labels the buttons with it. */
 export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flowOverride?: Flow): Outcome {
   const idx = stageIndex(type, place);
@@ -261,6 +270,8 @@ export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flo
   if (step.kind === "again") return { place: { ...place, node: [...place.node, answerId] }, wait: againWait(type, idx, step), again: true, burned: false };
   if (step.kind === "burn") return BURNED;
   if (step.kind === "retry") return { place, wait: 0, again: true, burned: false };
+  // An answer not offered here can't be pressed; sent all the same, it does what an answer with no rule does.
+  if (step.kind === "hidden") return resolve(type, place, "", flow);
   let next: number;
   if (step.kind === "move") next = idx + step.by;
   else {

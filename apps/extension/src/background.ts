@@ -146,6 +146,16 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     await chrome.runtime.openOptionsPage();
     return { ok: true };
   }
+  if (ask.kind === "open") {
+    // Panki, as the profile in use knows it (the owner, 2026-10-17: "it grabs the url from the extension profile"); the page never holds the address itself.
+    const { address, token } = await readStore();
+    if (address && token) await chrome.tabs.create({ url: `${address}/` });
+    else {
+      await writeStore({ optionsTab: "account" });
+      await chrome.runtime.openOptionsPage();
+    }
+    return { ok: true };
+  }
   if (ask.kind === "deck") {
     await writeStore({ defaultDeckId: ask.deckId });
     return { ok: true };
@@ -155,11 +165,14 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "prefs") {
-    const { trigger, paused, overVideo } = ask.prefs;
+    const { trigger, paused, overVideo, style, markUnder, markOver } = ask.prefs;
     await writeStore({
       ...(trigger !== undefined ? { transcribeTrigger: trigger } : {}),
       ...(paused !== undefined ? { transcribePaused: paused } : {}),
       ...(overVideo !== undefined ? { transcribeOverVideo: overVideo } : {}),
+      ...(style !== undefined ? { subtitleStyle: style } : {}),
+      ...(markUnder !== undefined ? { markUnder } : {}),
+      ...(markOver !== undefined ? { markOver } : {}),
     });
     return { ok: true };
   }

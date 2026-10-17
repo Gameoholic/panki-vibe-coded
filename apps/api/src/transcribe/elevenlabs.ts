@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { EngineAccount } from "@panki/contracts";
+import { timedOut } from "../outbound";
 import { EngineError, type EngineClient, type Heard } from "./engines";
 
 /**
@@ -19,6 +20,13 @@ const SUBSCRIPTION = `${HOST}/v1/user/subscription`;
 const MODEL = "scribe_v2";
 /** How much of what ElevenLabs says about a refusal is passed on. */
 const SAID_MAX = 200;
+/** How long a piece (a minute and a half of sound at most) may take to come back; under nginx's `proxy_read_timeout`, so the API answers first. */
+const TRANSCRIBE_TIMEOUT_MS = 120_000;
+/** How long the account's standing may take. */
+const ACCOUNT_TIMEOUT_MS = 20_000;
+
+/** The call didn't come back: cut by the deadline, or never reached. */
+const unreached = (e: unknown) => new EngineError(timedOut(e) ? "ElevenLabs took too long to answer." : "Couldn't reach ElevenLabs.");
 
 /** One row of the answer's `words`: a word, a space, or a sound that isn't speech; only the words are kept. */
 const Row = z.object({ text: z.string(), start: z.number(), end: z.number(), type: z.string() });
@@ -63,9 +71,9 @@ export function createElevenLabs(fetcher: typeof fetch): EngineClient {
     async account(key): Promise<EngineAccount> {
       let res: Response;
       try {
-        res = await fetcher(SUBSCRIPTION, { headers: { "xi-api-key": key } });
-      } catch {
-        throw new EngineError("Couldn't reach ElevenLabs.");
+        res = await fetcher(SUBSCRIPTION, { headers: { "xi-api-key": key }, signal: AbortSignal.timeout(ACCOUNT_TIMEOUT_MS) });
+      } catch (e) {
+        throw unreached(e);
       }
       const body: unknown = await res.json().catch(() => null);
       if (!res.ok) throw refused(res.status, body);
@@ -85,9 +93,9 @@ export function createElevenLabs(fetcher: typeof fetch): EngineClient {
       if (language !== null) form.set("language_code", language);
       let res: Response;
       try {
-        res = await fetcher(API, { method: "POST", headers: { "xi-api-key": key }, body: form });
-      } catch {
-        throw new EngineError("Couldn't reach ElevenLabs.");
+        res = await fetcher(API, { method: "POST", headers: { "xi-api-key": key }, body: form, signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS) });
+      } catch (e) {
+        throw unreached(e);
       }
       const body: unknown = await res.json().catch(() => null);
       if (!res.ok) throw refused(res.status, body);

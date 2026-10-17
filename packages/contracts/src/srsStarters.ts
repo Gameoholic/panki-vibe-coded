@@ -39,14 +39,15 @@ const id = (ids: string[], i: number): string => ids[i] ?? "";
  * until it's got right; what happens then depends on the stage. On the early ones it drops a stage. From
  * `WK_CHANCE_FROM` on, where a stage is weeks of work, it gets one more chance first: asked again tomorrow (never
  * later than the stage), and only a second Forgot drops it, after it too has been asked until right. The two answers set apart work the same everywhere:
- * Relearn sends the card back to the first stage, Bury lifts it two.
+ * Relearn sends the card back to the first stage, Easy lifts it two (it was called Bury until 2026-10-17; the owner
+ * kept the sound of it in mind for a button that hides a card, which this one never did).
  */
 const WK_CHANCE_FROM = 5;
 function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
-  const [forgot, ok, relearn, bury] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3)];
-  const apart = (): Flow => ({ [relearn]: to(id(s, 0)), [bury]: move(2) });
-  /** Kept in the review until it's got right, and then `then`. */
-  const untilRight = (then: Step): Step => now({ [forgot]: { kind: "retry" }, [ok]: then, ...apart() });
+  const [forgot, ok, relearn, easy] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3)];
+  const apart = (): Flow => ({ [relearn]: to(id(s, 0)), [easy]: move(2) });
+  /** Kept in the review until it's got right, and then `then`. Easy isn't offered there: a card just forgotten is no card to skip ahead (the owner, 2026-10-18). */
+  const untilRight = (then: Step): Step => now({ [forgot]: { kind: "retry" }, [ok]: then, ...apart(), [easy]: { kind: "hidden" } });
   // On the second-chance day a Forgot is asked until right too, before the stage drops.
   const after: Step = chance ? again(1, "d", { [forgot]: untilRight(move(-1)), [ok]: move(0), ...apart() }) : move(-1);
   return { [forgot]: untilRight(after), [ok]: move(1), ...apart() };
@@ -76,10 +77,10 @@ const WK_NAMES = ["Lesson", "Apprentice 1", "Apprentice 2", "Apprentice 3", "App
 const STARTERS: Record<SrsStarterId, Starter> = {
   wanikaniPlus: {
     name: "Wanikani+",
-    description: "Wanikani with forgiveness: from Guru 1 up, a card you forgot is asked again in 1 day before it drops a stage. Adds Bury (skip two stages) and Relearn (back to the start).",
+    description: "Wanikani with forgiveness: from Guru 1 up, a card you forgot is asked again in 1 day before it drops a stage. Adds Easy (skip two stages) and Relearn (back to the start).",
     stages: [[0, "min"], [4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
-    answers: ["Forgot", "Ok", ["Relearn", "aside"], ["Bury", "aside"]],
+    answers: ["Forgot", "Ok", ["Relearn", "aside"], ["Easy", "aside"]],
     flow: (a, s) => wanikaniPlusFlow(a, s, false),
     overrides: (a, s) => Object.fromEntries(s.slice(WK_CHANCE_FROM).map((stageId) => [stageId, wanikaniPlusFlow(a, s, true)])),
   },

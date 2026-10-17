@@ -100,7 +100,10 @@ export const ROLES: Record<RoleId, Role> = {
   wordAudio: { name: "Word audio", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: true } },
   // The word said by someone on Forvo (2026-10-15), beside the word cut from the video: the owner keeps both to choose from.
   forvoAudio: { name: "Word audio (Forvo)", from: "forvo", takes: holdsSound },
-  source: { name: "Link to the video", from: "video", takes: (field) => holdsLink(field.kind) },
+  // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
+  // (the video's name, the channel's name and address) is kept beside the card as its `source` (the owner, 2026-10-17:
+  // "it should all be a part of source", in place of a title piece and a channel piece that lived an hour).
+  source: { name: "Video metadata", from: "video", takes: (field) => holdsLink(field.kind) },
 };
 
 /** The pieces the dictionaries give: what they can fill a card's fields with. */

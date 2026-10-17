@@ -13,7 +13,7 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
       res.status(400).json({ error: { message: "That deck id isn't valid." } });
       return null;
     }
-    if (!dbOf(res).getDeck(parsed.data, now())) {
+    if (!dbOf(res).hasDeck(parsed.data)) {
       res.status(404).json({ error: { message: "That deck doesn't exist." } });
       return null;
     }
@@ -52,8 +52,8 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
   /** The card type of the deck in the URL; answers the request itself when it's missing. */
   function typeOfDeck(res: Response, deckId: string): CardType | null {
     const db = dbOf(res);
-    const deck = db.getDeck(deckId, now());
-    const type = deck ? db.getType(deck.typeId) : null;
+    const typeId = db.deckTypeId(deckId);
+    const type = typeId === null ? null : db.getType(typeId);
     if (!type) res.status(500).json({ error: { message: "This deck's card type is missing." } });
     return type;
   }
@@ -230,7 +230,12 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
       return;
     }
     const { device, userAgent } = signedIn(res);
-    res.status(201).json({ session: dbOf(res).insertReviewSession(deckId, parsed.data, { device, userAgent }, now()) });
+    const session = dbOf(res).insertReviewSession(deckId, parsed.data, { device, userAgent }, now());
+    if (!session) {
+      res.status(409).json({ error: { message: "That review belongs to another deck." } });
+      return;
+    }
+    res.status(201).json({ session });
   });
 
   router.patch("/:deckId/sessions/:sessionId", (req, res) => {

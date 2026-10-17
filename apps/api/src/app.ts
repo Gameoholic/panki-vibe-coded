@@ -52,6 +52,13 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, spa
   // nginx sits in front on the VPS: its X-Forwarded-* headers are believed from loopback only, so `req.secure` and `req.ip` are the browser's.
   app.set("trust proxy", "loopback");
   app.use(express.json({ limit: "64kb" }));
+  // Every answer is for the one signed in, as things stand now: a browser keeps none of it, and reads it as the type it
+  // says. A file served (`/api/media`, a dictionary's zip) sets its own caching over this: it never changes under its id.
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  });
 
   const deps = { auth, throttle: createThrottle(), now };
   const dbOf: DbOf = (res) => dbFor(signedIn(res).user.id);

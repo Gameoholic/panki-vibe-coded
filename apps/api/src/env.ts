@@ -1,12 +1,16 @@
 import path from "node:path";
 import type { EngineId, WordAudioSourceId } from "@panki/contracts";
 
+const dataDir = process.env.PANKI_DATA_DIR ?? path.resolve(import.meta.dirname, "../data");
+
 /** Everything that differs between the owner's instance and a scratch one comes from the environment. */
 export const env = {
   port: Number(process.env.PORT ?? 3001),
   // 127.0.0.1 only: nothing reaches the API except through the proxy in front of it.
   host: "127.0.0.1",
-  dataDir: process.env.PANKI_DATA_DIR ?? path.resolve(import.meta.dirname, "../data"),
+  dataDir,
+  // Where `pnpm backup` writes: beside the data, never inside it (a backup of the data must not contain the backups).
+  backupDir: process.env.PANKI_BACKUP_DIR ?? path.resolve(dataDir, "..", "backups"),
   // The clock the owner's day turns over on. The VPS may run on UTC while they live elsewhere, so it's never assumed.
   timeZone: process.env.PANKI_TIME_ZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   // With less than this left on the data's disk, everyone signed in is told. A clip is about a megabyte, so the

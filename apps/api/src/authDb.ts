@@ -95,6 +95,8 @@ export function openAuthDb(dataDir: string) {
   const db = new DatabaseSync(path.join(dataDir, "auth.sqlite"));
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
+  // A command run beside the API (`pnpm user:add`, `pnpm backup`) may hold the file for a moment: a locked write waits instead of failing.
+  db.exec("PRAGMA busy_timeout = 5000");
   migrate(db);
 
   const userColumns = "id, name, password_hash AS passwordHash, created_at AS createdAt, admin";

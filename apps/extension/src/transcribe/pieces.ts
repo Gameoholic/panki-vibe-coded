@@ -35,11 +35,11 @@
  * 2. A piece closes in the middle of the first `silence` (half a second) with no voice in it, once the piece is long
  *    enough. Long enough is `minPiece` (45 s, about a minute of talk), so the engine hears a whole stretch and has
  *    its context: a sentence at a time (3 to 20 s, the first day) made it guess more (the owner: "it feels wrong that
- *    we only send chunks between pauses, the model gets less context"). But a run's first piece is only `firstPiece`
- *    (8 s), each next one twice the last up to `minPiece`: words show within seconds of a start or a jump, and the
- *    viewer, who is only `FOLLOW.back` behind at a start, isn't overtaken while a minute is still being heard (a
- *    minute-long first piece would leave them with nothing for twenty seconds or more). The ramp starts over at every
- *    flush (a jump, a stop), when listening begins again near the viewer.
+ *    we only send chunks between pauses, the model gets less context"). Every piece is held to the same least, the
+ *    first of a run too: for a day a run's first piece was 8 s and each next twice the last, so words showed within
+ *    seconds of a start, until the owner had it taken out (2026-10-17, "I just have to wait a little when the video
+ *    first starts, no worries… we'll get better consistency this way"). So a start or a jump shows nothing for about
+ *    as long as a piece takes to be heard at speed, and every piece is heard with the same context.
  *
  * 3. Somebody who never pauses for `maxPiece` (75 s) is cut where they stand, at the quietest frame of the last
  *    `forceWindow` seconds (not within `forceKeep` of the very end), and the next piece hears the last `overlap`
@@ -65,10 +65,8 @@
 export const CUT = {
   /** A stretch this long with no voice in it is where a piece closes. */
   silence: 0.5,
-  /** A piece is at least this long before a silence closes it… */
+  /** A piece is at least this long before a silence closes it (the first of a run too)… */
   minPiece: 45,
-  /** …but a run's first piece only this long, each next one twice the last up to `minPiece`… */
-  firstPiece: 8,
   /** …and never longer than this: then it's cut where it stands. */
   maxPiece: 75,
   /** How much of a forced cut's end the next piece hears again. */
@@ -179,8 +177,8 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
   let pieceStart: number | null = null;
   /** The video's moment of the next sample pushed; null while suspended. */
   let next: number | null = null;
-  /** The least a piece is before a silence closes it: `firstPiece` at a start, doubling with each piece sent up to `minPiece`. */
-  let least: number = CUT.firstPiece;
+  /** The least a piece is before a silence closes it: the same for every piece. */
+  const least = CUT.minPiece;
   /** The video's moment from which listening has gone untold of: quiet let go, and the open piece; null when the last thing sent reached the present. */
   let heardFrom: number | null = null;
   /** The video's moment the last sample pushed reached: how far listening has gone. */
@@ -245,7 +243,6 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     keepFrom(Math.max(0, Math.min(keepFromSample, samples.length)));
     // What's kept on is heard from where it now begins; nothing before that is left untold of.
     heardFrom = pieceStart;
-    least = Math.min(CUT.minPiece, least * 2);
   }
   /**
    * Tells of the quiet listened through so far with nothing to send, up to where the open piece begins (or to all
@@ -342,8 +339,6 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
         tellQuiet(true);
       }
       heardFrom = null;
-      // Listening starts over somewhere else, near the viewer again: short pieces first.
-      least = CUT.firstPiece;
     },
     expected: () => next,
   };

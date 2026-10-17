@@ -24,7 +24,7 @@ const RECORDING_MAX = 3_000_000;
 const PIECE_BASE64_MAX = Math.ceil((PIECE_MAX_BYTES * 4) / 3) + 4;
 
 /** A tab of the options page the drawer sends the owner to: the sign-in, or a deck's field mapping. */
-export const OptionsTab = z.enum(["account", "decks"]);
+export const OptionsTab = z.enum(["account", "decks", "youtube"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
 export const Ask = z.discriminatedUnion("kind", [
@@ -37,6 +37,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("upload"), mediaKind: MediaKind, mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(BASE64_MAX) }),
   /** Open the options page: to sign in, or to say what fills a deck's fields. */
   z.object({ kind: z.literal("options"), tab: OptionsTab.optional() }),
+  /** Open Panki itself in a tab: the address of the profile in use. Nobody signed in, it opens the options page to sign in instead. */
+  z.object({ kind: z.literal("open") }),
   /** Whether pointing at a word looks it up on the page asking, with which key held, and how the popup is laid out. Needs no sign-in: the dictionaries are this browser's own. */
   z.object({ kind: z.literal("lookState") }),
   /** Every word found from the first letter of this text on. */
@@ -160,6 +162,10 @@ export async function askUpload(upload: Omit<Extract<Ask, { kind: "upload" }>, "
 /** Opens the options page, on the tab where what's needed is done. */
 export async function askOptions(tab: OptionsTab): Promise<void> {
   await ask({ kind: "options", tab });
+}
+/** Opens Panki, the one the profile in use is signed in to, in a tab of its own. */
+export async function askOpenPanki(): Promise<void> {
+  await ask({ kind: "open" });
 }
 export async function askLookState(): Promise<LookState> {
   const answer = LookState.safeParse(await ask({ kind: "lookState" }));

@@ -23,6 +23,8 @@ export const CardSource = z.object({
   /** Where in the video the line began and ended, in ms of the video's own time. */
   startMs: z.number().int().nonnegative().optional(),
   endMs: z.number().int().nonnegative().optional(),
+  /** Whose the video is, as the page showed it: the channel's name and its address (the owner, 2026-10-17: the source is the video's link and name, and the channel's). */
+  channel: z.object({ name: z.string().trim().max(100), url: z.string().trim().max(2000).regex(/^https?:\/\//i) }).optional(),
   client: ClientName,
 });
 export type CardSource = z.infer<typeof CardSource>;

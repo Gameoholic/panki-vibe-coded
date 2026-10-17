@@ -1,4 +1,4 @@
-import { NEW_PLACE, mainAnswers, resolve, stageIndex, type CardPlace, type Settings, type SrsType } from "@panki/contracts";
+import { NEW_PLACE, mainAnswers, offered, resolve, stageIndex, type CardPlace, type Settings, type SrsType } from "@panki/contracts";
 
 /**
  * What a type does to a card, worked out ahead of time for the live preview: one card answered with the best
@@ -14,6 +14,13 @@ export type JourneyStep =
   | { kind: "forever"; wait: number }
   | { kind: "more" };
 
+/** The answer wanted where the card stands, or, when the chart doesn't offer it there, the nearest main answer that is offered (the best one down). */
+function offeredOrNear(type: SrsType, place: CardPlace, wanted: string): string {
+  if (offered(type, place, wanted)) return wanted;
+  const main = mainAnswers(type.answers);
+  return [...main].reverse().find((a) => offered(type, place, a.id))?.id ?? wanted;
+}
+
 export function journey(type: SrsType): JourneyStep[] {
   const best = mainAnswers(type.answers).at(-1)?.id ?? "";
   const steps: JourneyStep[] = [];
@@ -21,7 +28,7 @@ export function journey(type: SrsType): JourneyStep[] {
   let total = 0;
   let past = 0;
   for (let i = 0; i < JOURNEY_MAX; i++) {
-    const r = resolve(type, place, best);
+    const r = resolve(type, place, offeredOrNear(type, place, best));
     place = r.place;
     if (r.burned || r.wait === null) {
       steps.push({ kind: "done", reviews: i + 1, total });
@@ -66,7 +73,7 @@ export function forecast(type: SrsType, settings: Pick<Settings, "fuzz"> & { new
     let n = 0;
     /** Answers a card once; says whether it's still in play. */
     const ask = (card: { place: CardPlace; due: number }): number | null => {
-      const r = resolve(type, card.place, rnd() < REMEMBER_RATE ? best : first);
+      const r = resolve(type, card.place, offeredOrNear(type, card.place, rnd() < REMEMBER_RATE ? best : first));
       card.place = r.place;
       n++;
       return r.burned ? null : r.wait;

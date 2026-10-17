@@ -480,6 +480,27 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // move runs once; the row itself stays, as every row does. Nothing writes `dictionary_files` or `forvo_key` any more.
     db.exec("ALTER TABLE dictionary_files ADD COLUMN moved_at INTEGER");
   },
+  (db) => {
+    // Every save of a card type that changed it (its name, its fields, its layout) keeps the whole type before and
+    // after, as `srs_type_changes` does for an SRS type (2026-10-17). Until now a field renamed, given another kind or
+    // made optional left no trace: only the type's name and its layout had change tables of their own, which stay.
+    db.exec(`
+      CREATE TABLE card_type_changes (
+        id INTEGER PRIMARY KEY,
+        type_id TEXT NOT NULL REFERENCES card_types(id),
+        "before" TEXT NOT NULL,
+        "after" TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX card_type_changes_type_id ON card_type_changes (type_id)");
+  },
+  (db) => {
+    // Whose the video was, beside what it was called (2026-10-17, the owner: the source is the video's link and name
+    // and the channel's). Null for every card from before, and for a page that isn't a video's.
+    db.exec("ALTER TABLE card_sources ADD COLUMN channel_name TEXT");
+    db.exec("ALTER TABLE card_sources ADD COLUMN channel_url TEXT");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -531,6 +552,12 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
+/** A card type as its change log keeps it: everything the owner can edit, the fields in order with their layout. */
+function typeSnapshot(type: CardType): string {
+  const { name, fields, layout } = type;
+  return JSON.stringify(canonical({ name, fields, layout }));
+}
+
 /** The type as its change log keeps it: everything the owner can edit, stages and answers in order. */
 function srsSnapshot(type: SrsType): string {
   const { name, description, stages, answers, flow, overrides, after, growBy, burnedName } = type;
@@ -566,6 +593,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const db = new DatabaseSync(path.join(dataDir, "panki.sqlite"));
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
+  // A command run beside the API (`pnpm backup`, `pnpm space`) may hold the file for a moment: a write that finds it
+  // locked waits this long instead of failing at once.
+  db.exec("PRAGMA busy_timeout = 5000");
   migrate(db, now());
 
   function transaction<T>(work: () => T): T {
@@ -598,6 +628,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
   const updateTypeLayout = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
   const insertLayoutChange = db.prepare("INSERT INTO card_type_layout_changes (type_id, from_layout, to_layout, at) VALUES (?, ?, ?, ?)");
+  const insertTypeChange = db.prepare(`INSERT INTO card_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
   const removeType = db.prepare("UPDATE card_types SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
   const decksUsing = db.prepare("SELECT COUNT(*) AS n FROM decks WHERE type_id = ? AND removed_at IS NULL");
 
@@ -653,6 +684,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectDecks = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.removed_at IS NULL ORDER BY d.created_at ASC, d.id ASC`);
   const selectDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ? AND d.removed_at IS NULL`);
   const selectAnyDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ?`);
+  // The cheap reads a route makes before it does anything: a deck's counts walk every card of it, and aren't wanted there.
+  const selectDeckExists = db.prepare("SELECT 1 FROM decks WHERE id = ? AND removed_at IS NULL");
+  const selectDeckTypeId = db.prepare("SELECT type_id AS typeId FROM decks WHERE id = ? AND removed_at IS NULL");
   const insertDeck = db.prepare("INSERT OR IGNORE INTO decks (id, name, type_id, srs_type_id, created_at) VALUES (?, ?, ?, ?, ?)");
   const updateDeckName = db.prepare("UPDATE decks SET name = ? WHERE id = ?");
   const insertRename = db.prepare("INSERT INTO deck_renames (deck_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
@@ -686,7 +720,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?)");
   const upsertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (card_id, field_id) DO UPDATE SET value = excluded.value");
   const insertValueChange = db.prepare("INSERT INTO card_value_changes (card_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
-  const insertSource = db.prepare("INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, client, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const insertSource = db.prepare("INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, channel_name, channel_url, client, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   const insertPlace = db.prepare(`
     INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -848,9 +882,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     });
   }
 
-  function deckFrom(row: unknown, today: Today): Deck {
+  /** `typeOf` is how the deck's SRS type is read: a list of decks reads each type once and hands that in. */
+  function deckFrom(row: unknown, today: Today, typeOf: (srsTypeId: string) => SrsType = srsTypeOf): Deck {
     const base = row as { id: string; srsTypeId: string; settings: string };
-    const type = srsTypeOf(base.srsTypeId);
+    const type = typeOf(base.srsTypeId);
     const own = deckSettingsFrom(base.settings);
     let fresh = 0;
     let due = 0;
@@ -914,7 +949,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             insertLayoutChange.run(id, was, is, now);
           }
         }
-        return typeFrom(selectType.get(id));
+        const after = typeFrom(selectType.get(id));
+        // The whole type before and after, once per save that changed anything; the name's and the layout's own logs stand beside it.
+        const [was, is] = [typeSnapshot(before), typeSnapshot(after)];
+        if (was !== is) insertTypeChange.run(id, was, is, now);
+        return after;
       });
     },
     /** Hides the type. "used" when a deck still has it; "missing" when the id never existed; hiding twice keeps the first time. */
@@ -1014,11 +1053,30 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     listDecks(now: number): Deck[] {
       const today = todayAt(now);
-      return selectDecks.all().map((row) => deckFrom(row, today));
+      // The decks on one SRS type share one reading of it: a type's own counts are the heavier part of each deck's read.
+      const types = new Map<string, SrsType>();
+      const typeOf = (srsTypeId: string): SrsType => {
+        let type = types.get(srsTypeId);
+        if (!type) {
+          type = srsTypeOf(srsTypeId);
+          types.set(srsTypeId, type);
+        }
+        return type;
+      };
+      return selectDecks.all().map((row) => deckFrom(row, today, typeOf));
     },
     getDeck(id: string, now: number): Deck | null {
       const row = selectDeck.get(id);
       return row ? deckFrom(row, todayAt(now)) : null;
+    },
+    /** Whether a living deck has that id: what a route checks before it does anything, where the deck's counts aren't wanted. */
+    hasDeck(id: string): boolean {
+      return selectDeckExists.get(id) !== undefined;
+    },
+    /** The card type a living deck's cards are made of; null for no such deck. */
+    deckTypeId(id: string): string | null {
+      const row = selectDeckTypeId.get(id) as { typeId: string } | undefined;
+      return row?.typeId ?? null;
     },
     /** Idempotent: the same id again returns the deck that already exists. */
     insertDeck(deck: NewDeck, now: number): Deck {
@@ -1093,7 +1151,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (inserted) {
           for (const [fieldId, value] of Object.entries(card.values)) insertValue.run(card.id, fieldId, value);
           const from = card.source;
-          if (from) insertSource.run(card.id, from.url, from.title, from.text, from.startMs ?? null, from.endMs ?? null, from.client, now);
+          if (from) insertSource.run(card.id, from.url, from.title, from.text, from.startMs ?? null, from.endMs ?? null, from.channel?.name ?? null, from.channel?.url ?? null, from.client, now);
         }
         const row = selectCard.get(card.id) as CardRow | undefined;
         const [saved] = row ? cardsFrom([row], selectCardValues.all(card.id) as ValueRow[], srsTypeOfDeck(row.deckId), todayAt(now)) : [];
@@ -1145,12 +1203,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         return card;
       });
     },
-    /** Idempotent: the same id again returns the sitting that already exists, as it is. */
-    insertReviewSession(deckId: string, session: NewReviewSession, who: { device: string; userAgent: string }, now: number): ReviewSession {
+    /** Idempotent: the same id again returns the sitting that already exists, as it is. Null when that id is a sitting of another deck. */
+    insertReviewSession(deckId: string, session: NewReviewSession, who: { device: string; userAgent: string }, now: number): ReviewSession | null {
       insertReviewSession.run(session.id, deckId, session.kind, now, who.device, who.userAgent);
       const row = selectReviewSession.get(session.id, deckId) as ReviewSessionRow | undefined;
-      if (!row) throw new Error("The review was started in another deck.");
-      return reviewSessionFrom(row);
+      return row ? reviewSessionFrom(row) : null;
     },
     /** Ends the sitting once; ending it again changes nothing and returns it as it is. Null when it isn't this deck's. */
     endReviewSession(deckId: string, sessionId: string, end: ReviewSessionEnd, now: number): ReviewSession | null {

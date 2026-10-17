@@ -56,8 +56,21 @@ const PAGE_WAIT_MS = 25_000;
 const SOUND_WAIT_MS = 1500;
 /** How many samples the graph hands over at a time. */
 const TAP = 4096;
-/** The count from the last anchor may drift from the player's own time by this much before it's set again. Seconds. */
-const DRIFT = 0.35;
+/**
+ * The count of samples from the last anchor may stand this far, in seconds of the video, from where the sound clock
+ * says a block belongs before the anchor is set again from the clock. Smaller than a block, so a block that arrives
+ * late is never let run on the count alone; larger than the clock's own jitter, so the count isn't nudged every block.
+ */
+const TOLERANCE = 0.03;
+/**
+ * The first sound after a seek is the video at the moment sought, exactly (the graph gives silence until the player
+ * is there, then the sound from there): the one place the sound is known for sure. A clock reading that stands
+ * farther than this from it, in seconds of the video, isn't the clock's error but the video's own silence at that
+ * moment (the first sound came later), and isn't learned from.
+ */
+const ONSET_TRUST = 1;
+/** How many seeks the clock's error is remembered over; the middle one is used, so one quiet moment doesn't set it. */
+const BIASES = 5;
 const FAILED = "The video couldn't be opened to transcribe it.";
 
 const urlOf = (source: (typeof SOURCES)[number], videoId: string, at: number) =>
@@ -94,8 +107,42 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
   let player: Element | null = null;
   let ctx: AudioContext | null = null;
   let cutter: Cutter | null = null;
-  /** The count from the last anchor is good: the player is playing on from where the anchor was set. */
-  let anchored = false;
+  /**
+   * The player's time and the sound clock's, read in the same instant: how a block of sound is placed in the video.
+   * Null while the player is paused, seeking, stalled or in an ad, which is when nothing is taken.
+   *
+   * Why the clock and not an event: until 2026-10-17 the count of samples began at the player's time as the `playing`
+   * event reported it, and every block after was counted from there. But the block that arrives right after that
+   * event holds sound rendered *before* it (the graph hands a block over once it's full, and the event itself is
+   * queued), so that sound was placed a block or two late, and every block after it with it; at speed the error is
+   * multiplied (a 4096-sample block is 85 ms of sound at 48 kHz, 256 ms of the video at 3×, two of them half a
+   * second: the owner's "always delayed a little bit, like half a second"). Each block now says when it was rendered
+   * (`playbackTime`), and is placed from that against the pair below, so when the event fired no longer matters.
+   *
+   * And the clock is checked against the one thing known for sure. After a seek the graph gives silence until the
+   * player is there, then the sound from exactly where it landed: the first sample that isn't zero is the video at
+   * `onset`. Where the clock put that sample, against where it truly was, is the clock's error (`biases`: what the
+   * browser's latencies and the node's own buffering really come to on this device, which no reading says plainly),
+   * taken off every reading after; the sample itself anchors the count. Each measurement is printed to the page's
+   * console as "Panki timing", for the owner to read off (2026-10-17, the delay still felt after the clock came in).
+   *
+   * Two things the first try of this got wrong, the same evening, and the words went far later than before: the
+   * blocks were looked at for the first sound only once the pair was there, after the `playing` event, so the sound
+   * had often begun in a block already thrown away and the "first sound" was a block or more late; and the moment was
+   * taken as asked, where the player lands where it will (the site's own player seeks again to a whole second, the
+   * one its address named). So the blocks are looked at from the seek on, pair or no pair, and `onset` is where the
+   * player says it landed (`seeked`), not where it was sent.
+   */
+  let sync: { video: number; clock: number } | null = null;
+  /** Where the player landed at the last seek, until its first sound has been heard; null otherwise. */
+  let onset: number | null = null;
+  /** The clock's error at the last few onsets, in seconds of the video: what it read, less what was true. */
+  let biases: number[] = [];
+  const bias = () => {
+    if (biases.length === 0) return 0;
+    const sorted = [...biases].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)] ?? 0;
+  };
   let tried = 0;
   let pageTimer: ReturnType<typeof setTimeout> | null = null;
   let looker: ReturnType<typeof setInterval> | null = null;
@@ -118,15 +165,30 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
   };
 
   const suspend = () => {
-    anchored = false;
+    sync = null;
     cutter?.suspend();
   };
+  /** The player's time and the sound clock's, paired now; read again on every `timeupdate`, so a stall the player never said is caught within a moment. */
   const anchor = () => {
-    if (!video || !cutter || ad) return;
-    cutter.anchor(video.currentTime);
-    anchored = true;
+    if (!video || !ctx || ad) return;
+    sync = { video: video.currentTime, clock: ctx.currentTime };
   };
-  const taking = () => anchored && video !== null && !video.paused && !video.seeking && !video.ended && !ad;
+  const taking = () => sync !== null && video !== null && !video.paused && !video.seeking && !video.ended && !ad;
+  /**
+   * Where in the video a block of sound rendered at `clock` (the sound clock's time) belongs. The player's time is
+   * what's being heard, and what's heard was rendered the output's latency earlier; a block rendered at `clock` is
+   * therefore that much later in the video than the player said at the pair, all of it at speed.
+   */
+  const videoTimeAt = (clock: number): number | null => {
+    if (!sync || !ctx) return null;
+    const latency = (Number.isFinite(ctx.outputLatency) ? ctx.outputLatency : 0) + (Number.isFinite(ctx.baseLatency) ? ctx.baseLatency : 0);
+    return sync.video + (clock - sync.clock + latency) * speed - bias();
+  };
+  /** The first sample of a block that isn't silence, or -1 when the whole block is. */
+  const firstSound = (samples: Float32Array): number => {
+    for (let i = 0; i < samples.length; i++) if (samples[i] !== 0) return i;
+    return -1;
+  };
 
   function play() {
     const v = video;
@@ -152,7 +214,8 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
     cutter?.flush();
     suspend();
     ended = false;
-    video.currentTime = Math.max(0, at);
+    onset = Math.max(0, at);
+    video.currentTime = onset;
     play();
   }
 
@@ -178,21 +241,61 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
     mute.connect(ctx.destination);
     cutter = createCutter(ctx.sampleRate / speed, onPiece);
     tap.onaudioprocess = (e) => {
-      if (!taking()) return;
+      if (!cutter || !ctx || !video || ad || video.seeking) return;
+      // Waiting for the first sound after a seek: every block is looked at, whether or not the pair is there yet (the
+      // `playing` event comes when it comes; the sound doesn't wait for it). Otherwise nothing is taken without the pair.
+      if (onset === null && !taking()) return;
+      // The block's own place in the video, from when it was rendered: `playbackTime` is when it plays, one block
+      // after it was taken in (the node's latency, by the spec). The count from the last anchor carries on while it
+      // agrees; where it doesn't (the first block, a stall), the anchor is set from the clock.
+      const played = Number.isFinite(e.playbackTime) ? e.playbackTime : ctx.currentTime;
+      const samples = e.inputBuffer.getChannelData(0);
+      let at = videoTimeAt(played - TAP / ctx.sampleRate);
+      if (onset !== null) {
+        // Silence still, after the seek: not the video's, and not counted.
+        const first = firstSound(samples);
+        if (first === -1) return;
+        // The block begins `first` samples before where the player landed; that's where it truly stands.
+        const rate = ctx.sampleRate / speed;
+        const truth = onset - first / rate;
+        const read = at;
+        const error = read === null ? null : read - truth;
+        const trusted = error !== null && Math.abs(error) <= ONSET_TRUST;
+        if (trusted) {
+          // `read` had the bias so far taken off already; what's kept is the clock's raw error.
+          biases = [...biases.slice(-(BIASES - 1)), error + bias()];
+        }
+        // (Each onset was printed to the page's console as "Panki timing" while the delay was being run down, 2026-10-17; the owner had the print taken out once it was.)
+        // The sound itself is the anchor; only where it was silent at the landing (the first sound came much later
+        // than the clock says) is a clock that has been calibrated once trusted over it. And the pair is made now,
+        // so the next block isn't thrown away.
+        if (trusted || biases.length === 0 || read === null) at = truth;
+        onset = null;
+        if (sync === null) anchor();
+      }
+      const expected = cutter.expected();
+      if (at !== null && (expected === null || Math.abs(expected - at) > TOLERANCE)) cutter.anchor(at);
       // The graph reuses its buffer: a copy is kept.
-      cutter?.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      cutter.push(new Float32Array(samples));
     };
     found.addEventListener("playing", anchor);
     for (const type of ["pause", "waiting", "seeking", "emptied", "stalled"] as const) found.addEventListener(type, suspend);
+    // A seek lands where the player says, not where it was sent (the site's player seeks again on its own after a
+    // load): the first sound after it is the video from there.
+    found.addEventListener("seeking", () => {
+      onset = null;
+    });
+    found.addEventListener("seeked", () => {
+      onset = found.currentTime;
+    });
     found.addEventListener("ended", () => {
       suspend();
       cutter?.flush();
       ended = true;
     });
+    // The pair is read afresh as the player reports its time, so a stall it never said moves the sound no further than a moment.
     found.addEventListener("timeupdate", () => {
-      // Set again when the count has drifted from the player's own time: a stall the player never said.
-      const expected = cutter?.expected() ?? null;
-      if (anchored && expected !== null && Math.abs(expected - found.currentTime) > DRIFT) anchor();
+      if (sync !== null) anchor();
     });
     if (pageTimer !== null) clearTimeout(pageTimer);
     pageTimer = null;

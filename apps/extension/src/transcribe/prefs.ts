@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
 
 /**
  * How transcribing behaves for this browser's viewer, theirs to set on the options page (YouTube → Transcribing),
@@ -17,8 +18,17 @@ export type TranscribePaused = z.infer<typeof TranscribePaused>;
 export const TranscribePrefs = z.object({
   trigger: TranscribeTrigger,
   paused: TranscribePaused,
-  /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Replace YouTube subtitles"). */
+  /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Replace YouTube subtitles with Panki's"). */
   overVideo: z.boolean(),
+  /** How the transcript looks over the video (`subtitleStyle.ts`). */
+  style: SubtitleStyle,
+  /**
+   * Whether the word being said carries its mark (the line under it, `Line`'s `now`): on the line under the player,
+   * and on the subtitles over the video, each its own (the owner, 2026-10-18). They apply to the site's captions as
+   * much as to the transcript, and ride with the rest here because this is what the page is handed.
+   */
+  markUnder: z.boolean(),
+  markOver: z.boolean(),
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true };

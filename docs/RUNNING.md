@@ -17,6 +17,7 @@
 | `pnpm user:list` | List accounts. |
 | `pnpm user:admin <name>` | Make an account an admin: it alone changes the keys, the dictionaries on Panki and how transcribing runs. `pnpm user:admin <name> off` takes it back. |
 | `pnpm space` | Disk used per account (video, audio, images, the rest) and what's left on the disk. |
+| `pnpm backup [dir]` | A copy of all the data, safe while the API runs: the databases as a dated snapshot, the files copied once. Into `apps/api/backups/` unless a folder is given (`PANKI_BACKUP_DIR` changes the default). See Backing up. |
 | `pnpm icons` | Redraw the app icons from the mark. |
 | `pnpm verify` | Headless-browser check of the UI. Not kept up since 2026-10-10. |
 
@@ -26,7 +27,18 @@ Under 2 GB left on the disk, every signed-in user sees a warning on their home s
 
 Data lives under `apps/api/data/`: `auth.sqlite` (accounts and signed-in devices), `shared.sqlite` (what everyone shares: the keys, the dictionaries kept on Panki, the transcription settings and every transcript) with `shared/dictionaries/` holding the dictionary zips, and `users/<account id>/`, one folder per account: its `panki.sqlite` and a `media` folder with the files its cards hold. A backup is the whole folder.
 
-`PANKI_DATA_DIR` puts the data elsewhere, `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` sets whose clock a day turns over on (default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio and `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, each used when none is typed in Settings → Admin.
+`PANKI_DATA_DIR` puts the data elsewhere, `PANKI_BACKUP_DIR` the backups (default: a `backups` folder beside the data), `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` sets whose clock a day turns over on (default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio and `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, each used when none is typed in Settings → Admin.
+
+## Backing up
+
+`pnpm backup` can run while the API is up. It writes, under the backup folder:
+
+- `<moment>/auth.sqlite`, `<moment>/shared.sqlite`, `<moment>/users/<account id>/panki.sqlite`: every database as it stood at that moment, one folder per run.
+- `files/`: every file on a card and every dictionary zip, in the folders they came from. A file never changes, so each is copied once; a run after the first copies only what's new.
+
+Nothing in the backup folder is ever deleted by it: old `<moment>` folders are yours to remove. On the VPS, a cron line runs it (`crontab -e`): `0 4 * * * cd /opt/panki-vibe-coded && PANKI_TIME_ZONE=Asia/Jerusalem pnpm backup /var/backups/panki`. Copying that folder off the machine now and then is what makes it a backup.
+
+To restore: stop the API (`pm2 stop panki-api`), copy the chosen `<moment>` folder's databases over the data folder's (`auth.sqlite`, `shared.sqlite`, each `users/<account id>/panki.sqlite`; delete any `-wal` / `-shm` beside them first), copy `files/shared/dictionaries` to `shared/dictionaries` and each `files/users/<account id>/media` to `users/<account id>/media`, start the API.
 
 ## Deploying
 
@@ -39,7 +51,7 @@ pnpm install
 pnpm build
 pnpm user:add <name> <password>
 pnpm user:admin <name>
-PORT=3002 PANKI_TIME_ZONE=Asia/Jerusalem pm2 start pnpm --name panki-api -- --filter @panki/api start
+PORT=4001 PANKI_TIME_ZONE=Asia/Jerusalem pm2 start pnpm --name panki-api -- --filter @panki/api start
 pm2 save
 ```
 

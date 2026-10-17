@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CardLayout } from "./layout";
 import { MediaId, type MediaKind } from "./media";
-import { youtubeLinkOf, type YouTubeLink } from "./youtube";
+import { youtubeMetaOf, type YouTubeLink, type YouTubeMeta } from "./youtube";
 
 export const CardTypeId = z.uuid();
 export const CardFieldId = z.uuid();
@@ -32,17 +32,21 @@ export function holdsFile(kind: FieldKind): boolean {
   return mediaKindsOf(kind).length > 0;
 }
 
-/** Whether a field holds a link out of Panki: its value on a card is then the address, as it was given. */
+/** Whether a field holds a video's metadata (its link, its title, its channel: `youtube.ts` → `YouTubeMeta`); its value on a card is then `youtubeMetaValue`'s, or a bare address from before. */
 export function holdsLink(kind: FieldKind): boolean {
   return kind === "youtube";
 }
 
 /**
- * The link a value is, when its field holds links and the value is one; null when it's to be read as words. Words
- * typed into a field before it was changed to hold links are still words, and still shown.
+ * The metadata a value is, when its field holds it and the value is some; null when it's to be read as words. Words
+ * typed into a field before it was changed to this kind are still words, and still shown.
  */
+export function metaOf(kind: FieldKind, value: string): YouTubeMeta | null {
+  return holdsLink(kind) ? youtubeMetaOf(value) : null;
+}
+/** The link alone, out of the same. */
 export function linkOf(kind: FieldKind, value: string): YouTubeLink | null {
-  return holdsLink(kind) ? youtubeLinkOf(value) : null;
+  return metaOf(kind, value)?.link ?? null;
 }
 
 /** Whether a field holds a pitch accent: its value is then the accents (`pitch.ts` → `pitchesOf`), drawn over their readings. */

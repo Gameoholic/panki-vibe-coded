@@ -1,5 +1,6 @@
 import { ForvoItem, ForvoList, ForvoSaid, type ForvoVoice } from "@panki/contracts";
 import { sniffMimes } from "./mediaFiles";
+import { timedOut } from "./outbound";
 
 /**
  * Word audio recorded by people, from Forvo (the owner's choice, 2026-10-15, on its $2 a month plan): the one service
@@ -21,6 +22,11 @@ const FILE_MAX = 2_000_000;
 const LINKS_LAST_MS = 90 * 60 * 1000;
 /** How many words' lists are remembered at once. */
 const REMEMBERED = 200;
+/** How long a word's list or a recording may take to come back. */
+const TIMEOUT_MS = 20_000;
+
+/** The call didn't come back: cut by the deadline, or never reached. */
+const unreached = (e: unknown) => new ForvoError(timedOut(e) ? "Forvo took too long to answer." : "Couldn't reach Forvo.", 502);
 
 /** What went wrong, in the owner's words, with the answer it gets: Forvo's fault (502), or a recording that isn't there (404). */
 export class ForvoError extends Error {
@@ -67,9 +73,11 @@ export function createForvo(fetcher: typeof fetch = fetch, now: () => number = D
     onRequest();
     try {
       // The key goes in the address, as Forvo has it: the address is never logged.
-      res = await fetcher(`${API}/key/${encodeURIComponent(key)}/format/json/action/word-pronunciations/word/${encodeURIComponent(word)}/language/ja/order/rate-desc`);
-    } catch {
-      throw new ForvoError("Couldn't reach Forvo.", 502);
+      res = await fetcher(`${API}/key/${encodeURIComponent(key)}/format/json/action/word-pronunciations/word/${encodeURIComponent(word)}/language/ja/order/rate-desc`, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (e) {
+      throw unreached(e);
     }
     const body: unknown = await res.json().catch(() => null);
     // Forvo says what's wrong as a list of sentences.
@@ -103,9 +111,9 @@ export function createForvo(fetcher: typeof fetch = fetch, now: () => number = D
       let res: Response;
       onRequest();
       try {
-        res = await fetcher(item.pathmp3);
-      } catch {
-        throw new ForvoError("Couldn't reach Forvo.", 502);
+        res = await fetcher(item.pathmp3, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+      } catch (e) {
+        throw unreached(e);
       }
       // Sent on somewhere else, what came back must still be Forvo's own to be kept.
       if (!res.ok || !isForvos(res.url)) throw new ForvoError("Forvo didn't send the recording.", 502);

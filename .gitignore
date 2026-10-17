@@ -1,5 +1,6 @@
 node_modules/
 dist/
 apps/api/data/
+apps/api/backups/
 *.log
 .DS_Store

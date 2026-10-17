@@ -132,11 +132,13 @@ function loopGeometry(a: Box, i: number, n: number, out: Pos) {
   const end = { x: a.x + a.w * G.loopLand, y: over ? a.y : a.y + a.h };
   return { d: `M ${port.x} ${port.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${label.x} ${label.y} C ${label.x + G.loopLift} ${label.y + lift}, ${end.x} ${end.y + lift}, ${end.x} ${end.y}`, label, plus: null };
 }
-function fitView(bounds: Bounds, size: Size): View {
+/** The view that shows the whole chart: clear of the rail and the tools, or, without a rail (the review's chart), with a thin margin at the top. */
+function fitView(bounds: Bounds, size: Size, rail = true): View {
   const bw = Math.max(1, bounds.maxX - bounds.minX);
   const bh = Math.max(1, bounds.maxY - bounds.minY);
-  const k = Math.max(G.fitMin, Math.min(1, (size.w - G.fitSide) / bw, (size.h - G.fitTop - G.fitBottom) / bh));
-  return { k, x: (size.w - bw * k) / 2 - bounds.minX * k, y: G.fitTop + (size.h - G.fitTop - G.fitBottom - bh * k) / 2 - bounds.minY * k };
+  const top = rail ? G.fitTop : G.pad;
+  const k = Math.max(rail ? G.fitMin : G.zoomMin, Math.min(1, (size.w - G.fitSide) / bw, (size.h - top - G.fitBottom) / bh));
+  return { k, x: (size.w - bw * k) / 2 - bounds.minX * k, y: top + (size.h - top - G.fitBottom - bh * k) / 2 - bounds.minY * k };
 }
 const boxStyle = (b: Box): CSSProperties => ({ left: b.x, top: b.y, width: b.w, height: b.h });
 const kindClass = (kind: string) => (kind.startsWith("to:") ? "to" : kind);
@@ -153,6 +155,7 @@ function outcomeOf(type: SrsType, flow: Flow, ex: number, box: Box) {
 }
 function subWords(type: SrsType, flow: Flow, scope: Scope, ex: number, box: Box): string {
   if (box.kind === "root") return scope === "all" ? `shown for ${stageName(type, ex)}` : `waits ${spanWords(waitAt(type, ex) ?? 0)}`;
+  if (box.kind === "hidden") return "the button isn't shown here";
   const r = outcomeOf(type, flow, ex, box);
   if (r.burned) return box.kind === "burn" ? "never comes back" : `→ ${type.burnedName} · never comes back`;
   if (r.again) return "";
@@ -172,6 +175,12 @@ type Props = {
   canRedo: boolean;
   /** For looking only (a type that comes with the app): the chart pans, zooms and shows any stage, and nothing on it changes the rules. */
   readOnly?: boolean;
+  /**
+   * A glance at one card's place on the chart (the review, with a mouse resting on an answer): the box the card is at
+   * (`now`), the box or loop that answer leads to (`next`, by its path; null where it leads nowhere), and the stage the
+   * rules are worked out for. For looking only, fitted to its frame, with no rail, no tools and no menu.
+   */
+  glance?: { now: string; next: string | null; stage: number };
 };
 
 /**
@@ -181,7 +190,9 @@ type Props = {
  * any box or an answer's name around, press + on an arrow to ask again first; drag the ground to pan, scroll or the
  * buttons to zoom. The rail of stages scrolls sideways when there are more than fit.
  */
-export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, canUndo, canRedo, readOnly = false }: Props) {
+export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, canUndo, canRedo, readOnly: readOnlyGiven = false, glance }: Props) {
+  // A glance is never edited.
+  const readOnly = readOnlyGiven || glance !== undefined;
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
@@ -217,7 +228,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     if (!b) return [];
     return [{ link, b, key, out, ...linkGeometry(a, b, link.i, n, out) }];
   });
-  const ex = exampleIdx(type, scope, shown);
+  const ex = glance ? glance.stage : exampleIdx(type, scope, shown);
   const stage = type.stages[ex];
 
   useEffect(() => {
@@ -235,7 +246,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     if (!size || shownScope.current === scope) return;
     if (shownScope.current !== null) views.current.set(shownScope.current, view);
     shownScope.current = scope;
-    setView(views.current.get(scope) ?? fitView(chart.bounds, size));
+    setView(views.current.get(scope) ?? fitView(chart.bounds, size, !glance));
   }, [scope, size]); // eslint-disable-line react-hooks/exhaustive-deps -- the view and the bounds at that moment are what's kept and fitted
   useEffect(() => {
     setSelected(null);
@@ -441,7 +452,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   return (
     <div
       ref={rootRef}
-      className={`canvas ${panning ? "is-panning" : ""}`.trim()}
+      className={`canvas ${glance ? "is-peek" : ""} ${size === null ? "is-unfit" : ""} ${panning ? "is-panning" : ""}`.replace(/\s+/g, " ").trim()}
       data-canvas
       data-scope={scope}
       style={{ backgroundPosition: `${pan.x}px ${pan.y}px` }}
@@ -459,7 +470,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               </marker>
             </defs>
             {wires.map(({ link, d }) => (
-              <path key={link.to} className={`edge ${answerClass(type.answers, link.i)}`} d={d} markerEnd={link.loop ? "url(#flow-arrow)" : undefined} />
+              <path key={link.to} className={`edge ${answerClass(type.answers, link.i)} ${glance?.next === link.to ? "is-next" : ""}`.trim()} d={d} markerEnd={link.loop ? "url(#flow-arrow)" : undefined} />
             ))}
           </svg>
           {wires.map(({ link, b, key, label, plus }) => {
@@ -488,9 +499,9 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
           {chart.boxes.map((box) => {
             if (box.kind === "root") {
               const tint = tintStyle(ex, type.stages.length);
-              if (scope !== "all" && scope !== BURNED_SCOPE && stage && readOnly) {
+              if ((scope !== "all" || glance) && scope !== BURNED_SCOPE && stage && readOnly) {
                 return (
-                  <div key="root" className={`fnode root ${drag?.id === box.id ? "is-dragging" : ""}`.trim()} data-node="root" data-kind="root" style={{ ...boxStyle(box), ...tint }}>
+                  <div key="root" className={`fnode root ${glance?.now === box.id ? "is-now" : ""} ${drag?.id === box.id ? "is-dragging" : ""}`.trim()} data-node="root" data-kind="root" style={{ ...boxStyle(box), ...tint }}>
                     <span className="t">{stageName(type, ex)}</span>
                     <span className="s">{stage.wait.n === 0 ? "no wait" : `waits ${stageWaitWords(stage)}`}</span>
                   </div>
@@ -557,7 +568,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               <Button
                 key={box.id}
                 variant="node"
-                className={`fnode ${kindClass(box.kind)} ${drag?.id === box.id ? "is-dragging" : ""}`.trim()}
+                className={`fnode ${kindClass(box.kind)} ${glance?.now === box.id ? "is-now" : ""} ${glance?.next === box.id ? "is-next" : ""} ${drag?.id === box.id ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
                 data-node={box.id}
                 data-kind={box.kind}
                 aria-pressed={selected === box.id}
@@ -565,7 +576,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                 onClick={() => select(box.id)}
               >
                 <span className="t">
-                  {box.kind === "burn" ? <Icon name="flame" /> : box.kind === "again" ? <Icon name="review" /> : null}
+                  {box.kind === "burn" ? <Icon name="flame" /> : box.kind === "again" ? <Icon name="review" /> : box.kind === "hidden" ? <Icon name="lock" /> : null}
                   {title}
                 </span>
                 {box.kind === "again" ? null : <span className="s">{subWords(type, flow, scope, ex, box)}</span>}
@@ -706,7 +717,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               <div className="chips menu-chips">
                 {STEP_OPTIONS.filter((o) => o.step.kind !== "move").map((o) => (
                   <Button key={o.id} variant="chip" aria-pressed={currentKey === o.id} data-opt={o.id} onClick={() => pick(o.id)}>
-                    {o.id === "burn" ? <Icon name="flame" /> : null}
+                    {o.id === "burn" ? <Icon name="flame" /> : o.id === "hidden" ? <Icon name="lock" /> : null}
                     {stepLabel(type, o.step)}
                   </Button>
                 ))}

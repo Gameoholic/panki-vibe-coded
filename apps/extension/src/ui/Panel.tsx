@@ -85,8 +85,8 @@ export type Capture = {
   sentence: string;
   /** Counts the times the capture went to other words (another sentence was picked): a sentence typed over the old ones is let go. */
   moved: number;
-  /** Kept beside the card as it was; none when the page has no web address (a file opened from disk). */
-  source: { url: string; title: string; startMs?: number; endMs?: number } | null;
+  /** Kept beside the card as it was (the contracts' `CardSource`, less what the drawer adds); none when the page has no web address (a file opened from disk). On a video's page, whose it is too. */
+  source: { url: string; title: string; startMs?: number; endMs?: number; channel?: { name: string; url: string } } | null;
   /** A link that opens the video at the moment the clip begins, for the field that takes one; empty where there's no video to open. */
   sourceLink: string;
 };

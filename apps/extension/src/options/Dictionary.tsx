@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { sizeWords, type ServerDictionary } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
-import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
@@ -30,6 +29,7 @@ import { hostOf, permissionsFor, type LookKey, type LookWhere } from "../lookSet
 import { PankiError, panki, type Door } from "../panki";
 import { writeStore, type Stored } from "../storage";
 import { Pitch } from "../ui/Lookup";
+import { Rename } from "../ui/Rename";
 import { aboutOf, type About } from "./about";
 import { KindChips } from "./DataKinds";
 
@@ -70,49 +70,20 @@ function Origin({ dictionary }: { dictionary: DictionaryRecord }) {
  * is one press, Reset to default name (the owner's words, 2026-10-17); saving it empty does the same.
  */
 function DictionaryName({ dictionary, onRenamed }: { dictionary: DictionaryRecord; onRenamed: () => void }) {
-  const [typing, setTyping] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const shown = shownName(dictionary);
-
-  async function keep(name: string | null) {
-    setBusy(true);
-    try {
-      await setDictionaryName(dictionary.id, name);
-      setTyping(null);
-      onRenamed();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (typing === null) {
-    return (
-      <div className="dict-name">
-        {shown}
-        {dictionary.revision ? <span className="dict-revision">{dictionary.revision}</span> : null}
-        <Button className="btn-icon dict-rename" aria-label={`Rename ${shown}`} onClick={() => setTyping(shown)}>
-          <Icon name="edit" />
-        </Button>
-      </div>
-    );
-  }
   return (
-    <Form onSubmit={() => void keep(typing)} className="dict-rename-form">
-      <TextField id={`dict-${dictionary.id}-name`} label="Name" autoFocus value={typing} onChange={(typed) => setTyping(typed.slice(0, DICTIONARY_NAME_MAX))} />
-      <div className="add-actions add-actions-start">
-        <Button type="submit" variant="primary" disabled={busy}>
-          Save
-        </Button>
-        <Button disabled={busy} onClick={() => setTyping(null)}>
-          Cancel
-        </Button>
-        {shown !== dictionary.title ? (
-          <Button disabled={busy} onClick={() => void keep(null)}>
-            Reset to default name
-          </Button>
-        ) : null}
-      </div>
-    </Form>
+    <Rename
+      id={`dict-${dictionary.id}`}
+      className="dict-name"
+      shown={shown}
+      after={dictionary.revision ? <span className="dict-revision">{dictionary.revision}</span> : null}
+      canReset={shown !== dictionary.title}
+      max={DICTIONARY_NAME_MAX}
+      onKeep={async (name) => {
+        await setDictionaryName(dictionary.id, name);
+        onRenamed();
+      }}
+    />
   );
 }
 

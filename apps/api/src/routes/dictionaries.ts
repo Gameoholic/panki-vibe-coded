@@ -115,11 +115,11 @@ export function dictionariesRouter(shared: Shared, dir: string, now: () => numbe
     );
   });
 
-  // Off the list, its row kept with the time it went; the zip, a copy of a file the owner has, is deleted for the room.
+  // Off the list, its row kept with the time it went and who took it off; the zip, a copy of a file the owner has, is deleted for the room.
   router.delete("/:id", requireAdmin, (req, res) => {
     const id = idOf(req, res);
     if (!id) return;
-    if (!shared.removeDictionaryFile(id, now())) {
+    if (!shared.removeDictionaryFile(id, now(), signedIn(res).user.id)) {
       res.status(404).json({ error: { message: NOT_THERE } });
       return;
     }

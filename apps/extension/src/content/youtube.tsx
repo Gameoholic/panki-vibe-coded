@@ -1,5 +1,5 @@
 import "../setup";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { createListening } from "../capture/listening";
@@ -12,12 +12,15 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { youtubeUrl } from "@panki/contracts";
+import { youtubeMetaValue, youtubeUrl } from "@panki/contracts";
 import { Button } from "@web/components/Button";
+import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
-import { Trigger, askFix, askForget, askPrefs, askSubtitles } from "../messages";
+import { Trigger, askFix, askForget, askOpenPanki, askOptions, askPrefs, askSubtitles } from "../messages";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, within, type SubtitleStyle } from "../transcribe/subtitleStyle";
+import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
@@ -47,6 +50,8 @@ const BESIDE_PLAYER = "ytd-watch-flexy #secondary";
 const BESIDE_MIN = 300;
 /** The player's own seek bar: the whole video from its left end to its right. The clip is marked on it. */
 const SEEK_BAR = "#movie_player .ytp-progress-bar";
+/** The link to the channel the video is on, under the player, its words the channel's name. (The channel's box was named here too, and came first, so the link was never found, 2026-10-18.) */
+const CHANNEL_NAME = "ytd-watch-flexy #owner ytd-channel-name a[href], ytd-watch-flexy ytd-video-owner-renderer a[href]";
 
 /** A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a touch early. */
 const LEAD = 0.35;
@@ -93,7 +98,8 @@ const ON_SEEK_BAR = "display: block; position: absolute; inset: 0; z-index: 42; 
  * own controls; only the words themselves take a press. Shown in place of the site's captions, which are faded while
  * it's there and still read for what they say.
  */
-const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; bottom: 9%; z-index: 40; pointer-events: none; text-align: center;";
+// Where it sits and how it looks are the viewer's subtitle style, as CSS variables on the host (`subtitleVars`); the line itself is laid out in `.over-ground`.
+const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; bottom: var(--sub-bottom, 9%); z-index: 40; pointer-events: none;";
 /** How often the transcriber looks at the viewer's player, and the line at the video's time. */
 const FOLLOW_MS = 250;
 
@@ -139,6 +145,7 @@ seek.host.style.cssText = ON_SEEK_BAR;
 /** The transcript's place over the video. */
 const over = makePlace(siteTheme());
 over.host.style.cssText = OVER_VIDEO;
+over.ground.classList.add("over-ground");
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
 const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
@@ -220,6 +227,8 @@ function place() {
   const overThere = showingOver.get() ? player : null;
   if (!overThere) over.host.remove();
   else if (over.host.parentElement !== overThere) overThere.append(over.host);
+  // The words scale with the player, so they take the same share of the picture on the page and on the full screen.
+  if (overThere instanceof HTMLElement && overThere.clientHeight > 0) over.host.style.setProperty("--sub-scale", String(overThere.clientHeight / SUBTITLE_REF_HEIGHT));
   const area = player?.querySelector(CAPTION_AREA);
   if (area instanceof HTMLElement) area.style.opacity = overThere ? "0" : "";
 
@@ -444,9 +453,15 @@ function videoSource(start: number, end: number | null): Pick<Capture, "source" 
     .replace(/^\(\d+\)\s*/, "")
     .replace(/\s*-\s*YouTube$/, "")
     .trim();
+  // Whose the video is, read off the page as it's shown: the channel's name and where it links; none when the site has moved it.
+  const owner = document.querySelector(CHANNEL_NAME);
+  const name = owner?.textContent?.trim().slice(0, 100) ?? "";
+  const link = owner instanceof HTMLAnchorElement && /^https?:\/\//i.test(owner.href) ? owner.href.slice(0, 2000) : "";
+  const channel = name && link ? { name, url: link } : null;
   return {
-    source: { url, title: title.slice(0, 300), startMs: Math.round(start * 1000), ...(end === null ? {} : { endMs: Math.round(end * 1000) }) },
-    sourceLink: url,
+    source: { url, title: title.slice(0, 300), startMs: Math.round(start * 1000), ...(end === null ? {} : { endMs: Math.round(end * 1000) }), ...(channel ? { channel } : {}) },
+    // The field that takes the video's metadata gets all of it as one value: the link at the clip's start, the title, the channel.
+    sourceLink: youtubeMetaValue({ link: { videoId: id, seconds: Math.floor(start) }, title, channel }),
   };
 }
 
@@ -788,6 +803,11 @@ function App() {
   useEffect(() => {
     showingOver.set(overVideo);
   }, [overVideo]);
+  // How the line over the video looks, the viewer's own: written on its place as variables (they inherit into the shadow root).
+  const style = tx.prefs.style;
+  useEffect(() => {
+    for (const [name, value] of Object.entries(subtitleVars(style))) over.host.style.setProperty(name, value);
+  }, [style]);
 
   /** The picked word's own stretch: where its ends were put, or else as the captions say it was said. */
   const wordTrim = taking?.of === "caption" ? taking.wordTrim : AS_SAID;
@@ -1107,6 +1127,47 @@ function App() {
     transcriber.setPrefs({ trigger });
     void askPrefs({ trigger });
   }
+  /** How the transcript looks over the video, changed in the Subtitles menu: seen at once, kept by the worker. */
+  function setStyle(style: SubtitleStyle) {
+    transcriber.setPrefs({ style });
+    void askPrefs({ style });
+  }
+  /** Whether the Subtitles menu is open: only then is the band on the video there to be dragged. */
+  const [styling, setStyling] = useState(false);
+  /**
+   * The band dragged across the picture (the owner, 2026-10-17: "directly drag the subtitle bar to reposition it…
+   * in % relative to the screen, but only while the subtitle settings are open"): its place follows the pointer as
+   * shares of the player's own box, seen at once, and is kept when the pointer is let go. The words aren't pressed
+   * while the band is for dragging.
+   */
+  function dragSubtitles(e: ReactPointerEvent<HTMLDivElement>) {
+    const area = over.host.parentElement;
+    if (!area || e.button !== 0) return;
+    e.preventDefault();
+    const band = e.currentTarget;
+    const box = area.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) return;
+    const from = { x: e.clientX, y: e.clientY, style };
+    let latest = style;
+    const move = (ev: PointerEvent) => {
+      latest = {
+        ...from.style,
+        x: within(from.style.x + ((ev.clientX - from.x) / box.width) * 100, SUBTITLE_BOUNDS.x),
+        bottom: within(from.style.bottom - ((ev.clientY - from.y) / box.height) * 100, SUBTITLE_BOUNDS.bottom),
+      };
+      transcriber.setPrefs({ style: latest });
+    };
+    const done = () => {
+      band.removeEventListener("pointermove", move);
+      band.removeEventListener("pointerup", done);
+      band.removeEventListener("pointercancel", done);
+      void askPrefs({ style: latest });
+    };
+    band.setPointerCapture(e.pointerId);
+    band.addEventListener("pointermove", move);
+    band.addEventListener("pointerup", done);
+    band.addEventListener("pointercancel", done);
+  }
   /** A stretch of the transcript, or all of it, forgotten for everyone; the transcript as it stands then is taken. */
   async function forget(stretch: Seconds | null) {
     const id = videoId();
@@ -1152,6 +1213,16 @@ function App() {
                   onAuto={setAuto}
                 />
               ) : null}
+              {/* How the transcript looks over the video, set right here (the owner, 2026-10-17: "edit the subtitles directly in YouTube"). */}
+              {overVideo ? <SubtitleMenu style={tx.prefs.style} onChange={setStyle} onOpen={setStyling} /> : null}
+              {/* Panki itself, the one the profile in use is signed in to, in a tab of its own (the owner, 2026-10-17). */}
+              <Button className="capture-tool btn-icon" aria-label="Open Panki" onClick={() => void askOpenPanki()}>
+                <Icon name="out" />
+              </Button>
+              {/* The extension's own settings, on their YouTube tab (the owner, 2026-10-17: "a button for the settings"). */}
+              <Button className="capture-tool btn-icon" aria-label="Panki settings" onClick={() => void askOptions("youtube")}>
+                <Icon name="settings" />
+              </Button>
             </div>
           </div>
           {/* A row is only let break in two when there's no room for even one of the player's own rows across. */}
@@ -1168,7 +1239,7 @@ function App() {
                     text={text}
                     at={first.at}
                     chars={pickedUnder}
-                    now={nowUnder}
+                    now={tx.prefs.markUnder ? nowUnder : null}
                     forced={forcedIn(first.at, text.length)}
                     onTake={takeUnder}
                     placeOf={placeOf}
@@ -1176,9 +1247,7 @@ function App() {
                   />
                 );
               })
-            ) : tx.status.kind === "running" ? (
-              <p className="empty">Transcribing…</p>
-            ) : picked === "youtube" ? (
+            ) : tx.status.kind === "running" ? null : picked === "youtube" ? ( // The menu's button says it's transcribing; a word here too was one too many (the owner, 2026-10-17).
               <p className="empty">Turn on captions to enable.</p>
             ) : picked === "none" ? (
               // The owner, 2026-10-17, at an empty strip with None picked: "make sure this says to enable subtitles if they're disabled", then "what about showing 'turn on subtitles'": the press that does it.
@@ -1207,8 +1276,8 @@ function App() {
       {/* The transcript over the video, the line being said: the same words as under the player, to press and to fix. */}
       {createPortal(
         overLine && overPart ? (
-          <div className="over-line" lang="ja">
-            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={nowUnder} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={fixAt} />
+          <div className={`over-line ${styling ? "is-dragging" : ""}`.trim()} lang="ja" onPointerDown={styling ? dragSubtitles : undefined}>
+            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={fixAt} />
           </div>
         ) : null,
         over.ground,
@@ -1230,11 +1299,18 @@ setInterval(() => {
   transcriber.tick(video);
   lines.refresh();
 }, FOLLOW_MS);
-// The settings are everyone's, changed in Panki: read again when this page gets the focus back.
+// The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page: read again when
+// this page gets the focus back, and when its tab is shown again (a switch of tabs doesn't always bring a focus event:
+// a switch set on the options page was ignored until the window was clicked, 2026-10-18).
 window.addEventListener("focus", () => transcriber.refresh());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") transcriber.refresh();
+});
 // The site's own word for "another page of mine is now showing": it never loads a new page between videos.
 document.addEventListener("yt-navigate-finish", look);
 document.addEventListener("fullscreenchange", place);
+// The player's size changes with the window (and the site's theatre view): the words over it keep their share of it.
+window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
 // The transcript's reach goes on the seek bar as soon as there is one to mark.

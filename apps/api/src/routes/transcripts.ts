@@ -147,7 +147,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
   });
 
   // A transcript forgotten, a stretch of it (ms) or the whole ({}), to be transcribed afresh: everyone's, like a fix;
-  // that it costs again is for whoever asks to weigh. Nothing is deleted (`shared.forget`).
+  // that it costs again is for whoever asks to weigh. Nothing is deleted, and the ask is kept with who made it (`shared.forget`).
   router.post("/:videoId/forget", (req, res) => {
     const videoId = VideoId.safeParse(req.params.videoId);
     if (!videoId.success) {
@@ -161,7 +161,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
     }
     // A stretch, or the whole video (the empty body).
     const stretch = Stretch.safeParse(parsed.data);
-    shared.forget(videoId.data, stretch.success ? stretch.data : null, now());
+    shared.forget(videoId.data, stretch.success ? stretch.data : null, now(), signedIn(res).user.id);
     res.json({ transcript: shared.transcript(videoId.data) });
   });
 

@@ -1,4 +1,4 @@
-import { youtubeLinkOf, youtubeUrl } from "@panki/contracts";
+import { youtubeLinkOf, youtubeMetaValue } from "@panki/contracts";
 import type { Capture } from "../ui/Panel";
 
 /**
@@ -13,6 +13,7 @@ export function pageSource(): Pick<Capture, "source" | "sourceLink"> {
   const video = youtubeLinkOf(url);
   return {
     source: onTheWeb ? { url, title: title.slice(0, 300) } : null,
-    sourceLink: video ? youtubeUrl(video) : "",
+    // A video's own page gives the title and the channel too (`content/youtube.tsx` → `videoSource`); from any other page only the link is known.
+    sourceLink: video ? youtubeMetaValue({ link: video, title: "", channel: null }) : "",
   };
 }
