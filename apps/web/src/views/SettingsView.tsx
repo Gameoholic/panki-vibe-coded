@@ -33,7 +33,7 @@ import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
-import { count, dateWords, dollarWords, durationWords, moneyWords } from "../words";
+import { count, dateWords, dollarWords, durationWords } from "../words";
 
 type Props = {
   settings: Settings;
@@ -114,6 +114,23 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
   const [failure, setFailure] = useState<string | null>(null);
+  /** What copying the key came to, said beside it for a moment. */
+  const [copied, setCopied] = useState<string | null>(null);
+  /**
+   * The saved key to the clipboard (the owner, 2026-10-17: "make it so I can copy the key by clicking on it"). With a
+   * mouse the key shows on hover already, so the first press copies; on a touch screen the first press shows it and
+   * the next copies.
+   */
+  async function copy() {
+    if (saved === undefined) return;
+    try {
+      await navigator.clipboard.writeText(saved);
+      setCopied("Copied");
+    } catch {
+      setCopied("Couldn't copy");
+    }
+    setTimeout(() => setCopied(null), 1500);
+  }
   const [busy, setBusy] = useState(false);
   /** The saved key uncovered; covered again whenever another is saved. */
   const [shown, setShown] = useState(false);
@@ -178,9 +195,31 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
         <p className="setting-why">
           {KEY_SAID[status ?? "none"]}
           {status === "settings" && saved !== undefined ? (
-            <Button variant="spoiler" className="key-spoiler" aria-pressed={shown} aria-label={shown ? "Cover the key" : "The key, covered: press to see it"} onClick={() => setShown((was) => !was)}>
-              <span className="key-text">{saved}</span>
-            </Button>
+            <>
+              <Button
+                variant="spoiler"
+                className="key-spoiler"
+                aria-pressed={shown}
+                aria-label={shown ? "Copy the key" : "The key, covered: press to see it"}
+                onClick={() => {
+                  const seen = shown || window.matchMedia("(hover: hover)").matches;
+                  setShown(true);
+                  if (seen) void copy();
+                }}
+              >
+                <span className="key-text">{saved}</span>
+              </Button>
+              {copied ? (
+                <span className="key-copied" role="status">
+                  {copied}
+                </span>
+              ) : null}
+              {shown ? (
+                <Button variant="ghost" className="key-hide" onClick={() => setShown(false)}>
+                  Hide
+                </Button>
+              ) : null}
+            </>
           ) : null}
         </p>
       ) : null}
@@ -204,7 +243,8 @@ const planWords = (plan: string) => plan.charAt(0).toUpperCase() + plan.slice(1)
 /**
  * The engine's account behind the key, read from the engine each time the panel opens or the key changes (the owner,
  * 2026-10-17: "how many credits I have left, how much top up, my plan"): the plan and its standing, the credits used
- * of the period's limit and when they reset, and what pay-as-you-go use has come to so far.
+ * of the period's limit, as a share too, and when they reset. (What pay-as-you-go use had come to was a line here
+ * until the owner had it taken off, the same day; the API still reads it.)
  */
 function EngineAccountLines({ keyed, turn }: { keyed: boolean; turn: number }) {
   const [account, setAccount] = useState<EngineAccount | null>(null);
@@ -241,10 +281,9 @@ function EngineAccountLines({ keyed, turn }: { keyed: boolean; turn: number }) {
         {planWords(account.plan)} · {STATUS_WORDS[account.status] ?? account.status}
       </p>
       <p className="setting-why">
-        {account.used.toLocaleString("en")} of {account.limit.toLocaleString("en")} credits used
+        {account.used.toLocaleString("en")} of {account.limit.toLocaleString("en")} credits used{account.limit > 0 ? ` (${Math.round((account.used / account.limit) * 100)}%)` : ""}
         {account.resetsAt !== null ? ` · resets ${dateWords(account.resetsAt)}` : ""}
       </p>
-      {account.overage ? <p className="setting-why">{moneyWords(account.overage.amount, account.overage.currency)} pay as you go so far</p> : null}
     </>
   );
 }

@@ -1976,6 +1976,17 @@ canvas.media-frame {
     visibility: visible;
   }
 }
+/* Beside the key once it's seen: that it was copied, said for a moment, and Hide to cover it again. */
+.key-copied {
+  margin-left: 8px;
+  font-weight: 700;
+  color: var(--good);
+}
+.btn.key-hide {
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 12px;
+}
 
 /* Settings: one row per setting, its words left and its control right, the small print under. */
 .setting {

@@ -48,14 +48,3 @@ const DATE_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "
 export function dateWords(at: number): string {
   return DATE_WORDS.format(new Date(at));
 }
-
-/** An amount of money as a service writes it ("0.46", "usd") in the reader's own notation, "$0.46"; as it came when it doesn't read as a number. */
-export function moneyWords(amount: string, currency: string): string {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return `${amount} ${currency.toUpperCase()}`;
-  try {
-    return new Intl.NumberFormat("en", { style: "currency", currency: currency.toUpperCase() }).format(n);
-  } catch {
-    return `${n} ${currency.toUpperCase()}`;
-  }
-}

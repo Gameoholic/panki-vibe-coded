@@ -47,19 +47,17 @@ const MESSAGES = {
 const DESCRIPTION_MAX = 240;
 
 /**
- * Where a dictionary comes from, in its own words from its index.json: its own name when the owner gave it another,
- * who made it, its address, what it says it is. An address is written out, never a link. What it doesn't say isn't
- * shown.
+ * Where a dictionary comes from, in its own words from its index.json: who made it, its address, what it says it is.
+ * An address is written out, never a link. What it doesn't say isn't shown. (The file's own name stood here too for a
+ * renamed dictionary, until the owner had it taken off, 2026-10-17: Reset to default name is enough.)
  */
 function Origin({ dictionary }: { dictionary: DictionaryRecord }) {
   const { author, url } = dictionary;
   const description = dictionary.description?.trim() ?? "";
   const made = [author ? `Made by ${author}` : "", url].filter((part) => part !== "").join(" · ");
-  const renamed = shownName(dictionary) !== dictionary.title;
-  if (!made && !description && !renamed) return null;
+  if (!made && !description) return null;
   return (
     <div className="dict-origin">
-      {renamed ? <span>Its own name: {dictionary.title}</span> : null}
       {made ? <span>{made}</span> : null}
       {description ? <span>{description.length > DESCRIPTION_MAX ? `${description.slice(0, DESCRIPTION_MAX).trimEnd()}…` : description}</span> : null}
     </div>
@@ -68,8 +66,8 @@ function Origin({ dictionary }: { dictionary: DictionaryRecord }) {
 
 /**
  * A dictionary's name on its row, and renaming it there: the owner's own name, shown wherever it's named, the file
- * and everything Panki tells it apart by left as they are (the owner, 2026-10-16). Going back to its own name is one
- * press; saving it empty does the same.
+ * and everything Panki tells it apart by left as they are (the owner, 2026-10-16). Going back to the file's own name
+ * is one press, Reset to default name (the owner's words, 2026-10-17); saving it empty does the same.
  */
 function DictionaryName({ dictionary, onRenamed }: { dictionary: DictionaryRecord; onRenamed: () => void }) {
   const [typing, setTyping] = useState<string | null>(null);
@@ -110,7 +108,7 @@ function DictionaryName({ dictionary, onRenamed }: { dictionary: DictionaryRecor
         </Button>
         {shown !== dictionary.title ? (
           <Button disabled={busy} onClick={() => void keep(null)}>
-            Use its own name
+            Reset to default name
           </Button>
         ) : null}
       </div>
