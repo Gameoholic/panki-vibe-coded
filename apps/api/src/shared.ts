@@ -1,0 +1,630 @@
+import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import {
+  DEFAULT_TRANSCRIPTION,
+  DEFAULT_WORD_AUDIO,
+  ServerDictionary,
+  Transcript,
+  Transcription,
+  WordAudio,
+  verdictOf,
+  type EngineId,
+  type HeardLanguage,
+  type LanguageVerdict,
+  type Stretch,
+  type TranscriptWord,
+  type TranscriptionUpdate,
+  type User,
+  type WordAudioSourceId,
+  type WordAudioUpdate,
+} from "@panki/contracts";
+import type { AuthDb } from "./authDb";
+import type { Db } from "./db";
+import { userDir } from "./dbs";
+import { dictionaryDir, removeFile, sharedDictionaryDir } from "./mediaFiles";
+
+export type Shared = ReturnType<typeof openShared>;
+
+/** What a key is for: a source of word audio (Forvo), or one of the transcription engines. */
+export type Service = WordAudioSourceId | EngineId;
+
+/** A piece as the route hands it in: where its sound is in the video, what was asked of the engine and what it decided. */
+export type NewPiece = {
+  id: string;
+  videoId: string;
+  /** Listened through from here with nothing to send before the sound begins at `startMs`: quiet, heard, covered (a `transcript_quiet` row). */
+  heardFrom: number;
+  startMs: number;
+  endMs: number;
+  engine: EngineId;
+  userId: string;
+  /** The language the engine was told; null when it was asked what it heard instead. */
+  told: string | null;
+  /** What it heard, when asked. */
+  language: HeardLanguage | null;
+  /** What that came to, when asked (`verdictOf`): only a sure verdict is the video's language. */
+  verdict: LanguageVerdict | null;
+  /** Whether its words were kept: not when it wrote them in another language than Japanese. */
+  kept: boolean;
+};
+/** A word the engine heard, with its times in the video's own ms. */
+export type NewWord = { text: string; startMs: number; endMs: number };
+/** A stretch the silent player listened through and found nothing to send: heard, with nothing said. Its id is the extension's, as a piece's is. */
+export type NewQuiet = { id: string; videoId: string; startMs: number; endMs: number; userId: string };
+
+/** Two kept stretches this close (or overlapping) read as one, so a transcript's coverage is a few long stretches, not a list of pieces. */
+const MERGE_GAP_MS = 100;
+
+type SettingRow = { key: string; value: string };
+/** A group of the shared settings: each key's own rule (the schema's shape), the whole read as one, and its defaults. */
+type Checked = { success: true; data: unknown } | { success: false };
+type Group<T extends Record<string, unknown>> = { shape: Record<string, { safeParse(value: unknown): Checked }>; parse(value: unknown): T; defaults: T };
+const TRANSCRIPTION: Group<Transcription> = { shape: Transcription.shape, parse: (value) => Transcription.parse(value), defaults: DEFAULT_TRANSCRIPTION };
+const WORD_AUDIO: Group<WordAudio> = { shape: WordAudio.shape, parse: (value) => WordAudio.parse(value), defaults: DEFAULT_WORD_AUDIO };
+type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null };
+type StretchRow = { startMs: number; endMs: number };
+type PieceRow = { checked: number; kept: number; language: string | null; probability: number | null; words: number };
+/** A living word of another piece, with that piece's own edges. */
+type InsideRow = { id: number; startMs: number; pieceStart: number; pieceEnd: number };
+
+/**
+ * What every account shares lives in `shared.sqlite`, apart from `auth.sqlite` and from every account's own data (the
+ * owner's decision of 2026-10-17, with the admin flag): the keys for the services Panki calls, the dictionaries kept on
+ * Panki, how transcribing runs, and every transcript. Same discipline as `db.ts`: migrations in order, `user_version`
+ * records how far we got, nothing is ever deleted but a key, whose old values are secrets.
+ */
+const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
+  (db) => {
+    // One key per service (Forvo, each engine), typed in Settings by an admin. Kept apart from `settings` because
+    // those keep every value they had; of a key only that it was set, forgotten or moved here, and when.
+    db.exec(`
+      CREATE TABLE service_keys (
+        service TEXT PRIMARY KEY,
+        key TEXT NOT NULL,
+        set_at INTEGER NOT NULL
+      )
+    `);
+    db.exec(`
+      CREATE TABLE service_key_changes (
+        id INTEGER PRIMARY KEY,
+        service TEXT NOT NULL,
+        what TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    // The dictionaries kept on Panki, the same row an account's `dictionary_files` was, plus who uploaded it. The zip
+    // is `shared/dictionaries/<id>`. Removing one keeps its row with the time it went; the zip is deleted for the room.
+    db.exec(`
+      CREATE TABLE dictionary_files (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        revision TEXT NOT NULL,
+        description TEXT NOT NULL,
+        bytes INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        uploaded_at INTEGER NOT NULL,
+        uploaded_by TEXT NOT NULL DEFAULT '',
+        removed_at INTEGER
+      )
+    `);
+    // How transcribing runs, for everyone: only the keys an admin changed; reading merges them over the contracts'
+    // DEFAULT_TRANSCRIPTION. Every change keeps what it was and what it became.
+    db.exec(`
+      CREATE TABLE settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+    db.exec(`
+      CREATE TABLE settings_changes (
+        id INTEGER PRIMARY KEY,
+        key TEXT NOT NULL,
+        from_value TEXT NOT NULL,
+        to_value TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    // One transcript per video, shared by everyone: what the engine last heard its language as. The words are below.
+    db.exec(`
+      CREATE TABLE transcripts (
+        video_id TEXT PRIMARY KEY,
+        language TEXT,
+        language_probability REAL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+    // Every piece of sound sent to an engine, paid for whether or not its words were kept: `checked` is that the engine
+    // was asked what language it heard, `kept` that its words were taken into the transcript.
+    db.exec(`
+      CREATE TABLE transcript_pieces (
+        id TEXT PRIMARY KEY,
+        video_id TEXT NOT NULL REFERENCES transcripts(video_id),
+        start_ms INTEGER NOT NULL,
+        end_ms INTEGER NOT NULL,
+        engine TEXT NOT NULL,
+        language TEXT,
+        language_probability REAL,
+        checked INTEGER NOT NULL,
+        kept INTEGER NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX transcript_pieces_video_id ON transcript_pieces (video_id)");
+    // Every word an engine heard, with its times in the video's own ms. Never deleted: one that lost its place to a
+    // neighbouring piece's hearing of the same moment gets `removed_at` and stands aside.
+    db.exec(`
+      CREATE TABLE transcript_words (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        piece_id TEXT NOT NULL REFERENCES transcript_pieces(id),
+        text TEXT NOT NULL,
+        start_ms INTEGER NOT NULL,
+        end_ms INTEGER NOT NULL,
+        removed_at INTEGER
+      )
+    `);
+    db.exec("CREATE INDEX transcript_words_video_start ON transcript_words (video_id, start_ms)");
+    // A word changed by hand, kept beside the engine's word, never over it: a word's text is its latest fix's.
+    db.exec(`
+      CREATE TABLE transcript_fixes (
+        id INTEGER PRIMARY KEY,
+        word_id INTEGER NOT NULL REFERENCES transcript_words(id),
+        from_text TEXT NOT NULL,
+        to_text TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+  },
+  (db) => {
+    // Every request Panki makes to a service that counts them (Forvo: 500 a day), with when, so an admin can see
+    // how much of the day's allowance is used; Forvo's API tells nothing of it itself (2026-10-17).
+    db.exec(`
+      CREATE TABLE service_calls (
+        id INTEGER PRIMARY KEY,
+        service TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX service_calls_service_at ON service_calls (service, at)");
+  },
+  (db) => {
+    // The first day, a video whose first piece the engine couldn't make out (a 3-second intro it heard as "eng", 12%
+    // sure) counted as not Japanese, and was never transcribed by itself again. Now what the engine heard says
+    // something only when it was at least half sure (`verdictOf`), and a video transcribed told Japanese (Transcribe
+    // pressed) is Japanese by that word. Every video's language is read again by those rules, so none stays stuck.
+    db.exec("UPDATE transcripts SET language = NULL, language_probability = NULL WHERE language_probability IS NOT NULL AND language_probability < 0.5");
+    db.exec(`
+      UPDATE transcripts SET language = 'jpn', language_probability = NULL
+      WHERE (language IS NULL OR language NOT IN ('jpn', 'ja'))
+        AND EXISTS (SELECT 1 FROM transcript_pieces p JOIN transcript_words w ON w.piece_id = p.id WHERE p.video_id = transcripts.video_id AND p.checked = 0)
+    `);
+  },
+  (db) => {
+    // A stretch of the video the silent player listened through and found nothing to send (the quiet between two
+    // pieces, a jingle, music under nobody's voice): heard, with nothing said, so it counts as covered without a call
+    // to any engine. Until now such quiet was dropped, and the transcript had a hole wherever nobody spoke (the owner,
+    // 2026-10-17: "what are the pauses in between the yellow lines?"). The id is the extension's, as a piece's is: the
+    // same stretch again changes nothing; the quiet before a piece's sound carries that piece's id.
+    db.exec(`
+      CREATE TABLE transcript_quiet (
+        id TEXT PRIMARY KEY,
+        video_id TEXT NOT NULL REFERENCES transcripts(video_id),
+        start_ms INTEGER NOT NULL,
+        end_ms INTEGER NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX transcript_quiet_video_id ON transcript_quiet (video_id)");
+  },
+  (db) => {
+    // A transcript forgotten, whole or a stretch of it, "to start from scratch" (the owner, 2026-10-17): nothing is
+    // deleted; the pieces and the quiet of the stretch stand aside with `removed_at`, their words with them, and the
+    // stretch is uncovered again, to be transcribed afresh when a run passes it. What was paid for stays counted.
+    db.exec("ALTER TABLE transcript_pieces ADD COLUMN removed_at INTEGER");
+    db.exec("ALTER TABLE transcript_quiet ADD COLUMN removed_at INTEGER");
+  },
+];
+
+function migrate(db: DatabaseSync) {
+  const { user_version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
+  MIGRATIONS.forEach((step, i) => {
+    if (i < user_version) return;
+    db.exec("BEGIN");
+    try {
+      step(db);
+      db.exec(`PRAGMA user_version = ${i + 1}`);
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  });
+}
+
+/** How far a moment is from the nearer edge of a stretch: the farther in, the better a piece heard it. */
+const depth = (at: number, stretch: Stretch) => Math.min(at - stretch.startMs, stretch.endMs - at);
+
+/** The stretches in order, those that overlap or nearly touch made one. */
+function mergeStretches(rows: StretchRow[]): Stretch[] {
+  const merged: Stretch[] = [];
+  for (const row of rows) {
+    const last = merged[merged.length - 1];
+    if (last && row.startMs <= last.endMs + MERGE_GAP_MS) last.endMs = Math.max(last.endMs, row.endMs);
+    else merged.push({ startMs: row.startMs, endMs: row.endMs });
+  }
+  return merged;
+}
+
+export function openShared(dataDir: string) {
+  mkdirSync(dataDir, { recursive: true });
+  const db = new DatabaseSync(path.join(dataDir, "shared.sqlite"));
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
+  migrate(db);
+
+  function transaction<T>(work: () => T): T {
+    db.exec("BEGIN");
+    try {
+      const result = work();
+      db.exec("COMMIT");
+      return result;
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
+  const selectKey = db.prepare("SELECT key FROM service_keys WHERE service = ?");
+  const upsertKey = db.prepare("INSERT INTO service_keys (service, key, set_at) VALUES (?, ?, ?) ON CONFLICT (service) DO UPDATE SET key = excluded.key, set_at = excluded.set_at");
+  const deleteKey = db.prepare("DELETE FROM service_keys WHERE service = ?");
+  const insertKeyChange = db.prepare("INSERT INTO service_key_changes (service, what, at) VALUES (?, ?, ?)");
+  const insertCall = db.prepare("INSERT INTO service_calls (service, at) VALUES (?, ?)");
+  const countCalls = db.prepare("SELECT COUNT(*) AS n FROM service_calls WHERE service = ? AND at >= ?");
+
+  const dictionaryColumns = "id, title, revision, description, bytes, uploaded_at AS uploadedAt";
+  const selectDictionaryFiles = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE removed_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
+  const selectDictionaryFile = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE id = ? AND removed_at IS NULL`);
+  const selectAnyDictionaryFile = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE id = ?`);
+  const selectDictionaryFileHash = db.prepare("SELECT sha256 FROM dictionary_files WHERE id = ?");
+  const selectDictionaryFileByTitle = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE title = ? AND removed_at IS NULL`);
+  const insertDictionaryFile = db.prepare(
+    "INSERT OR IGNORE INTO dictionary_files (id, title, revision, description, bytes, sha256, uploaded_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const removeDictionaryFile = db.prepare("UPDATE dictionary_files SET removed_at = ? WHERE id = ? AND removed_at IS NULL");
+
+  const selectSettings = db.prepare("SELECT key, value FROM settings");
+  const upsertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value");
+  const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES (?, ?, ?, ?)");
+
+  const selectTranscript = db.prepare("SELECT language FROM transcripts WHERE video_id = ?");
+  const insertTranscript = db.prepare("INSERT OR IGNORE INTO transcripts (video_id, language, language_probability, created_at, updated_at) VALUES (?, NULL, NULL, ?, ?)");
+  const updateTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = ?, updated_at = ? WHERE video_id = ?");
+  // Told a language and hearing words in it, the video is in that language by the teller's word, unless it's that already.
+  const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
+  const touchTranscript = db.prepare("UPDATE transcripts SET updated_at = ? WHERE video_id = ?");
+  // A word reads as its latest fix, when it has one; the engine's own word stays beside it.
+  const latestFix = "(SELECT f.to_text FROM transcript_fixes f WHERE f.word_id = w.id ORDER BY f.id DESC LIMIT 1)";
+  const selectWords = db.prepare(`
+    SELECT w.id, w.text AS heard, w.start_ms AS startMs, w.end_ms AS endMs, ${latestFix} AS fixed
+    FROM transcript_words w WHERE w.video_id = ? AND w.removed_at IS NULL ORDER BY w.start_ms ASC, w.id ASC`);
+  const selectLivingWord = db.prepare(`SELECT w.text AS heard, ${latestFix} AS fixed FROM transcript_words w WHERE w.id = ? AND w.video_id = ? AND w.removed_at IS NULL`);
+  // What's covered: the kept pieces' sound, and the quiet listened through.
+  const selectKeptStretches = db.prepare(`
+    SELECT start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE video_id = ? AND kept = 1 AND removed_at IS NULL
+    UNION ALL SELECT start_ms, end_ms FROM transcript_quiet WHERE video_id = ? AND removed_at IS NULL
+    ORDER BY startMs ASC, endMs ASC`);
+  // Forgetting a stretch: what reaches into it stands aside, its words with it; the whole video is the stretch from 0 on.
+  const forgetPieces = db.prepare("UPDATE transcript_pieces SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL AND start_ms < ? AND end_ms > ?");
+  const forgetPieceWords = db.prepare(
+    "UPDATE transcript_words SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL AND piece_id IN (SELECT id FROM transcript_pieces WHERE video_id = ? AND removed_at = ?)",
+  );
+  const forgetQuiet = db.prepare("UPDATE transcript_quiet SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL AND start_ms < ? AND end_ms > ?");
+  const forgetLanguage = db.prepare("UPDATE transcripts SET language = NULL, language_probability = NULL, updated_at = ? WHERE video_id = ?");
+  const selectQuiet = db.prepare("SELECT 1 FROM transcript_quiet WHERE id = ? AND video_id = ?");
+  const insertQuiet = db.prepare("INSERT OR IGNORE INTO transcript_quiet (id, video_id, start_ms, end_ms, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+  const selectPiece = db.prepare(
+    "SELECT checked, kept, language, language_probability AS probability, (SELECT COUNT(*) FROM transcript_words w WHERE w.piece_id = p.id) AS words FROM transcript_pieces p WHERE id = ? AND video_id = ?",
+  );
+  const insertPiece = db.prepare(
+    "INSERT OR IGNORE INTO transcript_pieces (id, video_id, start_ms, end_ms, engine, language, language_probability, checked, kept, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  // The living words of the video's other pieces that begin inside a stretch, each with its own piece's edges.
+  const selectWordsInside = db.prepare(`
+    SELECT w.id, w.start_ms AS startMs, q.start_ms AS pieceStart, q.end_ms AS pieceEnd
+    FROM transcript_words w JOIN transcript_pieces q ON q.id = w.piece_id
+    WHERE w.video_id = ? AND w.removed_at IS NULL AND q.removed_at IS NULL AND w.piece_id != ? AND w.start_ms >= ? AND w.start_ms <= ?`);
+  // The video's other kept pieces that reach into a stretch.
+  const selectPiecesOver = db.prepare(
+    "SELECT start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE video_id = ? AND kept = 1 AND removed_at IS NULL AND id != ? AND start_ms <= ? AND end_ms >= ?",
+  );
+  const removeWord = db.prepare("UPDATE transcript_words SET removed_at = ? WHERE id = ?");
+  const insertWord = db.prepare("INSERT INTO transcript_words (video_id, piece_id, text, start_ms, end_ms, removed_at) VALUES (?, ?, ?, ?, ?, ?)");
+  const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, user_id, at) VALUES (?, ?, ?, ?, ?)");
+  const sumPieces = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces");
+
+  /**
+   * One group of the shared settings (how transcribing runs, where word audio comes from), each read over its defaults
+   * key by key: a stored value that no longer fits its setting's rule reads as the default, normalised on read, never
+   * rewritten. The groups share the one `settings` table; their keys don't meet.
+   */
+  function groupFrom<T extends Record<string, unknown>>({ shape, parse, defaults }: Group<T>, rows: SettingRow[]): T {
+    const stored = new Map(rows.map((row) => [row.key, row.value]));
+    const merged: Record<string, unknown> = { ...defaults };
+    for (const key of Object.keys(defaults)) {
+      const raw = stored.get(key);
+      if (raw === undefined) continue;
+      const parsed = shape[key]?.safeParse(JSON.parse(raw));
+      if (parsed?.success) merged[key] = parsed.data;
+    }
+    return parse(merged);
+  }
+  /** Each setting of a group given is stored when it differs from what it reads as now, with a row of what it changed from and to. */
+  function updateGroup<T extends Record<string, unknown>>(group: Group<T>, patch: Partial<T>, now: number): T {
+    return transaction(() => {
+      const before = groupFrom(group, selectSettings.all() as SettingRow[]);
+      for (const key of Object.keys(group.defaults) as (keyof T & string)[]) {
+        const value = patch[key];
+        if (value === undefined) continue;
+        const [from, to] = [JSON.stringify(before[key]), JSON.stringify(value)];
+        if (from === to) continue;
+        upsertSetting.run(key, to);
+        insertSettingChange.run(key, from, to, now);
+      }
+      return groupFrom(group, selectSettings.all() as SettingRow[]);
+    });
+  }
+  const transcriptionFrom = (rows: SettingRow[]): Transcription => groupFrom(TRANSCRIPTION, rows);
+
+  return {
+    /** The key kept for a service, typed in Settings; null when there's none. Read only to call that service, never sent back. */
+    key(service: Service): string | null {
+      const row = selectKey.get(service) as { key: string } | undefined;
+      return row?.key ?? null;
+    },
+    /** Keeps a service's key, or forgets it (null). That it was set or forgotten, and when, is kept; the key's old values are not. */
+    setKey(service: Service, key: string | null, now: number): void {
+      transaction(() => {
+        if (key === null) deleteKey.run(service);
+        else upsertKey.run(service, key, now);
+        insertKeyChange.run(service, key === null ? "forgotten" : "set", now);
+      });
+    },
+    /** One request made to a service that counts them. */
+    recordCall(service: Service, now: number): void {
+      insertCall.run(service, now);
+    },
+    /** How many requests went to a service since a moment. */
+    callsSince(service: Service, since: number): number {
+      return (countCalls.get(service, since) as { n: number }).n;
+    },
+
+    /** The dictionaries kept on Panki, oldest first. */
+    listDictionaryFiles(): ServerDictionary[] {
+      return selectDictionaryFiles.all().map((row) => ServerDictionary.parse(row));
+    },
+    /** One kept dictionary; null when there's none by that id (or it was removed). */
+    getDictionaryFile(id: string): ServerDictionary | null {
+      const row = selectDictionaryFile.get(id);
+      return row ? ServerDictionary.parse(row) : null;
+    },
+    /** The kept dictionary called this, if there is one: two of the same name would be one dictionary twice. */
+    dictionaryFileTitled(title: string): ServerDictionary | null {
+      const row = selectDictionaryFileByTitle.get(title);
+      return row ? ServerDictionary.parse(row) : null;
+    },
+    /** The hash of the bytes an id already names, removed or not; null when the id is free. */
+    dictionaryFileHash(id: string): string | null {
+      const row = selectDictionaryFileHash.get(id) as { sha256: string } | undefined;
+      return row?.sha256 ?? null;
+    },
+    /** Idempotent: the same id again returns the row that's already there, untouched. `uploadedAt` is the API's clock, or the time a moved row already had. */
+    insertDictionaryFile(file: Omit<ServerDictionary, "uploadedAt"> & { sha256: string }, uploadedBy: string, uploadedAt: number): ServerDictionary {
+      insertDictionaryFile.run(file.id, file.title, file.revision, file.description, file.bytes, file.sha256, uploadedAt, uploadedBy);
+      return ServerDictionary.parse(selectAnyDictionaryFile.get(file.id));
+    },
+    /** Takes one off the list, keeping its row with the time it went; whether there was one to take off. */
+    removeDictionaryFile(id: string, now: number): boolean {
+      return removeDictionaryFile.run(now, id).changes > 0;
+    },
+
+    getTranscription(): Transcription {
+      return transcriptionFrom(selectSettings.all() as SettingRow[]);
+    },
+    updateTranscription(patch: TranscriptionUpdate, now: number): Transcription {
+      return updateGroup(TRANSCRIPTION, patch, now);
+    },
+    /** Where word audio comes from, for everyone. */
+    getWordAudio(): WordAudio {
+      return groupFrom(WORD_AUDIO, selectSettings.all() as SettingRow[]);
+    },
+    updateWordAudio(patch: WordAudioUpdate, now: number): WordAudio {
+      return updateGroup(WORD_AUDIO, patch, now);
+    },
+
+    /** A video's transcript as it stands: the living words in order, each as its latest fix, and the stretches kept so far. A video never transcribed is empty. */
+    transcript(videoId: string): Transcript {
+      const row = selectTranscript.get(videoId) as { language: string | null } | undefined;
+      const words: TranscriptWord[] = (selectWords.all(videoId) as WordRow[]).map((w) => ({
+        id: w.id,
+        text: w.fixed ?? w.heard,
+        ...(w.fixed === null ? {} : { heard: w.heard }),
+        startMs: w.startMs,
+        endMs: w.endMs,
+      }));
+      return Transcript.parse({ videoId, language: row?.language ?? null, words, covered: mergeStretches(selectKeptStretches.all(videoId, videoId) as StretchRow[]) });
+    },
+    /** What a piece already stored answered: the language heard when it was asked, and what that came to (neither, for a stretch of nothing). Null when the video has no such piece. */
+    piece(videoId: string, pieceId: string): { language: HeardLanguage | null; verdict: LanguageVerdict | null } | null {
+      const row = selectPiece.get(pieceId, videoId) as PieceRow | undefined;
+      if (!row) return selectQuiet.get(pieceId, videoId) ? { language: null, verdict: null } : null;
+      const language = row.checked === 1 && row.language !== null && row.probability !== null ? { code: row.language, probability: row.probability } : null;
+      return { language, verdict: language === null ? null : verdictOf(language, row.words) };
+    },
+    /** A stretch listened through with nothing to send: covered from now on, no engine asked. The same one again changes nothing. */
+    insertQuiet(quiet: NewQuiet, now: number): void {
+      transaction(() => {
+        insertTranscript.run(quiet.videoId, now, now);
+        const added = insertQuiet.run(quiet.id, quiet.videoId, quiet.startMs, quiet.endMs, quiet.userId, now);
+        if (added.changes > 0) touchTranscript.run(now, quiet.videoId);
+      });
+    },
+    /**
+     * A piece and the words it heard, in one transaction. The same piece again (a retry) changes nothing. When its words
+     * are kept they're stitched to the neighbours': the extension cuts where nobody speaks, but a forced cut or a jump
+     * makes two pieces that overlap by a second or two, both hearing the word at the edge. By geometry alone, the piece
+     * that heard a moment farther from its own edge keeps its word; the other's stands aside (`removed_at`), so exactly
+     * one survives at each moment. A new word that loses is still written, with `removed_at` set as it lands.
+     */
+    insertPiece(piece: NewPiece, words: readonly NewWord[], now: number): void {
+      transaction(() => {
+        insertTranscript.run(piece.videoId, now, now);
+        const added = insertPiece.run(
+          piece.id,
+          piece.videoId,
+          piece.startMs,
+          piece.endMs,
+          piece.engine,
+          piece.language?.code ?? null,
+          piece.language?.probability ?? null,
+          piece.told === null ? 1 : 0,
+          piece.kept ? 1 : 0,
+          piece.userId,
+          now,
+        );
+        if (added.changes === 0) return;
+        // The quiet listened through before the sound: heard, covered, under the piece's own id.
+        if (piece.heardFrom < piece.startMs) insertQuiet.run(piece.id, piece.videoId, piece.heardFrom, piece.startMs, piece.userId, now);
+        // The video's language: what the engine heard surely, or the language it was told when it heard words in it (Transcribe pressed on a video heard wrong).
+        if (piece.language && piece.verdict !== null && piece.verdict !== "unsure") updateTranscriptLanguage.run(piece.language.code, piece.language.probability, now, piece.videoId);
+        else if (piece.told !== null && words.length > 0) tellTranscriptLanguage.run(piece.told, now, piece.videoId, piece.told);
+        else touchTranscript.run(now, piece.videoId);
+        if (!piece.kept) return;
+        const stretch: Stretch = { startMs: piece.startMs, endMs: piece.endMs };
+        for (const w of selectWordsInside.all(piece.videoId, piece.id, piece.startMs, piece.endMs) as InsideRow[]) {
+          if (depth(w.startMs, stretch) > depth(w.startMs, { startMs: w.pieceStart, endMs: w.pieceEnd })) removeWord.run(now, w.id);
+        }
+        const others = selectPiecesOver.all(piece.videoId, piece.id, piece.endMs, piece.startMs) as StretchRow[];
+        for (const v of words) {
+          const beaten = others.some((q) => q.startMs <= v.startMs && v.startMs <= q.endMs && depth(v.startMs, stretch) <= depth(v.startMs, q));
+          insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, beaten ? now : null);
+        }
+      });
+    },
+    /**
+     * A transcript forgotten, a stretch of it or the whole (null): every piece and every quiet reaching into the stretch
+     * stands aside with its words (`removed_at`, never deleted), so the stretch is uncovered and transcribed afresh when
+     * a run passes it; the whole video forgotten forgets what language it was heard as too, to start from scratch. What
+     * was paid for stays counted (`secondsTranscribed`).
+     */
+    forget(videoId: string, stretch: Stretch | null, now: number): void {
+      transaction(() => {
+        const startMs = stretch?.startMs ?? 0;
+        const endMs = stretch?.endMs ?? Number.MAX_SAFE_INTEGER;
+        forgetPieces.run(now, videoId, endMs, startMs);
+        forgetPieceWords.run(now, videoId, videoId, now);
+        forgetQuiet.run(now, videoId, endMs, startMs);
+        if (stretch === null) forgetLanguage.run(now, videoId);
+        else touchTranscript.run(now, videoId);
+      });
+    },
+    /** A word changed by hand: a fix from what it reads as now. False when no living word with that id is the video's; the same text again changes nothing. */
+    fixWord(videoId: string, wordId: number, text: string, userId: string, now: number): boolean {
+      return transaction(() => {
+        const row = selectLivingWord.get(wordId, videoId) as { heard: string; fixed: string | null } | undefined;
+        if (!row) return false;
+        const current = row.fixed ?? row.heard;
+        if (current !== text) insertFix.run(wordId, current, text, userId, now);
+        return true;
+      });
+    },
+    /** How much sound has been sent to engines so far, every video and everyone counted, in whole seconds. */
+    secondsTranscribed(): number {
+      const { ms } = sumPieces.get() as { ms: number };
+      return Math.floor(ms / 1000);
+    },
+
+    close() {
+      db.close();
+    },
+  };
+}
+
+/** A file moved across the disk; across two file systems (`EXDEV`) it's copied, and the copy stands before the original goes. */
+function moveFile(from: string, to: string): void {
+  try {
+    renameSync(from, to);
+  } catch (e) {
+    const code = typeof e === "object" && e !== null && "code" in e ? e.code : undefined;
+    if (code !== "EXDEV") throw e;
+    copyFileSync(from, to);
+    rmSync(from, { force: true });
+  }
+}
+
+/**
+ * Until 2026-10-17 the Forvo key and the dictionaries kept on Panki were each account's own. They're everyone's now, and
+ * what accounts held moves over here, once, at startup. Every row moved is marked, so running it again moves nothing;
+ * one account's trouble is said and doesn't keep the API from starting.
+ */
+export function gatherShared(shared: Shared, dataDir: string, auth: AuthDb, dbFor: (userId: string) => Db, now: () => number): void {
+  const toDir = sharedDictionaryDir(dataDir);
+  for (const user of auth.listUsers()) {
+    try {
+      const db = dbFor(user.id);
+      gatherForvoKey(shared, db, user, now);
+      gatherDictionaries(shared, db, dictionaryDir(userDir(dataDir, user.id)), toDir, user, now);
+    } catch (e) {
+      console.error(`Couldn't move what ${user.name} held into the shared store; the API starts without it.`, e);
+    }
+  }
+}
+
+/** The first key found becomes everyone's; a second account's, when it's another key, is left where it is and said. */
+function gatherForvoKey(shared: Shared, db: Db, user: User, now: () => number): void {
+  const own = db.forvoKey();
+  if (own === null) return;
+  const kept = shared.key("forvo");
+  if (kept !== null && kept !== own) {
+    console.log(`${user.name}'s account has a Forvo key of its own; the shared one is used, and theirs is left where it is.`);
+    return;
+  }
+  // Written to the shared store before it's taken from the account, so a stop between the two loses nothing: the next
+  // start finds the same key in both and takes the account's.
+  if (kept === null) shared.setKey("forvo", own, now());
+  db.takeForvoKey(now());
+  console.log(`Moved ${user.name}'s Forvo key to the shared store.`);
+}
+
+/** Each unmoved dictionary: its zip into the shared folder and its row into the shared store, or let go when the owner has it already. */
+function gatherDictionaries(shared: Shared, db: Db, fromDir: string, toDir: string, user: User, now: () => number): void {
+  for (const file of db.dictionaryFilesToMove()) {
+    const from = path.join(fromDir, file.id);
+    const to = path.join(toDir, file.id);
+    if (shared.dictionaryFileTitled(file.title)) {
+      // The owner has it already: the account's is a copy of a file they have, let go for the room.
+      db.markDictionaryMoved(file.id, now());
+      removeFile(fromDir, file.id);
+      console.log(`${file.title} from ${user.name} is on Panki already; their copy was let go.`);
+      continue;
+    }
+    if (existsSync(from)) {
+      mkdirSync(toDir, { recursive: true });
+      moveFile(from, to);
+    }
+    // The zip may already be across (a stop between the move and the row): the row is made for it either way.
+    if (!existsSync(to)) {
+      db.markDictionaryMoved(file.id, now());
+      console.log(`${file.title} from ${user.name} has no zip on the disk; its row was marked and nothing moved.`);
+      continue;
+    }
+    const { sha256, uploadedAt, ...rest } = file;
+    shared.insertDictionaryFile({ ...rest, sha256 }, user.id, uploadedAt);
+    db.markDictionaryMoved(file.id, now());
+    console.log(`Moved ${file.title} from ${user.name} to the shared store.`);
+  }
+}

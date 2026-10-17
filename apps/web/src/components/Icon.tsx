@@ -1,0 +1,48 @@
+/** The app's icons, one registry: a name and the strokes that draw it on a 24-unit grid. */
+const ICONS = {
+  home: ["M3 11l9-8 9 8", "M5 10v10h14V10"],
+  settings: ["M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"],
+  stats: ["M3 17l6-6 4 4 8-8", "M14 7h7v7"],
+  review: ["M4 12a8 8 0 0 1 13.7-5.7", "M18 2v5h-5", "M20 12a8 8 0 0 1-13.7 5.7", "M6 22v-5h5"],
+  decks: ["M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z", "M7 4h10"],
+  type: ["M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M7 9h10", "M7 13h6"],
+  srs: ["M4 20h4v-5H4z", "M10 20h4v-9h-4z", "M16 20h4V7h-4z"],
+  add: ["M12 5v14", "M5 12h14"],
+  minus: ["M5 12h14"],
+  back: ["M15 5l-7 7 7 7"],
+  down: ["M6 9l6 6 6-6"],
+  close: ["M6 6l12 12", "M18 6L6 18"],
+  grip: ["M9 5v1.5", "M15 5v1.5", "M9 11v1.5", "M15 11v1.5", "M9 17v1.5", "M15 17v1.5"],
+  flame: ["M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 3-2 4-3 4 0-3-1-6-4-9 0 4-4 6-4 11 0 4 3 8 7 8z"],
+  undo: ["M9 14L4 9l5-5", "M4 9h11a5 5 0 0 1 0 10h-4"],
+  redo: ["M15 14l5-5-5-5", "M20 9H9a5 5 0 0 0 0 10h4"],
+  check: ["M5 12l5 5L20 7"],
+  lock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 8 0v3"],
+  edit: ["M4 20h4L19 9l-4-4L4 16z", "M13 7l4 4"],
+  play: ["M8 5l11 7-11 7z"],
+  pause: ["M8 5v14", "M16 5v14"],
+  sound: ["M4 9.5h3.5L12 6v12l-4.5-3.5H4z", "M15.5 9a4 4 0 0 1 0 6", "M18 6.5a7.5 7.5 0 0 1 0 11"],
+  film: ["M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "M7 5v14", "M17 5v14", "M3 9.5h4", "M3 14.5h4", "M17 9.5h4", "M17 14.5h4"],
+  picture: ["M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "M3 16l5-5 4 4 3-3 6 6", "M15.5 9.5h.01"],
+  full: ["M4 9V4h5", "M20 9V4h-5", "M4 15v5h5", "M20 15v5h-5"],
+  unfull: ["M9 4v5H4", "M15 4v5h5", "M9 20v-5H4", "M15 20v-5h5"],
+  out: ["M14 4h6v6", "M20 4l-9 9", "M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"],
+} as const;
+
+export type IconName = keyof typeof ICONS;
+
+type Props = {
+  name: IconName;
+  className?: string;
+};
+
+/** Decorative always: the button or label next to it carries the words. */
+export function Icon({ name, className = "" }: Props) {
+  return (
+    <svg className={`icon ${className}`.trim()} viewBox="0 0 24 24" aria-hidden="true">
+      {ICONS[name].map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}

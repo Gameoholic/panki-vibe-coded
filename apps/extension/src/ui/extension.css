@@ -1,0 +1,1400 @@
+/* The extension's own looks, in the app's tokens. Everything the app already has (buttons, fields, panels, switches,
+   chips) comes from the app's own app.css, which is loaded beside this file; only what exists nowhere in the app is
+   here: what sits on someone else's page (the line under a player, the capture panel) and the options page's few
+   extras. On a page these styles live inside a closed shadow root, so nothing of the page's reaches them. */
+
+/* The ground everything of Panki's stands on, on a page that isn't Panki's: the app's type, size and colour, said
+   again because nothing is inherited from the page. */
+.panki-root {
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--fg);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  gap: 10px;
+}
+
+/* The line under a player: the caption being spoken, as words that can be pressed. */
+.strip {
+  display: grid;
+  gap: 2px;
+  padding: 8px 14px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.strip-name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.strip .empty {
+  font-size: 14px;
+  line-height: 1.5;
+}
+/* The two rows under the player. Each runs the whole width and holds as many of the player's short rows as fit, so it
+   fills from the left as the talk goes on; when it's full it moves up whole and the next one begins, the way the
+   player's own captions roll. Room for exactly two is always kept and a lone row sits on the lower one, so nothing
+   under the strip ever moves. A row never breaks in two (what it holds is counted to fit); in the rare case the count
+   is out, the end of it is cut off sooner than a third row is made. The size of the rows is said here once. */
+.strip-rows {
+  display: grid;
+  align-content: end;
+  font-size: 22px;
+  line-height: 1.45;
+  height: 2.9em;
+  overflow: hidden;
+}
+.strip-rows .line {
+  font-size: 1em;
+  line-height: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* Not even one of the player's rows fits across (a very narrow window): there a row may break, and the strip grows. */
+.strip-rows.is-narrow {
+  height: auto;
+  min-height: 2.9em;
+}
+.strip-rows.is-narrow .line {
+  white-space: normal;
+  overflow: visible;
+}
+
+/* A line as words. Each word is a button drawn as text until it's pointed at or picked. It keeps its colour however
+   long ago it was said: the rows went grey once the talk stopped for a few seconds, until the owner asked why
+   (2026-10-17: "I don't want that"). */
+.line {
+  font-size: 22px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.line.is-small {
+  font-size: 17px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+/* Each word in a box of its own, so where one ends and the next begins can be seen (the owner liked it on the
+   dictionary's plan page, 2026-10-14). The box is a drawn line inside the word, not a border: when the dictionary's
+   split comes in and two pieces become one word, nothing after them moves more than the hair between two words. */
+.btn.tok {
+  display: inline;
+  padding: 1px 3px;
+  margin: 0 1px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: inherit;
+  color: inherit;
+  transition: none;
+}
+.btn.tok:active {
+  transform: none;
+}
+@media (hover: hover) {
+  .btn.tok:hover {
+    background: var(--surface-2);
+  }
+  .line.is-small .btn.tok:hover {
+    background: var(--surface);
+  }
+}
+.btn.tok[aria-pressed="true"],
+.line.is-small .btn.tok[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* Where the video is: the words being said this moment carry a mark under them, like the ribbon in a book. It's the
+   place to look after the video was put somewhere else, or while a clip is played back. On a picked word, which is
+   the accent's own colour all over, the mark is drawn in the colour of its letters. */
+.btn.tok.is-now {
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    inset 0 -3px 0 var(--accent);
+}
+.btn.tok.is-now[aria-pressed="true"] {
+  box-shadow: inset 0 -3px 0 var(--accent-ink);
+}
+.tok-gap {
+  white-space: pre-wrap;
+}
+/* At the far end of the line's head: Transcribe or Stop, and a clip taken off the video itself, for when there are no
+   words to press. */
+.strip-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+/* The strip's menu (ui/TranscribeMenu.tsx): its button is the status, a dot and a word lightly in the status's colour
+   (the owner, 2026-10-17: "lightly light in different colours based on status… a small dot in the button"), going in
+   the accent with the dot breathing, ready in the good colour, trouble in the danger colour, nothing going plain; and
+   a panel of its own under it: how much is transcribed and how it stands, then the items, a switch, and forgetting,
+   which asks in place. */
+.strip-menu-wrap {
+  position: relative;
+}
+.btn.strip-menu-button {
+  gap: 7px;
+}
+.strip-menu-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.btn.strip-menu-button.is-going {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.btn.strip-menu-button.is-going .strip-menu-dot {
+  background: var(--accent);
+  animation: live-dot 1.2s ease-in-out infinite;
+}
+.btn.strip-menu-button.is-ready {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.btn.strip-menu-button.is-ready .strip-menu-dot {
+  background: var(--good);
+}
+.btn.strip-menu-button.is-trouble {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.btn.strip-menu-button.is-trouble .strip-menu-dot {
+  background: var(--danger);
+}
+.strip-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 6;
+  display: grid;
+  gap: 8px;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  text-align: left;
+}
+.strip-menu p {
+  margin: 0;
+}
+.strip-menu-covered {
+  font-weight: 700;
+}
+.strip-menu-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.strip-menu-items {
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.strip-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.strip-menu-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.strip-menu-ask {
+  display: grid;
+  gap: 8px;
+}
+.strip-menu-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* Beside the name: the source of the words, picked from the app's own dropdown, small enough for the head. */
+.strip-pick .btn-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.strip-pick .dropdown-menu {
+  font-size: 13px;
+}
+/* With None picked: what's wrong and the press that mends it, on one line. */
+.strip .strip-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* A transcript's word being fixed: the app's field with Save and Cancel in one row under the rows. */
+.strip-fix {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.strip-fix .field {
+  flex: 1;
+  min-width: 0;
+}
+.strip-fix .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.strip-fix .btn {
+  margin-top: 1px;
+}
+/* The transcript over the video (the line being said): the same words as under the player, on a dark band that
+   sits over the picture whatever the theme, each word still a box to press. */
+.over-line {
+  display: inline-block;
+  max-width: 88%;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theater) 68%, transparent);
+  color: var(--theater-ink);
+  pointer-events: auto;
+  text-align: center;
+}
+.over-line .line {
+  font-size: 26px;
+  line-height: 1.5;
+  white-space: normal;
+}
+.over-line .btn.tok {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theater-ink) 25%, transparent);
+}
+.over-line .btn.tok.is-now {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--theater-ink) 25%, transparent),
+    inset 0 -3px 0 var(--accent);
+}
+@media (hover: hover) {
+  .over-line .btn.tok:hover {
+    background: color-mix(in srgb, var(--theater-ink) 18%, transparent);
+  }
+}
+/* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
+.strip-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* Something that opens and closes by its height, fading as it goes (ui/Fold.tsx), so what's around it is moved aside
+   and let back instead of jumping. One row of a grid, taken from nothing to the height of what's in it; how long that
+   takes is handed in by the component, its one home. While it moves, what's in it is cut off at its edge; at rest
+   nothing is, so a shadow or a focus ring can reach out of it. The easing is the app's own (the opening moment's). */
+.fold {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+}
+.fold > .fold-body {
+  min-height: 0;
+  overflow: hidden;
+}
+.fold.is-still > .fold-body {
+  overflow: visible;
+}
+.fold.is-away {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+.fold.is-in {
+  animation: fold-in var(--fold-in) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.fold.is-out {
+  animation: fold-out var(--fold-out) cubic-bezier(0.4, 0, 0.7, 1) both;
+}
+@keyframes fold-in {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+@keyframes fold-out {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+/* Asked for less motion: it's simply there, and simply gone. (Not `none`: whoever waits for it to end still hears so.) */
+@media (prefers-reduced-motion: reduce) {
+  .fold.is-in,
+  .fold.is-out {
+    animation-duration: 1ms;
+  }
+}
+
+/* A small dot that breathes: something is going on by itself, and will stop by itself. */
+.live-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: live-dot 1.2s ease-in-out infinite;
+}
+@keyframes live-dot {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}
+
+/* The capture drawer: the app's panel, lifted off a page that isn't the app's. Top to bottom: the card as a review
+   will show it, what's typed about the word, the sentence, the clip, Add. */
+.capture {
+  box-shadow: var(--shadow);
+}
+/* The room between the drawer and what it stands beside on the page is inside what folds, so it opens and closes with
+   the drawer and nothing is left to jump at the end. Whoever puts the drawer on a page says how much, on its place. */
+.capture-fold > .fold-body {
+  padding-top: var(--panki-gap-above, 0px);
+  padding-bottom: var(--panki-gap-below, 0px);
+}
+/* While the card is on its way, everything in the form but what says so goes quiet and answers no press. */
+.capture .add-form > * {
+  transition: opacity 0.25s ease;
+}
+.capture .add-form.is-working > :not(.capture-live) {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* Folded away it takes no room, and it mustn't leave the form's own gap standing twice where it was: it stands
+   over the gap above it, and brings that much room of its own when it opens. */
+.capture-progress-fold {
+  margin-top: -12px;
+}
+.capture-progress-fold .capture-progress {
+  padding-top: 12px;
+}
+.capture-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.capture-head .panel-title {
+  margin: 0;
+}
+/* Nothing in the drawer is ever wider than the drawer: a long word breaks, it doesn't push the column out. */
+.capture .add-form > * {
+  min-width: 0;
+}
+/* The card is the app's own review card, standing on the app's own ground so it reads as a look into the app. Here
+   a press turns it over and another turns it back, so it stays something to press once it's turned. */
+.capture-card-ground {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.capture-card .review-card.is-revealed {
+  cursor: pointer;
+}
+.capture-card .review-card.is-revealed:active {
+  background: var(--surface-2);
+}
+.capture-card .review-card.is-revealed:has(.media:active, .link-chip:active):active {
+  background: var(--surface);
+}
+/* The deck's chooser keeps to its own width under its label, instead of stretching across the drawer. */
+.capture-deck .dropdown {
+  justify-self: start;
+}
+/* The small things that can be done to the sentence, in a row under it. */
+.capture-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn.capture-tool {
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.capture-tool .icon {
+  width: 14px;
+  height: 14px;
+}
+/* The sentence: the app's box of several lines, with the word lit in it, and what can be done to it under it. */
+.capture-sentence {
+  display: grid;
+  gap: 6px;
+}
+
+/* The clip as a bar of time (ui/Trim.tsx): the clip in the accent with an end to pull at each side, the faint ticks
+   where words begin, the thin line where the video stands, and at each end of the bar a darker edge that's pulled to
+   show more of the video, or less. The ends reach past the bar's own height so there is something to take hold of,
+   with a finger too. */
+.trim {
+  padding: 8px 12px;
+}
+.trim.is-off {
+  opacity: 0.55;
+}
+.trim-track {
+  position: relative;
+  height: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.trim-tick {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--line-strong);
+  pointer-events: none;
+}
+.trim-clip {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+/* Still being said: it has no end yet, so it runs off the bar. */
+.trim-clip.is-open {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.trim-end {
+  position: absolute;
+  z-index: 1; /* over an edge of the bar, when it's pulled right up to one */
+  top: -7px;
+  bottom: -7px;
+  width: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 6px;
+  background: var(--fg);
+  cursor: ew-resize;
+  touch-action: none; /* a finger on an end pulls the end and doesn't scroll the page */
+}
+.trim-edge {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 8px;
+  border-radius: 4px;
+  background: var(--line-strong);
+  cursor: col-resize;
+  touch-action: none;
+}
+.trim-edge.is-from {
+  left: -10px;
+}
+.trim-edge.is-to {
+  right: -10px;
+}
+@media (hover: hover) {
+  .trim-edge:hover {
+    background: var(--muted);
+  }
+}
+.trim-edge:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.trim-end.is-start {
+  left: -6px;
+}
+.trim-end.is-end {
+  right: -6px;
+}
+.trim-end:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.trim.is-off .trim-end {
+  cursor: default;
+}
+.trim-now {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--fg);
+  pointer-events: none;
+}
+/* The clip on the player's own seek bar (ui/SeekMark.tsx). Its place is laid over the whole bar, so everything here is
+   set out in shares of it. The stretch is as thick as the bar; its two ends stand outside it, one each side, and reach
+   above and below the bar so there's something to take hold of, with more room to press than is drawn. A clip of a
+   second or two is a hair's width on a long video: it's never drawn thinner than can be seen. Only the ends take a
+   press (the place itself lets everything through to the player). */
+.seek {
+  position: absolute;
+  inset: 0;
+}
+/* Along the bar's top edge, how far the transcript reaches: a thin line in the transcript's colour, a little above
+   the bar so what the bar says itself (how much has played, how much has loaded) stays seen. */
+.seek-covered,
+.seek-working {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  height: 3px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--transcribed);
+}
+/* …and what a run has heard that isn't back from the engine yet, the same line faint: being transcribed this moment
+   (the owner, 2026-10-17, asked for it pulsing, then "the yellow glowing is too much… make its opacity really quite low"). */
+.seek-working {
+  opacity: 0.3;
+}
+.seek-clip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.seek-end {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-ink);
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+.seek-end::before {
+  content: "";
+  position: absolute;
+  inset: -5px -4px;
+}
+.seek-end.is-start {
+  right: 100%;
+}
+.seek-end.is-end {
+  left: 100%;
+}
+
+/* Under the bar: play, then where the clip begins and ends to the hundredth of a second and how long that is. */
+.capture-times {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+/* As wide saying Play as saying Stop, so nothing beside it shifts when it's pressed. */
+.btn.capture-play {
+  min-width: 96px;
+}
+.capture-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.capture-length {
+  margin-left: 6px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* A moment that can be typed over (ui/Stamp.tsx). Until it's double-clicked it reads as the words it is; then it's the
+   app's own field, small enough to stand in the line, its label kept for whoever can't see it. */
+.btn.capture-time {
+  padding: 2px 5px;
+  border-color: transparent;
+  border-radius: 6px;
+  font: inherit;
+  cursor: text;
+}
+.capture-time-edit {
+  display: inline-block;
+  position: relative;
+}
+.capture-time-edit .field {
+  display: block;
+}
+.capture-time-edit .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.capture-time-edit .field-input {
+  width: 6.5em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The drawer's last row: Discard, and Add taking the rest of it. One height, so the two stand as a pair. */
+.capture-ends {
+  display: flex;
+  gap: 8px;
+}
+.btn.capture-add {
+  flex: 1;
+  min-width: 0;
+}
+.capture-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Added. Small, but it lands: the tick pops in its ring, then the words rise, with the opening moment's own two
+   moves (`intro-pop`, `intro-rise` in the app's styles), so the app has one way of arriving, not two. */
+.capture-added {
+  display: grid;
+  gap: 10px;
+}
+.capture-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-weight: 700;
+  color: var(--good);
+}
+.capture-done-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--good-soft);
+  animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) 0.12s both;
+}
+.capture-done-words {
+  animation: intro-rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) 0.22s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-done-mark,
+  .capture-done-words {
+    animation: none;
+  }
+}
+/* The video is being let run to the end of a sentence: said where the clip's times will be, with the dot that breathes. */
+.capture-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.capture-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+/* The word said on Forvo, in the drawer: the recording, who else said it, and who this is. */
+.capture-voice {
+  display: grid;
+  gap: 8px;
+}
+.capture-credit {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* What the dictionary says, in the drawer: which of its words this is, when it has several. (The meanings to take
+   are the app's own Dropdown, under the field they go in.) */
+.capture-dict {
+  display: grid;
+  gap: 8px;
+}
+.capture-dict .chips .btn-chip {
+  font-family: var(--font-ja), var(--font);
+}
+
+/* Looking a word up: the popup over the page, and the word it's for, lit. Both stand in a place of Panki's laid over
+   the whole window that lets every press through but the ones on the popup itself. */
+.look-lit {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.look {
+  position: absolute;
+  pointer-events: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.look-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+/* Each word found, with its reading after it when that's different: 新 しん, 新 あら. */
+.look-split .btn-chip {
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 10px;
+  font-family: var(--font-ja), var(--font);
+  font-size: 14px;
+}
+.look-split .btn-chip small {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* One word read more than one way: a box with the word once and each reading in it to press. */
+.look-split-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 3px 2px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-family: var(--font-ja), var(--font);
+}
+.look-split-group.is-on {
+  border-color: var(--accent);
+}
+.look-split-term {
+  margin-right: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.look-split .btn-chip.look-split-reading {
+  padding: 2px 8px;
+  border-color: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.look-split .btn-chip.look-split-reading[aria-pressed="true"] {
+  color: var(--accent);
+}
+.look-dict-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.look-word {
+  display: grid;
+  gap: 6px;
+}
+.look-word + .look-word {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.look-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 12px;
+}
+.look-term {
+  font-family: var(--font-ja), var(--font);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.look-term rt {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* A reading with its pitch in the popup: the app's own drawing (`.pitch-accent`), small and quiet here. */
+.look-pitch {
+  padding-bottom: 4px;
+  font-family: var(--font-ja), var(--font);
+  font-size: 14px;
+  color: var(--muted);
+}
+.btn.look-add {
+  margin-left: auto;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.look-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.look-tag {
+  padding: 1px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.look-tag.is-frequency {
+  background: var(--good-soft);
+  color: var(--good);
+}
+/* How it was changed: the dictionary's form, then each ending and the form it made. */
+.look-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-family: var(--font-ja), var(--font);
+  font-size: 14px;
+}
+.look-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.look-step::before {
+  content: "";
+  width: 12px;
+  height: 1.5px;
+  background: var(--line-strong);
+}
+.look-dict {
+  display: grid;
+  gap: 2px;
+}
+.look-senses {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 20px;
+}
+.look-senses > li::marker {
+  font-weight: 700;
+  color: var(--muted);
+}
+.look-senses .look-tags {
+  display: inline-flex;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+/* A formatted definition, drawn from the few pieces it's allowed. */
+.gloss-structured ul,
+.gloss-structured ol {
+  margin: 2px 0;
+  padding-left: 18px;
+}
+.gloss-structured table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.gloss-structured td,
+.gloss-structured th {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+}
+.gloss-link {
+  color: var(--accent);
+}
+/* The parts the popup's layout adds: the reading beside the word, a tag that says what it means, a dictionary folded
+   to its name, "more", and the other words found as chips on one line. */
+.look-reading {
+  padding-bottom: 3px;
+  font-family: var(--font-ja), var(--font);
+  font-size: 16px;
+  color: var(--muted);
+}
+.look-tagline {
+  display: grid;
+  gap: 4px;
+}
+.btn.look-tag {
+  gap: 0;
+  padding: 1px 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.btn.look-tag[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.look-note {
+  display: block;
+  margin: 2px 0 4px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13px;
+  color: var(--fg);
+}
+.btn.look-fold {
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 0 2px;
+  border: 0;
+  border-top: 1px dashed var(--line);
+  border-radius: 0;
+}
+.btn.look-fold.is-open {
+  padding-top: 0;
+  border-top: 0;
+}
+.btn.look-fold .icon {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.btn.look-fold.is-open .icon {
+  transform: rotate(180deg);
+}
+.look-fold-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.btn.look-more {
+  justify-self: start;
+  padding: 0 0 0 20px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.look-fold .icon {
+    transition: none;
+  }
+}
+
+/* The popup as its own layout editor (options/PopupLayout.tsx), on the options page: drawn in the flow on a ground of
+   its own, every part something to pick, what's under the word moved by a grip at its left, as a card's parts are. */
+.popup-stage {
+  display: grid;
+  justify-items: start;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.popup-stage.is-editing {
+  padding-left: 48px;
+}
+.look.is-here {
+  position: relative;
+  width: min(100%, 420px);
+  overflow: visible; /* the grips stand outside it */
+}
+.look-part {
+  position: relative;
+  border-radius: 8px;
+  outline: 1px dashed transparent;
+  outline-offset: 4px;
+  cursor: pointer;
+  transition: transform 0.15s ease; /* the others slide out of the held part's way */
+}
+@media (hover: hover) {
+  .look-part:hover {
+    outline-color: var(--line-strong);
+  }
+}
+.look-part.is-picked {
+  outline: 2px solid var(--accent);
+}
+/* The word's reading, a part picked by itself inside the word's own. */
+.look-part.look-part-reading {
+  display: inline;
+  border-radius: 4px;
+  outline-offset: 1px;
+}
+.look-part.is-dragging {
+  z-index: 2;
+  transition: none;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.look-part.is-inline {
+  display: inline-flex;
+  align-items: flex-end;
+}
+.look-part.is-end {
+  margin-left: auto;
+}
+.look-part.is-inline > .look-part-body {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 12px;
+}
+.look-part:not(.is-inline) > .look-part-body {
+  display: grid;
+  gap: 12px;
+}
+.look-part-body > .look-word:first-child {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.btn-icon.look-grip {
+  position: absolute;
+  top: 50%;
+  left: -40px;
+  z-index: 1;
+  padding: 3px;
+  transform: translateY(-50%);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  cursor: grab;
+  touch-action: none; /* a finger on the grip moves the part and doesn't scroll the page */
+  opacity: 0;
+}
+.look-part.is-picked > .look-grip,
+.btn-icon.look-grip:focus-visible {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .look-part:hover > .look-grip {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .btn-icon.look-grip {
+    opacity: 1;
+  }
+}
+/* The sentences under it to point at with the key held, and the real popup they open, over the whole window as on a
+   page (only the popup itself takes presses). */
+.popup-try {
+  display: grid;
+  gap: 6px;
+}
+.popup-try-text {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: var(--font-ja), var(--font);
+  font-size: 18px;
+  line-height: 1.8;
+}
+.look-over {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+.look-blank {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* The options page: the app's own frame and panels; these are the few things only it has. It's as wide as the app's
+   editors for the popup's layout; every other panel keeps the app's column. */
+.options-main > :not(.options-tab),
+.options-tab > :not(.popup-layout) {
+  justify-self: center;
+  width: 100%;
+  max-width: 600px;
+}
+/* A tab of the page: its panels one under another, as the page's own are. One not chosen is drawn and hidden, so
+   nothing on it (a popup laid out and not saved) is lost by looking at another. */
+.options-tab {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+.options-tab[hidden] {
+  display: none;
+}
+.popup-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.popup-head .panel-title {
+  flex: 1;
+  margin: 0;
+}
+.popup-choices {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+.options-who {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.brand .mark {
+  margin-right: 8px;
+}
+/* Over the field mapping's rows: the deck's field on the left, what fills it on the right, as each row has them. */
+.map-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.map-head > span {
+  overflow-wrap: anywhere;
+}
+/* The dictionaries, one row each: its name and what's in it, its switch, a grip to move it, Remove. */
+.dict-list {
+  display: grid;
+  gap: 8px;
+}
+.dict-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.dict-row.is-off .dict-name {
+  color: var(--muted);
+}
+.dict-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.dict-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.dict-revision {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.dict-what {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.dict-what strong {
+  color: var(--fg);
+}
+/* The dictionaries kept on Panki that aren't in this browser yet, each to add with a press: a row like an added
+   dictionary's, dashed, with nothing to move or switch. */
+.dict-panki {
+  display: grid;
+  gap: 8px;
+}
+.dict-panki-title {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dict-row.is-available {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-style: dashed;
+}
+.btn.dict-add-all {
+  justify-self: start;
+}
+/* A dictionary's name of the owner's own: the pencil after its name, and the name being typed in its place. */
+.btn.btn-icon.dict-rename {
+  margin-left: 2px;
+  padding: 3px;
+  vertical-align: -3px;
+  color: var(--muted);
+}
+.dict-rename .icon {
+  width: 15px;
+  height: 15px;
+}
+.dict-rename-form {
+  display: grid;
+  gap: 8px;
+}
+/* Every file of an import that didn't go in, one line each. */
+.dict-failures {
+  display: grid;
+  gap: 2px;
+}
+.dict-failures p {
+  margin: 0;
+}
+/* Where a dictionary comes from, as it says itself: who made it, its address, what it is. */
+.dict-origin {
+  display: grid;
+  gap: 1px;
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+/* A line of the kinds of data Panki reads from a dictionary (options/DataKinds.tsx): each pointed at for a hint, or
+   pressed for the same words under the line; one that no dictionary provides is faint. */
+.kind-line {
+  display: grid;
+  gap: 4px;
+}
+.kind-chips {
+  position: relative; /* the hint stands over the chip pointed at */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.kind-label {
+  margin-right: 2px;
+}
+.btn.look-tag.kind-chip.is-missing {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  opacity: 0.7;
+}
+.kind-note {
+  margin: 0;
+}
+.kind-words {
+  display: grid;
+  gap: 3px;
+  font-weight: 500;
+  text-align: left;
+}
+.kind-words strong {
+  font-weight: 700;
+}
+.kind-words .look-pitch {
+  padding-bottom: 0;
+  color: inherit;
+}
+/* One word as the dictionary gives it: what an entry of it is. */
+.dict-sample {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.dict-sample-word {
+  font-family: var(--font-ja), var(--font);
+  font-weight: 700;
+}
+.dict-sample .look-pitch {
+  padding-bottom: 0;
+}
+.dict-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.dict-ask {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.dict-importing {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.dict-sites .field {
+  width: 100%;
+}

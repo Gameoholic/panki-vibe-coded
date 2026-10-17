@@ -1,0 +1,359 @@
+/* The look the owner chose on 2026-10-09: "A · Paper". A light neutral ground, white bordered cards, Urbanist, a quiet indigo.
+   Every colour in the app is a token here. `:root` is the light set; every other theme is one `[data-theme]` block
+   that gives every token another value, and nothing else. Which block applies is decided in JS (src/themes.ts, and the
+   inline script in index.html before first paint): "Match the device" is resolved there into `light` or `dark`, so
+   there is no `prefers-color-scheme` here. The list of themes, their names and their chip swatches live in themes.ts. */
+
+/* Urbanist, self-hosted (SIL Open Font License, see public/fonts/urbanist/OFL.txt). Never a remote font. */
+@font-face {
+  font-family: "Urbanist";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/urbanist/urbanist-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Urbanist";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/urbanist/urbanist-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Light: the Paper look itself. */
+:root {
+  color-scheme: light;
+  --bg: #f4f5f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f6;
+  --line: #e3e5ee;
+  --line-strong: #c8cbdb;
+  --fg: #1a1c29;
+  --muted: #6a6f87;
+  --accent: #3350b5;
+  --accent-soft: #e8ecfb;
+  --accent-ink: #ffffff;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --danger-ink: #ffffff;
+  --knob: #ffffff; /* the switch knob when off; on, it takes the accent ink */
+  /* A middling answer, and the end of the ladder. */
+  --mid: #7a4fb0;
+  --mid-soft: #efe6fb;
+  --good: #1f6b43;
+  --good-soft: #e1f3e8;
+  /* A stage's colour: its hue comes from its place on the ladder (srsKinds.ts), these set how pale and how strong. */
+  --tint-l: 93%;
+  --tint-fl: 36%;
+  --tint-s: 70%;
+  --tint-fs: 55%;
+  /* How much happened on a day, in four steps of one hue (the stats' heat map; the lightest is a meter's track too). */
+  --heat-1: #dfe5fa;
+  --heat-2: #a9b8f0;
+  --heat-3: #6a84dc;
+  --heat-4: #3350b5;
+  /* The mark never changes with the theme: the icon in the tab is one file for all of them. */
+  --mark-tile: #3350b5;
+  --mark-glyph: #ffffff;
+  --shadow: 0 1px 2px rgba(20, 24, 50, 0.06), 0 10px 28px -14px rgba(20, 24, 50, 0.22);
+  --lift: 0 1px 2px rgba(20, 24, 50, 0.1);
+  /* What dims the page behind a question that can't wait. */
+  --scrim: rgba(20, 24, 50, 0.45);
+  /* What a file on a card is, told apart before it's pressed: a sound, a clip. And the block a spoiler hides under, as
+     Discord hides a message. Each is made of tokens every theme gives a value, so no theme block names them. */
+  --sound: var(--good);
+  --sound-soft: var(--good-soft);
+  --clip: var(--mid);
+  --clip-soft: var(--mid-soft);
+  --spoiler: color-mix(in srgb, var(--fg) 22%, var(--surface-2));
+  /* The room a clip fills the screen in: black, whatever the theme, as a picture is watched; and words written over a
+     picture, white on it whatever the theme (the transcript over a video). */
+  --theater: #000000;
+  --theater-ink: #ffffff;
+  /* What a video's transcript covers, marked along the player's own bar: yellow, whatever the theme, since it lies on
+     a picture too (the owner, 2026-10-17: "yellow for things that were transcribed"). */
+  --transcribed: #f2c230;
+  --radius: 12px;
+  --radius-sm: 10px;
+  --font: "Urbanist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Japanese comes from the device's own fonts; the CJK files are too large to ship. */
+  --font-ja: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+}
+
+/* Dark: the Paper look at night. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15161d;
+  --surface: #1e1f29;
+  --surface-2: #272835;
+  --line: #2b2d3b;
+  --line-strong: #3c3f53;
+  --fg: #e6e8f2;
+  --muted: #9499b0;
+  --accent: #8aa4f8;
+  --accent-soft: #262d4a;
+  --accent-ink: #12131a;
+  --danger: #ff8a80;
+  --danger-soft: #3a2422;
+  --danger-ink: #12131a;
+  --knob: #c9cde0;
+  --mid: #c4a6f0;
+  --mid-soft: #2f2544;
+  --good: #9bd8b1;
+  --good-soft: #1d3328;
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: #262d4a;
+  --heat-2: #3d4f8f;
+  --heat-3: #637ccf;
+  --heat-4: #8aa4f8;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* The editor classics. Each is its own palette's canonical colours laid over the same tokens; a soft is the colour
+   mixed into the surface (18 % on a dark ground, 14 % on a light one), the heat steps are the accent at 25 / 50 / 75 /
+   100 % over the surface, and the ink on a filled button is the ground on a dark theme and the surface on a light one. */
+
+/* Nord: polar night, snow storm, frost and aurora. */
+:root[data-theme="nord"] {
+  color-scheme: dark;
+  --bg: #2e3440;
+  --surface: #3b4252;
+  --surface-2: #434c5e;
+  --line: #4c566a;
+  --line-strong: color-mix(in srgb, #4c566a 75%, #d8dee9);
+  --fg: #eceff4;
+  --muted: color-mix(in srgb, #d8dee9 65%, #4c566a);
+  --accent: #81a1c1;
+  --accent-soft: color-mix(in srgb, #81a1c1 18%, #3b4252);
+  --accent-ink: #2e3440;
+  --danger: #bf616a;
+  --danger-soft: color-mix(in srgb, #bf616a 18%, #3b4252);
+  --danger-ink: #2e3440;
+  --knob: #d8dee9;
+  --mid: #b48ead;
+  --mid-soft: color-mix(in srgb, #b48ead 18%, #3b4252);
+  --good: #a3be8c;
+  --good-soft: color-mix(in srgb, #a3be8c 18%, #3b4252);
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: color-mix(in srgb, #81a1c1 25%, #3b4252);
+  --heat-2: color-mix(in srgb, #81a1c1 50%, #3b4252);
+  --heat-3: color-mix(in srgb, #81a1c1 75%, #3b4252);
+  --heat-4: #81a1c1;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* Tokyo Night. */
+:root[data-theme="tokyo"] {
+  color-scheme: dark;
+  --bg: #1a1b26;
+  --surface: #24283b;
+  --surface-2: #292e42;
+  --line: #414868;
+  --line-strong: #565f89;
+  --fg: #c0caf5;
+  --muted: #737aa2;
+  --accent: #7aa2f7;
+  --accent-soft: color-mix(in srgb, #7aa2f7 18%, #24283b);
+  --accent-ink: #1a1b26;
+  --danger: #f7768e;
+  --danger-soft: color-mix(in srgb, #f7768e 18%, #24283b);
+  --danger-ink: #1a1b26;
+  --knob: #c0caf5;
+  --mid: #bb9af7;
+  --mid-soft: color-mix(in srgb, #bb9af7 18%, #24283b);
+  --good: #9ece6a;
+  --good-soft: color-mix(in srgb, #9ece6a 18%, #24283b);
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: color-mix(in srgb, #7aa2f7 25%, #24283b);
+  --heat-2: color-mix(in srgb, #7aa2f7 50%, #24283b);
+  --heat-3: color-mix(in srgb, #7aa2f7 75%, #24283b);
+  --heat-4: #7aa2f7;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* One Dark: Atom's. The ground is its darker sidebar tone so the panels sit lighter on it, as in every other theme. */
+:root[data-theme="onedark"] {
+  color-scheme: dark;
+  --bg: #21252b;
+  --surface: #282c34;
+  --surface-2: #2c313a;
+  --line: #3e4451;
+  --line-strong: #5c6370;
+  --fg: #abb2bf;
+  --muted: color-mix(in srgb, #5c6370 55%, #abb2bf);
+  --accent: #61afef;
+  --accent-soft: color-mix(in srgb, #61afef 18%, #282c34);
+  --accent-ink: #21252b;
+  --danger: #e06c75;
+  --danger-soft: color-mix(in srgb, #e06c75 18%, #282c34);
+  --danger-ink: #21252b;
+  --knob: #abb2bf;
+  --mid: #c678dd;
+  --mid-soft: color-mix(in srgb, #c678dd 18%, #282c34);
+  --good: #98c379;
+  --good-soft: color-mix(in srgb, #98c379 18%, #282c34);
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: color-mix(in srgb, #61afef 25%, #282c34);
+  --heat-2: color-mix(in srgb, #61afef 50%, #282c34);
+  --heat-3: color-mix(in srgb, #61afef 75%, #282c34);
+  --heat-4: #61afef;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* Gruvbox, dark. */
+:root[data-theme="gruvbox"] {
+  color-scheme: dark;
+  --bg: #282828;
+  --surface: #3c3836;
+  --surface-2: #504945;
+  --line: #665c54;
+  --line-strong: #7c6f64;
+  --fg: #ebdbb2;
+  --muted: #a89984;
+  --accent: #83a598;
+  --accent-soft: color-mix(in srgb, #83a598 18%, #3c3836);
+  --accent-ink: #282828;
+  --danger: #fb4934;
+  --danger-soft: color-mix(in srgb, #fb4934 18%, #3c3836);
+  --danger-ink: #282828;
+  --knob: #ebdbb2;
+  --mid: #d3869b;
+  --mid-soft: color-mix(in srgb, #d3869b 18%, #3c3836);
+  --good: #b8bb26;
+  --good-soft: color-mix(in srgb, #b8bb26 18%, #3c3836);
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: color-mix(in srgb, #83a598 25%, #3c3836);
+  --heat-2: color-mix(in srgb, #83a598 50%, #3c3836);
+  --heat-3: color-mix(in srgb, #83a598 75%, #3c3836);
+  --heat-4: #83a598;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* Solarized, light: base2 ground, base3 panels; the text takes the strong end of the palette so titles still carry. */
+:root[data-theme="solarized-light"] {
+  color-scheme: light;
+  --bg: #eee8d5;
+  --surface: #fdf6e3;
+  --surface-2: #eee8d5;
+  --line: color-mix(in srgb, #93a1a1 40%, #fdf6e3);
+  --line-strong: #93a1a1;
+  --fg: #073642;
+  --muted: #657b83;
+  --accent: #268bd2;
+  --accent-soft: color-mix(in srgb, #268bd2 14%, #fdf6e3);
+  --accent-ink: #fdf6e3;
+  --danger: #dc322f;
+  --danger-soft: color-mix(in srgb, #dc322f 14%, #fdf6e3);
+  --danger-ink: #fdf6e3;
+  --knob: #fdf6e3;
+  --mid: #6c71c4;
+  --mid-soft: color-mix(in srgb, #6c71c4 14%, #fdf6e3);
+  --good: #859900;
+  --good-soft: color-mix(in srgb, #859900 14%, #fdf6e3);
+  --tint-l: 93%;
+  --tint-fl: 36%;
+  --tint-s: 70%;
+  --tint-fs: 55%;
+  --heat-1: color-mix(in srgb, #268bd2 25%, #fdf6e3);
+  --heat-2: color-mix(in srgb, #268bd2 50%, #fdf6e3);
+  --heat-3: color-mix(in srgb, #268bd2 75%, #fdf6e3);
+  --heat-4: #268bd2;
+  --shadow: 0 1px 2px rgba(7, 54, 66, 0.06), 0 10px 28px -14px rgba(7, 54, 66, 0.22);
+  --lift: 0 1px 2px rgba(7, 54, 66, 0.1);
+  --scrim: rgba(7, 54, 66, 0.45);
+}
+
+/* Solarized, dark: base03 ground, base02 panels, the same accents. The red is deep, so its ink is the light base. */
+:root[data-theme="solarized-dark"] {
+  color-scheme: dark;
+  --bg: #002b36;
+  --surface: #073642;
+  --surface-2: color-mix(in srgb, #073642 75%, #586e75);
+  --line: #586e75;
+  --line-strong: #657b83;
+  --fg: #eee8d5;
+  --muted: #839496;
+  --accent: #268bd2;
+  --accent-soft: color-mix(in srgb, #268bd2 18%, #073642);
+  --accent-ink: #002b36;
+  --danger: #dc322f;
+  --danger-soft: color-mix(in srgb, #dc322f 18%, #073642);
+  --danger-ink: #fdf6e3;
+  --knob: #93a1a1;
+  --mid: #6c71c4;
+  --mid-soft: color-mix(in srgb, #6c71c4 18%, #073642);
+  --good: #859900;
+  --good-soft: color-mix(in srgb, #859900 18%, #073642);
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: color-mix(in srgb, #268bd2 25%, #073642);
+  --heat-2: color-mix(in srgb, #268bd2 50%, #073642);
+  --heat-3: color-mix(in srgb, #268bd2 75%, #073642);
+  --heat-4: #268bd2;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}
+
+/* Monokai. */
+:root[data-theme="monokai"] {
+  color-scheme: dark;
+  --bg: #272822;
+  --surface: #2d2e27;
+  --surface-2: #3e3d32;
+  --line: #49483e;
+  --line-strong: #75715e;
+  --fg: #f8f8f2;
+  --muted: color-mix(in srgb, #75715e 60%, #f8f8f2);
+  --accent: #66d9ef;
+  --accent-soft: color-mix(in srgb, #66d9ef 18%, #2d2e27);
+  --accent-ink: #272822;
+  --danger: #f92672;
+  --danger-soft: color-mix(in srgb, #f92672 18%, #2d2e27);
+  --danger-ink: #272822;
+  --knob: #f8f8f2;
+  --mid: #ae81ff;
+  --mid-soft: color-mix(in srgb, #ae81ff 18%, #2d2e27);
+  --good: #a6e22e;
+  --good-soft: color-mix(in srgb, #a6e22e 18%, #2d2e27);
+  --tint-l: 24%;
+  --tint-fl: 82%;
+  --tint-s: 35%;
+  --tint-fs: 80%;
+  --heat-1: color-mix(in srgb, #66d9ef 25%, #2d2e27);
+  --heat-2: color-mix(in srgb, #66d9ef 50%, #2d2e27);
+  --heat-3: color-mix(in srgb, #66d9ef 75%, #2d2e27);
+  --heat-4: #66d9ef;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 30px -14px rgba(0, 0, 0, 0.7);
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+}

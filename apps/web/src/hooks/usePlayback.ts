@@ -1,0 +1,85 @@
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+
+/**
+ * A sound or a clip being played by one of the app's players (`MediaView`, in whichever look): whether it's playing,
+ * where it is and how long it runs, whether it failed, and playing or stopping it. Spread `events` on the `<audio>`
+ * or `<video>` and give it `hold` as its ref. `cue` plays it from the start (a review playing what plays by itself),
+ * and `onCueEnd` is told when that play is over: it ended, was stopped, or couldn't start. Every look is this, so
+ * they all play, stop and cue alike. Never a second way of playing a file.
+ */
+export function usePlayback(cue: boolean, onCueEnd?: () => void) {
+  const media = useRef<HTMLMediaElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0);
+  /** How long it runs, once the file says; a clip recorded in a browser often doesn't, and then only the time so far shows. */
+  const [length, setLength] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
+  /** It's playing because it was cued, so its end is told. */
+  const cued = useRef(false);
+  const cueEnd = useRef(onCueEnd);
+  cueEnd.current = onCueEnd;
+  const endCue = () => {
+    if (!cued.current) return;
+    cued.current = false;
+    cueEnd.current?.();
+  };
+
+  useEffect(() => {
+    const el = media.current;
+    if (!cue || !el) return;
+    cued.current = true;
+    el.currentTime = 0;
+    // A browser that won't play without a press first (or a file that can't be played) is the cue's end, not a fault.
+    el.play().catch(endCue);
+  }, [cue]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new cue starts it again
+
+  function toggle() {
+    const el = media.current;
+    if (!el) return;
+    if (!el.paused) {
+      el.pause();
+      return;
+    }
+    if (el.ended) el.currentTime = 0;
+    // A file that can't be played says so through the element's own error; a play cut short by a pause is no failure.
+    el.play().catch(() => undefined);
+  }
+  /** Moves to a share of the way through (0 to 1), playing or not. */
+  function seek(share: number) {
+    const el = media.current;
+    if (!el || length === null) return;
+    el.currentTime = Math.max(0, Math.min(1, share)) * length;
+    setAt(el.currentTime);
+  }
+  /** How fast it plays: 1, or slower to hear a fast sentence. The voice keeps its pitch. */
+  function setRate(rate: number) {
+    if (media.current) media.current.playbackRate = rate;
+  }
+  const hold = (el: HTMLMediaElement | null) => {
+    media.current = el;
+  };
+  const readLength = (e: SyntheticEvent<HTMLMediaElement>) => {
+    const seconds = e.currentTarget.duration;
+    setLength(Number.isFinite(seconds) && seconds > 0 ? seconds : null);
+  };
+  const events = {
+    onPlay: () => setPlaying(true),
+    // Stopped, or over: a cued play is done either way (the end is a pause too).
+    onPause: () => {
+      setPlaying(false);
+      endCue();
+    },
+    onEnded: () => {
+      setPlaying(false);
+      endCue();
+    },
+    onTimeUpdate: (e: SyntheticEvent<HTMLMediaElement>) => setAt(e.currentTarget.currentTime),
+    onLoadedMetadata: readLength,
+    onDurationChange: readLength,
+    onError: () => {
+      setFailed(true);
+      endCue();
+    },
+  };
+  return { hold, events, playing, at, length, failed, toggle, seek, setRate };
+}

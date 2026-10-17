@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Panki</title>
+    <!-- The mark: public/icon.svg is the same path as src/brand/geometry.ts; the PNGs are renders of it (pnpm icons). -->
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Android's address bar takes the colour of the top bar: the theme's --surface, set by src/themes.ts as the theme is applied. -->
+    <meta name="theme-color" content="#ffffff" />
+    <script>
+      // src/themes.ts is the home of this. These few lines are repeated here because they have to run before the
+      // first paint, so the page never flashes light before its theme: read the device's choice, fall back to the
+      // system's scheme, and put it on the root for theme.css.
+      (function () {
+        var known = ["light", "dark", "nord", "tokyo", "onedark", "gruvbox", "solarized-light", "solarized-dark", "monokai"];
+        var chosen = null;
+        try {
+          chosen = localStorage.getItem("panki.theme");
+        } catch (e) {}
+        if (known.indexOf(chosen) < 0) chosen = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = chosen;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "panki",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream run dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "verify": "node scripts/verify.mjs",
+    "icons": "tsx scripts/icons.mjs",
+    "user:add": "pnpm --filter @panki/api run user:add",
+    "user:password": "pnpm --filter @panki/api run user:password",
+    "user:list": "pnpm --filter @panki/api run user:list",
+    "user:admin": "pnpm --filter @panki/api run user:admin",
+    "space": "pnpm --filter @panki/api run space"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}

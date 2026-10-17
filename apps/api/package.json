@@ -1,0 +1,28 @@
+{
+  "name": "@panki/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "user:add": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts add",
+    "user:password": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts password",
+    "user:list": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts list",
+    "user:admin": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts admin",
+    "space": "tsx --no-warnings=ExperimentalWarning src/cli/space.ts"
+  },
+  "dependencies": {
+    "@panki/contracts": "workspace:*",
+    "express": "^5.1.0",
+    "tsx": "^4.20.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.9.0"
+  }
+}

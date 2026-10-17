@@ -1,0 +1,216 @@
+import { useState } from "react";
+import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings } from "@panki/contracts";
+import { Button } from "../components/Button";
+import { DeckNameForm } from "../components/DeckNameForm";
+import { NumberField } from "../components/NumberField";
+import { Segmented } from "../components/Segmented";
+import { Setting } from "../components/Setting";
+import { Toggle } from "../components/Toggle";
+import { useSavedSoon } from "../hooks/useSavedSoon";
+import { count } from "../words";
+
+type Props = {
+  deck: Deck;
+  cardCount: number;
+  /** The names of what the deck is made of, shown read-only. */
+  cardTypeName: string;
+  srsTypeName: string;
+  /** Opens each one's own screen; absent when the type is missing. */
+  onOpenCardType?: (() => void) | undefined;
+  onOpenSrsType?: (() => void) | undefined;
+  onRename: (name: string) => Promise<void>;
+  /** Changes some of how this deck's reviews run; gives back all of them as saved. */
+  onChangeSettings: (patch: Partial<DeckSettings>) => Promise<DeckSettings>;
+  onRemove: () => Promise<void>;
+};
+
+/** How many cards are in play when the limit is first switched on. */
+const POOL_START = 10;
+
+const NEW_PLACE_OPTIONS = [
+  { id: "first", label: "Before reviews" },
+  { id: "last", label: "After reviews" },
+  { id: "scattered", label: "Scattered" },
+] as const;
+const NEW_ORDER_OPTIONS = [
+  { id: "added", label: "Oldest added first" },
+  { id: "shuffled", label: "Shuffled" },
+] as const;
+const REVIEW_ORDER_OPTIONS = [
+  { id: "random", label: "Shuffled" },
+  { id: "overdue", label: "Longest overdue" },
+] as const;
+/** Under a setting: what the choice made right now does, never a tour of the others. */
+const REVIEW_ORDER_WORDS: Record<DeckSettings["reviewOrder"], string> = {
+  random: "The cards due come in a random order.",
+  overdue: "The card that has been due the longest comes first.",
+};
+const AGAIN_PLACE_WORDS: Record<DeckSettings["againPlace"], string> = {
+  end: "A card you're asked again goes to the back, after every other card.",
+  soon: "A card you're asked again comes back about three cards later.",
+  random: "A card you're asked again lands at a random spot in what's left.",
+};
+/** Where "Reviews a day, at most" starts when a limit is switched on. */
+const REVIEWS_LIMIT_START = 100;
+const AGAIN_PLACE_OPTIONS = [
+  { id: "end", label: "At the end" },
+  { id: "soon", label: "A few cards later" },
+  { id: "random", label: "Anywhere" },
+] as const;
+
+/** A deck's settings: "About" (its name, and the card type and SRS type it's made of, shown and not changed), how its reviews run (saved a moment after each change), and at the bottom, delete, which asks once, here, with what it costs. */
+export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [own, patch, ownFailure] = useSavedSoon<DeckSettings>(deck.settings, onChangeSettings);
+  const cards = count(cardCount, "card", "cards");
+
+  async function run(work: () => Promise<void>) {
+    setBusy(true);
+    setFailure(null);
+    try {
+      await work();
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      {/* What the deck is: its name, to change, and what it's made of, shown and not changed here (a press opens the type's own screen). */}
+      <section className="panel" aria-labelledby="deck-about-title">
+        <h2 id="deck-about-title" className="panel-title">
+          About
+        </h2>
+        <DeckNameForm id="deck-rename" initial={deck.name} action="Save" busyAction="Saving…" onlyWhenChanged onSubmit={onRename} />
+        <Setting
+          id="cardType"
+          label="Card type"
+          control={
+            <Button id="deck-card-type" variant="chip" disabled={!onOpenCardType} onClick={onOpenCardType}>
+              {cardTypeName}
+            </Button>
+          }
+        />
+        <Setting
+          id="srsType"
+          label="SRS type"
+          control={
+            <Button id="deck-srs-type" variant="chip" disabled={!onOpenSrsType} onClick={onOpenSrsType}>
+              {srsTypeName}
+            </Button>
+          }
+        />
+      </section>
+
+      <section className="panel" aria-labelledby="deck-new-title">
+        <h2 id="deck-new-title" className="panel-title">
+          New cards
+        </h2>
+        {ownFailure ? (
+          <p className="load-error" role="alert">
+            {ownFailure}
+          </p>
+        ) : null}
+        <Setting id="newPerDay" label="New cards a day" control={<NumberField id="deck-new-per-day" label="New cards a day" value={own.newPerDay} min={0} max={999} onChange={(newPerDay) => patch({ newPerDay })} />} />
+        {/* With no new cards a day there's nothing for these two to place or order. */}
+        <Setting
+          id="newPlace"
+          label="In a review, new cards come"
+          control={<Segmented idPrefix="deck-new-place" label="In a review, new cards come" options={NEW_PLACE_OPTIONS} value={own.newPlace} disabled={own.newPerDay === 0} onChange={(newPlace) => patch({ newPlace })} />}
+        />
+        <Setting
+          id="newOrder"
+          label="Which new cards first"
+          control={<Segmented idPrefix="deck-new-order" label="Which new cards first" options={NEW_ORDER_OPTIONS} value={own.newOrder} disabled={own.newPerDay === 0} onChange={(newOrder) => patch({ newOrder })} />}
+        />
+      </section>
+
+      <section className="panel" aria-labelledby="deck-reviews-title">
+        <h2 id="deck-reviews-title" className="panel-title">
+          Reviews
+        </h2>
+        <Setting
+          id="reviewsPerDay"
+          label="Max reviews a day"
+          control={
+            <div className="setting-pair">
+              <Toggle id="deck-reviews-no-limit" says={{ on: "No limit", off: "Limited" }} on={own.reviewsPerDay === null} onChange={(none) => patch({ reviewsPerDay: none ? null : REVIEWS_LIMIT_START })} />
+              {own.reviewsPerDay === null ? null : <NumberField id="deck-reviews-per-day" label="Max reviews a day" value={own.reviewsPerDay} min={1} max={9999} onChange={(reviewsPerDay) => patch({ reviewsPerDay })} />}
+            </div>
+          }
+        />
+        <Setting
+          id="reviewOrder"
+          label="Which reviews first"
+          control={<Segmented idPrefix="deck-review-order" label="Which reviews first" options={REVIEW_ORDER_OPTIONS} value={own.reviewOrder} onChange={(reviewOrder) => patch({ reviewOrder })} />}
+          why={REVIEW_ORDER_WORDS[own.reviewOrder]}
+        />
+      </section>
+
+      <section className="panel" aria-labelledby="deck-pace-title">
+        <h2 id="deck-pace-title" className="panel-title">
+          During a review
+        </h2>
+        <Setting
+          id="againPlace"
+          label="A card asked again comes back"
+          control={
+            <Segmented idPrefix="deck-again-place" label="A card asked again comes back" options={AGAIN_PLACE_OPTIONS} value={againPlaceOf(own)} disabled={own.pool !== null} onChange={(againPlace) => patch({ againPlace })} />
+          }
+          why={own.pool !== null ? `${AGAIN_PLACE_WORDS.soon} Set by “Cards in play at once”.` : AGAIN_PLACE_WORDS[own.againPlace]}
+        />
+        <Setting
+          id="pool"
+          label="Cards in play at once"
+          control={
+            <div className="setting-pair">
+              <Toggle id="deck-pool-all" says={{ on: "All of them", off: "Only some" }} on={own.pool === null} onChange={(all) => patch({ pool: all ? null : POOL_START })} />
+              {own.pool === null ? null : <NumberField id="deck-pool" label="Cards in play at once" value={own.pool} min={1} max={POOL_MAX} onChange={(pool) => patch({ pool })} />}
+            </div>
+          }
+          why={
+            own.pool === null
+              ? "Every card of a review is in play from the start."
+              : `Only ${count(own.pool, "card goes", "different cards go")} round at a time. The next one joins when one of them is done for now.`
+          }
+        />
+      </section>
+
+      <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="deck-delete-title">
+        <h2 id="deck-delete-title" className="panel-title">
+          Danger Zone
+        </h2>
+        {asking ? (
+          <>
+            <p id="deck-delete-question" className="question">
+              Delete “{deck.name}” and its {cards}?
+            </p>
+            <div className="add-actions">
+              {failure ? (
+                <span className="form-failure" role="alert">
+                  {failure}
+                </span>
+              ) : null}
+              <Button id="deck-delete-keep" onClick={() => setAsking(false)} disabled={busy}>
+                Keep
+              </Button>
+              <Button id="deck-delete-go" variant="danger" onClick={() => run(onRemove)} disabled={busy}>
+                {busy ? "Deleting…" : "Delete deck"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="add-actions add-actions-start">
+            <Button id="deck-delete" className="is-danger" onClick={() => setAsking(true)}>
+              Delete…
+            </Button>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}

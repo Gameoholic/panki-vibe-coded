@@ -1,0 +1,133 @@
+import { z } from "zod";
+import { CardLayout } from "./layout";
+import { MediaId, type MediaKind } from "./media";
+import { youtubeLinkOf, type YouTubeLink } from "./youtube";
+
+export const CardTypeId = z.uuid();
+export const CardFieldId = z.uuid();
+export const FieldSide = z.enum(["front", "back"]);
+/**
+ * What a field holds: one line of text, several, a file (media: a clip or a sound, whichever is put there; or a
+ * picture), a link to a YouTube video, or a pitch accent (drawn as the line over its reading, `pitch.ts`; the owner,
+ * 2026-10-16). The ids live here so the API refuses a kind that doesn't exist; the word for each and how it's filled
+ * in and shown is the web's `FIELD_KINDS` registry. (Sound and clips were two kinds, `audio` and `video`, until
+ * 2026-10-11; the owner made them one, since the same field takes either.)
+ */
+export const FieldKind = z.enum(["text", "long", "media", "image", "youtube", "pitch"]);
+
+/** The kinds of file each kind of field takes. One home: a kind that isn't here holds no file. */
+const FILES_IN: Partial<Record<FieldKind, readonly MediaKind[]>> = {
+  media: ["video", "audio"],
+  image: ["image"],
+};
+const NO_FILES: readonly MediaKind[] = [];
+
+/** The kinds of file a field can hold; none for a field of anything else. Its value on a card is then the file's id, or empty. */
+export function mediaKindsOf(kind: FieldKind): readonly MediaKind[] {
+  return FILES_IN[kind] ?? NO_FILES;
+}
+
+/** Whether a field holds a file: its value on a card is then the file's id, and what the file is (a clip, a sound, a picture) is the file's own to say. */
+export function holdsFile(kind: FieldKind): boolean {
+  return mediaKindsOf(kind).length > 0;
+}
+
+/** Whether a field holds a link out of Panki: its value on a card is then the address, as it was given. */
+export function holdsLink(kind: FieldKind): boolean {
+  return kind === "youtube";
+}
+
+/**
+ * The link a value is, when its field holds links and the value is one; null when it's to be read as words. Words
+ * typed into a field before it was changed to hold links are still words, and still shown.
+ */
+export function linkOf(kind: FieldKind, value: string): YouTubeLink | null {
+  return holdsLink(kind) ? youtubeLinkOf(value) : null;
+}
+
+/** Whether a field holds a pitch accent: its value is then the accents (`pitch.ts` → `pitchesOf`), drawn over their readings. */
+export function holdsPitch(kind: FieldKind): boolean {
+  return kind === "pitch";
+}
+
+/** Whether a field's value is typed in a box: words, a paragraph, a pitch accent. A file's id isn't, and an address isn't. */
+export function isTyped(kind: FieldKind): boolean {
+  return !holdsFile(kind) && !holdsLink(kind);
+}
+
+/** Whether a field holds words to read: what a card is called by, and what can be shown big. A file's id isn't, an address isn't, and a pitch accent isn't. */
+export function holdsWords(kind: FieldKind): boolean {
+  return isTyped(kind) && !holdsPitch(kind);
+}
+
+/**
+ * One field of a card type. The list's order is the fields' order in a form. `side` is where it stands for what knows
+ * only two sides (a card's row in a list, a form's big field): since layouts (2026-10-15) it's read from the type's
+ * layout, the front when the front shows the field at all; sent, it's only where a field with no part yet starts.
+ */
+export const CardField = z.object({
+  id: CardFieldId,
+  name: z.string().trim().min(1).max(60),
+  kind: FieldKind,
+  side: FieldSide,
+  required: z.boolean(),
+});
+
+/** What the browser sends to make a type. The ids are minted by the browser, so a retry is harmless. */
+export const NewCardType = z.object({
+  id: CardTypeId,
+  name: z.string().trim().min(1).max(100),
+  fields: z.array(CardField).min(1),
+  /** How its cards look in a review (`layout.ts`); left out, it's worked out from the fields' sides. */
+  layout: CardLayout.optional(),
+});
+
+/** What a type's settings can change: the name, the whole list of fields in order (a field left out is hidden; a new id is added), and its layout when it's sent (left out, it stays as it is). */
+export const CardTypeUpdate = NewCardType.omit({ id: true });
+
+export const CardType = NewCardType.extend({
+  /** Every field's part, in the card's order, filled out by the API on every read (`cardLayout.ts` → `layoutOf`). */
+  layout: CardLayout,
+  /** Stamped by the API, ms since epoch. */
+  createdAt: z.number().int().nonnegative(),
+  /** Derived by the API on every read: how many decks use it. */
+  deckCount: z.number().int().nonnegative(),
+});
+
+export type CardField = z.infer<typeof CardField>;
+export type FieldKind = z.infer<typeof FieldKind>;
+export type FieldSide = z.infer<typeof FieldSide>;
+export type NewCardType = z.infer<typeof NewCardType>;
+export type CardTypeUpdate = z.infer<typeof CardTypeUpdate>;
+export type CardType = z.infer<typeof CardType>;
+
+export const CardTypeList = z.object({ types: z.array(CardType) });
+export const CardTypeResponse = z.object({ type: CardType });
+
+/** The most one value can hold. */
+export const VALUE_MAX = 2000;
+
+export type CardProblem = { fieldId: string; problem: "missing" | "long" | "media" | "link" | "unknown" };
+
+/**
+ * What's wrong with a card's values for a type: a required field left empty, a value too long, a field of files given
+ * something that isn't a file's id, a field of links given something that isn't one, a field the type doesn't have.
+ * Pure, so the browser says it before sending and the API says it again at the boundary (where it also checks the file
+ * is really there, which only it can know).
+ */
+export function cardProblems(type: Pick<CardType, "fields">, values: Record<string, string>): CardProblem[] {
+  const problems: CardProblem[] = [];
+  const known = new Set<string>();
+  for (const field of type.fields) {
+    known.add(field.id);
+    const value = (values[field.id] ?? "").trim();
+    if (field.required && value === "") problems.push({ fieldId: field.id, problem: "missing" });
+    else if (value !== "" && holdsFile(field.kind) && !MediaId.safeParse(value).success) problems.push({ fieldId: field.id, problem: "media" });
+    else if (value !== "" && holdsLink(field.kind) && linkOf(field.kind, value) === null) problems.push({ fieldId: field.id, problem: "link" });
+    else if (value.length > VALUE_MAX) problems.push({ fieldId: field.id, problem: "long" });
+  }
+  for (const fieldId of Object.keys(values)) {
+    if (!known.has(fieldId)) problems.push({ fieldId, problem: "unknown" });
+  }
+  return problems;
+}

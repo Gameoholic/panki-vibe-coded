@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# esbuild's post-install only copies its platform binary; approved so pnpm stops warning about it.
+onlyBuiltDependencies:
+  - esbuild
