@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import express, { Router, type Request, type RequestHandler, type Response } from "express";
-import { MEDIA_MAX_BYTES, MediaId, bareMime, mediaKindOfMime, type MediaKind } from "@panki/contracts";
+import { MEDIA_MAX_BYTES, MediaCuesBody, MediaId, bareMime, mediaKindOfMime, type MediaKind } from "@panki/contracts";
 import type { DbOf } from "../app";
 import { hasMediaFile, sniffMimes, writeMediaFile } from "../mediaFiles";
 
@@ -77,6 +77,24 @@ export function mediaRouter(dbOf: DbOf, mediaDirOf: MediaDirOf, now: () => numbe
       res.status(taken === null ? 201 : 200).json({ media });
     },
   );
+
+  // What's said in a clip, sent with it by whoever recorded it (the extension, as it heard the video then): kept once,
+  // for a sound or a clip the account holds. A retry is harmless and answers with what's kept; what's kept never changes.
+  router.put("/:mediaId/cues", (req, res) => {
+    const id = MediaId.safeParse(req.params.mediaId);
+    const body = MediaCuesBody.safeParse(req.body);
+    if (!id.success || !body.success) {
+      res.status(400).json({ error: { message: "Those subtitles aren't valid." } });
+      return;
+    }
+    const db = dbOf(res);
+    const media = db.getMedia(id.data);
+    if (!media || media.kind === "image") {
+      res.status(404).json({ error: { message: NOT_THERE } });
+      return;
+    }
+    res.json({ cues: db.insertMediaCues(id.data, body.data.cues, now()) });
+  });
 
   // The bytes, to a signed-in device of the account that holds them and to no one else. A file never changes under its
   // id, so the browser may keep it for good; a part of it can be asked for, which is how a clip is skipped through.

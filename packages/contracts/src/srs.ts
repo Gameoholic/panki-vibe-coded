@@ -323,9 +323,9 @@ export const Settings = z.object({
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
   dayStartHour: z.number().int().min(0).max(23),
   /**
-   * How subtitles look over a picture (`subtitleStyle.ts`): over a YouTube video in the extension, and over a card's
-   * clip in a review. The account's, so both read one style; set in the extension's Subtitles menu (2026-10-18; it was
-   * the extension's own, in the browser, for a day).
+   * How a card's clip's subtitles look in the app (`subtitleStyle.ts`), set in Settings. The app's own: the extension
+   * keeps its own for YouTube, in the browser (the owner, 2026-10-18: the two were one for a few hours, then "it's
+   * fine to have the subtitle settings separate between the app and the extension").
    */
   subtitleStyle: SubtitleStyle,
 });

@@ -1376,13 +1376,10 @@ mark.review-mark {
   color: inherit;
   background: var(--accent-soft);
 }
-.sub-band mark.review-mark {
-  background: color-mix(in srgb, var(--accent) 45%, transparent);
-}
 
-/* Subtitles over a picture (components/Subtitle.tsx on a card's clip; the extension's transcript over a YouTube video
-   is the same band): the account's subtitle style (the contracts' `subtitleStyle.ts` → `subtitleVars`) as variables
-   on what holds it, the fallbacks here its defaults. The band is placed across the picture by a flex row, never by
+/* Subtitles over a picture (components/ClipSubtitles.tsx on a card's clip; the extension's transcript over a YouTube
+   video is the same band): a subtitle style (the contracts' `subtitleStyle.ts` → `subtitleVars`; the app's and the
+   extension's are each their own) as variables on what holds it, the fallbacks here its defaults. The band is placed across the picture by a flex row, never by
    what's inherited (centred by text-align, it drifted when a player filled the screen, 2026-10-17), and its words are
    sized with the picture (`--sub-scale`, the picture's height over the size's own), so it's the same share of any
    picture: never smaller than can be read. */
@@ -1409,6 +1406,10 @@ mark.review-mark {
   color: var(--theater-ink);
   text-align: var(--sub-align, center);
   overflow-wrap: anywhere;
+}
+/* On a card's clip, the piece of the line being said, marked under as the extension marks it over YouTube. */
+.sub-now {
+  box-shadow: inset 0 -0.12em 0 var(--accent);
 }
 /* A pitch accent drawn over its reading (components/PitchAccent.tsx): a line over the morae said high, and down its
    side where the voice falls, as thick as the words are big. A card's Pitch accent field, the popup and the

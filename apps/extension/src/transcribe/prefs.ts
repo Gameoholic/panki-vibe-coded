@@ -20,7 +20,7 @@ export const TranscribePrefs = z.object({
   paused: TranscribePaused,
   /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Replace YouTube subtitles with Panki's"). */
   overVideo: z.boolean(),
-  /** How the transcript looks over the video (the contracts' `subtitleStyle.ts`): the account's, read from Panki with the transcript and written back there, not kept in the browser. */
+  /** How the transcript looks over the video (the contracts' `subtitleStyle.ts`): this browser's own, as the rest here. */
   style: SubtitleStyle,
   /**
    * Whether the word being said carries its mark (the line under it, `Line`'s `now`): on the line under the player,

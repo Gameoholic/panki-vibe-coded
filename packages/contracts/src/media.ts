@@ -45,6 +45,36 @@ export type Media = z.infer<typeof Media>;
 
 export const MediaResponse = z.object({ media: Media });
 
+/**
+ * What's said in a clip, as it was heard on the video when the clip was recorded (the video's transcript, or its own
+ * captions): each line, when it's said in ms from the clip's own start, and where each piece of it begins (`marks`: a
+ * character of the text and when it's said). A card plays its clip with these in sync, the piece being said underlined,
+ * as the extension draws them over YouTube (the owner, 2026-10-18: "the timestamps and words sourced from the video",
+ * in place of a field's words laid over the whole clip). Kept with the file, written once with it, never changed.
+ */
+export const CueMark = z.object({ at: z.number().int().nonnegative(), ms: z.number().int().nonnegative() });
+export const SubtitleCue = z.object({
+  text: z.string().min(1).max(500),
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().nonnegative(),
+  marks: z.array(CueMark).max(200),
+});
+export type SubtitleCue = z.infer<typeof SubtitleCue>;
+export const CUES_MAX = 100;
+export const MediaCues = z.array(SubtitleCue).max(CUES_MAX);
+export type MediaCues = z.infer<typeof MediaCues>;
+export const MediaCuesBody = z.object({ cues: MediaCues });
+
+/** The cue being said at a moment of its clip (ms from the start), and which of its pieces: null between lines. */
+export function cueAt(cues: readonly SubtitleCue[], ms: number): { cue: SubtitleCue; piece: { from: number; to: number } | null } | null {
+  const cue = cues.find((c) => ms >= c.startMs && ms < c.endMs);
+  if (!cue) return null;
+  const said = cue.marks.filter((m) => m.ms <= ms).at(-1);
+  if (!said) return { cue, piece: null };
+  const next = cue.marks.find((m) => m.at > said.at);
+  return { cue, piece: { from: said.at, to: next ? next.at : cue.text.length } };
+}
+
 /** A content type without its parameters, lowercased: "video/webm;codecs=vp9,opus" is "video/webm". */
 export function bareMime(type: string): string {
   return (type.split(";")[0] ?? "").trim().toLowerCase();

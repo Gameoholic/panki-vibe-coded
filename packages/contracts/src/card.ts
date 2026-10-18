@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ClientName } from "./auth";
 import { DeckId } from "./deck";
-import { MediaKind } from "./media";
+import { MediaCues, MediaKind } from "./media";
 import { CardPlace } from "./srs";
 import { CardFieldId, VALUE_MAX } from "./type";
 
@@ -43,6 +43,8 @@ export const Card = NewCard.omit({ source: true }).extend({
    * media takes a clip or a sound, so the value alone (an id) doesn't say which to draw; this does.
    */
   files: z.record(z.string(), MediaKind),
+  /** Derived on every read: what's said in each clip the card holds that was recorded with its words, by the file's id (`media.ts` → `MediaCues`). */
+  cues: z.record(z.string(), MediaCues),
   /** Stamped by the API, ms since epoch. The server is the authority on time. */
   createdAt: z.number().int().nonnegative(),
   /** Where it stands on its deck's ladder: its last answer's outcome, read live, never stored on the card. */

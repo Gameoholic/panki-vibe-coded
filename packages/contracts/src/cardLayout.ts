@@ -15,7 +15,7 @@ const KeptPart = z.object({
   beside: z.boolean().optional().catch(undefined),
   over: z.string().nullable().optional().catch(undefined),
   mark: z.string().nullable().optional().catch(undefined),
-  subtitles: z.string().nullable().optional().catch(undefined),
+  subtitles: z.boolean().optional().catch(undefined),
 });
 
 type FieldLike = Pick<CardField, "id" | "kind" | "side">;
@@ -41,7 +41,7 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     beside: false,
     over: null,
     mark: null,
-    subtitles: null,
+    subtitles: false,
   });
   return [...front.map((f) => part(f, true)), ...back.map((f) => part(f, false))];
 }
@@ -51,7 +51,7 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
  * field's default where something's missing; then every field the layout doesn't name yet (one added since), as its
  * default would have it. Something always shows on the front: when nothing does, the first part does. A part written
  * over another as its reading names another field the type still has, of words of one line as the part itself is, or
- * it's over none. The same holds for a part's highlight (words lit in words) and a clip's subtitles (words over a clip).
+ * it's over none. The same holds for a part's highlight (words lit in words); a clip's subtitles are on only for a Media field.
  */
 export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] = []): LayoutPart[] {
   const defaults = defaultLayout(fields);
@@ -64,7 +64,6 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
     return kind === "text" || kind === "long";
   };
   const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(fieldId) && wordy(other);
-  const subtitlesFit = (fieldId: string, other: string) => other !== fieldId && kindOf.get(fieldId) === "media" && wordy(other);
   const placed = new Set<string>();
   const parts: LayoutPart[] = [];
   for (const raw of kept) {
@@ -86,7 +85,7 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.beside !== undefined ? { beside: own.beside } : {}),
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
       ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
-      ...(own.subtitles ? { subtitles: subtitlesFit(base.fieldId, own.subtitles) ? own.subtitles : null } : {}),
+      ...(own.subtitles !== undefined ? { subtitles: own.subtitles && kindOf.get(base.fieldId) === "media" } : {}),
     });
   }
   for (const part of defaults) if (!placed.has(part.fieldId)) parts.push(part);

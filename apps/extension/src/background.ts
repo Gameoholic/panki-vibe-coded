@@ -135,8 +135,8 @@ chrome.runtime.onInstalled.addListener(replace);
 
 /** A video's transcript with what runs transcribing, asked of Panki in one go, and this browser's own: where the words come from, and how transcribing behaves for this viewer. */
 async function transcripted(door: Door, videoId: string, store: Stored): Promise<Transcripted> {
-  const [transcript, transcription, account] = await Promise.all([panki.transcript(door, videoId), panki.transcription(door), panki.settings(door)]);
-  return { ok: true, transcript, settings: transcription.settings, key: transcription.key !== null, source: sourceOf(store.subtitleSource), prefs: prefsOf(store, account.subtitleStyle) };
+  const [transcript, transcription] = await Promise.all([panki.transcript(door, videoId), panki.transcription(door)]);
+  return { ok: true, transcript, settings: transcription.settings, key: transcription.key !== null, source: sourceOf(store.subtitleSource), prefs: prefsOf(store) };
 }
 
 async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Transcripted | Pieced> {
@@ -166,21 +166,14 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
   }
   if (ask.kind === "prefs") {
     const { trigger, paused, overVideo, style, markUnder, markOver } = ask.prefs;
-    const store = await writeStore({
+    await writeStore({
       ...(trigger !== undefined ? { transcribeTrigger: trigger } : {}),
       ...(paused !== undefined ? { transcribePaused: paused } : {}),
       ...(overVideo !== undefined ? { transcribeOverVideo: overVideo } : {}),
+      ...(style !== undefined ? { subtitleStyle: style } : {}),
       ...(markUnder !== undefined ? { markUnder } : {}),
       ...(markOver !== undefined ? { markOver } : {}),
-    }).then(readStore);
-    // How subtitles look is the account's (the app's cards draw their clips' subtitles the same way): kept on Panki.
-    if (style !== undefined && store.address && store.token) {
-      try {
-        await panki.updateSettings({ address: store.address, token: store.token }, { subtitleStyle: style });
-      } catch (e) {
-        return { ok: false, message: e instanceof PankiError ? e.message : "The subtitles' look couldn't be saved." };
-      }
-    }
+    });
     return { ok: true };
   }
   if (ask.kind === "lookState" || ask.kind === "lookup" || ask.kind === "lattice") return look(ask, sender);
@@ -239,6 +232,8 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       return { ok: false, message: "The clip didn't arrive whole." };
     }
     await panki.uploadMedia(door, ask.mediaId, mime, new Blob([bytes], { type: mime }));
+    // What's said in it, kept with it: a card plays the clip with its subtitles. A clip that can't keep them isn't made.
+    if (ask.cues && ask.cues.length > 0) await panki.putCues(door, ask.mediaId, ask.cues);
     return { ok: true };
   } catch (e) {
     // Signed out from Panki's own Settings: the secret is no good any more, and is forgotten here too.

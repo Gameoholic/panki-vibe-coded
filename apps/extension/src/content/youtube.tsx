@@ -1,7 +1,7 @@
 import "../setup";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { beatsOf, createCaptions, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
+import { beatsOf, createCaptions, cuesOf, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { createListening } from "../capture/listening";
 import { held, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch } from "../capture/record";
@@ -1088,6 +1088,11 @@ function App() {
             settle: (which) => hearCut(cut, which),
             toggle: () => toggleCut(cut),
             record: (soundOnly, onProgress) => recordClip(() => ends.current[cut], soundOnly, onProgress),
+            // What's said in it, from the lines being read right now (the transcript or the captions), at its ends as they stand.
+            cues: () => {
+              const at = ends.current[cut];
+              return at && at.end !== null ? cuesOf(lines.get().lines, at.start, at.end) : [];
+            },
           }
         : null;
     const offer = offerOf("clip", { start: clip.start, end: clip.end }, moved);

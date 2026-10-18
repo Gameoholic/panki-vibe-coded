@@ -57,12 +57,14 @@ export const LayoutPart = z.object({
    */
   mark: z.uuid().nullable(),
   /**
-   * A field whose words are laid over this one's clip as its subtitles; null for none. Set on a Media part, naming a
-   * field of words; drawn in the account's subtitle style, the one the extension draws over YouTube (the owner,
-   * 2026-10-18: "render the subtitles onto the card's video, same as we do on YouTube"), with that field's own
-   * highlight. Over the picture of the player and the plain player only.
+   * Whether this part's clip plays with its subtitles: the words said in it, as they were heard on the video when it
+   * was recorded, each line as it's said and the piece being said underlined (`media.ts` → `MediaCues`), as the
+   * extension draws them over YouTube. Set on a Media part; over the picture of the player and the plain player only;
+   * in the app's own subtitle style (`Settings.subtitleStyle`). It named a field whose words were laid over the whole
+   * clip for a day (2026-10-18), until the owner had it follow the speech: "the timestamps and words sourced from the
+   * video".
    */
-  subtitles: z.uuid().nullable(),
+  subtitles: z.boolean(),
 });
 export type LayoutPart = z.infer<typeof LayoutPart>;
 

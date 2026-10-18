@@ -1,3 +1,4 @@
+import { CUES_MAX, type MediaCues } from "@panki/contracts";
 import { isJapanese } from "@web/words";
 
 /**
@@ -78,6 +79,28 @@ export function timeAfter(line: Line, offset: number): number | null {
  * line still being written). These are the places a clip can begin and end without cutting a word in two.
  */
 export type Beat = { from: number; to: number; start: number; end: number | null };
+
+/**
+ * What's said in a stretch of the video (a clip being recorded), from the lines being read (the transcript or the
+ * site's captions, as `Line`s): each line that's said in it, from the stretch's own start, in ms, and when each piece of
+ * it is said, so a card plays the clip with its words in sync (the contracts' `MediaCues`). A line that began before the
+ * stretch shows from its start; one still being written ends with it. At most `CUES_MAX`.
+ */
+export function cuesOf(lines: readonly Line[], from: number, to: number): MediaCues {
+  const ms = (seconds: number) => Math.max(0, Math.round((seconds - from) * 1000));
+  const cues: MediaCues = [];
+  for (const line of lines) {
+    const end = line.end ?? to;
+    if (line.text.trim() === "" || line.text.length > 500 || end <= from || line.start >= to) continue;
+    const startMs = ms(line.start);
+    const endMs = ms(Math.min(end, to));
+    if (endMs <= startMs) continue;
+    const marks = line.marks.filter((m) => m.at < line.text.length).map((m) => ({ at: m.at, ms: ms(m.time) }));
+    cues.push({ text: line.text, startMs, endMs, marks: marks.slice(0, 200) });
+  }
+  return cues.sort((a, b) => a.startMs - b.startMs).slice(0, CUES_MAX);
+}
+
 export function beatsOf(parts: Parts): Beat[] {
   const beats: Beat[] = [];
   for (const { line, at } of parts) {

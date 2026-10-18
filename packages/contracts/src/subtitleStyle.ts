@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 /**
- * How subtitles look over a picture, the account's own (the owner, 2026-10-17: "size, font, position, etc."): the
- * transcript over a YouTube video (the extension) and a card's words over its clip (the web's card, since 2026-10-18,
- * "use the same settings we do for YouTube… no separate customizability options"). One style for both, kept with the
- * account's settings (`srs.ts` → `Settings.subtitleStyle`), so the extension and the app read the same one. The shape
- * and its bounds, the fonts it can be set in, and the CSS variables the band reads them as: one home. Set in the
- * extension's Subtitles menu on a video page.
+ * How subtitles look over a picture (the owner, 2026-10-17: "size, font, position, etc."): the shape and its bounds,
+ * the fonts it can be set in, and the CSS variables the band reads them as, one home for both places that draw them.
+ * Each keeps its own style: the extension its own in the browser, for the transcript over a YouTube video (set in its
+ * Subtitles menu on the page), and the app the account's (`srs.ts` → `Settings.subtitleStyle`), for a card's clip
+ * (set in Settings). They were one, on the account, for a few hours on 2026-10-18.
  */
 
 /**

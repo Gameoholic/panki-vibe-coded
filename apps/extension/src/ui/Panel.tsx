@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { NEW_PLACE, NewCard, VALUE_MAX, cardProblems, isTyped, pitchValue, type ForvoVoice } from "@panki/contracts";
+import { NEW_PLACE, NewCard, VALUE_MAX, cardProblems, isTyped, pitchValue, type ForvoVoice, type MediaCues } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
@@ -117,6 +117,8 @@ export type ClipOffer = {
   /** Plays it round and round; or stops it, while any of it is playing. */
   toggle: () => void;
   record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Blob>;
+  /** What's said in it as it stands now, from its start (`captions.ts` → `cuesOf`): kept with the clip, so a card plays it with its subtitles. */
+  cues: () => MediaCues;
 };
 
 /** What's said while a stretch is being recorded. */
@@ -530,7 +532,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         const file = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }));
         setPhase({ at: "sending", what });
         const mediaId = uuid();
-        const sent = await askUpload({ mediaKind: cut.soundOnly ? "audio" : "video", mediaId, mime: file.type, base64: await base64Of(file) });
+        // A clip with its picture goes with what's said in it, as heard on the video: a card plays it with its subtitles.
+        const cues = cut.soundOnly ? [] : cut.offer.cues();
+        const sent = await askUpload({ mediaKind: cut.soundOnly ? "audio" : "video", mediaId, mime: file.type, base64: await base64Of(file), ...(cues.length > 0 ? { cues } : {}) });
         if (sent.ok) {
           filled[cut.field.id] = mediaId;
           made.push(words);

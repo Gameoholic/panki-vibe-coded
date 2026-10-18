@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DeckId, type SubtitleStyle } from "@panki/contracts";
+import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab } from "./messages";
 import { PopupLayout } from "./popupLayout";
@@ -89,8 +89,12 @@ const Stored = z.object({
   transcribeTrigger: TranscribeTrigger.catch(DEFAULT_PREFS.trigger),
   transcribePaused: TranscribePaused.catch(DEFAULT_PREFS.paused),
   transcribeOverVideo: z.boolean().catch(DEFAULT_PREFS.overVideo),
-  // `subtitleStyle` was a key here for a day (2026-10-17): how the transcript looks over the video. It's the account's
-  // since 2026-10-18 (the contracts' `Settings.subtitleStyle`), so the app's cards share it; a browser that still has it keeps it unread.
+  /**
+   * How the transcript looks over the video (the contracts' `subtitleStyle.ts`), set in the strip's Subtitles menu.
+   * This browser's own: it was the account's for a few hours on 2026-10-18, shared with the app's cards, until the
+   * owner had the two kept apart.
+   */
+  subtitleStyle: SubtitleStyle.catch(DEFAULT_SUBTITLE_STYLE),
   /** Whether the word being said carries its mark, on the line under the player and on the subtitles over the video (`transcribe/prefs.ts`). */
   markUnder: z.boolean().catch(DEFAULT_PREFS.markUnder),
   markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
@@ -100,7 +104,7 @@ const Stored = z.object({
 export type Stored = z.infer<typeof Stored>;
 
 /** The viewer's transcribing preferences as one value, as the page gets them with the transcript. */
-export const prefsOf = (store: Stored, style: SubtitleStyle): TranscribePrefs => ({ trigger: store.transcribeTrigger, paused: store.transcribePaused, overVideo: store.transcribeOverVideo, style, markUnder: store.markUnder, markOver: store.markOver });
+export const prefsOf = (store: Stored): TranscribePrefs => ({ trigger: store.transcribeTrigger, paused: store.transcribePaused, overVideo: store.transcribeOverVideo, style: store.subtitleStyle, markUnder: store.markUnder, markOver: store.markOver });
 
 export async function readStore(): Promise<Stored> {
   return Stored.parse(await chrome.storage.local.get(null));

@@ -29,7 +29,7 @@ const MODES: readonly { id: "edit" | "preview"; label: string }[] = [
 const SAMPLES_MAX = 30;
 /** Shown with no card: each field's name where it stands. */
 const NO_SAMPLE = "";
-/** A part written over no other's words, lighting none in its own, carrying none as a clip's subtitles. */
+/** A part written over no other's words, or lighting none in its own. */
 const NOT_OVER = "";
 /** The pill's ladder when no deck's is to hand: a new card says "New" whatever its type is. */
 const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: [], after: "burn", burnedName: "" };
@@ -172,7 +172,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     // Words of one line can be written small over another field's words of one line, as their reading.
     const oneLine = field.kind === "text";
     const overable = type.fields.filter((f) => f.id !== id && f.kind === "text");
-    // Words (a line or a paragraph) can have another field's words lit in them, and a clip can carry them as subtitles.
+    // Words (a line or a paragraph) can have another field's words lit in them.
     const wordy = (f: CardField) => f.kind === "text" || f.kind === "long";
     const others = type.fields.filter((f) => f.id !== id && wordy(f)).map((f) => ({ id: f.id, label: f.name }));
     const pictured = media && (part.look === "player" || part.look === "plain");
@@ -210,14 +210,9 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             control={<Dropdown id="part-mark-choice" label="Highlight" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.mark ?? NOT_OVER} onChange={(mark) => update(id, { mark: mark === NOT_OVER ? null : mark })} />}
           />
         ) : null}
+        {/* What's said in the clip, as it was heard on the video when it was recorded, following it as it plays. */}
         {pictured ? (
-          <Setting
-            id="part-subtitles"
-            label="Subtitles"
-            control={
-              <Dropdown id="part-subtitles-choice" label="Subtitles" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.subtitles ?? NOT_OVER} onChange={(subtitles) => update(id, { subtitles: subtitles === NOT_OVER ? null : subtitles })} />
-            }
-          />
+          <Setting id="part-subtitles" label="Subtitles" control={<Toggle id="part-subtitles-on" says={{ on: "Shown", off: "Hidden" }} on={part.subtitles} onChange={(subtitles) => update(id, { subtitles })} />} />
         ) : null}
         {media ? (
           <Setting
@@ -287,6 +282,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           layout={draft}
           values={sample?.card.values ?? {}}
           files={sample?.card.files}
+          cues={sample?.card.cues}
           srsType={ladder}
           place={sample?.card.place ?? NEW_PLACE}
           revealed={side === "back"}

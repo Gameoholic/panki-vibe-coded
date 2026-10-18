@@ -32,7 +32,7 @@ type Props = {
   onCueEnd?: () => void;
   /** The shape of its sound, for the voice note's waveform; without it the waveform is level. */
   waveOf?: Wave;
-  /** Laid over a clip's picture, in the looks that show it (the player and plain): its subtitles (`Subtitle`), or nothing. */
+  /** Laid over a clip's picture, in the looks that show it (the player and plain): its subtitles (`ClipSubtitles`), or nothing. */
   over?: ReactNode;
 };
 

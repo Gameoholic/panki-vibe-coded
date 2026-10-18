@@ -14,6 +14,7 @@ import {
   type CardSide,
   type CardType,
   type LayoutPart,
+  type MediaCues,
   type MediaKind,
   type SrsType,
   type SubtitleStyle,
@@ -28,7 +29,7 @@ import type { Wave } from "./MediaLooks";
 import { MediaView } from "./MediaView";
 import { PitchAccents } from "./PitchAccent";
 import { PlacePill } from "./PlacePill";
-import { Subtitle } from "./Subtitle";
+import { ClipSubtitles } from "./ClipSubtitles";
 
 /**
  * The card being laid out (a card type's Layout): its parts are picked and moved instead of the card being turned,
@@ -65,7 +66,9 @@ type Props = {
   edit?: CardEdit;
   /** Reads a file's sound for a voice note's waveform (`waveform.ts`); left out, it's level. Never handed to a page's script, which reads nothing. */
   waveOf?: Wave;
-  /** How a clip's subtitles look (`LayoutPart.subtitles`): the account's subtitle style; left out, the default. */
+  /** What's said in each clip the card holds, by the file's id (`Card.cues`): a clip's subtitles, where its part shows them. */
+  cues?: Readonly<Record<string, MediaCues>>;
+  /** How a clip's subtitles look (`LayoutPart.subtitles`): the app's own subtitle style; left out, the default. */
   subtitleStyle?: SubtitleStyle;
 };
 
@@ -79,7 +82,7 @@ type Drawn = { part: LayoutPart; field: CardField; held: boolean };
  * keeps its room on the front, unseen, so turning the card moves nothing. What a press does is the caller's: a review
  * turns it once, a look at a card being made turns it back and forth. Never a second drawing of a card's two sides.
  */
-export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf, subtitleStyle = DEFAULT_SUBTITLE_STYLE }: Props) {
+export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf, cues, subtitleStyle = DEFAULT_SUBTITLE_STYLE }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
@@ -183,17 +186,11 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
       </>
     );
   }
-  /** A clip's subtitles: the words of the field its part names, lit as that field's own part lights them, in the account's subtitle style. */
-  function subtitlesOf(part: LayoutPart): ReactNode {
-    if (!part.subtitles) return null;
-    const text = (values[part.subtitles] ?? "").trim();
-    if (!text) return null;
-    const source = layout.find((p) => p.fieldId === part.subtitles);
-    return (
-      <Subtitle style={subtitleStyle}>
-        <span lang={langOf(text)}>{marked(text, source)}</span>
-      </Subtitle>
-    );
+  /** A clip's subtitles, when its part has them on and the clip was recorded with its words: following it as it plays, in the app's subtitle style. */
+  function subtitlesOf(part: LayoutPart, mediaId: string): ReactNode {
+    const said = cues?.[mediaId];
+    if (!part.subtitles || !said || said.length === 0) return null;
+    return <ClipSubtitles cues={said} style={subtitleStyle} />;
   }
   /** The file a field's value is, to be played: none for words, a link, a picture, or a file not there. */
   const playable = (field: CardField) => {
@@ -272,7 +269,7 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
             cue={live && cued === field.id}
             onCueEnd={() => finishCue(field.id)}
             waveOf={waveOf}
-            over={file === "video" ? subtitlesOf(part) : null}
+            over={file === "video" ? subtitlesOf(part, value) : null}
           />
         );
       }

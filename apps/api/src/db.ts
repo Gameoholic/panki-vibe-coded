@@ -13,6 +13,7 @@ import {
   Deck,
   DeckSettings,
   Media,
+  MediaCues,
   SRS_STARTER_IDS,
   NEW_PLACE,
   ReviewSession,
@@ -501,6 +502,18 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE card_sources ADD COLUMN channel_name TEXT");
     db.exec("ALTER TABLE card_sources ADD COLUMN channel_url TEXT");
   },
+  (db) => {
+    // What's said in a clip, as it was heard on the video when it was recorded (2026-10-18): its lines and when each
+    // piece of them is said, from the clip's start, as JSON (the contracts' `MediaCues`). One row a file at most,
+    // written once with it and never changed, as the file itself isn't.
+    db.exec(`
+      CREATE TABLE media_cues (
+        media_id TEXT PRIMARY KEY REFERENCES media(id),
+        cues TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -520,8 +533,8 @@ function migrate(db: DatabaseSync, now: number) {
 }
 
 type FieldRow = { id: string; name: string; kind: string; side: string; required: number };
-/** `mediaKind` is what the file a value names is; null for a value that names none. */
-type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null };
+/** `mediaKind` is what the file a value names is; null for a value that names none. `cues` is what's said in it, as kept (JSON), when it was recorded with its words. */
+type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null };
 type StageRow = { id: string; name: string; n: number; unit: string };
 type IdRow = { id: string; removedAt: number | null };
 type SettingRow = { key: string; value: string };
@@ -711,8 +724,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectCard = db.prepare(`SELECT ${cardColumns} ${cardsWithPlace} WHERE c.id = ?`);
   const selectDeckCard = db.prepare(`SELECT ${cardColumns} ${cardsWithPlace} WHERE c.deck_id = ? AND c.id = ? AND c.removed_at IS NULL`);
   // A value that names a file comes with what that file is, so a card can say which of its values are clips, sounds or pictures.
-  const valueColumns = "v.card_id AS cardId, v.field_id AS fieldId, v.value, m.kind AS mediaKind";
-  const valuesWithMedia = "FROM card_values v LEFT JOIN media m ON m.id = v.value AND m.removed_at IS NULL";
+  const valueColumns = "v.card_id AS cardId, v.field_id AS fieldId, v.value, m.kind AS mediaKind, c.cues AS cues";
+  const valuesWithMedia = "FROM card_values v LEFT JOIN media m ON m.id = v.value AND m.removed_at IS NULL LEFT JOIN media_cues c ON c.media_id = m.id";
   const selectDeckValues = db.prepare(`SELECT ${valueColumns} ${valuesWithMedia} WHERE v.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL)`);
   const removeCard = db.prepare("UPDATE cards SET removed_at = COALESCE(removed_at, ?) WHERE id = ? AND deck_id = ?");
   const selectCardValues = db.prepare(`SELECT ${valueColumns} ${valuesWithMedia} WHERE v.card_id = ?`);
@@ -736,6 +749,17 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectAnyMedia = db.prepare(`SELECT ${mediaColumns} FROM media m WHERE m.id = ?`);
   const selectMediaHash = db.prepare("SELECT sha256 FROM media WHERE id = ?");
   const insertMedia = db.prepare("INSERT OR IGNORE INTO media (id, kind, mime, bytes, sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+  const insertMediaCues = db.prepare("INSERT OR IGNORE INTO media_cues (media_id, cues, created_at) VALUES (?, ?, ?)");
+  const selectMediaCues = db.prepare("SELECT cues FROM media_cues WHERE media_id = ?");
+  /** What's said in a clip, read from what's kept; null when it no longer reads as cues. */
+  const cuesFrom = (raw: string): MediaCues | null => {
+    try {
+      const read = MediaCues.safeParse(JSON.parse(raw));
+      return read.success ? read.data : null;
+    } catch {
+      return null;
+    }
+  };
 
   const dictionaryColumns = "id, title, revision, description, bytes, uploaded_at AS uploadedAt";
   const selectDictionaryFiles = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE removed_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
@@ -868,17 +892,20 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     return { dueAt: at, due };
   }
   function cardsFrom(rows: CardRow[], valueRows: ValueRow[], type: SrsType, today: Today): Card[] {
-    const byCard = new Map<string, { values: Record<string, string>; files: Record<string, string> }>();
+    const byCard = new Map<string, { values: Record<string, string>; files: Record<string, string>; cues: Record<string, MediaCues> }>();
     for (const v of valueRows) {
-      const held = byCard.get(v.cardId) ?? { values: {}, files: {} };
+      const held = byCard.get(v.cardId) ?? { values: {}, files: {}, cues: {} };
       held.values[v.fieldId] = v.value;
       if (v.mediaKind !== null) held.files[v.value] = v.mediaKind;
+      // What's said in a clip, as kept; what no longer reads as cues is left out rather than failing the card.
+      const cues = v.cues === null ? null : cuesFrom(v.cues);
+      if (cues) held.cues[v.value] = cues;
       byCard.set(v.cardId, held);
     }
     return rows.map((row) => {
       const place = placeFrom(row);
       const held = byCard.get(row.id);
-      return Card.parse({ ...row, values: held?.values ?? {}, files: held?.files ?? {}, place, ...scheduleOf(type, row, place, today) });
+      return Card.parse({ ...row, values: held?.values ?? {}, files: held?.files ?? {}, cues: held?.cues ?? {}, place, ...scheduleOf(type, row, place, today) });
     });
   }
 
@@ -1231,6 +1258,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     insertMedia(media: Pick<Media, "id" | "kind" | "mime" | "bytes"> & { sha256: string }, now: number): Media {
       insertMedia.run(media.id, media.kind, media.mime, media.bytes, media.sha256, now);
       return Media.parse(selectAnyMedia.get(media.id));
+    },
+    /**
+     * What's said in a clip, kept with it once: the same file's words again are the ones already kept, untouched (a
+     * retry is harmless; they're what was heard when it was recorded, never changed). Gives back what's kept.
+     */
+    insertMediaCues(mediaId: string, cues: MediaCues, now: number): MediaCues {
+      insertMediaCues.run(mediaId, JSON.stringify(cues), now);
+      const row = selectMediaCues.get(mediaId) as { cues: string } | undefined;
+      return (row && cuesFrom(row.cues)) ?? [];
     },
     /** The dictionaries kept on Panki, oldest first. */
     listDictionaryFiles(): ServerDictionary[] {

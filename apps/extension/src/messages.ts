@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
-import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, HeardLanguage, LanguageVerdict, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
+import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, HeardLanguage, LanguageVerdict, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
 import { PopupLayout } from "./popupLayout";
@@ -34,7 +34,7 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("deck"), deckId: DeckId }),
   z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
   /** A recorded clip, kept as a file on Panki before the card that names it is made. */
-  z.object({ kind: z.literal("upload"), mediaKind: MediaKind, mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(BASE64_MAX) }),
+  z.object({ kind: z.literal("upload"), mediaKind: MediaKind, mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(BASE64_MAX), cues: MediaCues.optional() }),
   /** Open the options page: to sign in, or to say what fills a deck's fields. */
   z.object({ kind: z.literal("options"), tab: OptionsTab.optional() }),
   /** Open Panki itself in a tab: the address of the profile in use. Nobody signed in, it opens the options page to sign in instead. */

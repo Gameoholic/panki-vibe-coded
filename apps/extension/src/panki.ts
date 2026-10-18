@@ -10,7 +10,6 @@ import {
   PIECE_MIME,
   PieceResponse,
   ServerDictionaryList,
-  SettingsResponse,
   SrsTypeList,
   TranscriptResponse,
   TranscriptionResponse,
@@ -19,9 +18,8 @@ import {
   type ForvoTake,
   type ForvoVoice,
   type NewCard,
+  type MediaCues,
   type ServerDictionary,
-  type Settings,
-  type SettingsUpdate,
   type SrsType,
   type Transcript,
   type TranscriptFix,
@@ -88,6 +86,9 @@ export const panki = {
     call(address, token, `/api/media/${id(mediaId)}`, { method: "PUT", headers: { "content-type": mime }, body: file }, (b) => {
       MediaResponse.parse(b);
     }),
+  /** What's said in a clip just kept, as it was heard on the video, kept with it once. */
+  putCues: ({ address, token }: Door, mediaId: string, cues: MediaCues): Promise<void> =>
+    call(address, token, `/api/media/${id(mediaId)}/cues`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ cues }) }, () => undefined),
   /** A word's recordings on Forvo, asked of Panki, which holds the key and calls Forvo. */
   forvoVoices: ({ address, token }: Door, word: string): Promise<ForvoVoice[]> =>
     call(address, token, `/api/forvo/voices?word=${encodeURIComponent(word)}`, {}, (b) => ForvoVoicesResponse.parse(b).voices),
@@ -99,9 +100,6 @@ export const panki = {
   dictionaries: ({ address, token }: Door): Promise<ServerDictionary[]> => call(address, token, "/api/dictionaries", {}, (b) => ServerDictionaryList.parse(b).dictionaries),
   /** One of them whole, the zip it was uploaded as, to be imported here. */
   dictionaryFile: (door: Door, dictionaryId: string): Promise<Blob> => bytesAt(door, `/api/dictionaries/${id(dictionaryId)}/file`),
-  /** The account's settings: what's read here is how subtitles look over a picture (`subtitleStyle`), the account's own so the app's cards share it. */
-  settings: ({ address, token }: Door): Promise<Settings> => call(address, token, "/api/settings", {}, (b) => SettingsResponse.parse(b).settings),
-  updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> => call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
   /** The settings that run transcribing, for everyone, and whether the chosen engine has a key. */
   transcription: ({ address, token }: Door): Promise<TranscriptionStatus> => call(address, token, "/api/transcription", {}, (b) => TranscriptionResponse.parse(b).transcription),
   /** A video's transcript as Panki keeps it; an empty one for a video nobody has transcribed. */

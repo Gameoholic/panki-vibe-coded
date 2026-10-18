@@ -28,6 +28,7 @@ import { Icon } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
+import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
@@ -728,6 +729,14 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
             control={<NumberField id="setting-day-start" label="Hour the day starts" value={current.dayStartHour} min={0} max={23} suffix=":00" onChange={(dayStartHour) => patch({ dayStartHour })} />}
             why={`A review before ${clock(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit start over at ${clock(current.dayStartHour)}.`}
           />
+        </section>
+
+        {/* How a card's clip's subtitles look (a part's Subtitles in a card type's Layout): the app's own, apart from the extension's over YouTube. */}
+        <section className="panel" aria-labelledby="card-subtitles-title">
+          <h2 id="card-subtitles-title" className="panel-title">
+            Subtitles on cards
+          </h2>
+          <SubtitleStyleFields idPrefix="card-subtitle" style={current.subtitleStyle} onChange={(subtitleStyle) => patch({ subtitleStyle })} />
         </section>
       </div>
 
