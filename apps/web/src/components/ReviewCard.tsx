@@ -163,6 +163,8 @@ type Props = {
   tag?: StageTag;
   /** Each sound and clip gets a key that plays it (`MEDIA_KEYS`), drawn on it: a review, and a card tried as one. */
   shortcuts?: boolean;
+  /** The key that turns the card, from anywhere on the page, drawn after "Tap to reveal" as the answers' keys are (a review's: Space); none by default. */
+  revealKey?: string | null;
 };
 
 /**
@@ -200,6 +202,7 @@ export function ReviewCard({
   picturesOf,
   tag = type.tag,
   shortcuts = false,
+  revealKey = null,
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
@@ -547,7 +550,14 @@ export function ReviewCard({
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
       {blocks}
-      <div className="review-hint">Tap to reveal</div>
+      <div className="review-hint">
+        Tap to reveal
+        {revealKey ? (
+          <span className="key" aria-hidden="true">
+            {revealKey}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

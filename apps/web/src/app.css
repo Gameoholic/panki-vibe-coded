@@ -1788,6 +1788,9 @@ mark.sub-mark {
   color: var(--muted);
 }
 .review-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--muted);
 }
@@ -2065,6 +2068,7 @@ mark.sub-mark {
    press and not as a count. */
 .btn-answer .key,
 .review-aside .key,
+.review-hint .key,
 .media-key {
   display: inline-grid;
   place-items: center;
@@ -2129,7 +2133,8 @@ mark.sub-mark {
   opacity: 0.8;
 }
 @media (hover: none) {
-  .btn-answer .key {
+  .btn-answer .key,
+  .review-hint .key {
     display: none;
   }
 }
