@@ -62,11 +62,13 @@ export function useDragOrder(count: number, onMove: (from: number, to: number) =
       "data-drag-handle": true,
       onPointerDown(e: PointerEvent<HTMLElement>) {
         if (e.button !== 0) return;
-        const rects = rows.current.slice(0, count).map((el) => el?.getBoundingClientRect());
+        // Every row's place by index, one for each: a row never drawn leaves a hole in the list of rows, and `map` skips
+        // holes, so the place it left was no place at all and nothing could be dragged past it (2026-10-18, twice).
+        const rects = Array.from({ length: count }, (_, k) => rows.current[k]?.getBoundingClientRect());
         const mine = rects[i];
-        const first = rects[0];
-        const second = rects[1];
         if (!mine) return;
+        // The room between two rows, from the first two that are drawn.
+        const [first, second] = rects.filter((r): r is DOMRect => r !== undefined);
         const gap = first && second ? second.top - first.bottom : 0;
         start.current = { y: e.clientY, centres: centresOf(rects) };
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -92,7 +94,10 @@ export function useDragOrder(count: number, onMove: (from: number, to: number) =
       onKeyDown(e: KeyboardEvent<HTMLElement>) {
         if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
         e.preventDefault();
-        const to = e.key === "ArrowUp" ? i - 1 : i + 1;
+        // To the next row that's drawn: one with nothing on screen (a reading over its word) is passed over, so each press moves it where it shows.
+        const by = e.key === "ArrowUp" ? -1 : 1;
+        let to = i + by;
+        while (to >= 0 && to < count && !rows.current[to]) to += by;
         if (to < 0 || to >= count) return;
         onMove(i, to);
         setFocusAt(to);
