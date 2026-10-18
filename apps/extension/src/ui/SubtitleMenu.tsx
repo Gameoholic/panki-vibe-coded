@@ -6,7 +6,7 @@ import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { useDismiss } from "@web/hooks/useDismiss";
-import { DEFAULT_SUBTITLE_STYLE, SUBTITLE_BOUNDS, SUBTITLE_FONTS, SUBTITLE_FONT_IDS, type SubtitleAlign, type SubtitleStyle } from "../transcribe/subtitleStyle";
+import { DEFAULT_SUBTITLE_STYLE, SUBTITLE_BOUNDS, SUBTITLE_FONTS, SUBTITLE_FONT_IDS, type SubtitleAlign, type SubtitleStyle } from "@panki/contracts";
 
 /**
  * How the transcript looks over the video, set on the page itself (the owner, 2026-10-17: "edit the subtitles directly

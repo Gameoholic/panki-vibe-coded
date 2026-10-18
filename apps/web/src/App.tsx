@@ -740,6 +740,7 @@ export function App() {
               cards={cards}
               type={type}
               srsType={srsType}
+              subtitleStyle={settings.subtitleStyle}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onGoAdd={() => openDeck(deck)}
               onHome={() => go(HOME)}
@@ -765,10 +766,19 @@ export function App() {
           <>
             <Segmented idPrefix="type-tab" label="Card type" options={TYPE_TABS} value={screen.tab} onChange={(tab) => go({ kind: "type", type, tab })} />
             {screen.tab === "layout" ? (
-              decks === null || srsTypes === null ? (
+              decks === null || srsTypes === null || settings === null ? (
                 loading
               ) : (
-                <LayoutView key={type.id} type={type} decks={decks} srsTypes={srsTypes} onSave={(layout) => saveLayout(type, layout)} onStatus={setEditStatus} onGuard={setGuard} />
+                <LayoutView
+                  key={type.id}
+                  type={type}
+                  decks={decks}
+                  srsTypes={srsTypes}
+                  onSave={(layout) => saveLayout(type, layout)}
+                  onStatus={setEditStatus}
+                  onGuard={setGuard}
+                  subtitleStyle={settings.subtitleStyle}
+                />
               )
             ) : (
               <TypeView key={type.id} type={type} onSave={saveType} onRemove={() => removeType(type)} />

@@ -362,7 +362,7 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
           items={DATA_KIND_IDS.map((kind) => ({ kind, from: list.filter((d) => d.on && (d.provides?.[kind] ?? 0) > 0).map(shownName) }))}
         />
       ) : null}
-      {list && list.length === 0 && !importing ? <p className="empty">None yet. Import one to look words up and fill cards from it.</p> : null}
+      {list && list.length === 0 && !importing ? <p className="empty">No dictionaries yet.</p> : null}
       {list && list.length > 0 ? (
         <div className="dict-list">
           {list.map((dictionary, i) => (

@@ -122,6 +122,15 @@ export function waitWords(wait: Wait): string {
 export function againWords(minutes: number): string {
   return minutes <= 0 ? "right away" : waitWords(minutesAsWait(minutes));
 }
+/**
+ * When a card that has reached a stage comes back: the stage's wait, or "next review" for a stage with none. It's due
+ * at once, but reaching a stage ends the card for the sitting under way; only an ask-again right away comes back in it,
+ * and "right away" is that one's alone (the owner, 2026-10-18: "'Right away' should be reserved for the 'again right
+ * away'").
+ */
+export function backWords(minutes: number): string {
+  return minutes <= 0 ? "next review" : spanWords(minutes);
+}
 /** Minutes as a wait in whole units, for "again tomorrow" after an answer. */
 export function minutesAsWait(minutes: number): Wait {
   if (minutes >= 1440) return { n: Math.max(1, Math.round(minutes / 1440)), unit: "d" };

@@ -718,7 +718,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return (
       <div className="field capture-clip">
         <span className="field-label">{names}</span>
-        <p className="empty">Pick a word to cut it out of the clip.</p>
+        <p className="empty">No word picked.</p>
       </div>
     );
   }
@@ -726,7 +726,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** The word said by someone on Forvo, when the deck takes it: heard here, someone else's chosen instead, and who said it (Forvo asks to be named). */
   function voiceBlock(name: string) {
     let inside: ReactNode;
-    if (said === "") inside = <p className="empty">Pick a word to hear it said.</p>;
+    if (said === "") inside = <p className="empty">No word picked.</p>;
     else if (voices === null) inside = <p className="empty">Asking Forvo…</p>;
     // No key yet is one of these: Panki says where to put it (its Settings).
     else if ("problem" in voices) inside = <p className="empty">{voices.problem}</p>;
@@ -807,7 +807,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         </>
       );
     }
-    if (state.decks.length === 0) return <p className="empty">Make a deck in Panki first, then come back here.</p>;
+    if (state.decks.length === 0) return <p className="empty">No decks yet.</p>;
     const chooser = (
       <div className="field capture-deck">
         <span className="field-label">Deck</span>

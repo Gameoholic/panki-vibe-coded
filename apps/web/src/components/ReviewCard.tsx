@@ -1,5 +1,23 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
-import { MediaId, holdsFile, holdsLink, holdsPitch, isTyped, metaOf, partsOn, pitchesOf, type CardField, type CardPlace, type CardSide, type CardType, type LayoutPart, type MediaKind, type SrsType } from "@panki/contracts";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  MediaId,
+  holdsFile,
+  holdsLink,
+  holdsPitch,
+  isTyped,
+  metaOf,
+  partsOn,
+  pitchesOf,
+  type CardField,
+  type CardPlace,
+  type CardSide,
+  type CardType,
+  type LayoutPart,
+  type MediaKind,
+  type SrsType,
+  type SubtitleStyle,
+} from "@panki/contracts";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
 import { langOf } from "../words";
@@ -10,6 +28,7 @@ import type { Wave } from "./MediaLooks";
 import { MediaView } from "./MediaView";
 import { PitchAccents } from "./PitchAccent";
 import { PlacePill } from "./PlacePill";
+import { Subtitle } from "./Subtitle";
 
 /**
  * The card being laid out (a card type's Layout): its parts are picked and moved instead of the card being turned,
@@ -46,6 +65,8 @@ type Props = {
   edit?: CardEdit;
   /** Reads a file's sound for a voice note's waveform (`waveform.ts`); left out, it's level. Never handed to a page's script, which reads nothing. */
   waveOf?: Wave;
+  /** How a clip's subtitles look (`LayoutPart.subtitles`): the account's subtitle style; left out, the default. */
+  subtitleStyle?: SubtitleStyle;
 };
 
 /** A part to draw on a side: its field, and whether it's only holding its place on the front for the back, unseen. */
@@ -58,7 +79,7 @@ type Drawn = { part: LayoutPart; field: CardField; held: boolean };
  * keeps its room on the front, unseen, so turning the card moves nothing. What a press does is the caller's: a review
  * turns it once, a look at a card being made turns it back and forth. Never a second drawing of a card's two sides.
  */
-export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf }: Props) {
+export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf, subtitleStyle = DEFAULT_SUBTITLE_STYLE }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
@@ -145,6 +166,35 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
     }
     return said;
   }
+  /**
+   * A part's words with another field's lit where they stand in them (its "Highlight"): the first time they appear,
+   * and nothing lit when they don't. Exact, as the words were kept: the word picked in a sentence is that sentence's
+   * own stretch.
+   */
+  function marked(text: string, part: LayoutPart | undefined): ReactNode {
+    const term = part?.mark ? (values[part.mark] ?? "").trim() : "";
+    const at = term ? text.indexOf(term) : -1;
+    if (at < 0) return text;
+    return (
+      <>
+        {text.slice(0, at)}
+        <mark className="review-mark">{term}</mark>
+        {text.slice(at + term.length)}
+      </>
+    );
+  }
+  /** A clip's subtitles: the words of the field its part names, lit as that field's own part lights them, in the account's subtitle style. */
+  function subtitlesOf(part: LayoutPart): ReactNode {
+    if (!part.subtitles) return null;
+    const text = (values[part.subtitles] ?? "").trim();
+    if (!text) return null;
+    const source = layout.find((p) => p.fieldId === part.subtitles);
+    return (
+      <Subtitle style={subtitleStyle}>
+        <span lang={langOf(text)}>{marked(text, source)}</span>
+      </Subtitle>
+    );
+  }
   /** The file a field's value is, to be played: none for words, a link, a picture, or a file not there. */
   const playable = (field: CardField) => {
     const kind = fileKindOf(field.kind, values[field.id] ?? "", files);
@@ -222,6 +272,7 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
             cue={live && cued === field.id}
             onCueEnd={() => finishCue(field.id)}
             waveOf={waveOf}
+            over={file === "video" ? subtitlesOf(part) : null}
           />
         );
       }
@@ -229,10 +280,21 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
       const missingFile = file !== null || (holdsFile(field.kind) && MediaId.safeParse(value).success);
       if (!missingFile) {
         const meta = metaOf(field.kind, value);
-        if (meta) return <LinkView meta={meta} label={field.name} />;
+        if (meta) {
+          const view = <LinkView meta={meta} label={field.name} />;
+          // Its name over it when the layout says so, as over any field's words.
+          return part.label ? (
+            <div className="review-words">
+              <span className="review-label">{field.name}</span>
+              {view}
+            </div>
+          ) : (
+            view
+          );
+        }
         // A pitch accent drawn over its reading, in the part's size and colour; as it was typed when it doesn't read as one.
         if (holdsPitch(field.kind) && pitchesOf(value).length > 0) return words(part, field, <PitchAccents value={value} />, false, value);
-        return words(part, field, value);
+        return words(part, field, marked(value, part), false, value);
       }
     }
     return edit ? blank(part, field) : null;

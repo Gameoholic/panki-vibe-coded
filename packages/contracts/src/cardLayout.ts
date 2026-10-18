@@ -14,6 +14,8 @@ const KeptPart = z.object({
   auto: z.boolean().optional().catch(undefined),
   beside: z.boolean().optional().catch(undefined),
   over: z.string().nullable().optional().catch(undefined),
+  mark: z.string().nullable().optional().catch(undefined),
+  subtitles: z.string().nullable().optional().catch(undefined),
 });
 
 type FieldLike = Pick<CardField, "id" | "kind" | "side">;
@@ -38,6 +40,8 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     auto: false,
     beside: false,
     over: null,
+    mark: null,
+    subtitles: null,
   });
   return [...front.map((f) => part(f, true)), ...back.map((f) => part(f, false))];
 }
@@ -47,13 +51,20 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
  * field's default where something's missing; then every field the layout doesn't name yet (one added since), as its
  * default would have it. Something always shows on the front: when nothing does, the first part does. A part written
  * over another as its reading names another field the type still has, of words of one line as the part itself is, or
- * it's over none.
+ * it's over none. The same holds for a part's highlight (words lit in words) and a clip's subtitles (words over a clip).
  */
 export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] = []): LayoutPart[] {
   const defaults = defaultLayout(fields);
   const byId = new Map(defaults.map((p) => [p.fieldId, p]));
   const kindOf = new Map(fields.map((f) => [f.id, f.kind]));
   const overFits = (fieldId: string, word: string) => word !== fieldId && kindOf.get(word) === "text" && kindOf.get(fieldId) === "text";
+  /** Words: a line or a paragraph, what can be lit in and what a clip's subtitles are made of. */
+  const wordy = (fieldId: string) => {
+    const kind = kindOf.get(fieldId);
+    return kind === "text" || kind === "long";
+  };
+  const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(fieldId) && wordy(other);
+  const subtitlesFit = (fieldId: string, other: string) => other !== fieldId && kindOf.get(fieldId) === "media" && wordy(other);
   const placed = new Set<string>();
   const parts: LayoutPart[] = [];
   for (const raw of kept) {
@@ -74,6 +85,8 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.auto !== undefined ? { auto: own.auto } : {}),
       ...(own.beside !== undefined ? { beside: own.beside } : {}),
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
+      ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
+      ...(own.subtitles ? { subtitles: subtitlesFit(base.fieldId, own.subtitles) ? own.subtitles : null } : {}),
     });
   }
   for (const part of defaults) if (!placed.has(part.fieldId)) parts.push(part);

@@ -12,6 +12,7 @@ export * from "./pitch";
 export * from "./space";
 export * from "./srs";
 export * from "./srsStarters";
+export * from "./subtitleStyle";
 export * from "./transcription";
 export * from "./type";
 export * from "./wordAudio";

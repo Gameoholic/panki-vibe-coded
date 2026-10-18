@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
 
 export const SrsTypeId = z.uuid();
 export const SrsStageId = z.uuid();
@@ -321,9 +322,15 @@ export const Settings = z.object({
   fuzz: z.boolean(),
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
   dayStartHour: z.number().int().min(0).max(23),
+  /**
+   * How subtitles look over a picture (`subtitleStyle.ts`): over a YouTube video in the extension, and over a card's
+   * clip in a review. The account's, so both read one style; set in the extension's Subtitles menu (2026-10-18; it was
+   * the extension's own, in the browser, for a day).
+   */
+  subtitleStyle: SubtitleStyle,
 });
 export type Settings = z.infer<typeof Settings>;
-export const DEFAULT_SETTINGS: Settings = { fuzz: true, dayStartHour: 4 };
+export const DEFAULT_SETTINGS: Settings = { fuzz: true, dayStartHour: 4, subtitleStyle: DEFAULT_SUBTITLE_STYLE };
 export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
 export const SettingsResponse = z.object({ settings: Settings });

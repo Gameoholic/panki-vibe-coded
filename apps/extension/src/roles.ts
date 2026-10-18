@@ -97,7 +97,8 @@ export const ROLES: Record<RoleId, Role> = {
   clip: { name: "Sentence video", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
   clipAudio: { name: "Sentence audio", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: true } },
   wordVideo: { name: "Word video", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: false } },
-  wordAudio: { name: "Word audio", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: true } },
+  // Named for where it's from, beside Forvo's (the owner, 2026-10-18).
+  wordAudio: { name: "Word audio (YouTube)", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: true } },
   // The word said by someone on Forvo (2026-10-15), beside the word cut from the video: the owner keeps both to choose from.
   forvoAudio: { name: "Word audio (Forvo)", from: "forvo", takes: holdsSound },
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source

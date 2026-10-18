@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type Outcome, type ReviewSessionEnd, type SrsType } from "@panki/contracts";
+import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type Outcome, type ReviewSessionEnd, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
-import { Icon } from "../components/Icon";
+import { Icon, type IconName } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
 import { shuffle } from "../shuffle";
-import { againWords, answerClass, placeName, spanWords } from "../srsKinds";
+import { againWords, answerClass, backWords, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
 import { count } from "../words";
 
@@ -18,6 +18,8 @@ type Props = {
   type: CardType;
   /** The deck's SRS type: the answers, and where each sends the card. */
   srsType: SrsType;
+  /** How a clip's subtitles look on the card: the account's. */
+  subtitleStyle: SubtitleStyle;
   /** The answer with the sitting it happened in and how long the card was on screen before and after the flip. */
   onAnswer: (cardId: string, answer: CardAnswer) => Promise<Card>;
   onGoAdd: () => void;
@@ -120,24 +122,40 @@ function advance(line: Line, cardId: string, comesBack: boolean, againPlace: Dec
 }
 
 /**
- * Where an answer sends the card, under its name: a mark for the direction (+1, −1, ±0 along the ladder; ↻ asked
- * again; ✓ burned: the owner, 2026-10-17, "so it's more clear whether we're upgrading or downgrading") and the words,
- * "Apprentice 3 · 1 d", "again tomorrow", "Burned ✓".
+ * Where an answer sends the card, under its name: which way it goes (the owner, 2026-10-17, "so it's more clear
+ * whether we're upgrading or downgrading"), by how many stages, and the words, "Apprentice 3 · 1 d", "again
+ * tomorrow", "Burned".
  */
-type Lead = { dir: "up" | "down" | "same" | "again" | "burn"; mark: string; words: string };
+type Lead = { dir: "up" | "down" | "same" | "again" | "burn"; steps: number; words: string };
 function answerLead(srsType: SrsType, card: Card, answerId: string): Lead {
   const r = resolve(srsType, card.place, answerId);
-  if (r.burned || r.wait === null) return { dir: "burn", mark: "✓", words: srsType.burnedName };
-  if (r.again) return { dir: "again", mark: "↻", words: `again ${againWords(r.wait)}` };
+  if (r.burned || r.wait === null) return { dir: "burn", steps: 0, words: srsType.burnedName };
+  if (r.again) return { dir: "again", steps: 0, words: `again ${againWords(r.wait)}` };
   const by = stageIndex(srsType, r.place) - stageIndex(srsType, card.place);
-  return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", mark: by > 0 ? `+${by}` : by < 0 ? `−${-by}` : "±0", words: `${placeName(srsType, r.place)} · ${spanWords(r.wait)}` };
+  return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", steps: Math.abs(by), words: `${placeName(srsType, r.place)} · ${backWords(r.wait)}` };
 }
 
-/** The lead under an answer's name: its mark in the direction's colour, then the words. */
+/** The mark for each way a card can go: a chevron a stage up or down, one arrow going round when it's asked again, a check when it's burned, a dash when it stays. */
+const LEAD_ICON: Record<Lead["dir"], IconName> = { up: "up", down: "down", again: "again", burn: "check", same: "minus" };
+/** Chevrons drawn one a stage up to this many; past it, the count is written after them. */
+const CHEVRONS_MAX = 2;
+
+/**
+ * The lead under an answer's name: its mark, then the words, all in the line's own colour, so it reads the same on a
+ * plain answer and on the filled one (option A of https://claude.ai/artifact/ULVNozxP7qzrEvzi1cxWPE, the owner's
+ * pick, 2026-10-18; a coloured pill with "+1" in it came first and looked out of place, a green box on the blue Ok).
+ */
 function Lead({ lead }: { lead: Lead }) {
+  const moves = lead.dir === "up" || lead.dir === "down";
+  const drawn = moves ? Math.min(CHEVRONS_MAX, lead.steps) : 1;
   return (
     <span className="to">
-      <span className={`to-mark is-${lead.dir}`}>{lead.mark}</span>
+      <span className="to-mark" aria-hidden="true">
+        {Array.from({ length: drawn }, (_, i) => (
+          <Icon key={i} name={LEAD_ICON[lead.dir]} />
+        ))}
+        {moves && lead.steps > CHEVRONS_MAX ? <span className="to-count">{lead.steps}</span> : null}
+      </span>
       {lead.words}
     </span>
   );
@@ -179,7 +197,7 @@ function writeChartOpen(open: boolean) {
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck), deck.settings.pool));
   /** How many answers this review has taken, a card asked again counting each time. */
@@ -428,7 +446,7 @@ export function ReviewView({ deck, cards, type, srsType, onAnswer, onGoAdd, onHo
         {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
       </div>
       {/* Each card its own: what was opened or played on the last one doesn't carry over. */}
-      <ReviewCard key={card.id} type={type} values={card.values} files={card.files} srsType={srsType} place={card.place} revealed={revealed} onPress={reveal} srcOf={api.mediaUrl} waveOf={waveOf} autoplay />
+      <ReviewCard key={card.id} type={type} values={card.values} files={card.files} srsType={srsType} place={card.place} revealed={revealed} onPress={reveal} srcOf={api.mediaUrl} waveOf={waveOf} subtitleStyle={subtitleStyle} autoplay />
 
       {failure ? (
         <p className="load-error" role="alert">

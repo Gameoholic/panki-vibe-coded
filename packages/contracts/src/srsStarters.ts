@@ -48,8 +48,9 @@ function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
   const apart = (): Flow => ({ [relearn]: to(id(s, 0)), [easy]: move(2) });
   /** Kept in the review until it's got right, and then `then`. Easy isn't offered there: a card just forgotten is no card to skip ahead (the owner, 2026-10-18). */
   const untilRight = (then: Step): Step => now({ [forgot]: { kind: "retry" }, [ok]: then, ...apart(), [easy]: { kind: "hidden" } });
-  // On the second-chance day a Forgot is asked until right too, before the stage drops.
-  const after: Step = chance ? again(1, "d", { [forgot]: untilRight(move(-1)), [ok]: move(0), ...apart() }) : move(-1);
+  // On the second-chance day a Forgot is asked until right too, before the stage drops. Easy isn't offered that day
+  // either: the card was forgotten the day before (the owner, 2026-10-18).
+  const after: Step = chance ? again(1, "d", { [forgot]: untilRight(move(-1)), [ok]: move(0), ...apart(), [easy]: { kind: "hidden" } }) : move(-1);
   return { [forgot]: untilRight(after), [ok]: move(1), ...apart() };
 }
 

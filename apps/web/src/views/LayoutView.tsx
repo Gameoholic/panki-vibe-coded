@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CardLayout, NEW_PLACE, holdsWords, isTyped, movePart, partsOn, type Card, type CardField, type CardSide, type CardType, type Deck, type LayoutPart, type SrsType } from "@panki/contracts";
+import { CardLayout, NEW_PLACE, holdsLink, holdsWords, isTyped, movePart, partsOn, type Card, type CardField, type CardSide, type CardType, type Deck, type LayoutPart, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -29,7 +29,7 @@ const MODES: readonly { id: "edit" | "preview"; label: string }[] = [
 const SAMPLES_MAX = 30;
 /** Shown with no card: each field's name where it stands. */
 const NO_SAMPLE = "";
-/** A part written over no other's words. */
+/** A part written over no other's words, lighting none in its own, carrying none as a clip's subtitles. */
 const NOT_OVER = "";
 /** The pill's ladder when no deck's is to hand: a new card says "New" whatever its type is. */
 const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: [], after: "burn", burnedName: "" };
@@ -44,6 +44,8 @@ type Props = {
   onStatus: (status: SaveStatus) => void;
   /** Says whether there's unsaved work here, so leaving the screen can ask first (null when there's none). */
   onGuard: (guard: UnsavedGuard | null) => void;
+  /** How a clip's subtitles look: the account's. */
+  subtitleStyle: SubtitleStyle;
 };
 
 /**
@@ -54,7 +56,7 @@ type Props = {
  * day: "useless".) "Preview" makes it a review card for a moment: pressed to turn, spoilers to open, sounds that play
  * by themselves. Saved by the header's Save, as the SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
-export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard }: Props) {
+export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
   const history = useUndoable<LayoutPart[]>(type.layout);
   const { change, undo, redo } = history;
   const draft = history.present;
@@ -170,6 +172,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard }:
     // Words of one line can be written small over another field's words of one line, as their reading.
     const oneLine = field.kind === "text";
     const overable = type.fields.filter((f) => f.id !== id && f.kind === "text");
+    // Words (a line or a paragraph) can have another field's words lit in them, and a clip can carry them as subtitles.
+    const wordy = (f: CardField) => f.kind === "text" || f.kind === "long";
+    const others = type.fields.filter((f) => f.id !== id && wordy(f)).map((f) => ({ id: f.id, label: f.name }));
+    const pictured = media && (part.look === "player" || part.look === "plain");
     /** Written above another field's words: its size, field name and position are the word's to say, and off. */
     const above = part.over !== null;
     return (
@@ -194,7 +200,25 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard }:
         {/* A reading above a word is the reading's size, under no field name: those are off while it is. */}
         {sized ? <Setting id="part-size" label="Size" control={<Segmented idPrefix="part-size" label="Size" options={SIZE_OPTIONS} value={part.size} disabled={above} onChange={(size) => update(id, { size })} />} /> : null}
         {words ? <Setting id="part-tone" label="Colour" control={<Segmented idPrefix="part-tone" label="Colour" options={TONE_OPTIONS} value={part.tone} onChange={(tone) => update(id, { tone })} />} /> : null}
-        {words || media ? <Setting id="part-label" label="Field name" control={<Toggle id="part-label-on" says={{ on: "Shown", off: "Hidden" }} on={part.label} disabled={above} onChange={(label) => update(id, { label })} />} /> : null}
+        {words || media || holdsLink(field.kind) ? (
+          <Setting id="part-label" label="Field name" control={<Toggle id="part-label-on" says={{ on: "Shown", off: "Hidden" }} on={part.label} disabled={above} onChange={(label) => update(id, { label })} />} />
+        ) : null}
+        {wordy(field) ? (
+          <Setting
+            id="part-mark"
+            label="Highlight"
+            control={<Dropdown id="part-mark-choice" label="Highlight" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.mark ?? NOT_OVER} onChange={(mark) => update(id, { mark: mark === NOT_OVER ? null : mark })} />}
+          />
+        ) : null}
+        {pictured ? (
+          <Setting
+            id="part-subtitles"
+            label="Subtitles"
+            control={
+              <Dropdown id="part-subtitles-choice" label="Subtitles" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.subtitles ?? NOT_OVER} onChange={(subtitles) => update(id, { subtitles: subtitles === NOT_OVER ? null : subtitles })} />
+            }
+          />
+        ) : null}
         {media ? (
           <Setting
             id="part-auto"
@@ -271,6 +295,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard }:
           }}
           srcOf={sample ? api.mediaUrl : undefined}
           waveOf={waveOf}
+          subtitleStyle={subtitleStyle}
           autoplay={trying}
           {...(trying ? {} : { edit: { picked: part?.fieldId ?? null, onPick: setPicked, order: cardOrder } })}
         />

@@ -104,7 +104,7 @@ export function FlowPreview({ type, settings }: Props) {
     return (
       <section className="panel preview" aria-label="Preview">
         <h3 className="panel-title">Preview</h3>
-        <p className="empty">Add a stage and two answers to see how a card moves through it.</p>
+        <p className="empty">{type.stages.length === 0 ? "No stages yet." : "No answers yet."}</p>
       </section>
     );
   }

@@ -50,6 +50,19 @@ export const LayoutPart = z.object({
    * which the owner read the other way round.)
    */
   over: z.uuid().nullable(),
+  /**
+   * Another field whose words are lit where they stand in this one's (its "Highlight"); null for none. The word in its
+   * sentence, lit as the extension's drawer lights it while the card is made (the owner, 2026-10-18). Set on words
+   * (a line or a paragraph), naming another field of words; its first appearance is lit, and nothing when it isn't there.
+   */
+  mark: z.uuid().nullable(),
+  /**
+   * A field whose words are laid over this one's clip as its subtitles; null for none. Set on a Media part, naming a
+   * field of words; drawn in the account's subtitle style, the one the extension draws over YouTube (the owner,
+   * 2026-10-18: "render the subtitles onto the card's video, same as we do on YouTube"), with that field's own
+   * highlight. Over the picture of the player and the plain player only.
+   */
+  subtitles: z.uuid().nullable(),
 });
 export type LayoutPart = z.infer<typeof LayoutPart>;
 

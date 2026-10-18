@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
 import { clock } from "../words";
@@ -32,6 +32,8 @@ type Props = {
   onCueEnd?: () => void;
   /** The shape of its sound, for the voice note's waveform; without it the waveform is level. */
   waveOf?: Wave;
+  /** Laid over a clip's picture, in the looks that show it (the player and plain): its subtitles (`Subtitle`), or nothing. */
+  over?: ReactNode;
 };
 
 /**
@@ -40,7 +42,7 @@ type Props = {
  * its kind's colour. Every look plays through one hook (`usePlayback`). Never the browser's own controls, and nothing
  * plays until it's pressed or cued.
  */
-export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf }: Props) {
+export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null }: Props) {
   if (kind === "image") return <img className={`media-frame ${size === "row" ? "media-thumb" : ""}`.trim()} src={src} alt={label} loading="lazy" draggable={false} />;
   const shown = size === "row" ? "button" : look;
   const common = { kind, src, label, cue, onCueEnd };
@@ -48,7 +50,7 @@ export function MediaView({ kind, src, label, size = "card", look = "player", na
     case "button":
       return <ChipLook {...common} named={named ?? true} />;
     case "plain":
-      return <PlainLook {...common} named={named ?? false} />;
+      return <PlainLook {...common} named={named ?? false} over={over} />;
     case "voice":
       return <VoiceLook {...common} named={named ?? false} waveOf={waveOf} />;
     case "round":
@@ -58,7 +60,7 @@ export function MediaView({ kind, src, label, size = "card", look = "player", na
     case "speaker":
       return <SpeakerLook {...common} named={named ?? false} />;
     default:
-      return <PlayerLook {...common} named={named ?? false} />;
+      return <PlayerLook {...common} named={named ?? false} over={over} />;
   }
 }
 
@@ -116,7 +118,7 @@ function fullOf(el: HTMLElement): Element | null {
  * bar's end (the owner, 2026-10-15, who liked this look better than the browser's own, and wanted full screen too);
  * the picture and the bar fill it together, so the controls stay Panki's.
  */
-function PlayerLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
+function PlayerLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps & { over: ReactNode }) {
   const play = usePlayback(cue, onCueEnd);
   const frame = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
@@ -137,7 +139,11 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
   return (
     <div ref={frame} className={`media media-player media-${kind}`} onClick={ownPress}>
       {kind === "video" ? (
-        <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline onClick={play.toggle} onDoubleClick={canFill ? toggleFull : undefined} {...play.events} />
+        // The picture and what's laid over it (its subtitles) in one box, so they fill the screen together.
+        <div className="media-picture">
+          <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline onClick={play.toggle} onDoubleClick={canFill ? toggleFull : undefined} {...play.events} />
+          {over}
+        </div>
       ) : (
         <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
       )}
@@ -164,7 +170,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
  * Plain: the browser's own player and its controls (full screen, going anywhere in it, the sound, the speed), for
  * whoever wants it (the owner, 2026-10-15, had it kept as a style beside Panki's own). Its name over it when shown.
  */
-function PlainLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
+function PlainLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps & { over: ReactNode }) {
   const play = usePlayback(cue, onCueEnd);
   return (
     <div className={`media media-plain media-${kind}`} onClick={ownPress}>
@@ -175,7 +181,10 @@ function PlainLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
         </span>
       ) : null}
       {kind === "video" ? (
-        <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} {...play.events} />
+        <div className="media-picture">
+          <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} {...play.events} />
+          {over}
+        </div>
       ) : (
         <audio ref={play.hold} className="media-plain-audio" src={src} preload="metadata" controls aria-label={label} {...play.events} />
       )}

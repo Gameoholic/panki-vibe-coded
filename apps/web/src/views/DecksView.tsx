@@ -72,7 +72,7 @@ export function DecksView({ decks, types, srsTypes, creating, onOpen, onSettings
       <DeckList
         decks={decks}
         title={decks.length === 0 ? "No decks yet" : count(decks.length, "deck", "decks")}
-        empty={<p className="empty">Make your first one with New deck, above.</p>}
+        empty={null}
         onOpen={onOpen}
         onSettings={onSettings}
         subOf={(deck) => [typeNames.get(deck.typeId), srsNames.get(deck.srsTypeId)].filter(Boolean).join(" · ")}

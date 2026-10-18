@@ -12,39 +12,46 @@ type Props = {
 };
 
 /**
- * A video's metadata on a card: a chip that says where it goes and how far in, and opens it in a tab of its own, with
- * the title and the channel beside it when the card knows them, small and quiet so they don't crowd the card's own
- * words (the owner, 2026-10-18: "kinda cluttered"); on a row, the chip alone. The address is written afresh from what
- * was read out of the card's value, never the value itself. The channel is words, not a link: one way out of Panki
- * per field is enough.
+ * A video's metadata on a card, as one link that opens the video at its moment in a tab of its own: on a card, a
+ * small card of its own (a play tile in the clip's colour, the video's title, the channel and the moment under it,
+ * the arrow that says it leaves Panki); on a row, a chip, "YouTube · 12:34". A card from before the title and the
+ * channel were kept says "YouTube video" and the moment (the owner, 2026-10-18, of the title and chip stacked under
+ * each other: "looks shit"). The address is written afresh from what was read out of the card's value, never the
+ * value itself.
  */
 export function LinkView({ meta, label, size = "card" }: Props) {
   const { link } = meta;
-  const words = link.seconds === null ? "YouTube" : `YouTube · ${clock(link.seconds)}`;
+  const at = link.seconds === null ? null : clock(link.seconds);
   // Its presses are its own: on the review card a press anywhere else flips the card.
   const own = (e: MouseEvent) => e.stopPropagation();
-  const chip = (
-    <a
-      className={`btn btn-chip link-chip ${size === "row" ? "is-row" : ""}`.trim()}
-      href={youtubeUrl(link)}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${label}: ${[meta.title, meta.channel?.name, words].filter(Boolean).join(", ")}`}
-      draggable={false}
-      onClick={own}
-    >
-      <Icon name="out" />
-      {words}
-    </a>
-  );
-  if (size === "row" || (!meta.title && !meta.channel)) return chip;
+  const common = {
+    href: youtubeUrl(link),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    draggable: false,
+    onClick: own,
+  } as const;
+  if (size === "row") {
+    const words = at === null ? "YouTube" : `YouTube · ${at}`;
+    return (
+      <a className="btn btn-chip link-chip is-row" aria-label={`${label}: ${words}`} {...common}>
+        <Icon name="out" />
+        {words}
+      </a>
+    );
+  }
+  const title = meta.title || "YouTube video";
+  const sub = [meta.channel?.name, at].filter((part): part is string => Boolean(part)).join(" · ");
   return (
-    <span className="video-meta">
-      {chip}
-      <span className="video-about">
-        {meta.title ? <span className="video-title">{meta.title}</span> : null}
-        {meta.channel ? <span className="video-channel">{meta.channel.name}</span> : null}
+    <a className="video-card" aria-label={`${label}: ${[title, sub].filter(Boolean).join(", ")}`} {...common}>
+      <span className="video-card-mark" aria-hidden="true">
+        <Icon name="play" />
       </span>
-    </span>
+      <span className="video-card-text">
+        <span className="video-card-title">{title}</span>
+        {sub ? <span className="video-card-sub">{sub}</span> : null}
+      </span>
+      <Icon name="out" />
+    </a>
   );
 }

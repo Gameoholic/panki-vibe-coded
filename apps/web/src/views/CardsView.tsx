@@ -34,7 +34,6 @@ export function CardsView({ cards, type, srsType, adding, onAdd, onCancelAdd, on
         type={type}
         srsType={srsType}
         title={cards.length === 0 ? "No cards yet" : count(cards.length, "card", "cards")}
-        empty={<p className="empty">Add your first one with Add card, above.</p>}
         onEdit={(card) => setEditingId(card.id)}
         editing={
           open

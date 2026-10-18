@@ -10,6 +10,7 @@ import {
   PIECE_MIME,
   PieceResponse,
   ServerDictionaryList,
+  SettingsResponse,
   SrsTypeList,
   TranscriptResponse,
   TranscriptionResponse,
@@ -19,6 +20,8 @@ import {
   type ForvoVoice,
   type NewCard,
   type ServerDictionary,
+  type Settings,
+  type SettingsUpdate,
   type SrsType,
   type Transcript,
   type TranscriptFix,
@@ -96,6 +99,9 @@ export const panki = {
   dictionaries: ({ address, token }: Door): Promise<ServerDictionary[]> => call(address, token, "/api/dictionaries", {}, (b) => ServerDictionaryList.parse(b).dictionaries),
   /** One of them whole, the zip it was uploaded as, to be imported here. */
   dictionaryFile: (door: Door, dictionaryId: string): Promise<Blob> => bytesAt(door, `/api/dictionaries/${id(dictionaryId)}/file`),
+  /** The account's settings: what's read here is how subtitles look over a picture (`subtitleStyle`), the account's own so the app's cards share it. */
+  settings: ({ address, token }: Door): Promise<Settings> => call(address, token, "/api/settings", {}, (b) => SettingsResponse.parse(b).settings),
+  updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> => call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
   /** The settings that run transcribing, for everyone, and whether the chosen engine has a key. */
   transcription: ({ address, token }: Door): Promise<TranscriptionStatus> => call(address, token, "/api/transcription", {}, (b) => TranscriptionResponse.parse(b).transcription),
   /** A video's transcript as Panki keeps it; an empty one for a video nobody has transcribed. */

@@ -3,6 +3,18 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 type Drag = { from: number; to: number; dy: number; slot: number };
 
 /**
+ * Where each row's middle is, top to bottom. A row with nothing on screen (a card's reading, written over its word and
+ * with no row of its own) takes the middle of the next row that has one, or of the last: it's passed over with that
+ * row. As a 0 it stood at the very top of the page, and nothing could be dragged past it (the owner, 2026-10-18: "the
+ * word itself can't be reordered").
+ */
+function centresOf(rects: readonly (DOMRect | undefined)[]): number[] {
+  const known = rects.map((r) => (r ? r.top + r.height / 2 : null));
+  const present = (c: number | null): c is number => c !== null;
+  return known.map((c, i) => c ?? known.slice(i + 1).find(present) ?? known.slice(0, i).reverse().find(present) ?? 0);
+}
+
+/**
  * Reorder rows by dragging a handle, with a mouse or a finger alike (pointer events: Android Chrome starts no native
  * drag from a touch), or with the arrow keys on the handle. The rows keep their places in the DOM while dragging:
  * the held one follows the pointer, the others slide out of its way, and the move is committed on release through
@@ -56,7 +68,7 @@ export function useDragOrder(count: number, onMove: (from: number, to: number) =
         const second = rects[1];
         if (!mine) return;
         const gap = first && second ? second.top - first.bottom : 0;
-        start.current = { y: e.clientY, centres: rects.map((r) => (r ? r.top + r.height / 2 : 0)) };
+        start.current = { y: e.clientY, centres: centresOf(rects) };
         e.currentTarget.setPointerCapture(e.pointerId);
         set({ from: i, to: i, dy: 0, slot: mine.height + gap });
       },

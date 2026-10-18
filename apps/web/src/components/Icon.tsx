@@ -11,6 +11,9 @@ const ICONS = {
   minus: ["M5 12h14"],
   back: ["M15 5l-7 7 7 7"],
   down: ["M6 9l6 6 6-6"],
+  up: ["M6 15l6-6 6 6"],
+  /** One arrow going round: asked again (`review`, two arrows, is the Review door). */
+  again: ["M20 12a8 8 0 1 1-2.3-5.7", "M20 4v4h-4"],
   close: ["M6 6l12 12", "M18 6L6 18"],
   grip: ["M9 5v1.5", "M15 5v1.5", "M9 11v1.5", "M15 11v1.5", "M9 17v1.5", "M15 17v1.5"],
   flame: ["M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 3-2 4-3 4 0-3-1-6-4-9 0 4-4 6-4 11 0 4 3 8 7 8z"],

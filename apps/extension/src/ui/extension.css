@@ -286,25 +286,16 @@
    sits over the picture whatever the theme, each word still a box to press. */
 /* Its ground lays the band out as a row, so where it sits across the picture is a flex alignment and never depends
    on what the page or the player inherits into the host (centred by text-align, it drifted when the player filled the
-   screen, 2026-10-17). The size, font, height, alignment and the band's darkness are the viewer's own (`transcribe/
-   subtitleStyle.ts` → `subtitleVars`, written on the host); the fallbacks here are its defaults. */
+   screen, 2026-10-17). The size, font, height, alignment and the band's darkness are the account's subtitle style
+   (the contracts' `subtitleStyle.ts` → `subtitleVars`, written on the host). */
 .over-ground {
   display: flex;
   justify-content: flex-start;
 }
+/* Its look is the app's subtitle band (`app.css` → `.sub-band`, which a card's clip draws too); only what's the
+   extension's own is here: its words are pressed. */
 .over-line {
-  display: inline-block;
-  max-width: 88%;
-  margin-left: var(--sub-x, 50%);
-  transform: translateX(-50%);
-  /* Sized with the words (`em`), which are sized with the player (`--sub-scale`): one look at any size. */
-  font-size: calc(var(--sub-size, 26px) * var(--sub-scale, 1));
-  padding: 0.25em 0.5em;
-  border-radius: 0.4em;
-  background: color-mix(in srgb, var(--theater) var(--sub-bg, 68%), transparent);
-  color: var(--theater-ink);
   pointer-events: auto;
-  text-align: var(--sub-align, center);
 }
 /* While the Subtitles menu is open the band is for dragging: the words under it aren't pressed. */
 .over-line.is-dragging {
@@ -317,7 +308,6 @@
   pointer-events: none;
 }
 .over-line .line {
-  font-family: var(--sub-font, var(--font));
   font-size: 1em;
   line-height: 1.5;
   white-space: normal;

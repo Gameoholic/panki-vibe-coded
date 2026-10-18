@@ -19,7 +19,7 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Trigger, askFix, askForget, askOpenPanki, askOptions, askPrefs, askSubtitles } from "../messages";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, within, type SubtitleStyle } from "../transcribe/subtitleStyle";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, type SubtitleSource } from "../subtitles";
@@ -1152,8 +1152,8 @@ function App() {
     const move = (ev: PointerEvent) => {
       latest = {
         ...from.style,
-        x: within(from.style.x + ((ev.clientX - from.x) / box.width) * 100, SUBTITLE_BOUNDS.x),
-        bottom: within(from.style.bottom - ((ev.clientY - from.y) / box.height) * 100, SUBTITLE_BOUNDS.bottom),
+        x: withinBound(from.style.x + ((ev.clientX - from.x) / box.width) * 100, SUBTITLE_BOUNDS.x),
+        bottom: withinBound(from.style.bottom - ((ev.clientY - from.y) / box.height) * 100, SUBTITLE_BOUNDS.bottom),
       };
       transcriber.setPrefs({ style: latest });
     };
@@ -1276,7 +1276,7 @@ function App() {
       {/* The transcript over the video, the line being said: the same words as under the player, to press and to fix. */}
       {createPortal(
         overLine && overPart ? (
-          <div className={`over-line ${styling ? "is-dragging" : ""}`.trim()} lang="ja" onPointerDown={styling ? dragSubtitles : undefined}>
+          <div className={`sub-band over-line ${styling ? "is-dragging" : ""}`.trim()} lang="ja" onPointerDown={styling ? dragSubtitles : undefined}>
             <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={fixAt} />
           </div>
         ) : null,

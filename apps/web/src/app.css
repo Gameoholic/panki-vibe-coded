@@ -836,41 +836,79 @@ canvas.media-frame {
   width: 14px;
   height: 14px;
 }
-/* A video's metadata on a card (components/LinkView.tsx): the chip, and beside it the title over the channel, small
-   and quiet, the title cut to two lines, so a long YouTube title never crowds the card's own words. */
-.video-meta {
+/* A video's metadata on a card (components/LinkView.tsx): one link drawn as a small card of its own, a play tile in
+   the clip's colour, the title (two lines at most, so a long YouTube title never crowds the card's own words) over the
+   channel and the moment, and the arrow that says it leaves Panki. The whole of it is pressed; it's never the
+   browser's underlined blue. */
+.video-card {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  max-width: min(100%, 440px);
-  padding: 6px 12px 6px 6px;
+  gap: 12px;
+  width: min(100%, 420px);
+  padding: 8px 14px 8px 8px;
   border: 1px solid var(--line);
   border-radius: 12px;
+  color: var(--muted);
   text-align: left;
+  text-decoration: none;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.video-meta .link-chip {
+@media (hover: hover) {
+  .video-card:hover {
+    background: var(--surface-2);
+    border-color: var(--line-strong);
+  }
+}
+.video-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.video-card-mark {
   flex: none;
-}
-.video-about {
   display: grid;
-  gap: 1px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--clip);
+  background: color-mix(in srgb, var(--clip) 16%, transparent);
+}
+.video-card-mark .icon {
+  width: 16px;
+  height: 16px;
+}
+.video-card-text {
+  display: grid;
+  gap: 2px;
+  flex: 1;
   min-width: 0;
 }
-.video-title {
+.video-card-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--muted);
+  color: var(--fg);
   overflow-wrap: anywhere;
 }
-.video-channel {
+.video-card-sub {
+  overflow: hidden;
   font-size: 12px;
   color: var(--muted);
-  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.video-card > .icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
 }
 /* A link on a card (components/LinkView.tsx): a chip that opens it in a tab of its own. It's an address to follow, so
    it's the one chip that isn't a button; it's drawn as one all the same, never as the browser's underlined blue. */
@@ -968,6 +1006,15 @@ canvas.media-frame {
   aspect-ratio: auto;
   border-radius: 0;
   background: transparent;
+}
+/* A clip's picture and what's laid over it (its subtitles), in one box that fills the screen with it. */
+.media-picture {
+  position: relative;
+  min-width: 0;
+}
+.media.media-player:fullscreen .media-picture {
+  min-height: 0;
+  height: 100%;
 }
 .media.media-player:fullscreen .media-bar {
   width: min(100%, 720px);
@@ -1319,6 +1366,48 @@ canvas.media-frame {
   flex: 1 1 200px;
 }
 .review-words {
+  overflow-wrap: anywhere;
+}
+/* Another field's words lit where they stand in a part's words (a part's "Highlight", `LayoutPart.mark`): the word in
+   its sentence, lit as the extension's drawer lights it while the card is made. */
+mark.review-mark {
+  padding: 0 0.12em;
+  border-radius: 4px;
+  color: inherit;
+  background: var(--accent-soft);
+}
+.sub-band mark.review-mark {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Subtitles over a picture (components/Subtitle.tsx on a card's clip; the extension's transcript over a YouTube video
+   is the same band): the account's subtitle style (the contracts' `subtitleStyle.ts` → `subtitleVars`) as variables
+   on what holds it, the fallbacks here its defaults. The band is placed across the picture by a flex row, never by
+   what's inherited (centred by text-align, it drifted when a player filled the screen, 2026-10-17), and its words are
+   sized with the picture (`--sub-scale`, the picture's height over the size's own), so it's the same share of any
+   picture: never smaller than can be read. */
+.sub-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--sub-bottom, 9%);
+  display: flex;
+  justify-content: flex-start;
+  pointer-events: none;
+}
+.sub-band {
+  display: inline-block;
+  max-width: 88%;
+  margin-left: var(--sub-x, 50%);
+  transform: translateX(-50%);
+  font-family: var(--sub-font, var(--font));
+  font-size: max(12px, calc(var(--sub-size, 26px) * var(--sub-scale, 1)));
+  line-height: 1.5;
+  padding: 0.25em 0.5em;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, var(--theater) var(--sub-bg, 68%), transparent);
+  color: var(--theater-ink);
+  text-align: var(--sub-align, center);
   overflow-wrap: anywhere;
 }
 /* A pitch accent drawn over its reading (components/PitchAccent.tsx): a line over the morae said high, and down its
@@ -1704,24 +1793,27 @@ canvas.media-frame {
   opacity: 1;
   stroke-width: 3;
 }
-/* The mark before an answer's lead: which way it moves the card (+1, −1, ±0), asked again (↻), or burned (✓). */
+/* The mark before an answer's lead (views/ReviewView.tsx → Lead): a chevron a stage up or down, an arrow going round
+   when it's asked again, a check when it's burned, a dash when it stays; drawn in the line's own colour, so it sits on
+   the filled answer as well as on the others. Two chevrons at most, then the count. */
 .to-mark {
-  display: inline-block;
-  min-width: 1.6em;
+  display: inline-flex;
+  align-items: center;
   margin-right: 4px;
-  padding: 0 4px;
-  border-radius: 6px;
+  vertical-align: -2px;
+}
+.to-mark .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.4;
+}
+.to-mark .icon + .icon {
+  margin-left: -5px;
+}
+.to-count {
+  margin-left: 1px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  text-align: center;
-  background: var(--surface-2);
-}
-.to-mark.is-up {
-  color: var(--good);
-  background: var(--good-soft);
-}
-.to-mark.is-down {
-  color: var(--danger);
-  background: var(--danger-soft);
 }
 /* The answers set apart (start over, already knew it): a quieter row under the main ones, out of the thumb's way. */
 .review-asides {
@@ -2695,6 +2787,37 @@ canvas.media-frame {
   z-index: 3;
   cursor: grabbing;
 }
+/* An answer whose button is hidden at that point (its rule is "Button hidden"): no box follows it, as nothing happens;
+   its name is the thing that's gone, an X before it and the whole of it struck through corner to corner, top left to
+   bottom right, at the end of a faint dashed stub (the owner, 2026-10-18: as a box it read as what pressing it did;
+   then "make it an X and strike the whole thing diagonally"). */
+.edge-label.is-hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-style: dashed;
+  color: var(--muted);
+  border-color: var(--line-strong);
+}
+.edge-label.is-hidden::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* A gradient towards one corner draws its middle line through the other two, so "to bottom left" is the line from
+     the top left to the bottom right ("to bottom right" drew the other diagonal, 2026-10-18). */
+  background: linear-gradient(to bottom left, transparent calc(50% - 0.75px), currentColor calc(50% - 0.75px), currentColor calc(50% + 0.75px), transparent calc(50% + 0.75px));
+  pointer-events: none;
+}
+.edge-label.is-hidden .icon {
+  width: 11px;
+  height: 11px;
+}
+.edge.is-hidden {
+  stroke: var(--line-strong);
+  stroke-dasharray: 3 4;
+  opacity: 0.7;
+}
 @media (pointer: coarse) {
   /* A finger gets more to hold than the pill shows. */
   .edge-label::before {
@@ -2839,16 +2962,6 @@ canvas.media-frame {
 .fnode.burn .s {
   color: var(--good);
   opacity: 0.8;
-}
-/* An answer not offered at that point of the chart: a greyed, locked box, so it reads as a door that's shut. */
-.fnode.hidden {
-  background: var(--surface-2);
-  color: var(--muted);
-  border-style: dashed;
-}
-.fnode.hidden .t,
-.fnode.hidden .s {
-  color: var(--muted);
 }
 .fnode.start .t,
 .fnode.down1 .t,

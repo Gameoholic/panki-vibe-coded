@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
+import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "@panki/contracts";
 
 /**
  * How transcribing behaves for this browser's viewer, theirs to set on the options page (YouTube → Transcribing),
@@ -20,7 +20,7 @@ export const TranscribePrefs = z.object({
   paused: TranscribePaused,
   /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Replace YouTube subtitles with Panki's"). */
   overVideo: z.boolean(),
-  /** How the transcript looks over the video (`subtitleStyle.ts`). */
+  /** How the transcript looks over the video (the contracts' `subtitleStyle.ts`): the account's, read from Panki with the transcript and written back there, not kept in the browser. */
   style: SubtitleStyle,
   /**
    * Whether the word being said carries its mark (the line under it, `Line`'s `now`): on the line under the player,

@@ -1,9 +1,12 @@
 import { z } from "zod";
 
 /**
- * How the transcript looks over the video, this viewer's own (the owner, 2026-10-17: "size, font, position, etc.").
- * The shape and its bounds, the fonts it can be set in, and the CSS variables the over-line reads them as: one home.
- * Set in the strip's Subtitles menu on the page, carried with the rest of the transcribing preferences.
+ * How subtitles look over a picture, the account's own (the owner, 2026-10-17: "size, font, position, etc."): the
+ * transcript over a YouTube video (the extension) and a card's words over its clip (the web's card, since 2026-10-18,
+ * "use the same settings we do for YouTube… no separate customizability options"). One style for both, kept with the
+ * account's settings (`srs.ts` → `Settings.subtitleStyle`), so the extension and the app read the same one. The shape
+ * and its bounds, the fonts it can be set in, and the CSS variables the band reads them as: one home. Set in the
+ * extension's Subtitles menu on a video page.
  */
 
 /**
@@ -87,17 +90,17 @@ export type SubtitleStyle = z.infer<typeof SubtitleStyle>;
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { size: 26, font: "urbanist", bottom: 9, x: 50, align: "center", opacity: 68 };
 
 /**
- * The size is meant for a player this tall, in px; on a taller or shorter one the words scale with it, so they take
- * the same share of the picture on the page, in the theatre and on the full screen (the owner, 2026-10-17: made small
- * for the page they were too small on the full screen). The page puts the player's height over this on the host as
- * `--sub-scale`.
+ * The size is meant for a picture this tall, in px; on a taller or shorter one the words scale with it, so they take
+ * the same share of the picture on the page, in the theatre, on the full screen and on a card (the owner, 2026-10-17:
+ * made small for the page they were too small on the full screen). Whoever draws the band puts the picture's height
+ * over this on it as `--sub-scale`.
  */
 export const SUBTITLE_REF_HEIGHT = 720;
 
 /** A number kept inside one of the bounds, whole. */
-export const within = (value: number, bound: { min: number; max: number }): number => Math.round(Math.min(bound.max, Math.max(bound.min, value)));
+export const withinBound = (value: number, bound: { min: number; max: number }): number => Math.round(Math.min(bound.max, Math.max(bound.min, value)));
 
-/** The style as the CSS variables the over-line is drawn with (`extension.css` → `.over-*`), put on its place's host. */
+/** The style as the CSS variables the band is drawn with (the web's `app.css` → `.sub-band`), put on what holds it. */
 export function subtitleVars(style: SubtitleStyle): Record<string, string> {
   return {
     "--sub-size": `${style.size}px`,

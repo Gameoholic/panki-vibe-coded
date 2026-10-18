@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { WAIT_MAX, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
-import { AGAIN_OPTIONS, MOVE_OPTIONS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, placeName, spanWords, stageName, stageWaitWords, stepKey, stepLabel, tintStyle } from "../srsKinds";
+import { AGAIN_OPTIONS, MOVE_OPTIONS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, placeName, spanWords, stageName, stageWaitWords, stepKey, stepLabel, tintStyle } from "../srsKinds";
 import { BURNED_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setAgainWait, setStep, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -38,7 +38,8 @@ const G = {
 
 type Pos = { x: number; y: number };
 type Box = { id: string; x: number; y: number; w: number; h: number; kind: string; step?: Step; path: string[] };
-type Link = { from: string; to: string; i: number; path: string[]; answerName: string; loop: boolean };
+/** `loop`: "Keep asking", turning back into the box it left. `hidden`: "Button hidden", going nowhere. Neither has a box of its own. */
+type Link = { from: string; to: string; i: number; path: string[]; answerName: string; loop: boolean; hidden: boolean };
 /** A link as drawn: its path, where the answer's name sits, where its + goes (none on one that turns back), and the box it reaches (none likewise). */
 type Wire = { link: Link; b: Box | null; key: string; out: Pos; d: string; label: Pos; plus: Pos | null };
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
@@ -61,9 +62,10 @@ function layout(type: SrsType, flow: Flow, scope: Scope, positions: Record<strin
     for (const it of items) {
       const id = it.path.join(",");
       const link = { from: parentId, to: id, i: type.answers.indexOf(it.answer), path: it.path, answerName: it.answer.name };
-      // "Keep asking" has no box and takes no row: its arrow turns back into the box it left.
-      if (it.step.kind === "retry") {
-        links.push({ ...link, loop: true });
+      // "Keep asking" has no box and takes no row: its arrow turns back into the box it left. "Button hidden" has none
+      // either: the answer isn't there to press, so its name is drawn struck through and nothing follows it.
+      if (it.step.kind === "retry" || it.step.kind === "hidden") {
+        links.push({ ...link, loop: it.step.kind === "retry", hidden: it.step.kind === "hidden" });
         continue;
       }
       let y: number;
@@ -71,7 +73,7 @@ function layout(type: SrsType, flow: Flow, scope: Scope, positions: Record<strin
       if (childYs.length > 0) y = (Math.min(...childYs) + Math.max(...childYs)) / 2;
       else y = row++ * G.rowPitch;
       boxes.push({ id, x: rootW + G.colGap + (depth - 1) * (G.nodeW + G.colGap), y, w: G.nodeW, h: G.nodeH, kind: it.children.length > 0 ? "again" : stepKey(it.step), step: it.step, path: it.path });
-      links.push({ ...link, loop: false });
+      links.push({ ...link, loop: false, hidden: false });
       ys.push(y);
     }
     return ys;
@@ -123,6 +125,13 @@ function linkGeometry(a: Box, b: Box, i: number, n: number, out: Pos) {
   return { d: `M ${port.x} ${port.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${label.x} ${label.y} C ${r1.x} ${r1.y}, ${r2.x} ${r2.y}, ${end.x} ${end.y}`, label, plus: bezier(...rest, 0.72) };
 }
 /** "Keep asking" turns back into the box it left: out through the answer's name, then round and into the box's top (its bottom when the name sits low). */
+/** "Button hidden" goes nowhere: a short line out to the answer's name, and no further. */
+function stubGeometry(a: Box, i: number, n: number, out: Pos) {
+  const port = { x: a.x + a.w, y: portY(a, i, n) };
+  const label = { x: port.x + out.x, y: stackY(a, i, n, G.port) + out.y };
+  const [, p1, p2] = curve(port, label);
+  return { d: `M ${port.x} ${port.y} C ${p1.x} ${p1.y}, ${p2.x} ${p2.y}, ${label.x} ${label.y}`, label, plus: null };
+}
 function loopGeometry(a: Box, i: number, n: number, out: Pos) {
   const port = { x: a.x + a.w, y: portY(a, i, n) };
   const label = { x: port.x + out.x, y: stackY(a, i, n, G.port) + out.y };
@@ -155,11 +164,10 @@ function outcomeOf(type: SrsType, flow: Flow, ex: number, box: Box) {
 }
 function subWords(type: SrsType, flow: Flow, scope: Scope, ex: number, box: Box): string {
   if (box.kind === "root") return scope === "all" ? `shown for ${stageName(type, ex)}` : `waits ${spanWords(waitAt(type, ex) ?? 0)}`;
-  if (box.kind === "hidden") return "the button isn't shown here";
   const r = outcomeOf(type, flow, ex, box);
   if (r.burned) return box.kind === "burn" ? "never comes back" : `→ ${type.burnedName} · never comes back`;
   if (r.again) return "";
-  return `→ ${placeName(type, r.place)} · ${r.wait ? `back in ${spanWords(r.wait)}` : "no wait"}`;
+  return `→ ${placeName(type, r.place)} · ${r.wait ? `back in ${spanWords(r.wait)}` : backWords(0)}`;
 }
 
 type Props = {
@@ -225,6 +233,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     const key = labelKey(link.to);
     const out = placed[key] ?? G.labelOut;
     if (link.loop) return [{ link, b: null, key, out, ...loopGeometry(a, link.i, n, out) }];
+    if (link.hidden) return [{ link, b: null, key, out, ...stubGeometry(a, link.i, n, out) }];
     if (!b) return [];
     return [{ link, b, key, out, ...linkGeometry(a, b, link.i, n, out) }];
   });
@@ -380,8 +389,8 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     if (p.kind === "move") {
       if (p.moved && commit) setPositions((ps) => ({ ...ps, [scope]: { ...(ps[scope] ?? {}), [p.id]: p.cur } }));
       setDrag(null);
-      // A tap on the name of an answer that keeps asking picks it: it has no box of its own to tap.
-      const looped = !p.moved && commit && !readOnly ? wires.find((w) => w.key === p.id && w.link.loop) : undefined;
+      // A tap on the name of an answer that keeps asking, or whose button is hidden, picks it: it has no box of its own to tap.
+      const looped = !p.moved && commit && !readOnly ? wires.find((w) => w.key === p.id && (w.link.loop || w.link.hidden)) : undefined;
       if (looped) setSelected((s) => (s === looped.link.to ? null : looped.link.to));
     } else if (!p.moved && commit) {
       // A press on the ground that never became a pan is a tap: it lets go of the picked box.
@@ -398,7 +407,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   const choosingShown = selected === "root";
   const selPath = selected && !choosingShown ? selected.split(",") : null;
   // What the card opens beside: the picked box, or the name of an answer that keeps asking.
-  const selLoop = selected ? wires.find((w) => w.link.loop && w.link.to === selected) : undefined;
+  const selLoop = selected ? wires.find((w) => (w.link.loop || w.link.hidden) && w.link.to === selected) : undefined;
   const selBox: Pick<Box, "x" | "y" | "w" | "h"> | null = selected ? (byId.get(selected) ?? (selLoop ? { x: selLoop.label.x, y: selLoop.label.y, w: 0, h: 0 } : null)) : null;
   const current = selPath ? getStep(type, scope, selPath) : undefined;
   const currentKey = stepKey(current);
@@ -470,13 +479,24 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               </marker>
             </defs>
             {wires.map(({ link, d }) => (
-              <path key={link.to} className={`edge ${answerClass(type.answers, link.i)} ${glance?.next === link.to ? "is-next" : ""}`.trim()} d={d} markerEnd={link.loop ? "url(#flow-arrow)" : undefined} />
+              <path
+                key={link.to}
+                className={`edge ${answerClass(type.answers, link.i)} ${link.hidden ? "is-hidden" : ""} ${glance?.next === link.to ? "is-next" : ""}`.replace(/\s+/g, " ").trim()}
+                d={d}
+                markerEnd={link.loop ? "url(#flow-arrow)" : undefined}
+              />
             ))}
           </svg>
           {wires.map(({ link, b, key, label, plus }) => {
             return (
               <Fragment key={link.to}>
-                <span className={`edge-label ${answerClass(type.answers, link.i)} ${drag?.id === key ? "is-dragging" : ""}`.trim()} data-label={link.to} style={{ left: label.x, top: label.y }}>
+                <span
+                  className={`edge-label ${answerClass(type.answers, link.i)} ${link.hidden ? "is-hidden" : ""} ${drag?.id === key ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+                  data-label={link.to}
+                  style={{ left: label.x, top: label.y }}
+                  aria-label={link.hidden ? `${link.answerName}: button hidden` : undefined}
+                >
+                  {link.hidden ? <Icon name="close" /> : null}
                   {link.answerName || "?"}
                 </span>
                 {!plus || readOnly || b?.kind === "again" ? null : (
@@ -576,7 +596,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                 onClick={() => select(box.id)}
               >
                 <span className="t">
-                  {box.kind === "burn" ? <Icon name="flame" /> : box.kind === "again" ? <Icon name="review" /> : box.kind === "hidden" ? <Icon name="lock" /> : null}
+                  {box.kind === "burn" ? <Icon name="flame" /> : box.kind === "again" ? <Icon name="review" /> : null}
                   {title}
                 </span>
                 {box.kind === "again" ? null : <span className="s">{subWords(type, flow, scope, ex, box)}</span>}
@@ -717,7 +737,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               <div className="chips menu-chips">
                 {STEP_OPTIONS.filter((o) => o.step.kind !== "move").map((o) => (
                   <Button key={o.id} variant="chip" aria-pressed={currentKey === o.id} data-opt={o.id} onClick={() => pick(o.id)}>
-                    {o.id === "burn" ? <Icon name="flame" /> : o.id === "hidden" ? <Icon name="lock" /> : null}
+                    {o.id === "burn" ? <Icon name="flame" /> : o.id === "hidden" ? <Icon name="close" /> : null}
                     {stepLabel(type, o.step)}
                   </Button>
                 ))}

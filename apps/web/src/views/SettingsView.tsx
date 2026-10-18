@@ -575,7 +575,7 @@ function DictionariesPanel() {
       <h2 id="dictionaries-title" className="panel-title">
         Dictionaries
       </h2>
-      {list && list.length === 0 && !uploading ? <p className="empty">None on Panki yet. Upload them here, then add them to the extension from its options page.</p> : null}
+      {list && list.length === 0 && !uploading ? <p className="empty">No dictionaries on Panki yet.</p> : null}
       {list && list.length > 0 ? (
         <div className="kept-rows">
           {list.map((dictionary) => (

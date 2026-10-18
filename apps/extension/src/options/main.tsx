@@ -377,7 +377,7 @@ function Mapping({ decks, types, store, onSaved }: { decks: Deck[]; types: CardT
           <FieldsOf key={deck.id} type={type} saved={store.maps[deck.id]} off={!on} onSave={(map) => void writeStore({ maps: { ...store.maps, [deck.id]: map } }).then(onSaved)} />
         </>
       ) : (
-        <p className="empty">Make a deck in Panki first.</p>
+        <p className="empty">No decks yet.</p>
       )}
     </section>
   );
@@ -475,7 +475,7 @@ function Options() {
               ) : null
             ) : (
               <section className="panel">
-                <p className="empty">Sign in to Panki to choose the deck cards go to and what fills their fields.</p>
+                <p className="empty">Not signed in.</p>
                 <div className="add-actions add-actions-start">
                   <Button variant="primary" onClick={() => choose("account")}>
                     Sign in
