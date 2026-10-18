@@ -36,28 +36,55 @@ const SOUND_BITS = 96_000;
 /** A media element as browsers really have it: Chrome's `captureStream`, and Firefox's own name for the same. */
 type Capturable = HTMLMediaElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream };
 
-/** One stream per player, kept for as long as the page lives: asking twice would split the sound again. */
-const streams = new WeakMap<HTMLMediaElement, MediaStream>();
+/** A player's picture and sound as a stream, for one recording, and what's done with it once that's over. */
+type Captured = { stream: MediaStream; release: () => void };
 
-function streamOf(video: HTMLVideoElement): MediaStream {
-  const kept = streams.get(video);
-  if (kept?.active) return kept;
+/** Firefox's stream of a player, kept: taking it moves the element's sound into it, played back out through `out`. */
+const kept = new WeakMap<HTMLMediaElement, { stream: MediaStream; out: AudioContext }>();
+
+const isLive = (tracks: readonly MediaStreamTrack[]) => tracks.some((track) => track.readyState === "live");
+
+/**
+ * The player's picture and sound, for one recording. Chrome's is taken afresh each time and let go after: with one kept
+ * for as long as the page lived, clips came out as a file's header with nothing in it while the sound cuts beside them
+ * were whole (2026-10-18), most likely its picture having stopped while its sound went on (the site changes video
+ * without loading a new page). Firefox's is kept while its picture is live, since taking it twice would split the sound.
+ */
+function capture(video: HTMLVideoElement): Captured {
   const el: Capturable = video;
-  let stream: MediaStream;
   if (typeof el.captureStream === "function") {
-    stream = el.captureStream();
-  } else if (typeof el.mozCaptureStream === "function") {
-    stream = el.mozCaptureStream();
-    // Firefox sends a captured element's sound into the stream and away from the speakers, for as long as the stream
-    // lives. It is played back out from the stream, so the video is heard as before.
-    const out = new AudioContext();
-    out.createMediaStreamSource(stream).connect(out.destination);
-    void out.resume();
-  } else {
-    throw new RecordError("This browser can't record a player.");
+    const stream = el.captureStream();
+    return { stream, release: () => stream.getTracks().forEach((track) => track.stop()) };
   }
-  streams.set(video, stream);
-  return stream;
+  if (typeof el.mozCaptureStream !== "function") throw new RecordError("This browser can't record a player.");
+  const was = kept.get(video);
+  if (was && isLive(was.stream.getVideoTracks())) return { stream: was.stream, release: () => undefined };
+  if (was) {
+    was.stream.getTracks().forEach((track) => track.stop());
+    void was.out.close();
+  }
+  const stream = el.mozCaptureStream();
+  // Firefox sends a captured element's sound into the stream and away from the speakers, for as long as the stream
+  // lives. It is played back out from the stream, so the video is heard as before.
+  const out = new AudioContext();
+  out.createMediaStreamSource(stream).connect(out.destination);
+  void out.resume();
+  kept.set(video, { stream, out });
+  return { stream, release: () => undefined };
+}
+
+/** WebM's Cluster element, which every picture and sound recorded sits in. */
+const CLUSTER = [0x1f, 0x43, 0xb6, 0x75] as const;
+
+/** Whether a recording holds any picture or sound: one that got none is a WebM's header alone, with no Cluster in it (a hundred-odd bytes). */
+async function holdsMedia(clip: Blob): Promise<boolean> {
+  if (clip.size === 0) return false;
+  if (!clip.type.includes("webm")) return true;
+  const bytes = new Uint8Array(await clip.arrayBuffer());
+  for (let i = 0; i + CLUSTER.length <= bytes.length; i++) {
+    if (bytes[i] === CLUSTER[0] && bytes[i + 1] === CLUSTER[1] && bytes[i + 2] === CLUSTER[2] && bytes[i + 3] === CLUSTER[3]) return true;
+  }
+  return false;
 }
 
 function formatFor(soundOnly: boolean): string | undefined {
@@ -90,7 +117,16 @@ function seek(video: HTMLVideoElement, to: number): Promise<void> {
  */
 export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Blob> {
   if (typeof MediaRecorder !== "function") throw new RecordError("This browser can't record a player.");
-  const stream = streamOf(video);
+  const { stream, release } = capture(video);
+  try {
+    return await recordFrom(video, stream, stretch, onProgress);
+  } finally {
+    release();
+  }
+}
+
+/** The recording itself, off a stream taken for it. */
+async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Blob> {
   const sound = stream.getAudioTracks();
   if (stretch.soundOnly && sound.length === 0) throw new RecordError("This video has no sound to record.");
   const input = stretch.soundOnly ? new MediaStream(sound) : stream;
@@ -140,7 +176,7 @@ export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, o
   }
   await stopped;
   const clip = new Blob(pieces, { type: recorder.mimeType || format || (stretch.soundOnly ? "audio/webm" : "video/webm") });
-  if (clip.size === 0) throw new RecordError("Nothing came out of the player. A protected video can't be recorded.");
+  if (!(await holdsMedia(clip))) throw new RecordError("Nothing came out of the player. A protected video can't be recorded.");
   return clip;
 }
 
