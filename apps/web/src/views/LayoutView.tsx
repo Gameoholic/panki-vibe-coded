@@ -178,6 +178,14 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     const pictured = media && (part.look === "player" || part.look === "plain");
     /** Written above another field's words: its size, field name and position are the word's to say, and off. */
     const above = part.over !== null;
+    /** Another field's words lit in this one's: in its words, or in a clip's subtitles while they're shown. */
+    const highlight = (
+      <Setting
+        id="part-mark"
+        label="Highlight"
+        control={<Dropdown id="part-mark-choice" label="Highlight" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.mark ?? NOT_OVER} onChange={(mark) => update(id, { mark: mark === NOT_OVER ? null : mark })} />}
+      />
+    );
     return (
       <>
         <Setting
@@ -205,17 +213,12 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         {words || media || holdsLink(field.kind) ? (
           <Setting id="part-label" label="Field name" control={<Toggle id="part-label-on" says={{ on: "Shown", off: "Hidden" }} on={part.label} disabled={above} onChange={(label) => update(id, { label })} />} />
         ) : null}
-        {wordy(field) ? (
-          <Setting
-            id="part-mark"
-            label="Highlight"
-            control={<Dropdown id="part-mark-choice" label="Highlight" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.mark ?? NOT_OVER} onChange={(mark) => update(id, { mark: mark === NOT_OVER ? null : mark })} />}
-          />
-        ) : null}
+        {wordy(field) ? highlight : null}
         {/* What's said in the clip, as it was heard on the video when it was recorded, following it as it plays. */}
         {pictured ? (
           <Setting id="part-subtitles" label="Subtitles" control={<Toggle id="part-subtitles-on" says={{ on: "Shown", off: "Hidden" }} on={part.subtitles} onChange={(subtitles) => update(id, { subtitles })} />} />
         ) : null}
+        {pictured && part.subtitles ? highlight : null}
         {media ? (
           <Setting
             id="part-auto"

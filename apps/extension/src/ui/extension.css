@@ -330,6 +330,11 @@
     background: color-mix(in srgb, var(--theater-ink) 18%, transparent);
   }
 }
+/* The word picked, lit as a card's clip lights its word (`app.css` → `.sub-mark`) rather than filled as under the player. */
+.over-line .btn.tok[aria-pressed="true"] {
+  background: var(--theater-mark);
+  color: var(--theater-ink);
+}
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
   display: inline-flex;

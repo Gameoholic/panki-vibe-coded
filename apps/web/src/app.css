@@ -1442,6 +1442,14 @@ mark.review-mark {
 .sub-now {
   box-shadow: inset 0 -0.12em 0 var(--accent);
 }
+/* The card's word lit in the line (the clip part's "Highlight"), as the word is lit in its sentence; the extension
+   lights the word picked over YouTube the same way. */
+mark.sub-mark {
+  padding: 0 0.12em;
+  border-radius: 0.25em;
+  color: inherit;
+  background: var(--theater-mark);
+}
 /* A pitch accent drawn over its reading (components/PitchAccent.tsx): a line over the morae said high, and down its
    side where the voice falls, as thick as the words are big. A card's Pitch accent field, the popup and the
    dictionaries' rows all draw it this way; several accents stand side by side. */

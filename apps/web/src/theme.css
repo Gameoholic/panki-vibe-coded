@@ -72,6 +72,8 @@
      picture, white on it whatever the theme (the transcript over a video). */
   --theater: #000000;
   --theater-ink: #ffffff;
+  /* A word lit in words over a picture (the word picked, in a clip's subtitles): the theme's accent, seen through. */
+  --theater-mark: color-mix(in srgb, var(--accent) 45%, transparent);
   /* What a video's transcript covers, marked along the player's own bar: yellow, whatever the theme, since it lies on
      a picture too (the owner, 2026-10-17: "yellow for things that were transcribed"). */
   --transcribed: #f2c230;

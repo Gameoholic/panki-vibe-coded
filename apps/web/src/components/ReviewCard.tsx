@@ -175,13 +175,15 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
     }
     return said;
   }
+  /** The words a part's "Highlight" lights: what that field holds on this card; nothing when it's set to none. */
+  const litOf = (part: LayoutPart) => (part.mark ? (values[part.mark] ?? "").trim() : "");
   /**
    * A part's words with another field's lit where they stand in them (its "Highlight"): the first time they appear,
    * and nothing lit when they don't. Exact, as the words were kept: the word picked in a sentence is that sentence's
    * own stretch.
    */
   function marked(text: string, part: LayoutPart | undefined): ReactNode {
-    const term = part?.mark ? (values[part.mark] ?? "").trim() : "";
+    const term = part ? litOf(part) : "";
     const at = term ? text.indexOf(term) : -1;
     if (at < 0) return text;
     return (
@@ -192,10 +194,13 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
       </>
     );
   }
-  /** A clip's subtitles, when its part has them on and the clip was recorded with its words: following it as it plays, in the app's subtitle style. */
+  /**
+   * A clip's subtitles, when its part has them on and the clip was recorded with its words: following it as it plays,
+   * in the app's subtitle style, with its Highlight lit in each line it's in.
+   */
   function subtitlesOf(part: LayoutPart, said: MediaCues | undefined, time?: ClipTime): ReactNode {
     if (!part.subtitles || !said || said.length === 0) return null;
-    return <ClipSubtitles cues={said} style={subtitleStyle} time={time} />;
+    return <ClipSubtitles cues={said} style={subtitleStyle} time={time} lit={litOf(part)} />;
   }
   /** The file a field's value is, to be played: none for words, a link, a picture, or a file not there. */
   const playable = (field: CardField) => {

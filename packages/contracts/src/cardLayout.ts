@@ -53,7 +53,8 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
  * field's default where something's missing; then every field the layout doesn't name yet (one added since), as its
  * default would have it. Something always shows on the front: when nothing does, the first part does. A part written
  * over another as its reading names another field the type still has, of words of one line as the part itself is, or
- * it's over none. The same holds for a part's highlight (words lit in words); a clip's subtitles are on only for a Media field.
+ * it's over none. A part's highlight names another field of words too, lit in this part's words, or in a clip's
+ * subtitles; a clip's subtitles are on only for a Media field.
  */
 export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] = []): LayoutPart[] {
   const defaults = defaultLayout(fields);
@@ -65,7 +66,7 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
     const kind = kindOf.get(fieldId);
     return kind === "text" || kind === "long";
   };
-  const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(fieldId) && wordy(other);
+  const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(other) && (wordy(fieldId) || kindOf.get(fieldId) === "media");
   const placed = new Set<string>();
   const parts: LayoutPart[] = [];
   for (const raw of kept) {

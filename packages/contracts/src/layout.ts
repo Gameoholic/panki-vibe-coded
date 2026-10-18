@@ -55,7 +55,8 @@ export const LayoutPart = z.object({
   /**
    * Another field whose words are lit where they stand in this one's (its "Highlight"); null for none. The word in its
    * sentence, lit as the extension's drawer lights it while the card is made (the owner, 2026-10-18). Set on words
-   * (a line or a paragraph), naming another field of words; its first appearance is lit, and nothing when it isn't there.
+   * (a line or a paragraph), or on a Media part, whose subtitles it's lit in (the word in the line being said, the same
+   * day), naming another field of words; its first appearance is lit, and nothing when it isn't there.
    */
   mark: z.uuid().nullable(),
   /**
