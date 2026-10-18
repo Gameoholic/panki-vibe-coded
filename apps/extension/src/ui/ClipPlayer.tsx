@@ -28,20 +28,20 @@ const PICTURE = 480;
  * A clip on the card before it's a file: what the card's player will look like, with the player's own bar. Its
  * picture is the video's own, drawn again here as the video shows it, and playing it plays the stretch on the page's
  * player. Nothing is recorded or fetched for it: a clip is made once, when its card is added. Its subtitles follow
- * the picture while it plays, so they hold still with it too, and stand at rest otherwise.
+ * the picture, so they hold still with it too.
  */
 export function ClipPlayer({ video, start, end, soundOnly, playing, held, label, onToggle, subtitles }: Props) {
   const picture = useRef<HTMLCanvasElement>(null);
   const [now, setNow] = useState(start);
   /** The moment of the video the picture shows; null before it shows any. */
   const shownAt = useRef<number | null>(null);
-  const state = useRef({ start, playing });
-  state.current = { start, playing };
-  // At rest unless it's being played: the page's video is wherever it was left, which isn't this clip's moment, so
-  // the subtitles show the line the card is about, as a card's own clip does before it's played.
+  const ends = useRef({ start, end });
+  ends.current = { start, end };
   const time: ClipTime = () => {
     const at = shownAt.current;
-    return state.current.playing && at !== null ? at - state.current.start : null;
+    if (at === null) return null;
+    const { start: from, end: to } = ends.current;
+    return at >= from && (to === null || at <= to) ? at - from : null;
   };
 
   useEffect(() => {
