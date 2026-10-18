@@ -50,14 +50,15 @@ const MESSAGES = {
 /** What the strip says of transcribing, beside the name and in the menu; nothing while there's nothing to say. */
 export function statusWords(status: TranscribeStatus): { words: string; live: boolean } | null {
   switch (status.kind) {
+    case "loading":
+      // A run begun, its silent player not up yet: "Preparing" (the owner's word, 2026-10-18).
+      return { words: status.run ? "Preparing…" : "Loading…", live: true };
     case "running":
       return { words: `Transcribing · until ${clock(status.to)}`, live: true };
     case "held":
       return { words: `Transcribed until ${clock(status.to)}`, live: false };
     case "done":
       return { words: "Transcribed", live: false };
-    case "notJapanese":
-      return { words: "Not Japanese", live: false };
     case "noKey":
       return { words: "No key to transcribe with", live: false };
     case "blocked":
@@ -70,7 +71,6 @@ export function statusWords(status: TranscribeStatus): { words: string; live: bo
 }
 /** What the item that starts it says: the way to start, or to start over what stopped it. */
 export function startWords(status: TranscribeStatus): string {
-  if (status.kind === "notJapanese") return "Transcribe anyway";
   if (status.kind === "blocked" || status.kind === "failed") return "Try again";
   return "Transcribe";
 }
@@ -81,13 +81,14 @@ export function startWords(status: TranscribeStatus): string {
  * tints it and colours its dot. Going, in the accent with the dot breathing; ready (standing by at the lead, or the
  * whole video done) in the good colour; trouble in the danger colour; nothing going, plain.
  */
-type Look = "going" | "ready" | "quiet" | "trouble";
+type Look = "loading" | "going" | "ready" | "quiet" | "trouble";
 const LOOKS: Record<TranscribeStatus["kind"], { words: string; look: Look }> = {
+  // The first moments of a video, before it can be said how it stands: plain, the dot breathing (the owner, 2026-10-18).
+  loading: { words: "Loading", look: "loading" },
   running: { words: "Transcribing", look: "going" },
   held: { words: "Standing by", look: "ready" },
   done: { words: "Transcribed", look: "ready" },
   off: { words: "Not transcribing", look: "quiet" },
-  notJapanese: { words: "Not Japanese", look: "trouble" },
   noKey: { words: "No key", look: "trouble" },
   blocked: { words: "Blocked", look: "trouble" },
   failed: { words: "Failed", look: "trouble" },
@@ -117,7 +118,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
 
   const status = statusWords(state.status);
   const chip = LOOKS[state.status.kind];
-  const transcribing = state.status.kind === "running" || state.status.kind === "held";
+  const transcribing = state.status.kind === "running" || state.status.kind === "held" || (state.status.kind === "loading" && state.status.run);
   const canStart = state.key && state.status.kind !== "noKey" && state.status.kind !== "signedOut";
   const hasAny = (state.transcript?.covered.length ?? 0) > 0;
   const ask = (which: Asking) => setAsking(asking === which ? null : which);

@@ -156,6 +156,11 @@
   border-radius: 50%;
   background: var(--line-strong);
 }
+/* Loading, the first moments of a video: plain, the dot breathing in the line's colour, until it's known how it stands. */
+.btn.strip-menu-button.is-loading .strip-menu-dot {
+  background: var(--muted);
+  animation: live-dot 1.2s ease-in-out infinite;
+}
 .btn.strip-menu-button.is-going {
   background: var(--accent-soft);
   color: var(--accent);

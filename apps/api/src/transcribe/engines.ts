@@ -1,4 +1,4 @@
-import type { EngineAccount, EngineId, HeardLanguage } from "@panki/contracts";
+import type { EngineAccount, EngineId, HeardLanguage, TranscribeLanguage } from "@panki/contracts";
 import { createElevenLabs } from "./elevenlabs";
 
 /**
@@ -22,10 +22,10 @@ export class EngineError extends Error {
 export type Heard = { language: HeardLanguage; words: { text: string; startMs: number; endMs: number }[] };
 
 /**
- * One engine: given a key and a piece's sound (a WAV), what it heard (told the language, or null to say what it hears);
+ * One engine: given a key, a piece's sound (a WAV) and the language it's in (always told, never asked), what it heard;
  * and, given the key, the account behind it as the engine tells of it, for an admin's Settings.
  */
-export type EngineClient = { transcribe(key: string, wav: Buffer, language: "jpn" | null): Promise<Heard>; account(key: string): Promise<EngineAccount> };
+export type EngineClient = { transcribe(key: string, wav: Buffer, language: TranscribeLanguage): Promise<Heard>; account(key: string): Promise<EngineAccount> };
 export type Engines = Record<EngineId, EngineClient>;
 
 /** `fetcher` is passed in, like the API's clock, so a test can stand in for an engine. */

@@ -106,11 +106,11 @@ export const panki = {
   transcript: ({ address, token }: Door, videoId: string): Promise<Transcript> => call(address, token, `/api/transcripts/${id(videoId)}`, {}, (b) => TranscriptResponse.parse(b).transcript),
   /** A piece of a video's sound for the engine, under an id minted here, so sending it again is the same piece and never a second call to the engine. */
   /** A piece of a video on its way to the engine through Panki: the stretch it accounts for, where its sound begins, and the sound (none for a stretch of nothing). */
-  putPiece: ({ address, token }: Door, videoId: string, pieceId: string, meta: { startMs: number; soundMs: number; endMs: number; check: boolean }, wav: Blob | null): Promise<PieceResponse> =>
+  putPiece: ({ address, token }: Door, videoId: string, pieceId: string, meta: { startMs: number; soundMs: number; endMs: number }, wav: Blob | null): Promise<PieceResponse> =>
     call(
       address,
       token,
-      `/api/transcripts/${id(videoId)}/pieces/${id(pieceId)}?start=${meta.startMs}&sound=${meta.soundMs}&end=${meta.endMs}&check=${meta.check ? "1" : "0"}`,
+      `/api/transcripts/${id(videoId)}/pieces/${id(pieceId)}?start=${meta.startMs}&sound=${meta.soundMs}&end=${meta.endMs}`,
       wav ? { method: "PUT", headers: { "content-type": PIECE_MIME }, body: wav } : { method: "PUT" },
       (b) => PieceResponse.parse(b),
     ),

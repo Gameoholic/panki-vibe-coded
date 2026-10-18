@@ -90,7 +90,8 @@ export function createElevenLabs(fetcher: typeof fetch): EngineClient {
       form.set("timestamps_granularity", "word");
       form.set("tag_audio_events", "false");
       form.set("diarize", "false");
-      if (language !== null) form.set("language_code", language);
+      // Always told: asked, it judged the language of the first pieces itself, and that check is gone (2026-10-18).
+      form.set("language_code", language);
       let res: Response;
       try {
         res = await fetcher(API, { method: "POST", headers: { "xi-api-key": key }, body: form, signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS) });

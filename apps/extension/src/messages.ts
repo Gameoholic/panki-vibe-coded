@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
-import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, HeardLanguage, LanguageVerdict, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
+import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
 import { PopupLayout } from "./popupLayout";
@@ -51,7 +51,7 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("voice"), word: z.string().min(1).max(FORVO_WORD_MAX), id: z.number().int() }),
   /** A video's transcript as Panki keeps it, with the settings that run transcribing and whether there's a key to run it with. */
   z.object({ kind: z.literal("transcript"), videoId: VideoId }),
-  /** A piece for the engine: the stretch of the video it accounts for, where in it its sound begins, whether the engine is to say what language it hears, and the WAV as text (none for a stretch of nothing). */
+  /** A piece for the engine: the stretch of the video it accounts for, where in it its sound begins, and the WAV as text (none for a stretch of nothing). */
   z.object({
     kind: z.literal("piece"),
     videoId: VideoId,
@@ -59,7 +59,6 @@ export const Ask = z.discriminatedUnion("kind", [
     startMs: z.number().int().nonnegative(),
     soundMs: z.number().int().nonnegative(),
     endMs: z.number().int().positive(),
-    check: z.boolean(),
     base64: z.string().max(PIECE_BASE64_MAX).nullable(),
   }),
   /** A word of a transcript changed by hand. */
@@ -124,7 +123,7 @@ export type Done = z.infer<typeof Done>;
 const Transcripted = z.union([z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, key: z.boolean(), source: z.string(), prefs: TranscribePrefs }), Failed]);
 export type Transcripted = z.infer<typeof Transcripted>;
 /** A piece heard: the transcript with it in, what language the engine heard when asked, and what that came to. */
-const Pieced = z.union([z.object({ ok: z.literal(true), transcript: Transcript, language: HeardLanguage.nullable(), verdict: LanguageVerdict.nullable() }), Failed]);
+const Pieced = z.union([z.object({ ok: z.literal(true), transcript: Transcript }), Failed]);
 export type Pieced = z.infer<typeof Pieced>;
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */

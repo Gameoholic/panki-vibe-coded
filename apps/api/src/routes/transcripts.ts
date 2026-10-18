@@ -1,5 +1,5 @@
 import express, { Router, type Request, type Response } from "express";
-import { PIECE_MAX_BYTES, PieceId, PieceMeta, Stretch, TOLD_JAPANESE, TranscriptFix, TranscriptForget, VideoId, keepHeard, verdictOf, type EngineId, type PieceResponse } from "@panki/contracts";
+import { PIECE_MAX_BYTES, PieceId, PieceMeta, Stretch, TranscriptFix, TranscriptForget, VideoId, type EngineId, type PieceResponse } from "@panki/contracts";
 import { isWav } from "../mediaFiles";
 import { signedIn } from "../session";
 import type { Shared } from "../shared";
@@ -81,9 +81,8 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
         res.status(400).json({ error: { message: nothing ? "A stretch of nothing comes with no sound." : "That isn't a piece of sound." } });
         return;
       }
-      const stored = shared.piece(ids.videoId, ids.pieceId);
-      if (stored) {
-        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), language: stored.language, verdict: stored.verdict };
+      if (shared.hasPiece(ids.videoId, ids.pieceId)) {
+        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId) };
         res.json(answer);
         return;
       }
@@ -91,18 +90,17 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       // Listened through and nothing said: heard, so covered, and no engine to ask.
       if (nothing) {
         shared.insertQuiet({ id: ids.pieceId, videoId: ids.videoId, startMs: meta.start, endMs: meta.end, userId }, now());
-        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), language: null, verdict: null };
+        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId) };
         res.status(201).json(answer);
         return;
       }
-      const { engine } = shared.getTranscription();
+      const { engine, language: told } = shared.getTranscription();
       const key = shared.key(engine) ?? engineKeys[engine];
       if (key === null) {
         res.status(409).json({ error: { message: NO_KEY } });
         return;
       }
-      // Asked what it hears (`check`), or told Japanese.
-      const told = meta.check === "1" ? null : TOLD_JAPANESE;
+      // Told the language every video is in (Settings → Admin → Transcribing), never asked: the check that asked went on 2026-10-18.
       let heard: Heard;
       try {
         heard = await engines[engine].transcribe(key, bytes, told);
@@ -111,18 +109,12 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
         res.status(e.status).json({ error: { message: e.message } });
         return;
       }
-      // Asked, the engine's answer decides whether the words are kept (written in another language, they aren't) and
-      // what the video's language is taken to be, when it heard enough to say. Told Japanese, it heard Japanese.
-      const language = told === null ? heard.language : null;
-      const verdict = language === null ? null : verdictOf(language, heard.words.length);
-      const kept = language === null ? true : keepHeard(language, heard.words.length);
-      const at = now();
       shared.insertPiece(
-        { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language, verdict, kept },
-        kept ? heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs })) : [],
-        at,
+        { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language },
+        heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs })),
+        now(),
       );
-      const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), language, verdict };
+      const answer: PieceResponse = { transcript: shared.transcript(ids.videoId) };
       res.status(201).json(answer);
     },
   );

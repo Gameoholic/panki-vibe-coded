@@ -4,6 +4,8 @@ import {
   ENGINES,
   ENGINE_IDS,
   EngineKeyUpdate,
+  TRANSCRIBE_LANGUAGES,
+  TRANSCRIBE_LANGUAGE_IDS,
   TRANSCRIBE_SPEEDS,
   WORD_AUDIO_SOURCES,
   WORD_AUDIO_SOURCE_IDS,
@@ -82,6 +84,7 @@ const KIND_WORDS: Record<FilesOfKind["kind"], string> = { video: "Video", audio:
 const KIND_ORDER: readonly FilesOfKind["kind"][] = ["video", "audio", "image"];
 const SPEED_OPTIONS = TRANSCRIBE_SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
 const ENGINE_OPTIONS = ENGINE_IDS.map((id) => ({ id, label: ENGINES[id].name }));
+const LANGUAGE_OPTIONS = TRANSCRIBE_LANGUAGE_IDS.map((id) => ({ id, label: TRANSCRIBE_LANGUAGES[id] }));
 const SOURCE_OPTIONS = WORD_AUDIO_SOURCE_IDS.map((id) => ({ id, label: WORD_AUDIO_SOURCES[id].name }));
 
 type KeyPanelProps = {
@@ -336,6 +339,8 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
         />
         {/* What's the viewer's own (whether it starts by itself, what it does while paused, whether the transcript replaces the site's captions) is on the extension's page since 2026-10-17, by the owner's word: only what costs is set here. */}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
+        {/* What every video is transcribed in, told to the engine (the owner, 2026-10-18: seldom changed, so here and not under the video). */}
+        <Setting id="language" label="Language" control={<Dropdown id="transcribe-language" label="Language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />} />
       </section>
       <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
         <p className="setting-why">{transcribedWords(status.seconds, engine.centsPerHour)}</p>

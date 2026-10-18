@@ -210,9 +210,9 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
           return { ok: false, message: "The piece didn't arrive whole." };
         }
       }
-      const meta = { startMs: ask.startMs, soundMs: ask.soundMs, endMs: ask.endMs, check: ask.check };
+      const meta = { startMs: ask.startMs, soundMs: ask.soundMs, endMs: ask.endMs };
       const heard = await panki.putPiece(door, ask.videoId, ask.pieceId, meta, wav ? new Blob([wav], { type: PIECE_MIME }) : null);
-      return { ok: true, transcript: heard.transcript, language: heard.language, verdict: heard.verdict };
+      return { ok: true, transcript: heard.transcript };
     }
     if (ask.kind === "fix") {
       await panki.fixWord(door, ask.videoId, ask.fix);

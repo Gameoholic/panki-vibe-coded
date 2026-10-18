@@ -1,4 +1,4 @@
-import { VideoId, mayTranscribe, type Stretch, type Transcript, type Transcription } from "@panki/contracts";
+import { VideoId, type Stretch, type Transcript, type Transcription } from "@panki/contracts";
 import { askPiece, askTranscript } from "../messages";
 import { DEFAULT_SOURCE, engineWanted, sourceOf, type SubtitleSource } from "../subtitles";
 import { DEFAULT_PREFS, type TranscribePrefs } from "./prefs";
@@ -12,9 +12,9 @@ import { createSilentPlayer, type SilentPlayer } from "./silent";
  * waits for them there; where they jump, it follows; what's been transcribed already (by anyone) it skips. It starts
  * by itself the moment the video plays when the settings say so and the engine is the source picked (this browser's
  * pick, `subtitles.ts`; with the site's captions or None picked nothing is transcribed at all), or at a press on
- * Transcribe, which also overrides the language check: a run's pieces are sent with no language named until the engine
- * has heard Japanese once for sure; surely another language stops the run, which says so; a piece it can't make out
- * (a jingle, a silence) leaves the next to ask again. Every piece goes to Panki through the worker; the
+ * Transcribe. Every video is taken to be in the language Panki's settings name (Japanese to begin with), which Panki
+ * tells the engine with each piece: it's never asked (a check that asked it, and stopped a video it heard in another
+ * language, went on 2026-10-18 at the owner's word). Every piece goes to Panki through the worker; the
  * transcript that comes back is what the line under the player reads. The settings that cost are everyone's (an admin
  * sets them in Panki); how it behaves for this viewer (`prefs.ts`) is this browser's own, set on the options page; both
  * are read with the transcript, so nothing here keeps a setting of its own.
@@ -41,12 +41,19 @@ export const FOLLOW = {
   settle: 4,
 } as const;
 
+/**
+ * How transcribing stands. `loading` is the first moments of a video, before it can be said for sure (the owner,
+ * 2026-10-18: the status "changes a lot in the first couple of seconds… I can't rely on it"): the transcript and the
+ * settings not in yet, the few seconds the page is left to settle before a run starts by itself, or a run begun whose
+ * silent player isn't up yet (`run`: a run is under way, so it's stopped rather than started). It gives way to what's
+ * true as soon as that's known.
+ */
 export type TranscribeStatus =
+  | { kind: "loading"; run: boolean }
   | { kind: "off" }
   | { kind: "running"; to: number }
   | { kind: "held"; to: number }
   | { kind: "done" }
-  | { kind: "notJapanese" }
   | { kind: "noKey" }
   | { kind: "blocked" }
   | { kind: "signedOut" }
@@ -69,10 +76,6 @@ export type TranscribeState = {
 
 type Run = {
   silent: SilentPlayer;
-  /** Started by a press: the engine is told the language and never asked it. */
-  forced: boolean;
-  /** The language is settled for this run (told at a press, or heard surely once): the pieces from here are told it. Until then each asks. */
-  settled: boolean;
   /** Where this run began, in the video. */
   from: number;
   /**
@@ -95,7 +98,10 @@ function base64Of(bytes: Uint8Array): string {
 }
 
 const sameStatus = (a: TranscribeStatus, b: TranscribeStatus) =>
-  a.kind === b.kind && ("to" in a && "to" in b ? Math.floor(a.to) === Math.floor(b.to) : true) && ("message" in a && "message" in b ? a.message === b.message : true);
+  a.kind === b.kind &&
+  ("to" in a && "to" in b ? Math.floor(a.to) === Math.floor(b.to) : true) &&
+  ("message" in a && "message" in b ? a.message === b.message : true) &&
+  ("run" in a && "run" in b ? a.run === b.run : true);
 
 export type Transcriber = ReturnType<typeof createTranscriber>;
 
@@ -109,7 +115,7 @@ export function createTranscriber() {
   let status: TranscribeStatus = { kind: "off" };
   let working: Stretch | null = null;
   let run: Run | null = null;
-  /** Nothing starts by itself on this video any more: Stop was pressed, or the video isn't Japanese, or something failed. */
+  /** Nothing starts by itself on this video any more: Stop was pressed, or something failed. */
   let autoBlocked = false;
   /** The transcript changed under the run (a stretch forgotten): at the next look the run goes back for what's uncovered behind it. */
   let resync = false;
@@ -173,9 +179,7 @@ export function createTranscriber() {
   }
 
   async function send(mine: Run, id: string, piece: CutPiece) {
-    // Decided as the piece goes, after the last one's answer (they go one at a time): what that one left open, this one asks.
-    const check = !mine.settled;
-    const answer = await askPiece({ videoId: id, pieceId: uuid(), startMs: piece.startMs, soundMs: piece.soundMs, endMs: piece.endMs, check, base64: piece.wav ? base64Of(piece.wav) : null });
+    const answer = await askPiece({ videoId: id, pieceId: uuid(), startMs: piece.startMs, soundMs: piece.soundMs, endMs: piece.endMs, base64: piece.wav ? base64Of(piece.wav) : null });
     // The video moved on under it: the answer is about the last one.
     if (id !== videoId) return;
     if (!answer.ok) {
@@ -189,20 +193,12 @@ export function createTranscriber() {
       return;
     }
     transcript = answer.transcript;
-    if (answer.verdict === "japanese") mine.settled = true;
-    else if (answer.verdict === "other") {
-      if (run === mine) end();
-      autoBlocked = true;
-      status = { kind: "notJapanese" };
-    }
     tell();
   }
 
-  function begin(id: string, at: number, forced: boolean, scope: Run["scope"] = { follow: true }) {
+  function begin(id: string, at: number, scope: Run["scope"] = { follow: true }) {
     if (!settings) return;
     const mine: Run = {
-      forced,
-      settled: forced,
       from: at,
       scope,
       queue: Promise.resolve(),
@@ -212,7 +208,8 @@ export function createTranscriber() {
     };
     run = mine;
     mine.silent.go(at);
-    setStatus({ kind: "running", to: at });
+    // Loading until its silent player is up: then the run itself says how it stands (`steer`).
+    setStatus({ kind: "loading", run: true });
   }
 
   /** Where a run from `from` would begin: the first moment from there that isn't transcribed yet; null when all of it is. */
@@ -229,10 +226,6 @@ export function createTranscriber() {
       setStatus({ kind: "noKey" });
       return;
     }
-    if (!mayTranscribe(transcript.language)) {
-      setStatus({ kind: "notJapanese" });
-      return;
-    }
     const at = startAt(t - FOLLOW.back, duration);
     if (at === null) {
       setStatus({ kind: "done" });
@@ -240,12 +233,16 @@ export function createTranscriber() {
     }
     if (autoBlocked || prefs.trigger !== "auto") {
       // Nothing starts by itself here; something is left to transcribe, so Transcribe is the way.
-      if (status.kind === "done") setStatus({ kind: "off" });
+      if (status.kind === "done" || status.kind === "loading") setStatus({ kind: "off" });
       return;
     }
-    // The page has just changed video: left to settle before a second player is opened on its thread.
-    if (performance.now() - changedAt < FOLLOW.settle * 1000) return;
-    begin(id, at, false);
+    // The page has just changed video: left to settle before a second player is opened on its thread. A run is about
+    // to start by itself, so it's loading, not "not transcribing".
+    if (performance.now() - changedAt < FOLLOW.settle * 1000) {
+      setStatus({ kind: "loading", run: false });
+      return;
+    }
+    begin(id, at);
   }
 
   function steer(mine: Run, t: number, paused: boolean, duration: number | null) {
@@ -354,7 +351,8 @@ export function createTranscriber() {
       transcript = null;
       autoBlocked = false;
       changedAt = performance.now();
-      status = { kind: "off" };
+      // Loading until the transcript and the settings are in, and it can be said how it stands.
+      status = next ? { kind: "loading", run: false } : { kind: "off" };
       tell();
       if (next) void load(next);
     },
@@ -392,7 +390,7 @@ export function createTranscriber() {
         setStatus({ kind: "done" });
         return;
       }
-      begin(id, at, true);
+      begin(id, at);
     },
     /** The whole video in the background, start to end, whatever the viewer does; what's covered is skipped over. A run under way gives way. */
     startWhole(duration: number | null) {
@@ -404,7 +402,7 @@ export function createTranscriber() {
         return;
       }
       end();
-      begin(id, at, true, { follow: false, until: null });
+      begin(id, at, { follow: false, until: null });
     },
     /** A stretch of the video in the background, whatever the viewer does; what's covered in it is skipped over. A run under way gives way. Nothing when it's covered already. */
     startStretch(from: number, to: number) {
@@ -413,7 +411,7 @@ export function createTranscriber() {
       const at = nextUncovered(transcript, Math.max(0, from), to);
       if (at === null) return;
       end();
-      begin(id, at, true, { follow: false, until: to });
+      begin(id, at, { follow: false, until: to });
     },
     /** A preference of this viewer's changed here on the page (the strip's menu): taken at once; the worker keeps it. */
     setPrefs(next: Partial<TranscribePrefs>) {

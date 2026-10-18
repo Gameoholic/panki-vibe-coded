@@ -8,10 +8,8 @@ import {
   Transcript,
   Transcription,
   WordAudio,
-  verdictOf,
   type EngineId,
   type HeardLanguage,
-  type LanguageVerdict,
   type Stretch,
   type TranscriptWord,
   type TranscriptionUpdate,
@@ -29,7 +27,11 @@ export type Shared = ReturnType<typeof openShared>;
 /** What a key is for: a source of word audio (Forvo), or one of the transcription engines. */
 export type Service = WordAudioSourceId | EngineId;
 
-/** A piece as the route hands it in: where its sound is in the video, what was asked of the engine and what it decided. */
+/**
+ * A piece as the route hands it in: where its sound is in the video, the language the engine was told and what it
+ * said of the language as it answered (kept, deciding nothing). Every piece's words are kept: until 2026-10-18 the
+ * engine was sometimes asked the language instead of told it, and a piece heard surely in another language wasn't.
+ */
 export type NewPiece = {
   id: string;
   videoId: string;
@@ -39,14 +41,8 @@ export type NewPiece = {
   endMs: number;
   engine: EngineId;
   userId: string;
-  /** The language the engine was told; null when it was asked what it heard instead. */
-  told: string | null;
-  /** What it heard, when asked. */
-  language: HeardLanguage | null;
-  /** What that came to, when asked (`verdictOf`): only a sure verdict is the video's language. */
-  verdict: LanguageVerdict | null;
-  /** Whether its words were kept: not when it wrote them in another language than Japanese. */
-  kept: boolean;
+  told: string;
+  language: HeardLanguage;
 };
 /** A word the engine heard, with its times in the video's own ms. */
 export type NewWord = { text: string; startMs: number; endMs: number };
@@ -64,7 +60,6 @@ const TRANSCRIPTION: Group<Transcription> = { shape: Transcription.shape, parse:
 const WORD_AUDIO: Group<WordAudio> = { shape: WordAudio.shape, parse: (value) => WordAudio.parse(value), defaults: DEFAULT_WORD_AUDIO };
 type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null };
 type StretchRow = { startMs: number; endMs: number };
-type PieceRow = { checked: number; kept: number; language: string | null; probability: number | null; words: number };
 /** A living word of another piece, with that piece's own edges. */
 type InsideRow = { id: number; startMs: number; pieceStart: number; pieceEnd: number };
 
@@ -324,7 +319,6 @@ export function openShared(dataDir: string) {
 
   const selectTranscript = db.prepare("SELECT language FROM transcripts WHERE video_id = ?");
   const insertTranscript = db.prepare("INSERT OR IGNORE INTO transcripts (video_id, language, language_probability, created_at, updated_at) VALUES (?, NULL, NULL, ?, ?)");
-  const updateTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = ?, updated_at = ? WHERE video_id = ?");
   // Told a language and hearing words in it, the video is in that language by the teller's word, unless it's that already.
   const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
   const touchTranscript = db.prepare("UPDATE transcripts SET updated_at = ? WHERE video_id = ?");
@@ -349,9 +343,7 @@ export function openShared(dataDir: string) {
   const insertForget = db.prepare("INSERT INTO transcript_forgets (video_id, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?)");
   const selectQuiet = db.prepare("SELECT 1 FROM transcript_quiet WHERE id = ? AND video_id = ?");
   const insertQuiet = db.prepare("INSERT OR IGNORE INTO transcript_quiet (id, video_id, start_ms, end_ms, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)");
-  const selectPiece = db.prepare(
-    "SELECT checked, kept, language, language_probability AS probability, (SELECT COUNT(*) FROM transcript_words w WHERE w.piece_id = p.id) AS words FROM transcript_pieces p WHERE id = ? AND video_id = ?",
-  );
+  const selectPiece = db.prepare("SELECT id FROM transcript_pieces WHERE id = ? AND video_id = ?");
   const insertPiece = db.prepare(
     "INSERT OR IGNORE INTO transcript_pieces (id, video_id, start_ms, end_ms, engine, language, language_probability, checked, kept, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
@@ -480,12 +472,9 @@ export function openShared(dataDir: string) {
       }));
       return Transcript.parse({ videoId, language: row?.language ?? null, words, covered: mergeStretches(selectKeptStretches.all(videoId, videoId) as StretchRow[]) });
     },
-    /** What a piece already stored answered: the language heard when it was asked, and what that came to (neither, for a stretch of nothing). Null when the video has no such piece. */
-    piece(videoId: string, pieceId: string): { language: HeardLanguage | null; verdict: LanguageVerdict | null } | null {
-      const row = selectPiece.get(pieceId, videoId) as PieceRow | undefined;
-      if (!row) return selectQuiet.get(pieceId, videoId) ? { language: null, verdict: null } : null;
-      const language = row.checked === 1 && row.language !== null && row.probability !== null ? { code: row.language, probability: row.probability } : null;
-      return { language, verdict: language === null ? null : verdictOf(language, row.words) };
+    /** Whether the video already has this piece (or this stretch of nothing): sent again, it's the one that's there. */
+    hasPiece(videoId: string, pieceId: string): boolean {
+      return selectPiece.get(pieceId, videoId) !== undefined || selectQuiet.get(pieceId, videoId) !== undefined;
     },
     /** A stretch listened through with nothing to send: covered from now on, no engine asked. The same one again changes nothing. */
     insertQuiet(quiet: NewQuiet, now: number): void {
@@ -511,21 +500,20 @@ export function openShared(dataDir: string) {
           piece.startMs,
           piece.endMs,
           piece.engine,
-          piece.language?.code ?? null,
-          piece.language?.probability ?? null,
-          piece.told === null ? 1 : 0,
-          piece.kept ? 1 : 0,
+          piece.language.code,
+          piece.language.probability,
+          // Never asked the language (`checked`), and its words always kept.
+          0,
+          1,
           piece.userId,
           now,
         );
         if (added.changes === 0) return;
         // The quiet listened through before the sound: heard, covered, under the piece's own id.
         if (piece.heardFrom < piece.startMs) insertQuiet.run(piece.id, piece.videoId, piece.heardFrom, piece.startMs, piece.userId, now);
-        // The video's language: what the engine heard surely, or the language it was told when it heard words in it (Transcribe pressed on a video heard wrong).
-        if (piece.language && piece.verdict !== null && piece.verdict !== "unsure") updateTranscriptLanguage.run(piece.language.code, piece.language.probability, now, piece.videoId);
-        else if (piece.told !== null && words.length > 0) tellTranscriptLanguage.run(piece.told, now, piece.videoId, piece.told);
+        // The video's language is the one it was told, once words are heard in it.
+        if (words.length > 0) tellTranscriptLanguage.run(piece.told, now, piece.videoId, piece.told);
         else touchTranscript.run(now, piece.videoId);
-        if (!piece.kept) return;
         const stretch: Stretch = { startMs: piece.startMs, endMs: piece.endMs };
         for (const w of selectWordsInside.all(piece.videoId, piece.id, piece.startMs, piece.endMs) as InsideRow[]) {
           if (depth(w.startMs, stretch) > depth(w.startMs, { startMs: w.pieceStart, endMs: w.pieceEnd })) removeWord.run(now, w.id);

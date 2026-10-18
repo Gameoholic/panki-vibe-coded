@@ -37,6 +37,29 @@ export const TranscribeSpeed = z.literal([...TRANSCRIBE_SPEEDS]);
 export type TranscribeSpeed = z.infer<typeof TranscribeSpeed>;
 
 /**
+ * The language every video is transcribed in, told to the engine with each piece (ISO 639-3, as ElevenLabs takes it),
+ * one registry. Japanese to begin with, and seldom changed, so it's an admin's setting with the rest (the owner,
+ * 2026-10-18: "treat it as Japanese… make it a setting"). Until then the engine was asked what it heard for a run's
+ * first pieces, and a video it heard surely as another language stopped transcribing ("Not Japanese"); that check is
+ * gone, and a video in another language is transcribed as this one.
+ */
+export const TranscribeLanguage = z.enum(["jpn", "eng", "cmn", "kor", "spa", "fra", "deu", "por", "ita", "rus"]);
+export type TranscribeLanguage = z.infer<typeof TranscribeLanguage>;
+export const TRANSCRIBE_LANGUAGE_IDS = TranscribeLanguage.options;
+export const TRANSCRIBE_LANGUAGES: Record<TranscribeLanguage, string> = {
+  jpn: "Japanese",
+  eng: "English",
+  cmn: "Chinese (Mandarin)",
+  kor: "Korean",
+  spa: "Spanish",
+  fra: "French",
+  deu: "German",
+  por: "Portuguese",
+  ita: "Italian",
+  rus: "Russian",
+};
+
+/**
  * The settings that run transcribing, for everyone; changed only by an admin: what it costs and what the engine hears.
  * It always starts from where the viewer is, the moment the video plays ("Starts after" and "Starts from" were
  * settings until the owner cut them, 2026-10-17: "if I open a video, it means I want to watch it", and "there's no
@@ -51,6 +74,8 @@ export const Transcription = z.object({
   /** How far ahead of the viewer it goes before waiting for them, in minutes. */
   lead: z.number().int().min(1).max(180),
   engine: EngineId,
+  /** What the engine is told every video is in (`TRANSCRIBE_LANGUAGES`): it's never asked. */
+  language: TranscribeLanguage,
 });
 export type Transcription = z.infer<typeof Transcription>;
 /**
@@ -60,7 +85,7 @@ export type Transcription = z.infer<typeof Transcription>;
  * (`transcribe/pieces.ts` → `CUT`, documented there), not a setting: the owner had its three lengths in Settings for an
  * hour (2026-10-17) and took them out, "invisible to the user, it's just a super smart algorithm from their perspective".
  */
-export const DEFAULT_TRANSCRIPTION: Transcription = { speed: 3, lead: 3, engine: "elevenlabs" };
+export const DEFAULT_TRANSCRIPTION: Transcription = { speed: 3, lead: 3, engine: "elevenlabs", language: "jpn" };
 export const TranscriptionUpdate = Transcription.partial();
 export type TranscriptionUpdate = z.infer<typeof TranscriptionUpdate>;
 
@@ -121,9 +146,10 @@ export type TranscriptWord = z.infer<typeof TranscriptWord>;
 
 /**
  * A video's transcript as Panki keeps it: every word still standing, in the video's order, and the stretches of the
- * video that have been transcribed (`covered`, merged), so the extension knows where to go on from. `language` is
- * what the engine heard the video's language as, the last time it was asked (ISO 639-3, "jpn"); null until it has
- * been. A video never transcribed is an empty transcript, never an error.
+ * video that have been transcribed (`covered`, merged), so the extension knows where to go on from. `language` is the
+ * language it was last transcribed in, as the engine was told (ISO 639-3, "jpn"); null until a piece heard words. It
+ * decides nothing (it once did, while the engine was asked; 2026-10-18). A video never transcribed is an empty
+ * transcript, never an error.
  */
 export const Transcript = z.object({
   videoId: VideoId,
@@ -146,16 +172,15 @@ export const PIECE_MIME = "audio/wav";
 
 /**
  * What's said of a piece beside its sound, in the address of its PUT: the stretch of the video it accounts for
- * (`start` to `end`); where in it the sound sent begins (`sound`, `start` when left out: the quiet before it was
+ * (`start` to `end`); and where in it the sound sent begins (`sound`, `start` when left out: the quiet before it was
  * listened through and had nothing to send, so it counts as heard; `sound` at `end` is a stretch of nothing at all,
- * sent with no sound); and whether the engine is to say what language it hears (`check` "1") or be told Japanese ("0").
+ * sent with no sound). (`check`, whether the engine was to say what language it heard, went with the check, 2026-10-18.)
  */
 export const PieceMeta = z
   .object({
     start: z.coerce.number().int().nonnegative(),
     sound: z.coerce.number().int().nonnegative().optional(),
     end: z.coerce.number().int().positive(),
-    check: z.enum(["0", "1"]).default("0"),
   })
   .transform((meta) => ({ ...meta, sound: meta.sound ?? meta.start }))
   .refine((meta) => meta.end > meta.start && meta.start <= meta.sound && meta.sound <= meta.end && meta.end - meta.sound <= PIECE_MAX_MS, {
@@ -163,48 +188,13 @@ export const PieceMeta = z
   });
 export type PieceMeta = z.infer<typeof PieceMeta>;
 
-/** What a language the engine heard is read as: its code (ISO 639-3) and how sure the engine was, 0 to 1. */
+/** What the engine says of a piece's language as it answers: its code and how sure it was, 0 to 1. Kept with the piece; nothing is decided by it. */
 export const HeardLanguage = z.object({ code: z.string(), probability: z.number().min(0).max(1) });
 export type HeardLanguage = z.infer<typeof HeardLanguage>;
 
-/**
- * What the engine's answer to the question of the language comes to: Japanese, surely enough to go on telling it so;
- * surely another language, so the run stops; or unsure, nothing to go on, so the next piece asks again.
- */
-export const LanguageVerdict = z.enum(["japanese", "other", "unsure"]);
-export type LanguageVerdict = z.infer<typeof LanguageVerdict>;
-
-/**
- * The transcript with the piece in it; what the engine heard the language as, when it was asked, and what that came to
- * (both null when it was told). A piece that was surely another language is paid for but its words aren't kept.
- */
-export const PieceResponse = z.object({ transcript: Transcript, language: HeardLanguage.nullable(), verdict: LanguageVerdict.nullable() });
+/** The transcript with the piece in it. */
+export const PieceResponse = z.object({ transcript: Transcript });
 export type PieceResponse = z.infer<typeof PieceResponse>;
-
-/** The codes an engine gives Japanese. */
-const JAPANESE = new Set(["jpn", "ja"]);
-/** The code the engine is told when it isn't asked. */
-export const TOLD_JAPANESE = "jpn";
-/** How sure the engine must be of the language for its word to count. */
-export const SURE_ENOUGH = 0.5;
-const isJapaneseCode = (code: string) => JAPANESE.has(code.toLowerCase());
-/**
- * What the engine's hearing of a piece says of the video's language. Nothing, when it heard no words (a jingle, a
- * silence: a guess over nothing) or was less than half sure of its guess; else Japanese, or surely another language.
- * The first day, a video's 3-second intro heard as "eng" at 12% counted as not Japanese, and the whole video with it.
- */
-export function verdictOf(heard: HeardLanguage, words: number): LanguageVerdict {
-  if (words === 0 || heard.probability < SURE_ENOUGH) return "unsure";
-  return isJapaneseCode(heard.code) ? "japanese" : "other";
-}
-/** Whether a piece's words are kept as the engine heard them: it wrote them as Japanese. One with no words is kept too, a stretch where nothing was said. */
-export function keepHeard(heard: HeardLanguage, words: number): boolean {
-  return words === 0 || isJapaneseCode(heard.code);
-}
-/** Whether a transcript's language, when it has one, lets transcribing start by itself: none heard yet, or Japanese. */
-export function mayTranscribe(language: string | null): boolean {
-  return language === null || isJapaneseCode(language);
-}
 
 /**
  * A transcript forgotten, "to start from scratch" (the owner, 2026-10-17): a stretch of the video, in ms, or the whole
