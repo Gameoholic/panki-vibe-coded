@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
-import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
+import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, SubtitleStyle, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
 import { PopupLayout } from "./popupLayout";
@@ -114,6 +114,8 @@ const State = z.union([
     defaultDeckId: DeckId.nullable(),
     /** The options page's setting: whether a clip's end snaps to the edges of words as it's pulled. */
     clipToWords: z.boolean(),
+    /** How the account's card clips show their subtitles (Panki's Settings): the card previewed here shows them so too. */
+    subtitleStyle: SubtitleStyle,
   }),
   Failed,
 ]);

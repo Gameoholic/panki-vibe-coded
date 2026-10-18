@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ClipTime } from "@web/components/ClipSubtitles";
 import { MediaBar } from "@web/components/MediaView";
 
 type Props = {
@@ -16,6 +17,8 @@ type Props = {
   /** What the clip is, in the owner's words (its field's name). */
   label: string;
   onToggle: () => void;
+  /** Its subtitles, as the card would lay them over its picture (`ReviewCard`'s `StandIn`), told where the picture is in the clip. */
+  subtitles?: (time: ClipTime) => ReactNode;
 };
 
 /** How wide the picture is drawn, in pixels: the card's frame is narrower than this on any screen. */
@@ -24,11 +27,22 @@ const PICTURE = 480;
 /**
  * A clip on the card before it's a file: what the card's player will look like, with the player's own bar. Its
  * picture is the video's own, drawn again here as the video shows it, and playing it plays the stretch on the page's
- * player. Nothing is recorded or fetched for it: a clip is made once, when its card is added.
+ * player. Nothing is recorded or fetched for it: a clip is made once, when its card is added. Its subtitles follow
+ * the picture, so they hold still with it too.
  */
-export function ClipPlayer({ video, start, end, soundOnly, playing, held, label, onToggle }: Props) {
+export function ClipPlayer({ video, start, end, soundOnly, playing, held, label, onToggle, subtitles }: Props) {
   const picture = useRef<HTMLCanvasElement>(null);
   const [now, setNow] = useState(start);
+  /** The moment of the video the picture shows; null before it shows any. */
+  const shownAt = useRef<number | null>(null);
+  const ends = useRef({ start, end });
+  ends.current = { start, end };
+  const time: ClipTime = () => {
+    const at = shownAt.current;
+    if (at === null) return null;
+    const { start: from, end: to } = ends.current;
+    return at >= from && (to === null || at <= to) ? at - from : null;
+  };
 
   useEffect(() => {
     // The page's one video is what every cut is heard on. While another cut has it, what it shows isn't this clip
@@ -53,6 +67,7 @@ export function ClipPlayer({ video, start, end, soundOnly, playing, held, label,
       }
       el.getContext("2d")?.drawImage(video, 0, 0, PICTURE, height);
       drawn = video.currentTime;
+      shownAt.current = drawn;
     };
     video.addEventListener("seeked", again);
     draw();
@@ -76,7 +91,13 @@ export function ClipPlayer({ video, start, end, soundOnly, playing, held, label,
   return (
     // Its presses are its own: a press anywhere else on the card turns the card over.
     <div className={`media media-player media-${soundOnly ? "audio" : "video"}`} onClick={(e) => e.stopPropagation()}>
-      {soundOnly ? null : <canvas ref={picture} className="media-frame" aria-hidden="true" onClick={onToggle} />}
+      {soundOnly ? null : (
+        // The picture and its subtitles in one box, as the card's own player holds them.
+        <div className="media-picture">
+          <canvas ref={picture} className="media-frame" aria-hidden="true" onClick={onToggle} />
+          {subtitles?.(time) ?? null}
+        </div>
+      )}
       <MediaBar playing={playing} at={at} length={length} label={label} onToggle={onToggle} />
     </div>
   );

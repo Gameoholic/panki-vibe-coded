@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
+import type { Volume } from "../volume";
 import { clock } from "../words";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -75,16 +76,18 @@ type BarProps = {
   tag?: { icon: IconName; label: string } | null;
   /** Filling the screen and back, at the bar's end: a clip's player has it. */
   screen?: { full: boolean; onToggle: () => void } | null;
+  /** How loud it plays (`volume.ts`): the speaker that mutes it and the line it's turned up and down on. Panki's own player has it. */
+  sound?: SoundProps | null;
 };
 
 /**
- * The player's bar: play or pause, a line that fills as it runs, the time. `MediaView` draws it under a clip and as the
- * whole of a sound. It's also for whoever shows something that plays but isn't a file Panki holds yet (the extension's
- * clip before it's recorded), so that looks like the player by being the player's own bar. Never a second bar.
+ * The player's bar: play or pause, a line that fills as it runs, the time, how loud. `MediaView` draws it under a clip
+ * and as the whole of a sound. It's also for whoever shows something that plays but isn't a file Panki holds yet (the
+ * extension's clip before it's recorded), so that looks like the player by being the player's own bar. Never a second bar.
  */
-export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null }: BarProps) {
+export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null }: BarProps) {
   return (
-    <div className={`media-bar ${tag ? "is-named" : ""} ${screen ? "has-screen" : ""}`.replace(/\s+/g, " ").trim()}>
+    <div className="media-bar">
       <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} onClick={onToggle}>
         <Icon name={playing ? "pause" : "play"} />
       </Button>
@@ -98,12 +101,87 @@ export function MediaBar({ playing, at, length, label, onToggle, tag = null, scr
         <i style={{ width: `${length ? Math.min(1, at / length) * 100 : 0}%` }} />
       </span>
       <span className="media-time">{length === null ? clock(at) : `${clock(at)} / ${clock(length)}`}</span>
+      {sound ? <SoundControl {...sound} label={label} /> : null}
       {screen ? (
         <Button className="btn-icon media-screen" aria-label={screen.full ? `Leave full screen` : `${label} full screen`} onClick={screen.onToggle}>
           <Icon name={screen.full ? "unfull" : "full"} />
         </Button>
       ) : null}
     </div>
+  );
+}
+
+type SoundProps = {
+  volume: Volume;
+  /** How loud, from 0 to 1. */
+  onLevel: (level: number) => void;
+  onMute: () => void;
+};
+
+/** How far a press of an arrow key turns it up or down. */
+const VOLUME_STEP = 0.1;
+const VOLUME_KEYS: Readonly<Partial<Record<string, number>>> = { ArrowLeft: -VOLUME_STEP, ArrowDown: -VOLUME_STEP, ArrowRight: VOLUME_STEP, ArrowUp: VOLUME_STEP };
+
+/**
+ * How loud: a speaker that mutes it and unmutes it, and beside it a short line that's pressed, pulled or moved with the
+ * arrow keys. On a phone the line gives way (its own buttons turn it up and down) and the speaker stays.
+ */
+function SoundControl({ volume, onLevel, onMute, label }: SoundProps & { label: string }) {
+  const line = useRef<HTMLSpanElement>(null);
+  const held = useRef(false);
+  const shown = volume.muted ? 0 : volume.level;
+  const percent = Math.round(shown * 100);
+  function levelAt(x: number): number | null {
+    const box = line.current?.getBoundingClientRect();
+    return box && box.width > 0 ? Math.max(0, Math.min(1, (x - box.left) / box.width)) : null;
+  }
+  function pull(x: number) {
+    const to = levelAt(x);
+    if (to !== null) onLevel(to);
+  }
+  return (
+    <span className="media-sound">
+      <Button className="btn-icon media-mute" aria-label={`${shown === 0 ? "Unmute" : "Mute"} ${label}`} onClick={onMute}>
+        <Icon name={shown === 0 ? "muted" : shown < 0.5 ? "quiet" : "sound"} />
+      </Button>
+      <span
+        className="media-level"
+        role="slider"
+        tabIndex={0}
+        aria-label={`${label} volume`}
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={`${percent}%`}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          // It keeps following a pointer that strays off it.
+          e.currentTarget.setPointerCapture(e.pointerId);
+          e.currentTarget.focus({ preventScroll: true });
+          held.current = true;
+          pull(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          if (held.current) pull(e.clientX);
+        }}
+        onLostPointerCapture={() => {
+          held.current = false;
+        }}
+        onKeyDown={(e) => {
+          const to = VOLUME_KEYS[e.key];
+          if (e.key === "Home" || e.key === "End") onLevel(e.key === "Home" ? 0 : 1);
+          else if (to !== undefined) onLevel(Math.round((volume.level + to) * 10) / 10);
+          else return;
+          e.preventDefault();
+        }}
+      >
+        <span ref={line} className="media-level-line">
+          <i style={{ width: `${percent}%` }} />
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -160,6 +238,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps 
           onToggle={play.toggle}
           tag={named ? { icon: MEDIA_ICON[kind], label } : null}
           screen={canFill ? { full, onToggle: toggleFull } : null}
+          sound={{ volume: play.volume, onLevel: play.setLevel, onMute: play.toggleMute }}
         />
       )}
     </div>

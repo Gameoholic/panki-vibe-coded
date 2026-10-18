@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { setVolume, useVolume, type Volume } from "../volume";
 
 /**
  * A sound or a clip being played by one of the app's players (`MediaView`, in whichever look): whether it's playing,
  * where it is and how long it runs, whether it failed, and playing or stopping it. Spread `events` on the `<audio>`
  * or `<video>` and give it `hold` as its ref. `cue` plays it from the start (a review playing what plays by itself),
  * and `onCueEnd` is told when that play is over: it ended, was stopped, or couldn't start. Every look is this, so
- * they all play, stop and cue alike. Never a second way of playing a file.
+ * they all play, stop and cue alike, and all at the one volume (`volume.ts`), set on the player's bar or the
+ * browser's own controls. Never a second way of playing a file.
  */
 export function usePlayback(cue: boolean, onCueEnd?: () => void) {
   const media = useRef<HTMLMediaElement | null>(null);
+  const volume = useVolume();
+  useEffect(() => {
+    const el = media.current;
+    if (el) loudness(el, volume);
+  }, [volume]);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
   /** How long it runs, once the file says; a clip recorded in a browser often doesn't, and then only the time so far shows. */
@@ -57,7 +64,17 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void) {
   }
   const hold = (el: HTMLMediaElement | null) => {
     media.current = el;
+    if (el) loudness(el, volume);
   };
+  /** The speaker on the bar: muted, or back to how loud it was (to full, when it had been turned all the way down). */
+  function toggleMute() {
+    const silent = volume.muted || volume.level === 0;
+    setVolume(silent ? { level: volume.level === 0 ? 1 : volume.level, muted: false } : { ...volume, muted: true });
+  }
+  /** How loud, from 0 to 1; turning it up unmutes it. */
+  function setLevel(level: number) {
+    setVolume({ level, muted: level > 0 ? false : volume.muted });
+  }
   const readLength = (e: SyntheticEvent<HTMLMediaElement>) => {
     const seconds = e.currentTarget.duration;
     setLength(Number.isFinite(seconds) && seconds > 0 ? seconds : null);
@@ -80,6 +97,14 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void) {
       setFailed(true);
       endCue();
     },
+    // The browser's own controls (the Plain look) turned it up or down: every player follows.
+    onVolumeChange: (e: SyntheticEvent<HTMLMediaElement>) => setVolume({ level: e.currentTarget.volume, muted: e.currentTarget.muted }),
   };
-  return { hold, events, playing, at, length, failed, toggle, seek, setRate };
+  return { hold, events, playing, at, length, failed, toggle, seek, setRate, volume, setLevel, toggleMute };
+}
+
+/** Puts the volume on the element, leaving it be where it's already so (each change it hears is told back to all). */
+function loudness(el: HTMLMediaElement, volume: Volume) {
+  if (el.volume !== volume.level) el.volume = volume.level;
+  if (el.muted !== volume.muted) el.muted = volume.muted;
 }

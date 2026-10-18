@@ -29,7 +29,7 @@ import type { Wave } from "./MediaLooks";
 import { MediaView } from "./MediaView";
 import { PitchAccents } from "./PitchAccent";
 import { PlacePill } from "./PlacePill";
-import { ClipSubtitles } from "./ClipSubtitles";
+import { ClipSubtitles, type ClipTime } from "./ClipSubtitles";
 
 /**
  * The card being laid out (a card type's Layout): its parts are picked and moved instead of the card being turned,
@@ -58,7 +58,7 @@ type Props = {
   /** Where a file's bytes are (`api.mediaUrl`). Left out where a card can't hold a file yet, because it isn't made. */
   srcOf?: (mediaId: string) => string;
   /** What's drawn in a field's place for something the card will hold but doesn't yet: a clip before it's recorded. */
-  standIns?: Readonly<Record<string, ReactNode>>;
+  standIns?: Readonly<Record<string, ReactNode | StandIn>>;
   /** Plays what's set to play by itself as it comes into view, one after another: a review. Off where a card is only looked at. */
   autoplay?: boolean;
   /** A layout to draw in place of the type's own: one being edited. */
@@ -71,6 +71,12 @@ type Props = {
   /** How a clip's subtitles look (`LayoutPart.subtitles`): the app's own subtitle style; left out, the default. */
   subtitleStyle?: SubtitleStyle;
 };
+
+/**
+ * A stand-in drawn as its part has it: handed the clip's subtitles as the part shows them (nothing when its part has
+ * them off, or the clip has none), in the card's subtitle style, to lay over its picture as the card's own clip would.
+ */
+export type StandIn = (subtitles: (cues: MediaCues, time: ClipTime) => ReactNode) => ReactNode;
 
 /** A part to draw on a side: its field, and whether it's only holding its place on the front for the back, unseen. */
 type Drawn = { part: LayoutPart; field: CardField; held: boolean };
@@ -187,10 +193,9 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
     );
   }
   /** A clip's subtitles, when its part has them on and the clip was recorded with its words: following it as it plays, in the app's subtitle style. */
-  function subtitlesOf(part: LayoutPart, mediaId: string): ReactNode {
-    const said = cues?.[mediaId];
+  function subtitlesOf(part: LayoutPart, said: MediaCues | undefined, time?: ClipTime): ReactNode {
     if (!part.subtitles || !said || said.length === 0) return null;
-    return <ClipSubtitles cues={said} style={subtitleStyle} />;
+    return <ClipSubtitles cues={said} style={subtitleStyle} time={time} />;
   }
   /** The file a field's value is, to be played: none for words, a link, a picture, or a file not there. */
   const playable = (field: CardField) => {
@@ -253,6 +258,7 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
    */
   function content(part: LayoutPart, field: CardField, live: boolean): ReactNode {
     const standIn = standIns?.[field.id];
+    if (typeof standIn === "function") return standIn((said, time) => subtitlesOf(part, said, time));
     if (standIn !== undefined) return standIn;
     const value = values[field.id] ?? "";
     if (value) {
@@ -269,7 +275,7 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
             cue={live && cued === field.id}
             onCueEnd={() => finishCue(field.id)}
             waveOf={waveOf}
-            over={file === "video" ? subtitlesOf(part, value) : null}
+            over={file === "video" ? subtitlesOf(part, cues?.[value]) : null}
           />
         );
       }

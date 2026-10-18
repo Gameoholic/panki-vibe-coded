@@ -10,6 +10,7 @@ import {
   PIECE_MIME,
   PieceResponse,
   ServerDictionaryList,
+  SettingsResponse,
   SrsTypeList,
   TranscriptResponse,
   TranscriptionResponse,
@@ -21,6 +22,7 @@ import {
   type MediaCues,
   type ServerDictionary,
   type SrsType,
+  type SubtitleStyle,
   type Transcript,
   type TranscriptFix,
   type TranscriptForget,
@@ -77,6 +79,8 @@ export const panki = {
   decks: ({ address, token }: Door): Promise<Deck[]> => call(address, token, "/api/decks", {}, (b) => DeckList.parse(b).decks),
   types: ({ address, token }: Door): Promise<CardType[]> => call(address, token, "/api/types", {}, (b) => CardTypeList.parse(b).types),
   srsTypes: ({ address, token }: Door): Promise<SrsType[]> => call(address, token, "/api/srs", {}, (b) => SrsTypeList.parse(b).types),
+  /** How the account's card clips show their subtitles: the card previewed in the drawer shows them so too. */
+  subtitleStyle: ({ address, token }: Door): Promise<SubtitleStyle> => call(address, token, "/api/settings", {}, (b) => SettingsResponse.parse(b).settings.subtitleStyle),
   addCard: ({ address, token }: Door, deckId: string, card: NewCard): Promise<void> =>
     call(address, token, `/api/decks/${id(deckId)}/cards`, json("POST", card), (b) => {
       CardResponse.parse(b);

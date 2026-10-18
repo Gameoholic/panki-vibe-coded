@@ -2,11 +2,16 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { SUBTITLE_REF_HEIGHT, cueAt, subtitleVars, type MediaCues, type SubtitleStyle } from "@panki/contracts";
 import { langOf } from "../words";
 
+/** Where a clip is, in seconds from its start, as its picture shows it; null while its picture is of no moment of it. */
+export type ClipTime = () => number | null;
+
 type Props = {
   /** What's said in the clip, as it was heard on the video when it was recorded (`Card.cues`). */
   cues: MediaCues;
   /** How they look: the app's own subtitle style (`Settings.subtitleStyle`). */
   style: SubtitleStyle;
+  /** Where the clip is, for one that isn't a file yet (the extension's clip before it's recorded); left out, it's the box's own `<video>`. */
+  time?: ClipTime;
 };
 
 /** What's showing: the line being said, and the piece of it being said; none between lines. */
@@ -20,10 +25,15 @@ type Showing = { text: string; from: number; to: number } | null;
  * own `<video>` there; its words are sized with the box's height, so they're the same share of the clip on the card and
  * on the full screen. The band is the app's `.sub-band`, the one the extension draws too.
  */
-export function ClipSubtitles({ cues, style }: Props) {
+export function ClipSubtitles({ cues, style, time }: Props) {
   const ground = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [showing, setShowing] = useState<Showing>(null);
+  // Read with each frame rather than followed: a clip being made hands over new ones as its ends are pulled.
+  const said = useRef(cues);
+  said.current = cues;
+  const at = useRef(time);
+  at.current = time;
 
   useEffect(() => {
     const box = ground.current?.parentElement;
@@ -38,17 +48,18 @@ export function ClipSubtitles({ cues, style }: Props) {
   // Looked at with each frame drawn, and told only when what shows changes, so nothing is drawn again within a piece.
   useEffect(() => {
     const video = ground.current?.parentElement?.querySelector("video") ?? null;
-    if (!video) return;
+    if (!video && !at.current) return;
     let frame = 0;
     const look = () => {
       frame = requestAnimationFrame(look);
-      const now = cueAt(cues, video.currentTime * 1000);
+      const seconds = at.current ? at.current() : (video?.currentTime ?? null);
+      const now = seconds === null ? null : cueAt(said.current, seconds * 1000);
       const next: Showing = now ? { text: now.cue.text, from: now.piece?.from ?? 0, to: now.piece?.to ?? 0 } : null;
       setShowing((was) => (was?.text === next?.text && was?.from === next?.from && was?.to === next?.to ? was : next));
     };
     look();
     return () => cancelAnimationFrame(frame);
-  }, [cues]);
+  }, []);
 
   const vars = { ...subtitleVars(style), "--sub-scale": String(scale) } as CSSProperties;
   return (

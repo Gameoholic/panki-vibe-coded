@@ -5,7 +5,7 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { MediaView } from "@web/components/MediaView";
-import { ReviewCard } from "@web/components/ReviewCard";
+import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import { FIELD_KINDS } from "@web/fieldKinds";
 import { count, langOf } from "@web/words";
@@ -856,12 +856,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const share = phase.at === "recording" ? Math.min(1, phase.seconds / (phase.of ?? CLIP_MAX_SECONDS)) : phase.at === "sending" ? 1 : 0;
     // Only where the deck keeps the sentence: with none on the card there's nothing for the word to be missing from.
     const stray = lit === null && said !== "" && sentence.trim() !== "" && sentenceField !== null;
-    const standIns: Record<string, ReactNode> = {};
+    const standIns: Record<string, ReactNode | StandIn> = {};
     /** The stretch being played on the page's video right now, if either is. */
     const playing: Cut | null = clip?.playing ? "clip" : wordClip?.playing ? "word" : null;
     if (voiceField && voice) standIns[voiceField.id] = <MediaView kind="audio" src={voice.url} label={voiceField.name} />;
     for (const cut of cuts) {
-      standIns[cut.field.id] = (
+      standIns[cut.field.id] = (subtitles) => (
         <ClipPlayer
           video={cut.offer.video}
           start={cut.offer.start}
@@ -872,6 +872,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           held={playing !== null && playing !== cut.of}
           label={cut.field.name}
           onToggle={busy ? nothing : cut.offer.toggle}
+          // What the clip will be kept with, at its ends as they stand: the card will play it with these.
+          subtitles={cut.soundOnly ? undefined : (time) => subtitles(cut.offer.cues(), time)}
         />
       );
     }
@@ -925,7 +927,16 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <div className="field capture-card">
             <span className="field-label">The card</span>
             <div className="capture-card-ground">
-              <ReviewCard type={type} values={values} srsType={srsType} place={NEW_PLACE} revealed={turned} onPress={() => setTurned((on) => !on)} standIns={standIns} />
+              <ReviewCard
+                type={type}
+                values={values}
+                srsType={srsType}
+                place={NEW_PLACE}
+                revealed={turned}
+                onPress={() => setTurned((on) => !on)}
+                standIns={standIns}
+                subtitleStyle={state.subtitleStyle}
+              />
             </div>
           </div>
         ) : null}

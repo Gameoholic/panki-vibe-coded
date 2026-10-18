@@ -772,9 +772,9 @@ canvas.media-frame {
   object-fit: contain;
   cursor: pointer;
 }
+/* A row whatever's on it (its name, how loud, full screen): the line takes the room the rest leaves. */
 .media-bar {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 10px;
   padding: 4px 14px 4px 4px;
@@ -795,6 +795,8 @@ canvas.media-frame {
   }
 }
 .media-track {
+  flex: 1 1 0;
+  min-width: 0;
   height: 4px;
   border-radius: 2px;
   background: var(--surface-2);
@@ -807,6 +809,8 @@ canvas.media-frame {
   transition: width 0.25s linear; /* the browser says where it is about four times a second; this joins the dots */
 }
 .media-time {
+  flex: none;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -977,18 +981,45 @@ canvas.media-frame {
 .media-row.media-video .media-chip .icon {
   color: var(--kind);
 }
-.media-bar.is-named {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-}
-.media-bar.has-screen {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-}
-.media-bar.is-named.has-screen {
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-}
 .btn-icon.media-screen {
   padding: 6px;
   margin-right: -8px;
+}
+/* How loud: the speaker, and the short line beside it that's pressed or pulled (its box is taller than the line, to
+   be easy to hit). */
+.media-sound {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.btn-icon.media-mute {
+  padding: 6px;
+}
+.media-level {
+  display: flex;
+  align-items: center;
+  width: 64px;
+  height: 24px;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: 4px;
+}
+.media-level:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.media-level-line {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.media-level-line i {
+  display: block;
+  height: 100%;
+  background: var(--kind, var(--accent));
 }
 /* A clip's player filling the screen: the picture as big as fits, Panki's bar under it, on the room's black. */
 .media.media-player:fullscreen {
@@ -3784,6 +3815,10 @@ mark.review-mark {
       "tabs";
   }
   .app:not(.is-home) .brand {
+    display: none;
+  }
+  /* A phone's own buttons turn the sound up and down: its player keeps the speaker, and the line gives the track its room. */
+  .media-level {
     display: none;
   }
   /* The sign-in screen keeps the brand, whatever address it sits on. */

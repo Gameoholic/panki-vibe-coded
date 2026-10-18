@@ -182,9 +182,9 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
   const door: Door = { address: store.address, token: store.token };
   try {
     if (ask.kind === "state") {
-      const [decks, types, srsTypes] = await Promise.all([panki.decks(door), panki.types(door), panki.srsTypes(door)]);
+      const [decks, types, srsTypes, subtitleStyle] = await Promise.all([panki.decks(door), panki.types(door), panki.srsTypes(door), panki.subtitleStyle(door)]);
       const decksOn = decks.filter((deck) => mappingOn(store.mappingOn, store.maps, deck.id)).map((deck) => deck.id);
-      return { ok: true, decks, types, srsTypes, maps: store.maps, decksOn, defaultDeckId: store.defaultDeckId, clipToWords: store.clipToWords };
+      return { ok: true, decks, types, srsTypes, maps: store.maps, decksOn, defaultDeckId: store.defaultDeckId, clipToWords: store.clipToWords, subtitleStyle };
     }
     if (ask.kind === "add") {
       await panki.addCard(door, ask.deckId, ask.card);
