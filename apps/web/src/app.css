@@ -1497,8 +1497,11 @@ mark.review-mark {
 }
 .review-part.size-big .review-words {
   font-size: 40px;
-  font-weight: 700;
   line-height: 1.15;
+}
+/* A part's words bold or not, its own choice beside its size (it came with the big size alone until 2026-10-18). */
+.review-part.is-bold .review-words {
+  font-weight: 700;
 }
 .review-part.size-normal .review-words {
   font-size: 18px;

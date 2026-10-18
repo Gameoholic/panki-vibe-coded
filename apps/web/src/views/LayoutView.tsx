@@ -200,6 +200,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         {/* A reading above a word is the reading's size, under no field name: those are off while it is. */}
         {sized ? <Setting id="part-size" label="Size" control={<Segmented idPrefix="part-size" label="Size" options={SIZE_OPTIONS} value={part.size} disabled={above} onChange={(size) => update(id, { size })} />} /> : null}
         {words ? <Setting id="part-tone" label="Colour" control={<Segmented idPrefix="part-tone" label="Colour" options={TONE_OPTIONS} value={part.tone} onChange={(tone) => update(id, { tone })} />} /> : null}
+        {/* A reading above a word is the reading's weight, as it's the reading's size: off while it is. */}
+        {words ? <Setting id="part-bold" label="Weight" control={<Toggle id="part-bold-on" says={{ on: "Bold", off: "Regular" }} on={part.bold} disabled={above} onChange={(bold) => update(id, { bold })} />} /> : null}
         {words || media || holdsLink(field.kind) ? (
           <Setting id="part-label" label="Field name" control={<Toggle id="part-label-on" says={{ on: "Shown", off: "Hidden" }} on={part.label} disabled={above} onChange={(label) => update(id, { label })} />} />
         ) : null}

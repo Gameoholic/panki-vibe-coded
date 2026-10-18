@@ -34,6 +34,8 @@ export const LayoutPart = z.object({
   back: FaceShow,
   size: PartSize,
   tone: PartTone,
+  /** Its words drawn bold (the owner, 2026-10-18, beside its colour and size); a part laid out before reads as bold when it's big, as it always looked. */
+  bold: z.boolean(),
   /** Its name: over words, on a player or a button. */
   label: z.boolean(),
   look: MediaLook,

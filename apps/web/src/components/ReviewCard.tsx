@@ -302,7 +302,7 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
     const hidden = covered(part);
     const inner = content(part, field, !edit && !held && !hidden);
     if (inner === null) return null;
-    const look = `review-part size-${part.size} tone-${part.tone}`;
+    const look = `review-part size-${part.size} tone-${part.tone} ${part.bold ? "is-bold" : ""}`.trim();
     if (held) {
       return (
         <div key={field.id} className={`${look} is-later`} aria-hidden="true">
