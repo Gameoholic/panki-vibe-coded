@@ -217,6 +217,8 @@ type Props = {
   /** Whether the drawer unfolds as it comes; off when it takes the place of one that was open. */
   arrives: boolean;
   onClose: () => void;
+  /** A card was added from it: a video's page marks where in the video it was taken from. */
+  onAdded?: () => void;
 };
 
 const nothing = () => undefined;
@@ -253,7 +255,7 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
  * written exactly so, endings undone). Which of their words it is (when there's more than one) and, if the meanings
  * are picked by hand, which meanings, are chosen just above the first such field; anything filled can be typed over.
  */
-export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, arrives, onClose }: Props) {
+export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, arrives, onClose, onAdded }: Props) {
   // Minted once for the panel, so pressing Add again after a lost connection is the same card, not a second one.
   const [cardId] = useState(uuid);
   const [state, setState] = useState<State | null>(lastKnown);
@@ -595,6 +597,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       setPhase({ at: "idle" });
       return;
     }
+    onAdded?.();
     setPhase({ at: "done", deck: deck.name, made, note });
   }
 

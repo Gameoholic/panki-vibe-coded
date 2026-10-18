@@ -33,6 +33,7 @@ import {
   stageTagOf,
   stageIndex,
   upgradeFlow,
+  youtubeLinkOf,
   type CardAnswer,
   type CardTypeUpdate,
   type CardUpdate,
@@ -48,6 +49,7 @@ import {
   type SrsLadder,
   type SrsStarterId,
   type SrsTypeUpdate,
+  type Stretch,
 } from "@panki/contracts";
 import { addDays, checkTimeZone, dayOf, dayStartAt, daysBetween, weekdayOf, type Day } from "./time";
 
@@ -742,6 +744,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const upsertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (card_id, field_id) DO UPDATE SET value = excluded.value");
   const insertValueChange = db.prepare("INSERT INTO card_value_changes (card_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
   const insertSource = db.prepare("INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, channel_name, channel_url, client, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  // Where in a video the living cards were taken from. A source keeps the video's address, not its id: the id written
+  // in it narrows the rows here, and the contracts' reader of an address says for certain which video it names.
+  const selectVideoSources = db.prepare(`
+    SELECT s.url, s.start_ms AS startMs, s.end_ms AS endMs
+    FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
+    WHERE c.removed_at IS NULL AND d.removed_at IS NULL AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
+    ORDER BY s.start_ms ASC`);
   const insertPlace = db.prepare(`
     INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -1227,6 +1236,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         return cardsFrom([row], selectCardValues.all(cardId) as ValueRow[], srsTypeOfDeck(deckId), todayAt(now))[0] ?? null;
       });
+    },
+    /** Where in a video the living cards were taken from: each one's clip as its source keeps it, in the video's order. */
+    videoStretches(videoId: string): Stretch[] {
+      const rows = selectVideoSources.all(videoId) as { url: string; startMs: number; endMs: number | null }[];
+      return rows.filter((row) => youtubeLinkOf(row.url)?.videoId === videoId).map((row) => ({ startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs) }));
     },
     /** Hides the card from its deck. Idempotent: removing again keeps the first removal time. False when no such card was ever in that deck. */
     removeCard(deckId: string, cardId: string, now: number): boolean {

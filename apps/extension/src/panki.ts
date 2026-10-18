@@ -14,6 +14,7 @@ import {
   SrsTypeList,
   TranscriptResponse,
   TranscriptionResponse,
+  VideoCards,
   type CardType,
   type Deck,
   type ForvoTake,
@@ -22,6 +23,7 @@ import {
   type MediaCues,
   type ServerDictionary,
   type SrsType,
+  type Stretch,
   type SubtitleStyle,
   type Transcript,
   type TranscriptFix,
@@ -129,6 +131,8 @@ export const panki = {
   /** The video's channel's picture, kept by Panki from where the page shows it (the first time; what's kept stands after). */
   avatar: (door: Door, videoId: string, shown: string): Promise<Blob> =>
     bytesAt(door, `/api/videos/${id(videoId)}/avatar`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: shown }) }),
+  /** Where in a video the account's cards were taken from, each its clip's stretch, in ms. */
+  videoCards: ({ address, token }: Door, videoId: string): Promise<Stretch[]> => call(address, token, `/api/videos/${id(videoId)}/cards`, {}, (b) => VideoCards.parse(b).stretches),
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */

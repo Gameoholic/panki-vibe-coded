@@ -4,7 +4,7 @@ import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { Ask, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type State, type Transcripted, type Trigger, type Voiced } from "./messages";
+import { Ask, type Carded, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type State, type Transcripted, type Trigger, type Voiced } from "./messages";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
 import { forgetSignIn, prefsOf, readStore, writeStore, type Stored } from "./storage";
@@ -139,7 +139,7 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
   return { ok: true, transcript, settings: transcription.settings, key: transcription.key !== null, source: sourceOf(store.subtitleSource), prefs: prefsOf(store) };
 }
 
-async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Transcripted | Pieced> {
+async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Transcripted | Pieced> {
   if (ask.kind === "options") {
     // The page opens on that tab, or turns to it if it's open already (it reads the store again as it gets the focus).
     if (ask.tab) await writeStore({ optionsTab: ask.tab });
@@ -212,6 +212,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       const [thumbnail, avatar] = await Promise.all([shown(panki.thumbnail(door, ask.videoId)), ask.avatar === null ? null : shown(panki.avatar(door, ask.videoId, ask.avatar))]);
       return { ok: true, thumbnail, avatar };
     }
+    if (ask.kind === "videoCards") return { ok: true, stretches: await panki.videoCards(door, ask.videoId) };
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.
     if (ask.kind === "transcript") return transcripted(door, ask.videoId, store);

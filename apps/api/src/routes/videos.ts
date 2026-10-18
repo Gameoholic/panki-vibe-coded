@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
-import { AvatarBody, VideoId, VideoPicture } from "@panki/contracts";
+import { AvatarBody, VideoId, VideoPicture, type VideoCards } from "@panki/contracts";
+import type { DbOf } from "../app";
 import { PictureError, avatarAddress, fetchPicture, thumbnailAddress, type Picture } from "../pictures";
 import { signedIn } from "../session";
 import type { Shared } from "../shared";
@@ -9,9 +10,9 @@ import type { Shared } from "../shared";
  * the first time anyone's card asks for it; the channel's picture is fetched from the address the drawer read off the
  * video's page as a card was made (there's no other way to know it), and each is served from Panki every time after.
  * The drawer asks for both as a card is made, so they're kept while the video is still there. `fetcher` is passed in
- * so a test can stand in for YouTube.
+ * so a test can stand in for YouTube. And, the account's own, where in the video its cards were taken from.
  */
-export function videosRouter(shared: Shared, now: () => number, fetcher: typeof fetch = fetch) {
+export function videosRouter(dbOf: DbOf, shared: Shared, now: () => number, fetcher: typeof fetch = fetch) {
   const router = Router();
 
   /** Fetches and keeps a picture, then answers with what's kept (whatever was kept first); or says why there's none. */
@@ -38,6 +39,15 @@ export function videosRouter(shared: Shared, now: () => number, fetcher: typeof 
     res.status(400).json({ error: { message: "That isn't a video id." } });
     return null;
   }
+
+  // Where in the video this account's cards were taken from: the extension marks them on the video's bar. Before the
+  // pictures' route, which would take "cards" for a picture.
+  router.get("/:videoId/cards", (req, res) => {
+    const videoId = videoOf(req.params.videoId, res);
+    if (videoId === null) return;
+    const answer: VideoCards = { stretches: dbOf(res).videoStretches(videoId) };
+    res.json(answer);
+  });
 
   router.get("/:videoId/:picture", async (req, res) => {
     const videoId = videoOf(req.params.videoId, res);

@@ -623,6 +623,17 @@
 .seek-working {
   opacity: 0.3;
 }
+/* Where a card was taken from (each card's clip), on the same line in the cards' own colour and a little taller, so it
+   reads over the transcript's yellow (the owner, 2026-10-18: "orange or some other color, parts of the video that have
+   had cards built for them"). */
+.seek-card {
+  position: absolute;
+  bottom: calc(100% + 1px);
+  height: 5px;
+  min-width: 3px;
+  border-radius: 2px;
+  background: var(--carded);
+}
 .seek-clip {
   position: absolute;
   top: 0;

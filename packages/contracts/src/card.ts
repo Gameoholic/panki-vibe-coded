@@ -3,6 +3,7 @@ import { ClientName } from "./auth";
 import { DeckId } from "./deck";
 import { MediaCues, MediaKind } from "./media";
 import { CardPlace } from "./srs";
+import { Stretch } from "./transcription";
 import { CardFieldId, VALUE_MAX } from "./type";
 
 /** Minted by the browser, so a retried POST returns the card that already exists instead of a second one. */
@@ -13,7 +14,8 @@ export const CardValues = z.record(CardFieldId, z.string().trim().max(VALUE_MAX)
 
 /**
  * Where a card came from, when it was captured rather than typed: the page or the video, the line as it was shown,
- * and the stretch of the video it ran over. Kept beside the card as it was at that moment; nothing reads it back yet.
+ * and the stretch of the video it ran over. Kept beside the card as it was at that moment; the stretch is read back
+ * to mark the video's bar (`VideoCards`), the rest nowhere yet.
  * Only a web address is taken, so nothing kept here can ever be a link that runs a script.
  */
 export const CardSource = z.object({
@@ -72,3 +74,11 @@ export type Card = z.infer<typeof Card>;
 
 export const CardList = z.object({ cards: z.array(Card) });
 export const CardResponse = z.object({ card: Card });
+
+/**
+ * Where in a video the account's living cards were taken from: each one's clip as its source keeps it, in ms of the
+ * video's own time, in the video's order (a clip kept without an end is its start alone). Read live from every card's
+ * source, so a card made before this was asked for is there too, and a deleted one is gone.
+ */
+export const VideoCards = z.object({ stretches: z.array(Stretch) });
+export type VideoCards = z.infer<typeof VideoCards>;

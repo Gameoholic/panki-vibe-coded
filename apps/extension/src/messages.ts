@@ -73,6 +73,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("subtitles"), source: z.string().max(40) }),
   /** A video's pictures, kept by Panki for everyone as a card is made from it, and their bytes to show on the card here: its thumbnail, and its channel's picture from where the page shows it (null when it shows none). */
   z.object({ kind: z.literal("pictures"), videoId: VideoId, avatar: z.string().max(2000).nullable() }),
+  /** Where in a video the account's cards were taken from: marked on the video's bar. */
+  z.object({ kind: z.literal("videoCards"), videoId: VideoId }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -110,6 +112,9 @@ const Pic = z.object({ mime: z.string().max(100), base64: z.string().max(PICTURE
 /** A video's pictures as Panki keeps them; each null when there's none. */
 const Pictured = z.union([z.object({ ok: z.literal(true), thumbnail: Pic.nullable(), avatar: Pic.nullable() }), Failed]);
 export type Pictured = z.infer<typeof Pictured>;
+/** Each card's clip in the video, in ms. */
+const Carded = z.union([z.object({ ok: z.literal(true), stretches: z.array(Stretch) }), Failed]);
+export type Carded = z.infer<typeof Carded>;
 const State = z.union([
   z.object({
     ok: z.literal(true),
@@ -200,6 +205,11 @@ export async function askVoice(word: string, id: number): Promise<Heard> {
 /** A video's pictures, kept by Panki as a card is made from it, to show on the card in the drawer. */
 export async function askPictures(videoId: string, avatar: string | null): Promise<Pictured> {
   const answer = Pictured.safeParse(await ask({ kind: "pictures", videoId, avatar: avatar === null ? null : avatar.slice(0, 2000) }));
+  return answer.success ? answer.data : failed();
+}
+/** Where in a video the account's cards were taken from, to mark on its bar. */
+export async function askVideoCards(videoId: string): Promise<Carded> {
+  const answer = Carded.safeParse(await ask({ kind: "videoCards", videoId }));
   return answer.success ? answer.data : failed();
 }
 export async function askTranscript(videoId: string): Promise<Transcripted> {

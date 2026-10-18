@@ -77,7 +77,7 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, spa
   app.use("/api/dictionaries", dictionariesRouter(shared, dictionaryDir, now));
   app.use("/api/transcription", transcriptionRouter(shared, engines, engineKeys, now));
   app.use("/api/transcripts", transcriptsRouter(shared, engines, engineKeys, now));
-  app.use("/api/videos", videosRouter(shared, now));
+  app.use("/api/videos", videosRouter(dbOf, shared, now));
   app.use("/api/stats", statsRouter(dbOf, now));
   app.use("/api/space", spaceRouter(space, storage));
   app.use("/api", (_req, res) => {

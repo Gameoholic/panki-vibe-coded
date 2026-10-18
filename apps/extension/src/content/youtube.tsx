@@ -18,8 +18,8 @@ import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
-import { Trigger, askFix, askForget, askOpenPanki, askOptions, askPrefs, askSubtitles } from "../messages";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle } from "@panki/contracts";
+import { Trigger, askFix, askForget, askOpenPanki, askOptions, askPrefs, askSubtitles, askVideoCards } from "../messages";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type Stretch, type SubtitleStyle } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, type SubtitleSource } from "../subtitles";
@@ -157,6 +157,8 @@ const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
 /** Whether the transcript is over the video right now (the site's own captions give way to it). */
 const showingOver = cell(false);
+/** Where in this video the account's cards were taken from, each its clip's stretch in ms: marked on the seek bar. */
+const carded = cell<readonly Stretch[]>([]);
 /** What reaches the screen from outside it: the menu or the toolbar button asked for a capture; the page moved on to another video. */
 const asked = new EventTarget();
 type Added = { found: Found; pointed: Pointed };
@@ -209,6 +211,14 @@ captions.onClose((line) => {
   stopSpent = true;
 });
 
+/** Asks Panki again where this video's cards were taken from. An answer for a video no longer playing is let go; one that fails leaves the marks as they were. */
+async function readCarded() {
+  const id = watching;
+  if (!id) return;
+  const answer = await askVideoCards(id);
+  if (answer.ok && watching === id) carded.set(answer.stretches);
+}
+
 /** Puts Panki's two places where they belong right now: the line under the player; the drawer beside it, or under the line, or floating over a player that fills the screen. */
 let laidOut = "";
 function place() {
@@ -222,9 +232,9 @@ function place() {
   // Each is moved only when it isn't there already: moving it takes the cursor out of whatever is being typed in it.
   if (!under) strip.host.remove();
   else if (strip.host.parentElement !== under) under.prepend(strip.host);
-  // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, or a run's work to mark; the player keeps its bar when it fills the screen.
+  // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's work or a card to mark; the player keeps its bar when it fills the screen.
   const tx = transcriber.state();
-  const marked = showing.get() || (tx.transcript?.covered.length ?? 0) > 0 || tx.working !== null;
+  const marked = showing.get() || (tx.transcript?.covered.length ?? 0) > 0 || tx.working !== null || carded.get().length > 0;
   const bar = marked && video ? document.querySelector(SEEK_BAR) : null;
   if (!bar) seek.host.remove();
   else if (seek.host.parentElement !== bar) bar.append(seek.host);
@@ -270,6 +280,8 @@ function look() {
     longestRow = PLAYER_ROW;
     captions.reset();
     transcriber.video(now);
+    carded.set([]);
+    void readCarded();
     asked.dispatchEvent(new Event("moved"));
   }
   captions.attach(video, player?.querySelector(CAPTION_AREA) ?? null);
@@ -708,6 +720,7 @@ function App() {
   const engineOn = tx.settings !== null && picked === tx.settings.engine;
   const placed = useSyncExternalStore(inPlace.subscribe, inPlace.get);
   const replaying = useSyncExternalStore(replay.subscribe, replay.mode);
+  const cards = useSyncExternalStore(carded.subscribe, carded.get);
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
@@ -1122,6 +1135,7 @@ function App() {
         wordClip={wordOffer}
         arrives={taking.fresh}
         onClose={close}
+        onAdded={() => void readCarded()}
       />
     );
   }
@@ -1298,8 +1312,11 @@ function App() {
       )}
       {/* The drawer is drawn into its own place on the page; it's one screen with the line, so they share what's picked. */}
       {createPortal(panel(), drawer.ground)}
-      {/* And on the player's own seek bar: how far the transcript reaches, and the clip, where its ends can be pulled too. */}
-      {createPortal(video && (tx.transcript !== null || clipMark !== null || tx.working !== null) ? <SeekMark video={video} covered={tx.transcript?.covered ?? []} working={tx.working} clip={clipMark} /> : null, seek.ground)}
+      {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}
+      {createPortal(
+        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0) ? <SeekMark video={video} covered={tx.transcript?.covered ?? []} working={tx.working} cards={cards} clip={clipMark} /> : null,
+        seek.ground,
+      )}
     </>
   );
 }
@@ -1313,12 +1330,17 @@ setInterval(() => {
   transcriber.tick(video);
   lines.refresh();
 }, FOLLOW_MS);
-// The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page: read again when
-// this page gets the focus back, and when its tab is shown again (a switch of tabs doesn't always bring a focus event:
-// a switch set on the options page was ignored until the window was clicked, 2026-10-18).
-window.addEventListener("focus", () => transcriber.refresh());
+// The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page; a card may have
+// been deleted in Panki: read again when this page gets the focus back, and when its tab is shown again (a switch of
+// tabs doesn't always bring a focus event: a switch set on the options page was ignored until the window was clicked,
+// 2026-10-18).
+function readAgain() {
+  transcriber.refresh();
+  void readCarded();
+}
+window.addEventListener("focus", readAgain);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") transcriber.refresh();
+  if (document.visibilityState === "visible") readAgain();
 });
 // The site's own word for "another page of mine is now showing": it never loads a new page between videos.
 document.addEventListener("yt-navigate-finish", look);
@@ -1327,6 +1349,7 @@ document.addEventListener("fullscreenchange", place);
 window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
+carded.subscribe(place);
 // The transcript's reach goes on the seek bar as soon as there is one to mark.
 transcriber.subscribe(place);
 

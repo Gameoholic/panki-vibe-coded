@@ -77,6 +77,9 @@
   /* What a video's transcript covers, marked along the player's own bar: yellow, whatever the theme, since it lies on
      a picture too (the owner, 2026-10-17: "yellow for things that were transcribed"). */
   --transcribed: #f2c230;
+  /* Where in a video a card was taken from, marked on the same bar: orange, whatever the theme, beside the yellow
+     (the owner, 2026-10-18). */
+  --carded: #ff6b1a;
   --radius: 12px;
   --radius-sm: 10px;
   --font: "Urbanist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
