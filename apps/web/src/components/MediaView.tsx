@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
-import type { Volume } from "../volume";
+import type { Speed, Volume } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
-import { MEDIA_ICON, MediaKey, RoundLook, SpeakerLook, TileLook, VoiceLook, ownPress, type LookProps, type Wave } from "./MediaLooks";
+import { MEDIA_ICON, MediaKey, RoundLook, SpeakerLook, SpeedControl, TileLook, VoiceLook, ownPress, type LookProps, type Wave } from "./MediaLooks";
 
 export { MEDIA_ICON };
 
@@ -78,18 +78,21 @@ type BarProps = {
   tag?: { icon: IconName; label: string } | null;
   /** Filling the screen and back, at the bar's end: a clip's player has it. */
   screen?: { full: boolean; onToggle: () => void } | null;
-  /** How loud it plays (`volume.ts`): the speaker that mutes it and the line it's turned up and down on. Panki's own player has it. */
+  /** How loud it plays (`playback.ts`): the speaker that mutes it and the line it's turned up and down on. Panki's own player has it. */
   sound?: SoundProps | null;
+  /** How fast every player plays (`playback.ts`), picked beside how loud. Panki's own player has it. */
+  speed?: { speed: Speed; onSpeed: (speed: Speed) => void } | null;
   /** The key that plays it, as a keycap beside the play button; none by default. */
   shortcut?: string | null;
 };
 
 /**
- * The player's bar: play or pause, a line that fills as it runs, the time, how loud. `MediaView` draws it under a clip
- * and as the whole of a sound. It's also for whoever shows something that plays but isn't a file Panki holds yet (the
- * extension's clip before it's recorded), so that looks like the player by being the player's own bar. Never a second bar.
+ * The player's bar: play or pause, a line that fills as it runs, the time, how fast, how loud. `MediaView` draws it
+ * under a clip and as the whole of a sound. It's also for whoever shows something that plays but isn't a file Panki
+ * holds yet (the extension's clip before it's recorded), so that looks like the player by being the player's own bar.
+ * Never a second bar.
  */
-export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null, shortcut = null }: BarProps) {
+export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null, speed = null, shortcut = null }: BarProps) {
   return (
     <div className="media-bar">
       <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} aria-keyshortcuts={shortcut ?? undefined} onClick={onToggle}>
@@ -106,6 +109,7 @@ export function MediaBar({ playing, at, length, label, onToggle, tag = null, scr
         <i style={{ width: `${length ? Math.min(1, at / length) * 100 : 0}%` }} />
       </span>
       <span className="media-time">{length === null ? clock(at) : `${clock(at)} / ${clock(length)}`}</span>
+      {speed ? <SpeedControl {...speed} label={label} /> : null}
       {sound ? <SoundControl {...sound} label={label} /> : null}
       {screen ? (
         <Button className="btn-icon media-screen" aria-label={screen.full ? `Leave full screen` : `${label} full screen`} onClick={screen.onToggle}>
@@ -244,6 +248,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: 
           tag={named ? { icon: MEDIA_ICON[kind], label } : null}
           screen={canFill ? { full, onToggle: toggleFull } : null}
           sound={{ volume: play.volume, onLevel: play.setLevel, onMute: play.toggleMute }}
+          speed={{ speed: play.speed, onSpeed: play.setSpeed }}
           shortcut={shortcut}
         />
       )}

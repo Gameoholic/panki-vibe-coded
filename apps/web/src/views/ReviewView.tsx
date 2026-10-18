@@ -334,9 +334,15 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === " " || e.key === "Enter") {
         if (e.target instanceof HTMLButtonElement && e.key === "Enter") return;
-        if (revealed) return;
+        if (revealed && e.key === "Enter") return;
         e.preventDefault();
-        reveal();
+        // Space turns the card back to its front too (the owner, 2026-10-19); held down, it turns it once.
+        if (e.repeat) return;
+        if (!revealed) reveal();
+        else if (!busy) {
+          setAsking(null);
+          setRevealed(false);
+        }
         return;
       }
       if (e.key === "Escape" && asking) {

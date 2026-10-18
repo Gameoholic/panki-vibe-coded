@@ -1,22 +1,28 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import { setVolume, useVolume, type Volume } from "../volume";
+import { setSpeed, setVolume, speedOf, useSpeed, useVolume, type Speed, type Volume } from "../playback";
 
 /**
  * A sound or a clip being played by one of the app's players (`MediaView`, in whichever look): whether it's playing,
  * where it is and how long it runs, whether it failed, and playing or stopping it. Spread `events` on the `<audio>`
  * or `<video>` and give it `hold` as its ref. `cue` plays it from the start (a review playing what plays by itself),
  * and `onCueEnd` is told when that play is over: it ended, was stopped, or couldn't start. Every look is this, so
- * they all play, stop and cue alike, and all at the one volume (`volume.ts`), set on the player's bar or the
- * browser's own controls. `shortcut` is a key that plays or stops it from anywhere on the page (a review's: the card
- * gives each of its sounds and clips one, `ReviewCard` → `MEDIA_KEYS`). Never a second way of playing a file.
+ * they all play, stop and cue alike, and all at the one volume and the one speed (`playback.ts`), set on the player's
+ * bar, a voice note or the browser's own controls. `shortcut` is a key that plays or stops it from anywhere on the page
+ * (a review's: the card gives each of its sounds and clips one, `ReviewCard` → `MEDIA_KEYS`). Never a second way of
+ * playing a file.
  */
 export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: string | null = null) {
   const media = useRef<HTMLMediaElement | null>(null);
   const volume = useVolume();
+  const speed = useSpeed();
   useEffect(() => {
     const el = media.current;
     if (el) loudness(el, volume);
   }, [volume]);
+  useEffect(() => {
+    const el = media.current;
+    if (el) pace(el, speed);
+  }, [speed]);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
   /** How long it runs, once the file says; a clip recorded in a browser often doesn't, and then only the time so far shows. */
@@ -73,13 +79,11 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: strin
     el.currentTime = Math.max(0, Math.min(1, share)) * length;
     setAt(el.currentTime);
   }
-  /** How fast it plays: 1, or slower to hear a fast sentence. The voice keeps its pitch. */
-  function setRate(rate: number) {
-    if (media.current) media.current.playbackRate = rate;
-  }
   const hold = (el: HTMLMediaElement | null) => {
     media.current = el;
-    if (el) loudness(el, volume);
+    if (!el) return;
+    loudness(el, volume);
+    pace(el, speed);
   };
   /** The speaker on the bar: muted, or back to how loud it was (to full, when it had been turned all the way down). */
   function toggleMute() {
@@ -114,12 +118,23 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: strin
     },
     // The browser's own controls (the Plain look) turned it up or down: every player follows.
     onVolumeChange: (e: SyntheticEvent<HTMLMediaElement>) => setVolume({ level: e.currentTarget.volume, muted: e.currentTarget.muted }),
+    // …or set how fast: every player follows when it's one of Panki's speeds; any other stays that player's own.
+    onRateChange: (e: SyntheticEvent<HTMLMediaElement>) => {
+      const picked = speedOf(e.currentTarget.playbackRate);
+      if (picked !== null) setSpeed(picked);
+    },
   };
-  return { hold, events, playing, at, length, failed, toggle, seek, setRate, volume, setLevel, toggleMute };
+  return { hold, events, playing, at, length, failed, toggle, seek, volume, setLevel, toggleMute, speed, setSpeed };
 }
 
 /** Puts the volume on the element, leaving it be where it's already so (each change it hears is told back to all). */
 function loudness(el: HTMLMediaElement, volume: Volume) {
   if (el.volume !== volume.level) el.volume = volume.level;
   if (el.muted !== volume.muted) el.muted = volume.muted;
+}
+
+/** Puts the speed on the element: its default too, which a file loading puts it back to. The voice keeps its pitch. */
+function pace(el: HTMLMediaElement, speed: Speed) {
+  if (el.defaultPlaybackRate !== speed) el.defaultPlaybackRate = speed;
+  if (el.playbackRate !== speed) el.playbackRate = speed;
 }

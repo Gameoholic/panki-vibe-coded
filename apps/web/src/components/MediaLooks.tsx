@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type MouseEvent, type PointerEvent } from "react";
 import type { MediaKind } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
+import { AS_SAID, SPEEDS, type Speed } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
 import { Dropdown } from "./Dropdown";
@@ -35,6 +36,22 @@ export function MediaKey({ shortcut }: { shortcut: string | null }) {
   ) : null;
 }
 
+const SPEED_OPTIONS = SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
+
+/**
+ * How fast every player plays (`playback.ts`): the app's dropdown, small, lit while it isn't as said. Set on one card,
+ * it's the speed of every card after. The player's bar and the voice note carry it; the looks with no room for it
+ * play at it all the same.
+ */
+export function SpeedControl({ speed, onSpeed, label }: { speed: Speed; onSpeed: (speed: Speed) => void; label: string }) {
+  const id = useId();
+  return (
+    <span className={`media-speed ${speed === AS_SAID ? "" : "is-changed"}`.trim()}>
+      <Dropdown id={id} label={`How fast ${label} plays`} options={SPEED_OPTIONS} value={speed} onChange={onSpeed} />
+    </span>
+  );
+}
+
 const shareOf = (at: number, length: number | null) => (length ? Math.min(1, at / length) : 0);
 const pressWord = (playing: boolean, label: string) => `${playing ? "Pause" : "Play"} ${label}`;
 
@@ -42,22 +59,14 @@ const pressWord = (playing: boolean, label: string) => `${playing ? "Pause" : "P
 const BARS = 36;
 /** A waveform before its sound is read, or when it can't be: level, saying nothing about the sound. */
 const LEVEL: readonly number[] = Array.from({ length: BARS }, () => 0.4);
-/**
- * How fast a voice note can play: slower to catch a fast sentence, or as it was said, which it starts at. Never faster
- * (the owner, 2026-10-16: "no reason to speed it up").
- */
-const SPEEDS: readonly { id: number; label: string }[] = [0.5, 0.75, 1].map((rate) => ({ id: rate, label: `${rate}×` }));
-const AS_SAID = 1;
 
 /**
  * A voice note, as a chat app has them: a round play button, the sound's own waveform filling as it plays (pressed
- * somewhere, it goes there), the time, and how fast it plays, from a dropdown, the voice's pitch kept.
+ * somewhere, it goes there), the time, and how fast every player plays, the voice's pitch kept.
  */
 export function VoiceLook({ kind, src, label, named, cue, onCueEnd, shortcut, waveOf }: LookProps & { waveOf: Wave | undefined }) {
   const play = usePlayback(cue, onCueEnd, shortcut);
   const [bars, setBars] = useState<readonly number[]>(LEVEL);
-  const [rate, setRate] = useState(AS_SAID);
-  const speedId = useId();
   useEffect(() => {
     setBars(LEVEL);
     if (!waveOf) return;
@@ -90,18 +99,7 @@ export function VoiceLook({ kind, src, label, named, cue, onCueEnd, shortcut, wa
         <span className="media-time">{clock(play.playing || play.at > 0 ? play.at : (play.length ?? 0))}</span>
         {named ? <span className="media-voice-name">{label}</span> : null}
       </span>
-      <span className={`media-speed ${rate === AS_SAID ? "" : "is-changed"}`.trim()}>
-        <Dropdown
-          id={speedId}
-          label={`How fast ${label} plays`}
-          options={SPEEDS}
-          value={rate}
-          onChange={(next) => {
-            setRate(next);
-            play.setRate(next);
-          }}
-        />
-      </span>
+      <SpeedControl speed={play.speed} onSpeed={play.setSpeed} label={label} />
     </div>
   );
 }

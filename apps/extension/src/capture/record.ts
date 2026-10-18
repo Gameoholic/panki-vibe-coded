@@ -9,6 +9,15 @@
  */
 
 export class RecordError extends Error {}
+/** The player was paused, moved, sped up or given another video while it was being recorded: the clip would carry that, so none is made, and nothing is added until it's tried again. */
+export class RecordTouched extends RecordError {
+  constructor() {
+    super("The video was paused or moved while it was being recorded.");
+  }
+}
+
+/** What a player does when anything but the recording handles it: any of these while it's recorded would be in the clip. */
+const TOUCHES = ["pause", "seeking", "ratechange", "emptied"] as const;
 
 /** What is recorded, and until when. Seconds are the video's own. */
 export type Stretch = {
@@ -148,6 +157,20 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
     await new Promise<void>((resolve, reject) => {
       let moved = performance.now();
       let last = video.currentTime;
+      let timer = 0;
+      // Heard from here on, until the stretch is over; the recording's own pause, seek and speed came before.
+      const settle = (error: RecordError | null) => {
+        clearTimeout(timer);
+        for (const type of TOUCHES) video.removeEventListener(type, touched);
+        if (error) reject(error);
+        else resolve();
+      };
+      function touched(e: Event) {
+        // Played to the video's own end, the player pauses itself: that's the stretch over, not a touch.
+        if (e.type === "pause" && video.ended) return;
+        settle(new RecordTouched());
+      }
+      for (const type of TOUCHES) video.addEventListener(type, touched);
       const tick = () => {
         const now = video.currentTime;
         if (now !== last) {
@@ -156,15 +179,15 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
         }
         onProgress(Math.max(0, now - stretch.from), stretch.expectedEnd === null ? null : stretch.expectedEnd - stretch.from);
         if (stretch.until(now) || now - stretch.from >= CLIP_MAX_SECONDS || video.ended) {
-          resolve();
+          settle(null);
           return;
         }
-        // Stopped by hand, or stuck loading: a clip of a still picture is no clip.
+        // Stuck loading: a clip of a still picture is no clip.
         if (performance.now() - moved > STALL_MS) {
-          reject(new RecordError("The video stopped before the line was over."));
+          settle(new RecordError("The video stopped before the line was over."));
           return;
         }
-        setTimeout(tick, 40);
+        timer = window.setTimeout(tick, 40);
       };
       tick();
     });

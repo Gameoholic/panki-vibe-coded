@@ -10,7 +10,7 @@ import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import { FIELD_KINDS } from "@web/fieldKinds";
 import { count, langOf } from "@web/words";
-import { CLIP_MAX_SECONDS, RecordError, base64Of } from "../capture/record";
+import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
 import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found, type Tag } from "../dictionary/found";
@@ -555,6 +555,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     // The recordings first, one after the other (each is played once more on the page's video while it's recorded),
     // each kept on Panki as a file; then the card, naming them. A field that must be filled is filled as the card is
     // made, and one whose recording didn't make it stops the card when it must be filled, or is left empty otherwise.
+    // A recording stopped because the player was touched stops the card whatever its field: it's to be tried again.
     const filled: Record<string, string> = { ...values };
     const made: string[] = [];
     let note: string | null = null;
@@ -562,6 +563,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       const what = cut.of;
       const words = madeWords(cut.of, cut.soundOnly);
       let why: string | null = null;
+      let touched = false;
       try {
         const file = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }));
         setPhase({ at: "sending", what });
@@ -575,9 +577,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         } else why = sent.message;
       } catch (e) {
         why = e instanceof RecordError ? e.message : MESSAGES.noClip;
+        touched = e instanceof RecordTouched;
       }
       if (why === null) continue;
-      if (cut.field.required) {
+      if (cut.field.required || touched) {
         setFailure(MESSAGES.notMade(words, why));
         setPhase({ at: "idle" });
         return;

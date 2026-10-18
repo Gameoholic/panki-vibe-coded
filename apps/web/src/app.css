@@ -1144,7 +1144,11 @@ canvas.media-frame {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* How fast it plays: the app's dropdown, made small to sit at the note's end; lit while it isn't as said. */
+/* How fast every player plays: the app's dropdown, made small to sit on the player's bar and at a voice note's end;
+   lit while it isn't as said. */
+.media-speed {
+  flex: none;
+}
 .media-speed .dropdown-button {
   padding: 2px 6px 2px 8px;
   border-radius: 7px;
@@ -1154,6 +1158,11 @@ canvas.media-frame {
 .media-speed .menu.dropdown-menu {
   left: auto;
   right: 0;
+}
+/* A clip filling the screen has its bar at the bottom: the speeds open up from it, onto the picture. */
+.media.media-player:fullscreen .media-speed .menu.dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 .media-speed.is-changed .dropdown-button {
   background: var(--kind-soft);
