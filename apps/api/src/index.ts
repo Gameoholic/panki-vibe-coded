@@ -26,7 +26,7 @@ const server = createApp({
   space,
   storage: () => storageReport(env.dataDir, auth, env.lowSpaceBytes),
   // Every request to Forvo is counted, for the day's allowance an admin sees in Settings.
-  forvo: createForvo(fetch, Date.now, () => shared.recordCall("forvo", Date.now())),
+  forvo: createForvo(fetch, () => shared.recordCall("forvo", Date.now())),
   wordAudioKeys: env.wordAudioKeys,
   engines: createEngines(),
   engineKeys: env.engineKeys,

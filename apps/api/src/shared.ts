@@ -1,9 +1,11 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
 import {
   DEFAULT_TRANSCRIPTION,
   DEFAULT_WORD_AUDIO,
+  ForvoVoice,
   ServerDictionary,
   Transcript,
   Transcription,
@@ -280,6 +282,19 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
       )
     `);
   },
+  (db) => {
+    // A word's recordings on Forvo, as its list was the one time it was asked for (the owner, 2026-10-18: "saved on
+    // disk globally, cached forever so we never go to the API for a word we already asked for in the past"): the
+    // recordings kept with it (`forvo_recordings`), best liked first, as JSON. A word with none is kept as none.
+    db.exec(`
+      CREATE TABLE forvo_words (
+        word TEXT PRIMARY KEY,
+        voices TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        fetched_at INTEGER NOT NULL
+      )
+    `);
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -403,6 +418,8 @@ export function openShared(dataDir: string) {
   const selectForvoRecording = db.prepare("SELECT word, by, country, mime, bytes FROM forvo_recordings WHERE forvo_id = ?");
   const hasForvoRecording = db.prepare("SELECT 1 FROM forvo_recordings WHERE forvo_id = ?");
   const insertForvoRecording = db.prepare("INSERT OR IGNORE INTO forvo_recordings (forvo_id, word, by, country, mime, bytes, user_id, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const selectForvoWord = db.prepare("SELECT voices FROM forvo_words WHERE word = ?");
+  const insertForvoWord = db.prepare("INSERT OR IGNORE INTO forvo_words (word, voices, user_id, fetched_at) VALUES (?, ?, ?, ?)");
 
   /**
    * One group of the shared settings (how transcribing runs, where word audio comes from), each read over its defaults
@@ -481,6 +498,17 @@ export function openShared(dataDir: string) {
     /** Keeps a Forvo recording for everyone, once: the first kept stays. */
     keepForvoRecording(forvoId: number, recording: SharedRecording, userId: string, now: number): void {
       insertForvoRecording.run(forvoId, recording.word, recording.by, recording.country, recording.mime, recording.bytes, userId, now);
+    },
+    /** A word's recordings as they were kept the one time it was asked of Forvo; null for a word never asked for. */
+    forvoWord(word: string): ForvoVoice[] | null {
+      const row = selectForvoWord.get(word) as { voices: string } | undefined;
+      if (!row) return null;
+      const voices = z.array(ForvoVoice).safeParse(JSON.parse(row.voices));
+      return voices.success ? voices.data : null;
+    },
+    /** Keeps a word's recordings, once: the first kept stays. */
+    keepForvoWord(word: string, voices: readonly ForvoVoice[], userId: string, now: number): void {
+      insertForvoWord.run(word, JSON.stringify(voices), userId, now);
     },
 
     /** The dictionaries kept on Panki, oldest first. */

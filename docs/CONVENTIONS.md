@@ -78,6 +78,7 @@ Few and justified. Supply chain is the realistic security risk, so every depende
 - **Derived, never tracked.** A value that can be computed from state is computed, every time.
 - **What happened is frozen where it happened;** what a thing *is* is read live. Retuning a setting never rewrites the past.
 - **Time is passed in,** never read from a global clock inside logic — so it can be tested and pinned. *(Step 1: the API takes `now` as a function.)*
+- **What comes from outside is fetched once, ever.** A service's answer (a Forvo word and its recordings, a transcript, a video's pictures) is kept on Panki's disk in the shared store, for every account, for good: the service is never asked twice for the same thing. When its links expire, what's needed is fetched at once while they work. Never an in-memory cache with a lifetime, never one per account (the owner, 2026-10-18: "saved on disk globally, cached forever so we never go to the API for a word we already asked for in the past").
 - **A write can be retried safely.** *(Step 1: the browser mints the card's id, so a retried POST returns the same card instead of a second one.)*
 - **Shapes have one source of truth:** `packages/contracts`, imported by both apps, which is also what validates at the boundary. Never restate a shape.
 
