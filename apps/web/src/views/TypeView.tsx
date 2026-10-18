@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NewCardType, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
+import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
 import { Form } from "../components/Form";
@@ -255,19 +256,15 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
           {type.deckCount > 0 ? (
             <p className="empty">Used by {count(type.deckCount, "deck", "decks")}. A type can be deleted once no deck uses it.</p>
           ) : asking ? (
-            <>
-              <p id="type-delete-question" className="question">
-                Delete “{type.name}”?
-              </p>
-              <div className="add-actions">
-                <Button id="type-delete-keep" onClick={() => setAsking(false)} disabled={busy}>
-                  Keep
-                </Button>
-                <Button id="type-delete-go" variant="danger" onClick={remove} disabled={busy}>
-                  {busy ? "Deleting…" : "Delete type"}
-                </Button>
-              </div>
-            </>
+            <Ask
+              idPrefix="type-delete"
+              question={`Delete “${type.name}”?`}
+              go={{ words: "Delete type", busy: "Deleting…" }}
+              busy={busy}
+              failure={null}
+              onKeep={() => setAsking(false)}
+              onGo={() => void remove()}
+            />
           ) : (
             <>
               <p className="empty">No deck uses it.</p>

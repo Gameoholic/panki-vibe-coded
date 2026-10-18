@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CardLayout } from "./layout";
+import { CardLayout, DEFAULT_STAGE_TAG, StageTag } from "./layout";
 import { MediaId, type MediaKind } from "./media";
 import { youtubeMetaOf, type YouTubeLink, type YouTubeMeta } from "./youtube";
 
@@ -84,14 +84,18 @@ export const NewCardType = z.object({
   fields: z.array(CardField).min(1),
   /** How its cards look in a review (`layout.ts`); left out, it's worked out from the fields' sides. */
   layout: CardLayout.optional(),
+  /** Where its cards' stage tag sits and how (`layout.ts` → `StageTag`); left out, as it stands (or the default). */
+  tag: StageTag.optional(),
 });
 
-/** What a type's settings can change: the name, the whole list of fields in order (a field left out is hidden; a new id is added), and its layout when it's sent (left out, it stays as it is). */
+/** What a type's settings can change: the name, the whole list of fields in order (a field left out is hidden; a new id is added), and its layout and stage tag when they're sent (left out, they stay as they are). */
 export const CardTypeUpdate = NewCardType.omit({ id: true });
 
 export const CardType = NewCardType.extend({
   /** Every field's part, in the card's order, filled out by the API on every read (`cardLayout.ts` → `layoutOf`). */
   layout: CardLayout,
+  /** The stage tag as it stands; a type from before it could be laid out (or an older server) has the default. */
+  tag: StageTag.default(DEFAULT_STAGE_TAG),
   /** Stamped by the API, ms since epoch. */
   createdAt: z.number().int().nonnegative(),
   /** Derived by the API on every read: how many decks use it. */

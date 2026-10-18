@@ -20,7 +20,8 @@ type Props = {
 
 /**
  * Inside a deck: the cards, newest first, and the add form above them when asked for. A card's edit button opens it
- * where it stands in the list: its fields to change, Save, and Delete, which asks first.
+ * where it stands in the list: its fields to change, Save, and Delete, which asks first; the delete button under it
+ * deletes it from the row, asking there first.
  */
 export function CardsView({ cards, type, srsType, adding, onAdd, onCancelAdd, onSave, onRemove }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export function CardsView({ cards, type, srsType, adding, onAdd, onCancelAdd, on
         srsType={srsType}
         title={cards.length === 0 ? "No cards yet" : count(cards.length, "card", "cards")}
         onEdit={(card) => setEditingId(card.id)}
+        onRemove={(card) => onRemove(card.id)}
         editing={
           open
             ? {

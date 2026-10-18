@@ -23,8 +23,17 @@ export const ownPress = (e: MouseEvent) => e.stopPropagation();
 /** The shape of a file's sound in so many bars, each 0 to 1; null when it can't be read. Drawn by the voice note. */
 export type Wave = (src: string, bars: number) => Promise<readonly number[] | null>;
 
-/** What every look of a sound or a clip is handed. */
-export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined };
+/** What every look of a sound or a clip is handed. `shortcut` is the key that plays it, drawn on it as a keycap; null for none. */
+export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: string | null };
+
+/** The key that plays it, drawn as the answers' keys are (`.key`, a keycap); nothing when it has none. */
+export function MediaKey({ shortcut }: { shortcut: string | null }) {
+  return shortcut ? (
+    <span className="key media-key" aria-hidden="true">
+      {shortcut.toUpperCase()}
+    </span>
+  ) : null;
+}
 
 const shareOf = (at: number, length: number | null) => (length ? Math.min(1, at / length) : 0);
 const pressWord = (playing: boolean, label: string) => `${playing ? "Pause" : "Play"} ${label}`;
@@ -44,8 +53,8 @@ const AS_SAID = 1;
  * A voice note, as a chat app has them: a round play button, the sound's own waveform filling as it plays (pressed
  * somewhere, it goes there), the time, and how fast it plays, from a dropdown, the voice's pitch kept.
  */
-export function VoiceLook({ kind, src, label, named, cue, onCueEnd, waveOf }: LookProps & { waveOf: Wave | undefined }) {
-  const play = usePlayback(cue, onCueEnd);
+export function VoiceLook({ kind, src, label, named, cue, onCueEnd, shortcut, waveOf }: LookProps & { waveOf: Wave | undefined }) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   const [bars, setBars] = useState<readonly number[]>(LEVEL);
   const [rate, setRate] = useState(AS_SAID);
   const speedId = useId();
@@ -68,9 +77,10 @@ export function VoiceLook({ kind, src, label, named, cue, onCueEnd, waveOf }: Lo
   return (
     <div className={`media media-voice media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className="btn-icon media-voice-play" aria-label={pressWord(play.playing, label)} disabled={play.failed} onClick={play.toggle}>
+      <Button className="btn-icon media-voice-play" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut ?? undefined} disabled={play.failed} onClick={play.toggle}>
         <Icon name={play.playing ? "pause" : "play"} />
       </Button>
+      <MediaKey shortcut={shortcut} />
       <span className="media-wave" aria-hidden="true" onPointerDown={goTo}>
         {bars.map((height, i) => (
           <i key={i} className={i / bars.length < share ? "is-heard" : ""} style={{ height: `${Math.round(Math.max(0.12, height) * 100)}%` }} />
@@ -101,13 +111,13 @@ const RING_R = 26;
 const RING_C = 2 * Math.PI * RING_R;
 
 /** A big round button, easy for a thumb, its ring filling as it plays; its name under it when it's shown. */
-export function RoundLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
-  const play = usePlayback(cue, onCueEnd);
+export function RoundLook({ kind, src, label, named, cue, onCueEnd, shortcut }: LookProps) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   const share = shareOf(play.at, play.length);
   return (
     <span className={`media media-round media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className="media-round-button" aria-label={pressWord(play.playing, label)} disabled={play.failed} onClick={play.toggle}>
+      <Button className="media-round-button" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut ?? undefined} disabled={play.failed} onClick={play.toggle}>
         <svg className="media-ring" viewBox="0 0 60 60" aria-hidden="true">
           <circle className="media-ring-base" cx="30" cy="30" r={RING_R} />
           <circle className="media-ring-heard" cx="30" cy="30" r={RING_R} strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - share)} />
@@ -117,19 +127,20 @@ export function RoundLook({ kind, src, label, named, cue, onCueEnd }: LookProps)
         </span>
       </Button>
       {named ? <span className="media-round-name">{label}</span> : null}
+      <MediaKey shortcut={shortcut} />
     </span>
   );
 }
 
 /** A tile: what it is (its name, or "Sound" or "Clip") and how long, the whole tile the button, filling as it plays. */
-export function TileLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
-  const play = usePlayback(cue, onCueEnd);
+export function TileLook({ kind, src, label, named, cue, onCueEnd, shortcut }: LookProps) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   const share = shareOf(play.at, play.length);
   const length = play.length === null ? "" : clock(play.length);
   return (
     <span className={`media media-tile media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className="media-tile-button" aria-label={pressWord(play.playing, label)} disabled={play.failed} onClick={play.toggle}>
+      <Button className="media-tile-button" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut ?? undefined} disabled={play.failed} onClick={play.toggle}>
         <span className="media-tile-fill" style={{ width: `${share * 100}%` }} aria-hidden="true" />
         <span className="media-tile-icon">
           <Icon name={play.playing ? "pause" : MEDIA_ICON[kind]} />
@@ -138,20 +149,28 @@ export function TileLook({ kind, src, label, named, cue, onCueEnd }: LookProps) 
           <span className="media-tile-name">{named ? label : KIND_WORD[kind]}</span>
           <span className="media-time">{play.playing && length ? `${clock(play.at)} of ${length}` : length}</span>
         </span>
+        <MediaKey shortcut={shortcut} />
       </Button>
     </span>
   );
 }
 
 /** A speaker, as a dictionary puts one beside a word: beside the words above it, it sits right after them. Its name beside it when it's shown. */
-export function SpeakerLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
-  const play = usePlayback(cue, onCueEnd);
+export function SpeakerLook({ kind, src, label, named, cue, onCueEnd, shortcut }: LookProps) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   return (
     <span className={`media media-speaker media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className={`media-speaker-button ${play.playing ? "is-playing" : ""}`.trim()} aria-label={pressWord(play.playing, label)} disabled={play.failed} onClick={play.toggle}>
+      <Button
+        className={`media-speaker-button ${play.playing ? "is-playing" : ""}`.trim()}
+        aria-label={pressWord(play.playing, label)}
+        aria-keyshortcuts={shortcut ?? undefined}
+        disabled={play.failed}
+        onClick={play.toggle}
+      >
         <Icon name={MEDIA_ICON[kind]} />
         {named ? <span className="media-speaker-name">{label}</span> : null}
+        <MediaKey shortcut={shortcut} />
       </Button>
     </span>
   );

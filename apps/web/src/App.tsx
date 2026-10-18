@@ -5,6 +5,7 @@ import {
   type Card,
   type CardAnswer,
   type CardLayout,
+  type StageTag,
   type CardType,
   type CardUpdate,
   type Deck,
@@ -427,9 +428,9 @@ export function App() {
     return saved;
   }, []);
 
-  /** A card type's layout, saved: the fields go along as they are, so only the layout (and the sides it gives them) changes. */
-  const saveLayout = useCallback(async (type: CardType, layout: CardLayout) => {
-    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout });
+  /** A card type's layout and stage tag, saved: the fields go along as they are, so only the layout (and the sides it gives them) and the tag change. */
+  const saveLayout = useCallback(async (type: CardType, layout: CardLayout, tag: StageTag) => {
+    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout, tag });
     setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
     setScreen((s) => (s.kind === "type" && s.type?.id === saved.id ? { ...s, type: saved } : s));
     return saved;
@@ -786,7 +787,7 @@ export function App() {
                   type={type}
                   decks={decks}
                   srsTypes={srsTypes}
-                  onSave={(layout) => saveLayout(type, layout)}
+                  onSave={(layout, tag) => saveLayout(type, layout, tag)}
                   onStatus={setEditStatus}
                   onGuard={setGuard}
                   subtitleStyle={settings.subtitleStyle}

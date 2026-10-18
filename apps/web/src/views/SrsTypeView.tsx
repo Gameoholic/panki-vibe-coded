@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, type Settings, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
+import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { FlowPreview } from "../components/FlowPreview";
@@ -437,19 +438,15 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
         {draft.deckCount > 0 ? (
           <p className="empty">Used by {count(draft.deckCount, "deck", "decks")}. An SRS type can be deleted once no deck uses it.</p>
         ) : deleting ? (
-          <>
-            <p id="srs-delete-question" className="question">
-              Delete “{draft.name}”?
-            </p>
-            <div className="add-actions">
-              <Button id="srs-delete-keep" onClick={() => setDeleting(false)} disabled={busy}>
-                Keep
-              </Button>
-              <Button id="srs-delete-go" variant="danger" onClick={remove} disabled={busy}>
-                {busy ? "Deleting…" : "Delete type"}
-              </Button>
-            </div>
-          </>
+          <Ask
+            idPrefix="srs-delete"
+            question={`Delete “${draft.name}”?`}
+            go={{ words: "Delete type", busy: "Deleting…" }}
+            busy={busy}
+            failure={null}
+            onKeep={() => setDeleting(false)}
+            onGo={() => void remove()}
+          />
         ) : (
           <>
             <p className="empty">No deck uses it.</p>

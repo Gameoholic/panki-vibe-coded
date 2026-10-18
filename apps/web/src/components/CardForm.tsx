@@ -3,6 +3,7 @@ import { CardUpdate, MEDIA_ENDINGS, MEDIA_MAX_BYTES, NewCard, VALUE_MAX, cardPro
 import { api } from "../api";
 import { FIELD_KINDS, fileKindOf } from "../fieldKinds";
 import { langOf, listWords } from "../words";
+import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Form } from "./Form";
 import { MediaField } from "./MediaField";
@@ -19,6 +20,17 @@ const MESSAGES = {
   notTaken: (kinds: readonly MediaKind[]) => `That file won't work here. Panki takes ${listWords([...new Set(kinds.flatMap((kind) => MEDIA_ENDINGS[kind]))])}.`,
   heavy: (kind: MediaKind) => `That file is over ${MEDIA_MAX_BYTES[kind] / MB} MB.`,
   empty: "That file is empty.",
+};
+
+/** Deleting a card, asked in place (`Ask`) wherever it's done: on its row, and in its form. One home for the words. */
+export const DELETE_CARD = {
+  /** "Delete “行く”?": the card by its first Front field that holds words, or "this card" when that's empty. */
+  question: (type: CardType, card: Card) => {
+    const lead = type.fields.find((f) => f.side === "front" && holdsWords(f.kind));
+    const named = lead ? (card.values[lead.id] ?? "").trim() : "";
+    return `Delete ${named ? `“${named}”` : "this card"}?`;
+  },
+  go: { words: "Delete card", busy: "Deleting…" },
 };
 
 /** A file picked for a field: the id it will be kept under (minted here, so sending it twice is harmless), what it is and the type it's sent as. */
@@ -83,9 +95,6 @@ export function CardForm(props: Props) {
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const first = type.fields[0];
-  /** The card in a word, for the question that deletes it: its first Front field that holds text. */
-  const lead = type.fields.find((f) => f.side === "front" && holdsWords(f.kind));
-  const named = card && lead ? (card.values[lead.id] ?? "") : "";
 
   function focusField(fieldId: string) {
     document.getElementById(inputId(fieldId))?.focus();
@@ -232,20 +241,16 @@ export function CardForm(props: Props) {
             />
           );
         })}
-        {asking ? (
-          <>
-            <p className="question">Delete {named ? `“${named}”` : "this card"}?</p>
-            <p className="empty">It leaves this deck and its reviews. What you answered on it stays in your stats.</p>
-            <div className="add-actions">
-              {failed}
-              <Button onClick={() => setAsking(false)} disabled={busy}>
-                Keep
-              </Button>
-              <Button variant="danger" onClick={() => void remove()} disabled={busy}>
-                {busy ? "Deleting…" : "Delete card"}
-              </Button>
-            </div>
-          </>
+        {asking && card ? (
+          <Ask
+            idPrefix={`${formId}-delete`}
+            question={DELETE_CARD.question(type, card)}
+            go={DELETE_CARD.go}
+            busy={busy}
+            failure={failure}
+            onKeep={() => setAsking(false)}
+            onGo={() => void remove()}
+          />
         ) : (
           <div className="add-actions">
             {card ? (

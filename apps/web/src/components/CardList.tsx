@@ -1,10 +1,12 @@
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import { dueWords } from "../srsKinds";
 import { langOf } from "../words";
+import { Ask } from "./Ask";
 import { Button } from "./Button";
+import { DELETE_CARD } from "./CardForm";
 import { Icon } from "./Icon";
 import { LinkView } from "./LinkView";
 import { MediaView } from "./MediaView";
@@ -22,6 +24,8 @@ type Props = {
   empty?: ReactNode;
   /** When given, each row carries an edit button that asks for its card to be opened. */
   onEdit?: (card: Card) => void;
+  /** When given, each row carries a delete button under the edit one, which asks in the row before the card goes. */
+  onRemove?: (card: Card) => Promise<void>;
   /** The card that's open, and what stands in its row's place while it is (the form that changes it). */
   editing?: { id: string; form: ReactNode } | null;
 };
@@ -53,11 +57,34 @@ function cell(card: Card, field: CardField, className: string) {
 
 /**
  * Cards as rows: the front fields on the first line, the first one that holds words big; the back fields under them; a
- * file where its field stands; the card's place and due time on the right, and an edit button where cards can be
- * changed. A card that's open is its form, in the row's own place in the list.
+ * file where its field stands; at the top right the card's place and due time, then edit with delete under it, where
+ * cards can be changed (the owner, 2026-10-18: deleting was only inside the opened card, "make deleting easier… the
+ * delete button should be directly below the pencil"; and everything at the right sat halfway down the row). Delete
+ * asks in the row itself before the card goes. A card that's open is its form, in the row's own place in the list.
  */
-export function CardList({ cards, type, srsType, title, empty = null, onEdit, editing = null }: Props) {
+export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, editing = null }: Props) {
   const titleId = useId();
+  /** The card whose row is asking whether to delete it, how that's going, and why it didn't. */
+  const [asking, setAsking] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  function ask(cardId: string | null) {
+    setAsking(cardId);
+    setFailure(null);
+  }
+  async function remove(card: Card) {
+    if (!onRemove) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      await onRemove(card);
+      setAsking(null);
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const front = type.fields.filter((f) => f.side === "front");
   const back = type.fields.filter((f) => f.side === "back");
   const lead = front.find((f) => holdsWords(f.kind));
@@ -75,7 +102,10 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, ed
             editing?.id === card.id ? (
               <li key={card.id}>{editing.form}</li>
             ) : (
-              <li key={card.id} className={`card-row ${srsType ? "has-state" : ""} ${onEdit ? "has-tools" : ""}`.trim()}>
+              <li
+                key={card.id}
+                className={`card-row ${srsType ? "has-state" : ""} ${onEdit || onRemove ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+              >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
                 {srsType ? (
@@ -84,11 +114,31 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, ed
                     <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{dueWords(srsType, card, now)}</span>
                   </div>
                 ) : null}
-                {onEdit ? (
+                {onEdit || onRemove ? (
                   <div className="card-tools">
-                    <Button className="btn-icon" aria-label="Edit card" onClick={() => onEdit(card)}>
-                      <Icon name="edit" />
-                    </Button>
+                    {onEdit ? (
+                      <Button className="btn-icon" aria-label="Edit card" onClick={() => onEdit(card)}>
+                        <Icon name="edit" />
+                      </Button>
+                    ) : null}
+                    {onRemove ? (
+                      <Button className="btn-icon is-danger" aria-label="Delete card" aria-pressed={asking === card.id} disabled={busy} onClick={() => ask(asking === card.id ? null : card.id)}>
+                        <Icon name="trash" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {asking === card.id ? (
+                  <div className="card-ask">
+                    <Ask
+                      idPrefix={`card-${card.id}-delete`}
+                      question={DELETE_CARD.question(type, card)}
+                      go={DELETE_CARD.go}
+                      busy={busy}
+                      failure={failure}
+                      onKeep={() => ask(null)}
+                      onGo={() => void remove(card)}
+                    />
                   </div>
                 ) : null}
               </li>

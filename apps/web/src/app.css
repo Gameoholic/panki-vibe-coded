@@ -449,8 +449,9 @@ body {
 .panel > .panel-title {
   margin-bottom: 0;
 }
-/* A panel while it asks about something that hurts (deleting a deck). */
-.panel-alarm {
+/* A panel while it asks about something that hurts (deleting a deck), and a card's row while it asks to delete it. */
+.panel-alarm,
+.card-row.is-asking {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
   background: var(--danger-soft);
 }
@@ -2063,7 +2064,8 @@ mark.sub-mark {
 /* The key that presses an answer, drawn as a keycap (an edge all round, thicker underneath) so it reads as a key to
    press and not as a count. */
 .btn-answer .key,
-.review-aside .key {
+.review-aside .key,
+.media-key {
   display: inline-grid;
   place-items: center;
   min-width: 22px;
@@ -2079,6 +2081,36 @@ mark.sub-mark {
 .btn-answer .key {
   margin-top: 4px;
   color: var(--muted);
+}
+/* The key that plays a card's sound or clip in a review (`ReviewCard` → `MEDIA_KEYS`), the same keycap, beside what it
+   plays: after the play button, at the end of a chip, a tile or a speaker, under a round button. */
+.media-key {
+  flex: none;
+  color: var(--muted);
+}
+/* Over a clip the browser plays with its own controls: in a top corner, clear of them, readable on any picture. */
+.media-picture > .media-key {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: color-mix(in srgb, var(--theater) 55%, transparent);
+  color: var(--theater-ink);
+}
+.media-plain-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.media-plain-row .media-plain-audio {
+  flex: 1;
+  min-width: 0;
+}
+.media.media-voice:has(> .media-key) {
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+}
+.btn.media-tile-button:has(.media-key) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 .btn-answer.ans-down {
   color: var(--danger);
@@ -2289,11 +2321,17 @@ mark.sub-mark {
   font-weight: 800;
 }
 
-/* A card row's place and due time, on its right. */
-.card-row.has-state {
+/* A card row's place and due time on its right, then (where cards can be changed) edit with delete under it, each a
+   column of its own held to the row's top, level with the word: halfway down a tall row they floated loose of it (the
+   owner, 2026-10-18). Always there, never only under a pointer, so a finger finds them too. */
+.card-row.has-state,
+.card-row.has-tools {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px 10px;
-  align-items: center;
+  align-items: start;
+}
+.card-row.has-state.has-tools {
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 .card-state {
   grid-column: 2;
@@ -2302,19 +2340,31 @@ mark.sub-mark {
   justify-items: end;
   gap: 3px;
 }
-/* Where a card can be changed, its row ends with an edit button: a last column of its own, beside the place and due
-   time when the row has them. Always there, never only under a pointer, so a finger finds it too. */
-.card-row.has-tools {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 10px;
-  align-items: center;
-}
-.card-row.has-state.has-tools {
-  grid-template-columns: minmax(0, 1fr) auto auto;
-}
 .card-tools {
   grid-column: -2;
   grid-row: 1 / span 2;
+  display: grid;
+  gap: 2px;
+  margin: -4px -4px 0 0;
+}
+/* Delete is quiet until it's meant: in the danger colour under a pointer, and while its question is asked. */
+.card-tools .btn-icon.is-danger {
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .card-tools .btn-icon.is-danger:hover {
+    color: var(--danger);
+  }
+}
+.card-tools .btn-icon.is-danger[aria-pressed="true"] {
+  color: var(--danger);
+}
+/* The question that deletes a card, asked in its row, under all of it. */
+.card-ask {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
 }
 /* In a card's form, Delete… keeps to the left, away from Save. */
 .add-actions .card-delete {
@@ -2350,10 +2400,55 @@ mark.sub-mark {
 .review-card.is-revealed:active {
   background: var(--surface);
 }
+/* The stage tag in its corner of the card, at its size (the type's `StageTag`, laid out on the card in the Layout tab). */
 .review-place {
   position: absolute;
   top: 14px;
   left: 14px;
+  z-index: 1;
+  display: inline-flex;
+  border-radius: 999px;
+}
+.review-place.is-top-right {
+  left: auto;
+  right: 14px;
+}
+.review-place.is-bottom-left {
+  top: auto;
+  bottom: 14px;
+}
+.review-place.is-bottom-right {
+  top: auto;
+  left: auto;
+  bottom: 14px;
+  right: 14px;
+}
+.review-place.size-small .pill {
+  padding: 1px 7px;
+  font-size: 10px;
+}
+.review-place.size-big .pill {
+  padding: 3px 12px;
+  font-size: 15px;
+}
+/* Being laid out: pressed to pick it, carried anywhere on the card to settle in the nearest corner; hidden, still
+   there to pick, faint. */
+.review-place.is-editable {
+  cursor: grab;
+  touch-action: none;
+  outline: 1px dashed transparent;
+  outline-offset: 4px;
+}
+.review-place.is-editable.is-picked,
+.review-place.is-editable:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.review-place.is-editable.is-dragging {
+  z-index: 3;
+  cursor: grabbing;
+}
+.review-place.is-hidden {
+  opacity: 0.45;
 }
 .summary {
   display: grid;

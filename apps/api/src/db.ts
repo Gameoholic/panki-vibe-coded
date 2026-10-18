@@ -30,6 +30,7 @@ import {
   makeStarter,
   resolve,
   sideOf,
+  stageTagOf,
   stageIndex,
   upgradeFlow,
   type CardAnswer,
@@ -514,6 +515,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       )
     `);
   },
+  (db) => {
+    // Where a type's cards show their stage tag, and how (2026-10-18: shown or not, its size, its corner), as JSON;
+    // none for every type from before, which reads as the tag where it always was (contracts → `stageTagOf`). Its
+    // changes are kept in `card_type_changes`, the whole type before and after.
+    db.exec("ALTER TABLE card_types ADD COLUMN stage_tag TEXT");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -565,10 +572,10 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
-/** A card type as its change log keeps it: everything the owner can edit, the fields in order with their layout. */
+/** A card type as its change log keeps it: everything the owner can edit, the fields in order with their layout, and its stage tag. */
 function typeSnapshot(type: CardType): string {
-  const { name, fields, layout } = type;
-  return JSON.stringify(canonical({ name, fields, layout }));
+  const { name, fields, layout, tag } = type;
+  return JSON.stringify(canonical({ name, fields, layout, tag }));
 }
 
 /** The type as its change log keeps it: everything the owner can edit, stages and answers in order. */
@@ -626,7 +633,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // Removed types, fields, stages, answers and decks are invisible everywhere the app reads; only an insert's read-back,
   // a deck's own type and remove itself see them.
   const typeColumns = `
-    t.id, t.name, t.created_at AS createdAt, t.layout,
+    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag,
     (SELECT COUNT(*) FROM decks d WHERE d.type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
@@ -640,6 +647,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const updateTypeName = db.prepare("UPDATE card_types SET name = ? WHERE id = ?");
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
   const updateTypeLayout = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
+  const updateTypeTag = db.prepare("UPDATE card_types SET stage_tag = ? WHERE id = ?");
   const insertLayoutChange = db.prepare("INSERT INTO card_type_layout_changes (type_id, from_layout, to_layout, at) VALUES (?, ?, ?, ?)");
   const insertTypeChange = db.prepare(`INSERT INTO card_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
   const removeType = db.prepare("UPDATE card_types SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
@@ -806,14 +814,23 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return [];
     }
   }
+  /** A kept stage tag's JSON; none, or anything that doesn't read, is the tag where it always was. */
+  function keptTag(json: string | null): unknown {
+    if (json === null) return null;
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  }
   function typeFrom(row: unknown): CardType {
-    const { layout: kept, ...base } = row as { id: string; layout: string };
+    const { layout: kept, stageTag, ...base } = row as { id: string; layout: string; stageTag: string | null };
     const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept));
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
-    return CardType.parse({ ...base, fields, layout });
+    return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)) });
   }
 
   function srsTypeFrom(row: unknown): SrsType {
@@ -949,6 +966,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
           type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
+          if (type.tag) updateTypeTag.run(JSON.stringify(type.tag), type.id);
         }
         return typeFrom(selectAnyType.get(type.id));
       });
@@ -979,6 +997,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             insertLayoutChange.run(id, was, is, now);
           }
         }
+        // The stage tag when it's sent; what it was is in the whole type's log below.
+        if (update.tag && JSON.stringify(update.tag) !== JSON.stringify(before.tag)) updateTypeTag.run(JSON.stringify(update.tag), id);
         const after = typeFrom(selectType.get(id));
         // The whole type before and after, once per save that changed anything; the name's and the layout's own logs stand beside it.
         const [was, is] = [typeSnapshot(before), typeSnapshot(after)];

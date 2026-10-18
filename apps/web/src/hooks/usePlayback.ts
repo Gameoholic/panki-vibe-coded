@@ -7,9 +7,10 @@ import { setVolume, useVolume, type Volume } from "../volume";
  * or `<video>` and give it `hold` as its ref. `cue` plays it from the start (a review playing what plays by itself),
  * and `onCueEnd` is told when that play is over: it ended, was stopped, or couldn't start. Every look is this, so
  * they all play, stop and cue alike, and all at the one volume (`volume.ts`), set on the player's bar or the
- * browser's own controls. Never a second way of playing a file.
+ * browser's own controls. `shortcut` is a key that plays or stops it from anywhere on the page (a review's: the card
+ * gives each of its sounds and clips one, `ReviewCard` → `MEDIA_KEYS`). Never a second way of playing a file.
  */
-export function usePlayback(cue: boolean, onCueEnd?: () => void) {
+export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: string | null = null) {
   const media = useRef<HTMLMediaElement | null>(null);
   const volume = useVolume();
   useEffect(() => {
@@ -51,6 +52,20 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void) {
     // A file that can't be played says so through the element's own error; a play cut short by a pause is no failure.
     el.play().catch(() => undefined);
   }
+
+  // Its key, pressed anywhere on the page but in something typed into, with nothing held with it and not held down.
+  useEffect(() => {
+    if (!shortcut) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== shortcut.toLowerCase()) return;
+      const at = e.target;
+      if (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select"))) return;
+      e.preventDefault();
+      toggle();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shortcut]); // eslint-disable-line react-hooks/exhaustive-deps -- `toggle` reads the element through its ref
   /** Moves to a share of the way through (0 to 1), playing or not. */
   function seek(share: number) {
     const el = media.current;

@@ -80,6 +80,20 @@ export const CardLayout = z
   .refine((parts) => parts.length === 0 || parts.some((p) => p.front !== "hide"), { message: NOTHING_ON_FRONT });
 export type CardLayout = z.infer<typeof CardLayout>;
 
+/** A corner of the card. */
+export const TagCorner = z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]);
+export type TagCorner = z.infer<typeof TagCorner>;
+/**
+ * The card's stage tag (where the card stands: New, its stage, the end; the app's `PlacePill`), laid out apart from the
+ * fields, since it's none of them (the owner, 2026-10-18: "obviously it's not a field, so it can work separately"):
+ * shown or not, alike on both sides; its size; and the corner it sits in, dragged there on the card being laid out,
+ * never a place between corners.
+ */
+export const StageTag = z.object({ shown: z.boolean(), size: PartSize, corner: TagCorner });
+export type StageTag = z.infer<typeof StageTag>;
+/** As every card had it before it could be laid out: shown, at its size, top left. */
+export const DEFAULT_STAGE_TAG: StageTag = { shown: true, size: "normal", corner: "top-left" };
+
 /** The card's two sides. */
 export type CardSide = "front" | "back";
 

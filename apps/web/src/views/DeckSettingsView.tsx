@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings } from "@panki/contracts";
+import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { DeckNameForm } from "../components/DeckNameForm";
 import { NumberField } from "../components/NumberField";
@@ -185,24 +186,15 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, o
           Danger Zone
         </h2>
         {asking ? (
-          <>
-            <p id="deck-delete-question" className="question">
-              Delete “{deck.name}” and its {cards}?
-            </p>
-            <div className="add-actions">
-              {failure ? (
-                <span className="form-failure" role="alert">
-                  {failure}
-                </span>
-              ) : null}
-              <Button id="deck-delete-keep" onClick={() => setAsking(false)} disabled={busy}>
-                Keep
-              </Button>
-              <Button id="deck-delete-go" variant="danger" onClick={() => run(onRemove)} disabled={busy}>
-                {busy ? "Deleting…" : "Delete deck"}
-              </Button>
-            </div>
-          </>
+          <Ask
+            idPrefix="deck-delete"
+            question={`Delete “${deck.name}” and its ${cards}?`}
+            go={{ words: "Delete deck", busy: "Deleting…" }}
+            busy={busy}
+            failure={failure}
+            onKeep={() => setAsking(false)}
+            onGo={() => void run(onRemove)}
+          />
         ) : (
           <div className="add-actions add-actions-start">
             <Button id="deck-delete" className="is-danger" onClick={() => setAsking(true)}>

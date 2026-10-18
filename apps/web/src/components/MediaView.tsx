@@ -5,7 +5,7 @@ import type { Volume } from "../volume";
 import { clock } from "../words";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
-import { MEDIA_ICON, RoundLook, SpeakerLook, TileLook, VoiceLook, ownPress, type LookProps, type Wave } from "./MediaLooks";
+import { MEDIA_ICON, MediaKey, RoundLook, SpeakerLook, TileLook, VoiceLook, ownPress, type LookProps, type Wave } from "./MediaLooks";
 
 export { MEDIA_ICON };
 
@@ -35,6 +35,8 @@ type Props = {
   waveOf?: Wave;
   /** Laid over a clip's picture, in the looks that show it (the player and plain): its subtitles (`ClipSubtitles`), or nothing. */
   over?: ReactNode;
+  /** The key that plays or stops it from anywhere on the page, drawn on it as a keycap (a review's); none by default. */
+  shortcut?: string | null;
 };
 
 /**
@@ -43,10 +45,10 @@ type Props = {
  * its kind's colour. Every look plays through one hook (`usePlayback`). Never the browser's own controls, and nothing
  * plays until it's pressed or cued.
  */
-export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null }: Props) {
+export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null }: Props) {
   if (kind === "image") return <img className={`media-frame ${size === "row" ? "media-thumb" : ""}`.trim()} src={src} alt={label} loading="lazy" draggable={false} />;
   const shown = size === "row" ? "button" : look;
-  const common = { kind, src, label, cue, onCueEnd };
+  const common = { kind, src, label, cue, onCueEnd, shortcut };
   switch (shown) {
     case "button":
       return <ChipLook {...common} named={named ?? true} />;
@@ -78,6 +80,8 @@ type BarProps = {
   screen?: { full: boolean; onToggle: () => void } | null;
   /** How loud it plays (`volume.ts`): the speaker that mutes it and the line it's turned up and down on. Panki's own player has it. */
   sound?: SoundProps | null;
+  /** The key that plays it, as a keycap beside the play button; none by default. */
+  shortcut?: string | null;
 };
 
 /**
@@ -85,12 +89,13 @@ type BarProps = {
  * and as the whole of a sound. It's also for whoever shows something that plays but isn't a file Panki holds yet (the
  * extension's clip before it's recorded), so that looks like the player by being the player's own bar. Never a second bar.
  */
-export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null }: BarProps) {
+export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null, shortcut = null }: BarProps) {
   return (
     <div className="media-bar">
-      <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} onClick={onToggle}>
+      <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} aria-keyshortcuts={shortcut ?? undefined} onClick={onToggle}>
         <Icon name={playing ? "pause" : "play"} />
       </Button>
+      <MediaKey shortcut={shortcut} />
       {tag ? (
         <span className="media-tag">
           <Icon name={tag.icon} />
@@ -196,8 +201,8 @@ function fullOf(el: HTMLElement): Element | null {
  * bar's end (the owner, 2026-10-15, who liked this look better than the browser's own, and wanted full screen too);
  * the picture and the bar fill it together, so the controls stay Panki's.
  */
-function PlayerLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps & { over: ReactNode }) {
-  const play = usePlayback(cue, onCueEnd);
+function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: LookProps & { over: ReactNode }) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   const frame = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
   useEffect(() => {
@@ -239,6 +244,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps 
           tag={named ? { icon: MEDIA_ICON[kind], label } : null}
           screen={canFill ? { full, onToggle: toggleFull } : null}
           sound={{ volume: play.volume, onLevel: play.setLevel, onMute: play.toggleMute }}
+          shortcut={shortcut}
         />
       )}
     </div>
@@ -249,8 +255,8 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps 
  * Plain: the browser's own player and its controls (full screen, going anywhere in it, the sound, the speed), for
  * whoever wants it (the owner, 2026-10-15, had it kept as a style beside Panki's own). Its name over it when shown.
  */
-function PlainLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps & { over: ReactNode }) {
-  const play = usePlayback(cue, onCueEnd);
+function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: LookProps & { over: ReactNode }) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   return (
     <div className={`media media-plain media-${kind}`} onClick={ownPress}>
       {named ? (
@@ -261,25 +267,38 @@ function PlainLook({ kind, src, label, named, cue, onCueEnd, over }: LookProps &
       ) : null}
       {kind === "video" ? (
         <div className="media-picture">
-          <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} {...play.events} />
+          <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} aria-keyshortcuts={shortcut ?? undefined} {...play.events} />
           {over}
+          {/* The browser's own controls are along its bottom: the key sits in a top corner, clear of them. */}
+          <MediaKey shortcut={shortcut} />
         </div>
       ) : (
-        <audio ref={play.hold} className="media-plain-audio" src={src} preload="metadata" controls aria-label={label} {...play.events} />
+        <span className="media-plain-row">
+          <audio ref={play.hold} className="media-plain-audio" src={src} preload="metadata" controls aria-label={label} aria-keyshortcuts={shortcut ?? undefined} {...play.events} />
+          <MediaKey shortcut={shortcut} />
+        </span>
       )}
     </div>
   );
 }
 
 /** A chip that plays it: the sound alone. On a card's row, and the card's Button look. Nothing is fetched until it's pressed or cued. */
-function ChipLook({ kind, src, label, named, cue, onCueEnd }: LookProps) {
-  const play = usePlayback(cue, onCueEnd);
+function ChipLook({ kind, src, label, named, cue, onCueEnd, shortcut }: LookProps) {
+  const play = usePlayback(cue, onCueEnd, shortcut);
   return (
     <span className={`media media-row media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="none" {...play.events} />
-      <Button variant="chip" className="media-chip" aria-label={`${play.playing ? "Pause" : "Play"} ${label}`} disabled={play.failed} onClick={play.toggle}>
+      <Button
+        variant="chip"
+        className="media-chip"
+        aria-label={`${play.playing ? "Pause" : "Play"} ${label}`}
+        aria-keyshortcuts={shortcut ?? undefined}
+        disabled={play.failed}
+        onClick={play.toggle}
+      >
         <Icon name={play.playing ? "pause" : named ? "play" : MEDIA_ICON[kind]} />
         {named ? label : null}
+        <MediaKey shortcut={shortcut} />
       </Button>
     </span>
   );

@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CardLayout, NEW_PLACE, holdsLink, holdsWords, isTyped, movePart, partsOn, type Card, type CardField, type CardSide, type CardType, type Deck, type LayoutPart, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import {
+  CardLayout,
+  NEW_PLACE,
+  holdsLink,
+  holdsWords,
+  isTyped,
+  movePart,
+  partsOn,
+  type Card,
+  type CardField,
+  type CardSide,
+  type CardType,
+  type Deck,
+  type LayoutPart,
+  type SrsType,
+  type StageTag,
+  type SubtitleStyle,
+} from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -33,6 +50,11 @@ const NO_SAMPLE = "";
 const NOT_OVER = "";
 /** The pill's ladder when no deck's is to hand: a new card says "New" whatever its type is. */
 const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: [], after: "burn", burnedName: "" };
+/** What's picked when it's the stage tag: no field's id is this. */
+const TAG_PICKED = "stage-tag";
+
+/** What's laid out here: every field's part, and the stage tag. */
+type Laid = { parts: LayoutPart[]; tag: StageTag };
 
 type Props = {
   /** The card type as it's saved. */
@@ -40,7 +62,7 @@ type Props = {
   /** Every deck: the ones of this type lend their newest cards to show on it. */
   decks: readonly Deck[];
   srsTypes: readonly SrsType[];
-  onSave: (layout: CardLayout) => Promise<CardType>;
+  onSave: (layout: CardLayout, tag: StageTag) => Promise<CardType>;
   onStatus: (status: SaveStatus) => void;
   /** Says whether there's unsaved work here, so leaving the screen can ask first (null when there's none). */
   onGuard: (guard: UnsavedGuard | null) => void;
@@ -57,10 +79,14 @@ type Props = {
  * by themselves. Saved by the header's Save, as the SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
-  const history = useUndoable<LayoutPart[]>(type.layout);
-  const { change, undo, redo } = history;
-  const draft = history.present;
-  const [saved, setSaved] = useState<readonly LayoutPart[]>(type.layout);
+  // The fields' parts and the stage tag are laid out together, so one Undo steps back through both.
+  const history = useUndoable<Laid>({ parts: type.layout, tag: type.tag });
+  const { undo, redo } = history;
+  const draft = history.present.parts;
+  const tag = history.present.tag;
+  const change = (parts: LayoutPart[]) => history.change({ ...history.present, parts });
+  const changeTag = (patch: Partial<StageTag>) => history.change({ ...history.present, tag: { ...tag, ...patch } });
+  const [saved, setSaved] = useState<Laid>({ parts: type.layout, tag: type.tag });
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [side, setSide] = useState<CardSide>("front");
@@ -96,7 +122,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     };
   }, [deckKey]); // eslint-disable-line react-hooks/exhaustive-deps -- the decks are read afresh only when which of them use the type changes
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const dirty = JSON.stringify(history.present) !== JSON.stringify(saved);
   const parsed = useMemo(() => CardLayout.safeParse(draft), [draft]);
   const status: SaveStatus["state"] = saving ? "saving" : saveFailure ? "failed" : dirty ? "unsaved" : "saved";
 
@@ -126,10 +152,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     setSaving(true);
     setSaveFailure(null);
     try {
-      const result = await onSave(parsed.data);
-      setSaved(result.layout);
+      const result = await onSave(parsed.data, tag);
+      setSaved({ parts: result.layout, tag: result.tag });
       // What the API keeps is the layout filled out against the fields; it takes the draft's place without a step.
-      history.amend(() => result.layout);
+      history.amend(() => ({ parts: result.layout, tag: result.tag }));
       return true;
     } catch (e) {
       setSaveFailure(e instanceof Error ? e.message : "Something went wrong.");
@@ -158,7 +184,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   ];
   const away = draft.filter((p) => p[side] === "hide");
 
-  const part = draft.find((p) => p.fieldId === picked) ?? draft[0];
+  const tagPicked = picked === TAG_PICKED;
+  const part = tagPicked ? undefined : (draft.find((p) => p.fieldId === picked) ?? draft[0]);
   const field = part ? fields.get(part.fieldId) : undefined;
 
   /** The picked part's choices: its two sides, then what its kind can change, then its place. */
@@ -298,8 +325,22 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           waveOf={waveOf}
           subtitleStyle={subtitleStyle}
           picturesOf={api.videoPictures}
+          tag={tag}
           autoplay={trying}
-          {...(trying ? {} : { edit: { picked: part?.fieldId ?? null, onPick: setPicked, order: cardOrder } })}
+          // Tried as a review, its sounds and clips answer to their keys as a review's do.
+          shortcuts={trying}
+          {...(trying
+            ? {}
+            : {
+                edit: {
+                  picked: tagPicked ? null : (part?.fieldId ?? null),
+                  onPick: setPicked,
+                  order: cardOrder,
+                  tagPicked,
+                  onPickTag: () => setPicked(TAG_PICKED),
+                  onMoveTag: (corner) => changeTag({ corner }),
+                },
+              })}
         />
         {trying ? (
           <p className="layout-note">Press the card to turn it, a spoiler to open it.</p>
@@ -314,8 +355,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           </div>
         ) : null}
         <div className="layout-sample">
-          <span className="layout-note">Shown for</span>
-          <Dropdown id="layout-sample" label="Card shown" options={sampleOptions} value={sampleId} onChange={setSampleId} />
+          <span className="layout-note">Previewed for</span>
+          <Dropdown id="layout-sample" label="Card previewed" options={sampleOptions} value={sampleId} onChange={setSampleId} />
         </div>
         {problem || saveFailure ? (
           <p className="form-failure" role="alert">
@@ -324,7 +365,16 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         ) : null}
       </section>
 
-      {part && field ? (
+      {tagPicked ? (
+        // The stage tag isn't a field: its few choices are its own, the same on both sides, and its corner is where it's dragged.
+        <aside className="panel layout-panel" aria-labelledby="layout-part-title">
+          <h2 id="layout-part-title" className="layout-part-title">
+            Stage tag
+          </h2>
+          <Setting id="tag-shown" label="Shown" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
+          <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
+        </aside>
+      ) : part && field ? (
         <aside className="panel layout-panel" aria-labelledby="layout-part-title">
           <h2 id="layout-part-title" className="layout-part-title">
             {field.name}

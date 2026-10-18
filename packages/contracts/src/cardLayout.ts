@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FaceShow, MediaLook, PartSize, PartTone, type LayoutPart } from "./layout";
+import { DEFAULT_STAGE_TAG, FaceShow, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type StageTag } from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -97,4 +97,19 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
   const first = parts[0];
   if (first && !parts.some((p) => p.front !== "hide")) parts[0] = { ...first, front: "show" };
   return parts;
+}
+
+/** The stage tag as it was kept: anything missing or broken in it reads as the default's, so a tag from before still reads. */
+const KeptTag = z.object({
+  shown: z.boolean().optional().catch(undefined),
+  size: PartSize.optional().catch(undefined),
+  corner: TagCorner.optional().catch(undefined),
+});
+
+/** A type's stage tag as it stands, from what's kept (nothing, for a type nobody laid it out on). */
+export function stageTagOf(kept: unknown): StageTag {
+  const read = KeptTag.safeParse(kept);
+  if (!read.success) return { ...DEFAULT_STAGE_TAG };
+  const { shown, size, corner } = read.data;
+  return { shown: shown ?? DEFAULT_STAGE_TAG.shown, size: size ?? DEFAULT_STAGE_TAG.size, corner: corner ?? DEFAULT_STAGE_TAG.corner };
 }

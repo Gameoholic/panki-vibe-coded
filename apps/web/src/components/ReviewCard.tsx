@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   DEFAULT_SUBTITLE_STYLE,
   MediaId,
@@ -17,7 +17,9 @@ import {
   type MediaCues,
   type MediaKind,
   type SrsType,
+  type StageTag,
   type SubtitleStyle,
+  type TagCorner,
 } from "@panki/contracts";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
@@ -40,7 +42,92 @@ export type CardEdit = {
   onPick: (fieldId: string) => void;
   /** Moving the parts on the side that's showing, by their place among that side's parts (`partsOn`). */
   order: ReturnType<typeof useDragOrder>;
+  /** The stage tag: whether it's the one picked, picking it, and moving it to a corner (dragged there, or by the arrow keys on it). */
+  tagPicked: boolean;
+  onPickTag: () => void;
+  onMoveTag: (corner: TagCorner) => void;
 };
+
+/**
+ * The keys that play a card's sounds and clips in a review, given in the card's order (the layout's, both sides alike,
+ * so a field keeps its key when the card is turned): the home row under the left hand, beside the answers' numbers
+ * (the owner, 2026-10-18: "keybindings… to the various buttons that play the audio and/or video by a simple keypress").
+ */
+export const MEDIA_KEYS = ["a", "s", "d", "f", "g", "h", "j", "k", "l"] as const;
+
+/** How far a press must move before it's a drag of the stage tag rather than a press that picks it. */
+const TAG_DRAG_PX = 4;
+
+/** A corner from which half of the card it's in, up or down and left or right. */
+const cornerOf = (top: boolean, left: boolean): TagCorner => (top ? (left ? "top-left" : "top-right") : left ? "bottom-left" : "bottom-right");
+
+/**
+ * The stage tag in its corner of the card. On the card being laid out it's pressed to pick it, and dragged anywhere
+ * on the card to settle in the corner nearest where it's let go (the owner: "it sticks to either of the 4 corners, no
+ * free position"); the arrow keys on it move it a corner over. Hidden, it's still there to pick while it's laid out,
+ * faint; in a review it isn't drawn.
+ */
+function StageTagSpot({ tag, edit, card, children }: { tag: StageTag; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null>; children: ReactNode }) {
+  const [held, setHeld] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
+  const look = `review-place is-${tag.corner} size-${tag.size}`;
+  if (!edit) return tag.shown ? <span className={look}>{children}</span> : null;
+  const top = tag.corner.startsWith("top");
+  const left = tag.corner.endsWith("left");
+  /** The corner the tag's middle is nearest to, as it's let go. */
+  function settled(el: HTMLElement): TagCorner | null {
+    const frame = card.current?.getBoundingClientRect();
+    if (!frame) return null;
+    const box = el.getBoundingClientRect();
+    return cornerOf(box.top + box.height / 2 < frame.top + frame.height / 2, box.left + box.width / 2 < frame.left + frame.width / 2);
+  }
+  const keyed: Partial<Record<string, TagCorner>> = { ArrowUp: cornerOf(true, left), ArrowDown: cornerOf(false, left), ArrowLeft: cornerOf(top, true), ArrowRight: cornerOf(top, false) };
+  return (
+    <span
+      className={`${look} is-editable ${edit.tagPicked ? "is-picked" : ""} ${tag.shown ? "" : "is-hidden"} ${held ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+      role="button"
+      tabIndex={0}
+      aria-label="Stage tag"
+      aria-pressed={edit.tagPicked}
+      style={held ? { transform: `translate(${held.dx}px, ${held.dy}px)` } : undefined}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        // It keeps following a pointer that strays off it, and off the card.
+        e.currentTarget.setPointerCapture(e.pointerId);
+        e.currentTarget.focus({ preventScroll: true });
+        setHeld({ x: e.clientX, y: e.clientY, dx: 0, dy: 0 });
+      }}
+      onPointerMove={(e) => {
+        if (held) setHeld({ ...held, dx: e.clientX - held.x, dy: e.clientY - held.y });
+      }}
+      onPointerUp={(e) => {
+        if (!held) return;
+        if (Math.abs(held.dx) + Math.abs(held.dy) > TAG_DRAG_PX) {
+          const to = settled(e.currentTarget);
+          if (to && to !== tag.corner) edit.onMoveTag(to);
+        }
+        edit.onPickTag();
+        setHeld(null);
+      }}
+      onLostPointerCapture={() => setHeld(null)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          edit.onPickTag();
+          return;
+        }
+        const to = keyed[e.key];
+        if (!to) return;
+        e.preventDefault();
+        if (to !== tag.corner) edit.onMoveTag(to);
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 type Props = {
   /** The card's type: its fields, and how they're laid out on the card (`layout`). */
@@ -72,6 +159,10 @@ type Props = {
   subtitleStyle?: SubtitleStyle;
   /** Where a video's pictures are, for its metadata (`api.videoPictures`); left out, a video's metadata is words alone. */
   picturesOf?: (videoId: string) => VideoPictures | null;
+  /** A stage tag to draw in place of the type's own: one being laid out. */
+  tag?: StageTag;
+  /** Each sound and clip gets a key that plays it (`MEDIA_KEYS`), drawn on it: a review, and a card tried as one. */
+  shortcuts?: boolean;
 };
 
 /**
@@ -90,8 +181,28 @@ type Drawn = { part: LayoutPart; field: CardField; held: boolean };
  * keeps its room on the front, unseen, so turning the card moves nothing. What a press does is the caller's: a review
  * turns it once, a look at a card being made turns it back and forth. Never a second drawing of a card's two sides.
  */
-export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf, cues, subtitleStyle = DEFAULT_SUBTITLE_STYLE, picturesOf }: Props) {
+export function ReviewCard({
+  type,
+  values,
+  files,
+  srsType,
+  place,
+  revealed,
+  onPress,
+  srcOf,
+  standIns,
+  autoplay = false,
+  layout: given,
+  edit,
+  waveOf,
+  cues,
+  subtitleStyle = DEFAULT_SUBTITLE_STYLE,
+  picturesOf,
+  tag = type.tag,
+  shortcuts = false,
+}: Props) {
   const side: CardSide = revealed ? "back" : "front";
+  const card = useRef<HTMLDivElement>(null);
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
   /** The spoilers pressed open, and what has played by itself, while the card is showing; turned back to its front, it starts over. */
@@ -209,6 +320,15 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
     const kind = fileKindOf(field.kind, values[field.id] ?? "", files);
     return kind === "audio" || kind === "video";
   };
+  /** Each sound and clip's key, in the card's order across both sides, so turning the card changes none. */
+  const keyOf = new Map<string, string>();
+  if (shortcuts && !edit) {
+    for (const part of layout) {
+      const field = fields.get(part.fieldId);
+      const key = MEDIA_KEYS[keyOf.size];
+      if (field && key && playable(field)) keyOf.set(field.id, key);
+    }
+  }
 
   // What plays by itself: in the card's order, each once while the card shows, as it comes into view (a spoiler as
   // it's opened); one that leaves the card while it plays is done.
@@ -283,6 +403,8 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
             onCueEnd={() => finishCue(field.id)}
             waveOf={waveOf}
             over={file === "video" ? subtitlesOf(part, cues?.[value]) : null}
+            // Only while it's there to play: not under a spoiler, nor held unseen for the back.
+            shortcut={live ? (keyOf.get(field.id) ?? null) : null}
           />
         );
       }
@@ -420,8 +542,10 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
   const pressable = edit ? {} : { role: "button", tabIndex: 0, onClick: onPress, onKeyDown };
 
   return (
-    <div className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
-      <PlacePill type={srsType} place={place} className="review-place" />
+    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
+      <StageTagSpot tag={tag} edit={edit} card={card}>
+        <PlacePill type={srsType} place={place} />
+      </StageTagSpot>
       {blocks}
       <div className="review-hint">Tap to reveal</div>
     </div>
