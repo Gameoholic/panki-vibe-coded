@@ -297,6 +297,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           srcOf={sample ? api.mediaUrl : undefined}
           waveOf={waveOf}
           subtitleStyle={subtitleStyle}
+          picturesOf={api.videoPictures}
           autoplay={trying}
           {...(trying ? {} : { edit: { picked: part?.fieldId ?? null, onPick: setPicked, order: cardOrder } })}
         />

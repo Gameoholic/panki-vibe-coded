@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * A link to a YouTube video, as a field of that kind holds it: which video, and how far in it opens. Read out of an
  * address and written back as one, here, so a card never carries an address that was only pasted and trusted: what's
@@ -77,3 +79,13 @@ export function youtubeMetaOf(value: string): YouTubeMeta | null {
 export function youtubeMetaValue(meta: YouTubeMeta): string {
   return JSON.stringify({ url: youtubeUrl(meta.link), title: meta.title.trim().slice(0, TITLE_MAX), ...(meta.channel ? { channel: { name: meta.channel.name.trim().slice(0, NAME_MAX), url: meta.channel.url.trim() } } : {}) });
 }
+
+/**
+ * The pictures Panki keeps of a video, once, for everyone (the owner, 2026-10-18: the thumbnail, then "also save the
+ * channel's icon"): its thumbnail, and its channel's picture as it was when a card was made from it. Each is served at
+ * `/api/videos/:videoId/:picture`; a card's video metadata shows them.
+ */
+export const VideoPicture = z.enum(["thumbnail", "avatar"]);
+export type VideoPicture = z.infer<typeof VideoPicture>;
+/** Where the channel's picture is, as the video's page shows it: Panki fetches it from there, once. */
+export const AvatarBody = z.object({ url: z.string().min(1).max(2000) });

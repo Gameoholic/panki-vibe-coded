@@ -9,7 +9,8 @@ import { timedOut } from "./outbound";
  * they're used, a link to a file works for two hours, every list asked for and every file fetched counts against the
  * day's 500. They also say not to keep copies of the recordings; the owner, who pays for them and is their only
  * listener, decided Panki keeps each one it fetches as the account's file ("we are going to do caching"), which is
- * also what spares Forvo a request at every play.
+ * also what spares Forvo a request at every play; since 2026-10-18 it's kept once for everyone in the shared store
+ * ("cached globally, not per account"), and so is a word's list while its links last.
  *
  * The shape of its answer isn't documented, so it's read defensively: each recording is checked on its own, one that
  * doesn't fit is dropped, and its file is fetched only from Forvo's own addresses, whatever the answer says.
@@ -60,15 +61,18 @@ const voiceOf = (item: ForvoItem): ForvoVoice => ({ id: item.id, by: item.userna
  * every request made (a word's list, a file), for the count against the day's 500 that Forvo itself doesn't give.
  */
 export function createForvo(fetcher: typeof fetch = fetch, now: () => number = Date.now, onRequest: () => void = () => undefined) {
-  /** Each account's words' lists already asked for, oldest first, with when. The key is never part of what's kept. */
+  /**
+   * The words' lists already asked for, oldest first, with when: one for everyone, as the key is (the owner,
+   * 2026-10-18: "cached globally, not per account"; each account had its own until then, from when each had its own
+   * key). The key is never part of what's kept.
+   */
   const asked = new Map<string, { items: ForvoItem[]; at: number }>();
 
-  /** A word's recordings, the best rated first. `scope` keeps one account's lists from another's. */
-  async function itemsOf(key: string, scope: string, word: string): Promise<ForvoItem[]> {
-    const kept = `${scope}\n${word}`;
-    const known = asked.get(kept);
+  /** A word's recordings, the best rated first. */
+  async function itemsOf(key: string, word: string): Promise<ForvoItem[]> {
+    const known = asked.get(word);
     if (known && now() - known.at < LINKS_LAST_MS) return known.items;
-    asked.delete(kept);
+    asked.delete(word);
     let res: Response;
     onRequest();
     try {
@@ -92,7 +96,7 @@ export function createForvo(fetcher: typeof fetch = fetch, now: () => number = D
     });
     // Forvo puts the best rated first; liked by more, first, settles the rest.
     items.sort((a, b) => b.num_positive_votes - a.num_positive_votes);
-    asked.set(kept, { items, at: now() });
+    asked.set(word, { items, at: now() });
     for (const old of asked.keys()) {
       if (asked.size <= REMEMBERED) break;
       asked.delete(old);
@@ -101,12 +105,12 @@ export function createForvo(fetcher: typeof fetch = fetch, now: () => number = D
   }
 
   return {
-    async voices(key: string, scope: string, word: string): Promise<ForvoVoice[]> {
-      return (await itemsOf(key, scope, word)).map(voiceOf);
+    async voices(key: string, word: string): Promise<ForvoVoice[]> {
+      return (await itemsOf(key, word)).map(voiceOf);
     },
     /** One recording's file, found by its id among the word's: the address is Forvo's list's, never the asker's. */
-    async fetch(key: string, scope: string, word: string, id: number): Promise<Fetched> {
-      const item = (await itemsOf(key, scope, word)).find((i) => i.id === id);
+    async fetch(key: string, word: string, id: number): Promise<Fetched> {
+      const item = (await itemsOf(key, word)).find((i) => i.id === id);
       if (!item) throw new ForvoError("That recording isn't on Forvo any more.", 404);
       let res: Response;
       onRequest();

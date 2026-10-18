@@ -446,7 +446,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
       </div>
       {/* Each card its own: what was opened or played on the last one doesn't carry over. */}
-      <ReviewCard key={card.id} type={type} values={card.values} files={card.files} srsType={srsType} place={card.place} revealed={revealed} onPress={reveal} srcOf={api.mediaUrl} waveOf={waveOf} cues={card.cues} subtitleStyle={subtitleStyle} autoplay />
+      <ReviewCard key={card.id} type={type} values={card.values} files={card.files} srsType={srsType} place={card.place} revealed={revealed} onPress={reveal} srcOf={api.mediaUrl} waveOf={waveOf} cues={card.cues} subtitleStyle={subtitleStyle} picturesOf={api.videoPictures} autoplay />
 
       {failure ? (
         <p className="load-error" role="alert">

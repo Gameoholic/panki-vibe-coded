@@ -124,13 +124,23 @@ export const panki = {
   /** A transcript forgotten, a stretch of it or the whole, for everyone: transcribed afresh when a run passes it. */
   forgetTranscript: ({ address, token }: Door, videoId: string, forget: TranscriptForget): Promise<Transcript> =>
     call(address, token, `/api/transcripts/${id(videoId)}/forget`, json("POST", forget), (b) => TranscriptResponse.parse(b).transcript),
+  /** A video's thumbnail as Panki keeps it for everyone: asked of YouTube by Panki's server the first time. */
+  thumbnail: (door: Door, videoId: string): Promise<Blob> => bytesAt(door, `/api/videos/${id(videoId)}/thumbnail`),
+  /** The video's channel's picture, kept by Panki from where the page shows it (the first time; what's kept stands after). */
+  avatar: (door: Door, videoId: string, shown: string): Promise<Blob> =>
+    bytesAt(door, `/api/videos/${id(videoId)}/avatar`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: shown }) }),
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */
-async function bytesAt({ address, token }: Door, path: string): Promise<Blob> {
+async function bytesAt({ address, token }: Door, path: string, init: Init = {}): Promise<Blob> {
   let res: Response;
   try {
-    res = await fetch(`${address}${path}`, { credentials: "omit", headers: { authorization: `Bearer ${token}` } });
+    res = await fetch(`${address}${path}`, {
+      method: init.method ?? "GET",
+      credentials: "omit",
+      headers: { ...init.headers, authorization: `Bearer ${token}` },
+      ...(init.body === undefined ? {} : { body: init.body }),
+    });
   } catch {
     throw new PankiError("Couldn't reach Panki.", 0);
   }

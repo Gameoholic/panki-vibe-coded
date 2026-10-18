@@ -781,6 +781,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     "SELECT r.media_id AS mediaId FROM forvo_recordings r JOIN media m ON m.id = r.media_id WHERE r.forvo_id = ? AND m.removed_at IS NULL",
   );
   const insertForvoRecording = db.prepare("INSERT OR IGNORE INTO forvo_recordings (forvo_id, word, by, country, media_id, fetched_at) VALUES (?, ?, ?, ?, ?, ?)");
+  const selectForvoRecordings = db.prepare(
+    "SELECT r.forvo_id AS forvoId, r.word, r.by, r.country, r.media_id AS mediaId, r.fetched_at AS fetchedAt FROM forvo_recordings r JOIN media m ON m.id = r.media_id WHERE m.removed_at IS NULL",
+  );
 
   // The stats read over living decks, all of them or one: the answers given, the sittings, the cards.
   const scopeWhere = "d.removed_at IS NULL AND (? IS NULL OR d.id = ?)";
@@ -1330,6 +1333,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /** A Forvo recording, kept as the account's file (already a `media` row). */
     insertForvoRecording(recording: { forvoId: number; word: string; by: string; country: string; mediaId: string }, now: number): void {
       insertForvoRecording.run(recording.forvoId, recording.word, recording.by, recording.country, recording.mediaId, now);
+    },
+    /** Every Forvo recording the account keeps a file of: what's gathered into the shared store at startup. */
+    forvoRecordings(): { forvoId: number; word: string; by: string; country: string; mediaId: string; fetchedAt: number }[] {
+      return selectForvoRecordings.all() as { forvoId: number; word: string; by: string; country: string; mediaId: string; fetchedAt: number }[];
     },
     /** The ledger takes each event as it comes, stamped by the API's clock; the browser's own clock sits beside it. */
     insertEvents(events: readonly NewEvent[], who: { sessionId: string; device: string }, now: number): void {

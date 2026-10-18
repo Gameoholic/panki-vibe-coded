@@ -24,7 +24,7 @@ import type { useDragOrder } from "../hooks/useDragOrder";
 import { langOf } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-import { LinkView } from "./LinkView";
+import { LinkView, type VideoPictures } from "./LinkView";
 import type { Wave } from "./MediaLooks";
 import { MediaView } from "./MediaView";
 import { PitchAccents } from "./PitchAccent";
@@ -70,6 +70,8 @@ type Props = {
   cues?: Readonly<Record<string, MediaCues>>;
   /** How a clip's subtitles look (`LayoutPart.subtitles`): the app's own subtitle style; left out, the default. */
   subtitleStyle?: SubtitleStyle;
+  /** Where a video's pictures are, for its metadata (`api.videoPictures`); left out, a video's metadata is words alone. */
+  picturesOf?: (videoId: string) => VideoPictures | null;
 };
 
 /**
@@ -88,7 +90,7 @@ type Drawn = { part: LayoutPart; field: CardField; held: boolean };
  * keeps its room on the front, unseen, so turning the card moves nothing. What a press does is the caller's: a review
  * turns it once, a look at a card being made turns it back and forth. Never a second drawing of a card's two sides.
  */
-export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf, cues, subtitleStyle = DEFAULT_SUBTITLE_STYLE }: Props) {
+export function ReviewCard({ type, values, files, srsType, place, revealed, onPress, srcOf, standIns, autoplay = false, layout: given, edit, waveOf, cues, subtitleStyle = DEFAULT_SUBTITLE_STYLE, picturesOf }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
@@ -289,7 +291,7 @@ export function ReviewCard({ type, values, files, srsType, place, revealed, onPr
       if (!missingFile) {
         const meta = metaOf(field.kind, value);
         if (meta) {
-          const view = <LinkView meta={meta} label={field.name} />;
+          const view = <LinkView meta={meta} label={field.name} pictures={picturesOf?.(meta.link.videoId) ?? null} />;
           // Its name over it when the layout says so, as over any field's words.
           return part.label ? (
             <div className="review-words">

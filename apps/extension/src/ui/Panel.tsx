@@ -4,6 +4,7 @@ import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
+import type { VideoPictures } from "@web/components/LinkView";
 import { MediaView } from "@web/components/MediaView";
 import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
@@ -14,7 +15,7 @@ import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found, type Tag } from "../dictionary/found";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askDeck, askLookup, askOptions, askState, askUpload, askVoice, askVoices, type State } from "../messages";
+import { askAdd, askDeck, askLookup, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type State } from "../messages";
 import { bandOf } from "../popupKinds";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { uuid } from "../uuid";
@@ -89,6 +90,8 @@ export type Capture = {
   source: { url: string; title: string; startMs?: number; endMs?: number; channel?: { name: string; url: string } } | null;
   /** A link that opens the video at the moment the clip begins, for the field that takes one; empty where there's no video to open. */
   sourceLink: string;
+  /** The video it's from, for the pictures Panki keeps of it: its id, and where its page shows the channel's picture (null where it doesn't). */
+  video: { id: string; avatar: string | null } | null;
 };
 
 /**
@@ -287,6 +290,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [voiceId, setVoiceId] = useState<number | null>(null);
   /** That one, kept by Panki as a file: its id goes in the card's field, and it's heard here from its bytes. */
   const [heard, setHeard] = useState<{ mediaId: string; url: string } | { problem: string } | null>(null);
+  /** The video's pictures as Panki keeps them, shown on the card's video metadata from their bytes. */
+  const [pictures, setPictures] = useState<{ videoId: string; shown: VideoPictures } | null>(null);
   const frame = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -453,6 +458,33 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     },
     [heard],
   );
+  // The video's pictures, when the deck keeps its metadata: Panki keeps them for everyone as the card is made (so
+  // they're there once the video is gone), and the card here shows them from their bytes.
+  const pictured = fieldOf("source") && capture.video ? capture.video : null;
+  const picturedId = pictured?.id ?? null;
+  const picturedAvatar = pictured?.avatar ?? null;
+  useEffect(() => {
+    if (picturedId === null) {
+      setPictures(null);
+      return;
+    }
+    let alive = true;
+    const made: string[] = [];
+    void askPictures(picturedId, picturedAvatar).then((answer) => {
+      if (!alive || !answer.ok) return;
+      const urlOf = (picture: { mime: string; base64: string } | null) => {
+        if (!picture) return null;
+        const url = URL.createObjectURL(blobOf(picture.base64, picture.mime));
+        made.push(url);
+        return url;
+      };
+      setPictures({ videoId: picturedId, shown: { thumbnail: urlOf(answer.thumbnail), avatar: urlOf(answer.avatar) } });
+    });
+    return () => {
+      alive = false;
+      for (const url of made) URL.revokeObjectURL(url);
+    };
+  }, [picturedId, picturedAvatar]);
   const said = word.trim();
   /** Where the word is in the sentence: the stretch that's lit. */
   const lit = said === "" ? null : whereIs(sentence, said, near);
@@ -936,6 +968,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
                 onPress={() => setTurned((on) => !on)}
                 standIns={standIns}
                 subtitleStyle={state.subtitleStyle}
+                picturesOf={(id) => (pictures?.videoId === id ? pictures.shown : null)}
               />
             </div>
           </div>

@@ -53,6 +53,7 @@ import {
   type TranscriptionStatus,
   type TranscriptionUpdate,
 } from "@panki/contracts";
+import type { VideoPictures } from "./components/LinkView";
 
 /** Who is signed in and on which devices, as `GET /api/me` answers. */
 export type Me = ReturnType<typeof MeResponse.parse>;
@@ -193,6 +194,11 @@ export const api = {
     request(mediaPath(mediaId), { method: "PUT", headers: { "content-type": mime }, body: file }, (b) => MediaResponse.parse(b).media),
   /** Where a file's bytes are, for an `<img>`, an `<audio>` or a `<video>` to fetch by itself; the sign-in rides along. */
   mediaUrl: mediaPath,
+  /** Where a video's pictures are, as Panki keeps them for everyone: its thumbnail, and its channel's picture. */
+  videoPictures: (videoId: string): VideoPictures => ({
+    thumbnail: `/api/videos/${encodeURIComponent(videoId)}/thumbnail`,
+    avatar: `/api/videos/${encodeURIComponent(videoId)}/avatar`,
+  }),
   /** Answers a card in a review; the API decides where it goes and when it comes back. */
   answerCard: (deckId: string, cardId: string, answer: CardAnswer): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/answers`, send("POST", answer), (b) => CardResponse.parse(b).card),

@@ -6,7 +6,7 @@ import type { Capture } from "../ui/Panel";
  * kept as a source (a file opened from the disk has none worth keeping). A page that is a video's own is a link to
  * that video as well, for the field that takes one.
  */
-export function pageSource(): Pick<Capture, "source" | "sourceLink"> {
+export function pageSource(): Pick<Capture, "source" | "sourceLink" | "video"> {
   const url = location.href;
   const title = document.title.trim();
   const onTheWeb = /^https?:\/\//i.test(url) && url.length <= 2000;
@@ -15,5 +15,6 @@ export function pageSource(): Pick<Capture, "source" | "sourceLink"> {
     source: onTheWeb ? { url, title: title.slice(0, 300) } : null,
     // A video's own page gives the title and the channel too (`content/youtube.tsx` → `videoSource`); from any other page only the link is known.
     sourceLink: video ? youtubeMetaValue({ link: video, title: "", channel: null }) : "",
+    video: video ? { id: video.videoId, avatar: null } : null,
   };
 }

@@ -50,8 +50,14 @@ const BESIDE_PLAYER = "ytd-watch-flexy #secondary";
 const BESIDE_MIN = 300;
 /** The player's own seek bar: the whole video from its left end to its right. The clip is marked on it. */
 const SEEK_BAR = "#movie_player .ytp-progress-bar";
-/** The link to the channel the video is on, under the player, its words the channel's name. (The channel's box was named here too, and came first, so the link was never found, 2026-10-18.) */
+/**
+ * The links to the channel the video is on, under the player; the one with words is its name. The channel's picture
+ * is a link to it too, and comes first, with no words: the first link found was taken, its words were none, and every
+ * card lost its channel until the first with words was taken instead (2026-10-18).
+ */
 const CHANNEL_NAME = "ytd-watch-flexy #owner ytd-channel-name a[href], ytd-watch-flexy ytd-video-owner-renderer a[href]";
+/** The channel's picture beside its name, under the player: Panki keeps it with the card's video (`askPictures`). */
+const CHANNEL_PICTURE = "ytd-watch-flexy #owner #avatar img, ytd-watch-flexy ytd-video-owner-renderer #avatar img";
 
 /** A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a touch early. */
 const LEAD = 0.35;
@@ -445,7 +451,7 @@ function restAt(to: number, lowest: number, highest: number, stops: readonly num
 }
 
 /** Where a sentence came from: the video, and the second it began, as an address that opens there. */
-function videoSource(start: number, end: number | null): Pick<Capture, "source" | "sourceLink"> {
+function videoSource(start: number, end: number | null): Pick<Capture, "source" | "sourceLink" | "video"> {
   const id = videoId();
   if (!id) return pageSource();
   const url = youtubeUrl({ videoId: id, seconds: Math.floor(start) });
@@ -454,14 +460,17 @@ function videoSource(start: number, end: number | null): Pick<Capture, "source" 
     .replace(/\s*-\s*YouTube$/, "")
     .trim();
   // Whose the video is, read off the page as it's shown: the channel's name and where it links; none when the site has moved it.
-  const owner = document.querySelector(CHANNEL_NAME);
+  const owner = [...document.querySelectorAll(CHANNEL_NAME)].find((a) => a instanceof HTMLAnchorElement && (a.textContent?.trim() ?? "") !== "");
   const name = owner?.textContent?.trim().slice(0, 100) ?? "";
   const link = owner instanceof HTMLAnchorElement && /^https?:\/\//i.test(owner.href) ? owner.href.slice(0, 2000) : "";
   const channel = name && link ? { name, url: link } : null;
+  const picture = document.querySelector(CHANNEL_PICTURE);
+  const avatar = picture instanceof HTMLImageElement && /^https:\/\//i.test(picture.src) ? picture.src.slice(0, 2000) : null;
   return {
     source: { url, title: title.slice(0, 300), startMs: Math.round(start * 1000), ...(end === null ? {} : { endMs: Math.round(end * 1000) }), ...(channel ? { channel } : {}) },
     // The field that takes the video's metadata gets all of it as one value: the link at the clip's start, the title, the channel.
     sourceLink: youtubeMetaValue({ link: { videoId: id, seconds: Math.floor(start) }, title, channel }),
+    video: { id, avatar },
   };
 }
 

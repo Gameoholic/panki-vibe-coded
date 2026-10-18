@@ -20,6 +20,8 @@ const LOOKUP_MAX = 64;
 const LATTICE_MAX = 600;
 /** A recording of a word is a few dozen kilobytes; this is far more than any, as text. */
 const RECORDING_MAX = 3_000_000;
+/** A video's thumbnail or its channel's picture, as text: a few dozen kilobytes; Panki keeps none over a megabyte. */
+const PICTURE_BASE64_MAX = 1_400_000;
 /** A piece of a video's sound on its way to the background, as text: a third more than the file itself may weigh. */
 const PIECE_BASE64_MAX = Math.ceil((PIECE_MAX_BYTES * 4) / 3) + 4;
 
@@ -69,6 +71,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("prefs"), prefs: TranscribePrefs.partial() }),
   /** Where the words under a video come from, as picked in the line: kept for the next video. */
   z.object({ kind: z.literal("subtitles"), source: z.string().max(40) }),
+  /** A video's pictures, kept by Panki for everyone as a card is made from it, and their bytes to show on the card here: its thumbnail, and its channel's picture from where the page shows it (null when it shows none). */
+  z.object({ kind: z.literal("pictures"), videoId: VideoId, avatar: z.string().max(2000).nullable() }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -101,6 +105,11 @@ const Voiced = z.union([z.object({ ok: z.literal(true), voices: z.array(ForvoVoi
 const Heard = z.union([z.object({ ok: z.literal(true), mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(RECORDING_MAX) }), Failed]);
 export type Voiced = z.infer<typeof Voiced>;
 export type Heard = z.infer<typeof Heard>;
+/** A picture's bytes, as text, and what it is. */
+const Pic = z.object({ mime: z.string().max(100), base64: z.string().max(PICTURE_BASE64_MAX) });
+/** A video's pictures as Panki keeps them; each null when there's none. */
+const Pictured = z.union([z.object({ ok: z.literal(true), thumbnail: Pic.nullable(), avatar: Pic.nullable() }), Failed]);
+export type Pictured = z.infer<typeof Pictured>;
 const State = z.union([
   z.object({
     ok: z.literal(true),
@@ -186,6 +195,11 @@ export async function askVoices(word: string): Promise<Voiced> {
 }
 export async function askVoice(word: string, id: number): Promise<Heard> {
   const answer = Heard.safeParse(await ask({ kind: "voice", word: word.slice(0, FORVO_WORD_MAX), id }));
+  return answer.success ? answer.data : failed();
+}
+/** A video's pictures, kept by Panki as a card is made from it, to show on the card in the drawer. */
+export async function askPictures(videoId: string, avatar: string | null): Promise<Pictured> {
+  const answer = Pictured.safeParse(await ask({ kind: "pictures", videoId, avatar: avatar === null ? null : avatar.slice(0, 2000) }));
   return answer.success ? answer.data : failed();
 }
 export async function askTranscript(videoId: string): Promise<Transcripted> {

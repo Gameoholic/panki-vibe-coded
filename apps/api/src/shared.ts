@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -14,15 +14,19 @@ import {
   type TranscriptWord,
   type TranscriptionUpdate,
   type User,
+  type VideoPicture,
   type WordAudioSourceId,
   type WordAudioUpdate,
 } from "@panki/contracts";
 import type { AuthDb } from "./authDb";
 import type { Db } from "./db";
 import { userDir } from "./dbs";
-import { dictionaryDir, removeFile, sharedDictionaryDir } from "./mediaFiles";
+import { dictionaryDir, mediaDir, removeFile, sharedDictionaryDir } from "./mediaFiles";
 
 export type Shared = ReturnType<typeof openShared>;
+
+/** A Forvo recording as everyone's copy of it is kept: who said which word, from where, and its bytes (an mp3). */
+export type SharedRecording = { word: string; by: string; country: string; mime: string; bytes: Buffer };
 
 /** What a key is for: a source of word audio (Forvo), or one of the transcription engines. */
 export type Service = WordAudioSourceId | EngineId;
@@ -242,6 +246,40 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     `);
     db.exec("CREATE INDEX transcript_forgets_video_id ON transcript_forgets (video_id)");
   },
+  (db) => {
+    // A video's pictures, kept once each for everyone (2026-10-18): its thumbnail and its channel's picture, which a
+    // card's video metadata shows, and which stay when the video or the channel is gone. A few kilobytes each, so they're
+    // kept in here, and go into every backup with the rest. Where each was fetched from, who asked first and when are
+    // kept with it; it's never changed or removed.
+    db.exec(`
+      CREATE TABLE video_pictures (
+        video_id TEXT NOT NULL,
+        picture TEXT NOT NULL CHECK (picture IN ('thumbnail', 'avatar')),
+        mime TEXT NOT NULL,
+        bytes BLOB NOT NULL,
+        source TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        fetched_at INTEGER NOT NULL,
+        PRIMARY KEY (video_id, picture)
+      )
+    `);
+    // Forvo's recordings, kept once for everyone (the owner, the same day: "I want Forvo… cached globally, not per
+    // account"): the first account to pick one fetches it from Forvo, and every account after gets a copy of these
+    // bytes as its own card's file, with no request to Forvo. Each account's own files stay its own, as its cards name
+    // them; those it held before are gathered in here at startup (`gatherShared`). A few dozen kilobytes each.
+    db.exec(`
+      CREATE TABLE forvo_recordings (
+        forvo_id INTEGER PRIMARY KEY,
+        word TEXT NOT NULL,
+        by TEXT NOT NULL,
+        country TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        bytes BLOB NOT NULL,
+        user_id TEXT NOT NULL,
+        fetched_at INTEGER NOT NULL
+      )
+    `);
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -360,6 +398,11 @@ export function openShared(dataDir: string) {
   const insertWord = db.prepare("INSERT INTO transcript_words (video_id, piece_id, text, start_ms, end_ms, removed_at) VALUES (?, ?, ?, ?, ?, ?)");
   const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, user_id, at) VALUES (?, ?, ?, ?, ?)");
   const sumPieces = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces");
+  const selectPicture = db.prepare("SELECT mime, bytes FROM video_pictures WHERE video_id = ? AND picture = ?");
+  const insertPicture = db.prepare("INSERT OR IGNORE INTO video_pictures (video_id, picture, mime, bytes, source, user_id, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const selectForvoRecording = db.prepare("SELECT word, by, country, mime, bytes FROM forvo_recordings WHERE forvo_id = ?");
+  const hasForvoRecording = db.prepare("SELECT 1 FROM forvo_recordings WHERE forvo_id = ?");
+  const insertForvoRecording = db.prepare("INSERT OR IGNORE INTO forvo_recordings (forvo_id, word, by, country, mime, bytes, user_id, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
   /**
    * One group of the shared settings (how transcribing runs, where word audio comes from), each read over its defaults
@@ -415,6 +458,29 @@ export function openShared(dataDir: string) {
     /** How many requests went to a service since a moment. */
     callsSince(service: Service, since: number): number {
       return (countCalls.get(service, since) as { n: number }).n;
+    },
+
+    /** One of a video's pictures as it was kept; null when it hasn't been yet. */
+    picture(videoId: string, picture: VideoPicture): { mime: string; bytes: Buffer } | null {
+      const row = selectPicture.get(videoId, picture) as { mime: string; bytes: Uint8Array } | undefined;
+      return row ? { mime: row.mime, bytes: Buffer.from(row.bytes) } : null;
+    },
+    /** Keeps one of a video's pictures, once: the first kept stays, whoever asks after. `source` is where it was fetched from. */
+    keepPicture(videoId: string, picture: VideoPicture, kept: { mime: string; bytes: Buffer }, source: string, now: number, userId: string): void {
+      insertPicture.run(videoId, picture, kept.mime, kept.bytes, source, userId, now);
+    },
+
+    /** A Forvo recording as it was kept for everyone; null when nobody has picked it yet. */
+    forvoRecording(forvoId: number): SharedRecording | null {
+      const row = selectForvoRecording.get(forvoId) as (Omit<SharedRecording, "bytes"> & { bytes: Uint8Array }) | undefined;
+      return row ? { ...row, bytes: Buffer.from(row.bytes) } : null;
+    },
+    hasForvoRecording(forvoId: number): boolean {
+      return hasForvoRecording.get(forvoId) !== undefined;
+    },
+    /** Keeps a Forvo recording for everyone, once: the first kept stays. */
+    keepForvoRecording(forvoId: number, recording: SharedRecording, userId: string, now: number): void {
+      insertForvoRecording.run(forvoId, recording.word, recording.by, recording.country, recording.mime, recording.bytes, userId, now);
     },
 
     /** The dictionaries kept on Panki, oldest first. */
@@ -591,6 +657,7 @@ export function gatherShared(shared: Shared, dataDir: string, auth: AuthDb, dbFo
       const db = dbFor(user.id);
       gatherForvoKey(shared, db, user, now);
       gatherDictionaries(shared, db, dictionaryDir(userDir(dataDir, user.id)), toDir, user, now);
+      gatherForvoRecordings(shared, db, mediaDir(userDir(dataDir, user.id)), user);
     } catch (e) {
       console.error(`Couldn't move what ${user.name} held into the shared store; the API starts without it.`, e);
     }
@@ -611,6 +678,24 @@ function gatherForvoKey(shared: Shared, db: Db, user: User, now: () => number): 
   if (kept === null) shared.setKey("forvo", own, now(), user.id);
   db.takeForvoKey(now());
   console.log(`Moved ${user.name}'s Forvo key to the shared store.`);
+}
+
+/**
+ * Each Forvo recording the account kept a file of before they were everyone's, copied into the shared store when it
+ * isn't there yet: the account's file stays, since its cards name it. Read from the disk as it is; one whose file is
+ * missing is passed over.
+ */
+function gatherForvoRecordings(shared: Shared, db: Db, fromDir: string, user: User): void {
+  let gathered = 0;
+  for (const recording of db.forvoRecordings()) {
+    if (shared.hasForvoRecording(recording.forvoId)) continue;
+    const file = path.join(fromDir, recording.mediaId);
+    if (!existsSync(file)) continue;
+    const { forvoId, mediaId: _file, fetchedAt, ...said } = recording;
+    shared.keepForvoRecording(forvoId, { ...said, mime: "audio/mpeg", bytes: readFileSync(file) }, user.id, fetchedAt);
+    gathered++;
+  }
+  if (gathered > 0) console.log(`Copied ${gathered} of ${user.name}'s Forvo recordings to the shared store.`);
 }
 
 /** Each unmoved dictionary: its zip into the shared folder and its row into the shared store, or let go when the owner has it already. */
