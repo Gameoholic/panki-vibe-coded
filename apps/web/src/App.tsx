@@ -409,12 +409,23 @@ export function App() {
     go({ kind: "decks" });
   }
 
-  async function saveType(data: NewCardType) {
-    if (screen.kind !== "type") return;
-    if (screen.type) await api.updateType(screen.type.id, { name: data.name, fields: data.fields });
-    else await api.addType(data);
-    go({ kind: "types" });
-  }
+  /**
+   * A card type's name and fields, saved, and the type stays open: the layout goes along as it is. A new one is made by
+   * its first Save and becomes the type itself, at its own address, with its Layout tab.
+   */
+  const saveType = useCallback(async (data: NewCardType, isNew: boolean) => {
+    if (!isNew) {
+      const saved = await api.updateType(data.id, { name: data.name, fields: data.fields });
+      setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
+      setScreen((s) => (s.kind === "type" && s.type?.id === saved.id ? { ...s, type: saved } : s));
+      return saved;
+    }
+    const saved = await api.addType(data);
+    setTypes((prev) => [...(prev ?? []).filter((t) => t.id !== saved.id), saved]);
+    setScreen((s) => (s.kind === "type" && s.type === null ? { kind: "type", type: saved, tab: "fields" } : s));
+    window.history.replaceState(null, "", routePath({ kind: "type", id: saved.id, tab: "fields" }));
+    return saved;
+  }, []);
 
   /** A card type's layout, saved: the fields go along as they are, so only the layout (and the sides it gives them) changes. */
   const saveLayout = useCallback(async (type: CardType, layout: CardLayout) => {
@@ -426,7 +437,8 @@ export function App() {
 
   async function removeType(type: CardType) {
     await api.removeType(type.id);
-    go({ kind: "types" });
+    // Deleted on purpose: what was changed in it but not saved goes with it, unasked.
+    go({ kind: "types" }, true);
   }
 
   /** A new SRS type starts as a copy of another, or empty, on the screen only: nothing is sent until its first Save. */
@@ -587,8 +599,8 @@ export function App() {
         return {
           back: { label: "Card types", to: { kind: "types" } },
           title: at.type ? at.type.name : "New card type",
-          // The layout is saved on purpose, from up here, as the SRS editor is; the fields keep their own Save.
-          action: at.type && at.tab === "layout" ? saveAction("layout") : undefined,
+          // Both tabs are saved on purpose, from up here, as the SRS editor is.
+          action: at.type && at.tab === "layout" ? saveAction("layout") : saveAction("type"),
         };
       case "srs":
         return {
@@ -781,11 +793,11 @@ export function App() {
                 />
               )
             ) : (
-              <TypeView key={type.id} type={type} onSave={saveType} onRemove={() => removeType(type)} />
+              <TypeView key={type.id} type={type} onSave={saveType} onRemove={() => removeType(type)} onStatus={setEditStatus} onGuard={setGuard} />
             )}
           </>
         ) : (
-          <TypeView key="new" type={null} onSave={saveType} onRemove={() => Promise.resolve()} />
+          <TypeView key="new" type={null} onSave={saveType} onRemove={() => Promise.resolve()} onStatus={setEditStatus} onGuard={setGuard} />
         );
         break;
       }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NewCardType, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -8,7 +8,9 @@ import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { FIELD_KIND_OPTIONS } from "../fieldKinds";
+import type { UnsavedGuard } from "../unsaved";
 import { count } from "../words";
+import type { SaveStatus } from "./SrsTypeView";
 
 /** What a field says when it's wrong. One home. */
 const MESSAGES = {
@@ -25,23 +27,37 @@ function nameInputId(fieldId: string) {
 type Props = {
   /** The type being edited, or `null` to make a new one. */
   type: CardType | null;
-  onSave: (type: NewCardTypeShape) => Promise<void>;
+  onSave: (type: NewCardTypeShape, isNew: boolean) => Promise<CardType>;
   onRemove: () => Promise<void>;
+  /** Tells the header whether what's on screen is saved, and whether Save can be pressed. */
+  onStatus: (status: SaveStatus) => void;
+  /** Hands the app what it needs to ask before unsaved work is left, while there is some. */
+  onGuard: (guard: UnsavedGuard | null) => void;
 };
+
+/** What's compared to say whether there are unsaved changes. */
+const shapeOf = (name: string, fields: readonly CardField[]) => JSON.stringify({ name, fields });
 
 /**
  * A card type's fields: its name and its fields, each with a kind and whether it's required, in the order a form asks
  * for them; delete at the bottom, only when no deck uses it. Where each field stands on the card, front or back, and
- * how it looks is the type's Layout (`LayoutView`): a field added here starts on the back, under the rest.
+ * how it looks is the type's Layout (`LayoutView`): a field added here starts on the back, under the rest. Saved as
+ * the Layout and the SRS editor are, by Save in the header beside whether it's saved (the owner, 2026-10-18: "it
+ * should be uniform"; a Save of its own at the bottom, which went back to the list, came first); leaving with unsaved
+ * changes asks first. A new type is made by its first Save, and stays open with its Layout.
  */
-export function TypeView({ type, onSave, onRemove }: Props) {
+export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [id] = useState(() => type?.id ?? crypto.randomUUID());
   const [name, setName] = useState(type?.name ?? "");
   // A new type starts with one field on the front, because a card needs something there.
   const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true }]);
+  /** What's saved, to tell changes by; a new type's is how it starts, so an untouched one has nothing to lose. */
+  const [saved, setSaved] = useState(() => shapeOf(name, fields));
+  const [isNew, setIsNew] = useState(type === null);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -51,6 +67,32 @@ export function TypeView({ type, onSave, onRemove }: Props) {
     document.getElementById(nameInputId(focusId))?.focus();
     setFocusId(null);
   }, [focusId]);
+
+  const dirty = shapeOf(name, fields) !== saved;
+  // A new type isn't saved until its first Save, touched or not.
+  const state: SaveStatus["state"] = saving ? "saving" : failure ? "failed" : dirty || isNew ? "unsaved" : "saved";
+  const shownName = name.trim() || "New card type";
+
+  // While there's unsaved work, leaving asks first: the app's own question for its screens, and the browser's for a
+  // reload or a closed tab.
+  const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
+  useEffect(() => {
+    onGuard(dirty ? { name: shownName, save: () => saveRef.current() } : null);
+  }, [dirty, shownName, onGuard]);
+  useEffect(() => () => onGuard(null), [onGuard]);
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [dirty]);
+  // Save can be pressed with something wrong in it: pressing it says what, in each field's own words.
+  useEffect(() => {
+    onStatus({ name: shownName, state, canSave: (dirty || isNew) && !saving });
+  }, [shownName, state, dirty, isNew, saving, onStatus]);
 
   function edit(fieldId: string, patch: Partial<CardField>) {
     setFields((prev) => prev.map((f) => (f.id === fieldId ? { ...f, ...patch } : f)));
@@ -81,7 +123,9 @@ export function TypeView({ type, onSave, onRemove }: Props) {
     setFocusId(field.id);
   }
 
-  async function submit() {
+  /** Save: what's on screen becomes the type. Says whether it did. */
+  async function save(): Promise<boolean> {
+    if (saving) return false;
     const parsed = NewCardType.safeParse({ id, name, fields });
     if (!parsed.success) {
       let nameProblem: string | undefined;
@@ -103,17 +147,23 @@ export function TypeView({ type, onSave, onRemove }: Props) {
         const firstWrong = fields.find((f) => fieldProblems[f.id]);
         if (firstWrong) setFocusId(firstWrong.id);
       }
-      return;
+      return false;
     }
-    setBusy(true);
+    setSaving(true);
     setFailure(null);
     try {
-      await onSave(parsed.data);
+      await onSave(parsed.data, isNew);
+      setSaved(shapeOf(name, fields));
+      setIsNew(false);
+      return true;
     } catch (e) {
       setFailure(e instanceof Error ? e.message : "Something went wrong.");
-      setBusy(false);
+      return false;
+    } finally {
+      setSaving(false);
     }
   }
+  saveRef.current = save;
 
   async function remove() {
     setBusy(true);
@@ -128,7 +178,7 @@ export function TypeView({ type, onSave, onRemove }: Props) {
 
   return (
     <>
-      <Form onSubmit={submit} className="type-form">
+      <Form onSubmit={() => void save()} className="type-form">
         <section className="panel" aria-labelledby="type-name-title">
           <h2 id="type-name-title" className="panel-title">
             Name
@@ -190,16 +240,11 @@ export function TypeView({ type, onSave, onRemove }: Props) {
           </div>
         </section>
 
-        <div className="add-actions">
-          {failure ? (
-            <span className="form-failure" role="alert">
-              {failure}
-            </span>
-          ) : null}
-          <Button id="type-save" type="submit" variant="primary" disabled={busy}>
-            {busy ? "Saving…" : type ? "Save" : "Create type"}
-          </Button>
-        </div>
+        {failure ? (
+          <p className="form-failure" role="alert">
+            {failure}
+          </p>
+        ) : null}
       </Form>
 
       {type ? (
