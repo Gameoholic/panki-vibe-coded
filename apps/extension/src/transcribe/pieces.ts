@@ -16,7 +16,8 @@
  * Time here is the video's own: the player runs faster than the video, so the sound it makes is taken at a lower
  * rate than the sound card's (`rate`: the card's rate divided by the speed), which is what makes the engine hear the
  * voice at its own pace. Nothing here knows about the page or the player; it's told the video's time at each anchor
- * and counts samples from there.
+ * and counts samples from there, block by block: a piece's start and end are read off the block they fall in, so the
+ * count's drift from the player's clock never runs on from one piece to the next (`blocks`).
  */
 
 /**
@@ -175,6 +176,25 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
   let length = 0;
   /** The video's moment of the open piece's first sample; null while the piece is empty. */
   let pieceStart: number | null = null;
+  /**
+   * Where each block pushed into the open piece begins (its first sample's place in the piece) and the video's moment
+   * it was pushed at, as the last anchor put it. A moment in the piece is read off the block it falls in
+   * (`timeOfSample`), never counted on from the piece's start: the count of samples drifts from the video's own clock
+   * (a little, steadily, at speed), and the player's clock is what the anchors follow. Until 2026-10-19 a piece's start
+   * and end were counted on from the one before, every piece of a run carrying the last one's error on, so the words
+   * came ever earlier than they were said, by a second or two at the end of a twenty-minute video (the owner: "the
+   * subtitles are ahead of the audio… this gap keeps growing throughout the video").
+   */
+  let blocks: { sample: number; time: number }[] = [];
+  /** The video's moment of a sample of the open piece, read off the block it falls in. */
+  function timeOfSample(sample: number): number {
+    let block = blocks[0];
+    for (const b of blocks) {
+      if (b.sample > sample) break;
+      block = b;
+    }
+    return block ? block.time + (sample - block.sample) / rate : (pieceStart ?? 0) + sample / rate;
+  }
   /** The video's moment of the next sample pushed; null while suspended. */
   let next: number | null = null;
   /** The least a piece is before a silence closes it: the same for every piece. */
@@ -216,11 +236,13 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     chunks = [joined];
     return joined;
   }
-  /** Keeps only the samples from `fromSample` on (and the frames with them); the piece now begins there. */
+  /** Keeps only the samples from `fromSample` on (and the frames with them); the piece now begins there, at the moment its block puts it. */
   function keepFrom(fromSample: number) {
     const samples = all();
-    const kept = samples.slice(Math.min(fromSample, samples.length));
-    if (pieceStart !== null) pieceStart += Math.min(fromSample, samples.length) / rate;
+    const from = Math.min(fromSample, samples.length);
+    const kept = samples.slice(from);
+    if (pieceStart !== null) pieceStart = timeOfSample(from);
+    blocks = [{ sample: 0, time: pieceStart ?? 0 }, ...blocks.filter((b) => b.sample > from).map((b) => ({ sample: b.sample - from, time: b.time }))];
     chunks = kept.length > 0 ? [kept] : [];
     length = kept.length;
     const fromFrame = Math.floor(fromSample / frameLen);
@@ -228,6 +250,7 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     voice = voice.slice(fromFrame);
     if (length === 0) {
       pieceStart = null;
+      blocks = [];
       partialSum = 0;
       partialN = 0;
     }
@@ -239,7 +262,7 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     const end = Math.min(upToSample, samples.length);
     const soundMs = Math.round(pieceStart * 1000);
     const startMs = Math.min(soundMs, Math.round((heardFrom ?? pieceStart) * 1000));
-    emit({ startMs, soundMs, endMs: soundMs + Math.round((end / rate) * 1000), wav: pieceWav(samples.slice(0, end), rate) });
+    emit({ startMs, soundMs, endMs: Math.max(soundMs, Math.round(timeOfSample(end) * 1000)), wav: pieceWav(samples.slice(0, end), rate) });
     keepFrom(Math.max(0, Math.min(keepFromSample, samples.length)));
     // What's kept on is heard from where it now begins; nothing before that is left untold of.
     heardFrom = pieceStart;
@@ -315,10 +338,12 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
       if (next === null || samples.length === 0) return;
       if (pieceStart === null) {
         pieceStart = next;
+        blocks = [];
         if (heardFrom === null) heardFrom = next;
         partialSum = 0;
         partialN = 0;
       }
+      blocks.push({ sample: length, time: next });
       next += samples.length / rate;
       heardTo = next;
       chunks.push(samples);
