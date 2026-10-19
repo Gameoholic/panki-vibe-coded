@@ -126,8 +126,6 @@ const State = z.union([
     decksOn: z.array(z.string()),
     /** The deck the drawer opens on; null until one has been chosen. */
     defaultDeckId: DeckId.nullable(),
-    /** The options page's setting: whether a clip's end snaps to the edges of words as it's pulled. */
-    clipToWords: z.boolean(),
     /** How the account's card clips show their subtitles (Panki's Settings): the card previewed here shows them so too. */
     subtitleStyle: SubtitleStyle,
   }),

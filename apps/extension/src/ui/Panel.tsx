@@ -721,7 +721,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           end={offer.end}
           limit={offer.limit}
           ticks={offer.ticks}
-          toWords={loaded?.clipToWords ?? false}
           disabled={off}
           anchor={offer.anchor}
           within={offer.within}

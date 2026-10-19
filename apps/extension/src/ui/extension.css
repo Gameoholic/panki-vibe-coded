@@ -638,16 +638,47 @@
 .seek-card.is-now {
   box-shadow: 0 0 8px var(--cards-colour);
 }
+/* The card the pointer is drawn to, with snapping on (the owner, 2026-10-19): its mark ringed and glowing, and a
+   hairline through the bar where the video goes if it's let go now, the card's own moment. */
+.seek-card.is-magnet {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--cards-colour) 45%, transparent),
+    0 0 10px var(--cards-colour);
+}
+.seek-snap {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--cards-colour);
+  box-shadow: 0 0 6px var(--cards-colour);
+  pointer-events: none;
+}
 /* A card's words on a pin over its mark (the owner, 2026-10-19: "show the actual word for the orange bits… something
    that looks cool and non-average"): a small glass tag on the picture, edged in the cards' colour, a hairline stem
-   down to its mark, one lane over another where they'd touch (SeekMark → PIN). As the pointer comes onto the bar they
-   rise in a ripple from left to right, each a beat after the one before, with a little overshoot, grown from the foot
-   of their stem; they drop away at once as it leaves. The card the video is at rises by itself, filled with the
-   cards' colour and glowing faintly; the pin under the pointer lifts. */
+   down to its mark, one lane over another where they'd touch (SeekMark → PIN). They come in as the viewer's entrance
+   says (`.is-sprout`, `.is-flap`, `.is-fade`, `.is-none`, from seekLook.ts → PinEntrance), each a beat after the one
+   to its left, and drop away at once as the pointer leaves. The card the video is at rises by itself, filled with the
+   cards' colour and glowing faintly; the pin under the pointer lifts.
+
+   How long each takes is written here once, as variables on `.seek-pins` (the owner, 2026-10-19, the first try being
+   so quick it read as no animation at all: "the animations are like 0.05 seconds long"): the times are the preview
+   page's at real speed, where the owner picked Sprout. */
 .seek-pins {
+  --pin-out: 0.14s;
+  --sprout-grow: 0.55s;
+  --sprout-step: 50ms;
+  --flap-turn: 0.55s;
+  --flap-step: 80ms;
+  --pin-fade-in: 0.35s;
+  --sprout-ease: cubic-bezier(0.25, 1.35, 0.45, 1);
+  --flap-ease: cubic-bezier(0.3, 1.45, 0.5, 1);
   position: absolute;
   inset: 0;
   pointer-events: none;
+  perspective: 500px;
 }
 .btn.btn-ghost.seek-pin {
   position: absolute;
@@ -670,11 +701,10 @@
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(8px) scale(0.85);
   transform-origin: var(--x) 100%;
   transition:
-    opacity 0.14s ease,
-    transform 0.28s cubic-bezier(0.2, 1.5, 0.4, 1),
+    opacity var(--pin-out) ease,
+    transform var(--pin-out) ease,
     background 0.15s ease,
     border-color 0.15s ease;
 }
@@ -682,42 +712,101 @@
   opacity: 1;
   transform: none;
   pointer-events: auto;
-  transition-delay: calc(min(var(--i), 12) * 22ms);
 }
 .seek-pin-words {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 /* The stem, from the pin down to its mark on the line, the cards' colour fading up into the pin. */
-.btn.seek-pin::after {
-  content: "";
+.seek-stem {
   position: absolute;
-  top: 100%;
-  left: calc(var(--x) - 0.5px);
+  left: var(--at);
+  bottom: calc(100% + 3.5px);
   width: 1px;
+  margin-left: -0.5px;
   height: calc(8.5px + var(--lane) * 26px);
   background: linear-gradient(to top, var(--cards-colour), color-mix(in srgb, var(--cards-colour) 20%, transparent));
+  transform-origin: 50% 100%;
   pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity var(--pin-out) ease,
+    transform var(--pin-out) ease;
 }
+.seek-stem.is-up {
+  opacity: 1;
+  transform: none;
+}
+/* Sprout: the whole pin grows straight up out of its mark on the line, the stem with it, and settles. */
+.seek-pins.is-sprout .btn.btn-ghost.seek-pin:not(.is-up) {
+  transform: translateY(calc(12px + var(--lane) * 26px)) scale(0.2);
+}
+.seek-pins.is-sprout .seek-stem:not(.is-up) {
+  transform: scaleY(0);
+}
+.seek-pins.is-sprout .btn.btn-ghost.seek-pin.is-up,
+.seek-pins.is-sprout .seek-stem.is-up {
+  transition:
+    transform var(--sprout-grow) var(--sprout-ease),
+    opacity 0.2s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+  transition-delay: calc(min(var(--i), 12) * var(--sprout-step));
+}
+/* Flap: each word flips up on its bottom edge like a departure board, one after another; the stem fades in under it. */
+.seek-pins.is-flap .btn.btn-ghost.seek-pin:not(.is-up) {
+  transform: rotateX(-95deg);
+}
+.seek-pins.is-flap .btn.btn-ghost.seek-pin.is-up {
+  transition:
+    transform var(--flap-turn) var(--flap-ease),
+    opacity 0.2s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+  transition-delay: calc(min(var(--i), 12) * var(--flap-step));
+}
+.seek-pins.is-flap .seek-stem.is-up {
+  transition: opacity 0.2s ease;
+  transition-delay: calc(min(var(--i), 12) * var(--flap-step));
+}
+/* Fade: no movement, all at once. */
+.seek-pins.is-fade .btn.btn-ghost.seek-pin.is-up,
+.seek-pins.is-fade .seek-stem.is-up {
+  transition:
+    opacity var(--pin-fade-in) ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+/* None: simply there, and simply gone. */
+.seek-pins.is-none .btn.btn-ghost.seek-pin,
+.seek-pins.is-none .seek-stem {
+  transition: none;
+}
+/* After the entrances, so a pin under the pointer or drawn to lifts at once, whatever its place in the line. */
 @media (hover: hover) {
-  .btn.btn-ghost.seek-pin.is-up:hover {
+  .seek-pins .btn.btn-ghost.seek-pin.is-up:hover {
     transform: translateY(-3px);
     transition-delay: 0s;
     background: color-mix(in srgb, var(--theater) 88%, transparent);
     border-color: var(--cards-colour);
   }
 }
-.btn.btn-ghost.seek-pin.is-now {
+.seek-pins .btn.btn-ghost.seek-pin.is-now {
   background: var(--cards-colour);
   border-color: transparent;
   color: var(--theater);
   box-shadow: 0 0 16px color-mix(in srgb, var(--cards-colour) 55%, transparent);
 }
+.seek-pins .btn.btn-ghost.seek-pin.is-up.is-magnet {
+  transform: translateY(-3px);
+  transition-delay: 0s;
+  border-color: var(--cards-colour);
+}
 @media (prefers-reduced-motion: reduce) {
-  .btn.btn-ghost.seek-pin,
-  .btn.btn-ghost.seek-pin.is-up {
-    transform: none;
-    transition: opacity 0.12s ease;
+  .seek-pins .btn.btn-ghost.seek-pin,
+  .seek-pins .seek-stem {
+    transform: none !important;
+    transition: opacity 0.12s ease !important;
   }
 }
 .seek-clip {
@@ -1604,4 +1693,87 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
+}
+/* The last swatch, a colour of the viewer's own: the whole wheel of hues until one is picked, then that colour. The
+   hues are the spectrum itself, not colours of the app's. */
+.mark-swatches {
+  position: relative;
+}
+.btn.btn-ghost.mark-swatch.is-own {
+  background: conic-gradient(hsl(0 90% 60%), hsl(60 90% 60%), hsl(120 90% 55%), hsl(180 90% 55%), hsl(240 90% 65%), hsl(300 90% 62%), hsl(360 90% 60%));
+}
+.btn.btn-ghost.mark-swatch.is-own.has-colour {
+  background: var(--swatch);
+}
+/* The wheel, opened under the swatches: a disc of hues, more vivid out from its middle, dimmed as the line under it
+   says; beside it the colour as it stands, the line, and its hex. */
+.colour-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 6;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.colour-wheel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+.colour-disc {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  flex: none;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle closest-side, hsl(0 0% 100%), hsl(0 0% 100% / 0)),
+    conic-gradient(hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%));
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.colour-disc:focus-visible,
+.colour-line:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.colour-disc-dim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--theater);
+  pointer-events: none;
+}
+.colour-knob {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--theater-ink);
+  box-shadow: 0 0 0 1px var(--theater), 0 2px 6px color-mix(in srgb, var(--theater) 40%, transparent);
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.colour-side {
+  display: grid;
+  gap: 12px;
+  width: 180px;
+}
+.colour-now {
+  height: 36px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
+}
+.colour-line {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
 }

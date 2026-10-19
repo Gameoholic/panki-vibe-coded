@@ -283,23 +283,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
   );
 }
 
-/** How a video's clip is cut in the drawer. Kept the moment it's changed. */
-function Clips({ store, onChanged }: { store: Stored; onChanged: () => void }) {
-  const snap = store.clipToWords;
-  return (
-    <section className="panel" aria-labelledby="clips-title">
-      <h2 id="clips-title" className="panel-title">
-        Clips
-      </h2>
-      <Setting
-        id="clip-snap"
-        label="Clip handles"
-        control={<Toggle id="clip-snap-on" says={{ on: "Snap to words", off: "Move freely" }} on={snap} onChange={(clipToWords) => void writeStore({ clipToWords }).then(onChanged)} />}
-        why={snap ? "Hold Alt to drag freely." : "Hold Alt to snap to words."}
-      />
-    </section>
-  );
-}
+// Clips had a panel here, Clip handles (snap to words or move freely), until the owner had it taken out, 2026-10-19.
 
 /**
  * The page's tabs (the owner, 2026-10-16: the settings were "all over the place"): everything of the dictionary
@@ -489,7 +473,6 @@ function Options() {
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
-            <Clips store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
             <AccountTab store={store} onChanged={refresh} />

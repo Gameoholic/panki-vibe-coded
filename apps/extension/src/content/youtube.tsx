@@ -1,5 +1,5 @@
 import "../setup";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { createListening } from "../capture/listening";
@@ -28,7 +28,7 @@ import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
 import { makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer } from "../ui/Panel";
-import { SeekMark, type ClipMark } from "../ui/SeekMark";
+import { SeekMark, cardNear, type ClipMark } from "../ui/SeekMark";
 import { TranscribeMenu, type Seconds } from "../ui/TranscribeMenu";
 import type { ClipEnd, MoveBy } from "../ui/Trim";
 
@@ -161,8 +161,53 @@ const showingOver = cell(false);
 const carded = cell<readonly VideoCard[]>([]);
 /** Whether the pointer is on the player's seek bar, or on what Panki draws over it: the cards' words rise. */
 const onBar = cell(false);
+/** Where the pointer is along the seek bar, in pixels from its left edge; null while it's off it. The card it's drawn to is lit. */
+const barX = cell<number | null>(null);
 /** The seek bars listened to already: the player keeps one, but may build it again. */
 const listenedBars = new WeakSet<Element>();
+
+/**
+ * Listens to the player's seek bar: where the pointer is on it, and a press on it let go. With snapping on, a press let
+ * go near a card's mark puts the video at the card's moment rather than the pointer's (the owner, 2026-10-19: "anchor
+ * to any of these timestamps… when moving with the mouse on the seekbar"). The player seeks where it was let go first,
+ * as it always does; the card's moment is set the moment after, so it's the last word. Panki's own pins and the clip's
+ * ends never reach here: a press is stopped at Panki's place.
+ */
+function listenTo(bar: Element) {
+  if (listenedBars.has(bar)) return;
+  listenedBars.add(bar);
+  let pressed = false;
+  const along = (clientX: number) => clientX - bar.getBoundingClientRect().left;
+  // Panki's place is inside the bar, so the pointer moving from the bar onto a card's pin is still on it.
+  bar.addEventListener("pointerenter", () => onBar.set(true));
+  bar.addEventListener("pointerleave", () => {
+    onBar.set(false);
+    if (!pressed) barX.set(null);
+  });
+  bar.addEventListener("pointermove", (e) => {
+    if (e instanceof PointerEvent) barX.set(along(e.clientX));
+  });
+  bar.addEventListener("pointerdown", () => {
+    pressed = true;
+  });
+  window.addEventListener(
+    "pointerup",
+    (e) => {
+      if (!pressed) return;
+      pressed = false;
+      if (!onBar.get()) barX.set(null);
+      const player = video;
+      const look = transcriber.state().prefs.seek;
+      if (!player || !look.cards.shown || !look.cards.snap) return;
+      const card = cardNear(carded.get(), player.duration, bar.getBoundingClientRect().width, along(e.clientX));
+      if (!card) return;
+      setTimeout(() => {
+        player.currentTime = card.startMs / 1000;
+      }, 0);
+    },
+    true,
+  );
+}
 /** What reaches the screen from outside it: the menu or the toolbar button asked for a capture; the page moved on to another video. */
 const asked = new EventTarget();
 type Added = { found: Found; pointed: Pointed };
@@ -242,12 +287,7 @@ function place() {
   const bar = marked && video ? document.querySelector(SEEK_BAR) : null;
   if (!bar) seek.host.remove();
   else if (seek.host.parentElement !== bar) bar.append(seek.host);
-  // Panki's place is inside the bar, so the pointer moving from the bar onto a card's pin is still on it.
-  if (bar && !listenedBars.has(bar)) {
-    listenedBars.add(bar);
-    bar.addEventListener("pointerenter", () => onBar.set(true));
-    bar.addEventListener("pointerleave", () => onBar.set(false));
-  }
+  if (bar) listenTo(bar);
   // The transcript over the video, inside the player (which keeps it when it fills the screen); the site's own captions fade while it's there.
   const player = video ? document.querySelector(PLAYER) : null;
   const overThere = showingOver.get() ? player : null;
@@ -721,6 +761,13 @@ function useNow(beats: readonly Beat[]): Chars | null {
   return beat ? { from: beat.from, to: beat.to } : null;
 }
 
+/** The marks on the seek bar, following the pointer on it themselves, so the whole screen isn't drawn again as it moves. */
+function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "pointer">) {
+  const hover = useSyncExternalStore(onBar.subscribe, onBar.get);
+  const pointer = useSyncExternalStore(barX.subscribe, barX.get);
+  return <SeekMark {...props} hover={hover} pointer={pointer} />;
+}
+
 function App() {
   /** What the line reads right now (the transcript, or the site's captions), and how transcribing stands. */
   const view = useSyncExternalStore(lines.subscribe, lines.get);
@@ -731,7 +778,6 @@ function App() {
   const placed = useSyncExternalStore(inPlace.subscribe, inPlace.get);
   const replaying = useSyncExternalStore(replay.subscribe, replay.mode);
   const cards = useSyncExternalStore(carded.subscribe, carded.get);
-  const barHover = useSyncExternalStore(onBar.subscribe, onBar.get);
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
@@ -1326,7 +1372,7 @@ function App() {
       {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}
       {createPortal(
         video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0) ? (
-          <SeekMark
+          <BarMarks
             length={video.duration}
             clock={video}
             covered={tx.transcript?.covered ?? []}
@@ -1334,7 +1380,6 @@ function App() {
             cards={cards}
             clip={clipMark}
             look={tx.prefs.seek}
-            hover={barHover}
             onGo={(seconds) => {
               if (video) video.currentTime = seconds;
             }}
@@ -1376,7 +1421,10 @@ showing.subscribe(place);
 showingOver.subscribe(place);
 carded.subscribe(place);
 // Another video: the pointer's place on the bar is known afresh.
-asked.addEventListener("moved", () => onBar.set(false));
+asked.addEventListener("moved", () => {
+  onBar.set(false);
+  barX.set(null);
+});
 // The transcript's reach goes on the seek bar as soon as there is one to mark.
 transcriber.subscribe(place);
 

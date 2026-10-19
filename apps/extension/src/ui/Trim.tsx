@@ -29,8 +29,6 @@ type Props = {
   limit: Stretch;
   /** When each word that was heard begins: the faint ticks. */
   ticks: readonly number[];
-  /** Whether a pulled end stops at the edges of words. Alt, while it's held, does the other. */
-  toWords: boolean;
   disabled: boolean;
   /** Changes when the clip went somewhere else by itself (another sentence was taken): the bar goes there with it. */
   anchor: number;
@@ -58,10 +56,11 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
  * **stays as it is**: pulling an end never changes what the bar shows. (It was first made to close in around the clip
  * each time an end was let go; the owner: "I don't like how it resizes the clip edges every time I drag".) For more
  * room, or less, the bar's own two edges are pulled: outwards takes in more of the video on that side, inwards less.
- * An end goes exactly where the pointer is, or stops at the edges of words when it's set to (`toWords`), and Alt held
- * does the other; the arrow keys on it move it a tenth of a second. The thin line is where the video stands.
+ * An end goes exactly where the pointer is, or stops at the edges of words while Alt is held (a setting once made
+ * stopping at words the rule and Alt the exception; the owner had it taken out on 2026-10-19, never using it); the
+ * arrow keys on it move it a tenth of a second. The thin line is where the video stands.
  */
-export function Trim({ video, start, end, limit, ticks, toWords, disabled, anchor, within = null, onMove, onSettle }: Props) {
+export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   /** An edge of the bar being pulled: where the pointer took hold, and what the bar showed and how much a pixel was worth just then. */
@@ -112,7 +111,7 @@ export function Trim({ video, start, end, limit, ticks, toWords, disabled, ancho
       onPointerMove(e: PointerEvent<HTMLSpanElement>) {
         if (held !== which) return;
         const to = timeAt(e.clientX);
-        if (to !== null) onMove(which, to, toWords !== e.altKey ? "word" : "exact");
+        if (to !== null) onMove(which, to, e.altKey ? "word" : "exact");
       },
       onLostPointerCapture() {
         if (held !== which) return;

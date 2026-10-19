@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type PointerEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type PointerEvent } from "react";
 import type { Stretch, VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { clock } from "@web/words";
 import { stamp } from "../capture/words";
-import { seekVars, type SeekLook } from "../seekLook";
+import { CARD_SNAP_PX, seekVars, type SeekLook } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
 
 /** The open clip as it's marked on the bar: its two ends, and what pulling one does. */
@@ -34,6 +34,8 @@ type Props = {
   look: SeekLook;
   /** The pointer is on the bar: the cards' words rise, when they're set to on hover. */
   hover: boolean;
+  /** Where the pointer is along the bar, in pixels from its left edge; null while it's off the bar. The card it's drawn to (`cardNear`) is lit. */
+  pointer: number | null;
   /** A card's pin pressed: the video goes to where the card was taken from. */
   onGo: (seconds: number) => void;
 };
@@ -75,6 +77,26 @@ function layPins(cards: readonly VideoCard[], length: number, width: number): Pi
   return pins;
 }
 
+/**
+ * The card the pointer is drawn to, at `x` pixels along a bar `width` wide: the nearest whose mark is within
+ * `CARD_SNAP_PX` of it, or under it; none when there's none so near. Let go there, the video goes to the card's moment.
+ */
+export function cardNear(cards: readonly VideoCard[], length: number, width: number, x: number): VideoCard | null {
+  if (width <= 0 || !Number.isFinite(length) || length <= 0) return null;
+  let near: VideoCard | null = null;
+  let best = CARD_SNAP_PX;
+  for (const card of cards) {
+    const from = (card.startMs / 1000 / length) * width;
+    const to = (card.endMs / 1000 / length) * width;
+    const off = x < from ? from - x : x > to ? x - to : 0;
+    if (off <= best) {
+      near = card;
+      best = off;
+    }
+  }
+  return near;
+}
+
 /** Where the video is, in seconds: followed on the `clock` as it plays, or `at` as given. */
 function usePlayhead(media: HTMLMediaElement | null, at: number | null): number | null {
   const [now, setNow] = useState<number | null>(media ? media.currentTime : null);
@@ -104,10 +126,12 @@ function usePlayhead(media: HTMLMediaElement | null, at: number | null): number 
  *
  * The cards' pins rise while the pointer is on the bar (or stand whenever the bar shows, or never), and the card the
  * video is at rises by itself as it plays through it, lit in the cards' colour; a pin pressed takes the video there.
+ * With snapping on, the card the pointer is drawn to (`cardNear`) is lit, its pin up, and a hairline stands where the
+ * video would go if the bar were let go there (the page itself puts the video there: `content/youtube.tsx`).
  * Only the pins and the clip's two ends take a press. Everywhere else on the bar a press goes through to the player,
  * which seeks as ever.
  */
-export function SeekMark({ length, clock: media = null, at = null, covered, working, cards, clip, look, hover, onGo }: Props) {
+export function SeekMark({ length, clock: media = null, at = null, covered, working, cards, clip, look, hover, pointer, onGo }: Props) {
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   const [width, setWidth] = useState(0);
@@ -169,6 +193,8 @@ export function SeekMark({ length, clock: media = null, at = null, covered, work
   const words = look.cards.shown ? look.cards.words : "off";
   const pins = words === "off" || width === 0 ? [] : layPins(cards, length, width);
   const allUp = words === "always" || (words === "hover" && hover);
+  // The card a seek would land on if let go now: lit on the line, its pin up, a hairline where the video would go.
+  const magnet = look.cards.shown && look.cards.snap && pointer !== null ? cardNear(cards, length, width, pointer) : null;
 
   return (
     <div ref={whole} className="seek" style={seekVars(look) as CSSProperties}>
@@ -177,26 +203,38 @@ export function SeekMark({ length, clock: media = null, at = null, covered, work
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
       {look.cards.shown
-        ? cards.map((card) => <div key={card.cardId} className={`seek-card ${isNow(card) ? "is-now" : ""}`.trim()} style={across(card.startMs / 1000, card.endMs / 1000)} />)
+        ? cards.map((card) => (
+            <div
+              key={card.cardId}
+              className={`seek-card ${isNow(card) ? "is-now" : ""} ${magnet?.cardId === card.cardId ? "is-magnet" : ""}`.replace(/\s+/g, " ").trim()}
+              style={across(card.startMs / 1000, card.endMs / 1000)}
+            />
+          ))
         : null}
+      {magnet ? <div className="seek-snap" style={{ left: `${share(magnet.startMs / 1000)}%` }} /> : null}
       {pins.length > 0 ? (
-        <div className="seek-pins">
+        <div className={`seek-pins is-${look.cards.entrance}`}>
           {pins.map((pin, i) => {
             const lit = isNow(pin.card);
-            const up = allUp || lit;
+            const drawn = magnet?.cardId === pin.card.cardId;
+            const up = allUp || lit || drawn;
+            const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties;
             return (
-              <Button
-                key={pin.card.cardId}
-                className={`seek-pin ${up ? "is-up" : ""} ${lit ? "is-now" : ""}`.replace(/\s+/g, " ").trim()}
-                lang="ja"
-                tabIndex={up ? 0 : -1}
-                aria-hidden={!up}
-                aria-label={`Go to ${pin.words}, ${clock(pin.card.startMs / 1000)}`}
-                style={{ "--x": `${pin.x - pin.left}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties}
-                onClick={() => onGo(pin.card.startMs / 1000)}
-              >
-                <span className="seek-pin-words">{pin.words}</span>
-              </Button>
+              <Fragment key={pin.card.cardId}>
+                {/* The stem apart from its words, so each comes in its own way. */}
+                <span className={`seek-stem ${up ? "is-up" : ""}`.trim()} style={place} aria-hidden="true" />
+                <Button
+                  className={`seek-pin ${up ? "is-up" : ""} ${lit ? "is-now" : ""} ${drawn ? "is-magnet" : ""}`.replace(/\s+/g, " ").trim()}
+                  lang="ja"
+                  tabIndex={up ? 0 : -1}
+                  aria-hidden={!up}
+                  aria-label={`Go to ${pin.words}, ${clock(pin.card.startMs / 1000)}`}
+                  style={place}
+                  onClick={() => onGo(pin.card.startMs / 1000)}
+                >
+                  <span className="seek-pin-words">{pin.words}</span>
+                </Button>
+              </Fragment>
             );
           })}
         </div>

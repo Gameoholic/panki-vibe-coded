@@ -58,11 +58,9 @@ const Stored = z.object({
    * owner, 2026-10-11: "we have to consciously select it"); from then on it's that one until another is chosen.
    */
   defaultDeckId: DeckId.nullable().catch(null),
-  /**
-   * Whether an end of a clip snaps to the edges of words as it's pulled. Off unless it's switched on (the owner,
-   * 2026-10-11: "don't do anchoring… make it a setting"): an end then goes exactly where it's put.
-   */
-  clipToWords: z.boolean().catch(false),
+  // `clipToWords` was a key here (2026-10-11): whether a clip's end snapped to the edges of words as it was pulled.
+  // The owner had the setting taken out on 2026-10-19, never using it: an end goes where it's put, Alt held snaps it.
+  // A browser that still has it keeps it unread.
   /** The key held to look a word up by pointing at it. */
   lookKey: LookKey.catch("shift"),
   /**
