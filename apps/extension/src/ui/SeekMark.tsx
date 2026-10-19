@@ -111,6 +111,10 @@ export function SeekMark({ length, covered, working, cards, clip, look, hover, o
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   const [width, setWidth] = useState(0);
+  const known = Number.isFinite(length) && length > 0;
+  // Measured afresh whenever the bar is drawn again: nothing is drawn while the video's length isn't known (a page
+  // still loading its video, or moving to the next), and the bar drawn after it is a new element. Measured only once,
+  // marks that came before the video's length never had their width, and the cards' words never stood (2026-10-19).
   useEffect(() => {
     const el = whole.current;
     if (!el) return;
@@ -119,8 +123,7 @@ export function SeekMark({ length, covered, working, cards, clip, look, hover, o
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-  const known = Number.isFinite(length) && length > 0;
+  }, [known]);
   const words = look.cards.shown ? look.cards.words : "off";
   const pins = !known || words === "off" || width === 0 ? [] : layPins(cards, length, width);
   const highest = pins.reduce((lane, pin) => Math.max(lane, pin.lane), -1);

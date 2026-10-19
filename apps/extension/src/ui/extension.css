@@ -705,7 +705,10 @@
   pointer-events: none;
   perspective: 500px;
 }
+/* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words
+   in its way, never across them (the owner, 2026-10-19: "it looks kind of messy"). */
 .btn.btn-ghost.seek-pin {
+  z-index: 1;
   position: absolute;
   left: var(--left);
   bottom: calc(100% + 12px + var(--lane) * 26px);
@@ -742,13 +745,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* The stem, from the pin down to its mark on the line, the cards' colour fading up into the pin. */
+/* The stem, from the pin down to its mark on the line, the cards' colour fading up into the pin; two pixels across
+   (the owner, 2026-10-19: a hairline was "a little bit" too thin). */
 .seek-stem {
   position: absolute;
   left: var(--at);
   bottom: calc(100% + 3.5px);
-  width: 1px;
-  margin-left: -0.5px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
   height: calc(8.5px + var(--lane) * 26px);
   background: linear-gradient(to top, var(--cards-colour), color-mix(in srgb, var(--cards-colour) 20%, transparent));
   transform-origin: 50% 100%;
