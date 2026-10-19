@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ENGINES, TRANSCRIBE_LANGUAGES } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
@@ -7,7 +8,10 @@ import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
 import { clock } from "@web/words";
 import { parseStamp } from "../capture/words";
-import type { TranscribeState, TranscribeStatus } from "../transcribe/transcriber";
+import { engineWanted, SUBTITLE_SOURCES } from "../subtitles";
+import type { SilentPage, SilentReport, SilentStage } from "../transcribe/silent";
+import type { RunScope, TranscribeDetail, TranscribeState, TranscribeStatus } from "../transcribe/transcriber";
+import { Fold } from "./Fold";
 
 /**
  * The strip's menu: everything about transcribing this video, in one place at the right of the head (the owner,
@@ -16,7 +20,9 @@ import type { TranscribeState, TranscribeStatus } from "../transcribe/transcribe
  * background, a part of it typed as two times; Auto transcribe, whether it starts by itself (this viewer's own; the
  * one place it's switched since the options page lost its copy, 2026-10-17); and forgetting a part or the whole transcript, to start from scratch, which asks in place. The
  * panel stands under its button, closes on a press outside or Escape, and is this file's alone; what each item does
- * is the strip's (`content/youtube.tsx`).
+ * is the strip's (`content/youtube.tsx`). Details, beside the status, unfolds how it stands in full (the owner,
+ * 2026-10-19: "so we can also debug better and/or know the status better"): what's happening this moment, the run, the
+ * silent player, the pieces, the engine; read afresh while they're open, and left open for the next look.
  */
 
 /** A stretch of the video, in seconds. */
@@ -34,6 +40,8 @@ type Props = {
   onForget: (stretch: Seconds | null) => void;
   /** Whether transcribing is to start by itself on every video played: this viewer's own. */
   onAuto: (on: boolean) => void;
+  /** How it stands in full, this moment (`Transcriber.detail`), asked for while Details are open. */
+  detail: () => TranscribeDetail;
 };
 
 /** A part to transcribe or forget starts as this much of the video from where the viewer is. Seconds. */
@@ -94,6 +102,111 @@ const LOOKS: Record<TranscribeStatus["kind"], { words: string; look: Look }> = {
   failed: { words: "Failed", look: "trouble" },
   signedOut: { words: "Signed out", look: "trouble" },
 };
+/** The button's word and look; a run begun whose silent player isn't up yet says so, as the menu does (the owner, 2026-10-19). */
+function chipOf(status: TranscribeStatus): { words: string; look: Look } {
+  if (status.kind === "loading" && status.run) return { words: "Preparing", look: "loading" };
+  return LOOKS[status.kind];
+}
+
+/** How often the Details are read afresh while they're open, in ms. */
+const DETAIL_MS = 500;
+
+const PAGE_WORDS: Record<SilentPage, string> = { embed: "Embed page", watch: "Watch page" };
+
+/** What the silent player is doing, as the Details say it. */
+const STAGE_WORDS: Record<SilentStage, (r: SilentReport) => string> = {
+  opening: (r) => `Opening the video in the background (${PAGE_WORDS[r.page].toLowerCase()}) · ${Math.floor(r.pageAge)} s`,
+  finding: (r) => `Waiting for the background player to appear · ${Math.floor(r.pageAge)} s`,
+  seeking: (r) => `Going to ${clock(r.at)}`,
+  starting: () => "Starting the background player",
+  listening: (r) => `Waiting for the first sound at ${clock(r.at)}`,
+  buffering: (r) => `Loading the video at ${clock(r.at)}`,
+  playing: (r) => `Listening at ${clock(r.at)}`,
+  held: (r) => `Held at ${clock(r.at)}`,
+  ad: () => "Waiting for an ad to finish",
+  ended: () => "Reached the end of the video",
+  failed: (r) => r.failed ?? "The background player failed",
+};
+
+/** What's happening this moment, in one line. */
+function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
+  const { status, settings } = state;
+  if (detail.run) return STAGE_WORDS[detail.run.silent.stage](detail.run.silent);
+  switch (status.kind) {
+    case "loading":
+      if (!detail.loaded) return "Asking Panki for this video's transcript";
+      return detail.settling > 0 ? `Starting in ${Math.ceil(detail.settling)} s, once the page has settled` : "Starting";
+    case "done":
+      return "Everything is transcribed";
+    case "noKey":
+      return settings ? `No key for ${ENGINES[settings.engine].name}` : "No key";
+    case "signedOut":
+      return "Signed out of Panki";
+    case "failed":
+      return status.message;
+    default:
+      if (settings && !engineWanted(state.source, settings.engine)) return `Subtitles are set to ${SUBTITLE_SOURCES[state.source].name}`;
+      if (detail.stopped) return "Stopped on this video";
+      if (state.prefs.trigger !== "auto") return "Auto transcribe is off";
+      return "Not started";
+  }
+}
+
+/** What a run is for. */
+function scopeWords(scope: RunScope, from: number): string {
+  if (scope.follow) return `Following you, from ${clock(from)}`;
+  return scope.until === null ? `The whole video, from ${clock(from)}` : `${clock(from)} to ${clock(scope.until)}`;
+}
+
+/** A short while, as the Details say it: "4 s", "3 min". */
+const agoWords = (seconds: number) => (seconds < 60 ? `${Math.round(seconds)} s` : `${Math.floor(seconds / 60)} min`);
+
+/** How transcribing stands in full, as rows of a name and what it is; read afresh while `live`. */
+function Details({ state, detail, live }: { state: TranscribeState; detail: () => TranscribeDetail; live: boolean }) {
+  const [now, setNow] = useState(detail);
+  useEffect(() => {
+    if (!live) return;
+    setNow(detail());
+    const timer = setInterval(() => setNow(detail()), DETAIL_MS);
+    return () => clearInterval(timer);
+  }, [live, detail]);
+
+  const { settings } = state;
+  const run = now.run;
+  const silent = run?.silent ?? null;
+  const rows: [string, string][] = [["Now", nowWords(state, now)]];
+  if (run && silent) {
+    rows.push(["Run", scopeWords(run.scope, run.from)]);
+    const player = [PAGE_WORDS[silent.page]];
+    if (silent.rate !== null) player.push(`${silent.rate}×`);
+    player.push(silent.sound === null ? "No sound yet" : `Sound ${silent.sound}`);
+    rows.push(["Background", player.join(" · ")]);
+    if (run.scope.follow && settings) {
+      const lead = clock(settings.lead * 60);
+      rows.push(["Lead", run.ahead >= 0 ? `${clock(run.ahead)} ahead of you, of ${lead}` : `${clock(-run.ahead)} behind you`]);
+    }
+  }
+  if (run || now.pieces.back > 0 || now.pieces.waiting > 0) {
+    rows.push(["Pieces", `${now.pieces.back} back · ${now.pieces.waiting} on the way`]);
+  }
+  const last = now.pieces.last;
+  if (last) {
+    const ago = (performance.now() - last.at) / 1000;
+    rows.push(["Last piece", `${clock(last.startMs / 1000)}–${clock(last.endMs / 1000)} · took ${(last.tookMs / 1000).toFixed(1)} s · ${agoWords(ago)} ago`]);
+  }
+  if (settings) rows.push(["Engine", `${ENGINES[settings.engine].name} · ${TRANSCRIBE_LANGUAGES[settings.language]} · ${settings.speed}×`]);
+
+  return (
+    <dl id="panki-transcribe-details" className="strip-menu-details">
+      {rows.map(([name, words]) => (
+        <div key={name}>
+          <dt>{name}</dt>
+          <dd>{words}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 /** How much of the video is transcribed: "6:15 of 17:25 transcribed", or that nothing is yet. */
 function coveredWords(state: TranscribeState, duration: number | null): string {
@@ -106,9 +219,11 @@ function coveredWords(state: TranscribeState, duration: number | null): string {
 /** Which question is open under the items, if any. */
 type Asking = "part" | "forgetPart" | "forgetAll" | null;
 
-export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, onStretch, onForget, onAuto }: Props) {
+export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, onStretch, onForget, onAuto, detail }: Props) {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<Asking>(null);
+  /** Whether the Details are unfolded: kept while the menu is closed, so they're there at the next look. */
+  const [details, setDetails] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useDismiss(rootRef, open, () => setOpen(false));
   // Closed, it forgets what it was asking.
@@ -117,7 +232,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
   }, [open]);
 
   const status = statusWords(state.status);
-  const chip = LOOKS[state.status.kind];
+  const chip = chipOf(state.status);
   const transcribing = state.status.kind === "running" || state.status.kind === "held" || (state.status.kind === "loading" && state.status.run);
   const canStart = state.key && state.status.kind !== "noKey" && state.status.kind !== "signedOut";
   const hasAny = (state.transcript?.covered.length ?? 0) > 0;
@@ -143,12 +258,21 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
       {open ? (
         <div id="panki-transcribe-menu" className="strip-menu" role="dialog" aria-label="Transcription">
           <p className="strip-menu-covered">{coveredWords(state, duration)}</p>
-          {status ? (
-            <p className="strip-menu-status" role="status">
-              {status.live ? <i className="live-dot" aria-hidden="true" /> : null}
-              {status.words}
-            </p>
-          ) : null}
+          <div className="strip-menu-state">
+            <div className="strip-menu-state-row">
+              <p className="strip-menu-status" role="status">
+                {status?.live ? <i className="live-dot" aria-hidden="true" /> : null}
+                {status ? status.words : chip.words}
+              </p>
+              <Button className={`strip-menu-more${details ? " is-open" : ""}`} aria-expanded={details} aria-controls="panki-transcribe-details" onClick={() => setDetails((was) => !was)}>
+                Details
+                <Icon name="down" />
+              </Button>
+            </div>
+            <Fold open={details} arrives={false}>
+              <Details state={state} detail={detail} live={details} />
+            </Fold>
+          </div>
           {canStart || transcribing ? (
             <div className="strip-menu-items">
               {transcribing ? (

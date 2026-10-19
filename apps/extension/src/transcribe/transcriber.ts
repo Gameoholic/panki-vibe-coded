@@ -5,7 +5,7 @@ import { DEFAULT_PREFS, type TranscribePrefs } from "./prefs";
 import { uuid } from "../uuid";
 import { coveredUntil, nextUncovered } from "./lines";
 import type { CutPiece } from "./pieces";
-import { createSilentPlayer, type SilentPlayer } from "./silent";
+import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./silent";
 
 /**
  * Transcribing a video, following the viewer: the silent player runs ahead of them, as far as the lead allows, and
@@ -84,9 +84,33 @@ type Run = {
    * video" and "Transcribe a part" in the strip's menu (the owner, 2026-10-17). One run at a time: a background run
    * takes the place of one under way, and the follower waits for it to finish before it starts by itself again.
    */
-  scope: { follow: true } | { follow: false; until: number | null };
+  scope: RunScope;
   /** Pieces go one after another, each waiting for the last to come back. */
   queue: Promise<void>;
+};
+export type RunScope = { follow: true } | { follow: false; until: number | null };
+
+/** This video's pieces sent to Panki: how many came back, how many are on their way, and the last one back (its stretch in ms, how long it took and when it came, by `performance.now()`). */
+export type PieceTally = {
+  back: number;
+  waiting: number;
+  last: { startMs: number; endMs: number; tookMs: number; at: number } | null;
+};
+
+/**
+ * How transcribing stands, in full: what the strip's menu shows under Details (the owner, 2026-10-19: "the actual
+ * status in detail… so we can debug better"). Asked for while they're open, never told: it changes many times a second.
+ */
+export type TranscribeDetail = {
+  /** Whether this video's transcript and the settings are in from Panki. */
+  loaded: boolean;
+  /** Seconds before a run may start by itself (the page settling after a change of video); 0 once it may. */
+  settling: number;
+  /** Nothing starts by itself on this video any more: Stop was pressed, or something failed. */
+  stopped: boolean;
+  /** The run under way: what it's for, where it began, its silent player as it says of itself, and how far ahead of the viewer that is, in seconds. */
+  run: { scope: RunScope; from: number; silent: SilentReport; ahead: number } | null;
+  pieces: PieceTally;
 };
 
 /** A piece's sound as the text a message can carry. */
@@ -123,6 +147,10 @@ export function createTranscriber() {
   let changedAt = 0;
   /** Counts the videos, so an answer about the last one is known for what it is. */
   let turn = 0;
+  /** This video's pieces; a new tally for each video, so a piece of the last one still on its way counts in its own. */
+  let pieces: PieceTally = { back: 0, waiting: 0, last: null };
+  /** Where the viewer was at the last look, in seconds. */
+  let viewerAt = 0;
 
   const followers = new Set<() => void>();
   let snapshot: TranscribeState = { videoId, transcript, settings, key, source, prefs, status, working };
@@ -178,8 +206,16 @@ export function createTranscriber() {
     tell();
   }
 
-  async function send(mine: Run, id: string, piece: CutPiece) {
-    const answer = await askPiece({ videoId: id, pieceId: uuid(), startMs: piece.startMs, soundMs: piece.soundMs, endMs: piece.endMs, base64: piece.wav ? base64Of(piece.wav) : null });
+  async function send(mine: Run, id: string, piece: CutPiece, tally: PieceTally) {
+    const sentAt = performance.now();
+    const asked = askPiece({ videoId: id, pieceId: uuid(), startMs: piece.startMs, soundMs: piece.soundMs, endMs: piece.endMs, base64: piece.wav ? base64Of(piece.wav) : null });
+    const answer = await asked.finally(() => {
+      tally.waiting--;
+    });
+    if (answer.ok) {
+      tally.back++;
+      tally.last = { startMs: piece.startMs, endMs: piece.endMs, tookMs: performance.now() - sentAt, at: performance.now() };
+    }
     // The video moved on under it: the answer is about the last one.
     if (id !== videoId) return;
     if (!answer.ok) {
@@ -203,7 +239,9 @@ export function createTranscriber() {
       scope,
       queue: Promise.resolve(),
       silent: createSilentPlayer(id, settings.speed, (piece) => {
-        mine.queue = mine.queue.then(() => send(mine, id, piece)).catch(() => undefined);
+        const tally = pieces;
+        tally.waiting++;
+        mine.queue = mine.queue.then(() => send(mine, id, piece, tally)).catch(() => undefined);
       }),
     };
     run = mine;
@@ -351,6 +389,7 @@ export function createTranscriber() {
       transcript = null;
       autoBlocked = false;
       changedAt = performance.now();
+      pieces = { back: 0, waiting: 0, last: null };
       // Loading until the transcript and the settings are in, and it can be said how it stands.
       status = next ? { kind: "loading", run: false } : { kind: "off" };
       tell();
@@ -365,6 +404,7 @@ export function createTranscriber() {
       const id = videoId;
       if (!video || !id) return;
       const t = video.currentTime;
+      viewerAt = t;
       const paused = video.paused;
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
       if (run) steer(run, t, paused, duration);
@@ -432,5 +472,16 @@ export function createTranscriber() {
       tell();
     },
     running: () => run !== null,
+    /** How it stands in full, this moment: the menu's Details. */
+    detail(): TranscribeDetail {
+      const silent = run?.silent.report() ?? null;
+      return {
+        loaded: transcript !== null && settings !== null,
+        settling: Math.max(0, FOLLOW.settle - (performance.now() - changedAt) / 1000),
+        stopped: autoBlocked,
+        run: run && silent ? { scope: run.scope, from: run.from, silent, ahead: silent.at - viewerAt } : null,
+        pieces: { ...pieces },
+      };
+    },
   };
 }

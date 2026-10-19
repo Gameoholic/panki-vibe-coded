@@ -218,6 +218,53 @@
   gap: 8px;
   color: var(--muted);
 }
+/* The status and, at its right, Details: how it stands in full, unfolded under it as rows of a name and what it is,
+   the numbers in even widths so they hold still as they're read afresh (the owner, 2026-10-19). */
+.strip-menu-state-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.btn.strip-menu-more {
+  flex: none;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.btn.strip-menu-more .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s ease;
+}
+.btn.strip-menu-more.is-open .icon {
+  transform: rotate(180deg);
+}
+.strip-menu-details {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.strip-menu-details > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+}
+.strip-menu-details dt {
+  color: var(--muted);
+}
+.strip-menu-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .strip-menu-items {
   display: grid;
   gap: 2px;
@@ -608,66 +655,6 @@
 .seek {
   position: absolute;
   inset: 0;
-}
-/* Panki's own bar in the player's place (SeekMark → OwnBar, `look.bar.replace`): the whole video as a track, what's
-   loaded a shade lighter, what's played in the viewer's colour and thickness (`--bar-colour`, `--bar-size`), and a
-   handle where the video is, small until the pointer is on the bar or it's being pulled. It takes a press a little
-   above and below what's drawn, as the player's does. Under every mark: the marks are drawn on it as on the player's. */
-.seek-own {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -8px;
-  bottom: -8px;
-  pointer-events: auto;
-  cursor: pointer;
-  touch-action: none;
-  outline: none;
-}
-.seek-own-track {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: var(--bar-size);
-  transform: translateY(-50%);
-  border-radius: 999px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--theater-ink) 22%, transparent);
-}
-.seek-own:focus-visible .seek-own-track {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-.seek-own-loaded {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: color-mix(in srgb, var(--theater-ink) 38%, transparent);
-}
-.seek-own-played {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--bar-colour);
-}
-.seek-own-knob {
-  position: absolute;
-  top: 50%;
-  width: calc(var(--bar-size) + 9px);
-  height: calc(var(--bar-size) + 9px);
-  border-radius: 50%;
-  background: var(--bar-colour);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--theater) 50%, transparent);
-  translate: -50% -50%;
-  transform: scale(0.55);
-  transition: transform 0.12s ease;
-  pointer-events: none;
-}
-.seek-own:hover .seek-own-knob,
-.seek-own.is-held .seek-own-knob {
-  transform: none;
 }
 /* Along the bar's top edge, how far the transcript reaches: a line centred a little above the bar, whatever its
    thickness, so what the bar says itself (how much has played, how much has loaded) stays seen. */
@@ -1669,10 +1656,6 @@
   border-radius: 2px;
   background: color-mix(in srgb, var(--theater-ink) 22%, transparent);
   cursor: pointer;
-}
-/* Panki's own bar draws its own track (SeekMark → OwnBar): the made-up player's is gone. */
-.seek-preview-bar.is-replaced {
-  background: none;
 }
 .seek-preview-bar::before {
   content: "";

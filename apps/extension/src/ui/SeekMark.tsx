@@ -39,15 +39,7 @@ type Props = {
    * the pointer's moves over the words are kept from the bar, so the player doesn't preview where the pointer is.
    */
   onPeek?: (card: VideoCard) => void;
-  /** What Panki's own bar plays and seeks, drawn in place of the player's while `look.bar.replace` is on. */
-  bar?: BarSource | null;
 };
-
-/**
- * What Panki's own bar is drawn from: the video it follows as it plays (or, where nothing plays, a moment `at`: the
- * options page's preview), and what a press or a pull on it does (`done` once it's let go).
- */
-export type BarSource = { video: HTMLVideoElement | null; at?: number; onSeek: (seconds: number, done: boolean) => void };
 
 const ENDS: Record<ClipEnd, string> = { start: "Where the clip starts", end: "Where the clip ends" };
 
@@ -96,103 +88,6 @@ function layPins(cards: readonly VideoCard[], length: number, width: number): Pi
   return pins;
 }
 
-/** How far an arrow key on Panki's own bar moves the video, in seconds: as the player's own does. */
-const BAR_STEP = 5;
-
-/** The stretches of a video already loaded, in ms. */
-function loadedOf(ranges: TimeRanges): Stretch[] {
-  const stretches: Stretch[] = [];
-  for (let i = 0; i < ranges.length; i++) stretches.push({ startMs: Math.round(ranges.start(i) * 1000), endMs: Math.round(ranges.end(i) * 1000) });
-  return stretches;
-}
-
-/**
- * Panki's own bar, in the player's place (`look.bar.replace`; the owner, 2026-10-19: "an option to completely replace
- * the YouTube seekbar"): the whole video as a track, what's loaded on it a shade lighter, what's played in the viewer's
- * colour and thickness, and a handle where the video is. Pressed, it goes there; pulled, the video follows, and it's
- * let go there; the arrow keys move it five seconds. It follows the video by itself, once a frame, so nothing else is
- * drawn again as it plays. The player's own preview over its bar still shows as the pointer moves (its moves aren't
- * kept from the player; its presses are, being in a place of Panki's).
- */
-function OwnBar({ length, source }: { length: number; source: BarSource }) {
-  const { video, at = 0, onSeek } = source;
-  const track = useRef<HTMLDivElement>(null);
-  const [now, setNow] = useState(video ? video.currentTime : at);
-  const [loaded, setLoaded] = useState<readonly Stretch[]>([]);
-  const [held, setHeld] = useState<number | null>(null);
-  useEffect(() => {
-    if (!video) return;
-    let frame = 0;
-    let seen = "";
-    const look = () => {
-      setNow(video.currentTime);
-      const next = loadedOf(video.buffered);
-      const key = next.map((s) => `${s.startMs}-${s.endMs}`).join(",");
-      if (key !== seen) {
-        seen = key;
-        setLoaded(next);
-      }
-      frame = requestAnimationFrame(look);
-    };
-    look();
-    return () => cancelAnimationFrame(frame);
-  }, [video]);
-  const shown = held ?? (video ? now : at);
-  const share = (seconds: number) => `${Math.max(0, Math.min(100, (seconds / length) * 100))}%`;
-  function timeAt(x: number): number | null {
-    const box = track.current?.getBoundingClientRect();
-    return box && box.width > 0 ? Math.max(0, Math.min(1, (x - box.left) / box.width)) * length : null;
-  }
-  return (
-    <div
-      className={`seek-own ${held !== null ? "is-held" : ""}`.trim()}
-      role="slider"
-      tabIndex={0}
-      aria-label="Seek"
-      aria-valuemin={0}
-      aria-valuemax={Math.round(length)}
-      aria-valuenow={Math.round(shown)}
-      aria-valuetext={clock(shown)}
-      onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        e.currentTarget.focus({ preventScroll: true });
-        const to = timeAt(e.clientX);
-        if (to === null) return;
-        setHeld(to);
-        onSeek(to, false);
-      }}
-      onPointerMove={(e) => {
-        if (held === null) return;
-        const to = timeAt(e.clientX);
-        if (to === null) return;
-        setHeld(to);
-        onSeek(to, false);
-      }}
-      onLostPointerCapture={() => {
-        if (held === null) return;
-        onSeek(held, true);
-        setHeld(null);
-      }}
-      onKeyDown={(e) => {
-        const step = { ArrowLeft: -BAR_STEP, ArrowRight: BAR_STEP }[e.key];
-        if (step === undefined) return;
-        e.preventDefault();
-        onSeek(Math.max(0, Math.min(length, shown + step)), true);
-      }}
-    >
-      <div ref={track} className="seek-own-track">
-        {loaded.map((stretch) => (
-          <span key={stretch.startMs} className="seek-own-loaded" style={{ left: share(stretch.startMs / 1000), width: `calc(${share(stretch.endMs / 1000)} - ${share(stretch.startMs / 1000)})` }} />
-        ))}
-        <span className="seek-own-played" style={{ width: share(shown) }} />
-      </div>
-      <span className="seek-own-knob" style={{ left: share(shown) }} />
-    </div>
-  );
-}
-
 /**
  * Panki on the player's own seek bar: how far the transcript reaches, as a line along the bar's top edge (the bar's own
  * colours, how much has played and how much has loaded, stay seen under it), with what's being transcribed this moment
@@ -209,9 +104,10 @@ function OwnBar({ length, source }: { length: number; source: BarSource }) {
  * sentence or its word). Nothing changes as the video plays through a card: the owner had the card it was at lit and
  * rising by itself taken out, 2026-10-19 ("no flash at all when it's being played"); and snapping, a press on the bar
  * near a card's mark landing on the card, the same day, the words doing that job. Only the pins and the clip's two
- * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever.
+ * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever. (Panki's own
+ * bar in the player's place, with these marks laid on it, lived a day before the owner had it taken out, 2026-10-19.)
  */
-export function SeekMark({ length, covered, working, cards, clip, look, hover, onGo, onReach, onPeek, bar = null }: Props) {
+export function SeekMark({ length, covered, working, cards, clip, look, hover, onGo, onReach, onPeek }: Props) {
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   const [width, setWidth] = useState(0);
@@ -286,7 +182,6 @@ export function SeekMark({ length, covered, working, cards, clip, look, hover, o
 
   return (
     <div ref={whole} className="seek" style={seekVars(look) as CSSProperties}>
-      {bar && look.bar.replace ? <OwnBar length={length} source={bar} /> : null}
       {look.transcript.shown
         ? covered.map((stretch) => <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />)
         : null}

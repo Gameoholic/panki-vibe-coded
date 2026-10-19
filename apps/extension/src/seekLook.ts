@@ -71,18 +71,9 @@ export type CardClick = z.infer<typeof CardClick>;
 export const CARD_CLICKS: Record<CardClick, string> = { none: "Do nothing", sentence: "Go to sentence", word: "Go to word" };
 export const CARD_CLICK_IDS = CardClick.options;
 
-/**
- * The bar itself: the player's own, with Panki's marks laid over it (as it always was), or Panki's own in its place
- * (the owner, 2026-10-19: "an option to completely replace the YouTube seekbar"), its played part in a colour and a
- * thickness of the viewer's.
- */
-export const BarLook = z.object({ replace: z.boolean(), colour: MarkPaint, size: MarkSize });
-export type BarLook = z.infer<typeof BarLook>;
-export const DEFAULT_BAR_LOOK: BarLook = { replace: false, colour: "white", size: "thin" };
-
 export const SeekLook = z.object({
-  // Came after the rest: a look kept before it has the player's own bar.
-  bar: BarLook.default(DEFAULT_BAR_LOOK),
+  // (`bar`, Panki's own bar in the player's place with its colour and thickness, lived a day before the owner had it
+  // taken out, 2026-10-19; a look kept with it keeps it unread.)
   transcript: MarkLook,
   // `entrance` and `click` came after the rest: a look kept before them is given the default. (`snap`, a press on the
   // bar near a card's mark landing on the card, lived a day before the owner had it taken out, 2026-10-19; a look kept
@@ -96,7 +87,6 @@ export type SeekMarkId = keyof SeekLook;
 
 /** As they were drawn before they could be set: the transcript's thin yellow line, the cards a little thicker in orange on it, the clip in Panki's blue. */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
-  bar: DEFAULT_BAR_LOOK,
   transcript: { shown: true, colour: "yellow", size: "thin" },
   cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
@@ -105,7 +95,7 @@ export const DEFAULT_SEEK_LOOK: SeekLook = {
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */
 export function seekVars(look: SeekLook): Record<string, string> {
   const vars: Record<string, string> = {};
-  for (const id of ["bar", "transcript", "cards", "clip"] as const satisfies readonly SeekMarkId[]) {
+  for (const id of ["transcript", "cards", "clip"] as const satisfies readonly SeekMarkId[]) {
     vars[`--${id}-colour`] = paintCss(look[id].colour);
     vars[`--${id}-size`] = `${MARK_SIZES[look[id].size].px}px`;
   }

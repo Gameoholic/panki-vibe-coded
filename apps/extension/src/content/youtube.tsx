@@ -213,11 +213,6 @@ function goToCard(card: VideoCard) {
   if (video && at !== null) video.currentTime = at;
 }
 
-/** Panki's own bar pressed or pulled (`look.bar.replace`): the video goes there, as the player's own bar would take it. */
-function seekTo(seconds: number) {
-  if (video) video.currentTime = seconds;
-}
-
 /**
  * The player's own preview over its bar (the frame and the time it would go to) shown, while the pointer is on a
  * card's words, for where pressing them goes rather than for where the pointer is (the owner, 2026-10-19: "display
@@ -322,26 +317,6 @@ async function readCarded() {
   if (answer.ok && watching === id) carded.set(answer.cards);
 }
 
-/**
- * The player's own drawing of its seek bar hidden while Panki's own stands in its place (`look.bar.replace`), and shown
- * again as soon as it's switched off: everything in the bar but Panki's place, made unseen, never removed (its element
- * stays, with Panki's place in it, and the player keeps working it as ever). Only what was hidden here is shown again.
- */
-function hideOwnBar(hide: boolean) {
-  const bar = document.querySelector(SEEK_BAR);
-  if (!bar) return;
-  for (const child of bar.children) {
-    if (child === seek.host || !(child instanceof HTMLElement)) continue;
-    if (hide && child.dataset.pankiHidden === undefined) {
-      child.dataset.pankiHidden = "";
-      child.style.visibility = "hidden";
-    } else if (!hide && child.dataset.pankiHidden !== undefined) {
-      delete child.dataset.pankiHidden;
-      child.style.visibility = "";
-    }
-  }
-}
-
 /** Puts Panki's two places where they belong right now: the line under the player; the drawer beside it, or under the line, or floating over a player that fills the screen. */
 let laidOut = "";
 function place() {
@@ -355,14 +330,12 @@ function place() {
   // Each is moved only when it isn't there already: moving it takes the cursor out of whatever is being typed in it.
   if (!under) strip.host.remove();
   else if (strip.host.parentElement !== under) under.prepend(strip.host);
-  // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's work or a card to mark, or Panki's own bar stands in the player's; the player keeps its bar when it fills the screen.
+  // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's work or a card to mark; the player keeps its bar when it fills the screen.
   const tx = transcriber.state();
-  const replace = tx.prefs.seek.bar.replace;
-  const marked = showing.get() || (tx.transcript?.covered.length ?? 0) > 0 || tx.working !== null || carded.get().length > 0 || replace;
+  const marked = showing.get() || (tx.transcript?.covered.length ?? 0) > 0 || tx.working !== null || carded.get().length > 0;
   const bar = marked && video ? document.querySelector(SEEK_BAR) : null;
   if (!bar) seek.host.remove();
   else if (seek.host.parentElement !== bar) bar.append(seek.host);
-  hideOwnBar(replace && bar !== null);
   // The player hides its controls when the pointer rests: the cards' words go with them, and can't be pressed unseen.
   if (document.querySelector(PLAYER)?.classList.contains("ytp-autohide")) onBar.set(false);
   // The transcript over the video, inside the player (which keeps it when it fills the screen); the site's own captions fade while it's there.
@@ -1372,6 +1345,7 @@ function App() {
                   onStretch={(stretch) => transcriber.startStretch(stretch.start, stretch.end)}
                   onForget={(stretch) => void forget(stretch)}
                   onAuto={setAuto}
+                  detail={transcriber.detail}
                 />
               ) : null}
               {/* How the transcript looks over the video, set right here (the owner, 2026-10-17: "edit the subtitles directly in YouTube"). */}
@@ -1447,8 +1421,8 @@ function App() {
       {createPortal(panel(), drawer.ground)}
       {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}
       {createPortal(
-        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0 || tx.prefs.seek.bar.replace) ? (
-          <BarMarks length={video.duration} covered={tx.transcript?.covered ?? []} working={tx.working} cards={cards} clip={clipMark} look={tx.prefs.seek} onGo={goToCard} bar={{ video, onSeek: seekTo }} />
+        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0) ? (
+          <BarMarks length={video.duration} covered={tx.transcript?.covered ?? []} working={tx.working} cards={cards} clip={clipMark} look={tx.prefs.seek} onGo={goToCard} />
         ) : null,
         seek.ground,
       )}

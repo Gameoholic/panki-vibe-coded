@@ -37,7 +37,7 @@ const WORDS_OPTIONS = [
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
 /** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the clip. */
-const MARKS: readonly { id: Exclude<SeekMarkId, "bar">; name: string }[] = [
+const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
   { id: "cards", name: "Cards" },
   { id: "clip", name: "Clip" },
@@ -130,16 +130,15 @@ function SeekPreview({ look }: { look: SeekLook }) {
   return (
     <div className="seek-preview" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
       <div
-        className={`seek-preview-bar ${look.bar.replace ? "is-replaced" : ""}`.trim()}
+        className="seek-preview-bar"
         onPointerDown={(e) => {
-          // A pin, the clip's ends and Panki's own bar do their own thing.
-          if (e.target instanceof Element && e.target.closest(".seek-pin, .seek-end, .seek-own")) return;
+          // A pin and the clip's ends do their own thing.
+          if (e.target instanceof Element && e.target.closest(".seek-pin, .seek-end")) return;
           const box = e.currentTarget.getBoundingClientRect();
           if (box.width > 0) setAt(Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * PREVIEW_LENGTH);
         }}
       >
-        {/* The player's own bar, as it stands until Panki's own takes its place. */}
-        {look.bar.replace ? null : <span className="seek-preview-played" style={{ width: `${(at / PREVIEW_LENGTH) * 100}%` }} aria-hidden="true" />}
+        <span className="seek-preview-played" style={{ width: `${(at / PREVIEW_LENGTH) * 100}%` }} aria-hidden="true" />
         <SeekMark
           length={PREVIEW_LENGTH}
           covered={PREVIEW_COVERED}
@@ -150,7 +149,6 @@ function SeekPreview({ look }: { look: SeekLook }) {
           hover={hover}
           // The made-up cards have no transcript to find their words in: a press goes to the sentence, as it does on a video without one.
           onGo={(card) => setAt(card.startMs / 1000)}
-          bar={{ video: null, at, onSeek: (seconds) => setAt(seconds) }}
         />
       </div>
     </div>
@@ -176,28 +174,6 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
         Seek bar
       </h2>
       <SeekPreview look={look} />
-      {/* The bar itself: the player's own, or Panki's in its place (the owner, 2026-10-19: "by default it's off"). */}
-      <div className="seek-group">
-        <h3 className="seek-group-title">
-          <span
-            className={`seek-group-sample ${look.bar.replace ? "" : "is-off"}`.trim()}
-            style={{ background: paintCss(look.bar.colour), height: `${MARK_SIZES[look.bar.size].px}px` }}
-            aria-hidden="true"
-          />
-          Bar
-        </h3>
-        <Setting
-          id="seek-bar-replace"
-          label="Replace YouTube's bar"
-          control={<Toggle id="seek-bar-replace-on" says={{ on: "On", off: "Off" }} on={look.bar.replace} onChange={(replace) => change("bar", { replace })} />}
-        />
-        <Setting id="seek-bar-colour" label="Colour" control={<Swatches id="seek-bar-colour" value={look.bar.colour} disabled={!look.bar.replace} onChange={(colour) => change("bar", { colour })} />} />
-        <Setting
-          id="seek-bar-size"
-          label="Thickness"
-          control={<Segmented idPrefix="seek-bar-size" label="Bar thickness" options={SIZE_OPTIONS} value={look.bar.size} disabled={!look.bar.replace} onChange={(size) => change("bar", { size })} />}
-        />
-      </div>
       {MARKS.map(({ id, name }) => {
         const mark: MarkLook = look[id];
         return (

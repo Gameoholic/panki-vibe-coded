@@ -31,7 +31,23 @@ export type SilentReport = {
   failed: string | null;
   /** How long the video is, once its player says. */
   duration: number | null;
+  /** Which of the site's pages for the video is open in the frame, and how long ago it was asked for, in seconds. */
+  page: SilentPage;
+  pageAge: number;
+  /** What it's doing this moment. */
+  stage: SilentStage;
+  /** Its sound graph's own state ("running", or "suspended" while the browser hasn't let it start); null before there's a graph. */
+  sound: AudioContextState | null;
+  /** How fast its player plays; null before there's a player. */
+  rate: number | null;
 };
+
+/**
+ * What the silent player is doing this moment, as the strip's menu tells it under Details: its page loading in the
+ * frame, its player looked for in it, going to a moment, starting to play, waiting for the first sound from there,
+ * playing, waiting for the video's data, held, in an ad, at the end, given up.
+ */
+export type SilentStage = "opening" | "finding" | "seeking" | "starting" | "listening" | "playing" | "buffering" | "held" | "ad" | "ended" | "failed";
 
 export type SilentPlayer = {
   /** Goes there and plays on from it, at speed. */
@@ -45,6 +61,7 @@ export type SilentPlayer = {
 
 /** The site's two pages for a video: the embed page first, light and made to be framed; the watch page when the embed says the video can't be. */
 const SOURCES = ["embed", "watch"] as const;
+export type SilentPage = (typeof SOURCES)[number];
 const PLAYER = "#movie_player";
 const ERROR = ".ytp-error";
 const AD = ["ad-showing", "ad-interrupting"];
@@ -73,7 +90,7 @@ const ONSET_TRUST = 1;
 const BIASES = 5;
 const FAILED = "The video couldn't be opened to transcribe it.";
 
-const urlOf = (source: (typeof SOURCES)[number], videoId: string, at: number) =>
+const urlOf = (source: SilentPage, videoId: string, at: number) =>
   source === "embed"
     ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}`
     : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s`;
@@ -159,9 +176,26 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
   frame.addEventListener("load", () => {
     loaded = true;
   });
-  const show = (source: (typeof SOURCES)[number], at: number) => {
+  /** The page last asked for, and when, by `performance.now()`. */
+  let page: SilentPage = SOURCES[0];
+  let pageAt = performance.now();
+  const show = (source: SilentPage, at: number) => {
     loaded = false;
+    page = source;
+    pageAt = performance.now();
     frame.src = urlOf(source, videoId, at);
+  };
+  const stageOf = (): SilentStage => {
+    if (failed !== null) return "failed";
+    if (!video) return loaded ? "finding" : "opening";
+    if (ended) return "ended";
+    if (ad) return "ad";
+    if (video.seeking) return "seeking";
+    if (!wantPlaying) return "held";
+    if (video.paused) return "starting";
+    if (onset !== null) return "listening";
+    if (video.readyState < video.HAVE_FUTURE_DATA) return "buffering";
+    return "playing";
   };
 
   const suspend = () => {
@@ -379,6 +413,11 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
       blocked,
       failed,
       duration: video !== null && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null,
+      page,
+      pageAge: (performance.now() - pageAt) / 1000,
+      stage: stageOf(),
+      sound: ctx?.state ?? null,
+      rate: video?.playbackRate ?? null,
     }),
     destroy() {
       if (gone) return;
