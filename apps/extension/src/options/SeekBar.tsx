@@ -6,6 +6,8 @@ import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
 import {
+  CARD_CLICKS,
+  CARD_CLICK_IDS,
   MARK_COLOURS,
   MARK_COLOUR_IDS,
   MARK_SIZES,
@@ -22,11 +24,12 @@ import {
   type SeekMarkId,
 } from "../seekLook";
 import { writeStore, type Stored } from "../storage";
-import { SeekMark, cardNear, type ClipMark } from "../ui/SeekMark";
+import { SeekMark, type ClipMark } from "../ui/SeekMark";
 import { ColourWheel } from "./ColourWheel";
 
 const SIZE_OPTIONS = MARK_SIZE_IDS.map((id) => ({ id, label: MARK_SIZES[id].name }));
 const ENTRANCE_OPTIONS = PIN_ENTRANCE_IDS.map((id) => ({ id, label: PIN_ENTRANCES[id] }));
+const CLICK_OPTIONS = CARD_CLICK_IDS.map((id) => ({ id, label: CARD_CLICKS[id] }));
 const WORDS_OPTIONS = [
   { id: "hover", label: "On hover" },
   { id: "always", label: "Always" },
@@ -34,7 +37,7 @@ const WORDS_OPTIONS = [
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
 /** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the clip. */
-const MARKS: readonly { id: SeekMarkId; name: string }[] = [
+const MARKS: readonly { id: Exclude<SeekMarkId, "bar">; name: string }[] = [
   { id: "transcript", name: "Transcript" },
   { id: "cards", name: "Cards" },
   { id: "clip", name: "Clip" },
@@ -112,12 +115,10 @@ function Swatches({ id, value, disabled, onChange }: { id: string; value: MarkPa
 
 /**
  * The marks as they'd stand on a video's bar, live: the pointer on it raises the cards' words as it would on the
- * video, a pin pressed (or anywhere on the bar, drawn to a card near it when snapping's on) moves where it has played
- * to, and the clip's ends can be pulled.
+ * video, a pin pressed (or anywhere on the bar) moves where it has played to, and the clip's ends can be pulled.
  */
 function SeekPreview({ look }: { look: SeekLook }) {
   const [hover, setHover] = useState(false);
-  const [pointer, setPointer] = useState<number | null>(null);
   const [at, setAt] = useState(PREVIEW_PLAYED);
   const [clip, setClip] = useState({ start: 240, end: 252 });
   const mark: ClipMark = {
@@ -129,21 +130,28 @@ function SeekPreview({ look }: { look: SeekLook }) {
   return (
     <div className="seek-preview" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
       <div
-        className="seek-preview-bar"
-        onPointerMove={(e) => setPointer(e.clientX - e.currentTarget.getBoundingClientRect().left)}
-        onPointerLeave={() => setPointer(null)}
+        className={`seek-preview-bar ${look.bar.replace ? "is-replaced" : ""}`.trim()}
         onPointerDown={(e) => {
-          // A pin and the clip's ends do their own thing.
-          if (e.target instanceof Element && e.target.closest(".seek-pin, .seek-end")) return;
+          // A pin, the clip's ends and Panki's own bar do their own thing.
+          if (e.target instanceof Element && e.target.closest(".seek-pin, .seek-end, .seek-own")) return;
           const box = e.currentTarget.getBoundingClientRect();
-          if (box.width === 0) return;
-          const x = e.clientX - box.left;
-          const card = look.cards.shown && look.cards.snap ? cardNear(PREVIEW_CARDS, PREVIEW_LENGTH, box.width, x) : null;
-          setAt(card ? card.startMs / 1000 : Math.max(0, Math.min(1, x / box.width)) * PREVIEW_LENGTH);
+          if (box.width > 0) setAt(Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * PREVIEW_LENGTH);
         }}
       >
-        <span className="seek-preview-played" style={{ width: `${(at / PREVIEW_LENGTH) * 100}%` }} aria-hidden="true" />
-        <SeekMark length={PREVIEW_LENGTH} at={at} covered={PREVIEW_COVERED} working={PREVIEW_WORKING} cards={PREVIEW_CARDS} clip={mark} look={look} hover={hover} pointer={pointer} onGo={setAt} />
+        {/* The player's own bar, as it stands until Panki's own takes its place. */}
+        {look.bar.replace ? null : <span className="seek-preview-played" style={{ width: `${(at / PREVIEW_LENGTH) * 100}%` }} aria-hidden="true" />}
+        <SeekMark
+          length={PREVIEW_LENGTH}
+          covered={PREVIEW_COVERED}
+          working={PREVIEW_WORKING}
+          cards={PREVIEW_CARDS}
+          clip={mark}
+          look={look}
+          hover={hover}
+          // The made-up cards have no transcript to find their words in: a press goes to the sentence, as it does on a video without one.
+          onGo={(card) => setAt(card.startMs / 1000)}
+          bar={{ video: null, at, onSeek: (seconds) => setAt(seconds) }}
+        />
       </div>
     </div>
   );
@@ -152,8 +160,8 @@ function SeekPreview({ look }: { look: SeekLook }) {
 /**
  * How Panki's marks on a video's seek bar look (the owner, 2026-10-19: "make the segments customizable, both for colour
  * and other stuff"), each its own: shown or not, its colour, how thick; and for the cards, when their words stand over
- * them, and whether seeking is drawn to them. The preview at the top is the real thing, with a made-up video. Kept the moment it's changed; a video page reads
- * it again as it gets the focus.
+ * them, how they come in and what pressing one does. The preview at the top is the real thing, with a made-up video.
+ * Kept the moment it's changed; a video page reads it again as it gets the focus.
  */
 export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const look = store.seekLook;
@@ -168,11 +176,41 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
         Seek bar
       </h2>
       <SeekPreview look={look} />
+      {/* The bar itself: the player's own, or Panki's in its place (the owner, 2026-10-19: "by default it's off"). */}
+      <div className="seek-group">
+        <h3 className="seek-group-title">
+          <span
+            className={`seek-group-sample ${look.bar.replace ? "" : "is-off"}`.trim()}
+            style={{ background: paintCss(look.bar.colour), height: `${MARK_SIZES[look.bar.size].px}px` }}
+            aria-hidden="true"
+          />
+          Bar
+        </h3>
+        <Setting
+          id="seek-bar-replace"
+          label="Replace YouTube's bar"
+          control={<Toggle id="seek-bar-replace-on" says={{ on: "On", off: "Off" }} on={look.bar.replace} onChange={(replace) => change("bar", { replace })} />}
+        />
+        <Setting id="seek-bar-colour" label="Colour" control={<Swatches id="seek-bar-colour" value={look.bar.colour} disabled={!look.bar.replace} onChange={(colour) => change("bar", { colour })} />} />
+        <Setting
+          id="seek-bar-size"
+          label="Thickness"
+          control={<Segmented idPrefix="seek-bar-size" label="Bar thickness" options={SIZE_OPTIONS} value={look.bar.size} disabled={!look.bar.replace} onChange={(size) => change("bar", { size })} />}
+        />
+      </div>
       {MARKS.map(({ id, name }) => {
         const mark: MarkLook = look[id];
         return (
-          <div key={id} className="panel-section">
-            <h3 className="panel-subtitle">{name}</h3>
+          // Each mark a block of its own, its name led by a stroke of the mark as it's drawn (the owner, 2026-10-19: "they're all clumped together").
+          <div key={id} className="seek-group">
+            <h3 className="seek-group-title">
+              <span
+                className={`seek-group-sample ${mark.shown ? "" : "is-off"}`.trim()}
+                style={{ background: paintCss(mark.colour), height: `${MARK_SIZES[mark.size].px}px` }}
+                aria-hidden="true"
+              />
+              {name}
+            </h3>
             <Setting id={`seek-${id}-shown`} label="Visibility" control={<Toggle id={`seek-${id}-shown-on`} says={{ on: "Shown", off: "Hidden" }} on={mark.shown} onChange={(shown) => change(id, { shown })} />} />
             <Setting id={`seek-${id}-colour`} label="Colour" control={<Swatches id={`seek-${id}-colour`} value={mark.colour} disabled={!mark.shown} onChange={(colour) => change(id, { colour })} />} />
             <Setting
@@ -202,9 +240,18 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
                   }
                 />
                 <Setting
-                  id="seek-cards-snap"
-                  label="Snap to cards"
-                  control={<Toggle id="seek-cards-snap-on" says={{ on: "On", off: "Off" }} on={look.cards.snap} disabled={!look.cards.shown} onChange={(snap) => change("cards", { snap })} />}
+                  id="seek-cards-click"
+                  label="Clicking a word"
+                  control={
+                    <Segmented
+                      idPrefix="seek-cards-click"
+                      label="Clicking a word"
+                      options={CLICK_OPTIONS}
+                      value={look.cards.click}
+                      disabled={!look.cards.shown || look.cards.words === "off"}
+                      onChange={(click) => change("cards", { click })}
+                    />
+                  }
                 />
               </>
             ) : null}

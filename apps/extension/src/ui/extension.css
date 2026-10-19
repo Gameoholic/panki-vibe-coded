@@ -609,6 +609,66 @@
   position: absolute;
   inset: 0;
 }
+/* Panki's own bar in the player's place (SeekMark → OwnBar, `look.bar.replace`): the whole video as a track, what's
+   loaded a shade lighter, what's played in the viewer's colour and thickness (`--bar-colour`, `--bar-size`), and a
+   handle where the video is, small until the pointer is on the bar or it's being pulled. It takes a press a little
+   above and below what's drawn, as the player's does. Under every mark: the marks are drawn on it as on the player's. */
+.seek-own {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  bottom: -8px;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.seek-own-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--bar-size);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--theater-ink) 22%, transparent);
+}
+.seek-own:focus-visible .seek-own-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.seek-own-loaded {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--theater-ink) 38%, transparent);
+}
+.seek-own-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--bar-colour);
+}
+.seek-own-knob {
+  position: absolute;
+  top: 50%;
+  width: calc(var(--bar-size) + 9px);
+  height: calc(var(--bar-size) + 9px);
+  border-radius: 50%;
+  background: var(--bar-colour);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--theater) 50%, transparent);
+  translate: -50% -50%;
+  transform: scale(0.55);
+  transition: transform 0.12s ease;
+  pointer-events: none;
+}
+.seek-own:hover .seek-own-knob,
+.seek-own.is-held .seek-own-knob {
+  transform: none;
+}
 /* Along the bar's top edge, how far the transcript reaches: a line centred a little above the bar, whatever its
    thickness, so what the bar says itself (how much has played, how much has loaded) stays seen. */
 .seek-covered,
@@ -635,33 +695,11 @@
   border-radius: 2px;
   background: var(--cards-colour);
 }
-.seek-card.is-now {
-  box-shadow: 0 0 8px var(--cards-colour);
-}
-/* The card the pointer is drawn to, with snapping on (the owner, 2026-10-19): its mark ringed and glowing, and a
-   hairline through the bar where the video goes if it's let go now, the card's own moment. */
-.seek-card.is-magnet {
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--cards-colour) 45%, transparent),
-    0 0 10px var(--cards-colour);
-}
-.seek-snap {
-  position: absolute;
-  top: -5px;
-  bottom: -5px;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--cards-colour);
-  box-shadow: 0 0 6px var(--cards-colour);
-  pointer-events: none;
-}
 /* A card's words on a pin over its mark (the owner, 2026-10-19: "show the actual word for the orange bits… something
    that looks cool and non-average"): a small glass tag on the picture, edged in the cards' colour, a hairline stem
    down to its mark, one lane over another where they'd touch (SeekMark → PIN). They come in as the viewer's entrance
    says (`.is-sprout`, `.is-flap`, `.is-fade`, `.is-none`, from seekLook.ts → PinEntrance), each a beat after the one
-   to its left, and drop away at once as the pointer leaves. The card the video is at rises by itself, filled with the
-   cards' colour and glowing faintly; the pin under the pointer lifts.
+   to its left, and drop away at once as the pointer leaves; the one under the pointer is edged.
 
    How long each takes is written here once, as variables on `.seek-pins` (the owner, 2026-10-19, the first try being
    so quick it read as no animation at all: "the animations are like 0.05 seconds long"): the times are the preview
@@ -782,25 +820,18 @@
 .seek-pins.is-none .seek-stem {
   transition: none;
 }
-/* After the entrances, so a pin under the pointer or drawn to lifts at once, whatever its place in the line. */
+/* After the entrances, so a pin under the pointer is edged and darkened at once, whatever its place in the line: the
+   one thing that says it can be pressed. It stays where it stands (a lift went at the owner's word, 2026-10-19:
+   "that's unnecessary"). A pin set to do nothing (`:disabled`) isn't a thing to press, and shows nothing of the kind. */
 @media (hover: hover) {
-  .seek-pins .btn.btn-ghost.seek-pin.is-up:hover {
-    transform: translateY(-3px);
+  .seek-pins .btn.btn-ghost.seek-pin.is-up:not(:disabled):hover {
     transition-delay: 0s;
-    background: color-mix(in srgb, var(--theater) 88%, transparent);
     border-color: var(--cards-colour);
+    background: color-mix(in srgb, var(--theater) 88%, transparent);
   }
 }
-.seek-pins .btn.btn-ghost.seek-pin.is-now {
-  background: var(--cards-colour);
-  border-color: transparent;
-  color: var(--theater);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--cards-colour) 55%, transparent);
-}
-.seek-pins .btn.btn-ghost.seek-pin.is-up.is-magnet {
-  transform: translateY(-3px);
-  transition-delay: 0s;
-  border-color: var(--cards-colour);
+.seek-pins .btn.btn-ghost.seek-pin:disabled {
+  cursor: default;
 }
 @media (prefers-reduced-motion: reduce) {
   .seek-pins .btn.btn-ghost.seek-pin,
@@ -1639,6 +1670,10 @@
   background: color-mix(in srgb, var(--theater-ink) 22%, transparent);
   cursor: pointer;
 }
+/* Panki's own bar draws its own track (SeekMark → OwnBar): the made-up player's is gone. */
+.seek-preview-bar.is-replaced {
+  background: none;
+}
 .seek-preview-bar::before {
   content: "";
   position: absolute;
@@ -1652,6 +1687,36 @@
   border-radius: inherit;
   background: color-mix(in srgb, var(--theater-ink) 70%, transparent);
   pointer-events: none;
+}
+/* Each mark's settings a block of its own (the owner, 2026-10-19: "they're all clumped together"), set into the panel
+   on the page's own ground (the segmented controls keep their well on it), its name led by a stroke of the mark in its
+   colour and thickness, faint while it's hidden. */
+.seek-group {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.seek-group + .seek-group {
+  margin-top: 4px;
+}
+.seek-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 2px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.seek-group-sample {
+  flex: none;
+  width: 28px;
+  border-radius: 2px;
+}
+.seek-group-sample.is-off {
+  opacity: 0.3;
 }
 /* A mark's colour: a round swatch each from the palette, the one on ringed, its name after them. */
 .mark-swatches {

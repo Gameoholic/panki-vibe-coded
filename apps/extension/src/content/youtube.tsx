@@ -28,7 +28,7 @@ import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
 import { makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer } from "../ui/Panel";
-import { SeekMark, cardNear, type ClipMark } from "../ui/SeekMark";
+import { SeekMark, type ClipMark } from "../ui/SeekMark";
 import { TranscribeMenu, type Seconds } from "../ui/TranscribeMenu";
 import type { ClipEnd, MoveBy } from "../ui/Trim";
 
@@ -161,53 +161,107 @@ const showingOver = cell(false);
 const carded = cell<readonly VideoCard[]>([]);
 /** Whether the pointer is on the player's seek bar, or on what Panki draws over it: the cards' words rise. */
 const onBar = cell(false);
-/** Where the pointer is along the seek bar, in pixels from its left edge; null while it's off it. The card it's drawn to is lit. */
-const barX = cell<number | null>(null);
-/** The seek bars listened to already: the player keeps one, but may build it again. */
-const listenedBars = new WeakSet<Element>();
+/** How far above the seek bar the pointer counts as on it, as the marks last said (`SeekMark` → `REACH`). */
+const reachPx = cell(0);
 
 /**
- * Listens to the player's seek bar: where the pointer is on it, and a press on it let go. With snapping on, a press let
- * go near a card's mark puts the video at the card's moment rather than the pointer's (the owner, 2026-10-19: "anchor
- * to any of these timestamps… when moving with the mouse on the seekbar"). The player seeks where it was let go first,
- * as it always does; the card's moment is set the moment after, so it's the last word. Panki's own pins and the clip's
- * ends never reach here: a press is stopped at Panki's place.
+ * Whether the pointer is on the seek bar: read against where the bar is drawn, not from the bar's own events, so the
+ * pointer counts as on it as far up as the cards' words stand (`reachPx`), coming in as much as going out, with
+ * nothing laid over the picture to take its presses (the owner, 2026-10-19: "right now I basically have to hug the
+ * seekbar"). A bar the player has hidden (it hides its controls when the pointer rests) is never on.
  */
-function listenTo(bar: Element) {
-  if (listenedBars.has(bar)) return;
-  listenedBars.add(bar);
-  let pressed = false;
-  const along = (clientX: number) => clientX - bar.getBoundingClientRect().left;
-  // Panki's place is inside the bar, so the pointer moving from the bar onto a card's pin is still on it.
-  bar.addEventListener("pointerenter", () => onBar.set(true));
-  bar.addEventListener("pointerleave", () => {
-    onBar.set(false);
-    if (!pressed) barX.set(null);
-  });
-  bar.addEventListener("pointermove", (e) => {
-    if (e instanceof PointerEvent) barX.set(along(e.clientX));
-  });
-  bar.addEventListener("pointerdown", () => {
-    pressed = true;
-  });
-  window.addEventListener(
-    "pointerup",
-    (e) => {
-      if (!pressed) return;
-      pressed = false;
-      if (!onBar.get()) barX.set(null);
-      const player = video;
-      const look = transcriber.state().prefs.seek;
-      if (!player || !look.cards.shown || !look.cards.snap) return;
-      const card = cardNear(carded.get(), player.duration, bar.getBoundingClientRect().width, along(e.clientX));
-      if (!card) return;
-      setTimeout(() => {
-        player.currentTime = card.startMs / 1000;
-      }, 0);
-    },
-    true,
-  );
+function follow(x: number, y: number) {
+  const box = document.querySelector(SEEK_BAR)?.getBoundingClientRect();
+  const hidden = document.querySelector(PLAYER)?.classList.contains("ytp-autohide") ?? false;
+  onBar.set(!!box && box.width > 0 && !hidden && x >= box.left && x <= box.right && y <= box.bottom + 6 && y >= box.top - reachPx.get());
 }
+
+/**
+ * Where a card's own words are said, in seconds: the first of the transcript's words in the card's stretch from where
+ * they're written out together, as the card has them or, kept in their dictionary form, their stem (the kana that end
+ * them taken off: 行く is found in 行って by 行); null when the transcript doesn't have them there (the site's
+ * captions say nothing of when each word is said).
+ */
+function wordMoment(card: VideoCard): number | null {
+  const transcript = transcriber.state().transcript;
+  const words = card.words.trim();
+  if (!transcript || !words) return null;
+  const inside = transcript.words.filter((w) => w.startMs >= card.startMs - 500 && w.startMs <= card.endMs + 500);
+  let text = "";
+  const startOf: number[] = [];
+  for (const w of inside) {
+    for (let i = 0; i < w.text.length; i++) startOf.push(w.startMs);
+    text += w.text;
+  }
+  for (const probe of [words, words.replace(/[぀-ゟ]+$/, "")]) {
+    const at = probe ? text.indexOf(probe) : -1;
+    const ms = at >= 0 ? startOf[at] : undefined;
+    if (ms !== undefined) return ms / 1000;
+  }
+  return null;
+}
+
+/** Where pressing a card's words takes the video, in seconds: its sentence, or its own words when it's set to and they're found (else its sentence); null when pressing them does nothing. */
+function cardTarget(card: VideoCard): number | null {
+  const click = transcriber.state().prefs.seek.cards.click;
+  if (click === "none") return null;
+  return (click === "word" ? wordMoment(card) : null) ?? card.startMs / 1000;
+}
+
+function goToCard(card: VideoCard) {
+  const at = cardTarget(card);
+  if (video && at !== null) video.currentTime = at;
+}
+
+/** Panki's own bar pressed or pulled (`look.bar.replace`): the video goes there, as the player's own bar would take it. */
+function seekTo(seconds: number) {
+  if (video) video.currentTime = seconds;
+}
+
+/**
+ * The player's own preview over its bar (the frame and the time it would go to) shown, while the pointer is on a
+ * card's words, for where pressing them goes rather than for where the pointer is (the owner, 2026-10-19: "display
+ * the frame we will go to"). The pointer's own moves over the words are kept from the bar (`SeekMark` → `onPeek`), and
+ * the bar is told of a move at that moment instead: the one place Panki stirs the player's own script, with nothing
+ * but a pointer's move, as the pointer itself would make. Panki's own following of the pointer leaves made-up moves
+ * alone (`isTrusted`).
+ */
+function peekCard(card: VideoCard) {
+  const at = cardTarget(card);
+  const player = video;
+  const bar = document.querySelector(SEEK_BAR);
+  if (at === null || !player || !bar || !Number.isFinite(player.duration) || player.duration <= 0) return;
+  const box = bar.getBoundingClientRect();
+  if (box.width === 0) return;
+  const init = { bubbles: true, cancelable: true, composed: true, clientX: box.left + (at / player.duration) * box.width, clientY: box.top + box.height / 2 };
+  bar.dispatchEvent(new PointerEvent("pointermove", init));
+  bar.dispatchEvent(new MouseEvent("mousemove", init));
+}
+let pointerAt: { x: number; y: number } | null = null;
+let following = false;
+// Looked at once a frame at most, however fast the pointer moves.
+document.addEventListener(
+  "pointermove",
+  (e) => {
+    // A move Panki made up for the player's preview (`peekCard`) isn't where the pointer is.
+    if (!e.isTrusted) return;
+    pointerAt = { x: e.clientX, y: e.clientY };
+    if (following) return;
+    following = true;
+    requestAnimationFrame(() => {
+      following = false;
+      if (pointerAt) follow(pointerAt.x, pointerAt.y);
+    });
+  },
+  { passive: true },
+);
+document.documentElement.addEventListener("pointerleave", () => {
+  pointerAt = null;
+  onBar.set(false);
+});
+// Snapping to cards (a press on the bar let go near a card's mark landing on the card's moment) lived here for a day;
+// the owner had it taken out on 2026-10-19, the cards' words doing the same job.
+
 /** What reaches the screen from outside it: the menu or the toolbar button asked for a capture; the page moved on to another video. */
 const asked = new EventTarget();
 type Added = { found: Found; pointed: Pointed };
@@ -268,6 +322,26 @@ async function readCarded() {
   if (answer.ok && watching === id) carded.set(answer.cards);
 }
 
+/**
+ * The player's own drawing of its seek bar hidden while Panki's own stands in its place (`look.bar.replace`), and shown
+ * again as soon as it's switched off: everything in the bar but Panki's place, made unseen, never removed (its element
+ * stays, with Panki's place in it, and the player keeps working it as ever). Only what was hidden here is shown again.
+ */
+function hideOwnBar(hide: boolean) {
+  const bar = document.querySelector(SEEK_BAR);
+  if (!bar) return;
+  for (const child of bar.children) {
+    if (child === seek.host || !(child instanceof HTMLElement)) continue;
+    if (hide && child.dataset.pankiHidden === undefined) {
+      child.dataset.pankiHidden = "";
+      child.style.visibility = "hidden";
+    } else if (!hide && child.dataset.pankiHidden !== undefined) {
+      delete child.dataset.pankiHidden;
+      child.style.visibility = "";
+    }
+  }
+}
+
 /** Puts Panki's two places where they belong right now: the line under the player; the drawer beside it, or under the line, or floating over a player that fills the screen. */
 let laidOut = "";
 function place() {
@@ -281,13 +355,16 @@ function place() {
   // Each is moved only when it isn't there already: moving it takes the cursor out of whatever is being typed in it.
   if (!under) strip.host.remove();
   else if (strip.host.parentElement !== under) under.prepend(strip.host);
-  // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's work or a card to mark; the player keeps its bar when it fills the screen.
+  // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's work or a card to mark, or Panki's own bar stands in the player's; the player keeps its bar when it fills the screen.
   const tx = transcriber.state();
-  const marked = showing.get() || (tx.transcript?.covered.length ?? 0) > 0 || tx.working !== null || carded.get().length > 0;
+  const replace = tx.prefs.seek.bar.replace;
+  const marked = showing.get() || (tx.transcript?.covered.length ?? 0) > 0 || tx.working !== null || carded.get().length > 0 || replace;
   const bar = marked && video ? document.querySelector(SEEK_BAR) : null;
   if (!bar) seek.host.remove();
   else if (seek.host.parentElement !== bar) bar.append(seek.host);
-  if (bar) listenTo(bar);
+  hideOwnBar(replace && bar !== null);
+  // The player hides its controls when the pointer rests: the cards' words go with them, and can't be pressed unseen.
+  if (document.querySelector(PLAYER)?.classList.contains("ytp-autohide")) onBar.set(false);
   // The transcript over the video, inside the player (which keeps it when it fills the screen); the site's own captions fade while it's there.
   const player = video ? document.querySelector(PLAYER) : null;
   const overThere = showingOver.get() ? player : null;
@@ -761,11 +838,10 @@ function useNow(beats: readonly Beat[]): Chars | null {
   return beat ? { from: beat.from, to: beat.to } : null;
 }
 
-/** The marks on the seek bar, following the pointer on it themselves, so the whole screen isn't drawn again as it moves. */
-function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "pointer">) {
+/** The marks on the seek bar, following the pointer on it themselves, so the whole screen isn't drawn again as it comes and goes. */
+function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "onReach" | "onPeek">) {
   const hover = useSyncExternalStore(onBar.subscribe, onBar.get);
-  const pointer = useSyncExternalStore(barX.subscribe, barX.get);
-  return <SeekMark {...props} hover={hover} pointer={pointer} />;
+  return <SeekMark {...props} hover={hover} onReach={reachPx.set} onPeek={peekCard} />;
 }
 
 function App() {
@@ -1371,19 +1447,8 @@ function App() {
       {createPortal(panel(), drawer.ground)}
       {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}
       {createPortal(
-        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0) ? (
-          <BarMarks
-            length={video.duration}
-            clock={video}
-            covered={tx.transcript?.covered ?? []}
-            working={tx.working}
-            cards={cards}
-            clip={clipMark}
-            look={tx.prefs.seek}
-            onGo={(seconds) => {
-              if (video) video.currentTime = seconds;
-            }}
-          />
+        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0 || tx.prefs.seek.bar.replace) ? (
+          <BarMarks length={video.duration} covered={tx.transcript?.covered ?? []} working={tx.working} cards={cards} clip={clipMark} look={tx.prefs.seek} onGo={goToCard} bar={{ video, onSeek: seekTo }} />
         ) : null,
         seek.ground,
       )}
@@ -1420,11 +1485,8 @@ window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
 carded.subscribe(place);
-// Another video: the pointer's place on the bar is known afresh.
-asked.addEventListener("moved", () => {
-  onBar.set(false);
-  barX.set(null);
-});
+// Another video: whether the pointer is on the bar is known afresh.
+asked.addEventListener("moved", () => onBar.set(false));
 // The transcript's reach goes on the seek bar as soon as there is one to mark.
 transcriber.subscribe(place);
 
