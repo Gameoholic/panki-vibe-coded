@@ -7,6 +7,7 @@ pm2 restart panki-api
 ```
 
 WORKING ON THIS:
+ok so I wrote al lthese ntoes down jsut rambling and I rtyihngh we can start thinkign abotu this. obivosuyl imeplement ntohign i want solid plan first.
 Things ElevenLabs could do for the transcripts, for later:
 - Key terms: give it a list of words to listen for (the video's title, the channel's name, words I've fixed by hand on that video), so names, game words and slang come out right more often. Costs 20% more.
 - Let ElevenLabs fetch the YouTube video itself and transcribe the whole thing in one go. No hidden second player, no cutting into pieces, and the timing comes straight from the real video. But the whole video is paid for up front (about 7 cents for 20 minutes), the words only show up once it's all done, and some videos might refuse.
