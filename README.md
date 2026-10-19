@@ -50,4 +50,5 @@ Video tracking for stats is enabled by default and ther;'ell be a toolti pro des
 19:20 ダニエル こうしたら、絶対英語は上手になるよ
 19:21 ダニエル だって、僕もmotivation欲しい
 19:22 ダニエル 「やっべ、れなは今日、動画を見たけど俺まだ全然見てない、ストリークがなくなるのは嫌だ、少しなくても、何かを見ないと」って
+Maybe I can even create parties or groups ro soemthign s oI can d othsi with multipel people, or even ahve globla leaderboard/tracking for all users on the app.
 It's improtan tthnis entire epic/feature is carefully thought to respect al lthe dguideliesn and covnentiosn int he docs, and that you previwe it to me in artifact.
