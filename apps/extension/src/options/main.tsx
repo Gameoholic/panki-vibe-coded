@@ -22,6 +22,7 @@ import type { TranscribePaused } from "../transcribe/prefs";
 import { deviceTheme } from "../ui/mount";
 import { Dictionaries, Looking } from "./Dictionary";
 import { PopupLayoutPanel } from "./PopupLayout";
+import { SeekBarPanel } from "./SeekBar";
 
 /**
  * The extension's own page, in tabs: the dictionary (how looking a word up works, the dictionaries, how the popup is
@@ -487,6 +488,7 @@ function Options() {
           <div className="options-tab" hidden={tab !== "youtube"}>
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
+            <SeekBarPanel store={store} onChanged={refresh} />
             <Clips store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>

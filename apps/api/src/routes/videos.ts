@@ -45,7 +45,7 @@ export function videosRouter(dbOf: DbOf, shared: Shared, now: () => number, fetc
   router.get("/:videoId/cards", (req, res) => {
     const videoId = videoOf(req.params.videoId, res);
     if (videoId === null) return;
-    const answer: VideoCards = { stretches: dbOf(res).videoStretches(videoId) };
+    const answer: VideoCards = { cards: dbOf(res).videoCards(videoId) };
     res.json(answer);
   });
 

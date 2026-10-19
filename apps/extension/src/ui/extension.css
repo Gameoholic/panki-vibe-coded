@@ -598,49 +598,136 @@
   background: var(--fg);
   pointer-events: none;
 }
-/* The clip on the player's own seek bar (ui/SeekMark.tsx). Its place is laid over the whole bar, so everything here is
-   set out in shares of it. The stretch is as thick as the bar; its two ends stand outside it, one each side, and reach
-   above and below the bar so there's something to take hold of, with more room to press than is drawn. A clip of a
-   second or two is a hair's width on a long video: it's never drawn thinner than can be seen. Only the ends take a
-   press (the place itself lets everything through to the player). */
+/* Panki on the player's own seek bar (ui/SeekMark.tsx). Its place is laid over the whole bar, so everything here is
+   set out in shares of it. How each mark looks is the viewer's (seekLook.ts): its colour and thickness come as
+   variables on `.seek` (`--transcript-colour`, `--transcript-size`, and the same for `cards` and `clip`). The clip
+   lies on the bar; its two ends stand outside it, one each side, and reach above and below the bar so there's
+   something to take hold of, with more room to press than is drawn. A clip of a second or two is a hair's width on a
+   long video: it's never drawn thinner than can be seen. Only the clip's ends and the cards' pins take a press (the
+   place itself lets everything through to the player). */
 .seek {
   position: absolute;
   inset: 0;
 }
-/* Along the bar's top edge, how far the transcript reaches: a thin line in the transcript's colour, a little above
-   the bar so what the bar says itself (how much has played, how much has loaded) stays seen. */
+/* Along the bar's top edge, how far the transcript reaches: a line centred a little above the bar, whatever its
+   thickness, so what the bar says itself (how much has played, how much has loaded) stays seen. */
 .seek-covered,
 .seek-working {
   position: absolute;
-  bottom: calc(100% + 2px);
-  height: 3px;
+  bottom: calc(100% + 3.5px - var(--transcript-size) / 2);
+  height: var(--transcript-size);
   min-width: 2px;
   border-radius: 2px;
-  background: var(--transcribed);
+  background: var(--transcript-colour);
 }
 /* …and what a run has heard that isn't back from the engine yet, the same line faint: being transcribed this moment
    (the owner, 2026-10-17, asked for it pulsing, then "the yellow glowing is too much… make its opacity really quite low"). */
 .seek-working {
   opacity: 0.3;
 }
-/* Where a card was taken from (each card's clip), on the same line in the cards' own colour and a little taller, so it
-   reads over the transcript's yellow (the owner, 2026-10-18: "orange or some other color, parts of the video that have
-   had cards built for them"). */
+/* Where a card was taken from (each card's clip), centred on the same line (the owner, 2026-10-18: "orange or some
+   other color, parts of the video that have had cards built for them"); the one the video is at, glowing. */
 .seek-card {
   position: absolute;
-  bottom: calc(100% + 1px);
-  height: 5px;
+  bottom: calc(100% + 3.5px - var(--cards-size) / 2);
+  height: var(--cards-size);
   min-width: 3px;
   border-radius: 2px;
-  background: var(--carded);
+  background: var(--cards-colour);
+}
+.seek-card.is-now {
+  box-shadow: 0 0 8px var(--cards-colour);
+}
+/* A card's words on a pin over its mark (the owner, 2026-10-19: "show the actual word for the orange bits… something
+   that looks cool and non-average"): a small glass tag on the picture, edged in the cards' colour, a hairline stem
+   down to its mark, one lane over another where they'd touch (SeekMark → PIN). As the pointer comes onto the bar they
+   rise in a ripple from left to right, each a beat after the one before, with a little overshoot, grown from the foot
+   of their stem; they drop away at once as it leaves. The card the video is at rises by itself, filled with the
+   cards' colour and glowing faintly; the pin under the pointer lifts. */
+.seek-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.btn.btn-ghost.seek-pin {
+  position: absolute;
+  left: var(--left);
+  bottom: calc(100% + 12px + var(--lane) * 26px);
+  max-width: 168px;
+  height: 20px;
+  padding: 0 8px;
+  gap: 0;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--cards-colour) 60%, transparent);
+  background: color-mix(in srgb, var(--theater) 68%, transparent);
+  backdrop-filter: blur(8px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--theater-ink) 14%, transparent),
+    0 4px 14px color-mix(in srgb, var(--theater) 50%, transparent);
+  color: var(--theater-ink);
+  font: 700 12px/1 var(--font-ja);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px) scale(0.85);
+  transform-origin: var(--x) 100%;
+  transition:
+    opacity 0.14s ease,
+    transform 0.28s cubic-bezier(0.2, 1.5, 0.4, 1),
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.btn.btn-ghost.seek-pin.is-up {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: calc(min(var(--i), 12) * 22ms);
+}
+.seek-pin-words {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The stem, from the pin down to its mark on the line, the cards' colour fading up into the pin. */
+.btn.seek-pin::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: calc(var(--x) - 0.5px);
+  width: 1px;
+  height: calc(8.5px + var(--lane) * 26px);
+  background: linear-gradient(to top, var(--cards-colour), color-mix(in srgb, var(--cards-colour) 20%, transparent));
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .btn.btn-ghost.seek-pin.is-up:hover {
+    transform: translateY(-3px);
+    transition-delay: 0s;
+    background: color-mix(in srgb, var(--theater) 88%, transparent);
+    border-color: var(--cards-colour);
+  }
+}
+.btn.btn-ghost.seek-pin.is-now {
+  background: var(--cards-colour);
+  border-color: transparent;
+  color: var(--theater);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--cards-colour) 55%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.btn-ghost.seek-pin,
+  .btn.btn-ghost.seek-pin.is-up {
+    transform: none;
+    transition: opacity 0.12s ease;
+  }
 }
 .seek-clip {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 50%;
+  height: var(--clip-size);
+  transform: translateY(-50%);
   min-width: 3px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--clip-colour);
 }
 .seek-end {
   position: absolute;
@@ -648,7 +735,7 @@
   bottom: -6px;
   width: 6px;
   border-radius: 3px;
-  background: var(--accent);
+  background: var(--clip-colour);
   box-shadow: 0 0 0 1px var(--accent-ink);
   cursor: ew-resize;
   pointer-events: auto;
@@ -1437,4 +1524,84 @@
 }
 .dict-sites .field {
   width: 100%;
+}
+
+/* The options page's seek bar (options/SeekBar.tsx): the foot of a made-up video, dark as a picture is, with a bar along
+   it carrying the real marks; the pointer on it raises the cards' words as it would on a video, a press moves where
+   it has played to. Its bar takes a press a little above and below what's drawn, as a player's does. */
+.seek-preview {
+  position: relative;
+  height: 156px;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 12% 0%, color-mix(in srgb, var(--accent) 36%, transparent), transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--mark-violet) 22%, transparent), transparent 55%),
+    var(--theater);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theater-ink) 8%, transparent);
+}
+.seek-preview-bar {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--theater-ink) 22%, transparent);
+  cursor: pointer;
+}
+.seek-preview-bar::before {
+  content: "";
+  position: absolute;
+  inset: -10px 0;
+}
+.seek-preview-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--theater-ink) 70%, transparent);
+  pointer-events: none;
+}
+/* A mark's colour: a round swatch each from the palette, the one on ringed, its name after them. */
+.mark-swatches {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.mark-swatch-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn.btn-ghost.mark-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.btn.btn-ghost.mark-swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--fg);
+  transform: scale(1.1);
+}
+@media (hover: hover) {
+  .btn.btn-ghost.mark-swatch:hover {
+    background: var(--swatch);
+    transform: scale(1.12);
+  }
+}
+.mark-swatch-name {
+  min-width: 80px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
 }

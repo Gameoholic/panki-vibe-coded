@@ -1,6 +1,9 @@
-import { useRef, useState, type HTMLAttributes, type PointerEvent } from "react";
-import type { Stretch } from "@panki/contracts";
+import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type PointerEvent } from "react";
+import type { Stretch, VideoCard } from "@panki/contracts";
+import { Button } from "@web/components/Button";
+import { clock } from "@web/words";
 import { stamp } from "../capture/words";
+import { seekVars, type SeekLook } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
 
 /** The open clip as it's marked on the bar: its two ends, and what pulling one does. */
@@ -13,36 +16,111 @@ export type ClipMark = {
 };
 
 type Props = {
-  /** The player's video: how long it is says how much of the bar a second is. */
-  video: HTMLVideoElement;
+  /** How long the video is, in seconds: how much of the bar a second is. */
+  length: number;
+  /** The video playing, whose time lights the card it's at; left out where nothing plays (the options page's preview, which says `at`). */
+  clock?: HTMLMediaElement | null;
+  /** Where the video is, in seconds, when there's no `clock` to follow. */
+  at?: number | null;
   /** The stretches of the video the transcript covers, in milliseconds as the transcript keeps them: each a line along the bar's top edge. */
   covered: readonly Stretch[];
   /** What a run has heard that isn't back from the engine yet, in milliseconds: the same line, faint; null with no run. */
   working: Stretch | null;
-  /** Where the account's cards were taken from in the video, in ms, each its clip: a mark in the cards' colour on the same line. */
-  cards: readonly Stretch[];
+  /** The account's cards taken from the video: each its clip, a mark on the same line, with its words on a pin over it. */
+  cards: readonly VideoCard[];
   /** The open clip, with an end to pull at each side; null while no drawer is open. */
   clip: ClipMark | null;
+  /** How each mark looks, the viewer's own (`seekLook.ts`). */
+  look: SeekLook;
+  /** The pointer is on the bar: the cards' words rise, when they're set to on hover. */
+  hover: boolean;
+  /** A card's pin pressed: the video goes to where the card was taken from. */
+  onGo: (seconds: number) => void;
 };
 
 const ENDS: Record<ClipEnd, string> = { start: "Where the clip starts", end: "Where the clip ends" };
 
 /**
- * Panki on the player's own seek bar: how far the transcript reaches, as a thin line in the transcript's colour along
- * the bar's top edge (the bar's own colours, how much has played and how much has loaded, stay seen under it), with
- * what's being transcribed this moment faint at its end; where cards were taken from, a mark in their own colour on
- * that line; and the clip, the stretch it covers in Panki's colour with an end to pull at each side. All are drawn in
- * a place of Panki's that is laid over the whole bar, so a share of this is the same share of the video. The bar is the whole
- * video in a few hundred pixels, so an end pulled here goes roughly where it's wanted (a pixel is a second or more);
- * the drawer's own bar is for putting it exactly. An end is always put exactly where the pointer is here: there's no
- * telling words apart at this size.
- *
- * Only the two ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever.
+ * A card's words on a pin over its mark, a stem down to it. Pins that would touch stand one lane above another, a few
+ * lanes at most; one that finds no room keeps its mark alone. How wide a pin is, is reckoned from its words, before
+ * it's drawn: a full-width character is `wide`, anything else `narrow`, and a pin is never wider than `max` (its words
+ * then cut short). One home for the pins' sizes; `extension.css` → `.seek-pin` draws them to match.
  */
-export function SeekMark({ video, covered, working, cards, clip }: Props) {
+const PIN = { lanes: 3, gap: 6, pad: 18, wide: 13, narrow: 7.5, max: 168 } as const;
+
+/** How wide a pin with these words is drawn, in pixels. */
+function pinWidth(words: string): number {
+  let width = PIN.pad;
+  for (const char of words) width += (char.codePointAt(0) ?? 0) >= 0x2e80 ? PIN.wide : PIN.narrow;
+  return Math.min(PIN.max, Math.ceil(width));
+}
+
+/** A card's pin as laid out: its words, where its stem stands and its box begins (in pixels from the bar's left), its lane. */
+type Pin = { card: VideoCard; words: string; x: number; left: number; lane: number };
+
+/** The cards' pins, each in the lowest lane where it touches none before it; one with no room in any is left out. */
+function layPins(cards: readonly VideoCard[], length: number, width: number): Pin[] {
+  const ends: number[] = Array.from({ length: PIN.lanes }, () => -Infinity);
+  const pins: Pin[] = [];
+  for (const card of cards) {
+    const words = card.words.trim() || clock(card.startMs / 1000);
+    const w = pinWidth(words);
+    const x = (((card.startMs + card.endMs) / 2 / 1000) / length) * width;
+    const left = Math.max(0, Math.min(width - w, x - w / 2));
+    const lane = ends.findIndex((end) => end + PIN.gap <= left);
+    if (lane < 0) continue;
+    ends[lane] = left + w;
+    pins.push({ card, words, x, left, lane });
+  }
+  return pins;
+}
+
+/** Where the video is, in seconds: followed on the `clock` as it plays, or `at` as given. */
+function usePlayhead(media: HTMLMediaElement | null, at: number | null): number | null {
+  const [now, setNow] = useState<number | null>(media ? media.currentTime : null);
+  useEffect(() => {
+    if (!media) return;
+    const follow = () => setNow(media.currentTime);
+    follow();
+    media.addEventListener("timeupdate", follow);
+    media.addEventListener("seeked", follow);
+    return () => {
+      media.removeEventListener("timeupdate", follow);
+      media.removeEventListener("seeked", follow);
+    };
+  }, [media]);
+  return media ? now : at;
+}
+
+/**
+ * Panki on the player's own seek bar: how far the transcript reaches, as a line along the bar's top edge (the bar's own
+ * colours, how much has played and how much has loaded, stay seen under it), with what's being transcribed this moment
+ * faint at its end; where cards were taken from, a mark each on that line with the card's words on a pin over it; and
+ * the clip, the stretch it covers on the bar with an end to pull at each side. How each looks is the viewer's
+ * (`look`). All are drawn in a place of Panki's that is laid over the whole bar, so a share of this is the same share
+ * of the video. The bar is the whole video in a few hundred pixels, so an end pulled here goes roughly where it's
+ * wanted (a pixel is a second or more); the drawer's own bar is for putting it exactly. An end is always put exactly
+ * where the pointer is here: there's no telling words apart at this size.
+ *
+ * The cards' pins rise while the pointer is on the bar (or stand whenever the bar shows, or never), and the card the
+ * video is at rises by itself as it plays through it, lit in the cards' colour; a pin pressed takes the video there.
+ * Only the pins and the clip's two ends take a press. Everywhere else on the bar a press goes through to the player,
+ * which seeks as ever.
+ */
+export function SeekMark({ length, clock: media = null, at = null, covered, working, cards, clip, look, hover, onGo }: Props) {
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
-  const length = video.duration;
+  const [width, setWidth] = useState(0);
+  const now = usePlayhead(media, at);
+  useEffect(() => {
+    const el = whole.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   // A video that doesn't say how long it is (a live one) has no bar anything could be marked on.
   if (!Number.isFinite(length) || length <= 0) return null;
 
@@ -57,7 +135,7 @@ export function SeekMark({ video, covered, working, cards, clip }: Props) {
     return box && box.width > 0 ? Math.max(0, Math.min(1, (x - box.left) / box.width)) * length : null;
   }
   function grip(mark: ClipMark, which: ClipEnd): HTMLAttributes<HTMLSpanElement> {
-    const at = mark[which];
+    const end = mark[which];
     return {
       className: `seek-end is-${which}`,
       role: "slider",
@@ -65,8 +143,8 @@ export function SeekMark({ video, covered, working, cards, clip }: Props) {
       "aria-orientation": "horizontal",
       "aria-valuemin": 0,
       "aria-valuemax": Math.round(length * 100) / 100,
-      "aria-valuenow": Math.round(at * 100) / 100,
-      "aria-valuetext": stamp(at),
+      "aria-valuenow": Math.round(end * 100) / 100,
+      "aria-valuetext": stamp(end),
       onPointerDown(e: PointerEvent<HTMLSpanElement>) {
         if (e.button !== 0) return;
         e.preventDefault();
@@ -86,16 +164,44 @@ export function SeekMark({ video, covered, working, cards, clip }: Props) {
     };
   }
 
+  const ms = now === null ? null : now * 1000;
+  const isNow = (card: VideoCard) => ms !== null && ms >= card.startMs && ms <= Math.max(card.endMs, card.startMs + 500);
+  const words = look.cards.shown ? look.cards.words : "off";
+  const pins = words === "off" || width === 0 ? [] : layPins(cards, length, width);
+  const allUp = words === "always" || (words === "hover" && hover);
+
   return (
-    <div ref={whole} className="seek">
-      {covered.map((stretch) => (
-        <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />
-      ))}
-      {working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
-      {cards.map((stretch, i) => (
-        <div key={i} className="seek-card" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />
-      ))}
-      {clip ? (
+    <div ref={whole} className="seek" style={seekVars(look) as CSSProperties}>
+      {look.transcript.shown
+        ? covered.map((stretch) => <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />)
+        : null}
+      {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
+      {look.cards.shown
+        ? cards.map((card) => <div key={card.cardId} className={`seek-card ${isNow(card) ? "is-now" : ""}`.trim()} style={across(card.startMs / 1000, card.endMs / 1000)} />)
+        : null}
+      {pins.length > 0 ? (
+        <div className="seek-pins">
+          {pins.map((pin, i) => {
+            const lit = isNow(pin.card);
+            const up = allUp || lit;
+            return (
+              <Button
+                key={pin.card.cardId}
+                className={`seek-pin ${up ? "is-up" : ""} ${lit ? "is-now" : ""}`.replace(/\s+/g, " ").trim()}
+                lang="ja"
+                tabIndex={up ? 0 : -1}
+                aria-hidden={!up}
+                aria-label={`Go to ${pin.words}, ${clock(pin.card.startMs / 1000)}`}
+                style={{ "--x": `${pin.x - pin.left}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties}
+                onClick={() => onGo(pin.card.startMs / 1000)}
+              >
+                <span className="seek-pin-words">{pin.words}</span>
+              </Button>
+            );
+          })}
+        </div>
+      ) : null}
+      {clip && look.clip.shown ? (
         <div className="seek-clip" style={across(clip.start, clip.end)}>
           <span {...grip(clip, "start")} />
           <span {...grip(clip, "end")} />

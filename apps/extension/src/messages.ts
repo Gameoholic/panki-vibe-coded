@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
-import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, SubtitleStyle, Transcript, TranscriptFix, Transcription, VideoId } from "@panki/contracts";
+import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, SubtitleStyle, Transcript, TranscriptFix, Transcription, VideoCard, VideoId } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
 import { PopupLayout } from "./popupLayout";
@@ -112,8 +112,8 @@ const Pic = z.object({ mime: z.string().max(100), base64: z.string().max(PICTURE
 /** A video's pictures as Panki keeps them; each null when there's none. */
 const Pictured = z.union([z.object({ ok: z.literal(true), thumbnail: Pic.nullable(), avatar: Pic.nullable() }), Failed]);
 export type Pictured = z.infer<typeof Pictured>;
-/** Each card's clip in the video, in ms. */
-const Carded = z.union([z.object({ ok: z.literal(true), stretches: z.array(Stretch) }), Failed]);
+/** The account's cards taken from the video: each its clip, in ms, and its words. */
+const Carded = z.union([z.object({ ok: z.literal(true), cards: z.array(VideoCard) }), Failed]);
 export type Carded = z.infer<typeof Carded>;
 const State = z.union([
   z.object({

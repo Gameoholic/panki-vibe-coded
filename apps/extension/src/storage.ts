@@ -4,6 +4,7 @@ import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab } from "./messages";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
+import { DEFAULT_SEEK_LOOK, SeekLook } from "./seekLook";
 import { DEFAULT_PREFS, TranscribePaused, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
 /**
@@ -98,13 +99,23 @@ const Stored = z.object({
   /** Whether the word being said carries its mark, on the line under the player and on the subtitles over the video (`transcribe/prefs.ts`). */
   markUnder: z.boolean().catch(DEFAULT_PREFS.markUnder),
   markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
+  /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (YouTube → Seek bar). */
+  seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
   // `meaningPick` was a key here (2026-10-14): which meanings a card got. The owner had it taken out the next day, the
   // ones ticked in the drawer being enough; a browser that still has it keeps it unread.
 });
 export type Stored = z.infer<typeof Stored>;
 
 /** The viewer's transcribing preferences as one value, as the page gets them with the transcript. */
-export const prefsOf = (store: Stored): TranscribePrefs => ({ trigger: store.transcribeTrigger, paused: store.transcribePaused, overVideo: store.transcribeOverVideo, style: store.subtitleStyle, markUnder: store.markUnder, markOver: store.markOver });
+export const prefsOf = (store: Stored): TranscribePrefs => ({
+  trigger: store.transcribeTrigger,
+  paused: store.transcribePaused,
+  overVideo: store.transcribeOverVideo,
+  style: store.subtitleStyle,
+  markUnder: store.markUnder,
+  markOver: store.markOver,
+  seek: store.seekLook,
+});
 
 export async function readStore(): Promise<Stored> {
   return Stored.parse(await chrome.storage.local.get(null));

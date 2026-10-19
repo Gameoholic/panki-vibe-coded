@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "@panki/contracts";
+import { DEFAULT_SEEK_LOOK, SeekLook } from "../seekLook";
 
 /**
  * How transcribing behaves for this browser's viewer, theirs to set on the options page (YouTube → Transcribing),
@@ -29,6 +30,8 @@ export const TranscribePrefs = z.object({
    */
   markUnder: z.boolean(),
   markOver: z.boolean(),
+  /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's, riding here for the same reason. */
+  seek: SeekLook,
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK };

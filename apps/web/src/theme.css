@@ -74,12 +74,18 @@
   --theater-ink: #ffffff;
   /* A word lit in words over a picture (the word picked, in a clip's subtitles): the theme's accent, seen through. */
   --theater-mark: color-mix(in srgb, var(--accent) 45%, transparent);
-  /* What a video's transcript covers, marked along the player's own bar: yellow, whatever the theme, since it lies on
-     a picture too (the owner, 2026-10-17: "yellow for things that were transcribed"). */
-  --transcribed: #f2c230;
-  /* Where in a video a card was taken from, marked on the same bar: orange, whatever the theme, beside the yellow
-     (the owner, 2026-10-18). */
-  --carded: #ff6b1a;
+  /* What Panki marks on a video's own bar can be coloured (the extension's seekLook.ts → MARK_COLOURS): these, the same
+     whatever the theme, since they lie on a picture. A transcript's reach is yellow to begin with (the owner,
+     2026-10-17: "yellow for things that were transcribed"), the cards taken from it orange (2026-10-18). */
+  --mark-yellow: #f2c230;
+  --mark-orange: #ff6b1a;
+  --mark-red: #ff4d5e;
+  --mark-pink: #ff5fb4;
+  --mark-violet: #a77bff;
+  --mark-blue: #4f8bff;
+  --mark-cyan: #2fd4e8;
+  --mark-green: #3ddc84;
+  --mark-white: #ffffff;
   --radius: 12px;
   --radius-sm: 10px;
   --font: "Urbanist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

@@ -76,9 +76,12 @@ export const CardList = z.object({ cards: z.array(Card) });
 export const CardResponse = z.object({ card: Card });
 
 /**
- * Where in a video the account's living cards were taken from: each one's clip as its source keeps it, in ms of the
- * video's own time, in the video's order (a clip kept without an end is its start alone). Read live from every card's
- * source, so a card made before this was asked for is there too, and a deleted one is gone.
+ * A living card of the account's taken from a video: where in it, its clip as its source keeps it, in ms of the
+ * video's own time (a clip kept without an end is its start alone), and the card in words (its first Front field that
+ * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark.
  */
-export const VideoCards = z.object({ stretches: z.array(Stretch) });
+export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string() });
+export type VideoCard = z.infer<typeof VideoCard>;
+/** Every one of a video's, in the video's order. Read live from every card's source, so a card made before this was asked for is there too, and a deleted one is gone. */
+export const VideoCards = z.object({ cards: z.array(VideoCard) });
 export type VideoCards = z.infer<typeof VideoCards>;

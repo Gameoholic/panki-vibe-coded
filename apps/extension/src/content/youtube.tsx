@@ -19,7 +19,7 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Trigger, askFix, askForget, askOpenPanki, askOptions, askPrefs, askSubtitles, askVideoCards } from "../messages";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type Stretch, type SubtitleStyle } from "@panki/contracts";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type VideoCard } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, type SubtitleSource } from "../subtitles";
@@ -157,8 +157,12 @@ const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
 /** Whether the transcript is over the video right now (the site's own captions give way to it). */
 const showingOver = cell(false);
-/** Where in this video the account's cards were taken from, each its clip's stretch in ms: marked on the seek bar. */
-const carded = cell<readonly Stretch[]>([]);
+/** The account's cards taken from this video, each its clip's stretch in ms and its words: marked on the seek bar. */
+const carded = cell<readonly VideoCard[]>([]);
+/** Whether the pointer is on the player's seek bar, or on what Panki draws over it: the cards' words rise. */
+const onBar = cell(false);
+/** The seek bars listened to already: the player keeps one, but may build it again. */
+const listenedBars = new WeakSet<Element>();
 /** What reaches the screen from outside it: the menu or the toolbar button asked for a capture; the page moved on to another video. */
 const asked = new EventTarget();
 type Added = { found: Found; pointed: Pointed };
@@ -216,7 +220,7 @@ async function readCarded() {
   const id = watching;
   if (!id) return;
   const answer = await askVideoCards(id);
-  if (answer.ok && watching === id) carded.set(answer.stretches);
+  if (answer.ok && watching === id) carded.set(answer.cards);
 }
 
 /** Puts Panki's two places where they belong right now: the line under the player; the drawer beside it, or under the line, or floating over a player that fills the screen. */
@@ -238,6 +242,12 @@ function place() {
   const bar = marked && video ? document.querySelector(SEEK_BAR) : null;
   if (!bar) seek.host.remove();
   else if (seek.host.parentElement !== bar) bar.append(seek.host);
+  // Panki's place is inside the bar, so the pointer moving from the bar onto a card's pin is still on it.
+  if (bar && !listenedBars.has(bar)) {
+    listenedBars.add(bar);
+    bar.addEventListener("pointerenter", () => onBar.set(true));
+    bar.addEventListener("pointerleave", () => onBar.set(false));
+  }
   // The transcript over the video, inside the player (which keeps it when it fills the screen); the site's own captions fade while it's there.
   const player = video ? document.querySelector(PLAYER) : null;
   const overThere = showingOver.get() ? player : null;
@@ -721,6 +731,7 @@ function App() {
   const placed = useSyncExternalStore(inPlace.subscribe, inPlace.get);
   const replaying = useSyncExternalStore(replay.subscribe, replay.mode);
   const cards = useSyncExternalStore(carded.subscribe, carded.get);
+  const barHover = useSyncExternalStore(onBar.subscribe, onBar.get);
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
@@ -1314,7 +1325,21 @@ function App() {
       {createPortal(panel(), drawer.ground)}
       {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}
       {createPortal(
-        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0) ? <SeekMark video={video} covered={tx.transcript?.covered ?? []} working={tx.working} cards={cards} clip={clipMark} /> : null,
+        video && (tx.transcript !== null || clipMark !== null || tx.working !== null || cards.length > 0) ? (
+          <SeekMark
+            length={video.duration}
+            clock={video}
+            covered={tx.transcript?.covered ?? []}
+            working={tx.working}
+            cards={cards}
+            clip={clipMark}
+            look={tx.prefs.seek}
+            hover={barHover}
+            onGo={(seconds) => {
+              if (video) video.currentTime = seconds;
+            }}
+          />
+        ) : null,
         seek.ground,
       )}
     </>
@@ -1350,6 +1375,8 @@ window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
 carded.subscribe(place);
+// Another video: the pointer's place on the bar is known afresh.
+asked.addEventListener("moved", () => onBar.set(false));
 // The transcript's reach goes on the seek bar as soon as there is one to mark.
 transcriber.subscribe(place);
 

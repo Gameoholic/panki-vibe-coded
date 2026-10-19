@@ -212,7 +212,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       const [thumbnail, avatar] = await Promise.all([shown(panki.thumbnail(door, ask.videoId)), ask.avatar === null ? null : shown(panki.avatar(door, ask.videoId, ask.avatar))]);
       return { ok: true, thumbnail, avatar };
     }
-    if (ask.kind === "videoCards") return { ok: true, stretches: await panki.videoCards(door, ask.videoId) };
+    if (ask.kind === "videoCards") return { ok: true, cards: await panki.videoCards(door, ask.videoId) };
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.
     if (ask.kind === "transcript") return transcripted(door, ask.videoId, store);

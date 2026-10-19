@@ -49,7 +49,7 @@ import {
   type SrsLadder,
   type SrsStarterId,
   type SrsTypeUpdate,
-  type Stretch,
+  type VideoCard,
 } from "@panki/contracts";
 import { addDays, checkTimeZone, dayOf, dayStartAt, daysBetween, weekdayOf, type Day } from "./time";
 
@@ -747,7 +747,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // Where in a video the living cards were taken from. A source keeps the video's address, not its id: the id written
   // in it narrows the rows here, and the contracts' reader of an address says for certain which video it names.
   const selectVideoSources = db.prepare(`
-    SELECT s.url, s.start_ms AS startMs, s.end_ms AS endMs
+    SELECT s.card_id AS cardId, d.type_id AS typeId, s.url, s.start_ms AS startMs, s.end_ms AS endMs
     FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
     WHERE c.removed_at IS NULL AND d.removed_at IS NULL AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
     ORDER BY s.start_ms ASC`);
@@ -840,6 +840,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)) });
+  }
+  /** The field a card of a type is told by in words: its first Front field that holds text (a field of files holds an id, which says nothing); none when it has no such field. */
+  function wordFieldOf(typeId: string | null | undefined): string | null {
+    const row = typeId ? selectAnyType.get(typeId) : undefined;
+    return (row ? typeFrom(row).fields.find((f) => f.side === "front" && holdsWords(f.kind))?.id : undefined) ?? null;
+  }
+  /** A card in words, from that field (`wordFieldOf`); empty when there's none, or the card left it empty. */
+  function wordsOf(cardId: string, fieldId: string | null): string {
+    const value = fieldId ? (selectValue.get(cardId, fieldId) as { value: string } | undefined) : undefined;
+    return value?.value ?? "";
   }
 
   function srsTypeFrom(row: unknown): SrsType {
@@ -1237,10 +1247,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         return cardsFrom([row], selectCardValues.all(cardId) as ValueRow[], srsTypeOfDeck(deckId), todayAt(now))[0] ?? null;
       });
     },
-    /** Where in a video the living cards were taken from: each one's clip as its source keeps it, in the video's order. */
-    videoStretches(videoId: string): Stretch[] {
-      const rows = selectVideoSources.all(videoId) as { url: string; startMs: number; endMs: number | null }[];
-      return rows.filter((row) => youtubeLinkOf(row.url)?.videoId === videoId).map((row) => ({ startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs) }));
+    /** The living cards taken from a video: each one's clip as its source keeps it, and the card in words, in the video's order. */
+    videoCards(videoId: string): VideoCard[] {
+      const rows = selectVideoSources.all(videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null }[];
+      const fieldOf = new Map<string | null, string | null>();
+      return rows
+        .filter((row) => youtubeLinkOf(row.url)?.videoId === videoId)
+        .map((row) => {
+          if (!fieldOf.has(row.typeId)) fieldOf.set(row.typeId, wordFieldOf(row.typeId));
+          return { cardId: row.cardId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: wordsOf(row.cardId, fieldOf.get(row.typeId) ?? null) };
+        });
     },
     /** Hides the card from its deck. Idempotent: removing again keeps the first removal time. False when no such card was ever in that deck. */
     removeCard(deckId: string, cardId: string, now: number): boolean {
@@ -1465,11 +1481,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         .slice(0, 5)
         .map(([cardId, { misses }]) => {
           const card = selectCard.get(cardId) as CardRow;
-          const typeRow = selectAnyType.get(typeOfDeck.get(card.deckId) ?? "");
-          // The card in words: its first Front field that holds text. A field of files holds an id, which says nothing.
-          const front = typeRow ? typeFrom(typeRow).fields.find((f) => f.side === "front" && holdsWords(f.kind)) : undefined;
-          const value = front ? (selectValue.get(cardId, front.id) as { value: string } | undefined) : undefined;
-          return { cardId, deckId: card.deckId, front: value?.value ?? "", misses };
+          return { cardId, deckId: card.deckId, front: wordsOf(cardId, wordFieldOf(typeOfDeck.get(card.deckId))), misses };
         });
 
       return Stats.parse({
