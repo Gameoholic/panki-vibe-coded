@@ -6,7 +6,6 @@ pnpm build
 pm2 restart panki-api
 ```
 
-- HAVE SUPPORT FOR MULTIPLE MODEL PROVIDERS IN THE FUTURE???
 
 
 
@@ -17,9 +16,6 @@ pm2 restart panki-api
 - Flag: answer as normal but mark the card, so a list in the deck shows what to fix later. Useful in a mining app where the audio or meaning is sometimes off.
 
 
-
-- Instead of being able to edit the sentence directly, we should be able to edit the subtitles (their content and start/end timestamp, for each word). Once we do that, the trasncription can't override it.
-Even if we forget and re-trasnribe it in any other way. Ours are the top most priority wise.
 
 - Netflix / Jellyfin Support
 - Fun games for memorization and learning including the video clips
