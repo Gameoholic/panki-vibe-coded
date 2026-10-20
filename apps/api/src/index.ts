@@ -8,6 +8,7 @@ import { gatherShared, openShared } from "./shared";
 import { spaceOf, storageReport } from "./space";
 import { checkTimeZone } from "./time";
 import { createEngines } from "./transcribe/engines";
+import { createJobs } from "./transcribe/jobs";
 
 // Each account's database opens on its first request; the zone is checked here so a wrong one still fails at startup.
 checkTimeZone(env.timeZone);
@@ -17,6 +18,10 @@ const shared = openShared(env.dataDir);
 // What accounts held before the shared store existed (a Forvo key, dictionaries) moves over, once, before anyone's served.
 gatherShared(shared, env.dataDir, auth, dbs.dbFor, Date.now);
 const space = () => spaceOf(env.dataDir, env.lowSpaceBytes);
+const engines = createEngines();
+const jobs = createJobs(shared, engines, env.engineKeys, Date.now);
+// A whole-video download the API stopped under (a restart, a deploy) is taken up again, once.
+jobs.resume();
 const server = createApp({
   auth,
   dbFor: dbs.dbFor,
@@ -28,8 +33,9 @@ const server = createApp({
   // Every request to Forvo is counted, for the day's allowance an admin sees in Settings.
   forvo: createForvo(fetch, () => shared.recordCall("forvo", Date.now())),
   wordAudioKeys: env.wordAudioKeys,
-  engines: createEngines(),
+  engines,
   engineKeys: env.engineKeys,
+  jobs,
 }).listen(env.port, env.host, () => {
   console.log(`Panki API on http://${env.host}:${env.port} · data in ${env.dataDir} · day turns over on ${env.timeZone}`);
 });

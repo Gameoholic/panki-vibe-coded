@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "@panki/contracts";
+import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { DEFAULT_SEEK_LOOK, SeekLook } from "../seekLook";
 
 /**
@@ -32,6 +32,8 @@ export const TranscribePrefs = z.object({
   markOver: z.boolean(),
   /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's, riding here for the same reason. */
   seek: SeekLook,
+  /** The transcription mode this viewer picked in the strip's menu, among those an admin left on; null for the one everyone starts on (`modeOf`). */
+  mode: TranscribeMode.nullable(),
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, mode: null };

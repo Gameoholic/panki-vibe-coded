@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -9,10 +10,16 @@ import {
   ServerDictionary,
   Transcript,
   Transcription,
+  WholeJob,
   WordAudio,
+  realignLine,
   type EngineId,
   type HeardLanguage,
+  type LineWord,
   type Stretch,
+  type TranscribeEstimate,
+  type TranscribeLanguage,
+  type TranscriptLineFix,
   type TranscriptWord,
   type TranscriptionUpdate,
   type User,
@@ -49,14 +56,45 @@ export type NewPiece = {
   userId: string;
   told: string;
   language: HeardLanguage;
+  /** How long the engine took over it. */
+  engineMs: number;
+  /** A run's first piece with sound: how long after the run began it was sent; null for the rest. */
+  runMs: number | null;
 };
 /** A word the engine heard, with its times in the video's own ms. */
 export type NewWord = { text: string; startMs: number; endMs: number };
 /** A stretch the silent player listened through and found nothing to send: heard, with nothing said. Its id is the extension's, as a piece's is. */
 export type NewQuiet = { id: string; videoId: string; startMs: number; endMs: number; userId: string };
+/** A whole-video download as it's asked for: the video, its length as the extension read it, and what it's to be heard with. */
+export type NewJob = { id: string; videoId: string; engine: EngineId; language: TranscribeLanguage; lengthMs: number; userId: string };
+/** A whole-video download as it's kept, for the one that runs it. */
+export type JobRow = {
+  id: string;
+  videoId: string;
+  engine: EngineId;
+  language: TranscribeLanguage;
+  lengthMs: number;
+  state: WholeJob["state"];
+  attempts: number;
+  askedAt: number;
+  startedAt: number | null;
+  endedAt: number | null;
+  words: number | null;
+  replaced: number | null;
+  message: string | null;
+  /** Who asked for it: its pieces are theirs, as a chunk is whoever's run sent it. */
+  userId: string;
+};
 
 /** Two kept stretches this close (or overlapping) read as one, so a transcript's coverage is a few long stretches, not a list of pieces. */
 const MERGE_GAP_MS = 100;
+/**
+ * About how long each of a whole video's own pieces is: its words are kept in pieces of the video this long, each
+ * ending in the gap between two words, so a part of it can be forgotten (and heard again in chunks) as a chunk's can.
+ */
+const JOB_PIECE_MS = 30_000;
+/** How far back what's measured is read from, to tell how long a download takes and what it costs (`TranscribeEstimate`). */
+const ESTIMATE_MS = 30 * 24 * 60 * 60 * 1000;
 
 type SettingRow = { key: string; value: string };
 /** A group of the shared settings: each key's own rule (the schema's shape), the whole read as one, and its defaults. */
@@ -64,7 +102,8 @@ type Checked = { success: true; data: unknown } | { success: false };
 type Group<T extends Record<string, unknown>> = { shape: Record<string, { safeParse(value: unknown): Checked }>; parse(value: unknown): T; defaults: T };
 const TRANSCRIPTION: Group<Transcription> = { shape: Transcription.shape, parse: (value) => Transcription.parse(value), defaults: DEFAULT_TRANSCRIPTION };
 const WORD_AUDIO: Group<WordAudio> = { shape: WordAudio.shape, parse: (value) => WordAudio.parse(value), defaults: DEFAULT_WORD_AUDIO };
-type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null };
+/** A living word: the engine's own, and its latest fix's text and times, when it has one (a fix to "" took it out of the line). */
+type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null; fixedStart: number | null; fixedEnd: number | null };
 type StretchRow = { startMs: number; endMs: number };
 /** A living word of another piece, with that piece's own edges. */
 type InsideRow = { id: number; startMs: number; pieceStart: number; pieceEnd: number };
@@ -295,6 +334,48 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
       )
     `);
   },
+  (db) => {
+    // A whole video downloaded by the engine and transcribed in one call (2026-10-20): each download asked for, with
+    // what it came to. Its words are kept as a chunk's are, under pieces of its own (`job_id`), about half a minute of
+    // the video each, so a part of it can be forgotten as a chunk can. What was measured, to tell how long the next one
+    // will take and what it will cost: the engine's credits counted across a download, and the sound they paid for (the
+    // video, and any chunks sent meanwhile); how long the engine took over each chunk, and, for a run's first chunk, how
+    // long after the run began it was sent. And a word fixed by hand can be moved in time now, as a line is fixed with
+    // the pencil: each fix keeps where the word stood after it (null on the fixes from before, where it stood as heard),
+    // and a fix to nothing takes the word out of the line.
+    db.exec("ALTER TABLE transcript_pieces ADD COLUMN job_id TEXT");
+    db.exec("ALTER TABLE transcript_pieces ADD COLUMN engine_ms INTEGER");
+    db.exec("ALTER TABLE transcript_pieces ADD COLUMN run_ms INTEGER");
+    db.exec("CREATE INDEX transcript_pieces_job_id ON transcript_pieces (job_id)");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN start_ms INTEGER");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN end_ms INTEGER");
+    db.exec(`
+      CREATE TABLE transcript_jobs (
+        id TEXT PRIMARY KEY,
+        video_id TEXT NOT NULL REFERENCES transcripts(video_id),
+        engine TEXT NOT NULL,
+        language TEXT NOT NULL,
+        length_ms INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('running', 'done', 'failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        asked_at INTEGER NOT NULL,
+        started_at INTEGER,
+        ended_at INTEGER,
+        words INTEGER,
+        replaced INTEGER,
+        credits INTEGER,
+        sound_ms INTEGER,
+        message TEXT,
+        user_id TEXT NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX transcript_jobs_video_id ON transcript_jobs (video_id, asked_at)");
+  },
+  (db) => {
+    // A word reads as its latest fix, looked up for every word each time a transcript is read, which is every few
+    // seconds while a whole video downloads; and a line fixed with the pencil makes a fix of every word it changes.
+    db.exec("CREATE INDEX transcript_fixes_word_id ON transcript_fixes (word_id, id)");
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -325,6 +406,44 @@ function mergeStretches(rows: StretchRow[]): Stretch[] {
     else merged.push({ startMs: row.startMs, endMs: row.endMs });
   }
   return merged;
+}
+
+/** The middle of some numbers (between the two middle ones for an even count); null for none. */
+function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? (sorted[mid] ?? null) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+}
+
+/** A word as it reads now: its latest fix's text and times, or the engine's. */
+const wordOf = (w: WordRow): LineWord => ({ id: w.id, text: w.fixed ?? w.heard, startMs: w.fixedStart ?? w.startMs, endMs: w.fixedEnd ?? w.endMs });
+
+/** A download as the extension is told of it. */
+const wholeJobOf = (job: JobRow): WholeJob =>
+  WholeJob.parse({ id: job.id, state: job.state, askedAt: job.askedAt, endedAt: job.endedAt, lengthMs: job.lengthMs, words: job.words, replaced: job.replaced, message: job.message });
+
+/**
+ * A whole video's words cut into pieces of about `JOB_PIECE_MS`, each ending halfway across the gap between two words
+ * (never inside a word), the first from the video's start and the last to its end, so together they cover all of it.
+ */
+function piecesOfVideo(words: readonly NewWord[], lengthMs: number): { startMs: number; endMs: number; words: NewWord[] }[] {
+  const sorted = [...words].sort((a, b) => a.startMs - b.startMs);
+  const end = Math.max(lengthMs, ...sorted.map((w) => w.endMs));
+  const pieces: { startMs: number; endMs: number; words: NewWord[] }[] = [];
+  let open: { startMs: number; endMs: number; words: NewWord[] } = { startMs: 0, endMs: end, words: [] };
+  let before: NewWord | null = null;
+  for (const word of sorted) {
+    if (before && word.startMs - open.startMs >= JOB_PIECE_MS && word.startMs >= before.endMs) {
+      const cut = Math.round((before.endMs + word.startMs) / 2);
+      pieces.push({ ...open, endMs: cut });
+      open = { startMs: cut, endMs: end, words: [] };
+    }
+    open.words.push(word);
+    before = word;
+  }
+  pieces.push(open);
+  return pieces;
 }
 
 export function openShared(dataDir: string) {
@@ -375,12 +494,12 @@ export function openShared(dataDir: string) {
   // Told a language and hearing words in it, the video is in that language by the teller's word, unless it's that already.
   const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
   const touchTranscript = db.prepare("UPDATE transcripts SET updated_at = ? WHERE video_id = ?");
-  // A word reads as its latest fix, when it has one; the engine's own word stays beside it.
-  const latestFix = "(SELECT f.to_text FROM transcript_fixes f WHERE f.word_id = w.id ORDER BY f.id DESC LIMIT 1)";
-  const selectWords = db.prepare(`
-    SELECT w.id, w.text AS heard, w.start_ms AS startMs, w.end_ms AS endMs, ${latestFix} AS fixed
-    FROM transcript_words w WHERE w.video_id = ? AND w.removed_at IS NULL ORDER BY w.start_ms ASC, w.id ASC`);
-  const selectLivingWord = db.prepare(`SELECT w.text AS heard, ${latestFix} AS fixed FROM transcript_words w WHERE w.id = ? AND w.video_id = ? AND w.removed_at IS NULL`);
+  // A word reads as its latest fix, when it has one: its text and, since 2026-10-20, where it stands (a fix from before
+  // that keeps where it was heard); the engine's own word and times stay beside it.
+  const wordColumns = `w.id, w.text AS heard, w.start_ms AS startMs, w.end_ms AS endMs, f.to_text AS fixed, f.start_ms AS fixedStart, f.end_ms AS fixedEnd
+    FROM transcript_words w LEFT JOIN transcript_fixes f ON f.id = (SELECT MAX(x.id) FROM transcript_fixes x WHERE x.word_id = w.id)`;
+  const selectWords = db.prepare(`SELECT ${wordColumns} WHERE w.video_id = ? AND w.removed_at IS NULL ORDER BY COALESCE(f.start_ms, w.start_ms) ASC, w.id ASC`);
+  const selectLivingWord = db.prepare(`SELECT ${wordColumns} WHERE w.id = ? AND w.video_id = ? AND w.removed_at IS NULL`);
   // What's covered: the kept pieces' sound, and the quiet listened through.
   const selectKeptStretches = db.prepare(`
     SELECT start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE video_id = ? AND kept = 1 AND removed_at IS NULL
@@ -398,8 +517,33 @@ export function openShared(dataDir: string) {
   const insertQuiet = db.prepare("INSERT OR IGNORE INTO transcript_quiet (id, video_id, start_ms, end_ms, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)");
   const selectPiece = db.prepare("SELECT id FROM transcript_pieces WHERE id = ? AND video_id = ?");
   const insertPiece = db.prepare(
-    "INSERT OR IGNORE INTO transcript_pieces (id, video_id, start_ms, end_ms, engine, language, language_probability, checked, kept, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO transcript_pieces (id, video_id, start_ms, end_ms, engine, language, language_probability, checked, kept, user_id, created_at, engine_ms, run_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
+  // A whole video's own pieces: never asked the language, always kept.
+  const insertJobPiece = db.prepare(
+    "INSERT INTO transcript_pieces (id, video_id, start_ms, end_ms, engine, language, language_probability, checked, kept, user_id, created_at, job_id) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?)",
+  );
+  // The chunks standing (not a whole video's own pieces), which a whole video replaces.
+  const countChunks = db.prepare("SELECT COUNT(*) AS n FROM transcript_pieces WHERE video_id = ? AND removed_at IS NULL AND job_id IS NULL");
+  // A whole video's own pieces standing over a stretch: a chunk they cover isn't heard again.
+  const selectJobPiecesOver = db.prepare(
+    "SELECT start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE video_id = ? AND job_id IS NOT NULL AND removed_at IS NULL AND start_ms < ? AND end_ms > ? ORDER BY start_ms ASC",
+  );
+  const jobColumns = `id, video_id AS videoId, engine, language, length_ms AS lengthMs, state, attempts, asked_at AS askedAt, started_at AS startedAt,
+    ended_at AS endedAt, words, replaced, message, user_id AS userId`;
+  const insertJob = db.prepare("INSERT INTO transcript_jobs (id, video_id, engine, language, length_ms, state, asked_at, user_id) VALUES (?, ?, ?, ?, ?, 'running', ?, ?)");
+  const selectJob = db.prepare(`SELECT ${jobColumns} FROM transcript_jobs WHERE id = ?`);
+  const selectLatestJob = db.prepare(`SELECT ${jobColumns} FROM transcript_jobs WHERE video_id = ? ORDER BY asked_at DESC, rowid DESC LIMIT 1`);
+  const selectRunningJobs = db.prepare(`SELECT ${jobColumns} FROM transcript_jobs WHERE state = 'running' ORDER BY asked_at ASC`);
+  const startJob = db.prepare("UPDATE transcript_jobs SET started_at = ?, attempts = attempts + 1 WHERE id = ? AND state = 'running'");
+  const failJob = db.prepare("UPDATE transcript_jobs SET state = 'failed', ended_at = ?, message = ? WHERE id = ? AND state = 'running'");
+  const doneJob = db.prepare("UPDATE transcript_jobs SET state = 'done', ended_at = ?, words = ?, replaced = ?, credits = ?, sound_ms = ? WHERE id = ?");
+  // What's measured, to tell how long the next download takes and what it costs.
+  const selectDoneJobs = db.prepare(
+    "SELECT length_ms AS lengthMs, started_at AS startedAt, ended_at AS endedAt, credits, sound_ms AS soundMs FROM transcript_jobs WHERE engine = ? AND state = 'done' AND ended_at >= ?",
+  );
+  const selectFirstWords = db.prepare("SELECT run_ms + engine_ms AS ms FROM transcript_pieces WHERE engine = ? AND run_ms IS NOT NULL AND engine_ms IS NOT NULL AND created_at >= ?");
+  const sumChunkSound = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces WHERE engine = ? AND job_id IS NULL AND created_at >= ? AND created_at <= ?");
   // The living words of the video's other pieces that begin inside a stretch, each with its own piece's edges.
   const selectWordsInside = db.prepare(`
     SELECT w.id, w.start_ms AS startMs, q.start_ms AS pieceStart, q.end_ms AS pieceEnd
@@ -411,7 +555,7 @@ export function openShared(dataDir: string) {
   );
   const removeWord = db.prepare("UPDATE transcript_words SET removed_at = ? WHERE id = ?");
   const insertWord = db.prepare("INSERT INTO transcript_words (video_id, piece_id, text, start_ms, end_ms, removed_at) VALUES (?, ?, ?, ?, ?, ?)");
-  const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, user_id, at) VALUES (?, ?, ?, ?, ?)");
+  const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const sumPieces = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces");
   const selectPicture = db.prepare("SELECT mime, bytes FROM video_pictures WHERE video_id = ? AND picture = ?");
   const insertPicture = db.prepare("INSERT OR IGNORE INTO video_pictures (video_id, picture, mime, bytes, source, user_id, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -554,17 +698,29 @@ export function openShared(dataDir: string) {
       return updateGroup(WORD_AUDIO, patch, now, userId);
     },
 
-    /** A video's transcript as it stands: the living words in order, each as its latest fix, and the stretches kept so far. A video never transcribed is empty. */
+    /**
+     * A video's transcript as it stands: the living words in order, each as its latest fix (one fixed to nothing left
+     * out), the stretches kept so far, and its latest whole-video download. A video never transcribed is empty.
+     */
     transcript(videoId: string): Transcript {
       const row = selectTranscript.get(videoId) as { language: string | null } | undefined;
-      const words: TranscriptWord[] = (selectWords.all(videoId) as WordRow[]).map((w) => ({
-        id: w.id,
-        text: w.fixed ?? w.heard,
-        ...(w.fixed === null ? {} : { heard: w.heard }),
-        startMs: w.startMs,
-        endMs: w.endMs,
-      }));
-      return Transcript.parse({ videoId, language: row?.language ?? null, words, covered: mergeStretches(selectKeptStretches.all(videoId, videoId) as StretchRow[]) });
+      const words: TranscriptWord[] = (selectWords.all(videoId) as WordRow[]).flatMap((w) => {
+        const now = wordOf(w);
+        return now.text === "" ? [] : [{ ...now, ...(w.fixed === null ? {} : { heard: w.heard }) }];
+      });
+      const job = selectLatestJob.get(videoId) as JobRow | undefined;
+      return Transcript.parse({
+        videoId,
+        language: row?.language ?? null,
+        words,
+        covered: mergeStretches(selectKeptStretches.all(videoId, videoId) as StretchRow[]),
+        job: job ? wholeJobOf(job) : null,
+      });
+    },
+    /** Whether a whole video's own pieces, standing, cover a stretch of it: a chunk of that stretch isn't sent to the engine again. */
+    coveredByJob(videoId: string, startMs: number, endMs: number): boolean {
+      const over = mergeStretches(selectJobPiecesOver.all(videoId, endMs, startMs) as StretchRow[]);
+      return over.some((stretch) => stretch.startMs <= startMs + MERGE_GAP_MS && stretch.endMs >= endMs - MERGE_GAP_MS);
     },
     /** Whether the video already has this piece (or this stretch of nothing): sent again, it's the one that's there. */
     hasPiece(videoId: string, pieceId: string): boolean {
@@ -601,6 +757,8 @@ export function openShared(dataDir: string) {
           1,
           piece.userId,
           now,
+          piece.engineMs,
+          piece.runMs,
         );
         if (added.changes === 0) return;
         // The quiet listened through before the sound: heard, covered, under the piece's own id.
@@ -639,15 +797,118 @@ export function openShared(dataDir: string) {
         else touchTranscript.run(now, videoId);
       });
     },
-    /** A word changed by hand: a fix from what it reads as now. False when no living word with that id is the video's; the same text again changes nothing. */
+    /** A word changed by hand: a fix from what it reads as now, where it stands now. False when no living word with that id is the video's; the same text again changes nothing. */
     fixWord(videoId: string, wordId: number, text: string, userId: string, now: number): boolean {
       return transaction(() => {
-        const row = selectLivingWord.get(wordId, videoId) as { heard: string; fixed: string | null } | undefined;
-        if (!row) return false;
-        const current = row.fixed ?? row.heard;
-        if (current !== text) insertFix.run(wordId, current, text, userId, now);
+        const row = selectLivingWord.get(wordId, videoId) as WordRow | undefined;
+        const current = row ? wordOf(row) : null;
+        if (!current || current.text === "") return false;
+        if (current.text !== text) insertFix.run(wordId, current.text, text, current.startMs, current.endMs, userId, now);
         return true;
       });
+    },
+    /**
+     * A line fixed by hand (the pencil): what it says now laid back onto its words (`realignLine`), each keeping its
+     * place in the line as its ends move, and every word that changed in text or time a fix of its own, kept beside the
+     * engine's. False when one of the words isn't a living word of the video's.
+     */
+    fixLine(videoId: string, fix: TranscriptLineFix, userId: string, now: number): boolean {
+      return transaction(() => {
+        const words: LineWord[] = [];
+        for (const id of new Set(fix.wordIds)) {
+          const row = selectLivingWord.get(id, videoId) as WordRow | undefined;
+          const current = row ? wordOf(row) : null;
+          if (!current || current.text === "") return false;
+          words.push({ ...current, text: current.text.trim() });
+        }
+        words.sort((a, b) => a.startMs - b.startMs || a.id - b.id);
+        const fixed = realignLine(words, fix.text, fix.startMs, fix.endMs);
+        fixed.forEach((after, i) => {
+          const before = words[i];
+          if (!before || (after.text === before.text && after.startMs === before.startMs && after.endMs === before.endMs)) return;
+          insertFix.run(after.id, before.text, after.text, after.startMs, after.endMs, userId, now);
+        });
+        touchTranscript.run(now, videoId);
+        return true;
+      });
+    },
+
+    /** A whole-video download asked for, running from now; the video is one the store knows from here on. */
+    insertJob(job: NewJob, now: number): WholeJob {
+      return transaction(() => {
+        insertTranscript.run(job.videoId, now, now);
+        insertJob.run(job.id, job.videoId, job.engine, job.language, job.lengthMs, now, job.userId);
+        return wholeJobOf(selectJob.get(job.id) as JobRow);
+      });
+    },
+    /** A download as it's kept; null for none by that id. */
+    job(id: string): JobRow | null {
+      return (selectJob.get(id) as JobRow | undefined) ?? null;
+    },
+    /** The video's download under way, if one is: a second isn't asked for. */
+    runningJob(videoId: string): WholeJob | null {
+      const job = selectLatestJob.get(videoId) as JobRow | undefined;
+      return job && job.state === "running" ? wholeJobOf(job) : null;
+    },
+    /** Every download still running, as at a start of the API: one the API stopped under is taken up again. */
+    runningJobs(): JobRow[] {
+      return selectRunningJobs.all() as JobRow[];
+    },
+    /** A download handed to the engine now: how many times it has been, with this one. */
+    startJob(id: string, now: number): number {
+      startJob.run(now, id);
+      return (selectJob.get(id) as JobRow | undefined)?.attempts ?? 0;
+    },
+    /** A download that came to nothing, and why, in the owner's words. What the video had stays as it was. */
+    failJob(id: string, message: string, now: number): void {
+      failJob.run(now, message, id);
+    },
+    /**
+     * A download done: its words replace everything the video had (the owner, 2026-10-20: "the latest one overwrites"),
+     * in one transaction. Every chunk, every quiet and any earlier download's pieces stand aside with their words, and
+     * with them the hand fixes on those words; the download's words are kept under pieces of its own, about half a
+     * minute each (`piecesOfVideo`), covering the whole video. What it cost is kept with it: the credits the engine
+     * counted across it, and the sound they paid for (the video, and the chunks sent to the same engine meanwhile).
+     */
+    finishJob(id: string, heard: { language: HeardLanguage; words: readonly NewWord[] }, credits: number | null, now: number): JobRow | null {
+      return transaction(() => {
+        const job = selectJob.get(id) as JobRow | undefined;
+        if (!job || job.state !== "running") return null;
+        const replaced = (countChunks.get(job.videoId) as { n: number }).n;
+        forgetPieces.run(now, job.videoId, Number.MAX_SAFE_INTEGER, 0);
+        forgetPieceWords.run(now, job.videoId, job.videoId, now);
+        forgetQuiet.run(now, job.videoId, Number.MAX_SAFE_INTEGER, 0);
+        for (const piece of piecesOfVideo(heard.words, job.lengthMs)) {
+          const pieceId = randomUUID();
+          insertJobPiece.run(pieceId, job.videoId, piece.startMs, piece.endMs, job.engine, heard.language.code, heard.language.probability, job.userId, now, job.id);
+          for (const w of piece.words) insertWord.run(job.videoId, pieceId, w.text, w.startMs, w.endMs, null);
+        }
+        if (heard.words.length > 0) tellTranscriptLanguage.run(job.language, now, job.videoId, job.language);
+        else touchTranscript.run(now, job.videoId);
+        const chunks = job.startedAt === null ? 0 : (sumChunkSound.get(job.engine, job.startedAt, now) as { ms: number }).ms;
+        doneJob.run(now, heard.words.length, replaced, credits, job.lengthMs + chunks, id);
+        return selectJob.get(id) as JobRow;
+      });
+    },
+    /**
+     * How long a whole-video download takes and what it costs, and how soon a chunk run's first words come, from what
+     * was measured on this engine over the last 30 days: the middle of each (`TranscribeEstimate`).
+     */
+    estimate(engine: EngineId, now: number): TranscribeEstimate {
+      const since = now - ESTIMATE_MS;
+      const jobs = selectDoneJobs.all(engine, since) as { lengthMs: number; startedAt: number | null; endedAt: number | null; credits: number | null; soundMs: number | null }[];
+      const perMinute = jobs.flatMap((j) => (j.startedAt === null || j.endedAt === null || j.lengthMs <= 0 ? [] : [(j.endedAt - j.startedAt) / 1000 / (j.lengthMs / 60_000)]));
+      const credits = jobs.flatMap((j) => (j.credits === null || j.soundMs === null || j.soundMs <= 0 ? [] : [j.credits / (j.soundMs / 60_000)]));
+      const firstWords = (selectFirstWords.all(engine, since) as { ms: number }[]).map((row) => row.ms);
+      const length = median(jobs.map((j) => j.lengthMs));
+      const first = median(firstWords);
+      return {
+        jobs: jobs.length,
+        secondsPerMinute: median(perMinute),
+        creditsPerMinute: median(credits),
+        lengthMs: length === null ? null : Math.round(length),
+        firstWordsMs: first === null ? null : Math.round(first),
+      };
     },
     /** How much sound has been sent to engines so far, every video and everyone counted, in whole seconds. */
     secondsTranscribed(): number {

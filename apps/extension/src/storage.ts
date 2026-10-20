@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts";
+import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab } from "./messages";
 import { PopupLayout } from "./popupLayout";
@@ -99,6 +99,8 @@ const Stored = z.object({
   markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
   /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (YouTube → Seek bar). */
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
+  /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
+  transcribeMode: TranscribeMode.nullable().catch(DEFAULT_PREFS.mode),
   // `meaningPick` was a key here (2026-10-14): which meanings a card got. The owner had it taken out the next day, the
   // ones ticked in the drawer being enough; a browser that still has it keeps it unread.
 });
@@ -113,6 +115,7 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   markUnder: store.markUnder,
   markOver: store.markOver,
   seek: store.seekLook,
+  mode: store.transcribeMode,
 });
 
 export async function readStore(): Promise<Stored> {

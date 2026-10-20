@@ -1,13 +1,29 @@
 import express, { Router, type Request, type Response } from "express";
-import { PIECE_MAX_BYTES, PieceId, PieceMeta, Stretch, TranscriptFix, TranscriptForget, VideoId, type EngineId, type PieceResponse } from "@panki/contracts";
+import {
+  PIECE_MAX_BYTES,
+  PieceId,
+  PieceMeta,
+  Stretch,
+  TranscriptFix,
+  TranscriptForget,
+  TranscriptLineFix,
+  VideoId,
+  WholeAsk,
+  modesOn,
+  overDownloadLimit,
+  type EngineId,
+  type PieceResponse,
+} from "@panki/contracts";
 import { isWav } from "../mediaFiles";
 import { signedIn } from "../session";
 import type { Shared } from "../shared";
 import { EngineError, type Engines, type Heard } from "../transcribe/engines";
+import type { Jobs } from "../transcribe/jobs";
 
 const MB = 1024 * 1024;
-const NOT_A_PIECE = "That isn't a piece.";
+const NOT_A_PIECE = "That isn't a chunk of the video.";
 const NO_KEY = "Add a key for the engine in Settings → Admin.";
+const NOT_A_VIDEO = "That isn't a video id.";
 
 function isTooLarge(err: unknown): boolean {
   return typeof err === "object" && err !== null && "status" in err && err.status === 413;
@@ -37,21 +53,56 @@ function metaOf(req: Request, res: Response): PieceMeta | null {
   return null;
 }
 
+/** The video the address names, or null after answering that it isn't valid. */
+function videoOf(req: Request, res: Response): string | null {
+  const videoId = VideoId.safeParse(req.params.videoId);
+  if (videoId.success) return videoId.data;
+  res.status(400).json({ error: { message: NOT_A_VIDEO } });
+  return null;
+}
+
 /**
- * A video's transcript, shared by everyone: read whole, grown a piece at a time by the extension (each piece's sound
- * handed to the engine the settings name, its words kept with their times), and fixed a word at a time by hand.
+ * A video's transcript, shared by everyone: read whole, grown a chunk at a time by the extension (each chunk's sound
+ * handed to the engine the settings name, its words kept with their times) or downloaded whole by the engine in the
+ * background (`transcribe/jobs.ts`), and fixed by hand a word or a line at a time.
  */
-export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, now: () => number) {
+export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, jobs: Jobs, now: () => number) {
   const router = Router();
 
-  // A video never transcribed is an empty transcript, never an error.
+  // A video never transcribed is an empty transcript, never an error. Read again and again while a download is under way.
   router.get("/:videoId", (req, res) => {
-    const videoId = VideoId.safeParse(req.params.videoId);
-    if (!videoId.success) {
-      res.status(400).json({ error: { message: "That isn't a video id." } });
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  // The whole video downloaded and transcribed by the engine, in the background: the answer is the transcript with the
+  // download under way in it (the one already under way, when there is one). As the settings say: never when every mode
+  // that downloads is switched off, nor over the download limit where that's not allowed. Warn first is the extension's
+  // to ask; asked here, it goes ahead.
+  router.post("/:videoId/whole", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    const parsed = WholeAsk.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't the video's length." } });
       return;
     }
-    res.json({ transcript: shared.transcript(videoId.data) });
+    const settings = shared.getTranscription();
+    if ((shared.key(settings.engine) ?? engineKeys[settings.engine]) === null) {
+      res.status(409).json({ error: { message: NO_KEY } });
+      return;
+    }
+    if (!modesOn(settings).some((mode) => mode !== "live")) {
+      res.status(403).json({ error: { message: "Downloading the whole video is switched off." } });
+      return;
+    }
+    if (settings.overLimit === "notAllowed" && overDownloadLimit(settings, parsed.data.lengthMs / 1000)) {
+      res.status(403).json({ error: { message: "Not allowed over the download limit." } });
+      return;
+    }
+    jobs.ask(videoId, parsed.data.lengthMs, signedIn(res).user.id);
+    res.status(202).json({ transcript: shared.transcript(videoId) });
   });
 
   // A piece's sound is the request's whole body, under its own ceiling; every other route keeps the 64 KB of the JSON reader.
@@ -64,7 +115,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
     (req, res, next) => {
       if (!pathOf(req, res)) return;
       reader(req, res, (err?: unknown) => {
-        if (isTooLarge(err)) res.status(413).json({ error: { message: `That piece is too big: over ${PIECE_MAX_BYTES / MB} MB.` } });
+        if (isTooLarge(err)) res.status(413).json({ error: { message: `That chunk is too big: over ${PIECE_MAX_BYTES / MB} MB.` } });
         else next(err);
       });
     },
@@ -78,11 +129,18 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       // A stretch of nothing comes with no sound. Sound is believed only as far as its own first bytes, like any file Panki takes.
       const nothing = meta.sound === meta.end;
       if (nothing ? bytes.length > 0 : bytes.length === 0 || !isWav(bytes)) {
-        res.status(400).json({ error: { message: nothing ? "A stretch of nothing comes with no sound." : "That isn't a piece of sound." } });
+        res.status(400).json({ error: { message: nothing ? "A stretch of nothing comes with no sound." : "That isn't a chunk of sound." } });
         return;
       }
       if (shared.hasPiece(ids.videoId, ids.pieceId)) {
-        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId) };
+        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs: null };
+        res.json(answer);
+        return;
+      }
+      // The whole video came in while the chunk was on its way: what it heard of the chunk's stretch stands, and the
+      // engine isn't paid to hear it again.
+      if (shared.coveredByJob(ids.videoId, meta.sound, meta.end)) {
+        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs: null };
         res.json(answer);
         return;
       }
@@ -90,7 +148,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       // Listened through and nothing said: heard, so covered, and no engine to ask.
       if (nothing) {
         shared.insertQuiet({ id: ids.pieceId, videoId: ids.videoId, startMs: meta.start, endMs: meta.end, userId }, now());
-        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId) };
+        const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs: null };
         res.status(201).json(answer);
         return;
       }
@@ -102,6 +160,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       }
       // Told the language every video is in (Settings → Admin → Transcribing), never asked: the check that asked went on 2026-10-18.
       let heard: Heard;
+      const askedAt = performance.now();
       try {
         heard = await engines[engine].transcribe(key, bytes, told);
       } catch (e) {
@@ -109,43 +168,55 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
         res.status(e.status).json({ error: { message: e.message } });
         return;
       }
+      const engineMs = Math.round(performance.now() - askedAt);
       shared.insertPiece(
-        { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language },
+        { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language, engineMs, runMs: meta.since ?? null },
         heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs })),
         now(),
       );
-      const answer: PieceResponse = { transcript: shared.transcript(ids.videoId) };
+      const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs };
       res.status(201).json(answer);
     },
   );
 
   // A word put right by hand: kept beside the engine's word, never over it.
   router.post("/:videoId/fixes", (req, res) => {
-    const videoId = VideoId.safeParse(req.params.videoId);
-    if (!videoId.success) {
-      res.status(400).json({ error: { message: "That isn't a video id." } });
-      return;
-    }
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
     const parsed = TranscriptFix.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: { message: "That isn't a fix.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    if (!shared.fixWord(videoId.data, parsed.data.wordId, parsed.data.text, signedIn(res).user.id, now())) {
+    if (!shared.fixWord(videoId, parsed.data.wordId, parsed.data.text, signedIn(res).user.id, now())) {
       res.status(404).json({ error: { message: "That word isn't in the transcript." } });
       return;
     }
-    res.json({ transcript: shared.transcript(videoId.data) });
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  // A line put right by hand (the pencil): its words and where it starts and ends, each word changed kept beside the engine's.
+  router.post("/:videoId/lines", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    const parsed = TranscriptLineFix.safeParse(req.body);
+    if (!parsed.success) {
+      const refined = parsed.error.issues.find((issue) => issue.code === "custom");
+      res.status(400).json({ error: { message: refined?.message ?? "That isn't a line of the transcript.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    if (!shared.fixLine(videoId, parsed.data, signedIn(res).user.id, now())) {
+      res.status(404).json({ error: { message: "That line isn't in the transcript any more." } });
+      return;
+    }
+    res.json({ transcript: shared.transcript(videoId) });
   });
 
   // A transcript forgotten, a stretch of it (ms) or the whole ({}), to be transcribed afresh: everyone's, like a fix;
   // that it costs again is for whoever asks to weigh. Nothing is deleted, and the ask is kept with who made it (`shared.forget`).
   router.post("/:videoId/forget", (req, res) => {
-    const videoId = VideoId.safeParse(req.params.videoId);
-    if (!videoId.success) {
-      res.status(400).json({ error: { message: "That isn't a video id." } });
-      return;
-    }
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
     const parsed = TranscriptForget.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: { message: "That isn't a stretch of the video." } });
@@ -153,8 +224,8 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
     }
     // A stretch, or the whole video (the empty body).
     const stretch = Stretch.safeParse(parsed.data);
-    shared.forget(videoId.data, stretch.success ? stretch.data : null, now(), signedIn(res).user.id);
-    res.json({ transcript: shared.transcript(videoId.data) });
+    shared.forget(videoId, stretch.success ? stretch.data : null, now(), signedIn(res).user.id);
+    res.json({ transcript: shared.transcript(videoId) });
   });
 
   return router;

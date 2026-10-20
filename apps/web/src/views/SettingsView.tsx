@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  CHUNK_LENGTH_MAX,
   DICTIONARY_MAX_BYTES,
   ENGINES,
   ENGINE_IDS,
   EngineKeyUpdate,
+  OVER_LIMIT_IDS,
+  OVER_LIMIT_WORDS,
+  PAUSE_WAIT_MAX,
   TRANSCRIBE_LANGUAGES,
   TRANSCRIBE_LANGUAGE_IDS,
   TRANSCRIBE_SPEEDS,
@@ -17,6 +21,7 @@ import {
   type StorageReport,
   type Settings,
   type SettingsUpdate,
+  type TranscribeMode,
   type Transcription,
   type TranscriptionStatus,
   type WordAudio,
@@ -27,6 +32,7 @@ import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
 import { Form } from "../components/Form";
 import { Icon } from "../components/Icon";
+import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
@@ -83,6 +89,7 @@ const DICTIONARY_TOO_BIG = `That file is over ${sizeWords(DICTIONARY_MAX_BYTES)}
 const KIND_WORDS: Record<FilesOfKind["kind"], string> = { video: "Video", audio: "Audio", image: "Images" };
 const KIND_ORDER: readonly FilesOfKind["kind"][] = ["video", "audio", "image"];
 const SPEED_OPTIONS = TRANSCRIBE_SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
+const OVER_LIMIT_OPTIONS = OVER_LIMIT_IDS.map((id) => ({ id, label: OVER_LIMIT_WORDS[id] }));
 const ENGINE_OPTIONS = ENGINE_IDS.map((id) => ({ id, label: ENGINES[id].name }));
 const LANGUAGE_OPTIONS = TRANSCRIBE_LANGUAGE_IDS.map((id) => ({ id, label: TRANSCRIBE_LANGUAGES[id] }));
 const SOURCE_OPTIONS = WORD_AUDIO_SOURCE_IDS.map((id) => ({ id, label: WORD_AUDIO_SOURCES[id].name }));
@@ -298,7 +305,13 @@ type TranscribingProps = {
   onStatus: (status: TranscriptionStatus) => void;
 };
 
-/** How transcribing runs, for everyone, each change saved a moment after it's made; then the engine's key and its tally. */
+/**
+ * How transcribing runs, for everyone, each change saved a moment after it's made: the engine and the language; the
+ * transcription modes compared, which one everyone starts on and which are switched off, and the download limit; how
+ * the chunks are cut; then the engine's key and its tally. (What's the viewer's own, whether it starts by itself, what
+ * it does while paused, whether the transcript replaces the site's captions, and which mode they use, is on the
+ * extension's page or the strip's menu: only what costs is set here.)
+ */
 function Transcribing({ status, onStatus }: TranscribingProps) {
   const [current, patch, failure] = useSavedSoon<Transcription>(status.settings, async (change) => {
     const next = await api.updateTranscription(change);
@@ -306,6 +319,8 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
     return next.settings;
   });
   const engine = ENGINES[current.engine];
+  /** A mode switched on or off; the default stays on (its switch can't be pressed). */
+  const setModeOn = (mode: TranscribeMode, on: boolean) => patch({ modesOff: on ? current.modesOff.filter((m) => m !== mode) : [...current.modesOff.filter((m) => m !== mode), mode] });
 
   return (
     <>
@@ -318,29 +333,72 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
             {failure}
           </p>
         ) : null}
-        {/* The lines under these two are at the owner's ask (2026-10-17: "how/when they should play with it and how it could affect performance"); each says what the value set right now does. */}
+        <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
+        {/* What every video is transcribed in, told to the engine (the owner, 2026-10-18: seldom changed, so here and not under the video). */}
+        <Setting id="language" label="Language" control={<Dropdown id="transcribe-language" label="Language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />} />
+      </section>
+      <section className="panel-section" aria-labelledby="modes-title">
+        <h3 id="modes-title" className="panel-subtitle">
+          Transcription modes
+        </h3>
+        <ModeCompare mode={current.mode} modesOff={current.modesOff} estimate={status.estimate} onDefault={(mode) => patch({ mode })} onOn={setModeOn} />
+        <Setting
+          id="downloadLimit"
+          label="Download limit"
+          control={<NumberField id="transcribe-download-limit" label="Download limit in minutes" value={current.downloadLimit} min={1} max={600} suffix="min" onChange={(downloadLimit) => patch({ downloadLimit })} />}
+        />
+        <Setting
+          id="overLimit"
+          label="Videos over the download limit"
+          control={<Segmented idPrefix="transcribe-over-limit" label="Videos over the download limit" options={OVER_LIMIT_OPTIONS} value={current.overLimit} onChange={(overLimit) => patch({ overLimit })} />}
+        />
+      </section>
+      <section className="panel-section" aria-labelledby="chunks-title">
+        <h3 id="chunks-title" className="panel-subtitle">
+          Chunks
+        </h3>
+        {/* How a chunk is cut, at the owner's ask (2026-10-20: "a short description under chunks explaining how it works"). */}
+        <p className="setting-why">The background player records a chunk until it reaches its length, then stops at the first pause where nobody speaks. If nobody pauses, it's forcefully cut after the wait. Chunks overlap by 1.5 s.</p>
         <Setting
           id="speed"
           label="Speed"
           control={<Dropdown id="transcribe-speed" label="Speed" options={SPEED_OPTIONS} value={current.speed} onChange={(speed) => patch({ speed })} />}
-          why={
-            current.speed === 1
-              ? "Transcribes as fast as the video plays, so the words arrive just in time and a jump ahead waits. Raise it on a machine that keeps up."
-              : current.speed <= 3
-                ? `Transcribes ${current.speed} minutes of video per minute watched, and the engine hears everything it listens for. Lower it if the video's page stutters: the second player runs on each viewer's own machine.`
-                : `Transcribes ${current.speed} minutes of video per minute watched, but above 3× the voice loses its s and sh sounds. Lower it if the words come out wrong.`
-          }
+          why="How fast the chunk background player plays."
         />
         <Setting
           id="lead"
           label="Lead"
           control={<NumberField id="transcribe-lead" label="Minutes ahead" value={current.lead} min={1} max={180} suffix="min" onChange={(lead) => patch({ lead })} />}
-          why={`Runs ${count(current.lead, "minute", "minutes")} ahead of the viewer, then waits for them. A video left early still costs that much sound; a longer lead rides out longer jumps, a shorter one costs less to quit.`}
+          why="How far ahead of you it keeps transcribed."
         />
-        {/* What's the viewer's own (whether it starts by itself, what it does while paused, whether the transcript replaces the site's captions) is on the extension's page since 2026-10-17, by the owner's word: only what costs is set here. */}
-        <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
-        {/* What every video is transcribed in, told to the engine (the owner, 2026-10-18: seldom changed, so here and not under the video). */}
-        <Setting id="language" label="Language" control={<Dropdown id="transcribe-language" label="Language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />} />
+        <Setting
+          id="firstChunk"
+          label="First chunk"
+          control={<NumberField id="transcribe-first-chunk" label="First chunk in seconds" value={current.firstChunk} min={1} max={CHUNK_LENGTH_MAX} suffix="s" onChange={(firstChunk) => patch({ firstChunk })} />}
+          why="On a new video or after a jump."
+        />
+        <Setting
+          id="chunkGrowth"
+          label="Each next chunk"
+          control={<NumberField id="transcribe-chunk-growth" label="Times as long as the last" value={current.chunkGrowth} min={1} max={4} step={0.5} suffix="× longer" onChange={(chunkGrowth) => patch({ chunkGrowth })} />}
+          why="Up to the chunk length."
+        />
+        <Setting
+          id="chunkLength"
+          label="Chunk length"
+          control={<NumberField id="transcribe-chunk-length" label="Chunk length in seconds" value={current.chunkLength} min={5} max={CHUNK_LENGTH_MAX} suffix="s" onChange={(chunkLength) => patch({ chunkLength })} />}
+        />
+        <Setting
+          id="pauseWait"
+          label="Wait for a pause up to"
+          control={<NumberField id="transcribe-pause-wait" label="Seconds to wait for a pause" value={current.pauseWait} min={1} max={PAUSE_WAIT_MAX} suffix="s" onChange={(pauseWait) => patch({ pauseWait })} />}
+        />
+        <Setting
+          id="skipSilence"
+          label="Skip silence"
+          control={<Toggle id="transcribe-skip-silence" says={{ on: "On", off: "Off" }} on={current.skipSilence} onChange={(skipSilence) => patch({ skipSilence })} />}
+          why="Long stretches with no speech aren't transcribed. Try turning it off if subtitles are missing in quiet parts."
+        />
       </section>
       <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
         <p className="setting-why">{transcribedWords(status.seconds, engine.centsPerHour)}</p>
@@ -746,7 +804,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
       </div>
 
       {me.user.admin ? (
-        <div className="settings-tab" hidden={shown !== "admin"}>
+        <div className="settings-tab is-admin" hidden={shown !== "admin"}>
           <AdminPanel />
           <DictionariesPanel />
         </div>

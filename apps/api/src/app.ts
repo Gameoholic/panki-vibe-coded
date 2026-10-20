@@ -21,6 +21,7 @@ import { requireSession, signedIn } from "./session";
 import type { Shared } from "./shared";
 import { createThrottle } from "./throttle";
 import type { Engines } from "./transcribe/engines";
+import type { Jobs } from "./transcribe/jobs";
 
 export type AppDeps = {
   auth: AuthDb;
@@ -40,6 +41,8 @@ export type AppDeps = {
   /** The transcription engines, and the server's own key for each (the environment's), used when none was typed in Settings. */
   engines: Engines;
   engineKeys: Record<EngineId, string | null>;
+  /** Whole-video downloads, run in the background with the same engines and keys. */
+  jobs: Jobs;
   now?: () => number;
 };
 
@@ -47,7 +50,7 @@ export type AppDeps = {
 export type DbOf = (res: Response) => Db;
 
 /** `now` is passed in so time can be pinned in tests; the API, never the browser, stamps it. */
-export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, space, storage, forvo, wordAudioKeys, engines, engineKeys, now = Date.now }: AppDeps) {
+export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, space, storage, forvo, wordAudioKeys, engines, engineKeys, jobs, now = Date.now }: AppDeps) {
   const app = express();
   app.disable("x-powered-by");
   // nginx sits in front on the VPS: its X-Forwarded-* headers are believed from loopback only, so `req.secure` and `req.ip` are the browser's.
@@ -76,7 +79,7 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, spa
   app.use("/api/forvo", forvoRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), forvo, shared, wordAudioKeys.forvo, now));
   app.use("/api/dictionaries", dictionariesRouter(shared, dictionaryDir, now));
   app.use("/api/transcription", transcriptionRouter(shared, engines, engineKeys, now));
-  app.use("/api/transcripts", transcriptsRouter(shared, engines, engineKeys, now));
+  app.use("/api/transcripts", transcriptsRouter(shared, engines, engineKeys, jobs, now));
   app.use("/api/videos", videosRouter(dbOf, shared, now));
   app.use("/api/stats", statsRouter(dbOf, now));
   app.use("/api/space", spaceRouter(space, storage));

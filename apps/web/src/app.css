@@ -2335,6 +2335,185 @@ mark.sub-mark {
   font-weight: 800;
 }
 
+/* The Admin tab wants more room across than a column, for the transcription modes side by side: while it's shown, the
+   page is as wide as the editors' are (`.app.is-wide`), a little less. */
+.app:has(.settings-tab.is-admin:not([hidden])) .main,
+.app:has(.settings-tab.is-admin:not([hidden])) .subhead {
+  max-width: 1000px;
+}
+
+/* A transcription mode named in a sentence (components/ModeChip.tsx): its icon and its name on a soft highlight. */
+.mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--fg);
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.45;
+  vertical-align: baseline;
+}
+.mode-chip .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+/* A choice's icon, in a dropdown's list and on its button (a transcription mode's). */
+.dropdown-icon {
+  color: var(--accent);
+}
+.btn-item .dropdown-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* The transcription modes compared (components/ModeCompare.tsx): a column per mode and a row per way they differ, the
+   names of the rows down the left. Every column is a subgrid of the chart's rows, so a row lines up across them however
+   its cells wrap. The default's column is lit; a mode switched off is faded but for its switch. */
+.mode-compare {
+  display: grid;
+  grid-template-columns: minmax(84px, 0.6fr) repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--mode-rows), auto);
+  column-gap: 6px;
+}
+.mode-col {
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+}
+.mode-col.is-default {
+  background: var(--accent-soft);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+.mode-cell {
+  min-width: 0;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.mode-cell.mode-head {
+  border-top: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding-top: 14px;
+}
+.mode-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 16px;
+  font-weight: 800;
+}
+.mode-title .icon {
+  color: var(--accent);
+}
+.mode-default {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.mode-about {
+  color: var(--muted);
+}
+.mode-name {
+  color: var(--muted);
+  font-weight: 700;
+}
+.mode-says {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+}
+.mode-says small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mode-mark {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  stroke-width: 2.5;
+}
+.mode-says.is-yes .mode-mark {
+  color: var(--good);
+}
+.mode-says.is-no .mode-mark {
+  color: var(--danger);
+}
+.mode-says.is-some .mode-mark {
+  color: var(--muted);
+}
+/* The row's name in a cell: for a screen reader, and seen only on a phone, where each mode is a card of its own. */
+.mode-row-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.mode-cell.mode-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mode-col.is-off .mode-head,
+.mode-col.is-off .mode-says {
+  opacity: 0.45;
+}
+.mode-compare + .setting {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .mode-compare {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    row-gap: 10px;
+  }
+  .mode-col {
+    grid-row: auto;
+    grid-template-rows: none;
+    border: 1px solid var(--line);
+  }
+  .mode-col.mode-names {
+    display: none;
+  }
+  .mode-says {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .mode-row-name {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+}
+
 /* A card row's place and due time on its right, then (where cards can be changed) edit with delete under it, each a
    column of its own held to the row's top, level with the word: halfway down a tall row they floated loose of it (the
    owner, 2026-10-18). Always there, never only under a pointer, so a finger finds them too. */

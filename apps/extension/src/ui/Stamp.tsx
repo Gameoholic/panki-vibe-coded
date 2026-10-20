@@ -14,10 +14,14 @@ type Props = {
   onSet: (seconds: number) => void;
 };
 
+/** How far an arrow key moves the moment, in seconds. */
+const NUDGE = 0.1;
+
 /**
  * A moment of the video, written to the hundredth of a second, that can be typed over: a double-click on it (or Enter
  * while it has the focus) turns it into a field holding the same words. Enter, or leaving the field, keeps what was
- * typed; Escape, or something that isn't a moment, leaves it as it was.
+ * typed; Escape, or something that isn't a moment, leaves it as it was. The arrow keys on it move it a tenth of a
+ * second (2026-10-20, for a line's ends fixed with the pencil; the clip's ends take them too).
  */
 export function Stamp({ id, name, at, disabled, onSet }: Props) {
   const [typed, setTyped] = useState<string | null>(null);
@@ -48,6 +52,12 @@ export function Stamp({ id, name, at, disabled, onSet }: Props) {
         disabled={disabled}
         onDoubleClick={open}
         onKeyDown={(e) => {
+          const by = e.key === "ArrowRight" || e.key === "ArrowUp" ? NUDGE : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -NUDGE : 0;
+          if (by !== 0) {
+            e.preventDefault();
+            onSet(Math.max(0, Math.round((at + by) * 100) / 100));
+            return;
+          }
           if (e.key !== "Enter") return;
           e.preventDefault();
           open();

@@ -190,7 +190,7 @@
   z-index: 6;
   display: grid;
   gap: 8px;
-  width: 300px;
+  width: 340px;
   max-width: calc(100vw - 32px);
   padding: 12px;
   border: 1px solid var(--line);
@@ -255,7 +255,7 @@
 }
 .strip-menu-details > div {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 82px minmax(0, 1fr);
   gap: 8px;
 }
 .strip-menu-details dt {
@@ -264,6 +264,113 @@
 .strip-menu-details dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+/* Details and Log, side by side at the status's right; one unfolds at a time. */
+.strip-menu-folds {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+/* The Log: every decision this page made, a time and what was done and why, oldest first and the latest in view, in a
+   box of its own that scrolls; Copy at its foot. A mode named in a line is its chip, as everywhere. */
+.strip-menu-log {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.strip-menu-log ol {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+.strip-menu-log li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  line-height: 1.5;
+}
+.strip-menu-log time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.strip-menu-log li > span {
+  overflow-wrap: anywhere;
+}
+.strip-menu-log .mode-chip {
+  font-size: 11px;
+}
+.strip-menu-log .mode-chip .icon {
+  width: 12px;
+  height: 12px;
+}
+.strip-menu-log-empty {
+  color: var(--muted);
+}
+.strip-menu-log-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--muted);
+}
+/* The question before downloading a long video whole (Warn first): what it costs, then Transcribe, Switch to Auto, Cancel. */
+.strip-menu-question {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.strip-menu-question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.strip-menu-question-actions .btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.strip-menu-question-actions .mode-chip {
+  margin-left: 2px;
+}
+/* What was done instead of downloading a long video whole: over the download limit, Auto went with Live, or it's not allowed. */
+.strip-menu-notice {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+/* The Mode's list opens to the left of its button, at the panel's right edge, so it stays over the panel. */
+.strip-menu-row .menu.dropdown-menu {
+  left: auto;
+  right: 0;
+}
+/* A quiet word at an item's right: why it can't be pressed. */
+.strip-menu-why {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* A mode in the menu's words: as the details' and the log's text, a little smaller than in a sentence of the app's. */
+.strip-menu .mode-chip {
+  font-size: 12px;
+}
+.strip-menu .mode-chip .icon {
+  width: 13px;
+  height: 13px;
 }
 .strip-menu-items {
   display: grid;
@@ -333,6 +440,65 @@
 }
 .strip-fix .btn {
   margin-top: 1px;
+}
+/* The rows give way while one is fixed with its pencil. */
+.strip-rows[hidden] {
+  display: none;
+}
+/* A row of the transcript with its pencil at the end (`content/youtube.tsx` → `Row`): the words take the room, the
+   pencil keeps its own. Dim and not to be pressed while the video plays or the whole video is on its way. */
+.strip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.strip-row > .line {
+  flex: 1;
+  min-width: 0;
+}
+.btn.strip-row-edit {
+  flex: none;
+  padding: 4px;
+  border-color: transparent;
+}
+.btn.strip-row-edit .icon {
+  width: 15px;
+  height: 15px;
+}
+.btn.strip-row-edit:disabled {
+  opacity: 0.3;
+}
+/* A row being fixed: where it starts, what it says, where it ends, then Save and Cancel, in one line while there's room
+   (the field taking what's left), its ends and buttons on a line of their own when there isn't. */
+.strip-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 2px;
+  font-size: 14px;
+}
+.strip-edit > .field {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.strip-edit > .field .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.strip-edit .btn.capture-time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-color: var(--line);
+}
+.strip-edit-actions {
+  display: flex;
+  gap: 8px;
 }
 /* The transcript over the video (the line being said): the same words as under the player, on a dark band that
    sits over the picture whatever the theme, each word still a box to press. */

@@ -8,8 +8,8 @@ const NO_KEY = "Add a key for the engine in Settings → Admin.";
 
 /**
  * How transcribing runs, for everyone: the settings, whose key the chosen engine has (the key itself to an admin), how
- * much sound has been sent so far, and the engine's account behind the key. Read by anyone signed in but the account;
- * changed by an admin alone.
+ * much sound has been sent so far, what a whole-video download takes and costs as measured so far, and the engine's
+ * account behind the key. Read by anyone signed in but the account; changed by an admin alone.
  */
 export function transcriptionRouter(shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, now: () => number) {
   const router = Router();
@@ -19,7 +19,7 @@ export function transcriptionRouter(shared: Shared, engines: Engines, engineKeys
     const settings = shared.getTranscription();
     const saved = shared.key(settings.engine);
     const key = saved !== null ? "settings" : engineKeys[settings.engine] !== null ? "server" : null;
-    return { settings, key, ...(saved !== null && signedIn(res).user.admin ? { saved } : {}), seconds: shared.secondsTranscribed() };
+    return { settings, key, ...(saved !== null && signedIn(res).user.admin ? { saved } : {}), seconds: shared.secondsTranscribed(), estimate: shared.estimate(settings.engine, now()) };
   };
 
   router.get("/", (_req, res) => {
@@ -49,7 +49,11 @@ export function transcriptionRouter(shared: Shared, engines: Engines, engineKeys
       res.status(400).json({ error: { message: "That setting isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    shared.updateTranscription(parsed.data, now(), signedIn(res).user.id);
+    // The mode everyone starts on is never one that's switched off: made the default, it's switched on with it.
+    const patch = parsed.data;
+    const merged = { ...shared.getTranscription(), ...patch };
+    if (merged.modesOff.includes(merged.mode)) patch.modesOff = merged.modesOff.filter((mode) => mode !== merged.mode);
+    shared.updateTranscription(patch, now(), signedIn(res).user.id);
     res.json({ transcription: statusOf(res) });
   });
 

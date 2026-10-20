@@ -28,6 +28,11 @@ export function clock(seconds: number): string {
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
 }
 
+/** A wait that's only roughly known, "~40 s", "~3 min": how long transcribing takes, as measured so far. */
+export function aboutWords(seconds: number): string {
+  return seconds < 90 ? `~${Math.max(1, Math.round(seconds))} s` : `~${Math.round(seconds / 60)} min`;
+}
+
 /** Seconds as a length of time in words, to the minute: "3 h 12 min", "48 min", "3 h", "0 min". */
 export function durationWords(seconds: number): string {
   const minutes = Math.round(Math.max(0, seconds) / 60);

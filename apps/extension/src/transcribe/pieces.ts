@@ -1,17 +1,25 @@
+import { nextChunk, type Transcription } from "@panki/contracts";
+
 /**
- * Cuts a video's sound into pieces for the engine, where nobody is speaking. The sound comes in as the silent player
- * plays it, a few thousand samples at a time; it's kept here as one unbroken recording, and a piece is closed after
- * the fact, in the middle of the first half-second with no voice in it once the piece is long enough. Nothing is lost
- * at a cut: what's after it is the start of the next piece. Only when nobody pauses for twenty seconds is a piece cut
- * where it stands, at the quietest moment of its last seconds, and then the next piece begins a second and a half
- * before that cut, so both hear the word at the edge whole and the server keeps the better one (its stitch).
+ * Cuts a video's sound into chunks for the engine ("pieces" here and in the shapes; chunks to the owner, 2026-10-20),
+ * where nobody is speaking. The sound comes in as the silent player plays it, a few thousand samples at a time; it's
+ * kept here as one unbroken recording, and a chunk is closed after the fact, in the middle of the first half-second
+ * with no voice in it once the chunk is as long as it's to be. Nothing is lost at a cut: what's after it is the start
+ * of the next chunk. Only when nobody pauses for the wait is a chunk cut where it stands, at the quietest moment of its
+ * last seconds, and then the next chunk begins a second and a half before that cut, so both hear the word at the edge
+ * whole and the server keeps the better one (its stitch).
+ *
+ * How long a chunk is to be ramps up (Panki's settings, `ChunkShape`): the first chunk of a run, and the first after a
+ * jump, is short, so the first words come quickly; each next one is longer, up to the chunk length, so the engine hears
+ * more at a time and guesses less.
  *
  * Quiet is heard too. What's listened through with nothing to send (the half-second between two sentences, a jingle,
  * music under nobody's voice) is still a stretch of the video that's been heard, with nothing said in it; it goes to
- * Panki with the next piece (`startMs` to `soundMs`, before the sound), or on its own as a piece with no sound once it's
+ * Panki with the next chunk (`startMs` to `soundMs`, before the sound), or on its own as a chunk with no sound once it's
  * long enough, at a flush, or when listening picks up somewhere else. Otherwise every quiet is a hole in what's
- * covered: the first day the line on the player's bar broke wherever nobody spoke, and the follower took each hole for
- * something still to transcribe.
+ * covered: the first day the line on the player's bar broke wherever nobody spoke, and the run took each hole for
+ * something still to transcribe. With Skip silence off (Panki's settings), nothing is let go as quiet: every second
+ * heard is sent, voice or not, for a video whose quiet speech the voice measure misses.
  *
  * Time here is the video's own: the player runs faster than the video, so the sound it makes is taken at a lower
  * rate than the sound card's (`rate`: the card's rate divided by the speed), which is what makes the engine hear the
@@ -21,55 +29,50 @@
  */
 
 /**
- * The cutter's tuning, one home. Seconds unless said. Nothing here is a setting: from the viewer's side it's one
- * mechanism that just works (the owner, 2026-10-17, after an hour with three of these numbers in Panki's Settings:
- * "it'll be invisible to the user, it's just a super smart algorithm from their perspective… but make sure it's
- * documented well in the code").
+ * The cutter's own tuning, one home. Seconds unless said. How long a chunk is to be, how long it waits for a pause and
+ * whether silence is skipped are Panki's settings since 2026-10-20 (`ChunkShape`, at the owner's word on the plan page,
+ * after they'd had three such lengths in Settings for an hour on 2026-10-17 and taken them out); the rest is one
+ * mechanism that just works, "invisible to the user… but make sure it's documented well in the code".
  *
- * How a piece is cut, start to finish:
+ * How a chunk is cut, start to finish:
  *
  * 1. The silent player's sound arrives a few thousand samples at a time and is measured in frames of `frame` (20 ms):
  *    a frame is a voice when its loudness is `ratio` times the noise under it, the noise being the quietest tenth
  *    (`noiseShare`) of the last `noiseWindow` seconds' frames, never below `floor`. So music under a voice raises the
  *    floor and the voice still stands out above it, and a quiet room keeps the floor low.
  *
- * 2. A piece closes in the middle of the first `silence` (half a second) with no voice in it, once the piece is long
- *    enough. Long enough is `minPiece` (45 s, about a minute of talk), so the engine hears a whole stretch and has
- *    its context: a sentence at a time (3 to 20 s, the first day) made it guess more (the owner: "it feels wrong that
- *    we only send chunks between pauses, the model gets less context"). Every piece is held to the same least, the
- *    first of a run too: for a day a run's first piece was 8 s and each next twice the last, so words showed within
- *    seconds of a start, until the owner had it taken out (2026-10-17, "I just have to wait a little when the video
- *    first starts, no worries… we'll get better consistency this way"). So a start or a jump shows nothing for about
- *    as long as a piece takes to be heard at speed, and every piece is heard with the same context.
+ * 2. A chunk closes in the middle of the first `silence` (half a second) with no voice in it, once the chunk is as
+ *    long as it's to be. That's the first chunk's length for a run's first chunk, and the first after a jump; each
+ *    next one is the last times the growth, up to the chunk length (5, 10, 20, 40, 45, 45… to begin with). A sentence
+ *    at a time (3 to 20 s, the first day) made the engine guess more (the owner: "the model gets less context"), so the
+ *    chunks grow to most of a minute; the first is short so a start or a jump shows words within seconds. (A ramp like
+ *    this ran for a day once, 8 s doubling, until the owner had it out on 2026-10-17 for consistency; they asked for it
+ *    back on 2026-10-20, knowing that, with its numbers as settings.)
  *
- * 3. Somebody who never pauses for `maxPiece` (75 s) is cut where they stand, at the quietest frame of the last
- *    `forceWindow` seconds (not within `forceKeep` of the very end), and the next piece hears the last `overlap`
+ * 3. Somebody who never pauses for the wait past that length is cut where they stand, at the quietest frame of the last
+ *    `forceWindow` seconds (not within `forceKeep` of the very end), and the next chunk hears the last `overlap`
  *    (1.5 s) again, so the word at the cut is whole in one of the two; the server keeps the better hearing of each
- *    moment (its stitch: a word's depth is its distance from its piece's nearer edge, and the deeper hearing wins).
- *    The server's `PIECE_MAX_MS` (90 s) is `maxPiece` with the overlap and room; raise both together.
+ *    moment (its stitch: a word's depth is its distance from its chunk's nearer edge, and the deeper hearing wins).
+ *    The server's `PIECE_MAX_MS` is the longest chunk length with the longest wait, and room.
  *
- * 4. A piece with less than `minVoice` (0.4 s) of voice isn't sent (a cough, a click). After `longQuiet` (6 s) of
- *    nothing, a real break in the talk, a piece shorter than its least is sent anyway, and one with no voice at all is
- *    let go. A flush sends what's open when it's `minFlush` long with voice in it.
+ * 4. A chunk with less than `minVoice` (0.4 s) of voice isn't sent (a cough, a click). After `longQuiet` (6 s) of
+ *    nothing, a real break in the talk, a chunk shorter than it's to be is sent anyway, and one with no voice at all is
+ *    let go. A flush sends what's open when it's `minFlush` long with voice in it. (With Skip silence off, none of this
+ *    lets anything go: every chunk is sent as it closes, voice or not.)
  *
- * 5. Quiet is heard too (the file's head): what's let go is covered with the next piece, or on its own every
+ * 5. Quiet is heard too (the file's head): what's let go is covered with the next chunk, or on its own every
  *    `quietEvery` seconds while nobody speaks, so the transcript has no holes where there was nothing to say.
  *
  * 6. The WAV goes at `outRate` (16 kHz, what the engine listens to) when the sound was taken above it.
  *
- * Trade-offs, should the numbers be revisited: longer pieces give the engine more context and cost nothing extra
- * (the engine charges by the second of sound), but a piece's words come back only once the whole piece has been heard
- * and transcribed, so words arrive later and a start feels slower; shorter pieces show words sooner and guess more.
- * The ramp is what lets both be true. The language check rides on the pieces too: a run asks the engine what it hears
- * until it has heard Japanese for sure once (`transcriber.ts`), so the first short pieces also settle the language.
+ * Trade-offs, should the numbers be revisited: longer chunks give the engine more context and cost nothing extra
+ * (the engine charges by the second of sound), but a chunk's words come back only once the whole chunk has been heard
+ * and transcribed, so words arrive later and a start feels slower; shorter chunks show words sooner and guess more.
+ * The ramp is what lets both be true.
  */
 export const CUT = {
-  /** A stretch this long with no voice in it is where a piece closes. */
+  /** A stretch this long with no voice in it is where a chunk closes. */
   silence: 0.5,
-  /** A piece is at least this long before a silence closes it (the first of a run too)… */
-  minPiece: 45,
-  /** …and never longer than this: then it's cut where it stands. */
-  maxPiece: 75,
   /** How much of a forced cut's end the next piece hears again. */
   overlap: 1.5,
   /** The last seconds of a piece a forced cut is looked for in, and how close to the very end it may not fall. */
@@ -103,6 +106,9 @@ export const CUT = {
  */
 export type CutPiece = { startMs: number; soundMs: number; endMs: number; wav: Uint8Array<ArrayBuffer> | null };
 
+/** How the chunks are cut, as Panki's settings say (an admin's, for everyone): their lengths as they ramp up, the wait for a pause, whether silence is skipped. Seconds. */
+export type ChunkShape = Pick<Transcription, "firstChunk" | "chunkGrowth" | "chunkLength" | "pauseWait" | "skipSilence">;
+
 export type Cutter = {
   /** The next samples pushed begin at this moment of the video. Called as the player starts or resumes; the open piece goes on. */
   anchor(videoTime: number): void;
@@ -112,6 +118,8 @@ export type Cutter = {
   push(samples: Float32Array): void;
   /** Closes the open piece where it stands (a jump, a stop), sending it when it's worth sending. */
   flush(): void;
+  /** The next chunk is a first one again, as short as a run's first: listening picks up somewhere the viewer wants words soon (a jump). */
+  restart(): void;
   /** The moment the next sample pushed would stand at, by the count from the last anchor; null while suspended. */
   expected(): number | null;
 };
@@ -164,7 +172,7 @@ export function pieceWav(samples: Float32Array, rate: number): Uint8Array<ArrayB
   return wavOf(downTo(samples, rate, out), out);
 }
 
-export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cutter {
+export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutPiece) => void): Cutter {
   const frameLen = Math.max(1, Math.round(rate * CUT.frame));
   const framesOf = (seconds: number) => Math.max(1, Math.round(seconds / CUT.frame));
   const silenceFrames = framesOf(CUT.silence);
@@ -197,8 +205,8 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
   }
   /** The video's moment of the next sample pushed; null while suspended. */
   let next: number | null = null;
-  /** The least a piece is before a silence closes it: the same for every piece. */
-  const least = CUT.minPiece;
+  /** How long the open chunk is to be before a silence closes it: the first chunk's length, then each next grown from the last (`nextChunk`). */
+  let least = shape.firstChunk;
   /** The video's moment from which listening has gone untold of: quiet let go, and the open piece; null when the last thing sent reached the present. */
   let heardFrom: number | null = null;
   /** The video's moment the last sample pushed reached: how far listening has gone. */
@@ -266,6 +274,7 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     keepFrom(Math.max(0, Math.min(keepFromSample, samples.length)));
     // What's kept on is heard from where it now begins; nothing before that is left untold of.
     heardFrom = pieceStart;
+    least = nextChunk(shape, least);
   }
   /**
    * Tells of the quiet listened through so far with nothing to send, up to where the open piece begins (or to all
@@ -298,6 +307,11 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     if (quiet >= silenceFrames) {
       const voiceSeconds = voiced * CUT.frame;
       const half = Math.floor(silenceFrames / 2) * frameLen;
+      if (!shape.skipSilence) {
+        // Nothing is let go as quiet: the chunk closes at its first pause once it's long enough, voice or not.
+        if (seconds >= least) cut(length - half, length - half);
+        return;
+      }
       if (voiceSeconds >= CUT.minVoice && (seconds >= least || quiet >= longQuietFrames)) {
         // Closed in the middle of the quiet: the rest of the quiet begins the next piece.
         cut(length - half, length - half);
@@ -309,7 +323,7 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
       }
       return;
     }
-    if (seconds >= CUT.maxPiece) {
+    if (seconds >= least + shape.pauseWait) {
       // Nobody paused: cut at the quietest frame of the last seconds, not right at the end, and let the next piece
       // hear the end of this one again.
       const from = Math.max(0, loud.length - framesOf(CUT.forceWindow));
@@ -357,13 +371,17 @@ export function createCutter(rate: number, emit: (piece: CutPiece) => void): Cut
     },
     flush() {
       const seconds = length / rate;
-      if (pieceStart !== null && voicedFrames() * CUT.frame >= CUT.minVoice && seconds >= CUT.minFlush) cut(length, length);
+      const voiced = !shape.skipSilence || voicedFrames() * CUT.frame >= CUT.minVoice;
+      if (pieceStart !== null && voiced && seconds >= CUT.minFlush) cut(length, length);
       else {
         // Nothing worth sending: what was listened through is told of as quiet, so it's covered all the same.
         keepFrom(length);
         tellQuiet(true);
       }
       heardFrom = null;
+    },
+    restart() {
+      least = shape.firstChunk;
     },
     expected: () => next,
   };

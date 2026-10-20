@@ -27,6 +27,7 @@ import {
   type Transcript,
   type TranscriptFix,
   type TranscriptForget,
+  type TranscriptLineFix,
   type TranscriptionStatus,
   type VideoCard,
 } from "@panki/contracts";
@@ -110,19 +111,34 @@ export const panki = {
   transcription: ({ address, token }: Door): Promise<TranscriptionStatus> => call(address, token, "/api/transcription", {}, (b) => TranscriptionResponse.parse(b).transcription),
   /** A video's transcript as Panki keeps it; an empty one for a video nobody has transcribed. */
   transcript: ({ address, token }: Door, videoId: string): Promise<Transcript> => call(address, token, `/api/transcripts/${id(videoId)}`, {}, (b) => TranscriptResponse.parse(b).transcript),
-  /** A piece of a video's sound for the engine, under an id minted here, so sending it again is the same piece and never a second call to the engine. */
-  /** A piece of a video on its way to the engine through Panki: the stretch it accounts for, where its sound begins, and the sound (none for a stretch of nothing). */
-  putPiece: ({ address, token }: Door, videoId: string, pieceId: string, meta: { startMs: number; soundMs: number; endMs: number }, wav: Blob | null): Promise<PieceResponse> =>
+  /**
+   * A chunk of a video on its way to the engine through Panki, under an id minted here, so sending it again is the same
+   * chunk and never a second call to the engine: the stretch it accounts for, where its sound begins, the sound (none
+   * for a stretch of nothing), and for a run's first chunk how long after the run began it was sent.
+   */
+  putPiece: (
+    { address, token }: Door,
+    videoId: string,
+    pieceId: string,
+    meta: { startMs: number; soundMs: number; endMs: number; since?: number | undefined },
+    wav: Blob | null,
+  ): Promise<PieceResponse> =>
     call(
       address,
       token,
-      `/api/transcripts/${id(videoId)}/pieces/${id(pieceId)}?start=${meta.startMs}&sound=${meta.soundMs}&end=${meta.endMs}`,
+      `/api/transcripts/${id(videoId)}/pieces/${id(pieceId)}?start=${meta.startMs}&sound=${meta.soundMs}&end=${meta.endMs}${meta.since === undefined ? "" : `&since=${meta.since}`}`,
       wav ? { method: "PUT", headers: { "content-type": PIECE_MIME }, body: wav } : { method: "PUT" },
       (b) => PieceResponse.parse(b),
     ),
+  /** The whole video downloaded and transcribed by the engine, on Panki, in the background: the transcript with the download under way in it. */
+  wholeVideo: ({ address, token }: Door, videoId: string, lengthMs: number): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/whole`, json("POST", { lengthMs }), (b) => TranscriptResponse.parse(b).transcript),
   /** A word of a transcript changed by hand, for everyone. */
   fixWord: ({ address, token }: Door, videoId: string, fix: TranscriptFix): Promise<Transcript> =>
     call(address, token, `/api/transcripts/${id(videoId)}/fixes`, json("POST", fix), (b) => TranscriptResponse.parse(b).transcript),
+  /** A line of a transcript changed by hand, for everyone: its words and where it starts and ends. */
+  fixLine: ({ address, token }: Door, videoId: string, fix: TranscriptLineFix): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/lines`, json("POST", fix), (b) => TranscriptResponse.parse(b).transcript),
   /** A transcript forgotten, a stretch of it or the whole, for everyone: transcribed afresh when a run passes it. */
   forgetTranscript: ({ address, token }: Door, videoId: string, forget: TranscriptForget): Promise<Transcript> =>
     call(address, token, `/api/transcripts/${id(videoId)}/forget`, json("POST", forget), (b) => TranscriptResponse.parse(b).transcript),

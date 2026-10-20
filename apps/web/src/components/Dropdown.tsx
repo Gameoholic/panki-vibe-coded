@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import { Button } from "./Button";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 type Common<T extends string | number> = {
   id: string;
@@ -9,9 +9,10 @@ type Common<T extends string | number> = {
   label: string;
   /**
    * `disabled` is a choice that's shown, so it's known to exist, but can't be made here. `note` is a quiet word at the
-   * right of a choice in the list (where it comes from, say); the button shows only the label.
+   * right of a choice in the list (where it comes from, say); the button shows only the label. `icon` is drawn before
+   * the label, in the list and on the button (a transcription mode's).
    */
-  options: readonly { id: T; label: string; disabled?: boolean; note?: string }[];
+  options: readonly { id: T; label: string; disabled?: boolean; note?: string; icon?: IconName }[];
   /** What the button says while the value is none of the choices: nothing has been chosen yet. */
   placeholder?: string;
   /** Shown, with what's chosen, but not to be changed just now. */
@@ -51,6 +52,7 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
       >
+        {current?.icon ? <Icon name={current.icon} className="dropdown-icon" /> : null}
         <span className="dropdown-says">{says}</span>
         <Icon name="down" />
       </Button>
@@ -81,6 +83,7 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
             >
               {/* Ticked or not, each choice of several keeps the tick's room, so their words stand in one column. */}
               {many ? <Icon name="check" className={`dropdown-tick ${isOn(o.id) ? "" : "is-off"}`.trim()} /> : null}
+              {o.icon ? <Icon name={o.icon} className="dropdown-icon" /> : null}
               <span className="dropdown-choice">{o.label}</span>
               {o.note ? <span className="dropdown-note">{o.note}</span> : null}
             </Button>

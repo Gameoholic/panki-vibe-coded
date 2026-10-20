@@ -136,7 +136,15 @@ chrome.runtime.onInstalled.addListener(replace);
 /** A video's transcript with what runs transcribing, asked of Panki in one go, and this browser's own: where the words come from, and how transcribing behaves for this viewer. */
 async function transcripted(door: Door, videoId: string, store: Stored): Promise<Transcripted> {
   const [transcript, transcription] = await Promise.all([panki.transcript(door, videoId), panki.transcription(door)]);
-  return { ok: true, transcript, settings: transcription.settings, key: transcription.key !== null, source: sourceOf(store.subtitleSource), prefs: prefsOf(store) };
+  return {
+    ok: true,
+    transcript,
+    settings: transcription.settings,
+    key: transcription.key !== null,
+    estimate: transcription.estimate,
+    source: sourceOf(store.subtitleSource),
+    prefs: prefsOf(store),
+  };
 }
 
 async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Transcripted | Pieced> {
@@ -165,7 +173,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "prefs") {
-    const { trigger, paused, overVideo, style, markUnder, markOver } = ask.prefs;
+    const { trigger, paused, overVideo, style, markUnder, markOver, mode } = ask.prefs;
     await writeStore({
       ...(trigger !== undefined ? { transcribeTrigger: trigger } : {}),
       ...(paused !== undefined ? { transcribePaused: paused } : {}),
@@ -173,6 +181,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       ...(style !== undefined ? { subtitleStyle: style } : {}),
       ...(markUnder !== undefined ? { markUnder } : {}),
       ...(markOver !== undefined ? { markOver } : {}),
+      ...(mode !== undefined ? { transcribeMode: mode } : {}),
     });
     return { ok: true };
   }
@@ -216,21 +225,27 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.
     if (ask.kind === "transcript") return transcripted(door, ask.videoId, store);
+    if (ask.kind === "poll") return { ok: true, transcript: await panki.transcript(door, ask.videoId), engineMs: null };
+    if (ask.kind === "whole") return { ok: true, transcript: await panki.wholeVideo(door, ask.videoId, ask.lengthMs), engineMs: null };
     if (ask.kind === "piece") {
       let wav: Uint8Array<ArrayBuffer> | null = null;
       if (ask.base64 !== null) {
         try {
           wav = bytesOf(ask.base64);
         } catch {
-          return { ok: false, message: "The piece didn't arrive whole." };
+          return { ok: false, message: "The chunk didn't arrive whole." };
         }
       }
-      const meta = { startMs: ask.startMs, soundMs: ask.soundMs, endMs: ask.endMs };
+      const meta = { startMs: ask.startMs, soundMs: ask.soundMs, endMs: ask.endMs, since: ask.since };
       const heard = await panki.putPiece(door, ask.videoId, ask.pieceId, meta, wav ? new Blob([wav], { type: PIECE_MIME }) : null);
-      return { ok: true, transcript: heard.transcript };
+      return { ok: true, transcript: heard.transcript, engineMs: heard.engineMs };
     }
     if (ask.kind === "fix") {
       await panki.fixWord(door, ask.videoId, ask.fix);
+      return transcripted(door, ask.videoId, store);
+    }
+    if (ask.kind === "line") {
+      await panki.fixLine(door, ask.videoId, ask.fix);
       return transcripted(door, ask.videoId, store);
     }
     if (ask.kind === "forget") {

@@ -1,4 +1,4 @@
-import { createCutter, type CutPiece, type Cutter } from "./pieces";
+import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pieces";
 
 /**
  * The silent player: the same video opened a second time in a frame of this page, unseen and unheard, played ahead of
@@ -50,8 +50,8 @@ export type SilentReport = {
 export type SilentStage = "opening" | "finding" | "seeking" | "starting" | "listening" | "playing" | "buffering" | "held" | "ad" | "ended" | "failed";
 
 export type SilentPlayer = {
-  /** Goes there and plays on from it, at speed. */
-  go(at: number): void;
+  /** Goes there and plays on from it, at speed. `fresh`: the viewer is waiting for words there (a run's start, a jump), so the next chunk is as short as a first one; going on over something transcribed already isn't. */
+  go(at: number, fresh?: boolean): void;
   hold(): void;
   resume(): void;
   report(): SilentReport;
@@ -112,7 +112,7 @@ function windowOf(frame: HTMLIFrameElement): FrameWindow | null {
   return win !== null && "AudioContext" in win && "HTMLVideoElement" in win ? (win as FrameWindow) : null;
 }
 
-export function createSilentPlayer(videoId: string, speed: number, onPiece: (piece: CutPiece) => void): SilentPlayer {
+export function createSilentPlayer(videoId: string, speed: number, shape: ChunkShape, onPiece: (piece: CutPiece) => void): SilentPlayer {
   const frame = document.createElement("iframe");
   frame.setAttribute("allow", "autoplay");
   frame.setAttribute("aria-hidden", "true");
@@ -243,9 +243,10 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
     );
   }
 
-  function seekAndPlay(at: number) {
+  function seekAndPlay(at: number, fresh: boolean) {
     if (!video) return;
     cutter?.flush();
+    if (fresh) cutter?.restart();
     suspend();
     ended = false;
     onset = Math.max(0, at);
@@ -273,7 +274,7 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
     source.connect(tap);
     tap.connect(mute);
     mute.connect(ctx.destination);
-    cutter = createCutter(ctx.sampleRate / speed, onPiece);
+    cutter = createCutter(ctx.sampleRate / speed, shape, onPiece);
     tap.onaudioprocess = (e) => {
       if (!cutter || !ctx || !video || ad || video.seeking) return;
       // Waiting for the first sound after a seek: every block is looked at, whether or not the pair is there yet (the
@@ -335,8 +336,8 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
     pageTimer = null;
     if (wanted !== null) {
       const at = wanted;
-      if (found.readyState >= 1) seekAndPlay(at);
-      else found.addEventListener("loadedmetadata", () => seekAndPlay(at), { once: true });
+      if (found.readyState >= 1) seekAndPlay(at, true);
+      else found.addEventListener("loadedmetadata", () => seekAndPlay(at, true), { once: true });
     }
   }
 
@@ -389,12 +390,12 @@ export function createSilentPlayer(videoId: string, speed: number, onPiece: (pie
   }
 
   return {
-    go(at) {
+    go(at, fresh = true) {
       wanted = at;
       wantPlaying = true;
       if (gone || failed) return;
       if (!frame.isConnected) open(at);
-      else if (video) seekAndPlay(at);
+      else if (video) seekAndPlay(at, fresh);
     },
     hold() {
       wantPlaying = false;

@@ -1,6 +1,29 @@
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
-import { CardType, Deck, DeckId, FORVO_WORD_MAX, ForvoVoice, MediaCues, MediaId, MediaKind, NewCard, PIECE_MAX_BYTES, PieceId, SrsType, Stretch, SubtitleStyle, Transcript, TranscriptFix, Transcription, VideoCard, VideoId } from "@panki/contracts";
+import {
+  CardType,
+  Deck,
+  DeckId,
+  FORVO_WORD_MAX,
+  ForvoVoice,
+  MediaCues,
+  MediaId,
+  MediaKind,
+  NewCard,
+  PIECE_MAX_BYTES,
+  PieceId,
+  SrsType,
+  Stretch,
+  SubtitleStyle,
+  TranscribeEstimate,
+  Transcript,
+  TranscriptFix,
+  TranscriptLineFix,
+  Transcription,
+  VideoCard,
+  VideoId,
+  WHOLE_MAX_MS,
+} from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
 import { PopupLayout } from "./popupLayout";
@@ -53,7 +76,11 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("voice"), word: z.string().min(1).max(FORVO_WORD_MAX), id: z.number().int() }),
   /** A video's transcript as Panki keeps it, with the settings that run transcribing and whether there's a key to run it with. */
   z.object({ kind: z.literal("transcript"), videoId: VideoId }),
-  /** A piece for the engine: the stretch of the video it accounts for, where in it its sound begins, and the WAV as text (none for a stretch of nothing). */
+  /** A video's transcript alone, read again while its whole-video download is under way. */
+  z.object({ kind: z.literal("poll"), videoId: VideoId }),
+  /** The whole video downloaded and transcribed by the engine, in the background on Panki: its length, as the player says it. */
+  z.object({ kind: z.literal("whole"), videoId: VideoId, lengthMs: z.number().int().positive().max(WHOLE_MAX_MS) }),
+  /** A chunk for the engine: the stretch of the video it accounts for, where in it its sound begins, the WAV as text (none for a stretch of nothing), and for a run's first chunk how long after the run began it was sent. */
   z.object({
     kind: z.literal("piece"),
     videoId: VideoId,
@@ -62,9 +89,12 @@ export const Ask = z.discriminatedUnion("kind", [
     soundMs: z.number().int().nonnegative(),
     endMs: z.number().int().positive(),
     base64: z.string().max(PIECE_BASE64_MAX).nullable(),
+    since: z.number().int().nonnegative().optional(),
   }),
   /** A word of a transcript changed by hand. */
   z.object({ kind: z.literal("fix"), videoId: VideoId, fix: TranscriptFix }),
+  /** A line of a transcript changed by hand, with the pencil: its words, what it says now, where it starts and ends. */
+  z.object({ kind: z.literal("line"), videoId: VideoId, fix: TranscriptLineFix }),
   /** A transcript forgotten, a stretch of the video (ms) or the whole (null), for everyone: transcribed afresh when a run passes it. */
   z.object({ kind: z.literal("forget"), videoId: VideoId, stretch: Stretch.nullable() }),
   /** How transcribing behaves for this viewer, changed in the strip's menu: kept here, as the options page keeps it. */
@@ -133,11 +163,14 @@ const State = z.union([
 ]);
 export type State = z.infer<typeof State>;
 export type Done = z.infer<typeof Done>;
-/** A video's transcript with what runs transcribing: the shared settings, whether the chosen engine has a key, and this browser's order of sources. */
-const Transcripted = z.union([z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, key: z.boolean(), source: z.string(), prefs: TranscribePrefs }), Failed]);
+/** A video's transcript with what runs transcribing: the shared settings, whether the chosen engine has a key, what a whole-video download takes as measured so far, this browser's pick of source, and this viewer's preferences. */
+const Transcripted = z.union([
+  z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, key: z.boolean(), estimate: TranscribeEstimate, source: z.string(), prefs: TranscribePrefs }),
+  Failed,
+]);
 export type Transcripted = z.infer<typeof Transcripted>;
-/** A piece heard: the transcript with it in, what language the engine heard when asked, and what that came to. */
-const Pieced = z.union([z.object({ ok: z.literal(true), transcript: Transcript }), Failed]);
+/** A chunk heard, a whole-video download asked for, or the transcript read again: the transcript as it stands, and how long the engine took over the chunk (null when it wasn't asked). */
+const Pieced = z.union([z.object({ ok: z.literal(true), transcript: Transcript, engineMs: z.number().int().nonnegative().nullable() }), Failed]);
 export type Pieced = z.infer<typeof Pieced>;
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */
@@ -218,8 +251,23 @@ export async function askPiece(piece: Omit<Extract<Ask, { kind: "piece" }>, "kin
   const answer = Pieced.safeParse(await ask({ kind: "piece", ...piece }));
   return answer.success ? answer.data : failed();
 }
+/** The transcript alone, read again while a whole-video download is under way. */
+export async function askPoll(videoId: string): Promise<Pieced> {
+  const answer = Pieced.safeParse(await ask({ kind: "poll", videoId }));
+  return answer.success ? answer.data : failed();
+}
+/** The whole video, downloaded and transcribed by the engine in the background: the transcript with the download under way in it. */
+export async function askWhole(videoId: string, lengthMs: number): Promise<Pieced> {
+  const answer = Pieced.safeParse(await ask({ kind: "whole", videoId, lengthMs: Math.min(WHOLE_MAX_MS, Math.max(1, Math.round(lengthMs))) }));
+  return answer.success ? answer.data : failed();
+}
 export async function askFix(videoId: string, fix: TranscriptFix): Promise<Transcripted> {
   const answer = Transcripted.safeParse(await ask({ kind: "fix", videoId, fix }));
+  return answer.success ? answer.data : failed();
+}
+/** A line of the transcript fixed by hand, for everyone; the transcript as it stands then comes back. */
+export async function askLine(videoId: string, fix: TranscriptLineFix): Promise<Transcripted> {
+  const answer = Transcripted.safeParse(await ask({ kind: "line", videoId, fix }));
   return answer.success ? answer.data : failed();
 }
 export async function askSubtitles(source: string): Promise<void> {

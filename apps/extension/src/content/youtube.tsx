@@ -18,8 +18,8 @@ import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
-import { Trigger, askFix, askForget, askOpenPanki, askOptions, askPrefs, askSubtitles, askVideoCards } from "../messages";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type VideoCard } from "@panki/contracts";
+import { Trigger, askFix, askForget, askLine, askOpenPanki, askOptions, askPrefs, askSubtitles, askVideoCards } from "../messages";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, type SubtitleSource } from "../subtitles";
@@ -29,6 +29,7 @@ import { Line, type LineLook } from "../ui/Line";
 import { makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer } from "../ui/Panel";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
+import { Stamp } from "../ui/Stamp";
 import { TranscribeMenu, type Seconds } from "../ui/TranscribeMenu";
 import type { ClipEnd, MoveBy } from "../ui/Trim";
 
@@ -277,6 +278,11 @@ const listening = createListening({
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
 const inPlace = cell(false);
 const showing = cell(false);
+/** Whether the player's video stands still: a line under it is fixed with the pencil only then. */
+const stillNow = cell(true);
+const noteStill = (e: Event) => {
+  if (e.target instanceof HTMLVideoElement) stillNow.set(e.target.paused);
+};
 
 /** The player's video, as last found. */
 let video: HTMLVideoElement | null = null;
@@ -373,7 +379,16 @@ function place() {
 function look() {
   const player = document.querySelector(PLAYER);
   const found = player?.querySelector("video") ?? null;
-  video = found instanceof HTMLVideoElement ? found : null;
+  const next = found instanceof HTMLVideoElement ? found : null;
+  // Whether it stands still is heard from the video itself, so the pencil wakes the moment it's paused.
+  if (next !== video) {
+    for (const type of ["play", "playing", "pause", "ended"] as const) {
+      video?.removeEventListener(type, noteStill);
+      next?.addEventListener(type, noteStill);
+    }
+    stillNow.set(next?.paused ?? true);
+  }
+  video = next;
   const now = videoId();
   if (now !== watching) {
     watching = now;
@@ -724,9 +739,12 @@ type RowProps = {
   placeOf: (at: number) => { lineId: number; offset: number } | null;
   /** A word double-clicked, to be fixed: only a transcript's words can be. */
   onFix?: ((chars: Chars) => void) | null;
+  /** The pencil at the row's end, to fix the whole row by hand (a transcript's rows under the player only); `editable` is whether it can be pressed now. */
+  onEdit?: (() => void) | null;
+  editable?: boolean;
 };
 
-function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null }: RowProps) {
+function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEdit = null, editable = false }: RowProps) {
   const tokens = useWords(text, forced);
   /** A word of the row as something pointed at: looked up from its first letter on, through the end of the row. */
   const pointedAt = (i: number, button: HTMLElement): Pointed | null => {
@@ -763,7 +781,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null }: Ro
       return false;
     },
   };
-  return (
+  const line = (
     <Line
       tokens={tokens}
       picked={chars ? spanOver(tokens, chars.from - at, chars.to - at) : null}
@@ -782,6 +800,17 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null }: Ro
           : null
       }
     />
+  );
+  if (!onEdit) return line;
+  // The pencil (the owner, 2026-10-19: "add a pencil icon somewhere to enter edit for that specific sentence, only works
+  // while we're paused, as in the buttons disable otherwise"): at the row's end, dim and still while it can't be pressed.
+  return (
+    <div className="strip-row">
+      {line}
+      <Button className="btn-icon strip-row-edit" aria-label="Fix this line" disabled={!editable} onClick={onEdit}>
+        <Icon name="edit" />
+      </Button>
+    </div>
   );
 }
 
@@ -912,10 +941,56 @@ function App() {
     transcriber.take(answer.transcript);
     setFixing(null);
   }
+  /**
+   * A row of the transcript being fixed by hand with its pencil (the owner, 2026-10-19 and 20): its words, what it says
+   * as typed, and where it starts and ends as set (seconds), each end a `Stamp`. Saved, the typed words are laid back
+   * onto the row's own by Panki, each keeping its place in the row as the ends move. Only while the video stands still
+   * and no whole video is on its way (whose words would replace it: "the latest one overwrites").
+   */
+  const [editing, setEditing] = useState<{ wordIds: number[]; text: string; start: number; end: number } | null>(null);
+  const [editFailure, setEditFailure] = useState<string | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const still = useSyncExternalStore(stillNow.subscribe, stillNow.get);
+  const editable = still && view.mode === "transcript" && tx.transcript?.job?.state !== "running";
+  function editRow(lineIds: readonly number[]) {
+    const row = lines.linesAsOne(lineIds);
+    if (!row) return;
+    setFixing(null);
+    setEditing(row);
+    setEditFailure(null);
+  }
+  /** An end of the row moved: kept inside the video and on its side of the other end. */
+  function moveRowEnd(which: "start" | "end", to: number) {
+    if (!editing) return;
+    const limit = video && Number.isFinite(video.duration) ? video.duration : Infinity;
+    if (which === "start") setEditing({ ...editing, start: Math.min(Math.max(0, to), editing.end - 0.1) });
+    else setEditing({ ...editing, end: Math.max(Math.min(limit, to), editing.start + 0.1) });
+  }
+  async function saveRow() {
+    const id = videoId();
+    if (!editing || !id) return;
+    setEditBusy(true);
+    const answer = await askLine(id, { wordIds: editing.wordIds, text: editing.text.trim(), startMs: Math.round(editing.start * 1000), endMs: Math.round(editing.end * 1000) });
+    setEditBusy(false);
+    if (!answer.ok) {
+      setEditFailure(answer.message);
+      return;
+    }
+    transcriber.take(answer.transcript);
+    setEditing(null);
+  }
   // Another video, or the transcript gone from under the player: nothing to fix any more.
   useEffect(() => {
-    if (view.mode !== "transcript") setFixing(null);
+    if (view.mode !== "transcript") {
+      setFixing(null);
+      setEditing(null);
+    }
   }, [view.mode]);
+  // The whole video coming in replaces the words being fixed: the row's fixing gives way.
+  const downloadingNow = tx.transcript?.job?.state === "running";
+  useEffect(() => {
+    if (downloadingNow) setEditing(null);
+  }, [downloadingNow]);
 
   /**
    * Whether the transcript stands in for the site's captions on the picture: the engine is the pick, and the settings
@@ -1143,6 +1218,7 @@ function App() {
       replay.forget();
       setTaking(null);
       setSplits([]);
+      setEditing(null);
     };
     fromPopup.add = ({ found, pointed }) => takeFound(found, pointed);
     // A word taken as another length from the popup: any split made before over the same letters gives way to it.
@@ -1261,6 +1337,11 @@ function App() {
     transcriber.setPrefs({ trigger });
     void askPrefs({ trigger });
   }
+  /** The mode this viewer transcribes in, picked in the menu (or switched to Auto from the question before a long download): taken at once, kept by the worker. */
+  function setMode(mode: TranscribeMode) {
+    transcriber.setPrefs({ mode });
+    void askPrefs({ mode });
+  }
   /** How the transcript looks over the video, changed in the Subtitles menu: seen at once, kept by the worker. */
   function setStyle(style: SubtitleStyle) {
     transcriber.setPrefs({ style });
@@ -1345,6 +1426,8 @@ function App() {
                   onStretch={(stretch) => transcriber.startStretch(stretch.start, stretch.end)}
                   onForget={(stretch) => void forget(stretch)}
                   onAuto={setAuto}
+                  onMode={setMode}
+                  onAnswer={(yes) => transcriber.answer(yes, duration)}
                   detail={transcriber.detail}
                 />
               ) : null}
@@ -1360,14 +1443,39 @@ function App() {
               </Button>
             </div>
           </div>
+          {/* A row of the transcript fixed with its pencil stands in the rows' place while it's being fixed: the row become a field between its two ends. */}
+          {editing ? (
+            <Form onSubmit={() => void saveRow()} className="strip-edit">
+              <Stamp id="panki-edit-start" name="Where the line starts" at={editing.start} disabled={editBusy} onSet={(to) => moveRowEnd("start", to)} />
+              <TextField
+                id="panki-edit-line"
+                label="Line"
+                lang="ja"
+                autoFocus
+                value={editing.text}
+                onChange={(text) => setEditing({ ...editing, text })}
+                error={editFailure ?? undefined}
+              />
+              <Stamp id="panki-edit-end" name="Where the line ends" at={editing.end} disabled={editBusy} onSet={(to) => moveRowEnd("end", to)} />
+              <span className="strip-edit-actions">
+                <Button type="submit" variant="primary" disabled={editBusy}>
+                  {editBusy ? "Saving…" : "Save"}
+                </Button>
+                <Button disabled={editBusy} onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
+              </span>
+            </Form>
+          ) : null}
           {/* A row is only let break in two when there's no room for even one of the player's own rows across. */}
-          <div ref={rowsEl} className={`strip-rows ${room !== null && room < longestRow ? "is-narrow" : ""}`.trim()}>
+          <div ref={rowsEl} className={`strip-rows ${room !== null && room < longestRow ? "is-narrow" : ""}`.trim()} hidden={editing !== null}>
             {under.length > 0 ? (
               under.map((row) => {
                 const first = underText.parts.find((part) => part.line.id === row.lines[0]?.id);
                 const last = underText.parts.find((part) => part.line.id === row.lines.at(-1)?.id);
                 if (!first || !last) return null;
                 const text = underText.text.slice(first.at, last.at + last.line.text.length);
+                const transcribed = view.mode === "transcript";
                 return (
                   <Row
                     key={row.key}
@@ -1378,7 +1486,9 @@ function App() {
                     forced={forcedIn(first.at, text.length)}
                     onTake={takeUnder}
                     placeOf={placeOf}
-                    onFix={view.mode === "transcript" ? fixAt : null}
+                    onFix={transcribed ? fixAt : null}
+                    onEdit={transcribed ? () => editRow(row.lines.map((line) => line.id)) : null}
+                    editable={editable}
                   />
                 );
               })

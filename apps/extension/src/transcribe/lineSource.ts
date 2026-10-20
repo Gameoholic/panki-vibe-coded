@@ -128,6 +128,16 @@ export function createLineSource(captions: Captions, transcriber: Transcriber, n
       const placed = line?.words.find((word) => offset >= word.from && offset < word.to);
       return line && placed ? { id: placed.id, text: line.text.slice(placed.from, placed.to) } : null;
     },
+    /** Some of the transcript's lines as one, for the pencil to fix: their words, what they say, and where they start and end, in seconds; null when one isn't the transcript's. */
+    linesAsOne(lineIds: readonly number[]): { wordIds: number[]; text: string; start: number; end: number } | null {
+      const picked = lineIds.map((id) => ofTranscript().find((l) => l.id === id));
+      if (picked.length === 0 || picked.some((line) => line === undefined)) return null;
+      const found = picked.filter((line): line is TranscriptLine => line !== undefined);
+      const first = found[0];
+      const last = found.at(-1);
+      if (!first || !last) return null;
+      return { wordIds: found.flatMap((line) => line.words.map((word) => word.id)), text: found.map((line) => line.text).join(""), start: first.start, end: last.end ?? first.start };
+    },
   };
 }
 export type LineSource = ReturnType<typeof createLineSource>;

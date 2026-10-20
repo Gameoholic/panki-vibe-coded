@@ -5,10 +5,11 @@ import { EngineError, type EngineClient, type Heard } from "./engines";
 
 /**
  * ElevenLabs Scribe v2 (the owner's pick, 2026-10-16: "$0.22 an hour, 4½ hours free"). One call per piece: the sound
- * as a file in a multipart form, the words back with their times. The key goes only in the `xi-api-key` header. And
- * the account behind the key, from `GET /v1/user/subscription` (its docs, read 2026-10-17: `tier`, `status`,
- * `character_count` of `character_limit` in the period, `next_character_count_reset_unix`, `current_overage`), for
- * an admin's Settings.
+ * as a file in a multipart form, the words back with their times; or one call for a whole video, its address in place
+ * of the file (2026-10-20). The key goes only in the `xi-api-key` header. And the account behind the key, from
+ * `GET /v1/user/subscription` (its docs, read 2026-10-17: `tier`, `status`, `character_count` of `character_limit` in
+ * the period, `next_character_count_reset_unix`, `current_overage`), for an admin's Settings, and read on either side
+ * of a whole-video download to tell what it cost.
  *
  * Its answers are read defensively, as Forvo's are: the whole through one shape, each word on its own, one that doesn't
  * fit dropped rather than the piece refused.
@@ -20,13 +21,13 @@ const SUBSCRIPTION = `${HOST}/v1/user/subscription`;
 const MODEL = "scribe_v2";
 /** How much of what ElevenLabs says about a refusal is passed on. */
 const SAID_MAX = 200;
-/** How long a piece (a minute and a half of sound at most) may take to come back; under nginx's `proxy_read_timeout`, so the API answers first. */
+/** How long a piece (two minutes of sound at most) may take to come back; under nginx's `proxy_read_timeout`, so the API answers first. A whole video has its own deadline, by its length (`jobs.ts`). */
 const TRANSCRIBE_TIMEOUT_MS = 120_000;
 /** How long the account's standing may take. */
 const ACCOUNT_TIMEOUT_MS = 20_000;
 
-/** The call didn't come back: cut by the deadline, or never reached. */
-const unreached = (e: unknown) => new EngineError(timedOut(e) ? "ElevenLabs took too long to answer." : "Couldn't reach ElevenLabs.");
+/** The call didn't come back: cut by the deadline (not tried again: the engine may have done the work, and charged for it), or never reached (passing). */
+const unreached = (e: unknown) => (timedOut(e) ? new EngineError("ElevenLabs took too long to answer.") : new EngineError("Couldn't reach ElevenLabs.", 502, true));
 
 /** One row of the answer's `words`: a word, a space, or a sound that isn't speech; only the words are kept. */
 const Row = z.object({ text: z.string(), start: z.number(), end: z.number(), type: z.string() });
@@ -59,14 +60,53 @@ function saidOf(body: unknown): string | null {
   return said ? said.slice(0, SAID_MAX) : null;
 }
 
-/** What a refusal comes to, in the owner's words: ElevenLabs' own sentence when it gave one. */
+/** What a refusal comes to, in the owner's words: ElevenLabs' own sentence when it gave one. Down or too busy, it may pass. */
 function refused(status: number, body: unknown): EngineError {
+  const passing = status >= 500 || status === 429;
   const said = saidOf(body);
-  if (said !== null) return new EngineError(`ElevenLabs: ${said}`);
-  return new EngineError(status === 401 || status === 403 ? "ElevenLabs refused. Check the key in Settings → Admin." : "ElevenLabs couldn't answer that.");
+  if (said !== null) return new EngineError(`ElevenLabs: ${said}`, 502, passing);
+  return new EngineError(status === 401 || status === 403 ? "ElevenLabs refused. Check the key in Settings → Admin." : "ElevenLabs couldn't answer that.", 502, passing);
+}
+
+/** The words of an answer, as far as they read: each word with its times in ms from the sound's start, whatever else it sends set aside. */
+function heardOf(body: unknown): Heard {
+  const answer = Answer.safeParse(body);
+  if (!answer.success) throw new EngineError("ElevenLabs' answer couldn't be read.");
+  const words: Heard["words"] = answer.data.words.flatMap((raw) => {
+    const row = Row.safeParse(raw);
+    return row.success && row.data.type === "word" ? [{ text: row.data.text, startMs: toMs(row.data.start), endMs: toMs(row.data.end) }] : [];
+  });
+  // How sure it was is read as a share, whatever it sends: a number outside 0 to 1 would refuse the whole piece.
+  const probability = Math.min(1, Math.max(0, answer.data.language_probability));
+  return { language: { code: answer.data.language_code, probability }, words };
+}
+
+/** What's asked of Scribe besides the sound: its words with their times, nothing else heard, one voice, the language told. */
+function formOf(language: string): FormData {
+  const form = new FormData();
+  form.set("model_id", MODEL);
+  form.set("timestamps_granularity", "word");
+  form.set("tag_audio_events", "false");
+  form.set("diarize", "false");
+  // Always told: asked, it judged the language of the first pieces itself, and that check is gone (2026-10-18).
+  form.set("language_code", language);
+  return form;
 }
 
 export function createElevenLabs(fetcher: typeof fetch): EngineClient {
+  /** Asks Scribe, within the deadline; its words, or why not. */
+  async function heardFrom(key: string, form: FormData, deadlineMs: number): Promise<Heard> {
+    let res: Response;
+    try {
+      res = await fetcher(API, { method: "POST", headers: { "xi-api-key": key }, body: form, signal: AbortSignal.timeout(deadlineMs) });
+    } catch (e) {
+      throw unreached(e);
+    }
+    const body: unknown = await res.json().catch(() => null);
+    if (!res.ok) throw refused(res.status, body);
+    return heardOf(body);
+  }
+
   return {
     async account(key): Promise<EngineAccount> {
       let res: Response;
@@ -84,31 +124,16 @@ export function createElevenLabs(fetcher: typeof fetch): EngineClient {
       return { plan: tier, status, used: character_count, limit: character_limit, resetsAt: next_character_count_reset_unix == null ? null : next_character_count_reset_unix * 1000, overage: current_overage ?? null };
     },
     async transcribe(key, wav, language) {
-      const form = new FormData();
-      form.set("model_id", MODEL);
+      const form = formOf(language);
       form.set("file", new Blob([wav], { type: "audio/wav" }), "piece.wav");
-      form.set("timestamps_granularity", "word");
-      form.set("tag_audio_events", "false");
-      form.set("diarize", "false");
-      // Always told: asked, it judged the language of the first pieces itself, and that check is gone (2026-10-18).
-      form.set("language_code", language);
-      let res: Response;
-      try {
-        res = await fetcher(API, { method: "POST", headers: { "xi-api-key": key }, body: form, signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS) });
-      } catch (e) {
-        throw unreached(e);
-      }
-      const body: unknown = await res.json().catch(() => null);
-      if (!res.ok) throw refused(res.status, body);
-      const answer = Answer.safeParse(body);
-      if (!answer.success) throw new EngineError("ElevenLabs' answer couldn't be read.");
-      const words: Heard["words"] = answer.data.words.flatMap((raw) => {
-        const row = Row.safeParse(raw);
-        return row.success && row.data.type === "word" ? [{ text: row.data.text, startMs: toMs(row.data.start), endMs: toMs(row.data.end) }] : [];
-      });
-      // How sure it was is read as a share, whatever it sends: a number outside 0 to 1 would refuse the whole piece.
-      const probability = Math.min(1, Math.max(0, answer.data.language_probability));
-      return { language: { code: answer.data.language_code, probability }, words };
+      return heardFrom(key, form, TRANSCRIBE_TIMEOUT_MS);
+    },
+    // The whole video, fetched by ElevenLabs itself from its address (`source_url`, which takes a YouTube link: its API
+    // reference, read 2026-10-19), in one call that comes back once it's all heard: a 16-minute video in 41 s.
+    async transcribeVideo(key, url, language, deadlineMs) {
+      const form = formOf(language);
+      form.set("source_url", url);
+      return heardFrom(key, form, deadlineMs);
     },
   };
 }
