@@ -48,6 +48,16 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
       },
     },
     {
+      // Added 2026-10-20, when YouTube began refusing ElevenLabs' downloads: "it should fall back to transcribing by chunks when it fails… add this as a row to the comparison chart too".
+      name: "If the download fails",
+      cells: {
+        full: { mark: "some", text: "Falls back to chunks from where you are" },
+        live: { mark: "yes", text: "Never downloads" },
+        hybrid: { mark: "yes", text: "Chunks carry on" },
+        auto: { mark: "yes", text: "Chunks carry on" },
+      },
+    },
+    {
       name: "Seeking",
       cells: {
         full: { mark: "yes", text: "Covered anywhere once downloaded" },

@@ -258,6 +258,12 @@ function Details({ state, detail, live }: { state: TranscribeState; detail: () =
           </>
         ) : null}
         {` · ${decided.long ? "over" : "under"} the ${settings.downloadLimit}-minute download limit`}
+        {state.fellBack ? (
+          <>
+            {" · download failed, so "}
+            <ModeChip mode="live" />
+          </>
+        ) : null}
       </>,
     ]);
     if (decided.way !== "live" || state.transcript?.job) rows.push(["Whole video", wholeWords(state, state.transcript?.job ?? null, clockNow)]);
@@ -397,8 +403,9 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
     what();
     setOpen(false);
   };
-  // What the start item does: under Full nothing of the chunks, so it's the whole video's to start.
-  const chunksOnly = decided?.way === "live";
+  // What the start item does: under Full nothing of the chunks, so it's the whole video's to start (but once its
+  // download failed, the chunks are what's left).
+  const chunksOnly = decided?.way === "live" || state.fellBack;
 
   return (
     <div ref={rootRef} className="strip-menu-wrap">
@@ -460,8 +467,14 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
               </div>
             </div>
           ) : null}
+          {/* The download failed: the chunks carry on, or took over. */}
+          {state.fellBack ? (
+            <p className="strip-menu-notice">
+              Download failed · <ModeChip mode="live" />
+            </p>
+          ) : null}
           {/* Over the download limit, the whole video isn't downloaded: Auto went with Live, or it's not allowed. */}
-          {decided && settings && decided.long && !state.asking && (decided.mode === "auto" || (state.refused && decided.way !== "live")) ? (
+          {decided && settings && decided.long && !state.asking && !state.fellBack && (decided.mode === "auto" || (state.refused && decided.way !== "live")) ? (
             <p className="strip-menu-notice">
               {limitWords}
               {decided.way === "full" ? null : (
@@ -518,7 +531,8 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onWhole, 
                   label: TRANSCRIBE_MODES[id].name,
                   icon: MODE_ICONS[id],
                   disabled: !on.includes(id),
-                  ...(id === settings.mode ? { note: "default" } : !on.includes(id) ? { note: "off" } : {}),
+                  // Which one is everyone's default isn't said here (the owner, 2026-10-20: "remove the default text here").
+                  ...(on.includes(id) ? {} : { note: "off" }),
                 }))}
                 onChange={onMode}
               />

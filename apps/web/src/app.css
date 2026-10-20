@@ -2469,10 +2469,12 @@ mark.sub-mark {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+/* The switch and Make default, from the top of the row: a column with the switch alone (the default's) holds it level
+   with the others' switches rather than in the middle of the row's height (the owner, 2026-10-20). */
 .mode-cell.mode-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  align-content: flex-start;
   gap: 8px;
   flex-wrap: wrap;
 }

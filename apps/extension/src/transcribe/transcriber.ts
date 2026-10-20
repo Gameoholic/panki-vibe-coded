@@ -26,6 +26,7 @@ import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./sile
  * strip's menu; `contracts/transcription.ts` → `TranscribeMode`), decided once as the video's length is known:
  *
  * - Full: Panki's server has the engine download the whole video and transcribe it in one call; nothing plays here.
+ * Whatever the mode, a download that fails leaves the chunks to carry on, or to start, from where the viewer is (`fallBack`).
  * - Live: chunks, as it was done until 2026-10-20. The silent player runs ahead of the viewer, as far as the lead
  *   allows, and waits for them there; where they jump, it follows; what's been transcribed already (by anyone) it skips.
  * - Hybrid: both at once. The chunks give words within seconds, the whole video downloads behind them, and when it's
@@ -118,6 +119,8 @@ export type TranscribeState = {
   asking: boolean;
   /** The whole video isn't downloaded here: it's over the download limit, and that's not allowed. */
   refused: boolean;
+  /** The whole video couldn't be downloaded on this visit, and the chunks took over, whatever the mode. */
+  fellBack: boolean;
   /** Every decision this page made, with its reason. */
   log: readonly LogEntry[];
 };
@@ -239,6 +242,9 @@ export function createTranscriber() {
   let declined = false;
   let refused = false;
   let wholeFailed: string | null = null;
+  /** The download failed and the chunks took over (`fallBack`); and whether the download was asked for by a press or by itself, which is how the chunks then start. */
+  let fellBack = false;
+  let wholeBy: "auto" | "press" = "auto";
   /** The download as it was last seen, so a change in it is acted on once. */
   let seenJob: { id: string; state: WholeJob["state"] } | null = null;
   /** When the transcript was last read again for the download, by `performance.now()`. */
@@ -246,7 +252,7 @@ export function createTranscriber() {
   let log: readonly LogEntry[] = [];
 
   const followers = new Set<() => void>();
-  const snap = (): TranscribeState => ({ videoId, transcript, settings, key, estimate, source, prefs, status, working, decided, asking, refused, log });
+  const snap = (): TranscribeState => ({ videoId, transcript, settings, key, estimate, source, prefs, status, working, decided, asking, refused, fellBack, log });
   let snapshot: TranscribeState = snap();
   const tell = () => {
     snapshot = snap();
@@ -322,6 +328,33 @@ export function createTranscriber() {
     }
     wholeFailed = now.message ?? "The whole video couldn't be transcribed.";
     note("whole video failed · ", wholeFailed);
+    fallBack();
+  }
+
+  /** What the mode comes to on this video now: what was decided, or the chunks alone once the download failed. */
+  const wayNow = (): TranscribeWay | null => (decided === null ? null : fellBack ? "live" : decided.way);
+
+  /**
+   * The whole video couldn't be downloaded: transcribing goes on in chunks from where the viewer is, whatever the mode
+   * (the owner, 2026-10-20, after YouTube began refusing ElevenLabs' downloads: "it should fall back to transcribing by
+   * chunks when it fails"). Under Hybrid and Auto the chunks are running already and carry on; under Full they start,
+   * at once when the download was asked for by a press, as anything starts by itself otherwise (`maybeStart`). The
+   * download is asked for again on the next visit to the video.
+   */
+  function fallBack() {
+    if (fellBack || decided === null) return;
+    fellBack = true;
+    if (run) {
+      note("chunks carry on · the whole video is asked for again on the next visit");
+      return;
+    }
+    note("falling back to ", { mode: "live" }, " · chunks from where you are");
+    if (wholeBy === "press" && videoId !== null) {
+      const at = startAt(viewerAt - FOLLOW.back, decided.seconds);
+      if (at !== null) begin(videoId, at, { follow: true }, "press");
+      return;
+    }
+    tell();
   }
 
   /** A transcript come in (a chunk heard, the download read again): taken, unless it says nothing new. */
@@ -371,15 +404,17 @@ export function createTranscriber() {
 
   /** Whether this visit should download the whole video by itself: the mode's way downloads, none is under way, and none came in before whose words still stand (a part forgotten since is heard again in chunks, not the whole video bought again). */
   function wantsWhole(): boolean {
-    if (!decided || decided.way === "live") return false;
+    const way = wayNow();
+    if (way === null || way === "live") return false;
     const now = job();
     if (now?.state === "running") return false;
     return !(now?.state === "done" && (transcript?.covered.length ?? 0) > 0);
   }
 
-  /** The whole video downloaded, as the download limit allows: at once, after the viewer's yes (Warn first), or not at all. */
-  function whole(id: string, seconds: number) {
+  /** The whole video downloaded, as the download limit allows: at once, after the viewer's yes (Warn first), or not at all. `by`: asked for by a press, or by itself. */
+  function whole(id: string, seconds: number, by: "auto" | "press") {
     if (!settings) return;
+    wholeBy = by;
     const limit = `the ${settings.downloadLimit}-minute download limit`;
     if (overDownloadLimit(settings, seconds) && !confirmed) {
       if (settings.overLimit === "notAllowed") {
@@ -419,7 +454,9 @@ export function createTranscriber() {
       else if (answer.status === 409) {
         key = false;
         setStatus({ kind: "noKey" });
-      } else tell();
+      } else if (answer.status === 403) tell();
+      // Panki's settings said no (403) is a choice, not a failure; anything else, the chunks take over.
+      else fallBack();
       return;
     }
     accept(answer.transcript);
@@ -523,8 +560,8 @@ export function createTranscriber() {
     const auto = prefs.trigger === "auto" && !autoBlocked;
     // The whole video, for a way that downloads it: once a visit, by itself, as the download limit allows. It plays
     // nothing here, so it doesn't wait for the page to settle.
-    if (auto && !wholeAsked && !declined && wantsWhole()) whole(id, duration);
-    if (decided.way === "full") {
+    if (auto && !wholeAsked && !declined && wantsWhole()) whole(id, duration, "auto");
+    if (wayNow() === "full") {
       if (downloading() || wholeInFlight) setStatus({ kind: "whole" });
       else if (wholeFailed !== null) setStatus({ kind: "failed", message: wholeFailed });
       else setStatus({ kind: "off" });
@@ -554,7 +591,7 @@ export function createTranscriber() {
       return;
     }
     // The mode changed to one with no chunks: the following run stops (a part asked for in the background goes on).
-    if (mine.scope.follow && decided?.way === "full") {
+    if (mine.scope.follow && wayNow() === "full") {
       end();
       note("chunk player stopped · ", { mode: "full" }, " has no chunks");
       return;
@@ -679,6 +716,8 @@ export function createTranscriber() {
       declined = false;
       refused = false;
       wholeFailed = null;
+      fellBack = false;
+      wholeBy = "auto";
       seenJob = null;
       lastPoll = 0;
       // Loading until the transcript and the settings are in, and it can be said how it stands.
@@ -726,8 +765,8 @@ export function createTranscriber() {
       }
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
       // Pressed, the whole video is asked for again even after it failed: a press is what Try again is.
-      if (duration !== null && !wholeInFlight && wantsWhole()) whole(id, duration);
-      if (decided?.way === "full") {
+      if (duration !== null && !wholeInFlight && wantsWhole()) whole(id, duration, "press");
+      if (wayNow() === "full") {
         tell();
         return;
       }
@@ -744,7 +783,7 @@ export function createTranscriber() {
       if (!id || !settings || duration === null || downloading()) return;
       declined = false;
       wholeFailed = null;
-      whole(id, duration);
+      whole(id, duration, "press");
       tell();
     },
     /** The question before downloading a long video answered: download it, or don't. (Switching to Auto is a change of mode, `setPrefs`.) */
@@ -754,6 +793,7 @@ export function createTranscriber() {
       asking = false;
       if (yes && duration !== null) {
         confirmed = true;
+        wholeBy = "press";
         note("answered · download the whole video");
         void askForWhole(id, duration);
         return;
@@ -781,6 +821,7 @@ export function createTranscriber() {
         confirmed = false;
         declined = false;
         refused = false;
+        fellBack = false;
       }
       if (triggerChanged) note(prefs.trigger === "auto" ? "auto transcribe on" : "auto transcribe off · nothing starts by itself");
       tell();
