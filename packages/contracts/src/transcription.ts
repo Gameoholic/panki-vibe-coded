@@ -22,11 +22,17 @@ export type Engine = {
   name: string;
   /** Who runs it, and gives the key for it. */
   vendor: string;
-  /** What an hour of sound costs, in US cents: only the display turns it into dollars. */
+  /**
+   * What it costs, as its vendor lists it, never measured (the owner, 2026-10-20: "the cost estimation should come from
+   * the pricing of the model… only the time estimation comes from our data"): an hour of sound in US cents (its API,
+   * paid in dollars; only the display turns it into dollars), and a minute of sound in the credits of a plan.
+   */
   centsPerHour: number;
+  creditsPerMinute: number;
 };
 export const ENGINES: Record<EngineId, Engine> = {
-  elevenlabs: { name: "ElevenLabs Scribe v2", vendor: "ElevenLabs", centsPerHour: 22 },
+  // elevenlabs.io/pricing/api, "Scribe v2… Price per hour $0.22"; elevenlabs.io/pricing, "Speech to Text 330 credits per minute" (read 2026-10-20).
+  elevenlabs: { name: "ElevenLabs Scribe v2", vendor: "ElevenLabs", centsPerHour: 22, creditsPerMinute: 330 },
 };
 
 /**
@@ -64,23 +70,21 @@ export const TRANSCRIBE_LANGUAGES: Record<TranscribeLanguage, string> = {
 /**
  * How a video is transcribed (the owner, 2026-10-19 and 20, on the plan page https://claude.ai/artifact/Ewy5PU1JTWAgPFABVGwt2V,
  * after a 16-minute video came back whole in 41 s): the engine fetching the whole video itself, in one call (Full);
- * chunks heard by a hidden player running ahead of the viewer, as it was done until then (Live); chunks while the
- * whole video downloads in the background, whose transcript then replaces them (Hybrid); or Hybrid for a video within
- * the download limit and Live past it, picked once as the video opens (Auto). One registry; the names are the owner's
- * (they were All at once, As you watch, Head start and Automatic for a day). An admin sets the mode everyone starts on
- * and can switch the others off; a viewer picks among those left, in the strip's menu.
+ * chunks heard by a hidden player running ahead of the viewer, as it was done until then (Live); or chunks while the
+ * whole video is transcribed in the background, whose transcript then replaces them (Hybrid). One registry; the names
+ * are the owner's (they were All at once, As you watch and Head start for a day). An admin sets the mode everyone starts
+ * on and can switch the others off; a viewer picks among those left, in the strip's menu. (Auto, Hybrid within the
+ * length limit and Live past it, went the same day at the owner's word, Hybrid asking over the limit making it
+ * redundant: "remove auto completely"; a stored "auto" reads as nothing.)
  */
-export const TranscribeMode = z.enum(["full", "live", "hybrid", "auto"]);
+export const TranscribeMode = z.enum(["full", "live", "hybrid"]);
 export type TranscribeMode = z.infer<typeof TranscribeMode>;
 export const TRANSCRIBE_MODE_IDS = TranscribeMode.options;
 export const TRANSCRIBE_MODES: Record<TranscribeMode, { name: string }> = {
   full: { name: "Full" },
   live: { name: "Live" },
   hybrid: { name: "Hybrid" },
-  auto: { name: "Auto" },
 };
-/** What a mode comes to on one video: Auto is Hybrid or Live, picked by the video's length. */
-export type TranscribeWay = Exclude<TranscribeMode, "auto">;
 
 /** What's done about a whole-video download for a video longer than the download limit: it goes ahead, it isn't done, or the viewer is asked first. */
 export const OverLimit = z.enum(["allowed", "notAllowed", "warn"]);
@@ -118,8 +122,8 @@ export const Transcription = z.object({
   language: TranscribeLanguage,
   /** The mode everyone starts on, until a viewer picks another. Never switched off (`modesOn`). */
   mode: TranscribeMode,
-  /** The modes switched off for everyone. */
-  modesOff: z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length),
+  /** The modes switched off for everyone; one that's gone since (Auto) read as nothing. */
+  modesOff: z.preprocess((value) => (Array.isArray(value) ? value.filter((mode) => TRANSCRIBE_MODE_IDS.some((id) => id === mode)) : value), z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length)),
   /** Minutes: a video longer than this is over the download limit, for the whole-video download. */
   downloadLimit: z.number().int().min(1).max(600),
   overLimit: OverLimit,
@@ -137,13 +141,14 @@ export const Transcription = z.object({
 export type Transcription = z.infer<typeof Transcription>;
 /**
  * The chunks run only three minutes ahead: whatever the hidden player has run ahead over is paid for, and a video left
- * early stops it, so the lead is all a quit video costs (about a cent of sound, where ten minutes is about four). At 3×
- * the lead fills at two minutes of video a minute. The chunks: 5, 10, 20, 40, 45, 45… seconds, each closed at the first
- * pause past that or 30 s later at the latest (it was 45 s for every piece, cut at 75 s, until 2026-10-20). A video
- * over half an hour asks before it's downloaded whole.
+ * early stops it, so the lead is all a quit video costs (about a cent of sound, where ten minutes is about four). At 4×
+ * the lead fills at three minutes of video a minute. The chunks: 3 s, each next 1.5× the last (4.5, 7, 10, 15, 23, 34),
+ * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest (the owner's numbers,
+ * 2026-10-20 and 21; it was 45 s for every piece, cut at 75 s, until the 20th's morning). A video over half an hour
+ * asks before it's transcribed whole.
  */
 export const DEFAULT_TRANSCRIPTION: Transcription = {
-  speed: 3,
+  speed: 4,
   lead: 3,
   engine: "elevenlabs",
   language: "jpn",
@@ -151,8 +156,8 @@ export const DEFAULT_TRANSCRIPTION: Transcription = {
   modesOff: [],
   downloadLimit: 30,
   overLimit: "warn",
-  firstChunk: 5,
-  chunkGrowth: 2,
+  firstChunk: 3,
+  chunkGrowth: 1.5,
   chunkLength: 45,
   pauseWait: 30,
   skipSilence: true,
@@ -168,25 +173,21 @@ export const modeOf = (settings: Pick<Transcription, "mode" | "modesOff">, picke
   picked !== null && modesOn(settings).includes(picked) ? picked : settings.mode;
 /** Whether a video of this many seconds is over the download limit. */
 export const overDownloadLimit = (settings: Pick<Transcription, "downloadLimit">, seconds: number): boolean => seconds > settings.downloadLimit * 60;
-/** What a mode comes to on a video of this length: Auto picks Hybrid within the download limit and Live past it, once, as the video opens. */
-export const wayOf = (mode: TranscribeMode, settings: Pick<Transcription, "downloadLimit">, seconds: number): TranscribeWay =>
-  mode !== "auto" ? mode : overDownloadLimit(settings, seconds) ? "live" : "hybrid";
 /** The length of the chunk after one of `seconds`: grown by the growth, up to the chunk length. The first is the first chunk's. */
 export const nextChunk = (settings: Pick<Transcription, "chunkGrowth" | "chunkLength">, seconds: number): number => Math.min(settings.chunkLength, seconds * settings.chunkGrowth);
 
 /**
- * How long the whole-video download takes and what it costs, as measured on this engine's own downloads and chunks of
- * the last 30 days (the owner, 2026-10-19: "based on previous data, so it's not just an estimation that you hard
- * code"), each the middle of what was measured; null where nothing has been yet. What it costs in dollars is the
- * engine's listed rate (`ENGINES`), known without any data.
+ * How long transcribing takes, as measured on this engine's own downloads and chunks of the last 30 days (the owner,
+ * 2026-10-19: "based on previous data, so it's not just an estimation that you hard code"), each the middle of what was
+ * measured; null where nothing has been yet. Time alone: what it costs, in dollars and in credits, is the engine's
+ * listed price (`ENGINES`), never measured (the owner, 2026-10-20; the credits measured across a download read 0, the
+ * engine's count moving a while after the call).
  */
 export const TranscribeEstimate = z.object({
   /** The whole-video downloads it was read from. */
   jobs: z.number().int().nonnegative(),
   /** Seconds a whole-video download took per minute of video. */
   secondsPerMinute: z.number().nonnegative().nullable(),
-  /** Credits the engine counted per minute of sound. */
-  creditsPerMinute: z.number().nonnegative().nullable(),
   /** How long the videos downloaded whole were, in ms. */
   lengthMs: z.number().int().nonnegative().nullable(),
   /** Ms from a chunk run's start to its first words back. */
@@ -319,6 +320,8 @@ export const PieceMeta = z
     end: z.coerce.number().int().positive(),
     /** A run's first piece with sound: the ms from the run's start until it was sent, so Panki can tell how soon the first words come (`TranscribeEstimate`). */
     since: z.coerce.number().int().nonnegative().optional(),
+    /** A piece of a part being transcribed again (`RedoAsk`): kept out of the transcript until the part is done. */
+    redo: z.uuid().optional(),
   })
   .transform((meta) => ({ ...meta, sound: meta.sound ?? meta.start }))
   .refine((meta) => meta.end > meta.start && meta.start <= meta.sound && meta.sound <= meta.end && meta.end - meta.sound <= PIECE_MAX_MS, {
@@ -340,6 +343,32 @@ export type PieceResponse = z.infer<typeof PieceResponse>;
  */
 export const TranscriptForget = z.union([Stretch.refine((stretch) => stretch.endMs > stretch.startMs, { message: "A stretch ends after it begins." }), z.object({}).strict()]);
 export type TranscriptForget = z.infer<typeof TranscriptForget>;
+
+/**
+ * A part of a video transcribed again, in chunks (the owner, 2026-10-20: "Re-transcribe a part", in place of forgetting
+ * one): its id, minted by the extension, and the stretch asked for, in ms. Its pieces are kept out of the transcript as
+ * they come (`PieceMeta.redo`), and the transcript doesn't change until the whole part is in; then, at once, what
+ * stood over the stretch stands aside and the new pieces stand in its place. Nothing is deleted.
+ */
+export const RedoAsk = z
+  .object({ id: z.uuid(), startMs: z.number().int().nonnegative(), endMs: z.number().int().positive() })
+  .refine((ask) => ask.endMs > ask.startMs, { message: "A stretch ends after it begins." });
+export type RedoAsk = z.infer<typeof RedoAsk>;
+/**
+ * A part being transcribed again, as Panki takes it: the stretch to record, widened from the one asked for to the
+ * edges of every piece reaching into it, so what stands aside when it's done is heard again whole and leaves no hole.
+ */
+export const Redo = z.object({ id: z.uuid(), startMs: z.number().int().nonnegative(), endMs: z.number().int().positive() });
+export type Redo = z.infer<typeof Redo>;
+export const RedoResponse = z.object({ transcript: Transcript, redo: Redo });
+export type RedoResponse = z.infer<typeof RedoResponse>;
+/** A part as typed, in the address (ms): what it would widen to is said before it's asked for, so the times typed are the times done. */
+export const RedoQuery = z
+  .object({ start: z.coerce.number().int().nonnegative(), end: z.coerce.number().int().positive() })
+  .refine((query) => query.end > query.start, { message: "A stretch ends after it begins." });
+export type RedoQuery = z.infer<typeof RedoQuery>;
+export const RedoStretchResponse = z.object({ stretch: Stretch });
+export type RedoStretchResponse = z.infer<typeof RedoStretchResponse>;
 
 /** The longest a word can be made by a fix. */
 export const FIX_MAX = 100;

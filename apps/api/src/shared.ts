@@ -8,6 +8,7 @@ import {
   DEFAULT_WORD_AUDIO,
   ForvoVoice,
   ServerDictionary,
+  type Redo,
   Transcript,
   Transcription,
   WholeJob,
@@ -60,11 +61,14 @@ export type NewPiece = {
   engineMs: number;
   /** A run's first piece with sound: how long after the run began it was sent; null for the rest. */
   runMs: number | null;
+  /** A piece of a part being transcribed again: kept standing aside until the part is done (`finishRedo`); null for the rest. */
+  redoId: string | null;
 };
 /** A word the engine heard, with its times in the video's own ms. */
 export type NewWord = { text: string; startMs: number; endMs: number };
-/** A stretch the silent player listened through and found nothing to send: heard, with nothing said. Its id is the extension's, as a piece's is. */
-export type NewQuiet = { id: string; videoId: string; startMs: number; endMs: number; userId: string };
+/** A stretch the silent player listened through and found nothing to send: heard, with nothing said. Its id is the extension's, as a piece's is; `redoId` as a piece's. */
+export type NewQuiet = { id: string; videoId: string; startMs: number; endMs: number; userId: string; redoId: string | null };
+type RedoRow = { id: string; videoId: string; askedStart: number; askedEnd: number; startMs: number; endMs: number; state: "running" | "done" | "cancelled" };
 /** A whole-video download as it's asked for: the video, its length as the extension read it, and what it's to be heard with. */
 export type NewJob = { id: string; videoId: string; engine: EngineId; language: TranscribeLanguage; lengthMs: number; userId: string };
 /** A whole-video download as it's kept, for the one that runs it. */
@@ -376,6 +380,30 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     // seconds while a whole video downloads; and a line fixed with the pencil makes a fix of every word it changes.
     db.exec("CREATE INDEX transcript_fixes_word_id ON transcript_fixes (word_id, id)");
   },
+  (db) => {
+    // A part of a video transcribed again (the owner, 2026-10-20: "Re-transcribe a part", in place of forgetting one):
+    // each ask, with the stretch it widened to and what came of it. Its pieces and quiet (`redo_id`) are kept standing
+    // aside as they come, so the transcript doesn't change while it runs; when it's done, what stood over the stretch
+    // stands aside and they stand in its place, in one transaction. Cancelled, they stay aside, paid for and kept.
+    db.exec(`
+      CREATE TABLE transcript_redos (
+        id TEXT PRIMARY KEY,
+        video_id TEXT NOT NULL REFERENCES transcripts(video_id),
+        asked_start_ms INTEGER NOT NULL,
+        asked_end_ms INTEGER NOT NULL,
+        start_ms INTEGER NOT NULL,
+        end_ms INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('running', 'done', 'cancelled')),
+        user_id TEXT NOT NULL,
+        asked_at INTEGER NOT NULL,
+        ended_at INTEGER
+      )
+    `);
+    db.exec("CREATE INDEX transcript_redos_video_id ON transcript_redos (video_id)");
+    db.exec("ALTER TABLE transcript_pieces ADD COLUMN redo_id TEXT");
+    db.exec("ALTER TABLE transcript_quiet ADD COLUMN redo_id TEXT");
+    db.exec("CREATE INDEX transcript_pieces_redo_id ON transcript_pieces (redo_id)");
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -396,6 +424,8 @@ function migrate(db: DatabaseSync) {
 
 /** How far a moment is from the nearer edge of a stretch: the farther in, the better a piece heard it. */
 const depth = (at: number, stretch: Stretch) => Math.min(at - stretch.startMs, stretch.endMs - at);
+/** Whether another kept piece reaching over a moment heard it at least as far from its own edge as this piece (`stretch`) did: this piece's word there loses. */
+const beaten = (others: readonly StretchRow[], at: number, stretch: Stretch) => others.some((q) => q.startMs <= at && at <= q.endMs && depth(at, stretch) <= depth(at, q));
 
 /** The stretches in order, those that overlap or nearly touch made one. */
 function mergeStretches(rows: StretchRow[]): Stretch[] {
@@ -555,6 +585,42 @@ export function openShared(dataDir: string) {
   );
   const removeWord = db.prepare("UPDATE transcript_words SET removed_at = ? WHERE id = ?");
   const insertWord = db.prepare("INSERT INTO transcript_words (video_id, piece_id, text, start_ms, end_ms, removed_at) VALUES (?, ?, ?, ?, ?, ?)");
+  // A part transcribed again: its pieces, quiet and words written standing aside as they come (`redo_id`), and stood in
+  // when it's done, one piece at a time in order.
+  const insertRedoPiece = db.prepare(
+    "INSERT OR IGNORE INTO transcript_pieces (id, video_id, start_ms, end_ms, engine, language, language_probability, checked, kept, user_id, created_at, engine_ms, run_ms, redo_id, removed_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertRedoQuiet = db.prepare("INSERT OR IGNORE INTO transcript_quiet (id, video_id, start_ms, end_ms, user_id, created_at, redo_id, removed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const insertRedo = db.prepare(
+    "INSERT OR IGNORE INTO transcript_redos (id, video_id, asked_start_ms, asked_end_ms, start_ms, end_ms, state, user_id, asked_at) VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)",
+  );
+  const selectRedo = db.prepare(
+    "SELECT id, video_id AS videoId, asked_start_ms AS askedStart, asked_end_ms AS askedEnd, start_ms AS startMs, end_ms AS endMs, state FROM transcript_redos WHERE id = ? AND video_id = ?",
+  );
+  const endRedo = db.prepare("UPDATE transcript_redos SET state = ?, ended_at = ? WHERE id = ? AND state = 'running'");
+  // The edges of what stands reaching into a stretch: a part asked to be transcribed again is widened to them.
+  const selectStandingOver = db.prepare(`
+    SELECT MIN(startMs) AS startMs, MAX(endMs) AS endMs FROM (
+      SELECT start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE video_id = ? AND kept = 1 AND removed_at IS NULL AND start_ms < ? AND end_ms > ?
+      UNION ALL SELECT start_ms, end_ms FROM transcript_quiet WHERE video_id = ? AND removed_at IS NULL AND start_ms < ? AND end_ms > ?)`);
+  const selectRedoPieces = db.prepare("SELECT id, start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE redo_id = ? AND video_id = ? ORDER BY start_ms ASC, created_at ASC");
+  const selectPieceWords = db.prepare("SELECT id, start_ms AS startMs FROM transcript_words WHERE piece_id = ?");
+  const standPiece = db.prepare("UPDATE transcript_pieces SET removed_at = NULL WHERE id = ?");
+  const standWord = db.prepare("UPDATE transcript_words SET removed_at = NULL WHERE id = ?");
+  const standRedoQuiet = db.prepare("UPDATE transcript_quiet SET removed_at = NULL WHERE redo_id = ? AND video_id = ?");
+
+  /** A part asked to be transcribed again, widened to the edges of every piece and quiet standing over it: what stands aside when it's done is heard again whole, and each edge is one a chunk was cut at, in a pause. */
+  function widened(videoId: string, asked: Stretch): Stretch {
+    const over = selectStandingOver.get(videoId, asked.endMs, asked.startMs, videoId, asked.endMs, asked.startMs) as { startMs: number | null; endMs: number | null };
+    return { startMs: Math.min(asked.startMs, over.startMs ?? asked.startMs), endMs: Math.max(asked.endMs, over.endMs ?? asked.endMs) };
+  }
+
+  /** The living words of the video's other pieces inside a piece's stretch that this piece heard farther from its own edge: they stand aside, so one word survives at each moment. */
+  function outdo(videoId: string, pieceId: string, stretch: Stretch, now: number) {
+    for (const w of selectWordsInside.all(videoId, pieceId, stretch.startMs, stretch.endMs) as InsideRow[]) {
+      if (depth(w.startMs, stretch) > depth(w.startMs, { startMs: w.pieceStart, endMs: w.pieceEnd })) removeWord.run(now, w.id);
+    }
+  }
   const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const sumPieces = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces");
   const selectPicture = db.prepare("SELECT mime, bytes FROM video_pictures WHERE video_id = ? AND picture = ?");
@@ -726,10 +792,14 @@ export function openShared(dataDir: string) {
     hasPiece(videoId: string, pieceId: string): boolean {
       return selectPiece.get(pieceId, videoId) !== undefined || selectQuiet.get(pieceId, videoId) !== undefined;
     },
-    /** A stretch listened through with nothing to send: covered from now on, no engine asked. The same one again changes nothing. */
+    /** A stretch listened through with nothing to send: covered from now on (a part's being transcribed again: once it's done), no engine asked. The same one again changes nothing. */
     insertQuiet(quiet: NewQuiet, now: number): void {
       transaction(() => {
         insertTranscript.run(quiet.videoId, now, now);
+        if (quiet.redoId !== null) {
+          insertRedoQuiet.run(quiet.id, quiet.videoId, quiet.startMs, quiet.endMs, quiet.userId, now, quiet.redoId, now);
+          return;
+        }
         const added = insertQuiet.run(quiet.id, quiet.videoId, quiet.startMs, quiet.endMs, quiet.userId, now);
         if (added.changes > 0) touchTranscript.run(now, quiet.videoId);
       });
@@ -739,11 +809,34 @@ export function openShared(dataDir: string) {
      * are kept they're stitched to the neighbours': the extension cuts where nobody speaks, but a forced cut or a jump
      * makes two pieces that overlap by a second or two, both hearing the word at the edge. By geometry alone, the piece
      * that heard a moment farther from its own edge keeps its word; the other's stands aside (`removed_at`), so exactly
-     * one survives at each moment. A new word that loses is still written, with `removed_at` set as it lands.
+     * one survives at each moment. A new word that loses is still written, with `removed_at` set as it lands. A piece of
+     * a part being transcribed again is written standing aside, its quiet and words with it, and stitched when the part
+     * is done (`finishRedo`).
      */
     insertPiece(piece: NewPiece, words: readonly NewWord[], now: number): void {
       transaction(() => {
         insertTranscript.run(piece.videoId, now, now);
+        if (piece.redoId !== null) {
+          const staged = insertRedoPiece.run(
+            piece.id,
+            piece.videoId,
+            piece.startMs,
+            piece.endMs,
+            piece.engine,
+            piece.language.code,
+            piece.language.probability,
+            piece.userId,
+            now,
+            piece.engineMs,
+            piece.runMs,
+            piece.redoId,
+            now,
+          );
+          if (staged.changes === 0) return;
+          if (piece.heardFrom < piece.startMs) insertRedoQuiet.run(piece.id, piece.videoId, piece.heardFrom, piece.startMs, piece.userId, now, piece.redoId, now);
+          for (const v of words) insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, now);
+          return;
+        }
         const added = insertPiece.run(
           piece.id,
           piece.videoId,
@@ -767,14 +860,9 @@ export function openShared(dataDir: string) {
         if (words.length > 0) tellTranscriptLanguage.run(piece.told, now, piece.videoId, piece.told);
         else touchTranscript.run(now, piece.videoId);
         const stretch: Stretch = { startMs: piece.startMs, endMs: piece.endMs };
-        for (const w of selectWordsInside.all(piece.videoId, piece.id, piece.startMs, piece.endMs) as InsideRow[]) {
-          if (depth(w.startMs, stretch) > depth(w.startMs, { startMs: w.pieceStart, endMs: w.pieceEnd })) removeWord.run(now, w.id);
-        }
+        outdo(piece.videoId, piece.id, stretch, now);
         const others = selectPiecesOver.all(piece.videoId, piece.id, piece.endMs, piece.startMs) as StretchRow[];
-        for (const v of words) {
-          const beaten = others.some((q) => q.startMs <= v.startMs && v.startMs <= q.endMs && depth(v.startMs, stretch) <= depth(v.startMs, q));
-          insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, beaten ? now : null);
-        }
+        for (const v of words) insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, beaten(others, v.startMs, stretch) ? now : null);
       });
     },
     /**
@@ -796,6 +884,66 @@ export function openShared(dataDir: string) {
         if (stretch === null) forgetLanguage.run(now, videoId);
         else touchTranscript.run(now, videoId);
       });
+    },
+    /**
+     * A part of a video asked to be transcribed again: widened to the edges of every piece and quiet reaching into it
+     * (what will stand aside when it's done, so it's heard again whole and leaves no hole), and kept as under way. The
+     * same ask again is the one there; null when its id is another video's.
+     */
+    startRedo(redo: { id: string; videoId: string; asked: Stretch; userId: string }, now: number): Redo | null {
+      return transaction(() => {
+        insertTranscript.run(redo.videoId, now, now);
+        const { startMs, endMs } = widened(redo.videoId, redo.asked);
+        insertRedo.run(redo.id, redo.videoId, redo.asked.startMs, redo.asked.endMs, startMs, endMs, redo.userId, now);
+        const row = selectRedo.get(redo.id, redo.videoId) as RedoRow | undefined;
+        return row ? { id: row.id, startMs: row.startMs, endMs: row.endMs } : null;
+      });
+    },
+    /** What a part would widen to if it were asked to be transcribed again now: said as it's typed, so the times typed are the times done. */
+    redoStretch(videoId: string, asked: Stretch): Stretch {
+      return widened(videoId, asked);
+    },
+    /** Whether a part of the video is being transcribed again under this id: its pieces are taken only while it is. */
+    redoRunning(videoId: string, redoId: string): boolean {
+      return (selectRedo.get(redoId, videoId) as RedoRow | undefined)?.state === "running";
+    },
+    /**
+     * A part transcribed again, done: in one transaction, what stood over the part asked stands aside, as a forget would
+     * have it, and the part's own pieces stand in its place, one at a time in order, each stitched to what stands as a
+     * new piece is (`insertPiece`), with their quiet. False when it isn't under way (done, cancelled, or not this video's).
+     */
+    finishRedo(videoId: string, redoId: string, told: string, now: number): boolean {
+      return transaction(() => {
+        const redo = selectRedo.get(redoId, videoId) as RedoRow | undefined;
+        if (!redo || redo.state !== "running") return false;
+        forgetPieces.run(now, videoId, redo.askedEnd, redo.askedStart);
+        forgetPieceWords.run(now, videoId, videoId, now);
+        forgetQuiet.run(now, videoId, redo.askedEnd, redo.askedStart);
+        let heard = 0;
+        for (const piece of selectRedoPieces.all(redoId, videoId) as { id: string; startMs: number; endMs: number }[]) {
+          standPiece.run(piece.id);
+          const stretch: Stretch = { startMs: piece.startMs, endMs: piece.endMs };
+          outdo(videoId, piece.id, stretch, now);
+          const others = selectPiecesOver.all(videoId, piece.id, piece.endMs, piece.startMs) as StretchRow[];
+          for (const word of selectPieceWords.all(piece.id) as { id: number; startMs: number }[]) {
+            if (beaten(others, word.startMs, stretch)) removeWord.run(now, word.id);
+            else {
+              standWord.run(word.id);
+              heard++;
+            }
+          }
+        }
+        standRedoQuiet.run(redoId, videoId);
+        if (heard > 0) tellTranscriptLanguage.run(told, now, videoId, told);
+        else touchTranscript.run(now, videoId);
+        endRedo.run("done", now, redoId);
+        return true;
+      });
+    },
+    /** A part being transcribed again given up: what it heard stays aside, paid for and kept; the transcript is as it was. */
+    cancelRedo(videoId: string, redoId: string, now: number): void {
+      const redo = selectRedo.get(redoId, videoId) as RedoRow | undefined;
+      if (redo?.state === "running") endRedo.run("cancelled", now, redoId);
     },
     /** A word changed by hand: a fix from what it reads as now, where it stands now. False when no living word with that id is the video's; the same text again changes nothing. */
     fixWord(videoId: string, wordId: number, text: string, userId: string, now: number): boolean {
@@ -891,21 +1039,20 @@ export function openShared(dataDir: string) {
       });
     },
     /**
-     * How long a whole-video download takes and what it costs, and how soon a chunk run's first words come, from what
-     * was measured on this engine over the last 30 days: the middle of each (`TranscribeEstimate`).
+     * How long a whole-video download takes, and how soon a chunk run's first words come, from what was measured on
+     * this engine over the last 30 days: the middle of each (`TranscribeEstimate`). Time alone: what it costs is the
+     * engine's listed price (`ENGINES`); the credits kept with each download are its record, not an estimate.
      */
     estimate(engine: EngineId, now: number): TranscribeEstimate {
       const since = now - ESTIMATE_MS;
-      const jobs = selectDoneJobs.all(engine, since) as { lengthMs: number; startedAt: number | null; endedAt: number | null; credits: number | null; soundMs: number | null }[];
+      const jobs = selectDoneJobs.all(engine, since) as { lengthMs: number; startedAt: number | null; endedAt: number | null }[];
       const perMinute = jobs.flatMap((j) => (j.startedAt === null || j.endedAt === null || j.lengthMs <= 0 ? [] : [(j.endedAt - j.startedAt) / 1000 / (j.lengthMs / 60_000)]));
-      const credits = jobs.flatMap((j) => (j.credits === null || j.soundMs === null || j.soundMs <= 0 ? [] : [j.credits / (j.soundMs / 60_000)]));
       const firstWords = (selectFirstWords.all(engine, since) as { ms: number }[]).map((row) => row.ms);
       const length = median(jobs.map((j) => j.lengthMs));
       const first = median(firstWords);
       return {
         jobs: jobs.length,
         secondsPerMinute: median(perMinute),
-        creditsPerMinute: median(credits),
         lengthMs: length === null ? null : Math.round(length),
         firstWordsMs: first === null ? null : Math.round(first),
       };

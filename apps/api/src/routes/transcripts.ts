@@ -3,6 +3,8 @@ import {
   PIECE_MAX_BYTES,
   PieceId,
   PieceMeta,
+  RedoAsk,
+  RedoQuery,
   Stretch,
   TranscriptFix,
   TranscriptForget,
@@ -13,6 +15,8 @@ import {
   overDownloadLimit,
   type EngineId,
   type PieceResponse,
+  type RedoResponse,
+  type RedoStretchResponse,
 } from "@panki/contracts";
 import { isWav } from "../mediaFiles";
 import { signedIn } from "../session";
@@ -24,6 +28,7 @@ const MB = 1024 * 1024;
 const NOT_A_PIECE = "That isn't a chunk of the video.";
 const NO_KEY = "Add a key for the engine in Settings → Admin.";
 const NOT_A_VIDEO = "That isn't a video id.";
+const REDO_GONE = "That part isn't being transcribed again any more.";
 
 function isTooLarge(err: unknown): boolean {
   return typeof err === "object" && err !== null && "status" in err && err.status === 413;
@@ -94,11 +99,11 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       return;
     }
     if (!modesOn(settings).some((mode) => mode !== "live")) {
-      res.status(403).json({ error: { message: "Downloading the whole video is switched off." } });
+      res.status(403).json({ error: { message: "Transcribing the entire video is switched off." } });
       return;
     }
     if (settings.overLimit === "notAllowed" && overDownloadLimit(settings, parsed.data.lengthMs / 1000)) {
-      res.status(403).json({ error: { message: "Not allowed over the download limit." } });
+      res.status(403).json({ error: { message: "Not allowed over the length limit." } });
       return;
     }
     jobs.ask(videoId, parsed.data.lengthMs, signedIn(res).user.id);
@@ -137,9 +142,16 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
         res.json(answer);
         return;
       }
+      // A piece of a part being transcribed again is taken only while that's under way: one sent after it was given up
+      // isn't paid for.
+      const redoId = meta.redo ?? null;
+      if (redoId !== null && !shared.redoRunning(ids.videoId, redoId)) {
+        res.status(409).json({ error: { message: REDO_GONE } });
+        return;
+      }
       // The whole video came in while the chunk was on its way: what it heard of the chunk's stretch stands, and the
-      // engine isn't paid to hear it again.
-      if (shared.coveredByJob(ids.videoId, meta.sound, meta.end)) {
+      // engine isn't paid to hear it again. A part being transcribed again is heard again whatever stands over it.
+      if (redoId === null && shared.coveredByJob(ids.videoId, meta.sound, meta.end)) {
         const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs: null };
         res.json(answer);
         return;
@@ -147,7 +159,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       const userId = signedIn(res).user.id;
       // Listened through and nothing said: heard, so covered, and no engine to ask.
       if (nothing) {
-        shared.insertQuiet({ id: ids.pieceId, videoId: ids.videoId, startMs: meta.start, endMs: meta.end, userId }, now());
+        shared.insertQuiet({ id: ids.pieceId, videoId: ids.videoId, startMs: meta.start, endMs: meta.end, userId, redoId }, now());
         const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs: null };
         res.status(201).json(answer);
         return;
@@ -170,7 +182,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       }
       const engineMs = Math.round(performance.now() - askedAt);
       shared.insertPiece(
-        { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language, engineMs, runMs: meta.since ?? null },
+        { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language, engineMs, runMs: meta.since ?? null, redoId },
         heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs })),
         now(),
       );
@@ -225,6 +237,64 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
     // A stretch, or the whole video (the empty body).
     const stretch = Stretch.safeParse(parsed.data);
     shared.forget(videoId, stretch.success ? stretch.data : null, now(), signedIn(res).user.id);
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  // A part transcribed again in chunks, everyone's like a forget (the owner, 2026-10-20: "Re-transcribe a part"): asked
+  // for, with the stretch it widened to in the answer; its pieces come under its id and stay out of the transcript;
+  // done, they stand in place of what stood there, at once; or given up, and the transcript is as it was.
+  router.post("/:videoId/redos", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    const parsed = RedoAsk.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't a stretch of the video." } });
+      return;
+    }
+    const { engine } = shared.getTranscription();
+    if ((shared.key(engine) ?? engineKeys[engine]) === null) {
+      res.status(409).json({ error: { message: NO_KEY } });
+      return;
+    }
+    const asked = { startMs: parsed.data.startMs, endMs: parsed.data.endMs };
+    const redo = shared.startRedo({ id: parsed.data.id, videoId, asked, userId: signedIn(res).user.id }, now());
+    if (!redo) {
+      res.status(409).json({ error: { message: REDO_GONE } });
+      return;
+    }
+    const answer: RedoResponse = { transcript: shared.transcript(videoId), redo };
+    res.status(201).json(answer);
+  });
+
+  // What a part typed would widen to, said before it's asked for (the owner, 2026-10-20: "it says ahead of time").
+  router.get("/:videoId/redos/stretch", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    const parsed = RedoQuery.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't a stretch of the video." } });
+      return;
+    }
+    const answer: RedoStretchResponse = { stretch: shared.redoStretch(videoId, { startMs: parsed.data.start, endMs: parsed.data.end }) };
+    res.json(answer);
+  });
+
+  router.post("/:videoId/redos/:redoId/done", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    const redoId = PieceId.safeParse(req.params.redoId);
+    if (!redoId.success || !shared.finishRedo(videoId, redoId.data, shared.getTranscription().language, now())) {
+      res.status(409).json({ error: { message: REDO_GONE } });
+      return;
+    }
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  router.post("/:videoId/redos/:redoId/cancel", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId) return;
+    const redoId = PieceId.safeParse(req.params.redoId);
+    if (redoId.success) shared.cancelRedo(videoId, redoId.data, now());
     res.json({ transcript: shared.transcript(videoId) });
   });
 

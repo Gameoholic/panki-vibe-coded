@@ -12,6 +12,8 @@ import {
   NewCard,
   PIECE_MAX_BYTES,
   PieceId,
+  Redo,
+  RedoAsk,
   SrsType,
   Stretch,
   SubtitleStyle,
@@ -80,7 +82,7 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("poll"), videoId: VideoId }),
   /** The whole video downloaded and transcribed by the engine, in the background on Panki: its length, as the player says it. */
   z.object({ kind: z.literal("whole"), videoId: VideoId, lengthMs: z.number().int().positive().max(WHOLE_MAX_MS) }),
-  /** A chunk for the engine: the stretch of the video it accounts for, where in it its sound begins, the WAV as text (none for a stretch of nothing), and for a run's first chunk how long after the run began it was sent. */
+  /** A chunk for the engine: the stretch of the video it accounts for, where in it its sound begins, the WAV as text (none for a stretch of nothing), for a run's first chunk how long after the run began it was sent, and for a part being transcribed again its id. */
   z.object({
     kind: z.literal("piece"),
     videoId: VideoId,
@@ -90,7 +92,14 @@ export const Ask = z.discriminatedUnion("kind", [
     endMs: z.number().int().positive(),
     base64: z.string().max(PIECE_BASE64_MAX).nullable(),
     since: z.number().int().nonnegative().optional(),
+    redo: PieceId.optional(),
   }),
+  /** What a part typed would widen to (ms), said before it's asked for. */
+  z.object({ kind: z.literal("redoStretch"), videoId: VideoId, stretch: Stretch }),
+  /** A part of a video to be transcribed again, for everyone; the stretch to record comes back widened to whole pieces. */
+  z.object({ kind: z.literal("redo"), videoId: VideoId, redo: RedoAsk }),
+  /** A part transcribed again, done (its words stand in place of what stood there) or given up (the transcript is as it was). */
+  z.object({ kind: z.literal("redoEnd"), videoId: VideoId, redoId: PieceId, done: z.boolean() }),
   /** A word of a transcript changed by hand. */
   z.object({ kind: z.literal("fix"), videoId: VideoId, fix: TranscriptFix }),
   /** A line of a transcript changed by hand, with the pencil: its words, what it says now, where it starts and ends. */
@@ -172,38 +181,57 @@ export type Transcripted = z.infer<typeof Transcripted>;
 /** A chunk heard, a whole-video download asked for, or the transcript read again: the transcript as it stands, and how long the engine took over the chunk (null when it wasn't asked). */
 const Pieced = z.union([z.object({ ok: z.literal(true), transcript: Transcript, engineMs: z.number().int().nonnegative().nullable() }), Failed]);
 export type Pieced = z.infer<typeof Pieced>;
+/** A part to be transcribed again, taken: the transcript as it stands, and the stretch to record. */
+const Redone = z.union([z.object({ ok: z.literal(true), transcript: Transcript, redo: Redo }), Failed]);
+export type Redone = z.infer<typeof Redone>;
+/** What a part typed would widen to. */
+const Stretched = z.union([z.object({ ok: z.literal(true), stretch: Stretch }), Failed]);
+export type Stretched = z.infer<typeof Stretched>;
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */
 export const Trigger = z.object({ kind: z.literal("capture") });
 export type Trigger = z.infer<typeof Trigger>;
 
 const GONE = "Panki was updated or switched off. Reload this page.";
+const NO_ANSWER = "Panki's background didn't answer.";
+const UNREAD = "Panki's answer couldn't be read.";
 
-/** One question to the background and its answer. A background that's gone (the extension was reloaded under this page) says so. */
+/**
+ * One question to the background and its answer. Each way it can go wrong says its own words, and why goes to the
+ * page's console: the extension gone from under this page (reloaded), its background not answering, or an answer that
+ * isn't of the shape asked for (`failed`). All three said "updated or switched off" until 2026-10-20, which sent the
+ * owner reloading everything when that wasn't it.
+ */
 async function ask(message: Ask): Promise<unknown> {
   try {
     const answer: unknown = await chrome.runtime.sendMessage(message);
     return answer;
-  } catch {
-    return { ok: false, message: GONE };
+  } catch (e) {
+    // An extension reloaded under the page leaves its scripts here without an id.
+    if (!chrome.runtime?.id) return { ok: false, message: GONE };
+    console.warn(`[Panki] no answer to "${message.kind}":`, e instanceof Error ? e.message : String(e));
+    return { ok: false, message: NO_ANSWER };
   }
 }
-const failed = (): { ok: false; message: string } => ({ ok: false, message: GONE });
+const failed = (error: z.ZodError): { ok: false; message: string } => {
+  console.warn("[Panki] an answer it can't read:", error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
+  return { ok: false, message: UNREAD };
+};
 
 export async function askState(): Promise<State> {
   const answer = State.safeParse(await ask({ kind: "state" }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askDeck(deckId: string): Promise<void> {
   await ask({ kind: "deck", deckId });
 }
 export async function askAdd(add: Omit<Extract<Ask, { kind: "add" }>, "kind">): Promise<Done> {
   const answer = Done.safeParse(await ask({ kind: "add", ...add }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askUpload(upload: Omit<Extract<Ask, { kind: "upload" }>, "kind">): Promise<Done> {
   const answer = Done.safeParse(await ask({ kind: "upload", ...upload }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** Opens the options page, on the tab where what's needed is done. */
 export async function askOptions(tab: OptionsTab): Promise<void> {
@@ -215,60 +243,75 @@ export async function askOpenPanki(): Promise<void> {
 }
 export async function askLookState(): Promise<LookState> {
   const answer = LookState.safeParse(await ask({ kind: "lookState" }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askLookup(text: string): Promise<Looked> {
   const answer = Looked.safeParse(await ask({ kind: "lookup", text: text.slice(0, LOOKUP_MAX) }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askLattice(text: string): Promise<Latticed> {
   const answer = Latticed.safeParse(await ask({ kind: "lattice", text: text.slice(0, LATTICE_MAX) }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askVoices(word: string): Promise<Voiced> {
   const answer = Voiced.safeParse(await ask({ kind: "voices", word: word.slice(0, FORVO_WORD_MAX) }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askVoice(word: string, id: number): Promise<Heard> {
   const answer = Heard.safeParse(await ask({ kind: "voice", word: word.slice(0, FORVO_WORD_MAX), id }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** A video's pictures, kept by Panki as a card is made from it, to show on the card in the drawer. */
 export async function askPictures(videoId: string, avatar: string | null): Promise<Pictured> {
   const answer = Pictured.safeParse(await ask({ kind: "pictures", videoId, avatar: avatar === null ? null : avatar.slice(0, 2000) }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** Where in a video the account's cards were taken from, to mark on its bar. */
 export async function askVideoCards(videoId: string): Promise<Carded> {
   const answer = Carded.safeParse(await ask({ kind: "videoCards", videoId }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askTranscript(videoId: string): Promise<Transcripted> {
   const answer = Transcripted.safeParse(await ask({ kind: "transcript", videoId }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askPiece(piece: Omit<Extract<Ask, { kind: "piece" }>, "kind">): Promise<Pieced> {
   const answer = Pieced.safeParse(await ask({ kind: "piece", ...piece }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** What a part typed would widen to, said before it's asked for. */
+export async function askRedoStretch(videoId: string, stretch: Stretch): Promise<Stretched> {
+  const answer = Stretched.safeParse(await ask({ kind: "redoStretch", videoId, stretch }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A part of the video to be transcribed again, for everyone: the stretch to record, widened to whole pieces. */
+export async function askRedo(videoId: string, redo: RedoAsk): Promise<Redone> {
+  const answer = Redone.safeParse(await ask({ kind: "redo", videoId, redo }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A part transcribed again, done (its words stand now) or given up; the transcript as it stands then comes back. */
+export async function askRedoEnd(videoId: string, redoId: string, done: boolean): Promise<Pieced> {
+  const answer = Pieced.safeParse(await ask({ kind: "redoEnd", videoId, redoId, done }));
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** The transcript alone, read again while a whole-video download is under way. */
 export async function askPoll(videoId: string): Promise<Pieced> {
   const answer = Pieced.safeParse(await ask({ kind: "poll", videoId }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** The whole video, downloaded and transcribed by the engine in the background: the transcript with the download under way in it. */
 export async function askWhole(videoId: string, lengthMs: number): Promise<Pieced> {
   const answer = Pieced.safeParse(await ask({ kind: "whole", videoId, lengthMs: Math.min(WHOLE_MAX_MS, Math.max(1, Math.round(lengthMs))) }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askFix(videoId: string, fix: TranscriptFix): Promise<Transcripted> {
   const answer = Transcripted.safeParse(await ask({ kind: "fix", videoId, fix }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** A line of the transcript fixed by hand, for everyone; the transcript as it stands then comes back. */
 export async function askLine(videoId: string, fix: TranscriptLineFix): Promise<Transcripted> {
   const answer = Transcripted.safeParse(await ask({ kind: "line", videoId, fix }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askSubtitles(source: string): Promise<void> {
   await ask({ kind: "subtitles", source });
@@ -276,7 +319,7 @@ export async function askSubtitles(source: string): Promise<void> {
 /** A stretch of the transcript, or all of it (null), forgotten for everyone; the transcript as it stands then comes back. */
 export async function askForget(videoId: string, stretch: Stretch | null): Promise<Transcripted> {
   const answer = Transcripted.safeParse(await ask({ kind: "forget", videoId, stretch }));
-  return answer.success ? answer.data : failed();
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** A preference of this viewer's changed in the strip's menu, kept for the next video. */
 export async function askPrefs(prefs: Partial<TranscribePrefs>): Promise<void> {

@@ -67,7 +67,9 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
         (account) => account.used,
         () => null,
       );
-      const credits = before !== null && after !== null && after >= before ? after - before : null;
+      // The engine's count moves a while after a call, not with it: read straight after, it often hasn't moved at all.
+      // Nothing counted is not known, never free (2026-10-20: "0 credits" asked before a 22-minute video).
+      const credits = before !== null && after !== null && after > before ? after - before : null;
       const done = shared.finishJob(id, heard, credits, now());
       if (done) {
         const took = ((now() - startedAt) / 1000).toFixed(1);

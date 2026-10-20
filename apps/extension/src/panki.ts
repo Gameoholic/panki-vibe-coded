@@ -9,6 +9,8 @@ import {
   MediaResponse,
   PIECE_MIME,
   PieceResponse,
+  RedoResponse,
+  RedoStretchResponse,
   ServerDictionaryList,
   SettingsResponse,
   SrsTypeList,
@@ -21,6 +23,8 @@ import {
   type ForvoVoice,
   type NewCard,
   type MediaCues,
+  type RedoAsk,
+  type Stretch,
   type ServerDictionary,
   type SrsType,
   type SubtitleStyle,
@@ -114,19 +118,20 @@ export const panki = {
   /**
    * A chunk of a video on its way to the engine through Panki, under an id minted here, so sending it again is the same
    * chunk and never a second call to the engine: the stretch it accounts for, where its sound begins, the sound (none
-   * for a stretch of nothing), and for a run's first chunk how long after the run began it was sent.
+   * for a stretch of nothing), for a run's first chunk how long after the run began it was sent, and for a part being
+   * transcribed again its id (kept out of the transcript until the part is done).
    */
   putPiece: (
     { address, token }: Door,
     videoId: string,
     pieceId: string,
-    meta: { startMs: number; soundMs: number; endMs: number; since?: number | undefined },
+    meta: { startMs: number; soundMs: number; endMs: number; since?: number | undefined; redo?: string | undefined },
     wav: Blob | null,
   ): Promise<PieceResponse> =>
     call(
       address,
       token,
-      `/api/transcripts/${id(videoId)}/pieces/${id(pieceId)}?start=${meta.startMs}&sound=${meta.soundMs}&end=${meta.endMs}${meta.since === undefined ? "" : `&since=${meta.since}`}`,
+      `/api/transcripts/${id(videoId)}/pieces/${id(pieceId)}?start=${meta.startMs}&sound=${meta.soundMs}&end=${meta.endMs}${meta.since === undefined ? "" : `&since=${meta.since}`}${meta.redo === undefined ? "" : `&redo=${id(meta.redo)}`}`,
       wav ? { method: "PUT", headers: { "content-type": PIECE_MIME }, body: wav } : { method: "PUT" },
       (b) => PieceResponse.parse(b),
     ),
@@ -142,6 +147,18 @@ export const panki = {
   /** A transcript forgotten, a stretch of it or the whole, for everyone: transcribed afresh when a run passes it. */
   forgetTranscript: ({ address, token }: Door, videoId: string, forget: TranscriptForget): Promise<Transcript> =>
     call(address, token, `/api/transcripts/${id(videoId)}/forget`, json("POST", forget), (b) => TranscriptResponse.parse(b).transcript),
+  /** What a part typed would widen to, said before it's asked for. */
+  redoStretch: ({ address, token }: Door, videoId: string, startMs: number, endMs: number): Promise<Stretch> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/redos/stretch?start=${startMs}&end=${endMs}`, {}, (b) => RedoStretchResponse.parse(b).stretch),
+  /** A part of a video to be transcribed again, for everyone: the stretch to record comes back widened to whole pieces. */
+  startRedo: ({ address, token }: Door, videoId: string, redo: RedoAsk): Promise<RedoResponse> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/redos`, json("POST", redo), (b) => RedoResponse.parse(b)),
+  /** A part transcribed again, done: its words stand in place of what stood there. */
+  finishRedo: ({ address, token }: Door, videoId: string, redoId: string): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/redos/${id(redoId)}/done`, { method: "POST" }, (b) => TranscriptResponse.parse(b).transcript),
+  /** A part being transcribed again, given up: the transcript is as it was. */
+  cancelRedo: ({ address, token }: Door, videoId: string, redoId: string): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/redos/${id(redoId)}/cancel`, { method: "POST" }, (b) => TranscriptResponse.parse(b).transcript),
   /** A video's thumbnail as Panki keeps it for everyone: asked of YouTube by Panki's server the first time. */
   thumbnail: (door: Door, videoId: string): Promise<Blob> => bytesAt(door, `/api/videos/${id(videoId)}/thumbnail`),
   /** The video's channel's picture, kept by Panki from where the page shows it (the first time; what's kept stands after). */

@@ -18,7 +18,7 @@ import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
-import { Trigger, askFix, askForget, askLine, askOpenPanki, askOptions, askPrefs, askSubtitles, askVideoCards } from "../messages";
+import { Trigger, askFix, askForget, askLine, askOpenPanki, askOptions, askPrefs, askRedoStretch, askSubtitles, askVideoCards } from "../messages";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
@@ -1337,7 +1337,7 @@ function App() {
     transcriber.setPrefs({ trigger });
     void askPrefs({ trigger });
   }
-  /** The mode this viewer transcribes in, picked in the menu (or switched to Auto from the question before a long download): taken at once, kept by the worker. */
+  /** The mode this viewer transcribes in, picked in the menu: taken at once, kept by the worker. */
   function setMode(mode: TranscribeMode) {
     transcriber.setPrefs({ mode });
     void askPrefs({ mode });
@@ -1383,11 +1383,18 @@ function App() {
     band.addEventListener("pointerup", done);
     band.addEventListener("pointercancel", done);
   }
-  /** A stretch of the transcript, or all of it, forgotten for everyone; the transcript as it stands then is taken. */
-  async function forget(stretch: Seconds | null) {
+  /** The stretch a part typed would really be transcribed again over (Panki widens it to whole chunks), in seconds; null when it can't be said. */
+  async function widenPart(part: Seconds): Promise<Seconds | null> {
+    const id = videoId();
+    if (!id) return null;
+    const answer = await askRedoStretch(id, { startMs: Math.round(part.start * 1000), endMs: Math.round(part.end * 1000) });
+    return answer.ok ? { start: answer.stretch.startMs / 1000, end: answer.stretch.endMs / 1000 } : null;
+  }
+  /** The whole transcript forgotten for everyone; the transcript as it stands then is taken. */
+  async function forgetAll() {
     const id = videoId();
     if (!id) return;
-    const answer = await askForget(id, stretch ? { startMs: Math.round(stretch.start * 1000), endMs: Math.round(stretch.end * 1000) } : null);
+    const answer = await askForget(id, null);
     if (answer.ok) transcriber.take(answer.transcript);
   }
   /** The clip as it's marked on the player's seek bar, once it has both ends. */
@@ -1422,9 +1429,9 @@ function App() {
                   at={video?.currentTime ?? null}
                   onStart={() => video && transcriber.start(video)}
                   onStop={() => transcriber.stop()}
-                  onWhole={() => transcriber.startWhole(duration)}
-                  onStretch={(stretch) => transcriber.startStretch(stretch.start, stretch.end)}
-                  onForget={(stretch) => void forget(stretch)}
+                  onRetranscribe={(stretch) => void transcriber.retranscribe(stretch.start, stretch.end)}
+                  widen={widenPart}
+                  onForget={() => void forgetAll()}
                   onAuto={setAuto}
                   onMode={setMode}
                   onAnswer={(yes) => transcriber.answer(yes, duration)}

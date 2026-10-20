@@ -3,7 +3,7 @@ import { TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, type TranscribeEstimate, type Tr
 import { aboutWords as about } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-import { MODE_ICONS, ModeChip } from "./ModeChip";
+import { MODE_ICONS } from "./ModeChip";
 import { Toggle } from "./Toggle";
 
 /**
@@ -35,35 +35,31 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
         full,
         live: { mark: "yes", text: first ?? "No data yet" },
         hybrid: { mark: "yes", text: first ?? "No data yet" },
-        auto: { mark: "yes", text: first === null ? "No data yet" : `${first}, or longer if the video is long` },
       },
     },
     {
-      name: "Downloads",
+      name: "Transcribes",
       cells: {
         full: { mark: "yes", text: "Entire video" },
         live: { mark: "some", text: "In chunks: what you watch, plus the lead" },
         hybrid: { mark: "yes", text: "In chunks, then the entire video" },
-        auto: { mark: "some", text: "Entire video, or in chunks if the video is long" },
       },
     },
     {
       // Added 2026-10-20, when YouTube began refusing ElevenLabs' downloads: "it should fall back to transcribing by chunks when it fails… add this as a row to the comparison chart too".
-      name: "If the download fails",
+      name: "If the entire video fails",
       cells: {
-        full: { mark: "some", text: "Falls back to chunks from where you are" },
-        live: { mark: "yes", text: "Never downloads" },
+        full: { mark: "yes", text: "Falls back to chunks from where you are" },
+        live: { mark: "yes", text: "Never fails" },
         hybrid: { mark: "yes", text: "Chunks carry on" },
-        auto: { mark: "yes", text: "Chunks carry on" },
       },
     },
     {
       name: "Seeking",
       cells: {
-        full: { mark: "yes", text: "Covered anywhere once downloaded" },
+        full: { mark: "yes", text: "Covered anywhere once transcribed" },
         live: { mark: "no", text: `${first ?? "A few seconds"} for new words at the new timestamp` },
-        hybrid: { mark: "some", text: `${first ?? "A few seconds"} for new words until the download finishes, then covered anywhere` },
-        auto: { mark: "some", text: "Covered anywhere once downloaded, unless the video is long" },
+        hybrid: { mark: "some", text: `${first ?? "A few seconds"} for new words until the entire video is transcribed, then covered anywhere` },
       },
     },
     {
@@ -71,8 +67,7 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
       cells: {
         full: { mark: "yes", text: "Best: the full context of the video" },
         live: { mark: "no", text: "Lower: processed in chunks" },
-        hybrid: { mark: "yes", text: "Best once the entire video is downloaded" },
-        auto: { mark: "some", text: "Best, unless the video is long" },
+        hybrid: { mark: "yes", text: "Best once the entire video is transcribed" },
       },
     },
     {
@@ -81,7 +76,6 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
         full: { mark: "no", text: "Every minute of the video, watched or not" },
         live: { mark: "yes", text: "Only what's watched" },
         hybrid: { mark: "no", text: "Every minute of the video, plus the first few again" },
-        auto: { mark: "some", text: "Every minute of the video, unless it's long, then only what's watched" },
       },
     },
     {
@@ -89,8 +83,7 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
       cells: {
         full: { mark: "yes", text: "None" },
         live: { mark: "no", text: "Runs" },
-        hybrid: { mark: "some", text: "Runs only until the entire video is downloaded" },
-        auto: { mark: "some", text: "Runs only until the entire video is downloaded, unless the video is long" },
+        hybrid: { mark: "some", text: "Runs only until the entire video is transcribed" },
       },
     },
   ];
@@ -98,14 +91,9 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
 
 /** What each mode is, under its name. */
 const ABOUT: Record<TranscribeMode, ReactNode> = {
-  full: "Downloads the entire video in one go at the start.",
+  full: "Transcribes the entire video in one go, in the background.",
   live: "A hidden player runs ahead of you in the background, recording chunks that are transcribed one at a time, while you watch.",
-  hybrid: "Transcribes in chunks while the entire video downloads in the background. When the download finishes, its transcript replaces the chunks and the hidden player stops.",
-  auto: (
-    <>
-      Picks <ModeChip mode="hybrid" /> or <ModeChip mode="live" /> based on the video's length.
-    </>
-  ),
+  hybrid: "Transcribes in chunks while the entire video is transcribed in the background. When that's done, its transcript replaces the chunks and the hidden player stops.",
 };
 
 type Props = {

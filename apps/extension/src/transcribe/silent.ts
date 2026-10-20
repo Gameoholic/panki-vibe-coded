@@ -36,10 +36,14 @@ export type SilentReport = {
   pageAge: number;
   /** What it's doing this moment. */
   stage: SilentStage;
-  /** Its sound graph's own state ("running", or "suspended" while the browser hasn't let it start); null before there's a graph. */
-  sound: AudioContextState | null;
-  /** How fast its player plays; null before there's a player. */
-  rate: number | null;
+  /** What it has heard and not sent yet, in seconds of the video; null when nothing is. */
+  recording: { from: number; to: number } | null;
+  /** How long the chunk it's recording is to be, in seconds of the video, as the chunks ramp up; null before it hears anything. */
+  chunk: number | null;
+  /** What it's recording will be sent as a chunk when it closes (`Cutter.pending`). */
+  pending: boolean;
+  /** Asked to close what it's recording at the next pause (`closeAtPause`), it has. */
+  closed: boolean;
 };
 
 /**
@@ -55,6 +59,8 @@ export type SilentPlayer = {
   hold(): void;
   resume(): void;
   report(): SilentReport;
+  /** What it's recording closes at the next pause, however short (`Cutter.closeAtPause`); the report's `closed` says when. */
+  closeAtPause(): void;
   /** Closes the open piece (sent when it's worth sending), and takes the frame down. */
   destroy(): void;
 };
@@ -89,6 +95,23 @@ const ONSET_TRUST = 1;
 /** How many seeks the clock's error is remembered over; the middle one is used, so one quiet moment doesn't set it. */
 const BIASES = 5;
 const FAILED = "The video couldn't be opened to transcribe it.";
+const REPLACED = "YouTube replaced the hidden player.";
+/**
+ * A seek the site makes by itself, landing farther than this from where the player was sent, is put back; its own
+ * seek to the whole second its address named is nearer. Seconds of the video.
+ */
+const STRAY = 2;
+/** Strays are put back until the player has played this far from where it was sent (the site's comes as it loads), and at most this many times, so a site that insists isn't fought for ever. */
+const GUARD_SECONDS = 5;
+const GUARD_TRIES = 3;
+/**
+ * Waiting this long for the video's data (loading, or a seek that doesn't land) with nothing coming, the page is opened
+ * again where it stands, at most this many times for one silent player (2026-10-20: "Loading the video at 3:59" for
+ * good, the frame's video server not found by the browser, `ERR_NAME_NOT_RESOLVED`). Seconds.
+ */
+const STUCK_SECONDS = 15;
+const REOPENS = 3;
+const STUCK = "The video wouldn't load in the background.";
 
 const urlOf = (source: SilentPage, videoId: string, at: number) =>
   source === "embed"
@@ -112,7 +135,15 @@ function windowOf(frame: HTMLIFrameElement): FrameWindow | null {
   return win !== null && "AudioContext" in win && "HTMLVideoElement" in win ? (win as FrameWindow) : null;
 }
 
-export function createSilentPlayer(videoId: string, speed: number, shape: ChunkShape, onPiece: (piece: CutPiece) => void): SilentPlayer {
+/** What the silent player tells of itself as it happens, for the Log. */
+export type SilentNotes = {
+  /** The site moved the player by itself, from where it was sent (`at`) to `to`, and it was put back. */
+  stray(to: number, at: number): void;
+  /** The video's data stopped coming at `at` for `seconds`, and its page was opened again there. */
+  reopened(at: number, seconds: number): void;
+};
+
+export function createSilentPlayer(videoId: string, speed: number, shape: ChunkShape, onPiece: (piece: CutPiece) => void, notes: SilentNotes): SilentPlayer {
   const frame = document.createElement("iframe");
   frame.setAttribute("allow", "autoplay");
   frame.setAttribute("aria-hidden", "true");
@@ -163,6 +194,21 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
   let tried = 0;
   let pageTimer: ReturnType<typeof setTimeout> | null = null;
   let looker: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Where the player was last sent, while the site may still move it by itself: as its page loads, the site seeks to
+   * where it thinks the viewer left off (the account's progress on the video), which isn't where the run is (2026-10-20:
+   * the owner forgot a video's transcript, refreshed, pressed Transcribe at 0:00, and the chunks were heard from about
+   * 4:00, where they'd been watching). Such a seek is put back. Null once it has played `GUARD_SECONDS` on from there:
+   * `played` counts only the small steps of playing, never a seek's leap, and `last` is where it stood at the last step.
+   * (The leap itself counted at first: the site's seek to 8:55 read as having played on, and the guard was off before
+   * the seek it was there for could be put back, 2026-10-20.)
+   */
+  let sent: { at: number; tries: number; played: number; last: number } | null = null;
+  /** The site's own seek has landed where it wasn't sent and is about to be put back: nothing heard there is the run's. */
+  let straying = false;
+  /** Since when it has waited for the video's data with nothing coming, by `performance.now()`; and how often its page was opened again for it. */
+  let stuckSince: number | null = null;
+  let reopens = 0;
   /** Where it's wanted once its player is ready, and whether it's wanted playing. */
   let wanted: number | null = null;
   let wantPlaying = false;
@@ -243,13 +289,15 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     );
   }
 
-  function seekAndPlay(at: number, fresh: boolean) {
+  /** `tries`: how many of the site's own seeks have been put back since the run sent it here (`sent`). */
+  function seekAndPlay(at: number, fresh: boolean, tries = 0) {
     if (!video) return;
     cutter?.flush();
     if (fresh) cutter?.restart();
     suspend();
     ended = false;
     onset = Math.max(0, at);
+    sent = { at: onset, tries, played: 0, last: onset };
     video.currentTime = onset;
     play();
   }
@@ -274,9 +322,9 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     source.connect(tap);
     tap.connect(mute);
     mute.connect(ctx.destination);
-    cutter = createCutter(ctx.sampleRate / speed, shape, onPiece);
+    cutter = createCutter(ctx.sampleRate / speed, shape, onPiece, () => performance.now());
     tap.onaudioprocess = (e) => {
-      if (!cutter || !ctx || !video || ad || video.seeking) return;
+      if (!cutter || !ctx || !video || ad || video.seeking || straying) return;
       // Waiting for the first sound after a seek: every block is looked at, whether or not the pair is there yet (the
       // `playing` event comes when it comes; the sound doesn't wait for it). Otherwise nothing is taken without the pair.
       if (onset === null && !taking()) return;
@@ -322,6 +370,24 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     });
     found.addEventListener("seeked", () => {
       onset = found.currentTime;
+      // Every seek but the site's is `seekAndPlay`'s, which sets `sent` first: one landing far from it is the site's
+      // (an ad plays its own times on the same element, and is left alone). It's put back once it has landed, by a seek
+      // of our own as a run's jumps are made: put back from inside the site's own seek (2026-10-20, the first try), the
+      // site's player was left playing out loud, the wired one dead.
+      const back = sent;
+      if (back === null || ad || Math.abs(found.currentTime - back.at) <= STRAY) return;
+      if (back.tries >= GUARD_TRIES) {
+        sent = null;
+        return;
+      }
+      const to = found.currentTime;
+      straying = true;
+      setTimeout(() => {
+        straying = false;
+        if (gone || video !== found || sent !== back) return;
+        notes.stray(to, back.at);
+        seekAndPlay(back.at, false, back.tries + 1);
+      }, 0);
     });
     found.addEventListener("ended", () => {
       suspend();
@@ -331,6 +397,12 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     // The pair is read afresh as the player reports its time, so a stall it never said moves the sound no further than a moment.
     found.addEventListener("timeupdate", () => {
       if (sync !== null) anchor();
+      if (sent !== null && !ad && !found.seeking) {
+        const step = found.currentTime - sent.last;
+        sent.last = found.currentTime;
+        if (step > 0 && step < STRAY) sent.played += step;
+        if (sent.played > GUARD_SECONDS) sent = null;
+      }
     });
     if (pageTimer !== null) clearTimeout(pageTimer);
     pageTimer = null;
@@ -360,12 +432,55 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
       }
       return;
     }
+    // The site put another player in the frame (its page reloaded, or its player rebuilt): the one wired is gone, and
+    // the new one, outside the sound graph, would be heard. Silenced at once and given up; Try again opens a fresh one.
+    const current = found?.querySelector("video");
+    if (current instanceof win.HTMLVideoElement && current !== video) {
+      current.muted = true;
+      current.pause();
+      if (failed === null) failed = REPLACED;
+      return;
+    }
     const inAd = player !== null && AD.some((name) => player?.classList.contains(name));
     if (inAd !== ad) {
       ad = inAd;
       if (ad) suspend();
       else if (!video.paused) anchor();
     }
+    const waiting = wantPlaying && !ad && !ended && (video.seeking || video.readyState < video.HAVE_FUTURE_DATA);
+    if (!waiting) stuckSince = null;
+    else if (stuckSince === null) stuckSince = performance.now();
+    else if (performance.now() - stuckSince > STUCK_SECONDS * 1000) reopen();
+  }
+
+  /** The page opened again where the player stands, its player wired afresh once it's there (`look`); given up after `REOPENS`. */
+  function reopen() {
+    const stuck = video;
+    if (!stuck) return;
+    const at = stuck.currentTime;
+    const seconds = stuckSince === null ? 0 : (performance.now() - stuckSince) / 1000;
+    stuckSince = null;
+    if (reopens >= REOPENS) {
+      failed = STUCK;
+      return;
+    }
+    reopens++;
+    cutter?.flush();
+    suspend();
+    stuck.pause();
+    void ctx?.close().catch(() => undefined);
+    video = null;
+    player = null;
+    ctx = null;
+    cutter = null;
+    onset = null;
+    sent = null;
+    ad = false;
+    wanted = at;
+    notes.reopened(at, seconds);
+    show(page, at);
+    if (pageTimer !== null) clearTimeout(pageTimer);
+    pageTimer = setTimeout(next, PAGE_WAIT_MS);
   }
 
   /** The next of the site's pages for the video, or the end of the road. */
@@ -417,9 +532,14 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
       page,
       pageAge: (performance.now() - pageAt) / 1000,
       stage: stageOf(),
-      sound: ctx?.state ?? null,
-      rate: video?.playbackRate ?? null,
+      recording: cutter?.recording() ?? null,
+      chunk: cutter?.length() ?? null,
+      pending: cutter?.pending() ?? false,
+      closed: cutter?.closed() ?? false,
     }),
+    closeAtPause() {
+      cutter?.closeAtPause();
+    },
     destroy() {
       if (gone) return;
       gone = true;

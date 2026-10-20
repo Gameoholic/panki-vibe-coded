@@ -32,6 +32,7 @@ import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
 import { Form } from "../components/Form";
 import { Icon } from "../components/Icon";
+import { ModeChip } from "../components/ModeChip";
 import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
@@ -342,15 +343,21 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           Transcription modes
         </h3>
         <ModeCompare mode={current.mode} modesOff={current.modesOff} estimate={status.estimate} onDefault={(mode) => patch({ mode })} onOn={setModeOn} />
+        {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen, the engine downloading and transcribing a video at once (the owner, 2026-10-20). */}
         <Setting
           id="downloadLimit"
-          label="Download limit"
-          control={<NumberField id="transcribe-download-limit" label="Download limit in minutes" value={current.downloadLimit} min={1} max={600} suffix="min" onChange={(downloadLimit) => patch({ downloadLimit })} />}
+          label="Length limit"
+          control={<NumberField id="transcribe-download-limit" label="Length limit in minutes" value={current.downloadLimit} min={1} max={600} suffix="min" onChange={(downloadLimit) => patch({ downloadLimit })} />}
+          why={
+            <>
+              For <ModeChip mode="full" /> and <ModeChip mode="hybrid" /> only.
+            </>
+          }
         />
         <Setting
           id="overLimit"
-          label="Videos over the download limit"
-          control={<Segmented idPrefix="transcribe-over-limit" label="Videos over the download limit" options={OVER_LIMIT_OPTIONS} value={current.overLimit} onChange={(overLimit) => patch({ overLimit })} />}
+          label="Videos over the length limit"
+          control={<Segmented idPrefix="transcribe-over-limit" label="Videos over the length limit" options={OVER_LIMIT_OPTIONS} value={current.overLimit} onChange={(overLimit) => patch({ overLimit })} />}
         />
       </section>
       <section className="panel-section" aria-labelledby="chunks-title">
@@ -358,7 +365,7 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           Chunks
         </h3>
         {/* How a chunk is cut, at the owner's ask (2026-10-20: "a short description under chunks explaining how it works"). */}
-        <p className="setting-why">The background player records a chunk until it reaches its length, then stops at the first pause where nobody speaks. If nobody pauses, it's forcefully cut after the wait. Chunks overlap by 1.5 s.</p>
+        <p className="setting-why">The background player records a chunk until it reaches its length, then stops at the first pause in the speech. If there's no pause, it's forcefully cut after the wait, and the next chunk starts 1.5 s earlier so the word that was cut is heard in its entirety.</p>
         <Setting
           id="speed"
           label="Speed"
@@ -380,18 +387,20 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
         <Setting
           id="chunkGrowth"
           label="Each next chunk"
-          control={<NumberField id="transcribe-chunk-growth" label="Times as long as the last" value={current.chunkGrowth} min={1} max={4} step={0.5} suffix="× longer" onChange={(chunkGrowth) => patch({ chunkGrowth })} />}
+          control={<NumberField id="transcribe-chunk-growth" label="Times as long as the last" value={current.chunkGrowth} min={1} max={4} step={0.1} suffix="× longer" onChange={(chunkGrowth) => patch({ chunkGrowth })} />}
           why="Up to the chunk length."
         />
         <Setting
           id="chunkLength"
           label="Chunk length"
           control={<NumberField id="transcribe-chunk-length" label="Chunk length in seconds" value={current.chunkLength} min={5} max={CHUNK_LENGTH_MAX} suffix="s" onChange={(chunkLength) => patch({ chunkLength })} />}
+          why="Chunks grow up to this, then each one ends at the next pause."
         />
         <Setting
           id="pauseWait"
           label="Wait for a pause up to"
           control={<NumberField id="transcribe-pause-wait" label="Seconds to wait for a pause" value={current.pauseWait} min={1} max={PAUSE_WAIT_MAX} suffix="s" onChange={(pauseWait) => patch({ pauseWait })} />}
+          why="If there's no pause by then, the chunk gets cut anyway, even mid-sentence."
         />
         <Setting
           id="skipSilence"

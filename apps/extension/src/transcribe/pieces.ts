@@ -93,6 +93,12 @@ export const CUT = {
   longQuiet: 6,
   /** A piece closed by a jump or a stop is sent only when it's at least this long. */
   minFlush: 1,
+  /**
+   * Listening picking up this far from where it left off, with a piece open, is a leap (the site's own seek, which
+   * nothing flushed): the piece is closed where it was first, so no chunk spans it. Far above the clock's wobble at a
+   * resume, so a hold at the lead never cuts a chunk short.
+   */
+  leap: 2,
   /** A stretch of nothing is told of on its own once it's this long, so what's covered grows through music too. */
   quietEvery: 20,
   /** The rate the engine listens at; sound taken at a higher rate is brought down to it. */
@@ -102,9 +108,10 @@ export const CUT = {
 /**
  * A piece closed and ready to send: the stretch of the video it accounts for, from `startMs` to `endMs`; where in it
  * the sound begins (`soundMs`; before that, quiet listened through), as a WAV file; or no sound at all (`wav` null,
- * `soundMs` at `endMs`), a stretch of nothing.
+ * `soundMs` at `endMs`), a stretch of nothing. `recordMs`: how long it took to record, by the clock, from its first
+ * sample in to its cut (holds and stalls on the way included); 0 for a stretch of nothing.
  */
-export type CutPiece = { startMs: number; soundMs: number; endMs: number; wav: Uint8Array<ArrayBuffer> | null };
+export type CutPiece = { startMs: number; soundMs: number; endMs: number; wav: Uint8Array<ArrayBuffer> | null; recordMs: number };
 
 /** How the chunks are cut, as Panki's settings say (an admin's, for everyone): their lengths as they ramp up, the wait for a pause, whether silence is skipped. Seconds. */
 export type ChunkShape = Pick<Transcription, "firstChunk" | "chunkGrowth" | "chunkLength" | "pauseWait" | "skipSilence">;
@@ -122,6 +129,15 @@ export type Cutter = {
   restart(): void;
   /** The moment the next sample pushed would stand at, by the count from the last anchor; null while suspended. */
   expected(): number | null;
+  /** What's been listened to and not sent yet, in seconds of the video; null when nothing is. The strip's Details, as Recording. */
+  recording(): { from: number; to: number } | null;
+  /** How long the open chunk is to be before a pause closes it, in seconds of the video: where the ramp stands. */
+  length(): number;
+  /** Whether the open piece will be sent as a chunk when it closes: there's one, with voice enough in it (or Skip silence is off). */
+  pending(): boolean;
+  /** The open piece is to close at the next pause, however short it is: a part transcribed again, past its end. `closed` says once it has. */
+  closeAtPause(): void;
+  closed(): boolean;
 };
 
 /** Sound at one rate brought down to another by averaging the samples each new one covers: enough for a voice. */
@@ -172,7 +188,8 @@ export function pieceWav(samples: Float32Array, rate: number): Uint8Array<ArrayB
   return wavOf(downTo(samples, rate, out), out);
 }
 
-export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutPiece) => void): Cutter {
+/** `now`: the clock a chunk's recording is timed by, in ms. */
+export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutPiece) => void, now: () => number): Cutter {
   const frameLen = Math.max(1, Math.round(rate * CUT.frame));
   const framesOf = (seconds: number) => Math.max(1, Math.round(seconds / CUT.frame));
   const silenceFrames = framesOf(CUT.silence);
@@ -191,9 +208,10 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
    * (a little, steadily, at speed), and the player's clock is what the anchors follow. Until 2026-10-19 a piece's start
    * and end were counted on from the one before, every piece of a run carrying the last one's error on, so the words
    * came ever earlier than they were said, by a second or two at the end of a twenty-minute video (the owner: "the
-   * subtitles are ahead of the audio… this gap keeps growing throughout the video").
+   * subtitles are ahead of the audio… this gap keeps growing throughout the video"). `wall` is when it came in, by
+   * `now`, for how long a chunk took to record.
    */
-  let blocks: { sample: number; time: number }[] = [];
+  let blocks: { sample: number; time: number; wall: number }[] = [];
   /** The video's moment of a sample of the open piece, read off the block it falls in. */
   function timeOfSample(sample: number): number {
     let block = blocks[0];
@@ -219,6 +237,9 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
   let partialN = 0;
   /** How loud the last few seconds' frames were, the noise floor is read off them. */
   const recent: number[] = [];
+  /** Asked to close at the next pause (`closeAtPause`), and whether it has since. */
+  let closing = false;
+  let closedAtPause = false;
 
   const noiseFloor = () => {
     if (recent.length === 0) return CUT.floor;
@@ -250,7 +271,9 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
     const from = Math.min(fromSample, samples.length);
     const kept = samples.slice(from);
     if (pieceStart !== null) pieceStart = timeOfSample(from);
-    blocks = [{ sample: 0, time: pieceStart ?? 0 }, ...blocks.filter((b) => b.sample > from).map((b) => ({ sample: b.sample - from, time: b.time }))];
+    // The piece now begins inside a block that came in earlier: it was being recorded from then.
+    const wall = blocks.filter((b) => b.sample <= from).at(-1)?.wall ?? now();
+    blocks = [{ sample: 0, time: pieceStart ?? 0, wall }, ...blocks.filter((b) => b.sample > from).map((b) => ({ sample: b.sample - from, time: b.time, wall: b.wall }))];
     chunks = kept.length > 0 ? [kept] : [];
     length = kept.length;
     const fromFrame = Math.floor(fromSample / frameLen);
@@ -270,7 +293,8 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
     const end = Math.min(upToSample, samples.length);
     const soundMs = Math.round(pieceStart * 1000);
     const startMs = Math.min(soundMs, Math.round((heardFrom ?? pieceStart) * 1000));
-    emit({ startMs, soundMs, endMs: Math.max(soundMs, Math.round(timeOfSample(end) * 1000)), wav: pieceWav(samples.slice(0, end), rate) });
+    const recordMs = Math.max(0, Math.round(now() - (blocks[0]?.wall ?? now())));
+    emit({ startMs, soundMs, endMs: Math.max(soundMs, Math.round(timeOfSample(end) * 1000)), wav: pieceWav(samples.slice(0, end), rate), recordMs });
     keepFrom(Math.max(0, Math.min(keepFromSample, samples.length)));
     // What's kept on is heard from where it now begins; nothing before that is left untold of.
     heardFrom = pieceStart;
@@ -286,7 +310,7 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
     const to = pieceStart ?? heardTo;
     if (to - heardFrom < (now ? CUT.frame : CUT.quietEvery)) return;
     const endMs = Math.round(to * 1000);
-    emit({ startMs: Math.round(heardFrom * 1000), soundMs: endMs, endMs, wav: null });
+    emit({ startMs: Math.round(heardFrom * 1000), soundMs: endMs, endMs, wav: null, recordMs: 0 });
     heardFrom = pieceStart;
   }
 
@@ -305,6 +329,13 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
     const voiced = voicedFrames();
     const seconds = length / rate;
     if (quiet >= silenceFrames) {
+      if (closing) {
+        // The pause it was to close at: what's open is sent (or told of as quiet) through it.
+        closing = false;
+        closedAtPause = true;
+        flush();
+        return;
+      }
       const voiceSeconds = voiced * CUT.frame;
       const half = Math.floor(silenceFrames / 2) * frameLen;
       if (!shape.skipSilence) {
@@ -335,21 +366,47 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
     }
   }
 
+  /** Closes the open piece where it stands, sending it when it's worth sending, and tells of the quiet before it. */
+  function flush() {
+    const seconds = length / rate;
+    const voiced = !shape.skipSilence || voicedFrames() * CUT.frame >= CUT.minVoice;
+    if (pieceStart !== null && voiced && seconds >= CUT.minFlush) cut(length, length);
+    else {
+      // Nothing worth sending: what was listened through is told of as quiet, so it's covered all the same.
+      keepFrom(length);
+      tellQuiet(true);
+    }
+    heardFrom = null;
+  }
+
   return {
     anchor(videoTime) {
-      // Listening picks up somewhere else than it left off, with nothing open (a jump that wasn't flushed): the quiet
-      // heard up to there is told of first, so it isn't stretched across the jump.
-      if (pieceStart === null && heardTo !== null && Math.abs(videoTime - heardTo) > CUT.silence) {
-        tellQuiet(true);
-        heardFrom = null;
+      // Listening picks up somewhere else than it left off, a jump nothing flushed: with nothing open, the quiet heard
+      // up to there is told of first, so it isn't stretched across the jump; with a piece open, it's closed where it
+      // was (2026-10-20: the site's own seek from 0:00 to 3:39, under a piece begun at 0:00, made one chunk of both).
+      if (heardTo !== null) {
+        const away = Math.abs(videoTime - heardTo);
+        if (pieceStart === null && away > CUT.silence) {
+          tellQuiet(true);
+          heardFrom = null;
+        } else if (pieceStart !== null && away > CUT.leap) flush();
       }
       next = videoTime;
     },
     suspend() {
       next = null;
     },
-    push(samples) {
-      if (next === null || samples.length === 0) return;
+    push(input) {
+      if (next === null || input.length === 0) return;
+      let samples = input;
+      // Before the video's start: the silence of a player not yet there, never the video's. Left out, so nothing is
+      // placed before 0:00 (2026-10-20: a run from 0:00 sent a chunk beginning at -0.1 s, and Panki turned it away).
+      if (next < 0) {
+        const skip = Math.min(samples.length, Math.ceil(-next * rate));
+        samples = samples.subarray(skip);
+        next = Math.max(0, next + skip / rate);
+        if (samples.length === 0) return;
+      }
       if (pieceStart === null) {
         pieceStart = next;
         blocks = [];
@@ -357,7 +414,7 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
         partialSum = 0;
         partialN = 0;
       }
-      blocks.push({ sample: length, time: next });
+      blocks.push({ sample: length, time: next, wall: now() });
       next += samples.length / rate;
       heardTo = next;
       chunks.push(samples);
@@ -369,20 +426,21 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
         if (partialN === frameLen) frameDone();
       }
     },
-    flush() {
-      const seconds = length / rate;
-      const voiced = !shape.skipSilence || voicedFrames() * CUT.frame >= CUT.minVoice;
-      if (pieceStart !== null && voiced && seconds >= CUT.minFlush) cut(length, length);
-      else {
-        // Nothing worth sending: what was listened through is told of as quiet, so it's covered all the same.
-        keepFrom(length);
-        tellQuiet(true);
-      }
-      heardFrom = null;
-    },
+    flush,
     restart() {
       least = shape.firstChunk;
     },
     expected: () => next,
+    recording() {
+      const from = heardFrom ?? pieceStart;
+      return from === null || heardTo === null || heardTo <= from ? null : { from, to: heardTo };
+    },
+    length: () => least,
+    pending: () => pieceStart !== null && (!shape.skipSilence || voicedFrames() * CUT.frame >= CUT.minVoice),
+    closeAtPause() {
+      closing = true;
+      closedAtPause = false;
+    },
+    closed: () => closedAtPause,
   };
 }

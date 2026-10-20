@@ -4,7 +4,7 @@ import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { Ask, type Carded, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type State, type Transcripted, type Trigger, type Voiced } from "./messages";
+import { Ask, type Carded, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type Redone, type State, type Stretched, type Transcripted, type Trigger, type Voiced } from "./messages";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
 import { forgetSignIn, prefsOf, readStore, writeStore, type Stored } from "./storage";
@@ -147,7 +147,7 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
   };
 }
 
-async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Transcripted | Pieced> {
+async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Transcripted | Pieced | Redone | Stretched> {
   if (ask.kind === "options") {
     // The page opens on that tab, or turns to it if it's open already (it reads the store again as it gets the focus).
     if (ask.tab) await writeStore({ optionsTab: ask.tab });
@@ -236,7 +236,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
           return { ok: false, message: "The chunk didn't arrive whole." };
         }
       }
-      const meta = { startMs: ask.startMs, soundMs: ask.soundMs, endMs: ask.endMs, since: ask.since };
+      const meta = { startMs: ask.startMs, soundMs: ask.soundMs, endMs: ask.endMs, since: ask.since, redo: ask.redo };
       const heard = await panki.putPiece(door, ask.videoId, ask.pieceId, meta, wav ? new Blob([wav], { type: PIECE_MIME }) : null);
       return { ok: true, transcript: heard.transcript, engineMs: heard.engineMs };
     }
@@ -251,6 +251,15 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     if (ask.kind === "forget") {
       await panki.forgetTranscript(door, ask.videoId, ask.stretch ?? {});
       return transcripted(door, ask.videoId, store);
+    }
+    if (ask.kind === "redoStretch") return { ok: true, stretch: await panki.redoStretch(door, ask.videoId, ask.stretch.startMs, ask.stretch.endMs) };
+    if (ask.kind === "redo") {
+      const taken = await panki.startRedo(door, ask.videoId, ask.redo);
+      return { ok: true, transcript: taken.transcript, redo: taken.redo };
+    }
+    if (ask.kind === "redoEnd") {
+      const transcript = ask.done ? await panki.finishRedo(door, ask.videoId, ask.redoId) : await panki.cancelRedo(door, ask.videoId, ask.redoId);
+      return { ok: true, transcript, engineMs: null };
     }
     // A clip recorded for a card: kept as a file on Panki, to be named in the card's field when the card is made.
     const mime = mediaMimeFor(ask.mediaKind, ask.mime);
@@ -283,7 +292,13 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   // Only this extension's own pages and scripts are answered, and only for a message of a known shape.
   if (sender.id !== chrome.runtime.id) return false;
   const ask = Ask.safeParse(message);
-  if (!ask.success) return false;
+  if (!ask.success) {
+    // Said, not left unanswered: an unanswered message reads on the page as the extension gone. Where it's wrong, never
+    // what it held (a sign-in's password is one of the messages).
+    console.error("Panki: a request it can't read:", ask.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
+    respond({ ok: false, message: "Panki couldn't read this request." });
+    return false;
+  }
   void answer(ask.data, sender).then(respond);
   // The answer comes later: the channel is held open for it.
   return true;
