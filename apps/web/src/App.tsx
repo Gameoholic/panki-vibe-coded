@@ -150,12 +150,21 @@ function messageOf(e: unknown, fallback: string) {
 }
 /** A lost sign-in is handled once, by the sign-in screen; it is never a load error as well. */
 const isSignedOut = (e: unknown) => e instanceof ApiError && e.status === 401;
+/**
+ * Panki not answering as the app opens (the server restarting after a deploy, the network gone) isn't being signed
+ * out: it's said, and asked again this often until it answers. Until 2026-10-20 any failure showed the sign-in screen,
+ * and a deploy looked like a lost sign-in (the owner: "why is it asking me to sign in again on prod?").
+ */
+const UNREACHED_RETRY_MS = 3000;
+const UNREACHED = "Can't reach Panki right now. Trying again…";
 
 export function App() {
   const [screen, setScreen] = useState<Screen>(HOME);
   /** Who is signed in; null before the answer and while signed out. `authKnown` says which. */
   const [me, setMe] = useState<Me | null>(null);
   const [authKnown, setAuthKnown] = useState(false);
+  /** Panki didn't answer when asked who's signed in: it's being asked again. */
+  const [unreached, setUnreached] = useState(false);
   /** The stats for every deck, for the home's tiles. */
   const [stats, setStats] = useState<Stats | null>(null);
   /** What's left on the disk Panki's data is on; the home says so while it's little. */
@@ -211,16 +220,39 @@ export function App() {
     guard.current = null;
     setArriving(parsePath(window.location.pathname));
   }, []);
-  // Who is signed in, before anything else; a 401 here or anywhere later shows the sign-in screen.
+  // Who is signed in, before anything else; a 401 here or anywhere later shows the sign-in screen. No answer at all is
+  // said as such and asked again until there is one (`UNREACHED_RETRY_MS`).
   useEffect(() => {
     api.onSignedOut(signedOut);
-    api
-      .me()
-      .then(setMe)
-      .catch((e: unknown) => fail(e, "Couldn't reach Panki."))
-      .finally(() => setAuthKnown(true));
-    return () => api.onSignedOut(null);
-  }, [signedOut, fail]);
+    let alive = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const ask = () => {
+      api.me().then(
+        (who) => {
+          if (!alive) return;
+          setUnreached(false);
+          setMe(who);
+          setAuthKnown(true);
+        },
+        (e: unknown) => {
+          if (!alive) return;
+          if (isSignedOut(e)) {
+            setUnreached(false);
+            setAuthKnown(true);
+            return;
+          }
+          setUnreached(true);
+          retry = setTimeout(ask, UNREACHED_RETRY_MS);
+        },
+      );
+    };
+    ask();
+    return () => {
+      alive = false;
+      if (retry !== null) clearTimeout(retry);
+      api.onSignedOut(null);
+    };
+  }, [signedOut]);
   // The ledger listens for the page being hidden or left for as long as the app is up.
   useEffect(() => ledger.install(), []);
   // The theme is already on the page from index.html; applying it again here is what keeps "Match the device"
@@ -845,7 +877,17 @@ export function App() {
         </nav>
       )}
       {bare ? (
-        <main className="main">{authKnown ? <LoginView onSignedIn={signIn} /> : loading}</main>
+        <main className="main">
+          {authKnown ? (
+            <LoginView onSignedIn={signIn} />
+          ) : unreached ? (
+            <p className="load-error" role="alert">
+              {UNREACHED}
+            </p>
+          ) : (
+            loading
+          )}
+        </main>
       ) : null}
       {head && !bare ? (
         <div className={`subhead ${head.title === undefined ? "is-action-only" : ""}`.trim()}>
