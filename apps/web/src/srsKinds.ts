@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import {
+  BURY_WAIT,
   STAY,
   WaitUnit,
   isBurned,
@@ -9,6 +10,7 @@ import {
   waitMinutes,
   type Card,
   type CardPlace,
+  type HoldKind,
   type SrsAfter,
   type SrsAnswer,
   type SrsStage,
@@ -16,6 +18,7 @@ import {
   type Step,
   type Wait,
 } from "@panki/contracts";
+import type { IconName } from "./components/Icon";
 
 /**
  * The SRS in words and looks, one home: the units a wait is counted in, the steps an answer can be set to, how a
@@ -31,19 +34,54 @@ export const WAIT_UNITS: Record<WaitUnit, { one: string; many: string; short: st
 };
 export const WAIT_UNIT_OPTIONS = WaitUnit.options.map((id) => ({ id, label: WAIT_UNITS[id].short }));
 
-/** The fixed steps, in the menu's order. The ask-agains (`AGAIN_OPTIONS`) and "go to a stage" are made per type. */
-export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "retry" | "hidden";
-export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step }[] = [
+/**
+ * Putting a card aside, in words and looks: the mark beside it, what it is while it lasts and the button that brings
+ * it back (on a card's row in its deck). When it comes back, which for a bury is its own wait, is `holdBack`,
+ * `holdAsks` and, on the chart, `holdNote`.
+ */
+export const HOLD_KINDS: Record<HoldKind, { icon: IconName; state: string; lift: string }> = {
+  bury: { icon: "moon", state: "buried", lift: "Unbury" },
+  suspend: { icon: "pause", state: "suspended", lift: "Unsuspend" },
+};
+export type HoldStep = Extract<Step, { kind: HoldKind }>;
+export const isHold = (step: Step | undefined): step is HoldStep => step?.kind === "bury" || step?.kind === "suspend";
+/** When a card put aside comes back, under the answer that does it: "back in 24 hours", "back tomorrow", "until brought back". */
+export function holdBack(step: HoldStep): string {
+  return step.kind === "bury" ? `back ${waitWords(step.wait)}` : "until brought back";
+}
+/** The line under a box on the chart that puts a card aside, for a card at `place` (the stage it's shown for): "then comes back as Guru 1", "until brought back". */
+export function holdNote(kind: HoldKind, place: string): string {
+  return kind === "bury" ? `then comes back as ${place}` : "until brought back";
+}
+/** The question when an answer that puts a card aside asks first. */
+export function holdAsks(step: HoldStep): string {
+  return step.kind === "bury" ? `This card comes back ${waitWords(step.wait)}, where it stands.` : "This card leaves reviews until it's brought back from its deck.";
+}
+
+/**
+ * The fixed steps, in the menu's order, with the mark the rarer ones carry, and the chip's own words for a step whose
+ * label carries its wait (Bury's chip is lit whatever the wait). The ask-agains (`AGAIN_OPTIONS`) and "go to a stage"
+ * are made per type.
+ */
+export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "retry" | "hidden" | HoldKind;
+export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step; icon?: IconName; chip?: string }[] = [
   { id: "up1", step: { kind: "move", by: 1 } },
   { id: "up2", step: { kind: "move", by: 2 } },
   { id: "stay", step: STAY },
   { id: "down1", step: { kind: "move", by: -1 } },
   { id: "down2", step: { kind: "move", by: -2 } },
-  { id: "burn", step: { kind: "burn" } },
+  { id: "burn", step: { kind: "burn" }, icon: "flame" },
   { id: "retry", step: { kind: "retry" } },
   // The answer isn't offered at that point of the chart (the owner, 2026-10-17: no Bury inside an ask-again).
-  { id: "hidden", step: { kind: "hidden" } },
+  { id: "hidden", step: { kind: "hidden" }, icon: "close" },
+  { id: "bury", step: { kind: "bury", wait: BURY_WAIT }, icon: HOLD_KINDS.bury.icon, chip: "Bury" },
+  { id: "suspend", step: { kind: "suspend" }, icon: HOLD_KINDS.suspend.icon },
 ];
+/** The mark a step carries on its box and its chip, when it has one. */
+export function stepIcon(step: Step | undefined): IconName | null {
+  const key = stepKey(step);
+  return STEP_OPTIONS.find((o) => o.id === key)?.icon ?? null;
+}
 /** The two ways to ask again before deciding: after a wait (a later review), or right away (the same review). */
 export const AGAIN_OPTIONS: readonly { id: "again" | "again-now"; label: string; now: boolean }[] = [
   { id: "again", label: "Ask again later", now: false },
@@ -73,6 +111,8 @@ export function stepLabel(type: Named, step: Step | undefined): string {
   if (step.kind === "burn") return type.burnedName;
   if (step.kind === "retry") return "Keep asking";
   if (step.kind === "hidden") return "Button hidden";
+  if (step.kind === "bury") return `Bury for ${lengthWords(step.wait)}`;
+  if (step.kind === "suspend") return "Suspend";
   if (step.kind === "again") return `Ask again ${step.now ? "right away" : waitWords(step.wait)}`;
   return `Go to ${stageName(type, type.stages.findIndex((s) => s.id === step.stage))}`;
 }
@@ -116,7 +156,11 @@ export function longSpan(minutes: number): string {
 /** A wait as when it is: "tomorrow", "in 4 hours", "in 2 weeks". */
 export function waitWords(wait: Wait): string {
   if (wait.n === 1 && wait.unit === "d") return "tomorrow";
-  return `in ${wait.n} ${wait.n === 1 ? WAIT_UNITS[wait.unit].one : WAIT_UNITS[wait.unit].many}`;
+  return `in ${lengthWords(wait)}`;
+}
+/** A wait as how long it lasts: "24 hours", "1 day", "2 weeks". */
+export function lengthWords(wait: Wait): string {
+  return `${wait.n} ${wait.n === 1 ? WAIT_UNITS[wait.unit].one : WAIT_UNITS[wait.unit].many}`;
 }
 /** When an ask-again really comes back, after "again": "tomorrow", "in 4 hours", or "right away" for one asked in the same review. */
 export function againWords(minutes: number): string {
@@ -137,8 +181,9 @@ export function minutesAsWait(minutes: number): Wait {
   if (minutes >= 60) return { n: Math.max(1, Math.round(minutes / 60)), unit: "h" };
   return { n: Math.max(1, Math.round(minutes)), unit: "min" };
 }
-/** When a card comes back, beside it in a list: "new", "due now", "in 3 h", "in 2 d", "in 3 w", or the end. */
-export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt">, now: number): string {
+/** When a card comes back, beside it in a list: "new", "due now", "in 3 h", "in 2 d", "in 3 w", the end, or put aside ("buried"). */
+export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt" | "hold">, now: number): string {
+  if (card.hold) return HOLD_KINDS[card.hold.kind].state;
   if (isBurned(type, card.place)) return type.burnedName.toLowerCase();
   if (isNew(card.place) || card.dueAt === null) return "new";
   const days = (card.dueAt - now) / 86_400_000;

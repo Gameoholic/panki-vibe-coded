@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type Outcome, type ReviewSessionEnd, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -7,7 +7,7 @@ import { Icon, type IconName } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
 import { shuffle } from "../shuffle";
-import { againWords, answerClass, backWords, placeName } from "../srsKinds";
+import { HOLD_KINDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
 import { count } from "../words";
 
@@ -81,14 +81,16 @@ function stepsLeft(srsType: SrsType, card: Card, best: string): number {
 /** How far on "a few cards later" is, for a card asked again in the same review. */
 const AGAIN_SOON = 3;
 
+/** A card never started that a review can start: new, but not inside an ask-again (it has been started, and comes back as due), and not put aside. */
+const isUnseen = (card: Card) => isNew(card.place) && card.place.node.length === 0 && card.hold === null;
+
 /** The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones where the deck's settings put them. */
 function buildQueue(cards: Card[], deck: Deck): string[] {
   const { newOrder, newPlace, reviewOrder } = deck.settings;
   const overdue = cards.filter((c) => c.due).sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
   // The order decides which cards make it under the day's limit, as well as when they show.
   const due = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, deck.dueCount).map((c) => c.id);
-  // A new card inside an ask-again has been started: it comes back as due, not as a new card.
-  const unseen = cards.filter((c) => isNew(c.place) && c.place.node.length === 0).sort((a, b) => a.createdAt - b.createdAt);
+  const unseen = cards.filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt);
   const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, deck.newCount).map((c) => c.id);
   if (newPlace === "first") return [...fresh, ...due];
   if (newPlace === "last") return [...due, ...fresh];
@@ -120,14 +122,34 @@ function advance(line: Line, cardId: string, comesBack: boolean, againPlace: Dec
   active.splice(spot, 0, cardId);
   return { active, waiting: line.waiting };
 }
+/**
+ * The next new card for today, when a new one put aside leaves its place (as the deck's own count gives it to the
+ * next): the first never started that isn't in the line already, in the deck's order; none when there's none left.
+ */
+function nextFresh(cards: Iterable<Card>, line: Line, leaving: string, deck: Deck): string | null {
+  const taken = new Set([...line.active, ...line.waiting, leaving]);
+  const left = [...cards].filter((c) => isUnseen(c) && !taken.has(c.id)).sort((a, b) => a.createdAt - b.createdAt);
+  return (deck.settings.newOrder === "shuffled" ? shuffle(left) : left)[0]?.id ?? null;
+}
+/** A card joining the line: in play at the end when there's room, else the last to wait its turn. */
+function joinLine(line: Line, cardId: string, pool: number | null): Line {
+  if (pool === null || line.active.length < pool) return { active: [...line.active, cardId], waiting: line.waiting };
+  return { active: line.active, waiting: [...line.waiting, cardId] };
+}
 
 /**
  * Where an answer sends the card, under its name: which way it goes (the owner, 2026-10-17, "so it's more clear
  * whether we're upgrading or downgrading"), by how many stages, and the words, "Apprentice 3 · 1 d", "again
- * tomorrow", "Burned".
+ * tomorrow", "Burned", or when a card put aside comes back, "back in 24 hours".
  */
-type Lead = { dir: "up" | "down" | "same" | "again" | "burn"; steps: number; words: string };
+type Lead = { dir: "up" | "down" | "same" | "again" | "burn" | HoldKind; steps: number; words: string };
+/** The rule an answer follows for a card where it stands. */
+function stepFor(srsType: SrsType, card: Card, answerId: string): Step | undefined {
+  return branchAt(flowOf(srsType, stageIndex(srsType, card.place)), card.place.node)[answerId];
+}
 function answerLead(srsType: SrsType, card: Card, answerId: string): Lead {
+  const step = stepFor(srsType, card, answerId);
+  if (isHold(step)) return { dir: step.kind, steps: 0, words: holdBack(step) };
   const r = resolve(srsType, card.place, answerId);
   if (r.burned || r.wait === null) return { dir: "burn", steps: 0, words: srsType.burnedName };
   if (r.again) return { dir: "again", steps: 0, words: `again ${againWords(r.wait)}` };
@@ -135,8 +157,14 @@ function answerLead(srsType: SrsType, card: Card, answerId: string): Lead {
   return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", steps: Math.abs(by), words: `${placeName(srsType, r.place)} · ${backWords(r.wait)}` };
 }
 
-/** The mark for each way a card can go: a chevron a stage up or down, one arrow going round when it's asked again, a check when it's burned, a dash when it stays. */
-const LEAD_ICON: Record<Lead["dir"], IconName> = { up: "up", down: "down", again: "again", burn: "check", same: "minus" };
+/** The question before an answer that asks first: where it sends the card, or what putting it aside does. */
+function askWords(srsType: SrsType, card: Card, answerId: string): string {
+  const step = stepFor(srsType, card, answerId);
+  return isHold(step) ? holdAsks(step) : `This card goes to ${answerLead(srsType, card, answerId).words}.`;
+}
+
+/** The mark for each way a card can go: a chevron a stage up or down, one arrow going round when it's asked again, a check when it's burned, a dash when it stays, and a card put aside its own. */
+const LEAD_ICON: Record<Lead["dir"], IconName> = { up: "up", down: "down", again: "again", burn: "check", same: "minus", bury: HOLD_KINDS.bury.icon, suspend: HOLD_KINDS.suspend.icon };
 /** Chevrons drawn one a stage up to this many; past it, the count is written after them. */
 const CHEVRONS_MAX = 2;
 
@@ -175,7 +203,7 @@ function chartOf(srsType: SrsType, card: Card, answerId: string | null): { scope
   const stage = srsType.stages[idx];
   const scope = stage && srsType.overrides[stage.id] ? stage.id : "all";
   const now = card.place.node.length > 0 ? card.place.node.join(",") : "root";
-  const step = answerId === null ? undefined : branchAt(flowOf(srsType, idx), card.place.node)[answerId];
+  const step = answerId === null ? undefined : stepFor(srsType, card, answerId);
   const next = answerId === null || step?.kind === "hidden" ? null : [...card.place.node, answerId].join(",");
   return { scope, now, next, stage: idx };
 }
@@ -317,8 +345,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       });
       setById((m) => new Map(m).set(saved.id, saved));
       setCounts((c) => ({ ...c, [answerId]: (c[answerId] ?? 0) + 1 }));
-      // Only a card asked again right away comes back in this review; one that reached an end of the chart is for a later one, whatever its wait.
-      setLine((l) => advance(l, card.id, comesBack(outcome), againPlaceOf(deck.settings)));
+      // Only a card asked again right away comes back in this review; one that reached an end of the chart is for a
+      // later one, whatever its wait, and so is one put aside. A new card put aside leaves its place to the next.
+      const handsOn = outcome.hold !== null && kindOf(card) === "new";
+      setLine((l) => {
+        const next = advance(l, card.id, comesBack(outcome), againPlaceOf(deck.settings));
+        const joining = handsOn ? nextFresh(byId.values(), next, card.id, deck) : null;
+        return joining ? joinLine(next, joining, deck.settings.pool) : next;
+      });
       setAnswered((n) => n + 1);
       setRevealed(false);
     } catch (e) {
@@ -363,15 +397,17 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
 
   if (!card) {
     const now = Date.now();
-    const waiting = [...byId.values()].filter((c) => !isNew(c.place) && !isBurned(srsType, c.place) && c.dueAt !== null);
+    // A suspended card comes back when it's brought back, which nothing foresees; a buried one once its bury is over at the soonest.
+    const waiting = [...byId.values()].filter((c) => !isNew(c.place) && !isBurned(srsType, c.place) && c.dueAt !== null && c.hold?.kind !== "suspend");
+    const daysOff = (c: Card) => (Math.max(c.dueAt ?? 0, c.hold?.until ?? 0) - now) / DAY_MS;
     const rows = COMING_UP.map((row, i) => {
       const from = i === 0 ? -Infinity : (COMING_UP[i - 1]?.days ?? 0);
-      return { ...row, n: waiting.filter((c) => (c.dueAt! - now) / DAY_MS > from && (c.dueAt! - now) / DAY_MS <= row.days).length };
+      return { ...row, n: waiting.filter((c) => daysOff(c) > from && daysOff(c) <= row.days).length };
     });
     const max = Math.max(1, ...rows.map((r) => r.n));
     const nothing = answered === 0;
     // Past today's count there may be cards never started: the day's limit is a pace, not a wall, so more can be started now.
-    const unseen = [...byId.values()].filter((c) => isNew(c.place) && c.place.node.length === 0).sort((a, b) => a.createdAt - b.createdAt);
+    const unseen = [...byId.values()].filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt);
     const more = Math.min(extra, unseen.length);
     const startMore = () => {
       const picked = (deck.settings.newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, more).map((c) => c.id);
@@ -462,7 +498,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       {revealed && asked ? (
         <div className="panel panel-alarm review-ask">
           <p id="review-question" className="question">
-            {asked.name}? This card goes to {answerLead(srsType, card, asked.id).words}.
+            {asked.name}? {askWords(srsType, card, asked.id)}
           </p>
           <div className="add-actions">
             <Button id="review-keep" disabled={busy} onClick={() => setAsking(null)}>

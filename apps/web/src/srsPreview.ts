@@ -14,11 +14,15 @@ export type JourneyStep =
   | { kind: "forever"; wait: number }
   | { kind: "more" };
 
-/** The answer wanted where the card stands, or, when the chart doesn't offer it there, the nearest main answer that is offered (the best one down). */
+/**
+ * The answer wanted where the card stands, or, when the chart doesn't offer it there or it only puts the card aside
+ * (Bury, Suspend: no judgement of the card to work out a journey from), the nearest main answer that moves it (the best one down).
+ */
 function offeredOrNear(type: SrsType, place: CardPlace, wanted: string): string {
-  if (offered(type, place, wanted)) return wanted;
+  const moves = (answerId: string) => offered(type, place, answerId) && resolve(type, place, answerId).hold === null;
+  if (moves(wanted)) return wanted;
   const main = mainAnswers(type.answers);
-  return [...main].reverse().find((a) => offered(type, place, a.id))?.id ?? wanted;
+  return [...main].reverse().find((a) => moves(a.id))?.id ?? wanted;
 }
 
 export function journey(type: SrsType): JourneyStep[] {

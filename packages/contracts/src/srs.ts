@@ -43,13 +43,16 @@ export function mainAnswers<A extends { aside?: boolean | undefined }>(answers: 
  * anywhere, not even deeper into the ask-again it's in: inside a right-away ask-again it keeps a card in the review
  * until another answer lets it out. `hidden` takes the answer away at that point: its button isn't offered at all
  * (the owner, 2026-10-17: no Bury inside an ask-again, "there's no reason to bury a card if I already failed it");
- * sent all the same, it does nothing (`STAY`).
+ * sent all the same, it does nothing (`STAY`). `bury` and `suspend` put the card aside where it stands (`HoldKind`):
+ * a bury for its `wait`, a suspend until it's brought back.
  */
 export type Step =
   | { kind: "move"; by: number }
   | { kind: "burn" }
   | { kind: "retry" }
   | { kind: "hidden" }
+  | { kind: "bury"; wait: Wait }
+  | { kind: "suspend" }
   | { kind: "to"; stage: string }
   | { kind: "again"; wait: Wait; then: Flow; capped?: boolean | undefined; now?: boolean | undefined };
 /** A rule for every answer, by answer id. An answer with no rule stays where it is. */
@@ -61,28 +64,44 @@ export const Step: z.ZodType<Step, Step> = z.lazy(() =>
     z.object({ kind: z.literal("burn") }),
     z.object({ kind: z.literal("retry") }),
     z.object({ kind: z.literal("hidden") }),
+    z.object({ kind: z.literal("bury"), wait: Wait }),
+    z.object({ kind: z.literal("suspend") }),
     z.object({ kind: z.literal("to"), stage: SrsStageId }),
     z.object({ kind: z.literal("again"), wait: Wait, then: Flow, capped: z.boolean().optional(), now: z.boolean().optional() }),
   ]),
 );
 export const Flow: z.ZodType<Flow, Flow> = z.lazy(() => z.record(SrsAnswerId, Step));
 export const STAY: Step = { kind: "move", by: 0 };
+/** How long a Bury puts a card aside until it's set otherwise: the owner's default, 2026-10-21. */
+export const BURY_WAIT: Wait = { n: 24, unit: "h" };
 /**
  * Stored rules as they read today. "Back to the start" was a step of its own until 2026-10-10; "go to a stage" does
- * the same job, so a stored one reads as going to the first stage. Run on what the database holds, before parsing.
+ * the same job, so a stored one reads as going to the first stage. A Bury had no wait for its first hours (it lasted
+ * until the day turned); one saved then reads as `BURY_WAIT`. Run on what the database holds, before parsing.
  */
 export function upgradeFlow(raw: unknown, firstStageId: string | undefined): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
   return Object.fromEntries(
     Object.entries(raw).map(([answerId, step]: [string, unknown]) => {
       if (typeof step !== "object" || step === null) return [answerId, step];
-      const s = step as { kind?: unknown; then?: unknown };
+      const s = step as { kind?: unknown; then?: unknown; wait?: unknown };
       if (s.kind === "start") return [answerId, firstStageId ? { kind: "to", stage: firstStageId } : STAY];
+      if (s.kind === "bury" && s.wait === undefined) return [answerId, { kind: "bury", wait: { ...BURY_WAIT } }];
       if (s.kind === "again") return [answerId, { ...s, then: upgradeFlow(s.then, firstStageId) }];
       return [answerId, step];
     }),
   );
 }
+
+/**
+ * Putting a card aside, Anki's two (the owner, 2026-10-21): buried, it's out of reviews for as long as the step says
+ * (24 hours to begin with; it was until the day turned for its first hours); suspended, until it's brought back from
+ * its deck's list (where a buried one can be brought back early too). Neither moves it: its place and its schedule stay as they were, so a
+ * card that fell due meanwhile is due the moment it's back. Neither is an answer the stats count, and a new card put
+ * aside doesn't use up the day's new cards.
+ */
+export const HoldKind = z.enum(["bury", "suspend"]);
+export type HoldKind = z.infer<typeof HoldKind>;
 
 /** What happens after the last stage: the card is burned (never comes back), keeps coming back at the last wait, or the wait keeps growing. */
 export const SrsAfter = z.enum(["burn", "repeat", "grow"]);
@@ -91,7 +110,7 @@ export type SrsAfter = z.infer<typeof SrsAfter>;
 export const STAGES_MAX = 30;
 export const DESCRIPTION_MAX = 300;
 export const ANSWERS_MIN = 2;
-export const ANSWERS_MAX = 4;
+export const ANSWERS_MAX = 6;
 export const GROW_MIN = 1.1;
 export const GROW_MAX = 5;
 
@@ -251,12 +270,14 @@ export function stepAt(flow: Flow, path: readonly string[]): Step | undefined {
 
 export type Outcome = {
   place: CardPlace;
-  /** Minutes until the card comes back; null when it never does. */
+  /** Minutes until the card comes back; null when it never does, or not until it's brought back (Suspend). */
   wait: number | null;
   again: boolean;
   burned: boolean;
+  /** The card put aside where it stands (Bury, Suspend), its place untouched; null for every answer that moves it. */
+  hold: HoldKind | null;
 };
-const BURNED: Outcome = { place: BURNED_PLACE, wait: null, again: false, burned: true };
+const BURNED: Outcome = { place: BURNED_PLACE, wait: null, again: false, burned: true, hold: null };
 
 /** Whether an answer is offered to a card where it stands: every answer is, but one whose rule there is `hidden`. */
 export function offered(type: Pick<SrsLadder, "stages" | "flow" | "overrides">, place: CardPlace, answerId: string): boolean {
@@ -268,9 +289,11 @@ export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flo
   const idx = stageIndex(type, place);
   const flow = flowOverride ?? flowOf(type, idx);
   const step = branchAt(flow, place.node)[answerId] ?? STAY;
-  if (step.kind === "again") return { place: { ...place, node: [...place.node, answerId] }, wait: againWait(type, idx, step), again: true, burned: false };
+  if (step.kind === "again") return { place: { ...place, node: [...place.node, answerId] }, wait: againWait(type, idx, step), again: true, burned: false, hold: null };
   if (step.kind === "burn") return BURNED;
-  if (step.kind === "retry") return { place, wait: 0, again: true, burned: false };
+  if (step.kind === "retry") return { place, wait: 0, again: true, burned: false, hold: null };
+  if (step.kind === "bury") return { place, wait: waitMinutes(step.wait), again: false, burned: false, hold: "bury" };
+  if (step.kind === "suspend") return { place, wait: null, again: false, burned: false, hold: "suspend" };
   // An answer not offered here can't be pressed; sent all the same, it does what an answer with no rule does.
   if (step.kind === "hidden") return resolve(type, place, "", flow);
   let next: number;
@@ -285,7 +308,7 @@ export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flo
     if (type.after === "burn") return BURNED;
     if (type.after === "repeat") next = len - 1;
   }
-  return { place: placeAt(type, next), wait: waitAt(type, next), again: false, burned: false };
+  return { place: placeAt(type, next), wait: waitAt(type, next), again: false, burned: false, hold: null };
 }
 
 /** How long a card waits from its last answer, in minutes, with the rules as they are now: the ask-again's wait when it's inside one, else its stage's. Null when nothing is due. */

@@ -362,11 +362,14 @@ body {
 }
 
 /* Decks */
+/* A row never widens the list past the page: what doesn't fit is cut or wraps inside the row (Wanikani+'s longer
+   description pushed the SRS types off the screen sideways, 2026-10-21). */
 .deck-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 .deck-item {
@@ -392,6 +395,10 @@ body {
 .srs-row.is-builtin .icon {
   width: 14px;
   height: 14px;
+}
+/* A type's description is a sentence: it wraps under the name rather than being cut off. */
+.srs-row .row-sub {
+  white-space: normal;
 }
 .deck-row {
   flex: 1;
@@ -2574,6 +2581,18 @@ mark.sub-mark {
 }
 .due.is-now {
   color: var(--accent);
+}
+/* A card put aside (buried, suspended): its state where the due time stands, and under it the chip that brings it back. */
+.btn-chip.card-lift {
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.card-lift-error {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  font-size: 13px;
 }
 
 /* The review session: the place on the card, the answers under it, and the end. */

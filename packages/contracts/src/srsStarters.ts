@@ -1,4 +1,4 @@
-import type { Flow, NewSrsType, SrsAfter, Step, WaitUnit } from "./srs";
+import { BURY_WAIT, type Flow, type NewSrsType, type SrsAfter, type Step, type WaitUnit } from "./srs";
 
 /**
  * The SRS types that come with the app. They are real types in the list, made by the API when it opens a database
@@ -18,8 +18,8 @@ type Starter = {
   after: SrsAfter;
   /** What the wait is multiplied by on each rung past the top, when the ladder keeps growing. */
   growBy?: number;
-  /** The answers in order; one marked "aside" is set apart on the review screen and asks before it's applied. */
-  answers: (string | [name: string, where: "aside"])[];
+  /** The answers in order; one marked "aside" is set apart on the review screen and asks before it's applied, unless `asks` says it doesn't. */
+  answers: (string | [name: string, where: "aside", asks?: boolean])[];
   /** The default rules, given the answers' ids and the stages' ids, each in order. */
   flow: (answerIds: string[], stageIds: string[]) => Flow;
   /** The stages with rules of their own, by stage id. */
@@ -38,19 +38,23 @@ const id = (ids: string[], i: number): string => ids[i] ?? "";
  * Wanikani+: the owner's own rules on WaniKani's ladder. Forgot keeps the card in the review, asked again and again
  * until it's got right; what happens then depends on the stage. On the early ones it drops a stage. From
  * `WK_CHANCE_FROM` on, where a stage is weeks of work, it gets one more chance first: asked again tomorrow (never
- * later than the stage), and only a second Forgot drops it, after it too has been asked until right. The two answers set apart work the same everywhere:
+ * later than the stage), and only a second Forgot drops it, after it too has been asked until right. The answers set apart work the same everywhere:
  * Relearn sends the card back to the first stage, Easy lifts it two (it was called Bury until 2026-10-17; the owner
- * kept the sound of it in mind for a button that hides a card, which this one never did).
+ * kept the sound of it in mind for a button that hides a card, which this one never did), and Bury and Suspend put
+ * the card aside where it stands (the owner, 2026-10-21), applied at once, as nothing they do is lost.
  */
 const WK_CHANCE_FROM = 5;
 function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
-  const [forgot, ok, relearn, easy] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3)];
-  const apart = (): Flow => ({ [relearn]: to(id(s, 0)), [easy]: move(2) });
-  /** Kept in the review until it's got right, and then `then`. Easy isn't offered there: a card just forgotten is no card to skip ahead (the owner, 2026-10-18). */
-  const untilRight = (then: Step): Step => now({ [forgot]: { kind: "retry" }, [ok]: then, ...apart(), [easy]: { kind: "hidden" } });
-  // On the second-chance day a Forgot is asked until right too, before the stage drops. Easy isn't offered that day
-  // either: the card was forgotten the day before (the owner, 2026-10-18).
-  const after: Step = chance ? again(1, "d", { [forgot]: untilRight(move(-1)), [ok]: move(0), ...apart(), [easy]: { kind: "hidden" } }) : move(-1);
+  const [forgot, ok, relearn, easy, bury, suspend] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
+  const apart = (): Flow => ({ [relearn]: to(id(s, 0)), [easy]: move(2), [bury]: { kind: "bury", wait: { ...BURY_WAIT } }, [suspend]: { kind: "suspend" } });
+  // Once a card is forgotten, neither Easy nor Bury is offered until it leaves the ask-again: a card just forgotten is no
+  // card to skip ahead (the owner, 2026-10-18), nor to bury ("there's no reason to bury a card if I already failed it",
+  // 2026-10-17). Suspend stays: a card failed again and again is the one to take out and fix.
+  const forgotten = (): Flow => ({ ...apart(), [easy]: { kind: "hidden" }, [bury]: { kind: "hidden" } });
+  /** Kept in the review until it's got right, and then `then`. */
+  const untilRight = (then: Step): Step => now({ [forgot]: { kind: "retry" }, [ok]: then, ...forgotten() });
+  // On the second-chance day a Forgot is asked until right too, before the stage drops; the card was forgotten the day before.
+  const after: Step = chance ? again(1, "d", { [forgot]: untilRight(move(-1)), [ok]: move(0), ...forgotten() }) : move(-1);
   return { [forgot]: untilRight(after), [ok]: move(1), ...apart() };
 }
 
@@ -78,10 +82,10 @@ const WK_NAMES = ["Lesson", "Apprentice 1", "Apprentice 2", "Apprentice 3", "App
 const STARTERS: Record<SrsStarterId, Starter> = {
   wanikaniPlus: {
     name: "Wanikani+",
-    description: "Wanikani with forgiveness: from Guru 1 up, a card you forgot is asked again in 1 day before it drops a stage. Adds Easy (skip two stages) and Relearn (back to the start).",
+    description: "Wanikani with forgiveness: from Guru 1 up, a card you forgot is asked again in 1 day before it drops a stage. Adds Easy (skip two stages), Relearn (back to the start), Bury (back in 24 hours) and Suspend (out until you bring it back).",
     stages: [[0, "min"], [4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
-    answers: ["Forgot", "Ok", ["Relearn", "aside"], ["Easy", "aside"]],
+    answers: ["Forgot", "Ok", ["Relearn", "aside"], ["Easy", "aside"], ["Bury", "aside", false], ["Suspend", "aside", false]],
     flow: (a, s) => wanikaniPlusFlow(a, s, false),
     overrides: (a, s) => Object.fromEntries(s.slice(WK_CHANCE_FROM).map((stageId) => [stageId, wanikaniPlusFlow(a, s, true)])),
   },
@@ -128,7 +132,7 @@ export function makeStarter(starter: SrsStarterId, mint: () => string, as?: { id
   const wk = starter === "anki" ? [] : WK_NAMES;
   const answers = s.answers.map((a, i) => {
     const id = as?.answerIds[i] ?? mint();
-    return typeof a === "string" ? { id, name: a } : { id, name: a[0], aside: true, confirm: true };
+    return typeof a === "string" ? { id, name: a } : { id, name: a[0], aside: true, confirm: a[2] ?? true };
   });
   const stages = s.stages.map(([n, unit, name], i) => ({ id: as?.stageIds[i] ?? mint(), name: name ?? wk[i] ?? "", wait: { n, unit } }));
   const answerIds = answers.map((a) => a.id);
@@ -176,6 +180,7 @@ export function copySrsType(base: Pick<NewSrsType, "name" | "description" | "sta
   const copyStep = (step: Step): Step => {
     if (step.kind === "to") return { kind: "to", stage: stageIds.get(step.stage) ?? step.stage };
     if (step.kind === "again") return { ...step, wait: { ...step.wait }, then: copyFlow(step.then) };
+    if (step.kind === "bury") return { kind: "bury", wait: { ...step.wait } };
     return { ...step };
   };
   const copyFlow = (flow: Flow): Flow => Object.fromEntries(Object.entries(flow).map(([answerId, step]) => [answerIds.get(answerId) ?? answerId, copyStep(step)]));

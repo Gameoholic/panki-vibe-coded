@@ -311,7 +311,7 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
                   disabled={!answer.aside && draft.answers.filter((a) => !a.aside).length <= ANSWERS_MIN}
                   onChange={(aside) => change(patchAnswer(draft, answer.id, { aside }))}
                 />
-                <Toggle id={`answer-confirm-${answer.id}`} says={{ on: "Asks first", off: "Applies at once" }} on={answer.confirm === true} onChange={(confirm) => change(patchAnswer(draft, answer.id, { confirm }))} />
+                <Toggle id={`answer-confirm-${answer.id}`} says={{ on: "Ask to confirm", off: "No confirmation" }} on={answer.confirm === true} onChange={(confirm) => change(patchAnswer(draft, answer.id, { confirm }))} />
               </div>
             </div>
           ))}

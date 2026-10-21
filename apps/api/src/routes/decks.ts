@@ -220,6 +220,24 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
     res.json({ card: outcome });
   });
 
+  // A card put aside (buried or suspended) brought back into reviews. The hold's row stays, with the time it was lifted;
+  // doing it again, or to a card that isn't put aside, changes nothing.
+  router.delete("/:deckId/cards/:cardId/hold", (req, res) => {
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const cardId = CardId.safeParse(req.params.cardId);
+    if (!cardId.success) {
+      res.status(400).json({ error: { message: "That card id isn't valid." } });
+      return;
+    }
+    const card = dbOf(res).liftHold(deckId, cardId.data, now());
+    if (!card) {
+      res.status(404).json({ error: { message: "That card isn't in this deck." } });
+      return;
+    }
+    res.json({ card });
+  });
+
   // A sitting with the deck. The browser mints the id, so a retried start returns the one already running.
   router.post("/:deckId/sessions", (req, res) => {
     const deckId = deckIdFrom(req, res);

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { WAIT_MAX, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
-import { AGAIN_OPTIONS, MOVE_OPTIONS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, placeName, spanWords, stageName, stageWaitWords, stepKey, stepLabel, tintStyle } from "../srsKinds";
-import { BURNED_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setAgainWait, setStep, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
+import { AGAIN_OPTIONS, MOVE_OPTIONS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
+import { BURNED_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { NumberField } from "./NumberField";
@@ -165,6 +165,7 @@ function outcomeOf(type: SrsType, flow: Flow, ex: number, box: Box) {
 function subWords(type: SrsType, flow: Flow, scope: Scope, ex: number, box: Box): string {
   if (box.kind === "root") return scope === "all" ? `shown for ${stageName(type, ex)}` : `waits ${spanWords(waitAt(type, ex) ?? 0)}`;
   const r = outcomeOf(type, flow, ex, box);
+  if (r.hold) return holdNote(r.hold, placeName(type, r.place));
   if (r.burned) return box.kind === "burn" ? "never comes back" : `→ ${type.burnedName} · never comes back`;
   if (r.again) return "";
   return `→ ${placeName(type, r.place)} · ${r.wait ? `back in ${spanWords(r.wait)}` : backWords(0)}`;
@@ -584,6 +585,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               );
             }
             const title = box.kind === "again" ? `Ask again ${againWords(outcomeOf(type, flow, ex, box).wait ?? 0)}` : stepLabel(type, box.step);
+            const icon = box.kind === "again" ? "review" : stepIcon(box.step);
             return (
               <Button
                 key={box.id}
@@ -596,7 +598,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                 onClick={() => select(box.id)}
               >
                 <span className="t">
-                  {box.kind === "burn" ? <Icon name="flame" /> : box.kind === "again" ? <Icon name="review" /> : null}
+                  {icon ? <Icon name={icon} /> : null}
                   {title}
                 </span>
                 {box.kind === "again" ? null : <span className="s">{subWords(type, flow, scope, ex, box)}</span>}
@@ -712,8 +714,8 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                 <>
                   <div className="menu-title">Ask again in</div>
                   <div className="menu-wait">
-                    <NumberField id="again-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" onChange={(n) => onChange(setAgainWait(type, scope, selPath, { n }), `again-${selected}`)} />
-                    <Segmented size="sm" idPrefix="again-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} onChange={(unit) => onChange(setAgainWait(type, scope, selPath, { unit }))} />
+                    <NumberField id="again-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" onChange={(n) => onChange(setStepWait(type, scope, selPath, { n }), `again-${selected}`)} />
+                    <Segmented size="sm" idPrefix="again-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} onChange={(unit) => onChange(setStepWait(type, scope, selPath, { unit }))} />
                   </div>
                   <Toggle id="again-capped" says={{ on: "Never later than the current stage", off: "Can be later than the current stage" }} on={current.capped === true} onChange={(capped) => onChange(setAgainCapped(type, scope, selPath, capped))} />
                 </>
@@ -733,12 +735,22 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             </>
           ) : (
             <>
+              {current?.kind === "bury" ? (
+                <>
+                  <div className="menu-title">Bury for</div>
+                  <div className="menu-wait">
+                    <NumberField id="bury-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" onChange={(n) => onChange(setStepWait(type, scope, selPath, { n }), `bury-${selected}`)} />
+                    <Segmented size="sm" idPrefix="bury-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} onChange={(unit) => onChange(setStepWait(type, scope, selPath, { unit }))} />
+                  </div>
+                  <div className="menu-sep" />
+                </>
+              ) : null}
               <Segmented<string> size="sm" idPrefix="step" label="Up or down the ladder" options={MOVE_OPTIONS} value={currentKey} onChange={pick} />
               <div className="chips menu-chips">
                 {STEP_OPTIONS.filter((o) => o.step.kind !== "move").map((o) => (
                   <Button key={o.id} variant="chip" aria-pressed={currentKey === o.id} data-opt={o.id} onClick={() => pick(o.id)}>
-                    {o.id === "burn" ? <Icon name="flame" /> : o.id === "hidden" ? <Icon name="close" /> : null}
-                    {stepLabel(type, o.step)}
+                    {o.icon ? <Icon name={o.icon} /> : null}
+                    {o.chip ?? stepLabel(type, o.step)}
                   </Button>
                 ))}
                 {AGAIN_OPTIONS.map((o) => (

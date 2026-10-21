@@ -22,6 +22,7 @@ function sameStep(a: Step, b: Step, answers: readonly SrsAnswer[]): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "move" && b.kind === "move") return a.by === b.by;
   if (a.kind === "to" && b.kind === "to") return a.stage === b.stage;
+  if (a.kind === "bury" && b.kind === "bury") return a.wait.n === b.wait.n && a.wait.unit === b.wait.unit;
   if (a.kind === "again" && b.kind === "again") {
     return a.wait.n === b.wait.n && a.wait.unit === b.wait.unit && Boolean(a.capped) === Boolean(b.capped) && Boolean(a.now) === Boolean(b.now) && sameFlow(a.then, b.then, answers);
   }
@@ -93,10 +94,11 @@ export function flattenAgain(type: SrsType, scope: Scope, path: readonly string[
     branch[last] = step.then[last] ?? { ...STAY };
   });
 }
-export function setAgainWait(type: SrsType, scope: Scope, path: readonly string[], patch: Partial<Wait>): SrsType {
+/** How long an ask-again waits, or how long a bury puts the card aside. */
+export function setStepWait(type: SrsType, scope: Scope, path: readonly string[], patch: Partial<Wait>): SrsType {
   return edit(type, (draft) => {
     const step = stepAt(ownFlow(draft, scope), path);
-    if (step && step.kind === "again") Object.assign(step.wait, patch);
+    if (step && (step.kind === "again" || step.kind === "bury")) Object.assign(step.wait, patch);
   });
 }
 /** Whether an ask-again is asked right away, in the same review, instead of after its wait. */

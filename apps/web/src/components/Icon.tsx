@@ -25,6 +25,8 @@ const ICONS = {
   trash: ["M4 7h16", "M9 7V4h6v3", "M6 7l1 13h10l1-13", "M10 11v6", "M14 11v6"],
   play: ["M8 5l11 7-11 7z"],
   pause: ["M8 5v14", "M16 5v14"],
+  /** A crescent: a card buried until tomorrow (`pause` is a suspended one too). */
+  moon: ["M20 13.5A8 8 0 1 1 10.5 4a7 7 0 0 0 9.5 9.5z"],
   sound: ["M4 9.5h3.5L12 6v12l-4.5-3.5H4z", "M15.5 9a4 4 0 0 1 0 6", "M18 6.5a7.5 7.5 0 0 1 0 11"],
   quiet: ["M4 9.5h3.5L12 6v12l-4.5-3.5H4z", "M15.5 9a4 4 0 0 1 0 6"],
   muted: ["M4 9.5h3.5L12 6v12l-4.5-3.5H4z", "M16 9.5l5 5", "M21 9.5l-5 5"],

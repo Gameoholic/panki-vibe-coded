@@ -531,6 +531,14 @@ export function App() {
     loadLists();
   }
 
+  async function liftHold(cardId: string) {
+    if (screen.kind !== "deck") return;
+    const saved = await api.liftHold(screen.deck.id, cardId);
+    setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
+    // A card back in reviews changes what a review would show.
+    loadLists();
+  }
+
   async function answerCard(deck: Deck, cardId: string, answer: CardAnswer) {
     const saved = await api.answerCard(deck.id, cardId, answer);
     setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
@@ -737,7 +745,7 @@ export function App() {
                     This deck's card type is missing.
                   </p>
                 ) : (
-                  <CardsView cards={cards} type={type} srsType={srsType ?? undefined} adding={adding} onAdd={addCard} onCancelAdd={() => setAdding(false)} onSave={saveCard} onRemove={removeCard} />
+                  <CardsView cards={cards} type={type} srsType={srsType ?? undefined} adding={adding} onAdd={addCard} onCancelAdd={() => setAdding(false)} onSave={saveCard} onRemove={removeCard} onLift={liftHold} />
                 )}
               </>
             ) : srsTypes === null || types === null ? (

@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { fileKindOf, kindClass } from "../fieldKinds";
-import { dueWords } from "../srsKinds";
+import { HOLD_KINDS, dueWords } from "../srsKinds";
 import { langOf } from "../words";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
@@ -26,6 +26,8 @@ type Props = {
   onEdit?: (card: Card) => void;
   /** When given, each row carries a delete button under the edit one, which asks in the row before the card goes. */
   onRemove?: (card: Card) => Promise<void>;
+  /** When given, a card put aside (buried or suspended) carries a button under its state that brings it back. */
+  onLift?: (card: Card) => Promise<void>;
   /** The card that's open, and what stands in its row's place while it is (the form that changes it). */
   editing?: { id: string; form: ReactNode } | null;
 };
@@ -60,9 +62,10 @@ function cell(card: Card, field: CardField, className: string) {
  * file where its field stands; at the top right the card's place and due time, then edit with delete under it, where
  * cards can be changed (the owner, 2026-10-18: deleting was only inside the opened card, "make deleting easier… the
  * delete button should be directly below the pencil"; and everything at the right sat halfway down the row). Delete
- * asks in the row itself before the card goes. A card that's open is its form, in the row's own place in the list.
+ * asks in the row itself before the card goes. A card that's open is its form, in the row's own place in the list. A
+ * card put aside says so where its due time would be, with Unbury or Unsuspend under it.
  */
-export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, editing = null }: Props) {
+export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, editing = null }: Props) {
   const titleId = useId();
   /** The card whose row is asking whether to delete it, how that's going, and why it didn't. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -83,6 +86,21 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
       setFailure(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBusy(false);
+    }
+  }
+  /** The card being brought back, and why the last one wasn't. */
+  const [lifting, setLifting] = useState<string | null>(null);
+  const [liftFailure, setLiftFailure] = useState<{ cardId: string; message: string } | null>(null);
+  async function lift(card: Card) {
+    if (!onLift) return;
+    setLifting(card.id);
+    setLiftFailure(null);
+    try {
+      await onLift(card);
+    } catch (e) {
+      setLiftFailure({ cardId: card.id, message: e instanceof Error ? e.message : "Something went wrong." });
+    } finally {
+      setLifting(null);
     }
   }
   const front = type.fields.filter((f) => f.side === "front");
@@ -112,6 +130,11 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                   <div className="card-state">
                     <PlacePill type={srsType} place={card.place} />
                     <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{dueWords(srsType, card, now)}</span>
+                    {card.hold && onLift ? (
+                      <Button variant="chip" className="card-lift" disabled={lifting === card.id} onClick={() => void lift(card)}>
+                        {HOLD_KINDS[card.hold.kind].lift}
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
                 {onEdit || onRemove ? (
@@ -127,6 +150,11 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                       </Button>
                     ) : null}
                   </div>
+                ) : null}
+                {liftFailure?.cardId === card.id ? (
+                  <p className="load-error card-lift-error" role="alert">
+                    {liftFailure.message}
+                  </p>
                 ) : null}
                 {asking === card.id ? (
                   <div className="card-ask">

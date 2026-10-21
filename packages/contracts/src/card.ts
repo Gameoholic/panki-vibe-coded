@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ClientName } from "./auth";
 import { DeckId } from "./deck";
 import { MediaCues, MediaKind } from "./media";
-import { CardPlace } from "./srs";
+import { CardPlace, HoldKind } from "./srs";
 import { Stretch } from "./transcription";
 import { CardFieldId, VALUE_MAX } from "./type";
 
@@ -38,6 +38,10 @@ export const NewCard = z.object({
   source: CardSource.optional(),
 });
 
+/** A card put aside (`HoldKind`), while that lasts: buried or suspended, and when a bury ends (null for a suspend, which lasts until it's brought back). */
+export const CardHold = z.object({ kind: HoldKind, until: z.number().int().nonnegative().nullable() });
+export type CardHold = z.infer<typeof CardHold>;
+
 export const Card = NewCard.omit({ source: true }).extend({
   deckId: DeckId,
   /**
@@ -55,10 +59,15 @@ export const Card = NewCard.omit({ source: true }).extend({
   seen: z.number().int().nonnegative(),
   /** When it was last answered, ms since epoch; null before the first. */
   lastAt: z.number().int().nonnegative().nullable(),
-  /** When it comes back: the last answer plus the wait its place has now; null when new or burned. */
+  /** When it comes back: the last answer plus the wait its place has now; null when new or burned. Putting it aside doesn't change it. */
   dueAt: z.number().int().nonnegative().nullable(),
-  /** Whether a review now would show it: its wait is up by the API's clock. */
+  /** Whether a review now would show it: its wait is up by the API's clock, and it isn't put aside. */
   due: z.boolean(),
+  /**
+   * Derived on every read: put aside, while that lasts (buried for its step's wait, suspended until it's brought back);
+   * null when it's in play. A Panki from before holds sends none, and the extension, loaded by hand, may be talking to one.
+   */
+  hold: CardHold.nullable().default(null),
 });
 
 /**

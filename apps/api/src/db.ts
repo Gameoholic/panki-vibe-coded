@@ -35,6 +35,7 @@ import {
   upgradeFlow,
   youtubeLinkOf,
   type CardAnswer,
+  type CardHold,
   type CardTypeUpdate,
   type CardUpdate,
   type DeckUpdate,
@@ -523,6 +524,33 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // changes are kept in `card_type_changes`, the whole type before and after.
     db.exec("ALTER TABLE card_types ADD COLUMN stage_tag TEXT");
   },
+  (db) => {
+    // A card put aside by an answer that buries or suspends it (2026-10-21), kept apart from card_places so its place
+    // and its schedule stay as they were: a bury lasts until the day turns, a suspend until it's brought back from the
+    // deck's list, which sets `lifted_at` (a bury brought back early has one too). The answer's sitting and the spans
+    // the browser measured are kept as an answer's are; the row is never deleted.
+    db.exec(`
+      CREATE TABLE card_holds (
+        id INTEGER PRIMARY KEY,
+        card_id TEXT NOT NULL REFERENCES cards(id),
+        kind TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        answer_id TEXT REFERENCES srs_answers(id),
+        session_id TEXT REFERENCES review_sessions(id),
+        think_ms INTEGER,
+        decide_ms INTEGER,
+        lifted_at INTEGER
+      )
+    `);
+    db.exec("CREATE INDEX card_holds_card_id ON card_holds (card_id)");
+  },
+  (db) => {
+    // A bury lasts as long as its step's wait (2026-10-21, the owner: "time based… default is 24 hours"), no longer
+    // until the day turns. When it ends is frozen on its row as it's made, so a wait changed later moves no bury already
+    // made; a suspend has none. The buries from the hours before read as ending 24 hours after they were made.
+    db.exec("ALTER TABLE card_holds ADD COLUMN until INTEGER");
+    db.exec("UPDATE card_holds SET until = at + 86400000 WHERE kind = 'bury'");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -549,7 +577,8 @@ type IdRow = { id: string; removedAt: number | null };
 type SettingRow = { key: string; value: string };
 /** A card's last card_places row, joined on; every column null when it has none (a new card). */
 type PlaceRow = { placeId: number | null; stageId: string | null; past: number | null; node: string | null; burned: number | null };
-type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null };
+/** `suspendedAt` is when its latest suspend not lifted was made, `buriedUntil` when the last of its buries not lifted ends; null when there's none. */
+type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null; suspendedAt: number | null; buriedUntil: number | null };
 /** What a read at one moment needs of the clock: the settings as they are, and how much of today's allowance is used. */
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
@@ -720,12 +749,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertDeckSrsChange = db.prepare("INSERT INTO deck_srs_changes (deck_id, from_type_id, to_type_id, at) VALUES (?, ?, ?, ?)");
   const removeDeck = db.prepare("UPDATE decks SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
 
-  // Each card with its last place (none means new), how often it was answered and when last; the values come separately.
+  // Each card with its last place (none means new), how often it was answered and when last, and when it was last put
+  // aside and not brought back since (`holdOf` says whether that still stands); the values come separately.
   const cardColumns = `
     c.id, c.deck_id AS deckId, c.created_at AS createdAt,
     p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned,
     (SELECT COUNT(*) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer') AS seen,
-    (SELECT MAX(a.at) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer') AS lastAt`;
+    (SELECT MAX(a.at) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer') AS lastAt,
+    (SELECT MAX(h.at) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL) AS suspendedAt,
+    (SELECT MAX(h.until) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'bury' AND h.lifted_at IS NULL) AS buriedUntil`;
   const cardsWithPlace = `FROM cards c LEFT JOIN card_places p ON p.card_id = c.id AND p.id = ${lastPlaceOf("c.id")}`;
   // A deleted card is out of everything from the moment it leaves: the lists, the counts, a review, the ladder, and
   // whatever is later done to its deck's cards (a switch of SRS type, a stage taken away). Only an insert's read-back
@@ -754,6 +786,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertPlace = db.prepare(`
     INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  // Only what still stands is lifted: a bury whose wait is over had already ended by itself.
+  const liftHolds = db.prepare("UPDATE card_holds SET lifted_at = ? WHERE card_id = ? AND lifted_at IS NULL AND (kind = 'suspend' OR until > ?)");
 
   const reviewSessionColumns = "s.id, s.deck_id AS deckId, s.kind, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow";
   const insertReviewSession = db.prepare("INSERT OR IGNORE INTO review_sessions (id, deck_id, kind, started_at, device, user_agent) VALUES (?, ?, ?, ?, ?, ?)");
@@ -924,11 +959,21 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   function reviewSessionFrom(row: ReviewSessionRow): ReviewSession {
     return ReviewSession.parse(row);
   }
-  /** When a card comes back and whether a review now would show it, from its place under the ladder as it is now. The seed is its last row, so the fuzz holds still between reads. */
-  function scheduleOf(type: SrsLadder, row: CardRow, place: CardPlace, today: Today): { dueAt: number | null; due: boolean } {
+  /** Whether a card is put aside now: suspended until it's brought back, buried until its bury's wait is over. */
+  function holdOf(row: CardRow, today: Today): CardHold | null {
+    if (row.suspendedAt !== null) return { kind: "suspend", until: null };
+    if (row.buriedUntil !== null && row.buriedUntil > today.now) return { kind: "bury", until: row.buriedUntil };
+    return null;
+  }
+  /**
+   * When a card comes back and whether a review now would show it, from its place under the ladder as it is now. The
+   * seed is its last row, so the fuzz holds still between reads. A card put aside is never due; its due time stands.
+   */
+  function scheduleOf(type: SrsLadder, row: CardRow, place: CardPlace, today: Today): { dueAt: number | null; due: boolean; hold: CardHold | null } {
     const at = row.lastAt === null || row.placeId === null ? null : dueAt(type, place, row.lastAt, row.placeId, today.settings.fuzz);
-    const due = at !== null && !isBurned(type, place) && at <= today.now;
-    return { dueAt: at, due };
+    const hold = holdOf(row, today);
+    const due = at !== null && !isBurned(type, place) && at <= today.now && hold === null;
+    return { dueAt: at, due, hold };
   }
   function cardsFrom(rows: CardRow[], valueRows: ValueRow[], type: SrsType, today: Today): Card[] {
     const byCard = new Map<string, { values: Record<string, string>; files: Record<string, string>; cues: Record<string, MediaCues> }>();
@@ -957,9 +1002,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     let due = 0;
     for (const card of selectCards.all(base.id) as CardRow[]) {
       const place = placeFrom(card);
-      // A new card inside an ask-again has been started: it's due when its wait is up, not a new card to start.
-      if (isNew(place) && place.node.length === 0) fresh += 1;
-      if (scheduleOf(type, card, place, today).due) due += 1;
+      const schedule = scheduleOf(type, card, place, today);
+      // A new card inside an ask-again has been started: it's due when its wait is up, not a new card to start. One put
+      // aside isn't one to start either, and leaves its place in the day's new cards to the next.
+      if (isNew(place) && place.node.length === 0 && schedule.hold === null) fresh += 1;
+      if (schedule.due) due += 1;
     }
     const started = (countStartedSince.get(today.dayStart, base.id) as { n: number }).n;
     const newCount = Math.min(fresh, Math.max(0, own.newPerDay - started));
@@ -1265,7 +1312,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /**
      * Records what the answer does to the card's place (the contracts' `resolve`, with the deck's type as it is now) and
      * returns the card fresh. The sitting it happened in, the spans the browser measured and whether it was a miss are
-     * frozen on the row; a sitting that isn't this deck's is refused.
+     * frozen on the row; a sitting that isn't this deck's is refused. An answer that puts the card aside (Bury, Suspend)
+     * is kept as a hold instead, with its sitting and spans: the card's place and schedule stay as they were.
      */
     answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" {
       return transaction(() => {
@@ -1276,11 +1324,30 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (answer.sessionId !== undefined && !selectReviewSession.get(answer.sessionId, deckId)) return "no-session";
         const place = placeFrom(row);
         const extras: AnswerExtras = { sessionId: answer.sessionId ?? null, thinkMs: answer.thinkMs ?? null, decideMs: answer.decideMs ?? null, miss: missOf(type, answer.answerId) };
-        recordPlace(cardId, now, "answer", answer.answerId, place, resolve(type, place, answer.answerId).place, extras);
+        const outcome = resolve(type, place, answer.answerId);
+        if (outcome.hold) {
+          const until = outcome.wait === null ? null : now + outcome.wait * 60_000;
+          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.thinkMs, extras.decideMs);
+        }
+        else recordPlace(cardId, now, "answer", answer.answerId, place, outcome.place, extras);
         const after = selectDeckCard.get(deckId, cardId) as CardRow;
         const [card] = cardsFrom([after], selectCardValues.all(cardId) as ValueRow[], type, todayAt(now));
         if (!card) throw new Error("The card vanished after its answer.");
         return card;
+      });
+    },
+    /**
+     * Brings a card put aside back into reviews: each hold on it that still stands is lifted, with the time. Its place
+     * and schedule were never touched, so it's due again at once if it fell due meanwhile. Bringing back a card that
+     * isn't put aside changes nothing. Null when the card isn't in that deck.
+     */
+    liftHold(deckId: string, cardId: string, now: number): Card | null {
+      return transaction(() => {
+        if (!selectDeckCard.get(deckId, cardId)) return null;
+        const today = todayAt(now);
+        liftHolds.run(now, cardId, now);
+        const row = selectDeckCard.get(deckId, cardId) as CardRow;
+        return cardsFrom([row], selectCardValues.all(cardId) as ValueRow[], srsTypeOfDeck(deckId), today)[0] ?? null;
       });
     },
     /** Idempotent: the same id again returns the sitting that already exists, as it is. Null when that id is a sitting of another deck. */
@@ -1443,10 +1510,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           if (isNew(place)) ladder.fresh += 1;
           else if (isBurned(ladder.type, place)) ladder.burned += 1;
           else if (place.stageId !== null && ladder.stages.has(place.stageId)) ladder.stages.set(place.stageId, (ladder.stages.get(place.stageId) ?? 0) + 1);
-          const { dueAt: due } = scheduleOf(ladder.type, card, place, today);
-          if (due !== null && !isNew(place)) {
+          const { dueAt: due, hold } = scheduleOf(ladder.type, card, place, today);
+          // A suspended card comes back when it's brought back, which nothing foresees; a buried one once its bury is over at the soonest.
+          if (due !== null && !isNew(place) && hold?.kind !== "suspend") {
             // Overdue counts as today: it's what a review now would show.
-            const k = Math.max(0, daysBetween(todayKey, day(due)));
+            const k = Math.max(0, daysBetween(todayKey, day(Math.max(due, hold?.until ?? 0))));
             if (k < coming.length) coming[k] = (coming[k] ?? 0) + 1;
           }
           const weeksBack = Math.max(0, Math.ceil(-daysBetween(weekStart, day(card.createdAt)) / 7));

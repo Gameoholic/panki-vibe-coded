@@ -186,6 +186,9 @@ export const api = {
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}`, send("PATCH", update), (b) => CardResponse.parse(b).card),
   /** Hides the card from its deck; nothing is destroyed. */
   removeCard: (deckId: string, cardId: string): Promise<void> => request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}`, send("DELETE"), () => undefined),
+  /** Brings a card put aside (buried or suspended) back into reviews; its schedule stands as it was. */
+  liftHold: (deckId: string, cardId: string): Promise<Card> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/hold`, send("DELETE"), (b) => CardResponse.parse(b).card),
   /**
    * Gives Panki a file (a sound, a clip, a picture) under an id minted here, so sending it again is harmless. `mime` is
    * what the contracts' `mediaMimeFor` makes of the file; the API checks it against the file's own first bytes.
