@@ -5,7 +5,7 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { agoWords, clock, count, durationWords, langOf } from "@web/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
-import { switchInPill, type Modules } from "../modules";
+import { SHELF_MAX, switchInPill, type Modules } from "../modules";
 import { PankiPill, pillNumbersOf } from "../ui/PankiPill";
 import { mount } from "../ui/mount";
 import { tokensOn } from "../ui/styles";
@@ -456,7 +456,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             {on.homeLine ? <Today home={now.home} /> : null}
             {/* Continue watching and Saved for later side by side, half the row each (the owner, 2026-10-21: "it can appear in the same row… 50% 50%"); one alone takes the row. */}
             <div className="yh-shelves">
-              {on.homeShelf && now.home.stats.watching.on ? <Shelf videos={now.home.stats.watching.continuing} max={on.shelfMax} onStale={() => void load()} /> : null}
+              {on.homeShelf && now.home.stats.watching.on ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
               {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
             </div>
           </>

@@ -15,7 +15,6 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
 import { PankiError, panki, type Door } from "../panki";
-import { SHELF_SIZES, ShelfMax } from "../modules";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
@@ -354,7 +353,6 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
  * shelf alone: "make it customizable in settings"): the master switch first, then each its own under it, greyed while
  * the master is off. The header bar's pill is laid out under its switch (`PillParts`).
  */
-const SHELF_OPTIONS = SHELF_SIZES.map((n) => ({ id: String(n), label: String(n) }));
 function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const off = !store.moduleHome;
   const row = (id: string, label: string, on: boolean, says: { on: string; off: string }, write: (on: boolean) => Partial<Stored>) => (
@@ -370,20 +368,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
       {row("home-line", "Today line", store.homeLine, { on: "Shown", off: "Hidden" }, (homeLine) => ({ homeLine }))}
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
-      <Setting
-        id="shelf-max"
-        label="Videos shown in Continue watching"
-        control={
-          <Segmented
-            idPrefix="shelf-max"
-            label="Videos shown in Continue watching"
-            options={SHELF_OPTIONS}
-            value={String(store.shelfMax)}
-            disabled={off || !store.homeShelf}
-            onChange={(id) => void writeStore({ shelfMax: ShelfMax.parse(Number(id)) }).then(onChanged)}
-          />
-        }
-      />
+      {/* How many it shows was a choice here until the owner made it always 5, 2026-10-22 (`modules.ts` → `SHELF_MAX`). */}
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
       {/* Named for what they show (the owner, 2026-10-22: "Thumbnail marks: no clue what that is"; "Save button on thumbnails: what are we saving?"). */}
       {row("module-thumbs", "Progress, cards and subtitles on thumbnails", store.moduleThumbs, { on: "Shown", off: "Hidden" }, (moduleThumbs) => ({ moduleThumbs }))}

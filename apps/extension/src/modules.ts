@@ -66,13 +66,10 @@ export function pillLayoutOf(kept: PillLayout): PillLayout {
 export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: true }]);
 
 /**
- * How many videos the Continue watching shelf carries, up to all Panki keeps (`WATCH.continueMax`): 5, 10 or 15, 5 to
- * begin with (the owner, 2026-10-22; it was 4, 8 or 12, which a browser that kept one reads as the next size up).
+ * How many videos the Continue watching shelf on YouTube's home carries: always 5 (the owner, 2026-10-22; it was a
+ * choice, 4 / 8 / 12 and then 5 / 10 / 15, until the same day). A browser that kept `shelfMax` keeps it unread.
  */
-const SHELF_WAS: Record<number, number> = { 4: 5, 8: 10, 12: 15 };
-export const ShelfMax = z.preprocess((n) => (typeof n === "number" ? (SHELF_WAS[n] ?? n) : n), z.union([z.literal(5), z.literal(10), z.literal(15)]));
-export type ShelfMax = z.infer<typeof ShelfMax>;
-export const SHELF_SIZES: readonly ShelfMax[] = [5, 10, 15];
+export const SHELF_MAX = 5;
 
 export const Modules = z.object({
   /**
@@ -108,7 +105,6 @@ export const Modules = z.object({
   homeLine: z.boolean(),
   /** The Continue watching shelf: the one left last big, the rest as the site's own kind of card under it. */
   homeShelf: z.boolean(),
-  shelfMax: ShelfMax,
   /** The Saved for later shelf under it: the videos saved with a thumbnail's save button. */
   homeSaved: z.boolean(),
   /** The save button on every thumbnail (on hover with a mouse; always without one). */
@@ -134,7 +130,6 @@ export const DEFAULT_MODULES: Modules = {
   pill: DEFAULT_PILL,
   homeLine: true,
   homeShelf: true,
-  shelfMax: 5,
   homeSaved: true,
   thumbSave: true,
   shorts: true,

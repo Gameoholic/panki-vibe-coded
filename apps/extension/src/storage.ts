@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab } from "./messages";
-import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, ShelfMax, pillLayoutOf, type Modules } from "./modules";
+import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, pillLayoutOf, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, SeekLook } from "./seekLook";
@@ -118,7 +118,6 @@ const Stored = z.object({
   // `pillPower` went on 2026-10-22 (the switch is the pill's whenever the pill is on); a browser that kept it keeps it unread.
   homeLine: z.boolean().catch(DEFAULT_MODULES.homeLine),
   homeShelf: z.boolean().catch(DEFAULT_MODULES.homeShelf),
-  shelfMax: ShelfMax.catch(DEFAULT_MODULES.shelfMax),
   homeSaved: z.boolean().catch(DEFAULT_MODULES.homeSaved),
   thumbSave: z.boolean().catch(DEFAULT_MODULES.thumbSave),
   moduleShorts: z.boolean().catch(DEFAULT_MODULES.shorts),
@@ -157,7 +156,6 @@ export const modulesOf = (store: Stored): Modules => ({
   pill: store.pill,
   homeLine: store.homeLine,
   homeShelf: store.homeShelf,
-  shelfMax: store.shelfMax,
   homeSaved: store.homeSaved,
   thumbSave: store.thumbSave,
   shorts: store.moduleShorts,
