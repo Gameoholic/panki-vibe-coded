@@ -32,9 +32,26 @@ export function youtubeLinkOf(text: string): YouTubeLink | null {
   return { videoId, seconds: said ? Number(at[1] ?? 0) * 3600 + Number(at[2] ?? 0) * 60 + Number(at[3] ?? 0) : null };
 }
 
+/**
+ * Panki's own mark on an address it writes with a moment (`panki=at`): the moment is wanted (a card's clip, a video
+ * continued from the home), unlike the `t=` the site's own pages put on a half-watched video, which is only the site's
+ * place in it. The extension reads it as it decides where a video watched before opens (`momentWanted`).
+ */
+const MOMENT_MARK = ["panki", "at"] as const;
+
 /** The address that opens a video, at its moment when it has one. */
 export function youtubeUrl(link: YouTubeLink): string {
-  return `https://www.youtube.com/watch?v=${encodeURIComponent(link.videoId)}${link.seconds === null ? "" : `&t=${Math.max(0, Math.floor(link.seconds))}s`}`;
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(link.videoId)}${link.seconds === null ? "" : `&t=${Math.max(0, Math.floor(link.seconds))}s&${MOMENT_MARK[0]}=${MOMENT_MARK[1]}`}`;
+}
+
+/** Whether an address opens a video at a moment Panki itself asked for, as `youtubeUrl` writes one. */
+export function momentWanted(address: string): boolean {
+  try {
+    const url = new URL(address);
+    return url.searchParams.has("t") && url.searchParams.get(MOMENT_MARK[0]) === MOMENT_MARK[1];
+  } catch {
+    return false;
+  }
 }
 
 /**

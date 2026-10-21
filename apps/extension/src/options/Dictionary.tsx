@@ -192,7 +192,7 @@ function WhatsIn({ dictionary, about, uncountable }: { dictionary: DictionaryRec
 }
 
 /**
- * The dictionaries in this browser: import one (a zip in Yomitan's format), switch one off, put them in order (the
+ * The dictionaries in this browser: import one (a zip in the term-bank format), switch one off, put them in order (the
  * first is shown first wherever a word is looked up), remove one after asking. They live in this browser only.
  * `onChanged` hears of each change, for what else on the page is drawn from them (the popup's layout). Signed in
  * (`door`), the dictionaries kept on Panki that aren't here yet are listed too, each added with a press: fetched from
@@ -561,6 +561,8 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
       <h2 id="looking-title" className="panel-title">
         Looking up words
       </h2>
+      {/* The whole of it on or off, on every site: the row that heads the panel since the Modules tab went (the owner, 2026-10-21). */}
+      <Setting id="module-lookup" label="Word lookup" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
       <Setting
         id="look-where"
         label="Where"

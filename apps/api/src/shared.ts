@@ -624,6 +624,9 @@ export function openShared(dataDir: string) {
   const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const sumPieces = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces");
   const selectPicture = db.prepare("SELECT mime, bytes FROM video_pictures WHERE video_id = ? AND picture = ?");
+  const selectHasWords = db.prepare(`
+    SELECT 1 FROM transcript_words w JOIN transcript_pieces p ON p.id = w.piece_id
+    WHERE w.video_id = ? AND w.removed_at IS NULL AND p.removed_at IS NULL AND p.kept = 1 LIMIT 1`);
   const insertPicture = db.prepare("INSERT OR IGNORE INTO video_pictures (video_id, picture, mime, bytes, source, user_id, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const selectForvoRecording = db.prepare("SELECT word, by, country, mime, bytes FROM forvo_recordings WHERE forvo_id = ?");
   const hasForvoRecording = db.prepare("SELECT 1 FROM forvo_recordings WHERE forvo_id = ?");
@@ -685,6 +688,11 @@ export function openShared(dataDir: string) {
     /** How many requests went to a service since a moment. */
     callsSince(service: Service, since: number): number {
       return (countCalls.get(service, since) as { n: number }).n;
+    },
+
+    /** Which of these videos Panki has subtitles for: a word heard in it that still stands, from a piece kept and standing. */
+    transcribedOf(videoIds: readonly string[]): Set<string> {
+      return new Set(videoIds.filter((videoId) => selectHasWords.get(videoId) !== undefined));
     },
 
     /** One of a video's pictures as it was kept; null when it hasn't been yet. */

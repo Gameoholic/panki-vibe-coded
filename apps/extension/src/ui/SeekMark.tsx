@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type PointerEvent, type SyntheticEvent } from "react";
 import type { Stretch, VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
+import { Icon } from "@web/components/Icon";
 import { clock } from "@web/words";
 import { stamp } from "../capture/words";
 import { seekVars, type SeekLook } from "../seekLook";
@@ -39,6 +40,10 @@ type Props = {
    * the pointer's moves over the words are kept from the bar, so the player doesn't preview where the pointer is.
    */
   onPeek?: (card: VideoCard) => void;
+  /** Where the video was stopped the last time it was watched, in seconds: a white tag over the bar saying when (the owner, 2026-10-21: "not color but something more distinct and visible"); null for none. */
+  stop?: number | null;
+  /** The tag pressed: the video goes there. */
+  onStop?: () => void;
 };
 
 const ENDS: Record<ClipEnd, string> = { start: "Where the clip starts", end: "Where the clip ends" };
@@ -107,7 +112,7 @@ function layPins(cards: readonly VideoCard[], length: number, width: number): Pi
  * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever. (Panki's own
  * bar in the player's place, with these marks laid on it, lived a day before the owner had it taken out, 2026-10-19.)
  */
-export function SeekMark({ length, covered, working, cards, clip, look, hover, onGo, onReach, onPeek }: Props) {
+export function SeekMark({ length, covered, working, cards, clip, look, hover, onGo, onReach, onPeek, stop = null, onStop }: Props) {
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   const [width, setWidth] = useState(0);
@@ -219,6 +224,16 @@ export function SeekMark({ length, covered, working, cards, clip, look, hover, o
             );
           })}
         </div>
+      ) : null}
+      {/* Where it was stopped: a white tick across the bar and a tag over it with the time, under the cards' words when they rise. */}
+      {stop !== null && stop > 0 && stop < length ? (
+        <>
+          <span className="seek-stop-tick" style={{ left: `${share(stop)}%` }} aria-hidden="true" />
+          <Button className="seek-stop" style={{ left: `${share(stop)}%` }} aria-label={`Go to where you stopped, ${clock(stop)}`} onClick={() => onStop?.()}>
+            <Icon name="clock" />
+            {clock(stop)}
+          </Button>
+        </>
       ) : null}
       {clip && look.clip.shown ? (
         <div className="seek-clip" style={across(clip.start, clip.end)}>

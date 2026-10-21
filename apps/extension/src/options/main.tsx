@@ -15,6 +15,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
 import { PankiError, panki } from "../panki";
+import { SHELF_SIZES, ShelfMax } from "../modules";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
@@ -22,6 +23,7 @@ import type { TranscribePaused } from "../transcribe/prefs";
 import { deviceTheme } from "../ui/mount";
 import { Dictionaries, Looking } from "./Dictionary";
 import { PopupLayoutPanel } from "./PopupLayout";
+import { PillParts } from "./PillPanel";
 import { SeekBarPanel } from "./SeekBar";
 
 /**
@@ -239,21 +241,26 @@ const PAUSED_OPTIONS = [
   { id: "keep", label: "Keeps its lead" },
   { id: "stop", label: "Stops at once" },
 ] as const satisfies readonly { id: TranscribePaused; label: string }[];
+// The Panki panel's switch heads it since the Modules tab went (the owner, 2026-10-21: "most of this can just live under the YouTube settings"); off, nothing is transcribed, so the rest is greyed.
 function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  const off = !store.modulePanel;
   return (
     <section className="panel" aria-labelledby="transcribing-title">
       <h2 id="transcribing-title" className="panel-title">
-        Transcribing
+        Video page
       </h2>
+      <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
       <Setting
         id="transcribe-paused"
         label="While paused"
-        control={<Segmented idPrefix="transcribe-paused" label="While paused" options={PAUSED_OPTIONS} value={store.transcribePaused} onChange={(transcribePaused) => void writeStore({ transcribePaused }).then(onChanged)} />}
+        control={
+          <Segmented idPrefix="transcribe-paused" label="While paused" options={PAUSED_OPTIONS} value={store.transcribePaused} disabled={off} onChange={(transcribePaused) => void writeStore({ transcribePaused }).then(onChanged)} />
+        }
       />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles with Panki's"
-        control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
+        control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
       />
     </section>
   );
@@ -285,12 +292,84 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
 
 // Clips had a panel here, Clip handles (snap to words or move freely), until the owner had it taken out, 2026-10-19.
 
+// Each of Panki's parts had a Modules tab of its own, first in the row (the owner, 2026-10-21: "the entire Panki panel
+// toggleable… the seek bar marks, ON by default"), until the same day they had it folded into the tabs of what each is
+// about ("most of this can just live under the YouTube settings"): the panel heads Video page, the marks head Seek bar,
+// the home heads YouTube home, Word lookup heads Looking up words on the Dictionary tab. Video tracking is the
+// account's, in Panki's Settings, beside what it keeps.
+
+/**
+ * YouTube's home, part by part (the owner, 2026-10-21, picking Shelves of seven mock-ups with the Continue watching
+ * shelf alone: "make it customizable in settings"): the master switch first, then each its own under it, greyed while
+ * the master is off. The header bar's pill is laid out under its switch (`PillParts`).
+ */
+const SHELF_OPTIONS = SHELF_SIZES.map((n) => ({ id: String(n), label: String(n) }));
+function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  const off = !store.moduleHome;
+  const row = (id: string, label: string, on: boolean, says: { on: string; off: string }, write: (on: boolean) => Partial<Stored>) => (
+    <Setting id={id} label={label} control={<Toggle id={`${id}-on`} says={says} on={on} disabled={off} onChange={(next) => void writeStore(write(next)).then(onChanged)} />} />
+  );
+  return (
+    <section className="panel" aria-labelledby="home-title">
+      <h2 id="home-title" className="panel-title">
+        YouTube home
+      </h2>
+      <Setting id="module-home" label="Panki on YouTube home" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
+      {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
+      <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
+      {row("home-line", "Today line", store.homeLine, { on: "Shown", off: "Hidden" }, (homeLine) => ({ homeLine }))}
+      {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
+      <Setting
+        id="shelf-max"
+        label="Videos to continue"
+        control={
+          <Segmented
+            idPrefix="shelf-max"
+            label="Videos to continue"
+            options={SHELF_OPTIONS}
+            value={String(store.shelfMax)}
+            disabled={off || !store.homeShelf}
+            onChange={(id) => void writeStore({ shelfMax: ShelfMax.parse(Number(id)) }).then(onChanged)}
+          />
+        }
+      />
+      {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
+      {row("module-thumbs", "Thumbnail marks", store.moduleThumbs, { on: "Shown", off: "Hidden" }, (moduleThumbs) => ({ moduleThumbs }))}
+      {row("thumb-save", "Save button on thumbnails", store.thumbSave, { on: "Shown", off: "Hidden" }, (thumbSave) => ({ thumbSave }))}
+    </section>
+  );
+}
+
+/**
+ * What makes YouTube nicer whether or not Panki is in use (the owner, 2026-10-21: "regardless of Panki, just nice to
+ * have"): nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here.
+ */
+function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  return (
+    <section className="panel" aria-labelledby="utilities-title">
+      <h2 id="utilities-title" className="panel-title">
+        YouTube utilities
+      </h2>
+      {/* Said as hiding (the owner, 2026-10-21: "Hide Shorts… off by default"); what's kept is still whether they're shown, so a browser that set it keeps its choice. */}
+      <Setting id="hide-shorts" label="Hide Shorts" control={<Toggle id="hide-shorts-on" says={{ on: "On", off: "Off" }} on={!store.moduleShorts} onChange={(hide) => void writeStore({ moduleShorts: !hide }).then(onChanged)} />} />
+      <Setting
+        id="speed-control"
+        label="Speed button in the player"
+        control={<Toggle id="speed-control-on" says={{ on: "Shown", off: "Hidden" }} on={store.speedControl} onChange={(speedControl) => void writeStore({ speedControl }).then(onChanged)} />}
+      />
+    </section>
+  );
+}
+
+// Where you stopped last was a panel of its own here until the owner had it folded into Seek bar, 2026-10-21 (`SeekBar.tsx`).
+
 /**
  * The page's tabs (the owner, 2026-10-16: the settings were "all over the place"): everything of the dictionary
  * together (looking words up, the dictionaries, the popup's layout), the decks and what fills their fields, how a
  * video's clip is cut, and the sign-in. The tab is in the address, so a reload stays on it.
  */
 // The site's own tab, as each video site Panki works on will have one (the owner, 2026-10-16: "since we'll introduce Netflix soon").
+// A Modules tab stood first for a few hours on 2026-10-21; each of its switches now heads the panel of what it's about.
 type Tab = "dictionary" | "decks" | "youtube" | "account";
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: "dictionary", label: "Dictionary" },
@@ -434,6 +513,12 @@ function Options() {
       <header className="brand">
         <Mark size={22} />
         Panki
+        {/* Panki altogether, on or off in this browser, the same switch the strip's head has (the owner, 2026-10-21); here too, since the strip is the only other place and a page may not be open. */}
+        {store ? (
+          <span className="brand-switch">
+            <Toggle id="panki-on" says={{ on: "On", off: "Off" }} on={store.pankiOn} onChange={(pankiOn) => void writeStore({ pankiOn }).then(refresh)} />
+          </span>
+        ) : null}
       </header>
       {store === null ? null : (
         <main className="main options-main">
@@ -473,6 +558,8 @@ function Options() {
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
+            <HomePanel store={store} onChanged={refresh} />
+            <UtilitiesPanel store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
             <AccountTab store={store} onChanged={refresh} />

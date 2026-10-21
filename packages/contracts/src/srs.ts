@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
+import { TranscribeLanguage } from "./transcription";
 
 export const SrsTypeId = z.uuid();
 export const SrsStageId = z.uuid();
@@ -400,12 +401,51 @@ export const Settings = z.object({
    * fine to have the subtitle settings separate between the app and the extension").
    */
   subtitleStyle: SubtitleStyle,
+  /**
+   * The zone the account's days turn over in, by its name in the time zone database ("Asia/Tokyo"). Each account's own,
+   * never Panki's (the owner, 2026-10-21: "each user defines their own time zone, default is their machine's"): empty
+   * only until the account first opens Panki or the extension, which write the device's own zone in its place. Until
+   * then the server's clock stands in.
+   */
+  timeZone: z.string().max(64).refine((zone) => zone === "" || isTimeZone(zone), { message: "That isn't a time zone." }),
+  /**
+   * The language this account's videos are transcribed in, told to the engine. Each account's own, nothing Panki-wide
+   * (the owner, 2026-10-21: "transcription language is also per user and not per the entire app"); English to begin
+   * with. An account from before keeps Japanese, the language every video was transcribed in until then (migration 29).
+   */
+  language: TranscribeLanguage,
+  /**
+   * Whether the account's watching is kept at all (`watching.ts`): its own alone, shown to nobody else. Off to begin
+   * with (the owner, 2026-10-21; it was on that morning); an account that had already kept some watching keeps it on
+   * (migration 30).
+   */
+  videoTracking: z.boolean(),
+  // `dailyGoal` (minutes a day that kept the watch streak) went with the streak, 2026-10-21. A row kept of it is read by nothing.
+  // `shareWatching` (Off, Minutes and streak, Also what I watch) went the same day: "either we share all or nothing". A row kept of it is read by nothing.
 });
 export type Settings = z.infer<typeof Settings>;
-export const DEFAULT_SETTINGS: Settings = { fuzz: true, dayStartHour: 4, subtitleStyle: DEFAULT_SUBTITLE_STYLE };
+export const DEFAULT_SETTINGS: Settings = {
+  fuzz: true,
+  dayStartHour: 4,
+  subtitleStyle: DEFAULT_SUBTITLE_STYLE,
+  timeZone: "",
+  language: "eng",
+  videoTracking: false,
+};
 export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
+/** The account's settings, all of them its own. */
 export const SettingsResponse = z.object({ settings: Settings });
+
+/** Whether the time zone database knows a zone by this name. */
+export function isTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * What the browser sends when a card is answered. The time and the outcome are the API's; the browser adds the

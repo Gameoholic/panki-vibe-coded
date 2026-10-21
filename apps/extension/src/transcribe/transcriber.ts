@@ -5,6 +5,7 @@ import {
   overDownloadLimit,
   type Stretch,
   type TranscribeEstimate,
+  type TranscribeLanguage,
   type TranscribeMode,
   type Transcript,
   type Transcription,
@@ -108,6 +109,8 @@ export type TranscribeState = {
   videoId: string | null;
   transcript: Transcript | null;
   settings: Transcription | null;
+  /** The language the account's videos are told to the engine in: its own (`Settings.language`); null until Panki says. */
+  language: TranscribeLanguage | null;
   /** Whether the chosen engine has a key to run with. */
   key: boolean;
   /** What a whole-video download takes, as measured on Panki so far. */
@@ -227,6 +230,7 @@ export function createTranscriber() {
   let videoId: string | null = null;
   let transcript: Transcript | null = null;
   let settings: Transcription | null = null;
+  let language: TranscribeLanguage | null = null;
   let key = false;
   let estimate: TranscribeEstimate | null = null;
   let source: SubtitleSource = DEFAULT_SOURCE;
@@ -276,6 +280,7 @@ export function createTranscriber() {
     videoId,
     transcript,
     settings,
+    language,
     key,
     estimate,
     source,
@@ -421,6 +426,7 @@ export function createTranscriber() {
     }
     transcript = answer.transcript;
     settings = answer.settings;
+    language = answer.language;
     key = answer.key;
     estimate = answer.estimate;
     source = sourceOf(answer.source);
@@ -464,7 +470,7 @@ export function createTranscriber() {
    */
   function maybeWhole(id: string, duration: number | null) {
     if (redoing || !settings || !transcript || !key || duration === null || !decided) return;
-    if (!engineWanted(source, settings.engine)) return;
+    if (!engineWanted(source)) return;
     const auto = prefs.trigger === "auto" && !autoBlocked;
     if (!auto || wholeAsked || declined || !wantsWhole()) return;
     if (nextUncovered(transcript, 0, duration) === null) return;
@@ -629,7 +635,7 @@ export function createTranscriber() {
     // A part being transcribed again: nothing else starts until its words stand, or it's given up.
     if (redoing || !settings || !transcript) return;
     // The engine isn't the pick (the site's captions, or nothing, is): nothing to say, nothing to do.
-    if (!engineWanted(source, settings.engine)) {
+    if (!engineWanted(source)) {
       setStatus({ kind: "off" });
       return;
     }
@@ -714,7 +720,7 @@ export function createTranscriber() {
   /** A part being transcribed again: recorded end to end whatever the viewer does, always in chunks whatever the mode, with no lead and nothing skipped; then finished (`finishRedo`). */
   function steerRedo(mine: Run, redo: RedoRun, duration: number | null) {
     if (!settings) return;
-    if (!engineWanted(source, settings.engine)) {
+    if (!engineWanted(source)) {
       giveUpRedo("subtitles no longer from the engine");
       setStatus({ kind: "off" });
       return;
@@ -757,7 +763,7 @@ export function createTranscriber() {
       return;
     }
     // The pick left the engine (the line's picker): the run stops here, pressed or not.
-    if (!engineWanted(source, settings.engine)) {
+    if (!engineWanted(source)) {
       end();
       note("chunk player stopped · subtitles no longer from the engine");
       setStatus({ kind: "off" });

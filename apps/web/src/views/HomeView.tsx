@@ -17,6 +17,8 @@ type Props = {
   stats: Stats | null;
   settings: Settings | null;
   onReview: () => void;
+  /** The stats are asked for again: a tile changed what they're made of. */
+  onStale: () => void;
   onDecks: () => void;
   onAdd: () => void;
   onTypes: () => void;
@@ -26,7 +28,7 @@ type Props = {
 };
 
 /** The hub: the five doors and the tiles this device was set up with, on one board, arranged by holding a tile. Everything but Settings and Stats is behind a door. */
-export function HomeView({ decks, types, srsTypes, stats, settings, onReview, onDecks, onAdd, onTypes, onSrs, onTool }: Props) {
+export function HomeView({ decks, types, srsTypes, stats, settings, onReview, onStale, onDecks, onAdd, onTypes, onSrs, onTool }: Props) {
   const none = decks !== null && decks.length === 0;
   const due = decks?.reduce((sum, deck) => sum + deck.dueCount, 0) ?? 0;
   const fresh = decks?.reduce((sum, deck) => sum + deck.newCount, 0) ?? 0;
@@ -49,7 +51,7 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
     return () => onTool(null);
   }, [arranging, onTool]);
 
-  const ctx: WidgetContext | null = decks && srsTypes && settings ? { decks, srsTypes, settings, onReview } : null;
+  const ctx: WidgetContext | null = decks && srsTypes && settings ? { decks, srsTypes, settings, onReview, onStale } : null;
   // The Review door is the accent one only while there's something to do.
   const doors: DoorSpec[] = [
     { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, hot: due + fresh > 0, onClick: onReview },

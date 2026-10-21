@@ -50,7 +50,16 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
   return { order: picked, hidden: away };
 }
 
-export function readLayout(): BoardLayout {
+/**
+ * Tiles put on the home once, on each device, the first time it's read after they joined the registry (the owner,
+ * 2026-10-21, of the watching tiles: "edit it to look with all the modules on"); from then on each is like any tile,
+ * put away with its × and brought back by hand. The ones already put out are kept beside the layout, so one put away
+ * stays away.
+ */
+const PUT_OUT: readonly WidgetId[] = ["continue", "watched", "watch-time", "channels"];
+const PUT_OUT_KEY = "panki.board.putOut";
+
+function readStored(): BoardLayout {
   const fallback = () => settle(DEFAULT_TILES, []);
   try {
     const raw = localStorage.getItem(KEY);
@@ -61,6 +70,30 @@ export function readLayout(): BoardLayout {
   } catch {
     return fallback();
   }
+}
+
+export function readLayout(): BoardLayout {
+  const layout = readStored();
+  let done: string[] = [];
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(PUT_OUT_KEY) ?? "[]");
+    done = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    // Unreadable: every tile is put out again, once.
+  }
+  const due = PUT_OUT.filter((id) => !done.includes(id) && isHomeId(id));
+  if (due.length === 0) return layout;
+  const next: BoardLayout = {
+    order: [...layout.order, ...due.filter((id) => !layout.order.includes(id))],
+    hidden: layout.hidden.filter((id) => !due.includes(id)),
+  };
+  try {
+    localStorage.setItem(PUT_OUT_KEY, JSON.stringify([...done, ...due]));
+  } catch {
+    // Storage switched off: they're put out on every visit, as the rest of the layout can't be kept either.
+  }
+  writeLayout(next);
+  return next;
 }
 
 export function writeLayout(layout: BoardLayout) {

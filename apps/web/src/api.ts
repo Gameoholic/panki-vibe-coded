@@ -22,6 +22,8 @@ import {
   SrsTypeResponse,
   StatsResponse,
   TranscriptionResponse,
+  WatchHistoryResponse,
+  WatchedVideoResponse,
   type CalledCard,
   type Card,
   type CardAnswer,
@@ -46,7 +48,6 @@ import {
   type ReviewSession,
   type ReviewSessionEnd,
   type ServerDictionary,
-  type Settings,
   type SettingsUpdate,
   type Space,
   type SrsType,
@@ -55,11 +56,17 @@ import {
   type Stats,
   type TranscriptionStatus,
   type TranscriptionUpdate,
+  type WatchHistory,
+  type WatchMark,
+  type WatchMarkKind,
+  type WatchedVideo,
 } from "@panki/contracts";
 import type { VideoPictures } from "./components/LinkView";
 
 /** Who is signed in and on which devices, as `GET /api/me` answers. */
 export type Me = ReturnType<typeof MeResponse.parse>;
+/** The settings as `/api/settings` answers: the account's own, and what the ones left empty stand for. */
+export type SettingsAnswer = ReturnType<typeof SettingsResponse.parse>;
 
 export class ApiError extends Error {
   constructor(
@@ -110,6 +117,7 @@ const TRANSCRIPTION_PATH = "/api/transcription";
 const WORD_AUDIO_PATH = "/api/word-audio";
 const engineKeyPath = (engineId: EngineId) => `${TRANSCRIPTION_PATH}/keys/${encodeURIComponent(engineId)}`;
 const EVENTS_PATH = "/api/events";
+const WATCHING_PATH = "/api/watching";
 
 export const api = {
   /** `App` registers what happens when a call finds the owner signed out. */
@@ -142,8 +150,16 @@ export const api = {
   updateSrs: (typeId: string, update: SrsTypeUpdate): Promise<SrsType> => request(srsPath(typeId), send("PATCH", update), (b) => SrsTypeResponse.parse(b).type),
   /** Hides the SRS type; refused while a deck uses it. */
   removeSrs: (typeId: string): Promise<void> => request(srsPath(typeId), send("DELETE"), () => undefined),
-  getSettings: (): Promise<Settings> => request("/api/settings", undefined, (b) => SettingsResponse.parse(b).settings),
-  updateSettings: (patch: SettingsUpdate): Promise<Settings> => request("/api/settings", send("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
+  /** The account's settings, with what the ones left to Panki come to here (its time zone, its transcription language). */
+  getSettings: (): Promise<SettingsAnswer> => request("/api/settings", undefined, (b) => SettingsResponse.parse(b)),
+  updateSettings: (patch: SettingsUpdate): Promise<SettingsAnswer> => request("/api/settings", send("PATCH", patch), (b) => SettingsResponse.parse(b)),
+  /** All that's kept of the videos watched, in brief: how many, how long, since when. */
+  watchHistory: (): Promise<WatchHistory> => request(WATCHING_PATH, undefined, (b) => WatchHistoryResponse.parse(b).history),
+  /** Hides every video watched, with the time it went; nothing is destroyed. Answers with what's left, which is nothing. */
+  forgetWatchHistory: (): Promise<WatchHistory> => request(`${WATCHING_PATH}/forget`, send("POST"), (b) => WatchHistoryResponse.parse(b).history),
+  /** Something said of one video watched: put away from Continue watching, left out of the count, or counted again. */
+  markVideo: (videoId: string, kind: WatchMarkKind): Promise<WatchedVideo> =>
+    request(`${WATCHING_PATH}/videos/${encodeURIComponent(videoId)}/marks`, send("POST", { kind } satisfies WatchMark), (b) => WatchedVideoResponse.parse(b).video),
   /** A file's bytes from where it's played (an address of Panki's, or an object URL for one just picked): to draw its sound's shape. */
   fileBytes: async (src: string): Promise<ArrayBuffer> => {
     let res: Response;

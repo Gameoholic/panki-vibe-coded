@@ -23,6 +23,11 @@ import {
   Settings,
   SrsType,
   Stats,
+  WATCH,
+  SAVED_MAX,
+  SavedVideo,
+  type SaveVideo,
+  WatchHistory,
   defaultLesson,
   dueAt,
   isBurned,
@@ -56,8 +61,13 @@ import {
   type SrsStarterId,
   type SrsTypeUpdate,
   type VideoCard,
+  type WatchBatch,
+  type WatchMarkKind,
+  type VideoGlance,
+  type WatchedVideo,
+  type Watching,
 } from "@panki/contracts";
-import { addDays, checkTimeZone, dayOf, dayStartAt, daysBetween, weekdayOf, type Day } from "./time";
+import { addDays, checkTimeZone, dayReader, dayStartAt, daysBetween, streakOf, type Day } from "./time";
 
 export type Db = ReturnType<typeof openDb>;
 
@@ -585,6 +595,88 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       hide.run(now, id);
     }
   },
+  (db) => {
+    // What's watched (2026-10-21, the owner: "video tracking for stats", "remember last played timestamp", "continue
+    // watching"). A video as YouTube shows it, the latest kept: its words are the site's, not the owner's. Each stretch
+    // watched without a pause or a jump, minted by the extension so a batch sent again keeps nothing twice, stamped by
+    // the API as it comes. And what the owner said of a video: leave it out of the count, count it again, put it away
+    // from Continue watching; what a video is now is read from its latest marks, never kept. No foreign key from a
+    // stretch to its video: a stretch is kept even when its video's words never came. Forgetting the history hides
+    // every stretch and mark with the time, as a deleted card is hidden; nothing is deleted.
+    db.exec(`
+      CREATE TABLE watch_videos (
+        video_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        channel_name TEXT,
+        channel_url TEXT,
+        length_ms INTEGER NOT NULL,
+        first_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+    db.exec(`
+      CREATE TABLE watch_stretches (
+        id TEXT PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        from_ms INTEGER NOT NULL,
+        to_ms INTEGER NOT NULL,
+        spent_ms INTEGER NOT NULL,
+        rate REAL NOT NULL,
+        at INTEGER NOT NULL,
+        device TEXT NOT NULL DEFAULT '',
+        forgotten_at INTEGER
+      )
+    `);
+    db.exec("CREATE INDEX watch_stretches_video_id ON watch_stretches (video_id)");
+    db.exec("CREATE INDEX watch_stretches_at ON watch_stretches (at)");
+    db.exec(`
+      CREATE TABLE watch_marks (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        forgotten_at INTEGER
+      )
+    `);
+    db.exec("CREATE INDEX watch_marks_video_id ON watch_marks (video_id)");
+  },
+  (db, now) => {
+    // 29. The language videos are transcribed in became each account's own, English to begin with (the owner,
+    // 2026-10-21). An account from before that never chose one was transcribed in Japanese, everyone's language until
+    // then: it keeps Japanese, said once as a setting of its own with its change row. A new account (nothing of its own
+    // yet: no deck, no event, no setting, nothing watched) starts on English like the contracts say.
+    const has = (table: string) => (db.prepare(`SELECT EXISTS (SELECT 1 FROM ${table}) AS yes`).get() as { yes: number }).yes === 1;
+    const chosen = db.prepare("SELECT 1 FROM settings WHERE key = 'language'").get() !== undefined;
+    if (chosen || !["decks", "events", "settings", "watch_stretches"].some(has)) return;
+    db.prepare("INSERT INTO settings (key, value) VALUES ('language', ?)").run(JSON.stringify("jpn"));
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('language', ?, ?, ?)").run(JSON.stringify(null), JSON.stringify("jpn"), now);
+  },
+  (db, now) => {
+    // 30. Video tracking became off to begin with (the owner, 2026-10-21). An account that has already kept some watching
+    // had it on without ever saying so: it keeps it on, said once as a setting of its own with its change row, so nothing
+    // it was keeping stops. Any other account reads the new default, off.
+    const chosen = db.prepare("SELECT 1 FROM settings WHERE key = 'videoTracking'").get() !== undefined;
+    const watched = (db.prepare("SELECT EXISTS (SELECT 1 FROM watch_stretches) AS yes").get() as { yes: number }).yes === 1;
+    if (chosen || !watched) return;
+    db.prepare("INSERT INTO settings (key, value) VALUES ('videoTracking', ?)").run(JSON.stringify(true));
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('videoTracking', ?, ?, ?)").run(JSON.stringify(null), JSON.stringify(true), now);
+  },
+  (db) => {
+    // 31. Videos saved for later, the account's own and never YouTube's (the owner, 2026-10-21). A row each time one is
+    // saved, with its name and channel as the page showed them; taking the save back stamps `removed_at`, never deletes,
+    // and saving it again is a new row. What's saved now is every row not taken back.
+    db.exec(`
+      CREATE TABLE saved_videos (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        saved_at INTEGER NOT NULL,
+        removed_at INTEGER
+      )
+    `);
+    db.exec("CREATE INDEX saved_videos_video_id ON saved_videos (video_id)");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -628,6 +720,33 @@ type SessionStatRow = { startedAt: number; endedAt: number | null; endedHow: str
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string };
 /** A kept dictionary as the move to the shared store reads it: the row as the app tells of it, and the hash of its zip. */
 type DictionaryMoveRow = { id: string; title: string; revision: string; description: string; bytes: number; uploadedAt: number; sha256: string };
+/** A stretch watched, with its video as YouTube showed it; the video's columns are null when its words never came. */
+type WatchStretchRow = { videoId: string; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
+type WatchMarkRow = { videoId: string; kind: string; at: number };
+
+/**
+ * What the owner said of each video, from its marks in the order they were made: whether it counts (its latest count
+ * or uncount; a video never marked counts) and when it was last put away from Continue watching.
+ */
+function marksOf(rows: readonly WatchMarkRow[]): Map<string, { counted: boolean; putAwayAt: number | null }> {
+  const said = new Map<string, { counted: boolean; putAwayAt: number | null }>();
+  for (const row of rows) {
+    const video = said.get(row.videoId) ?? { counted: true, putAwayAt: null };
+    if (row.kind === "count" || row.kind === "uncount") video.counted = row.kind === "count";
+    else if (row.kind === "put-away") video.putAwayAt = row.at;
+    said.set(row.videoId, video);
+  }
+  return said;
+}
+
+/**
+ * Where a video was stopped, as somewhere to continue from: none when it was watched to its end, or when its length
+ * was never told (then nobody can say it wasn't watched to the end). A video barely begun counts (2026-10-21).
+ */
+function stopOf(toMs: number, lengthMs: number | null): number | null {
+  if (lengthMs === null || toMs >= lengthMs - WATCH.endMs) return null;
+  return toMs;
+}
 
 /** JSON with every object's keys sorted, so two readings of the same thing compare equal as text. */
 function canonical(value: unknown): unknown {
@@ -894,6 +1013,41 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     JOIN decks d ON d.id = s.deck_id WHERE ${scopeWhere}`);
   const selectValue = db.prepare("SELECT value FROM card_values WHERE card_id = ? AND field_id = ?");
 
+  // What's watched. A video's words are the latest the page told, but for a title or a channel it didn't have yet (a
+  // page still loading says nothing rather than wiping what was known). A forgotten stretch or mark is out of every read.
+  const upsertWatchVideo = db.prepare(`
+    INSERT INTO watch_videos (video_id, title, channel_name, channel_url, length_ms, first_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (video_id) DO UPDATE SET
+      title = CASE WHEN excluded.title <> '' THEN excluded.title ELSE watch_videos.title END,
+      channel_name = CASE WHEN excluded.channel_name IS NOT NULL THEN excluded.channel_name ELSE watch_videos.channel_name END,
+      channel_url = CASE WHEN excluded.channel_name IS NOT NULL THEN excluded.channel_url ELSE watch_videos.channel_url END,
+      length_ms = excluded.length_ms,
+      updated_at = excluded.updated_at`);
+  const insertWatchStretch = db.prepare("INSERT OR IGNORE INTO watch_stretches (id, video_id, from_ms, to_ms, spent_ms, rate, at, device) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const insertWatchMark = db.prepare("INSERT INTO watch_marks (video_id, kind, at) VALUES (?, ?, ?)");
+  const forgetWatchStretches = db.prepare("UPDATE watch_stretches SET forgotten_at = ? WHERE forgotten_at IS NULL");
+  const forgetWatchMarks = db.prepare("UPDATE watch_marks SET forgotten_at = ? WHERE forgotten_at IS NULL");
+  const selectWatchHistory = db.prepare("SELECT COUNT(DISTINCT video_id) AS videos, COALESCE(SUM(spent_ms), 0) AS ms, MIN(at) AS since FROM watch_stretches WHERE forgotten_at IS NULL");
+  // In the order they came: the API's stamp, then the order they were kept in (a batch's stretches share one stamp).
+  const selectWatchStretches = db.prepare(`
+    SELECT s.video_id AS videoId, s.to_ms AS toMs, s.spent_ms AS spentMs, s.at, v.title, v.channel_name AS channel, v.length_ms AS lengthMs
+    FROM watch_stretches s LEFT JOIN watch_videos v ON v.video_id = s.video_id
+    WHERE s.forgotten_at IS NULL ORDER BY s.at ASC, s.rowid ASC`);
+  const selectLastWatchStretch = db.prepare(`
+    SELECT s.video_id AS videoId, s.to_ms AS toMs, s.spent_ms AS spentMs, s.at, v.title, v.channel_name AS channel, v.length_ms AS lengthMs
+    FROM watch_stretches s LEFT JOIN watch_videos v ON v.video_id = s.video_id
+    WHERE s.video_id = ? AND s.forgotten_at IS NULL ORDER BY s.at DESC, s.rowid DESC LIMIT 1`);
+  const selectWatchVideoLength = db.prepare("SELECT length_ms AS lengthMs FROM watch_videos WHERE video_id = ?");
+  // Saved for later: what's saved now is every row not taken back; a video saved twice without taking it back is one.
+  const selectSaved = db.prepare(`
+    SELECT video_id AS videoId, title, channel, MAX(saved_at) AS savedAt FROM saved_videos
+    WHERE removed_at IS NULL GROUP BY video_id ORDER BY savedAt DESC LIMIT ?`);
+  const selectIsSaved = db.prepare("SELECT 1 FROM saved_videos WHERE video_id = ? AND removed_at IS NULL LIMIT 1");
+  const insertSaved = db.prepare("INSERT INTO saved_videos (video_id, title, channel, saved_at) VALUES (?, ?, ?, ?)");
+  const unsaveVideo = db.prepare("UPDATE saved_videos SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL");
+  const selectWatchMarks = db.prepare("SELECT video_id AS videoId, kind, at FROM watch_marks WHERE forgotten_at IS NULL ORDER BY at ASC, id ASC");
+  const selectVideoWatchMarks = db.prepare("SELECT video_id AS videoId, kind, at FROM watch_marks WHERE video_id = ? AND forgotten_at IS NULL ORDER BY at ASC, id ASC");
+
   /** A kept layout's JSON, as parts; anything that doesn't read is no layout, and the fields' sides make one. */
   function keptLayout(json: string): unknown[] {
     try {
@@ -968,9 +1122,17 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     }
     return Settings.parse(merged);
   }
+  /**
+   * The zone the account's days turn over in: its own (Settings), since two people on one Panki can live hours apart.
+   * Empty only until the account first opens Panki or the extension, which write the device's zone; until then the
+   * server's clock (`openDb`'s `timeZone`) stands in. Every day this account reads, its reviews' and its watching's, is in this one.
+   */
+  function zoneOf(settings: Settings): string {
+    return settings.timeZone || timeZone;
+  }
   function todayAt(now: number): Today {
     const settings = settingsFrom(selectSettings.all() as SettingRow[]);
-    const dayStart = dayStartAt(now, settings.dayStartHour, timeZone);
+    const dayStart = dayStartAt(now, settings.dayStartHour, zoneOf(settings));
     return { now, settings, dayStart };
   }
   /** A deck's own settings: what's stored over the defaults. A stored value that no longer fits its rule reads as the default. */
@@ -1060,6 +1222,69 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const ownLeft = own.reviewsPerDay === null ? Infinity : Math.max(0, own.reviewsPerDay - (countReviewedSince.get(today.dayStart, base.id) as { n: number }).n);
     const dueCount = Math.min(due, ownLeft);
     return Deck.parse({ ...(row as object), settings: own, newCount, dueCount });
+  }
+
+  /**
+   * The account's watching at a moment, worked out over every stretch it hasn't forgotten: the time spent each of its
+   * days (only on videos that count) and the videos to continue. Continuing is an offer, so there's none while Video
+   * tracking is off. (A watch streak against a daily goal was worked out here until the owner had both out, 2026-10-21,
+   * and the last video that counts, for Together, until all that's about other people was shelved the same day; the
+   * stretches they were read from are all still kept.)
+   */
+  function watchingOf(today: Today): Watching {
+    const { settings, now } = today;
+    const day = dayReader(settings.dayStartHour, zoneOf(settings));
+    const todayKey = day(now);
+    const from30 = addDays(todayKey, -29);
+    const marks = marksOf(selectWatchMarks.all() as WatchMarkRow[]);
+    const counts = (videoId: string) => marks.get(videoId)?.counted ?? true;
+
+    const msByDay = new Map<Day, number>();
+    const videos30 = new Set<string>();
+    const byChannel = new Map<string, number>();
+    // Each video's latest stretch: the rows come oldest first, so the last one seen is it.
+    const latest = new Map<string, WatchStretchRow>();
+    for (const s of selectWatchStretches.all() as WatchStretchRow[]) {
+      latest.set(s.videoId, s);
+      if (!counts(s.videoId)) continue;
+      const d = day(s.at);
+      msByDay.set(d, (msByDay.get(d) ?? 0) + s.spentMs);
+      if (d < from30 || d > todayKey) continue;
+      videos30.add(s.videoId);
+      if (s.channel !== null) byChannel.set(s.channel, (byChannel.get(s.channel) ?? 0) + s.spentMs);
+    }
+    const msSince = (from: Day) => [...msByDay].reduce((sum, [d, ms]) => (d >= from && d <= todayKey ? sum + ms : sum), 0);
+
+    const continuing = !settings.videoTracking
+      ? []
+      : [...latest.entries()]
+          .flatMap(([videoId, s]) => {
+            const stoppedAtMs = stopOf(s.toMs, s.lengthMs);
+            const putAwayAt = marks.get(videoId)?.putAwayAt ?? null;
+            // Put away until it's watched again.
+            if (stoppedAtMs === null || (putAwayAt !== null && putAwayAt >= s.at)) return [];
+            return [{ videoId, title: s.title ?? "", channel: s.channel ?? "", lengthMs: s.lengthMs ?? 0, stoppedAtMs, lastAt: s.at }];
+          })
+          .sort((a, b) => b.lastAt - a.lastAt)
+          .slice(0, WATCH.continueMax);
+
+    return {
+      on: settings.videoTracking,
+      today: msByDay.get(todayKey) ?? 0,
+      days7: msSince(addDays(todayKey, -6)),
+      days30: msSince(from30),
+      videos30: videos30.size,
+      channels30: byChannel.size,
+      byDay: Array.from({ length: 14 }, (_, i) => {
+        const d = addDays(todayKey, i - 13);
+        return { day: d, ms: msByDay.get(d) ?? 0 };
+      }),
+      channels: [...byChannel]
+        .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+        .slice(0, 5)
+        .map(([name, ms]) => ({ name, ms })),
+      continuing,
+    };
   }
 
   const api = {
@@ -1560,10 +1785,83 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         for (const event of events) insertEvent.run(now, event.at, event.kind, event.path ?? null, JSON.stringify(event.data ?? {}), who.sessionId, who.device);
       });
     },
-    /** Everything the Stats screen shows, worked out over the rows at `now`, for every living deck or one. Windows are the owner's days. */
+    /**
+     * Keeps what was watched: each video's words as the page told them, and each stretch, stamped by the API's clock
+     * with the device it was watched on. A stretch sent again is the one already kept. Nothing is kept while the
+     * account's Video tracking is off, whatever the extension sends; false then.
+     */
+    keepWatching(batch: WatchBatch, who: { device: string }, now: number): boolean {
+      if (!settingsFrom(selectSettings.all() as SettingRow[]).videoTracking) return false;
+      transaction(() => {
+        for (const v of batch.videos) upsertWatchVideo.run(v.videoId, v.title, v.channel?.name ?? null, v.channel?.url ?? null, v.lengthMs, now, now);
+        for (const s of batch.stretches) insertWatchStretch.run(s.id, s.videoId, s.fromMs, s.toMs, s.spentMs, s.rate, now, who.device);
+      });
+      return true;
+    },
+    /** One video as the extension asks of it when it opens: whether watching is kept at all, where it was stopped (nothing is offered while it isn't kept), whether it counts. */
+    watchedVideo(videoId: string): WatchedVideo {
+      const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
+      const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
+      const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
+      return { on: videoTracking, stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs) : null, counted: said?.counted ?? true };
+    },
+    /**
+     * Videos as their thumbnails on YouTube are marked: how far this account got in each (nothing while its Video
+     * tracking is off), how long each is as last seen, and how many of its living cards came from each. Whether Panki
+     * has subtitles for it is everyone's, and the route's to add.
+     */
+    glance(videoIds: readonly string[]): Omit<VideoGlance, "transcribed">[] {
+      const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
+      return videoIds.map((videoId) => {
+        const last = videoTracking ? (selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined) : undefined;
+        const length = selectWatchVideoLength.get(videoId) as { lengthMs: number } | undefined;
+        return {
+          videoId,
+          watchedToMs: last?.toMs ?? null,
+          lengthMs: length?.lengthMs ?? null,
+          cards: api.videoCards(videoId).length,
+          saved: selectIsSaved.get(videoId) !== undefined,
+        };
+      });
+    },
+    /** The videos saved for later, newest first: the account's own, whether or not its watching is kept (saving is asked for, never noted by itself). */
+    savedVideos(): SavedVideo[] {
+      return selectSaved.all(SAVED_MAX).map((row) => SavedVideo.parse(row));
+    },
+    /** A video saved for later, its name and channel as the page showed them; saving one already saved changes nothing. The saved videos after. */
+    saveVideo(videoId: string, about: SaveVideo, now: number): SavedVideo[] {
+      if (selectIsSaved.get(videoId) === undefined) insertSaved.run(videoId, about.title, about.channel, now);
+      return api.savedVideos();
+    },
+    /** A save taken back: hidden with the time, never deleted. The saved videos after. */
+    unsaveVideo(videoId: string, now: number): SavedVideo[] {
+      unsaveVideo.run(now, videoId);
+      return api.savedVideos();
+    },
+    /** What the owner says of a video, kept as it's said; the video as it stands after. Saying it twice is harmless: the latest is what counts. */
+    markVideo(videoId: string, kind: WatchMarkKind, now: number): WatchedVideo {
+      insertWatchMark.run(videoId, kind, now);
+      return api.watchedVideo(videoId);
+    },
+    /** All that's kept, in brief: how many videos, the time spent on them, since when. Counted or not. */
+    watchHistory(): WatchHistory {
+      return WatchHistory.parse(selectWatchHistory.get());
+    },
+    /** Forgets the whole history: every stretch and mark is hidden with the time it went, none deleted. Forgetting again changes nothing. */
+    forgetWatching(now: number): WatchHistory {
+      transaction(() => {
+        forgetWatchStretches.run(now);
+        forgetWatchMarks.run(now);
+      });
+      return api.watchHistory();
+    },
+    /**
+     * Everything the Stats screen shows of this account, worked out over the rows at `now`, for every living deck or
+     * one. Windows are the account's days. No account's database reads another's.
+     */
     stats(deckId: string | null, now: number): Stats {
       const today = todayAt(now);
-      const day = (instant: number): Day => dayOf(instant, today.settings.dayStartHour, timeZone);
+      const day = dayReader(today.settings.dayStartHour, zoneOf(today.settings));
       const todayKey = day(now);
       const from30 = addDays(todayKey, -29);
       const decks = selectScopeDecks.all(deckId, deckId) as DeckScopeRow[];
@@ -1580,19 +1878,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const byDayCount = new Map<Day, number>();
       for (const a of dayed) byDayCount.set(a.day, (byDayCount.get(a.day) ?? 0) + 1);
       const studiedDays = [...byDayCount.keys()].sort();
-
-      let current = 0;
-      for (let d = byDayCount.has(todayKey) ? todayKey : addDays(todayKey, -1); byDayCount.has(d); d = addDays(d, -1)) current += 1;
-      let best = 0;
-      let run = 0;
-      studiedDays.forEach((d, i) => {
-        const previous = studiedDays[i - 1];
-        run = previous !== undefined && daysBetween(previous, d) === 1 ? run + 1 : 1;
-        best = Math.max(best, run);
-      });
-      const todayIndex = weekdayOf(todayKey);
-      const weekStart = addDays(todayKey, -todayIndex);
-      const week = Array.from({ length: 7 }, (_, i) => byDayCount.has(addDays(weekStart, i)));
+      const streak = streakOf(new Set(studiedDays), todayKey);
+      const weekStart = addDays(todayKey, -streak.todayIndex);
 
       const ladders = new Map<string, { type: SrsType; stages: Map<string, number>; burned: number; fresh: number }>();
       const coming = Array.from({ length: 7 }, () => 0);
@@ -1656,7 +1943,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         today: todayKey,
         reviews: { total: answers.length, today: byDayCount.get(todayKey) ?? 0, days7: inWindow(addDays(todayKey, -6)).length, days30: inWindow(from30).length },
         right: { days30: rightOf(inWindow(from30)), before: rightOf(inWindow(addDays(todayKey, -59), addDays(todayKey, -30))) },
-        streak: { current, best, week, todayIndex },
+        streak,
         days: { studied: studiedDays.length, since: answers[0]?.at ?? null },
         byDay: studiedDays.filter((d) => d >= addDays(todayKey, -364)).map((d) => ({ day: d, n: byDayCount.get(d) ?? 0 })),
         ladders: [...ladders.values()]
@@ -1673,6 +1960,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         added,
         time: { byDay: timeByDay, perCardMs, sessions30: sessions.filter((s) => day(s.startedAt) >= from30).length },
         tough,
+        // The account's watching is the same whatever decks are in scope: it isn't any deck's.
+        watching: watchingOf(today),
       });
     },
     close() {

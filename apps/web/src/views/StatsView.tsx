@@ -19,6 +19,8 @@ export function StatsView({ decks, srsTypes, settings, onReview }: Props) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
+  /** Turned to ask for the same scope again: a tile changed what the stats are made of (a video put away). */
+  const [turn, setTurn] = useState(0);
 
   // The last stats stay on screen, dimmed, while the next scope loads: no empty flash between two sets of numbers.
   useEffect(() => {
@@ -39,9 +41,9 @@ export function StatsView({ decks, srsTypes, settings, onReview }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [deckId]);
+  }, [deckId, turn]);
 
-  const ctx: WidgetContext = { decks, srsTypes, settings, onReview: () => onReview(deckId) };
+  const ctx: WidgetContext = { decks, srsTypes, settings, onReview: () => onReview(deckId), onStale: () => setTurn((n) => n + 1) };
 
   return (
     <>

@@ -10,7 +10,8 @@ import { checkTimeZone } from "./time";
 import { createEngines } from "./transcribe/engines";
 import { createJobs } from "./transcribe/jobs";
 
-// Each account's database opens on its first request; the zone is checked here so a wrong one still fails at startup.
+// Each account's database opens on its first request. Every account's days turn over in its own zone (Settings); the
+// server's is only what stands in for an account never opened yet, checked here so a wrong one still fails at startup.
 checkTimeZone(env.timeZone);
 const auth = openAuthDb(env.dataDir);
 const dbs = createDbs(env.dataDir, Date.now, env.timeZone);
@@ -37,7 +38,7 @@ const server = createApp({
   engineKeys: env.engineKeys,
   jobs,
 }).listen(env.port, env.host, () => {
-  console.log(`Panki API on http://${env.host}:${env.port} · data in ${env.dataDir} · day turns over on ${env.timeZone}`);
+  console.log(`Panki API on http://${env.host}:${env.port} · data in ${env.dataDir}`);
 });
 
 // Stopped (pm2 sends SIGINT, then kills what's still there a moment and a half later): nothing new is taken, what's under

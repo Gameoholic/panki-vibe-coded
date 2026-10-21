@@ -17,6 +17,7 @@ import { transcriptionRouter } from "./routes/transcription";
 import { transcriptsRouter } from "./routes/transcripts";
 import { typesRouter } from "./routes/types";
 import { videosRouter } from "./routes/videos";
+import { watchingRouter } from "./routes/watching";
 import { wordAudioRouter } from "./routes/wordAudio";
 import { requireSession, signedIn } from "./session";
 import type { Shared } from "./shared";
@@ -80,9 +81,10 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, spa
   app.use("/api/word-audio", wordAudioRouter(shared, wordAudioKeys, now));
   app.use("/api/forvo", forvoRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), forvo, shared, wordAudioKeys.forvo, now));
   app.use("/api/dictionaries", dictionariesRouter(shared, dictionaryDir, now));
-  app.use("/api/transcription", transcriptionRouter(shared, engines, engineKeys, now));
-  app.use("/api/transcripts", transcriptsRouter(shared, engines, engineKeys, jobs, now));
+  app.use("/api/transcription", transcriptionRouter(dbOf, shared, engines, engineKeys, now));
+  app.use("/api/transcripts", transcriptsRouter(dbOf, shared, engines, engineKeys, jobs, now));
   app.use("/api/videos", videosRouter(dbOf, shared, now));
+  app.use("/api/watching", watchingRouter(dbOf, shared, now));
   app.use("/api/stats", statsRouter(dbOf, now));
   app.use("/api/space", spaceRouter(space, storage));
   app.use("/api", (_req, res) => {

@@ -41,7 +41,7 @@ import { LayoutView } from "./views/LayoutView";
 import { LoginView } from "./views/LoginView";
 import { ReviewPickView } from "./views/ReviewPickView";
 import { ReviewView } from "./views/ReviewView";
-import { SettingsView } from "./views/SettingsView";
+import { DEVICE_ZONE, SettingsView } from "./views/SettingsView";
 import { SrsNewView } from "./views/SrsNewView";
 import { SrsTypeView, type SaveStatus } from "./views/SrsTypeView";
 import { SrsTypesView } from "./views/SrsTypesView";
@@ -288,7 +288,10 @@ export function App() {
       .catch((e: unknown) => fail(e, "Couldn't load your SRS types."));
     api
       .getSettings()
-      .then(setSettings)
+      // An account's zone is its own, the device's to begin with (the owner, 2026-10-21): the first time it's opened
+      // with none, this device's is written, so its days turn over on its own clock from then on.
+      .then((answer) => (answer.settings.timeZone === "" ? api.updateSettings({ timeZone: DEVICE_ZONE }) : answer))
+      .then((answer) => setSettings(answer.settings))
       .catch((e: unknown) => fail(e, "Couldn't load your settings."));
   }, [fail]);
 
@@ -297,6 +300,9 @@ export function App() {
     loadLists();
   }, [userId, screen.kind, loadLists]);
 
+  /** Asks for the home's stats again without leaving it: a tile changed something they're made of (a video put away). */
+  const [statsTurn, setStatsTurn] = useState(0);
+  const refreshStats = useCallback(() => setStatsTurn((n) => n + 1), []);
   // The home's tiles: the stats for every deck, fetched again each time the home is shown; the last ones stay while they load.
   useEffect(() => {
     if (userId === null || screen.kind !== "home") return;
@@ -318,7 +324,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [userId, screen.kind, fail]);
+  }, [userId, screen.kind, fail, statsTurn]);
 
   // The open deck's cards. Going from a deck to its review keeps them; any other deck starts from nothing.
   const deckId = screen.kind === "deck" || screen.kind === "review" ? screen.deck.id : null;
@@ -527,9 +533,9 @@ export function App() {
   }
 
   const updateSettings = useCallback(async (patch: SettingsUpdate) => {
-    const saved = await api.updateSettings(patch);
-    setSettings(saved);
-    return saved;
+    const answer = await api.updateSettings(patch);
+    setSettings(answer.settings);
+    return answer.settings;
   }, []);
 
   async function addCard(card: NewCard) {
@@ -721,6 +727,7 @@ export function App() {
               stats={stats}
               settings={settings}
               onReview={reviewAny}
+              onStale={refreshStats}
               onDecks={() => go({ kind: "decks" })}
               onAdd={() => go({ kind: "add" })}
               onTypes={() => go({ kind: "types" })}
@@ -898,7 +905,12 @@ export function App() {
         break;
       }
       case "settings":
-        body = settings === null || me === null ? loading : <SettingsView settings={settings} onChange={updateSettings} me={me} onSignOut={signOut} onSignOutAll={signOutAll} />;
+        body =
+          settings === null || me === null ? (
+            loading
+          ) : (
+            <SettingsView settings={settings} onChange={updateSettings} me={me} onSignOut={signOut} onSignOutAll={signOutAll} />
+          );
         break;
       case "stats":
         body = decks === null || srsTypes === null || settings === null ? loading : <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onReview={reviewFromStats} />;

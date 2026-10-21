@@ -18,6 +18,7 @@ import {
   type RedoResponse,
   type RedoStretchResponse,
 } from "@panki/contracts";
+import type { DbOf } from "../app";
 import { isWav } from "../mediaFiles";
 import { signedIn } from "../session";
 import type { Shared } from "../shared";
@@ -71,8 +72,11 @@ function videoOf(req: Request, res: Response): string | null {
  * handed to the engine the settings name, its words kept with their times) or downloaded whole by the engine in the
  * background (`transcribe/jobs.ts`), and fixed by hand a word or a line at a time.
  */
-export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, jobs: Jobs, now: () => number) {
+export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, jobs: Jobs, now: () => number) {
   const router = Router();
+
+  /** The language the engine is told: the asking account's own (2026-10-21: each account's, nothing Panki-wide). */
+  const toldFor = (res: Response) => dbOf(res).getSettings().language;
 
   // A video never transcribed is an empty transcript, never an error. Read again and again while a download is under way.
   router.get("/:videoId", (req, res) => {
@@ -106,7 +110,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
       res.status(403).json({ error: { message: "Not allowed over the length limit." } });
       return;
     }
-    jobs.ask(videoId, parsed.data.lengthMs, signedIn(res).user.id);
+    jobs.ask(videoId, parsed.data.lengthMs, signedIn(res).user.id, toldFor(res));
     res.status(202).json({ transcript: shared.transcript(videoId) });
   });
 
@@ -164,13 +168,15 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
         res.status(201).json(answer);
         return;
       }
-      const { engine, language: told } = shared.getTranscription();
+      const { engine } = shared.getTranscription();
       const key = shared.key(engine) ?? engineKeys[engine];
       if (key === null) {
         res.status(409).json({ error: { message: NO_KEY } });
         return;
       }
-      // Told the language every video is in (Settings → Admin → Transcribing), never asked: the check that asked went on 2026-10-18.
+      // Told the language the one watching transcribes in (their Settings, else Settings → Admin → Transcribing), never
+      // asked: the check that asked went on 2026-10-18.
+      const told = toldFor(res);
       let heard: Heard;
       const askedAt = performance.now();
       try {
@@ -283,7 +289,7 @@ export function transcriptsRouter(shared: Shared, engines: Engines, engineKeys: 
     const videoId = videoOf(req, res);
     if (!videoId) return;
     const redoId = PieceId.safeParse(req.params.redoId);
-    if (!redoId.success || !shared.finishRedo(videoId, redoId.data, shared.getTranscription().language, now())) {
+    if (!redoId.success || !shared.finishRedo(videoId, redoId.data, toldFor(res), now())) {
       res.status(409).json({ error: { message: REDO_GONE } });
       return;
     }

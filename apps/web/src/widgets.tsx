@@ -1,23 +1,45 @@
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
-import type { Day, Deck, Settings, SrsType, Stats } from "@panki/contracts";
+import type { ContinueVideo, Day, Deck, Settings, SrsType, Stats } from "@panki/contracts";
+import { api } from "./api";
 import { Button } from "./components/Button";
+import { Icon } from "./components/Icon";
+import { LinkView } from "./components/LinkView";
 import { Tip } from "./components/Tip";
 import { NEW_WORDS, tintStyle } from "./srsKinds";
-import { count, dateWords, langOf } from "./words";
+import { count, dateWords, durationWords, langOf } from "./words";
 
 /**
  * The widgets, one registry: every tile the Stats tab shows (all of them, in this order) and the home can carry
  * (`home`). Each knows its name, whether it spans both columns, and how to draw itself from the stats. A new widget
  * is one entry here and nothing else; the home's layout keeps ids, so an id is never renamed.
  */
-export type WidgetId = "due" | "streak" | "heat" | "reviews" | "right" | "ladder" | "coming" | "days" | "added" | "time" | "tough";
+export type WidgetId =
+  | "due"
+  | "streak"
+  | "heat"
+  | "reviews"
+  | "right"
+  | "ladder"
+  | "coming"
+  | "days"
+  | "added"
+  | "time"
+  | "tough"
+  | "watched"
+  | "watch-time"
+  | "channels"
+  | "continue";
 
-/** What a widget may need besides the stats: the decks in scope, the types, the settings, and the way into a review. */
+/**
+ * What a widget may need besides the stats: the decks in scope, the types, the settings, the way into a review, and a
+ * way to have the stats asked for again once a tile has changed what they're made of (a video put away).
+ */
 export type WidgetContext = {
   decks: Deck[];
   srsTypes: SrsType[];
   settings: Settings;
   onReview: () => void;
+  onStale: () => void;
 };
 
 export type WidgetEntry = {
@@ -150,18 +172,108 @@ function Ring({ share }: { share: number }) {
   );
 }
 
-/** One row of the ladder: a name, a thin bar scaled to the largest row, the count. */
-function LadderRow({ name, n, max, className = "", style }: { name: string; n: number; max: number; className?: string; style?: CSSProperties }) {
+/** One row of the ladder: a name, a thin bar scaled to the largest row, the count, or what the number comes to (`says`: a length of time). */
+function LadderRow({ name, n, max, says, className = "", style }: { name: string; n: number; max: number; says?: string; className?: string; style?: CSSProperties }) {
   return (
-    <div className={`w-row ${className}`.trim()} style={style}>
+    <div className={`w-row ${says === undefined ? "" : "is-said"} ${className}`.trim()} style={style}>
       <span className="w-row-name">{name}</span>
       <span className="w-bar">
         <span className="w-bar-fill" style={{ width: max > 0 ? `${(n / max) * 100}%` : "0%" }} />
       </span>
-      <span className="w-row-n">{num(n)}</span>
+      <span className="w-row-n">{says ?? num(n)}</span>
     </div>
   );
 }
+
+/** A run of days as the Streak tile draws it: how many in a row, the best, and this week as seven blocks. `did` is what a day that counted was: "studied". */
+function StreakBody({ streak, did }: { streak: Stats["streak"]; did: string }) {
+  const { current, best, week, todayIndex } = streak;
+  return (
+    <>
+      <div className="w-hero-row">
+        <span className="w-hero">{num(current)}</span>
+        <span className="w-unit">{current === 1 ? "day" : "days"}</span>
+        <span className="w-aside">Best {num(best)}</span>
+      </div>
+      <div className="w-week" aria-label={`This week: ${count(week.filter(Boolean).length, "day", "days")} ${did}`}>
+        {DOW.map((dow, i) => (
+          <span key={dow} className={`w-day ${week[i] ? "is-on" : ""} ${i === todayIndex ? "is-today" : ""} ${i > todayIndex ? "is-ahead" : ""}`.trim()}>
+            <span className="w-block" />
+            <span className="w-dow">{dow}</span>
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Two weeks of days as the columns' labels: every other day named, there's no room for all fourteen. */
+const everyOtherDay = (byDay: readonly { day: Day }[]) => byDay.map((d, i) => (i % 2 === 0 ? (DOW[dayDate(d.day).getUTCDay()] ?? "") : ""));
+
+/** Time spent, from ms: "48 min", "3 h 12 min". */
+const spent = (ms: number) => durationWords(ms / 1000);
+/** Time still wanted, from ms, rounded up to the minute so a few seconds short is never "0 min". */
+const wanted = (ms: number) => durationWords(Math.ceil(Math.max(0, ms) / 60_000) * 60);
+
+/**
+ * A watching tile's body: said to be off while the account's Video tracking is, said to be empty while there's nothing
+ * for it yet, drawn otherwise.
+ */
+function watchTile(stats: Stats, empty: boolean, draw: () => ReactNode): ReactNode {
+  if (!stats.watching.on) return <Quiet>Video tracking is off</Quiet>;
+  if (empty) return <Quiet />;
+  return draw();
+}
+
+/** How many videos Continue watching shows; the rest wait their turn. */
+const CONTINUE_SHOWN = 4;
+
+/**
+ * The videos left part-way, newest first, each the video's own card opening on YouTube where it was stopped, with a ×
+ * to put it away. One put away leaves at once; the stats are asked for again so the count catches up.
+ */
+function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; onStale: () => void }) {
+  const [gone, setGone] = useState<readonly string[]>([]);
+  const [failure, setFailure] = useState<string | null>(null);
+  async function putAway(videoId: string) {
+    setFailure(null);
+    setGone((was) => [...was, videoId]);
+    try {
+      await api.markVideo(videoId, "put-away");
+      onStale();
+    } catch (e) {
+      setGone((was) => was.filter((id) => id !== videoId));
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    }
+  }
+  const shown = videos
+    .filter((v) => !gone.includes(v.videoId))
+    .sort((a, b) => b.lastAt - a.lastAt)
+    .slice(0, CONTINUE_SHOWN);
+  return (
+    <div className="w-videos">
+      {shown.map((v) => (
+        <div key={v.videoId} className="w-video">
+          <LinkView
+            meta={{ link: { videoId: v.videoId, seconds: Math.floor(v.stoppedAtMs / 1000) }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
+            label="Continue watching"
+            pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
+            progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: `${wanted(v.lengthMs - v.stoppedAtMs)} left` }}
+          />
+          <Button className="btn-icon w-video-x" aria-label="Put away" onClick={() => void putAway(v.videoId)}>
+            <Icon name="close" />
+          </Button>
+        </div>
+      ))}
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 
 export const WIDGETS: readonly WidgetEntry[] = [
   {
@@ -193,26 +305,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     name: "Streak",
     home: true,
     control: "This week",
-    render(stats) {
-      const { current, best, week, todayIndex } = stats.streak;
-      return (
-        <>
-          <div className="w-hero-row">
-            <span className="w-hero">{num(current)}</span>
-            <span className="w-unit">{current === 1 ? "day" : "days"}</span>
-            <span className="w-aside">Best {num(best)}</span>
-          </div>
-          <div className="w-week" aria-label={`This week: ${count(week.filter(Boolean).length, "day", "days")} studied`}>
-            {DOW.map((dow, i) => (
-              <span key={dow} className={`w-day ${week[i] ? "is-on" : ""} ${i === todayIndex ? "is-today" : ""} ${i > todayIndex ? "is-ahead" : ""}`.trim()}>
-                <span className="w-block" />
-                <span className="w-dow">{dow}</span>
-              </span>
-            ))}
-          </div>
-        </>
-      );
-    },
+    render: (stats) => <StreakBody streak={stats.streak} did="studied" />,
   },
   {
     id: "heat",
@@ -353,8 +446,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       const { byDay, perCardMs, sessions30 } = stats.time;
       if (byDay.every((d) => d.ms === 0)) return <Quiet />;
       const minutes = byDay.map((d) => Math.round(d.ms / 60_000));
-      // Every other day is named; there's no room for all fourteen.
-      const labels = byDay.map((d, i) => (i % 2 === 0 ? (DOW[dayDate(d.day).getUTCDay()] ?? "") : ""));
+      const labels = everyOtherDay(byDay);
       const perCard = perCardMs === null ? null : Math.round(perCardMs / 1000);
       return (
         <>
@@ -388,6 +480,85 @@ export const WIDGETS: readonly WidgetEntry[] = [
       );
     },
   },
+  // Watching (`stats.watching`): whatever decks are in scope, and put away on the home until brought back.
+  {
+    id: "watched",
+    name: "Watched",
+    home: true,
+    control: "Today",
+    render(stats) {
+      const w = stats.watching;
+      return watchTile(stats, w.days30 === 0 && w.today === 0, () => (
+        <>
+          <div className="w-hero">{spent(w.today)}</div>
+          <div className="w-stats">
+            <span className="w-stat">
+              <span className="w-stat-label">7 days</span>
+              <span className="w-stat-n">{spent(w.days7)}</span>
+            </span>
+            <span className="w-stat">
+              <span className="w-stat-label">30 days</span>
+              <span className="w-stat-n">{spent(w.days30)}</span>
+            </span>
+          </div>
+          <p className="w-line">
+            {count(w.videos30, "video", "videos")} · {count(w.channels30, "channel", "channels")} in 30 days
+          </p>
+        </>
+      ));
+    },
+  },
+  // A Watch streak tile stood here until the owner had the streak and the daily goal out, 2026-10-21 ("I don't want a
+  // target goal for immersion nor streaks… it might change in the future"); every stretch watched is still kept.
+  {
+    id: "watch-time",
+    name: "Watch time",
+    home: true,
+    control: "2 weeks",
+    render(stats) {
+      const { byDay, days7 } = stats.watching;
+      return watchTile(stats, byDay.every((d) => d.ms === 0), () => (
+        <>
+          <Columns values={byDay.map((d) => Math.round(d.ms / 60_000))} labels={everyOtherDay(byDay)} />
+          <p className="w-line">{spent(days7)} in 7 days</p>
+        </>
+      ));
+    },
+  },
+  {
+    id: "channels",
+    name: "Channels",
+    home: true,
+    control: "30 days",
+    render(stats) {
+      const { channels } = stats.watching;
+      return watchTile(stats, channels.length === 0, () => (
+        <div className="w-list">
+          {channels.map((channel) => (
+            <div key={channel.name} className="w-item">
+              <span className="w-item-front" lang={langOf(channel.name)}>
+                {channel.name}
+              </span>
+              <span className="w-item-n">{spent(channel.ms)}</span>
+            </div>
+          ))}
+        </div>
+      ));
+    },
+  },
+  {
+    id: "continue",
+    name: "Continue watching",
+    wide: true,
+    home: true,
+    control: (stats) => (stats.watching.on && stats.watching.continuing.length > 0 ? count(stats.watching.continuing.length, "video", "videos") : ""),
+    render(stats, ctx) {
+      const { continuing } = stats.watching;
+      return watchTile(stats, continuing.length === 0, () => <ContinueRows videos={continuing} onStale={ctx.onStale} />);
+    },
+  },
+  // Together and Together · this week (everyone on this Panki) stood here for a day, 2026-10-21, until the owner shelved
+  // everything about other people for a later feature. A layout that still names them drops them (`layout.ts`).
 ];
 
 /** The entry an id names; the registry is the one list, so a stored id that names nothing is simply not there. */

@@ -18,7 +18,19 @@ import {
   TranscriptResponse,
   TranscriptionResponse,
   VideoCards,
+  WatchedVideoResponse,
+  GlanceResponse,
+  SavedResponse,
+  StatsResponse,
+  type SaveVideo,
+  type SavedVideo,
   type CalledCard,
+  type Settings,
+  type Stats,
+  type VideoGlance,
+  type WatchBatch,
+  type WatchMarkKind,
+  type WatchedVideo,
   type CardType,
   type Deck,
   type ForvoTake,
@@ -51,7 +63,7 @@ export class PankiError extends Error {
 /** Where Panki is and the sign-in to it. */
 export type Door = { address: string; token: string };
 
-type Init = { method?: "GET" | "POST" | "PUT" | "PATCH"; headers?: Record<string, string>; body?: string | Blob };
+type Init = { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; headers?: Record<string, string>; body?: string | Blob };
 
 /**
  * The only place the extension calls the network, and only ever Panki's own address: the one the owner typed on the
@@ -168,6 +180,40 @@ export const panki = {
     bytesAt(door, `/api/videos/${id(videoId)}/avatar`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: shown }) }),
   /** The account's cards taken from a video: each its clip's stretch, in ms, and its words. */
   videoCards: ({ address, token }: Door, videoId: string): Promise<VideoCard[]> => call(address, token, `/api/videos/${id(videoId)}/cards`, {}, (b) => VideoCards.parse(b).cards),
+  /** The account's stats for every deck, its watching and the others' as far as they share: YouTube's home draws Panki's tiles from them. */
+  stats: ({ address, token }: Door): Promise<Stats> => call(address, token, "/api/stats", {}, (b) => StatsResponse.parse(b).stats),
+  /** The account's settings, as the tiles read them. */
+  /**
+   * The account's settings. An account's zone is its own, the device's to begin with (the owner, 2026-10-21): the
+   * first time it's read here with none, this browser's is written, as the app does when it's opened.
+   */
+  settings: async ({ address, token }: Door): Promise<Settings> => {
+    const settings = await call(address, token, "/api/settings", {}, (b) => SettingsResponse.parse(b).settings);
+    if (settings.timeZone !== "") return settings;
+    const timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return call(address, token, "/api/settings", json("PATCH", { timeZone }), (b) => SettingsResponse.parse(b).settings);
+  },
+  /** Videos as their thumbnails on YouTube are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
+  glance: ({ address, token }: Door, videoIds: readonly string[]): Promise<VideoGlance[]> =>
+    call(address, token, "/api/watching/glance", json("POST", { videoIds }), (b) => GlanceResponse.parse(b).videos),
+  /** A video as the account's watching has it: whether it's kept at all, where it was stopped, whether it counts. */
+  watched: ({ address, token }: Door, videoId: string): Promise<WatchedVideo> => call(address, token, `/api/watching/videos/${id(videoId)}`, {}, (b) => WatchedVideoResponse.parse(b).video),
+  /** Stretches of videos watched, kept on the account's Panki (nothing, when its Video tracking is off). */
+  watch: ({ address, token }: Door, batch: WatchBatch): Promise<void> => call(address, token, "/api/watching", json("POST", batch), () => undefined),
+  /** A video left out of the count, counted again, or put away from Continue watching. */
+  watchMark: ({ address, token }: Door, videoId: string, kind: WatchMarkKind): Promise<WatchedVideo> =>
+    call(address, token, `/api/watching/videos/${id(videoId)}/marks`, json("POST", { kind }), (b) => WatchedVideoResponse.parse(b).video),
+  /** The videos saved for later, newest first: the account's own, never YouTube's. */
+  saved: ({ address, token }: Door): Promise<SavedVideo[]> => call(address, token, "/api/watching/saved", {}, (b) => SavedResponse.parse(b).videos),
+  /** A video saved for later with its name and channel as the page shows them, or the save taken back; the saved videos after. */
+  save: ({ address, token }: Door, videoId: string, about: SaveVideo | null): Promise<SavedVideo[]> =>
+    call(
+      address,
+      token,
+      `/api/watching/saved/${id(videoId)}`,
+      about ? { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(about) } : { method: "DELETE" },
+      (b) => SavedResponse.parse(b).videos,
+    ),
   /** The account's cards, in any deck, already called by one of these words: the drawer says so before a card is added. */
   cardsCalled: ({ address, token }: Door, words: readonly string[]): Promise<CalledCard[]> =>
     call(address, token, `/api/cards/called?${words.map((word) => `word=${id(word)}`).join("&")}`, {}, (b) => CalledCards.parse(b).cards),

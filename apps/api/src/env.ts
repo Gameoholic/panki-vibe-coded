@@ -11,7 +11,8 @@ export const env = {
   dataDir,
   // Where `pnpm backup` writes: beside the data, never inside it (a backup of the data must not contain the backups).
   backupDir: process.env.PANKI_BACKUP_DIR ?? path.resolve(dataDir, "..", "backups"),
-  // The clock the owner's day turns over on. The VPS may run on UTC while they live elsewhere, so it's never assumed.
+  // Every account's day turns over in its own zone (Settings, the device's to begin with, the owner's word of
+  // 2026-10-21). This is only what stands in for an account that has never opened Panki or the extension yet.
   timeZone: process.env.PANKI_TIME_ZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   // With less than this left on the data's disk, everyone signed in is told. A clip is about a megabyte, so the
   // default is a couple of thousand clips of warning; a small disk may want less.

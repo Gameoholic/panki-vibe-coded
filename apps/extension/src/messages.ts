@@ -22,6 +22,7 @@ import {
   Stretch,
   SubtitleStyle,
   TranscribeEstimate,
+  TranscribeLanguage,
   Transcript,
   TranscriptFix,
   TranscriptLineFix,
@@ -29,9 +30,20 @@ import {
   VideoCard,
   VideoId,
   WHOLE_MAX_MS,
+  WatchBatch,
+  WatchMarkKind,
+  WatchedVideo,
+  GLANCE_MAX,
+  GlanceAsk,
+  SaveVideo,
+  SavedVideo,
+  Settings,
+  Stats,
+  VideoGlance,
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
+import { Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 
@@ -120,6 +132,22 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pictures"), videoId: VideoId, avatar: z.string().max(2000).nullable() }),
   /** Where in a video the account's cards were taken from: marked on the video's bar. */
   z.object({ kind: z.literal("videoCards"), videoId: VideoId }),
+  /** Which of Panki's parts are on in this browser, and what happens where a video was stopped. Needs no sign-in: they're this browser's own. */
+  z.object({ kind: z.literal("modules") }),
+  /** A video as it opens: whether the account keeps its watching, where it was stopped, whether it counts. */
+  z.object({ kind: z.literal("watched"), videoId: VideoId }),
+  /** Stretches of videos watched, with the videos they're of, kept on Panki. */
+  z.object({ kind: z.literal("watch"), batch: WatchBatch }),
+  /** A video left out of the count, counted again, or put away from Continue watching. */
+  z.object({ kind: z.literal("watchMark"), videoId: VideoId, mark: WatchMarkKind }),
+  /** What YouTube's home shows of Panki: who's signed in, the account's stats, its decks and settings. */
+  z.object({ kind: z.literal("home") }),
+  /** Panki switched on or off altogether, from the strip's head. */
+  z.object({ kind: z.literal("pankiOn"), on: z.boolean() }),
+  /** Videos as their thumbnails are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
+  z.object({ kind: z.literal("glance"), videoIds: GlanceAsk.shape.videoIds }),
+  /** A video saved for later with its name and channel as the page shows them (`about`), or its save taken back (null). */
+  z.object({ kind: z.literal("save"), videoId: VideoId, about: SaveVideo.nullable() }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -160,6 +188,21 @@ export type Pictured = z.infer<typeof Pictured>;
 /** The account's cards taken from the video: each its clip, in ms, and its words. */
 const Carded = z.union([z.object({ ok: z.literal(true), cards: z.array(VideoCard) }), Failed]);
 export type Carded = z.infer<typeof Carded>;
+/** Which of Panki's parts are on in this browser. */
+const Moduled = z.union([z.object({ ok: z.literal(true), modules: Modules }), Failed]);
+export type Moduled = z.infer<typeof Moduled>;
+/** A video as the account's watching has it. */
+const Watched = z.union([z.object({ ok: z.literal(true), video: WatchedVideo }), Failed]);
+export type Watched = z.infer<typeof Watched>;
+/** Panki for YouTube's home: who's signed in, the account's stats, its decks (what's due) and its settings. */
+const Homed = z.union([z.object({ ok: z.literal(true), name: z.string(), stats: Stats, decks: z.array(Deck), settings: Settings, saved: z.array(SavedVideo) }), Failed]);
+export type Homed = z.infer<typeof Homed>;
+/** The videos saved for later, as they stand after a save or a save taken back. */
+const Saved = z.union([z.object({ ok: z.literal(true), videos: z.array(SavedVideo) }), Failed]);
+export type Saved = z.infer<typeof Saved>;
+/** Videos as their thumbnails are marked. */
+const Glanced = z.union([z.object({ ok: z.literal(true), videos: z.array(VideoGlance) }), Failed]);
+export type Glanced = z.infer<typeof Glanced>;
 /** The account's cards already called by some words: each its words, and its deck. */
 const Called = z.union([z.object({ ok: z.literal(true), cards: z.array(CalledCard) }), Failed]);
 export type Called = z.infer<typeof Called>;
@@ -183,7 +226,8 @@ export type State = z.infer<typeof State>;
 export type Done = z.infer<typeof Done>;
 /** A video's transcript with what runs transcribing: the shared settings, whether the chosen engine has a key, what a whole-video download takes as measured so far, this browser's pick of source, and this viewer's preferences. */
 const Transcripted = z.union([
-  z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, key: z.boolean(), estimate: TranscribeEstimate, source: z.string(), prefs: TranscribePrefs }),
+  // `language` is the account's own, told to the engine: each account's since 2026-10-21, nothing Panki-wide.
+  z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, language: TranscribeLanguage, key: z.boolean(), estimate: TranscribeEstimate, source: z.string(), prefs: TranscribePrefs }),
   Failed,
 ]);
 export type Transcripted = z.infer<typeof Transcripted>;
@@ -344,4 +388,43 @@ export async function askForget(videoId: string, stretch: Stretch | null): Promi
 /** A preference of this viewer's changed in the strip's menu, kept for the next video. */
 export async function askPrefs(prefs: Partial<TranscribePrefs>): Promise<void> {
   await ask({ kind: "prefs", prefs });
+}
+/** Which of Panki's parts are on in this browser. */
+export async function askModules(): Promise<Moduled> {
+  const answer = Moduled.safeParse(await ask({ kind: "modules" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A video as it opens: whether its watching is kept, where it was stopped, whether it counts. */
+export async function askWatched(videoId: string): Promise<Watched> {
+  const answer = Watched.safeParse(await ask({ kind: "watched", videoId }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Stretches watched, sent to Panki. */
+export async function askWatch(batch: WatchBatch): Promise<Done> {
+  const answer = Done.safeParse(await ask({ kind: "watch", batch }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Panki's stats and what its tiles draw them with, for YouTube's home page. */
+export async function askHome(): Promise<Homed> {
+  const answer = Homed.safeParse(await ask({ kind: "home" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Panki switched on or off altogether, kept for every page from now on. */
+export async function askPankiOn(on: boolean): Promise<void> {
+  await ask({ kind: "pankiOn", on });
+}
+/** Videos as their thumbnails are marked; none of them when it can't be asked. */
+export async function askGlance(videoIds: readonly string[]): Promise<Glanced> {
+  const answer = Glanced.safeParse(await ask({ kind: "glance", videoIds: videoIds.slice(0, GLANCE_MAX) }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A video saved for later (`about`: its name and channel as the page shows them), or its save taken back (null). */
+export async function askSave(videoId: string, about: SaveVideo | null): Promise<Saved> {
+  const answer = Saved.safeParse(await ask({ kind: "save", videoId, about }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A video left out of the count, counted again, or put away; the video as it stands then comes back. */
+export async function askWatchMark(videoId: string, mark: WatchMarkKind): Promise<Watched> {
+  const answer = Watched.safeParse(await ask({ kind: "watchMark", videoId, mark }));
+  return answer.success ? answer.data : failed(answer.error);
 }

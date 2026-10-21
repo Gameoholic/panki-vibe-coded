@@ -71,3 +71,13 @@ const DATE_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "
 export function dateWords(at: number): string {
   return DATE_WORDS.format(new Date(at));
 }
+
+/** How long ago a moment was, by the device's calendar: "Today", "Yesterday", "3 days ago", then the date in words. */
+export function agoWords(at: number, now: number): string {
+  const dayStart = (ms: number) => new Date(new Date(ms).toDateString()).getTime();
+  const days = Math.round((dayStart(now) - dayStart(at)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return dateWords(at);
+}

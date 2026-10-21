@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CHUNK_LENGTH_MAX,
   DICTIONARY_MAX_BYTES,
@@ -24,10 +24,12 @@ import {
   type TranscribeMode,
   type Transcription,
   type TranscriptionStatus,
+  type WatchHistory,
   type WordAudio,
   type WordAudioStatus,
 } from "@panki/contracts";
 import { ApiError, api, type Me } from "../api";
+import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
 import { Form } from "../components/Form";
@@ -94,6 +96,94 @@ const OVER_LIMIT_OPTIONS = OVER_LIMIT_IDS.map((id) => ({ id, label: OVER_LIMIT_W
 const ENGINE_OPTIONS = ENGINE_IDS.map((id) => ({ id, label: ENGINES[id].name }));
 const LANGUAGE_OPTIONS = TRANSCRIBE_LANGUAGE_IDS.map((id) => ({ id, label: TRANSCRIBE_LANGUAGES[id] }));
 const SOURCE_OPTIONS = WORD_AUDIO_SOURCE_IDS.map((id) => ({ id, label: WORD_AUDIO_SOURCES[id].name }));
+
+/** The zone this device is in, by its name in the time zone database: what an account's zone starts as (`App.tsx` writes it the first time the account opens Panki). */
+export const DEVICE_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/**
+ * The account's time zone as a choice: every zone the browser knows, written with spaces for underscores, this
+ * device's noted. Each account's own, nothing Panki-wide (2026-10-21). A zone saved that the browser doesn't list (an
+ * old alias) is listed all the same, so the choice never shows as nothing.
+ */
+function zoneOptions(saved: string): { id: string; label: string; note?: string }[] {
+  const zones = [...new Set([...Intl.supportedValuesOf("timeZone"), DEVICE_ZONE, ...(saved === "" ? [] : [saved])])].sort();
+  return zones.map((zone) => ({ id: zone, label: zone.replaceAll("_", " "), ...(zone === DEVICE_ZONE ? { note: "This device" } : {}) }));
+}
+
+/**
+ * All that's kept of the videos watched, in one line, and a way to forget it, asked in place first. The rows are hidden
+ * on Panki with the time they went, never destroyed; the watch time and Continue watching start over.
+ */
+function WatchHistoryPanel() {
+  const [history, setHistory] = useState<WatchHistory | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api.watchHistory().then(
+      (now) => {
+        if (alive) setHistory(now);
+      },
+      (e: unknown) => {
+        if (alive) setFailure(said(e));
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function forget() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      setHistory(await api.forgetWatchHistory());
+      setAsking(false);
+    } catch (e) {
+      setFailure(said(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const kept = history !== null && history.videos > 0;
+  return (
+    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="watch-history-title">
+      <h2 id="watch-history-title" className="panel-title">
+        Watch history
+      </h2>
+      {history ? (
+        <p className="session-who">
+          {kept ? `${count(history.videos, "video", "videos")} · ${durationWords(history.ms / 1000)}${history.since === null ? "" : ` since ${dateWords(history.since)}`}` : "Nothing kept."}
+        </p>
+      ) : null}
+      {asking ? (
+        <Ask
+          idPrefix="watch-forget"
+          question="Forget your watch history? Your watch time and Continue watching start again from nothing."
+          go={{ words: "Forget history", busy: "Forgetting…" }}
+          busy={busy}
+          failure={failure}
+          onKeep={() => setAsking(false)}
+          onGo={() => void forget()}
+        />
+      ) : (
+        <div className="add-actions add-actions-start">
+          {failure ? (
+            <span className="form-failure" role="alert">
+              {failure}
+            </span>
+          ) : null}
+          <Button id="watch-forget" className="is-danger" disabled={!kept} onClick={() => setAsking(true)}>
+            Forget my watch history…
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
 
 type KeyPanelProps = {
   /** Names the panel's controls for the checks that drive the real UI. */
@@ -307,7 +397,7 @@ type TranscribingProps = {
 };
 
 /**
- * How transcribing runs, for everyone, each change saved a moment after it's made: the engine and the language; the
+ * How transcribing runs, for everyone, each change saved a moment after it's made: the engine (the language is each account's own); the
  * transcription modes compared, which one everyone starts on and which are switched off, and the download limit; how
  * the chunks are cut; then the engine's key and its tally. (What's the viewer's own, whether it starts by itself, what
  * it does while paused, whether the transcript replaces the site's captions, and which mode they use, is on the
@@ -335,8 +425,7 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           </p>
         ) : null}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
-        {/* What every video is transcribed in, told to the engine (the owner, 2026-10-18: seldom changed, so here and not under the video). */}
-        <Setting id="language" label="Language" control={<Dropdown id="transcribe-language" label="Language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />} />
+        {/* The language every video was transcribed in stood here from 2026-10-18 until the owner made it each account's own, 2026-10-21 (General → Watching). */}
       </section>
       <section className="panel-section" aria-labelledby="modes-title">
         <h3 id="modes-title" className="panel-subtitle">
@@ -713,13 +802,15 @@ function DictionariesPanel() {
 }
 
 /**
- * The theme first, kept on this device; then the two settings every deck shares: whether waits are spread, and when the
- * day turns over. How a review runs is in each deck's own settings. Each change is saved a moment after it's made. Then
- * for an admin alone, the Admin tab with what every account shares (how transcribing runs, the keys, the dictionaries
- * kept on Panki). Last, the devices signed in.
+ * The theme first, kept on this device; then General: whether waits are spread, when the day turns over and in which
+ * time zone, and the language videos are transcribed in. How a review runs is in each deck's own settings. Then
+ * Immersion: whether watching is kept. Each change is saved a moment after
+ * it's made. Then for an admin alone, the Admin tab with what every account shares (how transcribing runs, the keys, the
+ * dictionaries kept on Panki). Last, the devices signed in and the watch history.
  */
 export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }: Props) {
   const [current, patch, failure] = useSavedSoon<Settings>(settings, onChange);
+  const zones = useMemo(() => zoneOptions(current.timeZone), [current.timeZone]);
   const [theme, setTheme] = useState<ThemeId>(readTheme);
   const [askingAll, setAskingAll] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -787,7 +878,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
 
         <section className="panel" aria-labelledby="settings-title">
           <h2 id="settings-title" className="panel-title">
-            Every deck
+            General
           </h2>
           <Setting
             id="fuzz"
@@ -801,6 +892,33 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
             control={<NumberField id="setting-day-start" label="Hour the day starts" value={current.dayStartHour} min={0} max={23} suffix=":00" onChange={(dayStartHour) => patch({ dayStartHour })} />}
             why={`A review before ${clock(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit start over at ${clock(current.dayStartHour)}.`}
           />
+          {/* Never empty once the account has opened Panki (App writes the device's zone); shown as this device's until that write lands. */}
+          <Setting
+            id="timeZone"
+            label="Time zone"
+            control={<Dropdown id="setting-time-zone" label="Time zone" options={zones} value={current.timeZone || DEVICE_ZONE} onChange={(timeZone) => patch({ timeZone })} />}
+          />
+          {/* The account's own, told to the engine for every video it transcribes (moved here from Watching at the owner's word, 2026-10-21). */}
+          <Setting
+            id="language"
+            label="Transcription language"
+            control={<Dropdown id="setting-language" label="Transcription language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />}
+          />
+        </section>
+
+        {/* Was "Watching" until the owner asked for another name, 2026-10-21: Immersion is their own word (the strip's Immersion / Just watching). */}
+        <section className="panel" aria-labelledby="watching-title">
+          <h2 id="watching-title" className="panel-title">
+            Immersion
+          </h2>
+          <Setting
+            id="videoTracking"
+            label="Video tracking"
+            control={<Toggle id="setting-video-tracking" says={{ on: "On", off: "Off" }} on={current.videoTracking} onChange={(videoTracking) => patch({ videoTracking })} />}
+            why="Keeps which videos you watch, for how long and where you stopped."
+          />
+          {/* Daily goal went with the watch streak, 2026-10-21: no goal and no streak for immersion, for now. */}
+          {/* Share my watching (Off, Minutes and streak, Also what I watch) went at the owner's word, 2026-10-21: "either we share all or nothing". Video tracking on is all of it shared. */}
         </section>
 
         {/* How a card's clip's subtitles look (a part's Subtitles in a card type's Layout): the app's own, apart from the extension's over YouTube. */}
@@ -873,6 +991,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
             </div>
           )}
         </section>
+        <WatchHistoryPanel />
       </div>
     </>
   );

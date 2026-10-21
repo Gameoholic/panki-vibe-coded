@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab } from "./messages";
+import { DEFAULT_MODULES, PillLayout, ResumeHow, ShelfMax, pillLayoutOf, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, SeekLook } from "./seekLook";
@@ -101,6 +102,29 @@ const Stored = z.object({
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
   /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
   transcribeMode: TranscribeMode.nullable().catch(DEFAULT_PREFS.mode),
+  /** Which of Panki's parts are on, and what happens where a video was stopped (`modules.ts`), set on the options page; `pankiOn` in the strip's head too. */
+  pankiOn: z.boolean().catch(DEFAULT_MODULES.on),
+  modulePanel: z.boolean().catch(DEFAULT_MODULES.panel),
+  moduleLookup: z.boolean().catch(DEFAULT_MODULES.lookup),
+  moduleSeek: z.boolean().catch(DEFAULT_MODULES.seek),
+  resumeHow: ResumeHow.catch(DEFAULT_MODULES.resume),
+  markStop: z.boolean().catch(DEFAULT_MODULES.markStop),
+  moduleHome: z.boolean().catch(DEFAULT_MODULES.home),
+  /** The parts of YouTube's home, each its own under the master switch (`modules.ts`). */
+  homePill: z.boolean().catch(DEFAULT_MODULES.homePill),
+  /** What the pill in the header bar says, in what order (`modules.ts` → `PillLayout`), made whole as it's read. */
+  pill: PillLayout.transform(pillLayoutOf).catch(DEFAULT_MODULES.pill),
+  pillPower: z.boolean().catch(DEFAULT_MODULES.pillPower),
+  homeLine: z.boolean().catch(DEFAULT_MODULES.homeLine),
+  homeShelf: z.boolean().catch(DEFAULT_MODULES.homeShelf),
+  shelfMax: ShelfMax.catch(DEFAULT_MODULES.shelfMax),
+  homeSaved: z.boolean().catch(DEFAULT_MODULES.homeSaved),
+  thumbSave: z.boolean().catch(DEFAULT_MODULES.thumbSave),
+  moduleShorts: z.boolean().catch(DEFAULT_MODULES.shorts),
+  moduleThumbs: z.boolean().catch(DEFAULT_MODULES.thumbs),
+  // `homeChips` and `feedFilter` (the chips over YouTube's home feed) went on 2026-10-21; a browser that kept them keeps them unread.
+  /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls. */
+  speedControl: z.boolean().catch(DEFAULT_MODULES.speedControl),
   // `meaningPick` was a key here (2026-10-14): which meanings a card got. The owner had it taken out the next day, the
   // ones ticked in the drawer being enough; a browser that still has it keeps it unread.
 });
@@ -116,6 +140,28 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   markOver: store.markOver,
   seek: store.seekLook,
   mode: store.transcribeMode,
+});
+
+/** Which parts are on, as one value, as a page gets them. */
+export const modulesOf = (store: Stored): Modules => ({
+  on: store.pankiOn,
+  panel: store.modulePanel,
+  lookup: store.moduleLookup,
+  seek: store.moduleSeek,
+  resume: store.resumeHow,
+  markStop: store.markStop,
+  home: store.moduleHome,
+  homePill: store.homePill,
+  pill: store.pill,
+  pillPower: store.pillPower,
+  homeLine: store.homeLine,
+  homeShelf: store.homeShelf,
+  shelfMax: store.shelfMax,
+  homeSaved: store.homeSaved,
+  thumbSave: store.thumbSave,
+  shorts: store.moduleShorts,
+  thumbs: store.moduleThumbs,
+  speedControl: store.speedControl,
 });
 
 export async function readStore(): Promise<Stored> {
