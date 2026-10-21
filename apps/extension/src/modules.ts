@@ -14,10 +14,25 @@ import { z } from "zod";
  * (a third, only marked on the bar, went on 2026-10-21: the mark has its own switch). Named by what's seen, at the
  * owner's word the same day ("Offered and Continued are super abstract"); a browser that kept the third reads as the first.
  */
-export const ResumeHow = z.enum(["offer", "continue"]);
+/**
+ * What opening a video watched before does with where it was stopped: offer it on a button; jump there, but never over
+ * a time the link itself asked for (a `t=` the page was opened with, a card's moment); or jump there always, even over
+ * that (the owner, 2026-10-22: "another one which will ALWAYS jump, even override the t=, but it needs to be clear that
+ * the other one doesn't override it").
+ */
+export const ResumeHow = z.enum(["offer", "continue", "always"]);
 export type ResumeHow = z.infer<typeof ResumeHow>;
-export const RESUME_HOW: Record<ResumeHow, string> = { offer: "Show a button", continue: "Jump automatically" };
+export const RESUME_HOW: Record<ResumeHow, string> = { offer: "Show a button", continue: "Jump, unless the link has a time", always: "Always jump, even over a link's time" };
 export const RESUME_HOW_IDS = ResumeHow.options;
+/**
+ * With "Jump, unless the link has a time", what a link with a time of its own does about where the video was stopped:
+ * offer it on the button all the same, or nothing (the owner, 2026-10-22: "the settings need to be clear about it or
+ * provide an option not to").
+ */
+export const ResumeTimed = z.enum(["offer", "nothing"]);
+export type ResumeTimed = z.infer<typeof ResumeTimed>;
+export const RESUME_TIMED: Record<ResumeTimed, string> = { offer: "Show a button", nothing: "Do nothing" };
+export const RESUME_TIMED_IDS = ResumeTimed.options;
 
 // Chips sifting YouTube's home feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them
 // out, 2026-10-21 ("in the home page remove this line"); a browser that kept `feedFilter` or `homeChips` keeps them unread.
@@ -50,10 +65,14 @@ export function pillLayoutOf(kept: PillLayout): PillLayout {
 /** Minutes watched today alone, as the pill said until it could be laid out. */
 export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: true }]);
 
-/** How many videos the Continue watching shelf carries: one row of the site's grid, two, or all Panki keeps (`WATCH.continueMax`). */
-export const ShelfMax = z.union([z.literal(4), z.literal(8), z.literal(12)]);
+/**
+ * How many videos the Continue watching shelf carries, up to all Panki keeps (`WATCH.continueMax`): 5, 10 or 15, 5 to
+ * begin with (the owner, 2026-10-22; it was 4, 8 or 12, which a browser that kept one reads as the next size up).
+ */
+const SHELF_WAS: Record<number, number> = { 4: 5, 8: 10, 12: 15 };
+export const ShelfMax = z.preprocess((n) => (typeof n === "number" ? (SHELF_WAS[n] ?? n) : n), z.union([z.literal(5), z.literal(10), z.literal(15)]));
 export type ShelfMax = z.infer<typeof ShelfMax>;
-export const SHELF_SIZES: readonly ShelfMax[] = [4, 8, 12];
+export const SHELF_SIZES: readonly ShelfMax[] = [5, 10, 15];
 
 export const Modules = z.object({
   /**
@@ -70,6 +89,7 @@ export const Modules = z.object({
   /** Panki's marks on a video's seek bar, all of them (each mark's own Shown / Hidden is under Seek bar). */
   seek: z.boolean(),
   resume: ResumeHow,
+  resumeTimed: ResumeTimed,
   /** Where a video was stopped, marked on its seek bar (while the marks are on). */
   markStop: z.boolean(),
   /**
@@ -107,13 +127,14 @@ export const DEFAULT_MODULES: Modules = {
   lookup: true,
   seek: true,
   resume: "offer",
+  resumeTimed: "offer",
   markStop: true,
   home: true,
   homePill: true,
   pill: DEFAULT_PILL,
   homeLine: true,
   homeShelf: true,
-  shelfMax: 4,
+  shelfMax: 5,
   homeSaved: true,
   thumbSave: true,
   shorts: true,

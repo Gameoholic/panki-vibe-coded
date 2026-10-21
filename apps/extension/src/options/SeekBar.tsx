@@ -5,7 +5,7 @@ import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
-import { OFFER_AWAY_MS, OFFER_MS, RESUME_HOW, RESUME_HOW_IDS, type ResumeHow } from "../modules";
+import { OFFER_AWAY_MS, OFFER_MS, RESUME_HOW, RESUME_HOW_IDS, RESUME_TIMED, RESUME_TIMED_IDS, type ResumeHow } from "../modules";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import {
   CARD_CLICKS,
@@ -33,6 +33,7 @@ const SIZE_OPTIONS = MARK_SIZE_IDS.map((id) => ({ id, label: MARK_SIZES[id].name
 const ENTRANCE_OPTIONS = PIN_ENTRANCE_IDS.map((id) => ({ id, label: PIN_ENTRANCES[id] }));
 const CLICK_OPTIONS = CARD_CLICK_IDS.map((id) => ({ id, label: CARD_CLICKS[id] }));
 const RESUME_OPTIONS = RESUME_HOW_IDS.map((id) => ({ id, label: RESUME_HOW[id] }));
+const TIMED_OPTIONS = RESUME_TIMED_IDS.map((id) => ({ id, label: RESUME_TIMED[id] }));
 const WORDS_OPTIONS = [
   { id: "hover", label: "On hover" },
   { id: "always", label: "Always" },
@@ -131,7 +132,7 @@ function Swatches({ id, value, disabled, onChange }: { id: string; value: MarkPa
  */
 function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; marked: boolean }) {
   const [hover, setHover] = useState(false);
-  const jump = how === "continue";
+  const jump = how !== "offer";
   const [at, setAt] = useState(jump ? PREVIEW_STOP : PREVIEW_PLAYED);
   const [clip, setClip] = useState({ start: 240, end: 252 });
   const [offer, setOffer] = useState<"up" | "away" | "gone">("up");
@@ -299,6 +300,13 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
           label="As the video opens"
           control={<Segmented idPrefix="resume-how" label="As the video opens" options={RESUME_OPTIONS} value={store.resumeHow} disabled={off} onChange={(resumeHow) => void writeStore({ resumeHow }).then(onChanged)} />}
         />
+        {store.resumeHow === "continue" ? (
+          <Setting
+            id="resume-timed"
+            label="When the link has a time"
+            control={<Segmented idPrefix="resume-timed" label="When the link has a time" options={TIMED_OPTIONS} value={store.resumeTimed} disabled={off} onChange={(resumeTimed) => void writeStore({ resumeTimed }).then(onChanged)} />}
+          />
+        ) : null}
         <Setting
           id="mark-stop"
           label="On the seek bar"

@@ -26,7 +26,7 @@ export const WATCH = {
   /** How often the extension closes the stretch being watched and sends what it has while the video plays on (a pause, a jump, leaving or hiding the page send at once), so only a crash loses anything, and that much at most. Thirty seconds at the owner's word, 2026-10-21: a row a second would weigh on the stats for nothing. */
   flushMs: 30_000,
   /** The most videos Continue watching lists. */
-  continueMax: 12,
+  continueMax: 15,
 } as const;
 
 /** A video as the page shows it, sent with its stretches: its name, its channel, how long it is. YouTube's words, not the owner's. */

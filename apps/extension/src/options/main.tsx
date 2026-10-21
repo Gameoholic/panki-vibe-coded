@@ -372,11 +372,11 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
       <Setting
         id="shelf-max"
-        label="Videos to continue"
+        label="Videos shown in Continue watching"
         control={
           <Segmented
             idPrefix="shelf-max"
-            label="Videos to continue"
+            label="Videos shown in Continue watching"
             options={SHELF_OPTIONS}
             value={String(store.shelfMax)}
             disabled={off || !store.homeShelf}
@@ -385,8 +385,9 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
         }
       />
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
-      {row("module-thumbs", "Thumbnail marks", store.moduleThumbs, { on: "Shown", off: "Hidden" }, (moduleThumbs) => ({ moduleThumbs }))}
-      {row("thumb-save", "Save button on thumbnails", store.thumbSave, { on: "Shown", off: "Hidden" }, (thumbSave) => ({ thumbSave }))}
+      {/* Named for what they show (the owner, 2026-10-22: "Thumbnail marks: no clue what that is"; "Save button on thumbnails: what are we saving?"). */}
+      {row("module-thumbs", "Progress, cards and subtitles on thumbnails", store.moduleThumbs, { on: "Shown", off: "Hidden" }, (moduleThumbs) => ({ moduleThumbs }))}
+      {row("thumb-save", "Save for later button on thumbnails", store.thumbSave, { on: "Shown", off: "Hidden" }, (thumbSave) => ({ thumbSave }))}
     </section>
   );
 }

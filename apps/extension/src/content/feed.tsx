@@ -282,8 +282,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
   /** How far into a video it was stopped, and what's left, as its picture says it. */
   const progressOf = (v: ContinueVideo) => ({ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: `${wanted(v.lengthMs - v.stoppedAtMs)} left` });
-  /** The address that opens a video where it was stopped. */
-  const resumeAt = (v: ContinueVideo) => youtubeUrl({ videoId: v.videoId, seconds: Math.floor(v.stoppedAtMs / 1000) });
+  /**
+   * The address that opens a video to go on with: the video alone, no time in it, so "Where you stopped last" decides
+   * (offered, or jumped to, from Panki's latest stop). It carried the stop as a time marked as Panki's own until
+   * 2026-10-22, which read as a moment asked for, and Jump automatically then stood aside (the owner: "why does clicking
+   * a video from Panki's lists add the t=?").
+   */
+  const resumeAt = (v: ContinueVideo) => youtubeUrl({ videoId: v.videoId, seconds: null });
 
   /**
    * The videos left part-way (the owner's pick of six, 2026-10-21: "Hero and the rest"): the one left last big, with

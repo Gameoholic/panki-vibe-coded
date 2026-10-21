@@ -429,13 +429,15 @@ const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: 
 /** Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not (the owner, 2026-10-21). */
 function active(): Modules {
   const now = modules.get();
-  return now.on ? now : { ...ALL_OFF, resume: now.resume, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl };
+  return now.on ? now : { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl };
 }
 
 /** Panki switched on or off altogether, from the strip's head or the header bar's pill: on the page at once, and kept for every page from now on. */
 function setPankiOn(on: boolean) {
   modules.set({ ...modules.get(), on });
   void askPankiOn(on);
+  // Turned back on, the video playing is noted again from now (off, `look` closed and sent what was open).
+  if (on) void readSeen();
 }
 
 /**
@@ -490,12 +492,16 @@ function tryResume() {
   // was loaded on. The video is never pulled away from one; going on from the stop is offered instead (the owner,
   // 2026-10-21: "in that case you'll still show the button").
   const wanted = momentWanted(location.href) || (loadedOn.moment && loadedOn.videoId === watching);
-  if (modules.get().resume === "continue" && !wanted) {
+  const how = modules.get().resume;
+  // Always jump goes there over a time that was asked for too (the owner, 2026-10-22).
+  if (how === "always" || (how === "continue" && !wanted)) {
     // Jump automatically goes to Panki's stop wherever the site put the video: its own `t=` on a half-watched video is
     // its place, which can be past Panki's (a phone's watching the site knows of and Panki doesn't).
     if (Math.abs(player.currentTime - at) > 1) player.currentTime = at;
     return;
   }
+  // A link with a time of its own under "Jump, unless the link has a time": the button, or nothing, as picked.
+  if (how === "continue" && modules.get().resumeTimed === "nothing") return;
   // Already there or past it (the site keeps a place of its own for a viewer signed in to it, and went there first): nothing to offer.
   if (player.currentTime >= at - 5) return;
   offered.set(at);
