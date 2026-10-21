@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { youtubeUrl, type EngineId, type WholeJob } from "@panki/contracts";
+import { youtubeUrl, type EngineId, type TranscribeLanguage, type WholeJob } from "@panki/contracts";
 import type { Shared } from "../shared";
 import { EngineError, type Engines } from "./engines";
 
@@ -88,11 +88,14 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
   }
 
   return {
-    /** A video downloaded whole: the one under way when there is one, or a new one, asked for now. */
-    ask(videoId: string, lengthMs: number, userId: string): WholeJob {
+    /**
+     * A video downloaded whole: the one under way when there is one, or a new one, asked for now, the engine told the
+     * language of the account that asked (its own, else everyone's: the route's to say).
+     */
+    ask(videoId: string, lengthMs: number, userId: string, language: TranscribeLanguage): WholeJob {
       const running = shared.runningJob(videoId);
       if (running) return running;
-      const { engine, language } = shared.getTranscription();
+      const { engine } = shared.getTranscription();
       const job = shared.insertJob({ id: randomUUID(), videoId, engine, language, lengthMs, userId }, now());
       say(videoId, `${lengthWords(lengthMs)} · asked for`);
       enqueue(engine, job.id);

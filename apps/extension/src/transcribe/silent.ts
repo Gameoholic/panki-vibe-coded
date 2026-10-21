@@ -70,7 +70,8 @@ const SOURCES = ["embed", "watch"] as const;
 export type SilentPage = (typeof SOURCES)[number];
 const PLAYER = "#movie_player";
 const ERROR = ".ytp-error";
-const AD = ["ad-showing", "ad-interrupting"];
+/** The classes the site's player carries while an ad plays in it; the video page's watcher leaves ads out of the time watched too. */
+export const AD = ["ad-showing", "ad-interrupting"];
 /** How often the frame is looked at for its player, and then for ads. */
 const LOOK_MS = 250;
 /** How long one page gets to show a working player before the next is tried, or the whole thing gives up. */

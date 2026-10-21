@@ -4,7 +4,7 @@ import { ZipError, readZip, type ZipEntry } from "./zip";
 /**
  * A dictionary file as far as both ends read it: what its `index.json` says it is, read out of its zip the same way
  * by the extension (importing it) and by the API (keeping it, to be added to the extension from). And a dictionary
- * kept on Panki's server, as the API tells of it. The format is Yomitan's; how the extension reads the rest of a
+ * kept on Panki's server, as the API tells of it. The format is the term-bank zip most browser dictionaries share; how the extension reads the rest of a
  * dictionary (its words, frequencies, pitch accents) is the extension's (`dictionary/format.ts`).
  */
 

@@ -53,6 +53,9 @@ type Props = {
   onAnswer: (yes: boolean) => void;
   /** How it stands in full, this moment (`Transcriber.detail`), asked for while Details are open. */
   detail: () => TranscribeDetail;
+  /** Whether this video counts toward the watch time (Immersion, or Just watching); null while the account keeps no watching. In the strip's head until the owner put Panki's own switch there, 2026-10-21. */
+  counted: boolean | null;
+  onCounted: (on: boolean) => void;
 };
 
 /** A part to transcribe again starts as this much of the video from where the viewer is. Seconds. */
@@ -212,7 +215,7 @@ function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
     case "failed":
       return status.message;
     default:
-      if (settings && !engineWanted(state.source, settings.engine)) return `Subtitles are set to ${SUBTITLE_SOURCES[state.source].name}`;
+      if (settings && !engineWanted(state.source)) return `Subtitles are set to ${SUBTITLE_SOURCES[state.source].name}`;
       if (state.asking) return "Waiting for your answer";
       if (detail.stopped) return "Stopped on this video";
       if (state.prefs.trigger !== "auto") return "Auto transcribe is off";
@@ -259,7 +262,7 @@ function Details({ state, detail, live }: { state: TranscribeState; detail: () =
             <ModeChip mode="live" />
           </>
         ) : null}
-        {` · ${ENGINES[settings.engine].name} · ${TRANSCRIBE_LANGUAGES[settings.language]}`}
+        {` · ${ENGINES[settings.engine].name}${state.language ? ` · ${TRANSCRIBE_LANGUAGES[state.language]}` : ""}`}
       </>,
     ]);
   }
@@ -372,7 +375,7 @@ type Asking = "redo" | "forgetAll" | null;
 /** Which of the two folds under the status is open, if either. */
 type Unfolded = "details" | "log" | null;
 
-export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail }: Props) {
+export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail, counted, onCounted }: Props) {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<Asking>(null);
   /** Whether Details or Log is unfolded: kept while the menu is closed, so it's there at the next look. */
@@ -536,6 +539,13 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
             <span>Auto transcribe</span>
             <Toggle id="panki-transcribe-auto" says={{ on: "On", off: "Off" }} on={state.prefs.trigger === "auto"} onChange={onAuto} />
           </div>
+          {/* Whether this video counts toward the watch time; every video does until it's switched. */}
+          {counted !== null ? (
+            <div className="strip-menu-row">
+              <span>This video</span>
+              <Toggle id="panki-counted" says={{ on: "Immersion", off: "Just watching" }} on={counted} onChange={onCounted} />
+            </div>
+          ) : null}
           {/* A part is transcribed again, never forgotten on its own (the owner, 2026-10-20). */}
           {hasAny ? (
             <div className="strip-menu-items">

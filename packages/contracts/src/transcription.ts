@@ -45,11 +45,12 @@ export const TranscribeSpeed = z.literal([...TRANSCRIBE_SPEEDS]);
 export type TranscribeSpeed = z.infer<typeof TranscribeSpeed>;
 
 /**
- * The language every video is transcribed in, told to the engine with each piece (ISO 639-3, as ElevenLabs takes it),
- * one registry. Japanese to begin with, and seldom changed, so it's an admin's setting with the rest (the owner,
- * 2026-10-18: "treat it as Japanese… make it a setting"). Until then the engine was asked what it heard for a run's
- * first pieces, and a video it heard surely as another language stopped transcribing ("Not Japanese"); that check is
- * gone, and a video in another language is transcribed as this one.
+ * The language a video is transcribed in, told to the engine with each piece (ISO 639-3, as ElevenLabs takes it), one
+ * registry. Each account's own (`Settings.language`, English to begin with): it was an admin's setting for everyone
+ * from 2026-10-18 ("treat it as Japanese… make it a setting") until the owner made it each account's alone on
+ * 2026-10-21. Before the 18th the engine was asked what it heard for a run's first pieces, and a video it heard surely
+ * as another language stopped transcribing ("Not Japanese"); that check is gone, and a video is transcribed in the
+ * language of whoever asks.
  */
 export const TranscribeLanguage = z.enum(["jpn", "eng", "cmn", "kor", "spa", "fra", "deu", "por", "ita", "rus"]);
 export type TranscribeLanguage = z.infer<typeof TranscribeLanguage>;
@@ -118,8 +119,7 @@ export const Transcription = z.object({
   /** How far ahead of the viewer the chunks go before waiting for them, in minutes. */
   lead: z.number().int().min(1).max(180),
   engine: EngineId,
-  /** What the engine is told every video is in (`TRANSCRIBE_LANGUAGES`): it's never asked. */
-  language: TranscribeLanguage,
+  // The language every video was told in was here until 2026-10-21; it's each account's own now (`Settings.language`).
   /** The mode everyone starts on, until a viewer picks another. Never switched off (`modesOn`). */
   mode: TranscribeMode,
   /** The modes switched off for everyone; one that's gone since (Auto) read as nothing. */
@@ -151,7 +151,6 @@ export const DEFAULT_TRANSCRIPTION: Transcription = {
   speed: 4,
   lead: 3,
   engine: "elevenlabs",
-  language: "jpn",
   mode: "hybrid",
   modesOff: [],
   downloadLimit: 30,
@@ -207,6 +206,8 @@ export const TranscriptionStatus = z.object({
   saved: z.string().optional(),
   seconds: z.number().int().nonnegative(),
   estimate: TranscribeEstimate,
+  /** The language the one asking has their videos transcribed in: their account's own (`Settings.language`). */
+  own: TranscribeLanguage,
 });
 export type TranscriptionStatus = z.infer<typeof TranscriptionStatus>;
 export const TranscriptionResponse = z.object({ transcription: TranscriptionStatus });

@@ -1,5 +1,6 @@
 import { Router, type Response } from "express";
 import { EngineId, EngineKeyUpdate, TranscriptionUpdate, type TranscriptionStatus } from "@panki/contracts";
+import type { DbOf } from "../app";
 import { requireAdmin, signedIn } from "../session";
 import type { Shared } from "../shared";
 import { EngineError, type Engines } from "../transcribe/engines";
@@ -11,15 +12,23 @@ const NO_KEY = "Add a key for the engine in Settings → Admin.";
  * much sound has been sent so far, what a whole-video download takes and costs as measured so far, and the engine's
  * account behind the key. Read by anyone signed in but the account; changed by an admin alone.
  */
-export function transcriptionRouter(shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, now: () => number) {
+export function transcriptionRouter(dbOf: DbOf, shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, now: () => number) {
   const router = Router();
 
   // The key typed in Settings goes back to an admin, to see what's there; the server's own never does, nor anything to anyone else.
+  // `own` is the language the one asking has their videos transcribed in.
   const statusOf = (res: Response): TranscriptionStatus => {
     const settings = shared.getTranscription();
     const saved = shared.key(settings.engine);
     const key = saved !== null ? "settings" : engineKeys[settings.engine] !== null ? "server" : null;
-    return { settings, key, ...(saved !== null && signedIn(res).user.admin ? { saved } : {}), seconds: shared.secondsTranscribed(), estimate: shared.estimate(settings.engine, now()) };
+    return {
+      settings,
+      key,
+      ...(saved !== null && signedIn(res).user.admin ? { saved } : {}),
+      seconds: shared.secondsTranscribed(),
+      estimate: shared.estimate(settings.engine, now()),
+      own: dbOf(res).getSettings().language,
+    };
   };
 
   router.get("/", (_req, res) => {

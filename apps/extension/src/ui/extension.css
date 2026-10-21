@@ -571,12 +571,661 @@
   background: var(--theater-mark);
   color: var(--theater-ink);
 }
+/* The player's speed among its own controls (ui/SpeedControl.tsx, a YouTube utility): a button of the player's own kind,
+   white on the picture, saying the speed; pressed, a dark row of the site's speeds above it, the one playing lit. */
+.yt-speed {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+.btn.btn-ghost.yt-speed-button {
+  height: 100%;
+  min-width: 48px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--theater-ink);
+  font: 500 13px/1 "Roboto", "Arial", var(--font);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+@media (hover: hover) {
+  .btn.btn-ghost.yt-speed-button:hover {
+    background: transparent;
+    color: var(--theater-ink);
+    opacity: 1;
+  }
+}
+.btn.btn-ghost.yt-speed-button:focus-visible {
+  outline: 2px solid var(--theater-ink);
+  outline-offset: -2px;
+}
+/* Well above the controls, so it clears the seek bar that runs just over them (the owner's screenshot, 2026-10-21). */
+.yt-speed-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 40px);
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theater) 90%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--theater) 45%, transparent);
+  white-space: nowrap;
+}
+.yt-speed-pop .btn.btn-chip.yt-speed-chip {
+  flex: none;
+  height: 32px;
+  min-width: 52px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--theater-ink) 10%, transparent);
+  color: var(--theater-ink);
+  font: 500 13px/1 "Roboto", "Arial", var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.yt-speed-pop .btn.btn-chip.yt-speed-chip[aria-pressed="true"] {
+  background: var(--theater-ink);
+  color: var(--theater);
+}
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-weight: 600;
+}
+/* ---------- YouTube's own pages made Panki's (content/feed.tsx) ----------
+   Everything here is in the site's own shapes (its chips, its cards, its header bar's pills, its two typefaces) and
+   the site's own colours: the site's tokens (--yt-spec-*) reach into Panki's places as custom properties do, so what
+   Panki draws here is in the site's theme by construction, light or dark, and falls back to the app's own tokens
+   where the site stops naming them. Panki's accent is the one colour of its own, for what's Panki's: the ring, the bars,
+   the streak's days. The fonts are the site's own, already on the page: nothing is fetched. */
+.yt-home,
+.ym-pill-wrap {
+  --yh-fg: var(--yt-spec-text-primary, var(--fg));
+  --yh-muted: var(--yt-spec-text-secondary, var(--muted));
+  --yh-chip: var(--yt-spec-badge-chip-background, var(--surface-2));
+  --yh-line: var(--yt-spec-10-percent-layer, var(--line));
+  --yh-bg: var(--yt-spec-base-background, var(--bg));
+  --yh-font: "Roboto", "Arial", var(--font);
+  --yh-title-font: "YouTube Sans", "Roboto", "Arial", var(--font);
+  font-family: var(--yh-font);
+  color: var(--yh-fg);
+}
+.yt-home {
+  display: grid;
+  gap: 20px;
+}
+/* One line over the recommendations, where the site puts a shelf's heading (the owner's pick of seven, Shelves, 2026-10-21):
+   the day, today's minutes against the goal, the streak, who else watched today, a dot between each; Review at its end. */
+.yh-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  min-height: 36px;
+}
+.yh-bar-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  margin: 0;
+  font: 500 15px/1.4 var(--yh-font);
+}
+.yh-part {
+  display: inline-flex;
+  align-items: center;
+}
+.yh-sep {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin: 0 10px;
+  border-radius: 50%;
+  background: var(--yh-muted);
+}
+.yh-bar.is-off .yh-bar-words {
+  gap: 8px;
+  color: var(--yh-muted);
+}
+/* Review, the site's own pill: in the accent while something is due, the chip's grey otherwise. */
+.yt-home .btn.yh-review {
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 18px;
+  font: 500 14px/1 var(--yh-font);
+}
+.yt-home .btn.btn-ghost.yh-review {
+  background: var(--yh-chip);
+  color: var(--yh-fg);
+}
+.yh-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Continue watching: the site's own kind of card, a row of them scrolling sideways when there are more than fit. */
+.yh-h {
+  margin: 0 0 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font: 700 20px/1.2 var(--yh-title-font);
+}
+.yh-h-n {
+  font: 500 14px/1 var(--yh-font);
+  color: var(--yh-muted);
+}
+/* Continue watching's first, as the owner picked it on the artifact ("Hero and the rest", 2026-10-21; built first at
+   two of the site's own videos wide, which on a wide window took two thirds of the page): its picture exactly two of
+   the cards under it and the gap between (half the shelf), its words beside it. On a narrow page it stands over them. */
+/* Sized small and fixed, never from the page's width (the owner, 2026-10-21, at half the shelf: "way too big, I can't
+   see my normal homepage"): a small card is `--yh-small`, the big picture two of them and the gap between, so the
+   whole shelf is about as tall as one row of the site's own videos and the feed starts right under it. */
+.yt-home {
+  /* 176 px until the owner's "slightly bigger", 2026-10-21. */
+  --yh-small: 216px;
+  --yh-gap: 16px;
+}
+.yh-lead {
+  display: grid;
+  grid-template-columns: calc(var(--yh-small) * 2 + var(--yh-gap)) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+@media (max-width: 600px) {
+  .yh-lead {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.yh-lead-pic-wrap {
+  min-width: 0;
+}
+/* What's left, in the accent, as the artifact had it. */
+.yh-lead-left {
+  font: 500 14px/1.3 var(--yh-font);
+  color: var(--accent);
+}
+.yh-lead-info .yh-resume {
+  justify-self: start;
+  margin-top: 6px;
+}
+.yh-lead-pic {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--yh-chip);
+}
+.yh-lead-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.yh-lead-info {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.yh-lead-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font: 700 18px/1.3 var(--yh-title-font);
+}
+/* Continue watching and Saved for later side by side, half the row each; one alone takes it all; one over the other
+   on a narrow page. */
+.yh-shelves {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 20px 40px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .yh-shelves {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.yh-shelves > * {
+  min-width: 0;
+}
+/* Saved for later's cards: as many as fit its row, the rest under Show more ("Fits the row", the owner's pick). */
+.yh-cards.is-wrap {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(auto-fill, var(--yh-small));
+  overflow: visible;
+}
+.yh-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+.yt-home .btn.yh-more-btn {
+  height: 32px;
+  padding: 0 14px;
+  gap: 6px;
+  border: 1px solid var(--yh-line);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--yh-fg);
+  font: 500 13px/1 var(--yh-font);
+}
+.yh-more-btn .icon {
+  width: 14px;
+  height: 14px;
+}
+/* The floating save button (feed.tsx → SaveFloat): over the top left of the video the pointer is on, above everything
+   of the site's, dark on the picture, the accent once saved. */
+.btn.btn-icon.yt-save {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--theater) 80%, transparent);
+  color: var(--theater-ink);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--theater) 40%, transparent);
+  pointer-events: auto;
+  backdrop-filter: blur(6px);
+}
+.btn.btn-icon.yt-save .icon {
+  width: 18px;
+  height: 18px;
+}
+@media (hover: hover) {
+  .btn.btn-icon.yt-save:hover {
+    background: var(--theater);
+    color: var(--theater-ink);
+  }
+}
+.btn.btn-icon.yt-save.is-saved {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+/* A shelf with nothing on it yet: one quiet line where its cards would be. */
+.yh-empty {
+  margin: 0;
+  font: 400 14px/1.4 var(--yh-font);
+  color: var(--yh-muted);
+}
+/* Resume, the site's own white pill. */
+.yh-resume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 18px 0 14px;
+  border-radius: 18px;
+  background: var(--yh-fg);
+  color: var(--yh-bg);
+  font: 500 14px/1 var(--yh-font);
+  text-decoration: none;
+}
+.yh-resume .icon {
+  width: 16px;
+  height: 16px;
+}
+.yh-resume:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The cards of a shelf, small and in one row, scrolled sideways when there are more than fit: Continue watching's
+   rest under its big one, and Saved for later. One row, so a shelf is never taller than that. */
+.yh-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--yh-small);
+  justify-content: start;
+  gap: var(--yh-gap);
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.yc {
+  position: relative;
+  min-width: 0;
+}
+.yc-link {
+  display: grid;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+.yc-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--yh-chip);
+}
+.yc-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.yc-left {
+  position: absolute;
+  right: 4px;
+  bottom: 7px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theater) 80%, transparent);
+  color: var(--theater-ink);
+  font: 500 11px/1 var(--yh-font);
+}
+.yc-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: color-mix(in srgb, var(--theater-ink) 30%, transparent);
+}
+.yc-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.yc-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font: 500 13px/1.3 var(--yh-font);
+}
+.yc-sub {
+  font-size: 12px;
+  color: var(--yh-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yh-lead-info .yc-sub {
+  white-space: normal;
+}
+.btn.yc-x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--theater) 70%, transparent);
+  color: var(--theater-ink);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.yc:hover .btn.yc-x,
+.btn.yc-x:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .btn.yc-x {
+    opacity: 1;
+  }
+}
+/* Panki in the site's header bar, first among its own buttons (ui/PankiPill.tsx): the mark, then each part picked, its
+   icon and value, a little apart from the next. */
+.ym-pill-wrap {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  border-radius: 18px;
+  background: var(--yh-chip);
+}
+.btn.btn-ghost.ym-pill {
+  height: 36px;
+  padding: 0 12px 0 8px;
+  gap: 10px;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: var(--yh-fg);
+  font: 500 14px/1 var(--yh-font);
+}
+@media (hover: hover) {
+  .btn.btn-ghost.ym-pill:hover {
+    background: color-mix(in srgb, var(--yh-fg) 8%, transparent);
+  }
+}
+/* Panki on / off at the pill's end (`pillPower`): the app's own switch, sized to the pill, a hairline before it. */
+.btn.btn-switch.ym-power {
+  height: 28px;
+  margin-right: 4px;
+  padding: 0 6px 0 10px;
+  gap: 6px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--yh-fg) 16%, transparent);
+  border-radius: 0 14px 14px 0;
+  background: transparent;
+  color: var(--yh-muted);
+  font: 500 13px/1 var(--yh-font);
+}
+.btn.btn-switch.ym-power[aria-checked="true"] {
+  color: var(--yh-fg);
+}
+.ym-power .switch-track {
+  width: 26px;
+  height: 14px;
+}
+.ym-power .switch-knob {
+  width: 10px;
+  height: 10px;
+}
+.btn-switch.ym-power[aria-checked="true"] .switch-knob {
+  transform: translateX(12px);
+}
+.ym-words,
+.ym-part {
+  white-space: nowrap;
+}
+.ym-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.ym-part .icon {
+  width: 15px;
+  height: 15px;
+  color: var(--yh-muted);
+}
+.ym-part.is-streak .icon {
+  color: var(--mark-orange);
+}
+/* The options page's preview of the pill, on a strip of the site's dark header bar so it's seen as it will stand. */
+.pill-preview {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--theater);
+  /* What the site's own tokens would be in its dark theme: the pill reads them as it does on the site. */
+  --yt-spec-text-primary: var(--theater-ink);
+  --yt-spec-text-secondary: color-mix(in srgb, var(--theater-ink) 65%, transparent);
+  --yt-spec-badge-chip-background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
+}
+/* The pill's parts as rows: a grip to move each, its name, and its switch. */
+.pill-rows {
+  display: grid;
+  gap: 6px;
+}
+.pill-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.pill-row .icon {
+  width: 16px;
+  height: 16px;
+}
+.pill-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.btn.btn-icon.pill-grip {
+  cursor: grab;
+  touch-action: none;
+}
+/* Going on from where the video was stopped, offered on the picture for a few seconds as it opens: the shape Netflix
+   gives Skip Intro (the owner, 2026-10-21), in the player's bottom right corner above its controls. White on the
+   picture whatever the theme, as words on a picture are; it slides in from its edge and is gone as soon as it's taken
+   or the video gets there by itself. Its room from the corner is the player's controls' height, so it never sits on
+   them, and it keeps the player's own typeface. */
+.skip-resume {
+  --skip-h: 44px;
+  --skip-font: 16px;
+  position: absolute;
+  right: 24px;
+  bottom: 84px;
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--skip-h);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theater-ink) 55%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theater-ink) 90%, transparent);
+  color: var(--theater);
+  font-family: "Roboto", "Arial", var(--font);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--theater) 45%, transparent);
+  pointer-events: auto;
+  animation: skip-resume-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+/* On its way out: a short, quiet fade, the same span as the page waits before taking it off (`OFFER_AWAY_MS`). */
+.skip-resume.is-away {
+  animation: skip-resume-out var(--offer-away-ms) ease both;
+  pointer-events: none;
+}
+.skip-resume .btn.btn-ghost.skip-resume-go,
+.skip-resume .btn.btn-icon.skip-resume-x {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+.skip-resume .btn.btn-ghost.skip-resume-go {
+  padding: 0 18px 0 22px;
+  font: 700 var(--skip-font) / 1 "Roboto", "Arial", var(--font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+/* The × at its end, set off by a hairline, as quiet as the words beside it are bold. */
+.skip-resume .btn.btn-icon.skip-resume-x {
+  width: var(--skip-h);
+  padding: 0;
+  border-left: 1px solid color-mix(in srgb, var(--theater) 18%, transparent);
+  color: color-mix(in srgb, var(--theater) 65%, transparent);
+}
+.skip-resume .btn.btn-icon.skip-resume-x .icon {
+  width: 16px;
+  height: 16px;
+}
+@media (hover: hover) {
+  .skip-resume .btn.btn-ghost.skip-resume-go:hover,
+  .skip-resume .btn.btn-icon.skip-resume-x:hover {
+    background: color-mix(in srgb, var(--theater) 8%, transparent);
+    color: var(--theater);
+  }
+}
+.skip-resume .btn:focus-visible {
+  outline: 2px solid var(--theater);
+  outline-offset: -3px;
+}
+/* Along its foot, how long it has left: a faint grey line filling from the left over the offer's span (`--offer-ms`); at the right edge the offer goes. */
+.skip-resume-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  pointer-events: none;
+}
+.skip-resume-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: color-mix(in srgb, var(--theater) 28%, transparent);
+  animation: skip-resume-fill var(--offer-ms) linear forwards;
+}
+@keyframes skip-resume-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes skip-resume-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes skip-resume-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+/* On the options page's preview of the bar (`SeekPreview`), the same offer, in the preview's own corner over its bar. */
+.seek-preview .skip-resume {
+  right: 18px;
+  bottom: 50px;
+}
+/* A player that fills the screen is bigger: so is the offer, and its room from the corner (the page writes `data-full` on the place's host: a shadow root can't see the player's `:fullscreen`). */
+:host([data-full]) .skip-resume {
+  --skip-h: 52px;
+  --skip-font: 19px;
+  right: 48px;
+  bottom: 112px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skip-resume,
+  .skip-resume.is-away {
+    animation: none;
+  }
+  .skip-resume.is-away {
+    opacity: 0;
+  }
 }
 
 /* Something that opens and closes by its height, fading as it goes (ui/Fold.tsx), so what's around it is moved aside
@@ -726,6 +1375,30 @@
   border-radius: 8px;
   font-size: 13px;
   color: var(--muted);
+}
+/* Save for later among the strip's tools: the tools' own shape, the accent once saved. */
+.btn.capture-tool.strip-save.is-saved {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+/* A switch among the strip's tools (Panki on / off), the tools' own shape and size, its track scaled to them (the owner, 2026-10-21: "doesn't match the rest of the UI and buttons"). */
+.btn.btn-switch.capture-tool.strip-switch {
+  padding: 4px 7px 4px 9px;
+  border-color: var(--line);
+  font-weight: 500;
+}
+.strip-switch .switch-track {
+  width: 26px;
+  height: 14px;
+}
+.strip-switch .switch-knob {
+  width: 10px;
+  height: 10px;
+}
+.btn-switch.strip-switch[aria-checked="true"] .switch-knob {
+  transform: translateX(12px);
 }
 .capture-tool .icon {
   width: 14px;
@@ -1052,6 +1725,57 @@
 }
 .seek-end.is-end {
   left: 100%;
+}
+/* Where the video was stopped the last time (SeekMark's `stop`): not one more colour on the line but a shape of its own
+   (the owner, 2026-10-21: "something more distinct and visible"), white in every theme as words on a picture are: a
+   tick across the bar, and over it a tag with a clock and the time, a notch pointing down to the tick. A press on the
+   tag goes there. It stands under the cards' words, which cover it while they're up. */
+.seek-stop-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--theater-ink);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theater) 55%, transparent);
+  pointer-events: none;
+}
+.btn.btn-ghost.seek-stop {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  transform: translateX(-50%);
+  height: 20px;
+  padding: 0 7px 0 5px;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--theater-ink);
+  color: var(--theater);
+  font: 700 11.5px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--theater) 45%, transparent);
+  pointer-events: auto;
+}
+.btn.btn-ghost.seek-stop::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top-color: var(--theater-ink);
+}
+.btn.btn-ghost.seek-stop .icon {
+  width: 13px;
+  height: 13px;
+}
+@media (hover: hover) {
+  .btn.btn-ghost.seek-stop:hover {
+    background: var(--theater-ink);
+    color: var(--accent);
+  }
 }
 
 /* Under the bar: play, then where the clip begins and ends to the hundredth of a second and how long that is. */
@@ -1636,6 +2360,10 @@
 .brand .mark {
   margin-right: 8px;
 }
+/* Panki altogether, on or off, at the brand's right. */
+.brand-switch {
+  margin-left: auto;
+}
 /* Over the field mapping's rows: the deck's field on the left, what fills it on the right, as each row has them. */
 .map-head {
   display: flex;
@@ -1894,6 +2622,12 @@
 }
 .seek-group-sample.is-off {
   opacity: 0.3;
+}
+/* Where you stopped last: its stroke is the tag's white tick, standing up where the others lie along. */
+.seek-group-sample.is-stop {
+  width: 3px;
+  height: 14px;
+  background: var(--fg);
 }
 /* A mark's colour: a round swatch each from the palette, the one on ringed, its name after them. */
 .mark-swatches {

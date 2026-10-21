@@ -60,6 +60,49 @@ export function dayOf(instant: number, hour: number, timeZone: string): Day {
   return dayKey(wallAt(instant - hour * 3_600_000, timeZone));
 }
 
+/**
+ * `dayOf` for a whole history read at once: the stats ask it of every answer and every stretch watched. Every zone's
+ * offset is a whole number of quarter hours and changes only on a quarter hour, as the day's hour does, so the day an
+ * instant falls in is the same across each quarter hour of UTC; it's worked out once per quarter hour, never guessed.
+ */
+export function dayReader(hour: number, timeZone: string): (instant: number) => Day {
+  const QUARTER = 900_000;
+  const known = new Map<number, Day>();
+  return (instant) => {
+    const quarter = Math.floor(instant / QUARTER);
+    let day = known.get(quarter);
+    if (day === undefined) {
+      day = dayOf(instant, hour, timeZone);
+      known.set(quarter, day);
+    }
+    return day;
+  };
+}
+
+/** A run of days, as the review streak and the watch streak both count them (the contracts' `Streak`). */
+export type Streak = { current: number; best: number; week: boolean[]; todayIndex: number };
+
+/**
+ * The run the days that counted make: how many in a row up to today (today only once it counts, so a streak isn't
+ * broken before the day is over), the longest run ever, and this week, Sunday first.
+ */
+export function streakOf(counted: ReadonlySet<Day>, today: Day): Streak {
+  let current = 0;
+  for (let d = counted.has(today) ? today : addDays(today, -1); counted.has(d); d = addDays(d, -1)) current += 1;
+  const days = [...counted].sort();
+  let best = 0;
+  let run = 0;
+  days.forEach((d, i) => {
+    const previous = days[i - 1];
+    run = previous !== undefined && daysBetween(previous, d) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+  });
+  const todayIndex = weekdayOf(today);
+  const weekStart = addDays(today, -todayIndex);
+  const week = Array.from({ length: 7 }, (_, i) => counted.has(addDays(weekStart, i)));
+  return { current, best, week, todayIndex };
+}
+
 /** The day's place in its week, 0 = Sunday. */
 export function weekdayOf(day: Day): number {
   return new Date(`${day}T00:00:00Z`).getUTCDay();

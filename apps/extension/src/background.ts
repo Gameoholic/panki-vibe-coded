@@ -5,10 +5,10 @@ import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type Redone, type State, type Stretched, type Transcripted, type Trigger, type Voiced } from "./messages";
+import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Voiced, type Watched } from "./messages";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
-import { forgetSignIn, prefsOf, readStore, writeStore, type Stored } from "./storage";
+import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
 import { sourceOf } from "./subtitles";
 
 /**
@@ -91,7 +91,8 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
     const on = dictionaries.filter((d) => d.on);
     return {
       ok: true,
-      on: on.length > 0 && lookAllowed(store.lookWhere, store.lookSites, sender.url ?? sender.tab?.url),
+      // Switched off on the Modules tab, the key does nothing anywhere.
+      on: store.pankiOn && store.moduleLookup && on.length > 0 && lookAllowed(store.lookWhere, store.lookSites, sender.url ?? sender.tab?.url),
       key: store.lookKey,
       dictionaries: on.length,
       signature: on.map((d) => d.id).join(","),
@@ -141,6 +142,8 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
     ok: true,
     transcript,
     settings: transcription.settings,
+    // The language this account's videos are told to the engine in: its own. The page reads it to say so.
+    language: transcription.own,
     key: transcription.key !== null,
     estimate: transcription.estimate,
     source: sourceOf(store.subtitleSource),
@@ -148,7 +151,7 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
   };
 }
 
-async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched> {
+async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved> {
   if (ask.kind === "options") {
     // The page opens on that tab, or turns to it if it's open already (it reads the store again as it gets the focus).
     if (ask.tab) await writeStore({ optionsTab: ask.tab });
@@ -189,6 +192,11 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "lookState" || ask.kind === "lookup" || ask.kind === "lattice") return look(ask, sender);
+  if (ask.kind === "modules") return { ok: true, modules: modulesOf(await readStore()) };
+  if (ask.kind === "pankiOn") {
+    await writeStore({ pankiOn: ask.on });
+    return { ok: true };
+  }
   const store = await readStore();
   if (!store.address || !store.token) return { ok: false, message: SIGN_IN_FIRST, signedOut: true };
   const door: Door = { address: store.address, token: store.token };
@@ -225,6 +233,21 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       return { ok: true, thumbnail, avatar };
     }
     if (ask.kind === "videoCards") return { ok: true, cards: await panki.videoCards(door, ask.videoId) };
+    // What's kept of the account's watching: a video as it opens, the stretches watched, a video marked.
+    if (ask.kind === "watched") return { ok: true, video: await panki.watched(door, ask.videoId) };
+    if (ask.kind === "watch") {
+      await panki.watch(door, ask.batch);
+      return { ok: true };
+    }
+    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark) };
+    // Panki on YouTube's own pages: the tiles over its home's videos, and the marks on its thumbnails.
+    if (ask.kind === "home") {
+      const [stats, decks, settings, saved] = await Promise.all([panki.stats(door), panki.decks(door), panki.settings(door), panki.saved(door)]);
+      return { ok: true, name: store.userName ?? "", stats, decks, settings, saved };
+    }
+    if (ask.kind === "glance") return { ok: true, videos: await panki.glance(door, ask.videoIds) };
+    // Saved for later, the account's own on Panki: a save from a thumbnail's button, or one taken back.
+    if (ask.kind === "save") return { ok: true, videos: await panki.save(door, ask.videoId, ask.about) };
     if (ask.kind === "called") return { ok: true, cards: await panki.cardsCalled(door, ask.words) };
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.

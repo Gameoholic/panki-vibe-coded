@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CardId } from "./card";
 import { DeckId } from "./deck";
 import { SrsStageId, SrsTypeId } from "./srs";
+import { VideoId } from "./transcription";
 
 /**
  * The silo: everything that happens is kept, needed now or not. What a stat might one day want is recorded where
@@ -62,6 +63,54 @@ export const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export type Day = z.infer<typeof Day>;
 const Count = z.number().int().nonnegative();
 
+/** A run of days, as the review streak counts them: Sunday-first this week, today's place in it. */
+const Streak = z.object({
+  /** Days in a row, counting today if it counts and yesterday if not. */
+  current: Count,
+  best: Count,
+  /** This week, Sunday first: whether each day counted. Days still to come are false. */
+  week: z.array(z.boolean()).length(7),
+  /** Today's index in `week`, 0 = Sunday. */
+  todayIndex: z.number().int().min(0).max(6),
+});
+
+/** A video left part-way, to be continued: where it was stopped, newest first. */
+export const ContinueVideo = z.object({
+  videoId: VideoId,
+  title: z.string(),
+  channel: z.string(),
+  lengthMs: Count,
+  stoppedAtMs: Count,
+  /** When it was last watched, ms since epoch (the API's stamp). */
+  lastAt: Count,
+});
+export type ContinueVideo = z.infer<typeof ContinueVideo>;
+
+/**
+ * The account's watching as the immersion tiles read it. Every span is ms on the clock (the time spent, whatever the
+ * speed), only videos that count; days are the account's own. With Video tracking off, `on` is false and the tiles say so.
+ */
+export const Watching = z.object({
+  on: z.boolean(),
+  today: Count,
+  days7: Count,
+  days30: Count,
+  videos30: Count,
+  channels30: Count,
+  /** The past 14 days, oldest first; today last. */
+  byDay: z.array(z.object({ day: Day, ms: Count })).length(14),
+  /** The channels watched most in the past 30 days, most first. */
+  channels: z.array(z.object({ name: z.string(), ms: Count })).max(5),
+  // A watch streak against a daily goal stood here until the owner had both out, 2026-10-21 ("I don't want a target goal
+  // for immersion nor streaks… it might change in the future, we store the data"): every stretch is still kept.
+  continuing: z.array(ContinueVideo),
+});
+export type Watching = z.infer<typeof Watching>;
+
+// Together (everyone on this Panki, each as far as they shared: the owner's friend's idea, "お互いの観たYouTube動画を記録して、
+// 毎日観ないとストリークが切れるシステム") stood here for a day, 2026-10-21, until the owner shelved everything about other
+// people for a later feature: "everything to do with other people and not your own data is shelved".
+
 /**
  * What the Stats tab shows, worked out by the API on every read for all decks or one. Every number is an integer;
  * the browser divides for a percentage. A "miss" is an answer with the first main answer; everything set apart
@@ -77,15 +126,8 @@ export const Stats = z.object({
     days30: z.object({ right: Count, of: Count }),
     before: z.object({ right: Count, of: Count }),
   }),
-  streak: z.object({
-    /** Days in a row with a review, counting today if it has one and yesterday if not. */
-    current: Count,
-    best: Count,
-    /** This week, Sunday first: whether each day had a review. Days still to come are false. */
-    week: z.array(z.boolean()).length(7),
-    /** Today's index in `week`, 0 = Sunday. */
-    todayIndex: z.number().int().min(0).max(6),
-  }),
+  /** Days with a review. */
+  streak: Streak,
   days: z.object({ studied: Count, since: z.number().int().nonnegative().nullable() }),
   /** Reviews a day for the past year, only the days that had any. */
   byDay: z.array(z.object({ day: Day, n: Count })),
@@ -113,6 +155,8 @@ export const Stats = z.object({
   }),
   /** The cards missed most in the past 30 days, most first. */
   tough: z.array(z.object({ cardId: CardId, deckId: DeckId, front: z.string(), misses: Count })),
+  /** The account's watching, whatever decks are in scope (`watching.ts`). */
+  watching: Watching,
 });
 export type Stats = z.infer<typeof Stats>;
 export const StatsResponse = z.object({ stats: Stats });

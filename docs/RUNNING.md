@@ -27,7 +27,7 @@ Under 2 GB left on the disk, every signed-in user sees a warning on their home s
 
 Data lives under `apps/api/data/`: `auth.sqlite` (accounts and signed-in devices), `shared.sqlite` (what everyone shares: the keys, the dictionaries kept on Panki, the transcription settings and every transcript) with `shared/dictionaries/` holding the dictionary zips, and `users/<account id>/`, one folder per account: its `panki.sqlite` and a `media` folder with the files its cards hold. A backup is the whole folder.
 
-`PANKI_DATA_DIR` puts the data elsewhere, `PANKI_BACKUP_DIR` the backups (default: a `backups` folder beside the data), `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` sets whose clock a day turns over on (default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio and `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, each used when none is typed in Settings → Admin.
+`PANKI_DATA_DIR` puts the data elsewhere, `PANKI_BACKUP_DIR` the backups (default: a `backups` folder beside the data), `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` is only the clock for an account never opened yet (each account's day turns over in its own zone, set in its Settings; default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio and `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, each used when none is typed in Settings → Admin.
 
 ## Backing up
 
@@ -65,7 +65,7 @@ nginx serves `apps/web/dist` (`try_files $uri /index.html`) and proxies `/api/` 
 2. **Firefox:** open `about:debugging#/runtime/this-firefox`, press Load Temporary Add-on, choose `apps/extension/dist/firefox/manifest.json`. Firefox forgets it when it closes; keeping it needs Mozilla's signature, which hasn't been asked for.
 3. Its own page opens the first time (later: right-click its toolbar button, Options). Type where your Panki is (`127.0.0.1:5173` while `pnpm dev` runs, the domain once deployed), your name and password, and allow the address when the browser asks.
 4. On that page, under Field mapping, choose a deck and what fills each of its fields: the selected word, its dictionary form, reading and meaning, the sentence, the sentence's video or audio, the word's video or audio, the link to the video. Switch Field mapping on for the deck first. Fields left on None are typed in the drawer.
-5. Under Dictionaries, import a dictionary: a zip in Yomitan's format (JMdict, Jitendex, a frequency list, pitch accents). Under Looking up words, choose where it works; for sites other than YouTube, press Allow when the browser asks.
+5. Under Dictionaries, import a dictionary: a zip in the term-bank format (JMdict, Jitendex, a frequency list, pitch accents). Under Looking up words, choose where it works; for sites other than YouTube, press Allow when the browser asks.
 6. Open a YouTube video and press a word in the line under the player: the drawer opens beside the video. Or select something on any page, right-click, Add to Panki. The first time, the drawer asks which deck; it remembers.
 7. Hold Shift and point at a Japanese word, on YouTube or any allowed page: the popup shows what it means. Let go of Shift on the word to keep it open; Add opens the drawer on it.
 

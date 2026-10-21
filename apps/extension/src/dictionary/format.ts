@@ -3,13 +3,13 @@ import type { DictionaryIndex } from "@panki/contracts";
 import type { Provides } from "../dataKinds";
 
 /**
- * The dictionary file format Panki reads: the one Yomitan made, which nearly every Japanese dictionary for it comes in
- * (JMdict, Jitendex, the frequency lists, the pitch accents). A zip with an `index.json` saying what it is, and banks
+ * The dictionary file format Panki reads: the term-bank zip that nearly every Japanese dictionary for a browser popup
+ * comes in (JMdict, Jitendex, the frequency lists, the pitch accents). A zip with an `index.json` saying what it is, and banks
  * of rows: `term_bank_N.json` (the words), `term_meta_bank_N.json` (how common a word is, its pitch accent), and
  * `tag_bank_N.json` (what the short tags on a word mean). Kanji banks are there in some and aren't read yet. The zip
  * itself and its `index.json` are read by the contracts (`readZip`, `openDictionary`), which the API shares.
  *
- * Written from the format's published description; none of Yomitan's code is used. Every row is a stranger's data
+ * Written from the format's published description; none of any dictionary tool's code is used. Every row is a stranger's data
  * and is checked here, at the door, before anything keeps it. What a row says is kept as it was said; how a formatted
  * definition is shown is `ui/Glossary.tsx`'s, which draws it from a short list of allowed pieces.
  */

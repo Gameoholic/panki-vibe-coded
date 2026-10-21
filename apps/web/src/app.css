@@ -1016,6 +1016,31 @@ canvas.media-frame {
   object-fit: cover;
   background: var(--surface-2);
 }
+/* A video left part-way (Continue watching): a thin line along the thumbnail's foot, as far as it got. The line is
+   over the picture, so it's in the colours words over a picture are, the same in every theme; how far is the accent. */
+.video-card-thumbs {
+  position: relative;
+  flex: none;
+  display: flex;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.video-card-thumbs .video-card-thumb {
+  border-radius: 0;
+}
+.video-card-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: color-mix(in srgb, var(--theater-ink) 45%, transparent);
+}
+.video-card-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
 .video-card-avatar {
   flex: none;
   width: 18px;
@@ -4204,6 +4229,26 @@ mark.sub-mark {
   font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+/* A ladder row that says a length of time at its end: room for "12 h 45 min". */
+.w-row.is-said {
+  grid-template-columns: 76px minmax(0, 1fr) 76px;
+}
+/* Continue watching: each video the app's own video card (components/LinkView.tsx), filling the row, its × beside it. */
+.w-videos {
+  display: grid;
+  gap: 6px;
+}
+.w-video {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.w-video .video-card {
+  flex: 1;
+  width: auto;
+  min-width: 0;
 }
 /* ---------- Arranging the home's board ---------- */
 

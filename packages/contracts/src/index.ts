@@ -15,6 +15,7 @@ export * from "./srsStarters";
 export * from "./subtitleStyle";
 export * from "./transcription";
 export * from "./type";
+export * from "./watching";
 export * from "./wordAudio";
 export * from "./youtube";
 export * from "./zip";
