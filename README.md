@@ -44,3 +44,6 @@ Maybe I can even create parties or groups ro soemthign s oI can d othsi with mul
 It's improtan tthnis entire epic/feature is carefully thought to respect al lthe dguideliesn and covnentiosn int he docs, and that you previwe it to me in artifact.
 
 - redacat all repo history because fo the above in the readme^
+
+
+- Shadowing practice?
