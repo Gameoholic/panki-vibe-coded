@@ -3182,10 +3182,10 @@ mark.sub-mark {
   width: 14px;
   height: 14px;
 }
-/* Lesson, before the first stage: an open ring where a number would be, as it's no stage to count. */
+/* New, before the first stage: an open ring where a number would be, as it's no stage to count, in its colour. */
 .stage-no.is-lesson {
-  background: transparent;
-  box-shadow: inset 0 0 0 2px var(--line-strong);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 /* The stages of a type that's only for looking at: number, name, wait, nothing to fill in. */
 .stage-lines {
@@ -3473,13 +3473,14 @@ mark.sub-mark {
 .fnode.down2 .t {
   color: var(--danger);
 }
-/* Lesson, before the first stage: quiet, as a card not learned yet is in a list (`.pill.is-new`). */
+/* New, before the first stage: set apart in its own colour as Burned is at the end (the owner, 2026-10-21), the accent
+   new cards have in a review's count. */
 .fnode.root.is-lesson {
-  background: var(--surface-2);
-  color: var(--muted);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .rail-chip.is-lesson {
-  color: var(--muted);
+  color: var(--accent);
 }
 .fnode.up1 .t,
 .fnode.up2 .t {
