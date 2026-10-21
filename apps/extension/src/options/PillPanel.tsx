@@ -25,7 +25,7 @@ export function PillParts({ store, disabled, onChanged }: { store: Stored; disab
   return (
     <div className="pill-parts">
       <div className="pill-preview" aria-label="How the pill looks">
-        <PankiPill layout={layout} numbers={SAMPLE_NUMBERS} power={store.pillPower ? { on: true, onChange: () => undefined } : null} onClick={() => undefined} />
+        <PankiPill layout={layout} numbers={SAMPLE_NUMBERS} power={{ on: true, onChange: () => undefined }} onClick={() => undefined} />
       </div>
       <div className="pill-rows">
         {layout.map((part, i) => {
@@ -49,15 +49,8 @@ export function PillParts({ store, disabled, onChanged }: { store: Stored; disab
             </div>
           );
         })}
-        {/* Panki's own on / off switch, always at the pill's end (the owner, 2026-10-21); with it there the pill stays while Panki is off. */}
-        <div className="pill-row is-fixed">
-          <span aria-hidden="true" />
-          <span className="pill-row-name">
-            <Icon name="lock" />
-            Panki on / off switch
-          </span>
-          <Toggle id="pill-power" says={{ on: "Shown", off: "Hidden" }} on={store.pillPower} disabled={disabled} onChange={(pillPower) => void writeStore({ pillPower }).then(onChanged)} />
-        </div>
+        {/* Panki's own on / off switch is always at the pill's end, its one place while the pill is on (`switchInPill`;
+            the owner, 2026-10-22): a row that showed or hid it stood here for a day. */}
       </div>
     </div>
   );

@@ -57,10 +57,10 @@ export const SHELF_SIZES: readonly ShelfMax[] = [4, 8, 12];
 
 export const Modules = z.object({
   /**
-   * Panki at all, in this browser: switched in the strip's head on a video's page and on the options page (the owner,
-   * 2026-10-21: "disabling it disables everything including transcription, including for future videos, until I turn
-   * it back on, including the dictionary"). Off, every part below reads as off, whatever its own switch says, and the
-   * strip stays as its head alone, with the switch to turn it back on.
+   * Panki at all, in this browser: switched on YouTube where `switchInPill` says (the pill in the header bar, or the
+   * strip's head) and on the options page (the owner, 2026-10-21: "disabling it disables everything including
+   * transcription, including for future videos, until I turn it back on, including the dictionary"). Off, every part
+   * below reads as off, whatever its own switch says; the switch's place stays, with only the switch to turn it back on.
    */
   on: z.boolean(),
   /** The Panki panel on a video's page: the line under the player, the drawer, the transcript over the video, transcribing. */
@@ -82,11 +82,8 @@ export const Modules = z.object({
   /** Panki in the site's own header bar: the mark and the parts picked (`pill`). */
   homePill: z.boolean(),
   pill: PillLayout,
-  /**
-   * Panki's own on / off switch at the pill's end, the one the strip under a video has (the owner, 2026-10-21). While
-   * it's shown the pill stays with Panki off, the mark and the switch alone, so Panki can be turned back on from there.
-   */
-  pillPower: z.boolean(),
+  // `pillPower` (Panki's switch at the pill's end, shown or not) went on 2026-10-22: the switch is the pill's whenever
+  // the pill is on (`switchInPill`).
   /** The line over the recommendations: the day, today's minutes, who else watched today, and Review. */
   homeLine: z.boolean(),
   /** The Continue watching shelf: the one left last big, the rest as the site's own kind of card under it. */
@@ -114,7 +111,6 @@ export const DEFAULT_MODULES: Modules = {
   home: true,
   homePill: true,
   pill: DEFAULT_PILL,
-  pillPower: false,
   homeLine: true,
   homeShelf: true,
   shelfMax: 4,
@@ -124,6 +120,14 @@ export const DEFAULT_MODULES: Modules = {
   thumbs: true,
   speedControl: true,
 };
+
+/**
+ * Where Panki's own on / off switch is, in one place only (the owner, 2026-10-22): at the end of the pill in YouTube's
+ * header bar while that's on (YouTube home's master switch and its Header bar), the pill then staying while Panki is
+ * off as the mark and the switch alone; otherwise in the strip under a video, as it was. Read on what's switched, not
+ * on what's on while Panki is off.
+ */
+export const switchInPill = (raw: Pick<Modules, "home" | "homePill">): boolean => raw.home && raw.homePill;
 
 /** How long the button offering to continue stays on the picture, in ms, before it goes by itself. */
 export const OFFER_MS = 12_000;

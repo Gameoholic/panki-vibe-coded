@@ -114,7 +114,7 @@ const Stored = z.object({
   homePill: z.boolean().catch(DEFAULT_MODULES.homePill),
   /** What the pill in the header bar says, in what order (`modules.ts` → `PillLayout`), made whole as it's read. */
   pill: PillLayout.transform(pillLayoutOf).catch(DEFAULT_MODULES.pill),
-  pillPower: z.boolean().catch(DEFAULT_MODULES.pillPower),
+  // `pillPower` went on 2026-10-22 (the switch is the pill's whenever the pill is on); a browser that kept it keeps it unread.
   homeLine: z.boolean().catch(DEFAULT_MODULES.homeLine),
   homeShelf: z.boolean().catch(DEFAULT_MODULES.homeShelf),
   shelfMax: ShelfMax.catch(DEFAULT_MODULES.shelfMax),
@@ -153,7 +153,6 @@ export const modulesOf = (store: Stored): Modules => ({
   home: store.moduleHome,
   homePill: store.homePill,
   pill: store.pill,
-  pillPower: store.pillPower,
   homeLine: store.homeLine,
   homeShelf: store.homeShelf,
   shelfMax: store.shelfMax,

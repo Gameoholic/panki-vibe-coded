@@ -5,7 +5,7 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { agoWords, clock, count, durationWords, langOf } from "@web/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
-import type { Modules } from "../modules";
+import { switchInPill, type Modules } from "../modules";
 import { PankiPill, pillNumbersOf } from "../ui/PankiPill";
 import { mount } from "../ui/mount";
 import { tokensOn } from "../ui/styles";
@@ -153,8 +153,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   function MastPill() {
     const now = useSyncExternalStore(known.subscribe, known.get);
     const raw = deps.raw();
-    // Panki's switch at the pill's end, when it's picked: on, as everything else is; off, the pill is the mark and the switch alone.
-    const power = raw.pillPower ? { on: raw.on, onChange: deps.onPower } : null;
+    // Panki's switch at the pill's end, its one place while the pill is on (`switchInPill`): off, the pill is the mark and the switch alone.
+    const power = { on: raw.on, onChange: deps.onPower };
     if (!raw.on) return <PankiPill layout={raw.pill} numbers={null} power={power} onClick={() => void askOpenPanki()} />;
     if (now.kind === "loading") return null;
     if (now.kind === "failed") {
@@ -715,9 +715,9 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     look() {
       const on = deps.modules();
       const theme = deps.theme();
-      // Panki in the header bar, first among the site's own buttons; with Panki off, still there while its switch is picked for it.
+      // Panki in the header bar, first among the site's own buttons; with Panki off, still there, holding the switch to turn it back on.
       const raw = deps.raw();
-      const end = raw.home && raw.homePill && (raw.on || raw.pillPower) ? document.querySelector(MASTHEAD_END) : null;
+      const end = switchInPill(raw) ? document.querySelector(MASTHEAD_END) : null;
       if (!end) mast.host.remove();
       else if (mast.host.parentElement !== end) end.prepend(mast.host);
       mast.host.dataset.theme = theme;

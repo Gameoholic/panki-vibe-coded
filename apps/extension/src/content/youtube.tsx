@@ -20,7 +20,7 @@ import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askVideoCards, askWatch, askWatched } from "../messages";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, type Modules } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, switchInPill, type Modules } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -432,7 +432,7 @@ function active(): Modules {
   return now.on ? now : { ...ALL_OFF, resume: now.resume, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl };
 }
 
-/** Panki switched on or off altogether, from the strip's head: on the page at once, and kept for every page from now on. */
+/** Panki switched on or off altogether, from the strip's head or the header bar's pill: on the page at once, and kept for every page from now on. */
 function setPankiOn(on: boolean) {
   modules.set({ ...modules.get(), on });
   void askPankiOn(on);
@@ -1084,6 +1084,8 @@ function App() {
   const engineOn = tx.settings !== null && engineWanted(picked);
   const placed = useSyncExternalStore(inPlace.subscribe, inPlace.get);
   const pankiOn = useSyncExternalStore(modules.subscribe, () => modules.get().on);
+  /** Panki's own switch is the strip's only while it isn't the pill's in the header bar: it stands in one place (`switchInPill`). */
+  const switchHere = useSyncExternalStore(modules.subscribe, () => !switchInPill(modules.get()));
   const replaying = useSyncExternalStore(replay.subscribe, replay.mode);
   const cards = useSyncExternalStore(carded.subscribe, carded.get);
   /** Which parts are on; how the video stands in the account's watching; the offer to go on from where it was stopped. */
@@ -1644,8 +1646,9 @@ function App() {
   return (
     <>
       {placed && !pankiOn ? (
-        // Switched off altogether (the owner, 2026-10-21): the head alone, with the switch to turn it back on.
-        <div className="strip is-off">
+        // Switched off altogether (the owner, 2026-10-21): the head alone, with the switch to turn it back on; nothing
+        // at all while the switch is the header bar's pill's.
+        !switchHere ? null : <div className="strip is-off">
           <div className="strip-head">
             <span className="strip-name">Panki</span>
             <div className="strip-tools">
@@ -1672,8 +1675,8 @@ function App() {
               </span>
             ) : null}
             <div className="strip-tools">
-              {/* Panki altogether, on or off (the owner, 2026-10-21: "make the button toggle whether Panki is even enabled"); whether this video counts toward the watch time moved into the menu beside it. */}
-              <Toggle id="panki-on" className="capture-tool strip-switch" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} />
+              {/* Panki altogether, on or off (the owner, 2026-10-21: "make the button toggle whether Panki is even enabled"), here while it isn't the header bar pill's. */}
+              {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
               {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home (the owner, 2026-10-21). */}
               {savedNow && savedNow.videoId === videoId() ? (
                 <Button className={`capture-tool strip-save ${savedNow.saved ? "is-saved" : ""}`.trim()} aria-pressed={savedNow.saved} onClick={() => void toggleSaved()}>
