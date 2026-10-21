@@ -8,13 +8,7 @@ pm2 restart panki-api
 
 
 
-
 - Auto deploy on chrome extension? Maybe shwo when theres na udpate and sugggest ot udpate immediately? Also build ci/cd pipeline?
-
-- Bury, in Anki's sense: hide the card until tomorrow, schedule untouched. For a card you can't judge right now, a bad clip, a tired evening. The one I'd build first.
-- Suspend: out of rotation until you bring it back from the deck's list. For leeches and cards that need fixing.
-- Flag: answer as normal but mark the card, so a list in the deck shows what to fix later. Useful in a mining app where the audio or meaning is sometimes off.
-
 
 
 - Netflix / Jellyfin Support
@@ -48,3 +42,5 @@ Video tracking for stats is enabled by default and ther;'ell be a toolti pro des
 19:22 ダニエル 「やっべ、れなは今日、動画を見たけど俺まだ全然見てない、ストリークがなくなるのは嫌だ、少しなくても、何かを見ないと」って
 Maybe I can even create parties or groups ro soemthign s oI can d othsi with multipel people, or even ahve globla leaderboard/tracking for all users on the app.
 It's improtan tthnis entire epic/feature is carefully thought to respect al lthe dguideliesn and covnentiosn int he docs, and that you previwe it to me in artifact.
+
+- redacat all repo history because fo the above in the readme^
