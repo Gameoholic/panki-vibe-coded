@@ -1,8 +1,26 @@
-import { useId, useState, type ReactNode } from "react";
-import { CardUpdate, MEDIA_ENDINGS, MEDIA_MAX_BYTES, NewCard, VALUE_MAX, cardProblems, holdsFile, holdsWords, mediaFor, mediaKindsOf, type Card, type CardProblem, type CardType, type MediaKind } from "@panki/contracts";
+import { Fragment, useId, useState, type ReactNode } from "react";
+import {
+  CardUpdate,
+  MEDIA_ENDINGS,
+  MEDIA_MAX_BYTES,
+  NewCard,
+  VALUE_MAX,
+  cardProblems,
+  holdsFile,
+  mediaFor,
+  mediaKindsOf,
+  wordsFieldOf,
+  type CalledCard,
+  type Card,
+  type CardProblem,
+  type CardType,
+  type MediaKind,
+} from "@panki/contracts";
 import { api } from "../api";
 import { FIELD_KINDS, fileKindOf } from "../fieldKinds";
+import { useCalled } from "../hooks/useCalled";
 import { langOf, listWords } from "../words";
+import { AlreadyIn } from "./AlreadyIn";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Form } from "./Form";
@@ -24,9 +42,9 @@ const MESSAGES = {
 
 /** Deleting a card, asked in place (`Ask`) wherever it's done: on its row, and in its form. One home for the words. */
 export const DELETE_CARD = {
-  /** "Delete “行く”?": the card by its first Front field that holds words, or "this card" when that's empty. */
+  /** "Delete “行く”?": the card by the field it's called by, or "this card" when that's empty. */
   question: (type: CardType, card: Card) => {
-    const lead = type.fields.find((f) => f.side === "front" && holdsWords(f.kind));
+    const lead = wordsFieldOf(type);
     const named = lead ? (card.values[lead.id] ?? "").trim() : "";
     return `Delete ${named ? `“${named}”` : "this card"}?`;
   },
@@ -45,8 +63,11 @@ type Shared = {
   /** Anything that belongs above the fields, like the deck chooser on the Add screen. */
   children?: ReactNode;
 };
-/** Adding: the form starts empty and stays open after a card is added, for the next one. */
-type Adding = Shared & { card?: undefined; onAdd: (card: NewCard) => Promise<void> };
+/**
+ * Adding: the form starts empty and stays open after a card is added, for the next one. While what's typed in the field
+ * a card is called by is what a card already holds, it says so under it (`AlreadyIn`); `onOpenCalled` opens that card.
+ */
+type Adding = Shared & { card?: undefined; onAdd: (card: NewCard) => Promise<void>; onOpenCalled?: (card: CalledCard) => void };
 /** Changing a card that's there: the form starts from what it holds, saves only what differs, and can delete it. */
 type Editing = Shared & { card: Card; onSave: (update: CardUpdate) => Promise<void>; onRemove: () => Promise<void> };
 type Props = Adding | Editing;
@@ -95,6 +116,10 @@ export function CardForm(props: Props) {
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const first = type.fields[0];
+  /** The field the card is called by: a card being added says under it when one is already called so. */
+  const lead = card ? null : wordsFieldOf(type);
+  const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], api.cardsCalled);
+  const onOpenCalled = "onAdd" in props ? props.onOpenCalled : undefined;
 
   function focusField(fieldId: string) {
     document.getElementById(inputId(fieldId))?.focus();
@@ -226,19 +251,21 @@ export function CardForm(props: Props) {
           }
           const value = draft[field.id] ?? "";
           return (
-            <TextField
-              key={field.id}
-              id={inputId(field.id)}
-              data-field={field.name}
-              label={label}
-              multiline={FIELD_KINDS[field.kind].multiline}
-              lang={langOf(value)}
-              autoComplete="off"
-              autoFocus={autoFocus && field.id === first?.id}
-              value={value}
-              onChange={(text) => edit(field.id, text)}
-              error={errors[field.id] || undefined}
-            />
+            <Fragment key={field.id}>
+              <TextField
+                id={inputId(field.id)}
+                data-field={field.name}
+                label={label}
+                multiline={FIELD_KINDS[field.kind].multiline}
+                lang={langOf(value)}
+                autoComplete="off"
+                autoFocus={autoFocus && field.id === first?.id}
+                value={value}
+                onChange={(text) => edit(field.id, text)}
+                error={errors[field.id] || undefined}
+              />
+              {field.id === lead?.id ? <AlreadyIn cards={called} onOpen={onOpenCalled} /> : null}
+            </Fragment>
           );
         })}
         {asking && card ? (

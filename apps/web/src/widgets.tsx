@@ -2,7 +2,7 @@ import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, t
 import type { Day, Deck, Settings, SrsType, Stats } from "@panki/contracts";
 import { Button } from "./components/Button";
 import { Tip } from "./components/Tip";
-import { tintStyle } from "./srsKinds";
+import { NEW_WORDS, tintStyle } from "./srsKinds";
 import { count, dateWords, langOf } from "./words";
 
 /**
@@ -288,7 +288,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
             return (
               <div key={ladder.srsTypeId} className="w-ladder">
                 {stats.ladders.length > 1 ? <p className="w-sub">{ladder.name}</p> : null}
-                <LadderRow name="New" n={ladder.fresh} max={max} className="is-new" />
+                <LadderRow name={NEW_WORDS.name} n={ladder.fresh} max={max} className="is-new" />
                 {ladder.stages.map((stage, i) => (
                   <LadderRow key={stage.id} name={stage.name || `Stage ${i + 1}`} n={stage.n} max={max} style={tintStyle(i, n)} />
                 ))}

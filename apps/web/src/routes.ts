@@ -9,7 +9,8 @@ export type TypeTab = "fields" | "layout";
 export type Route =
   | { kind: "home" }
   | { kind: "decks" }
-  | { kind: "deck"; id: string; tab: DeckTab }
+  /** `card`: one of its cards open in the list, to change or delete (`/decks/…/cards/…`); the extension opens Panki at one so. */
+  | { kind: "deck"; id: string; tab: DeckTab; card?: string | undefined }
   | { kind: "pick" }
   | { kind: "review"; id: string; from: "deck" | "pick" }
   | { kind: "add" }
@@ -30,7 +31,8 @@ export function routePath(route: Route): string {
     case "decks":
       return "/decks";
     case "deck":
-      return route.tab === "settings" ? `/decks/${route.id}/settings` : `/decks/${route.id}`;
+      if (route.tab === "settings") return `/decks/${route.id}/settings`;
+      return route.card ? `/decks/${route.id}/cards/${route.card}` : `/decks/${route.id}`;
     case "pick":
       return "/review";
     case "review":
@@ -56,11 +58,12 @@ export function routePath(route: Route): string {
 
 /** The route a path names; a path that names nothing is the home. */
 export function parsePath(path: string): Route {
-  const [section, id, rest] = path.split("/").filter(Boolean);
+  const [section, id, rest, more] = path.split("/").filter(Boolean);
   switch (section) {
     case "decks":
       if (!id) return { kind: "decks" };
       if (rest === "review") return { kind: "review", id, from: "deck" };
+      if (rest === "cards" && more) return { kind: "deck", id, tab: "cards", card: more };
       return { kind: "deck", id, tab: rest === "settings" ? "settings" : "cards" };
     case "review":
       return id ? { kind: "review", id, from: "pick" } : { kind: "pick" };

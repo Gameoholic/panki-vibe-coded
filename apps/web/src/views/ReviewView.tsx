@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
@@ -7,7 +7,8 @@ import { Icon, type IconName } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
 import { shuffle } from "../shuffle";
-import { HOLD_KINDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
+import { LESSON_SCOPE } from "../srsFlow";
+import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
 import { count } from "../words";
 
@@ -55,6 +56,24 @@ function kindOf(card: Card): Kind {
   if (card.place.node.length > 0) return "again";
   return isNew(card.place) ? "new" : "review";
 }
+/** Each kind as its count says it: "2 new", "0 again", "9 reviews". */
+const KIND_WORDS: Record<Kind, (n: number) => string> = {
+  new: () => "new",
+  again: () => "again",
+  review: (n) => (n === 1 ? "review" : "reviews"),
+};
+/**
+ * The counts left to right in the order their cards come (the owner, 2026-10-21: "it should display from left to
+ * right in the order"): the new ones before or after the reviews as the deck puts them (scattered among them, first),
+ * and the ones asked again where they go back in: last at the end, first a few cards later, between them anywhere.
+ */
+function countOrder(settings: Deck["settings"]): readonly Kind[] {
+  const [front, back]: [Kind, Kind] = settings.newPlace === "last" ? ["review", "new"] : ["new", "review"];
+  const again = againPlaceOf(settings);
+  if (again === "end") return [front, back, "again"];
+  if (again === "soon") return ["again", front, back];
+  return [front, "again", back];
+}
 
 /**
  * Whether a card comes back in this same review after an answer: only an ask-again with no wait (or a retry) keeps
@@ -84,21 +103,35 @@ const AGAIN_SOON = 3;
 /** A card never started that a review can start: new, but not inside an ask-again (it has been started, and comes back as due), and not put aside. */
 const isUnseen = (card: Card) => isNew(card.place) && card.place.node.length === 0 && card.hold === null;
 
-/** The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones where the deck's settings put them. */
+/** Each of `items` dropped somewhere at random among `among`, the items keeping their own order. */
+function scatter(items: readonly string[], among: readonly string[]): string[] {
+  const spots = items.map(() => Math.floor(Math.random() * (among.length + 1))).sort((a, b) => a - b);
+  const line = [...among];
+  spots.forEach((spot, i) => line.splice(spot + i, 0, items[i] ?? ""));
+  return line;
+}
+
+/**
+ * The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones
+ * where the deck's settings put them. A card still inside an ask-again (an earlier review was left with it there) is
+ * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, first, or
+ * anywhere (the owner, 2026-10-21: it opened on one of those at random, shuffled in among the reviews).
+ */
 function buildQueue(cards: Card[], deck: Deck): string[] {
   const { newOrder, newPlace, reviewOrder } = deck.settings;
   const overdue = cards.filter((c) => c.due).sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
   // The order decides which cards make it under the day's limit, as well as when they show.
-  const due = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, deck.dueCount).map((c) => c.id);
+  const allDue = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, deck.dueCount);
+  const again = allDue.filter((c) => kindOf(c) === "again").map((c) => c.id);
+  const due = allDue.filter((c) => kindOf(c) !== "again").map((c) => c.id);
   const unseen = cards.filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt);
   const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, deck.newCount).map((c) => c.id);
-  if (newPlace === "first") return [...fresh, ...due];
-  if (newPlace === "last") return [...due, ...fresh];
   // Scattered: each new card lands somewhere at random among the reviews, the new ones keeping their own order.
-  const spots = fresh.map(() => Math.floor(Math.random() * (due.length + 1))).sort((a, b) => a - b);
-  const line = [...due];
-  spots.forEach((spot, i) => line.splice(spot + i, 0, fresh[i] ?? ""));
-  return line;
+  const line = newPlace === "first" ? [...fresh, ...due] : newPlace === "last" ? [...due, ...fresh] : scatter(fresh, due);
+  const againPlace = againPlaceOf(deck.settings);
+  if (againPlace === "end") return [...line, ...again];
+  if (againPlace === "soon") return [...again, ...line];
+  return scatter(again, line);
 }
 
 /**
@@ -151,9 +184,11 @@ function answerLead(srsType: SrsType, card: Card, answerId: string): Lead {
   const step = stepFor(srsType, card, answerId);
   if (isHold(step)) return { dir: step.kind, steps: 0, words: holdBack(step) };
   const r = resolve(srsType, card.place, answerId);
+  const by = stageIndex(srsType, r.place) - stageIndex(srsType, card.place);
+  // New again there's no wait to say: it waits for a day's new cards.
+  if (!r.burned && isNew(r.place) && !r.again) return { dir: by < 0 ? "down" : "same", steps: Math.abs(by), words: NEW_WORDS.name };
   if (r.burned || r.wait === null) return { dir: "burn", steps: 0, words: srsType.burnedName };
   if (r.again) return { dir: "again", steps: 0, words: `again ${againWords(r.wait)}` };
-  const by = stageIndex(srsType, r.place) - stageIndex(srsType, card.place);
   return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", steps: Math.abs(by), words: `${placeName(srsType, r.place)} · ${backWords(r.wait)}` };
 }
 
@@ -201,7 +236,7 @@ function Lead({ lead }: { lead: Lead }) {
 function chartOf(srsType: SrsType, card: Card, answerId: string | null): { scope: string; now: string; next: string | null; stage: number } {
   const idx = stageIndex(srsType, card.place);
   const stage = srsType.stages[idx];
-  const scope = stage && srsType.overrides[stage.id] ? stage.id : "all";
+  const scope = idx < 0 ? LESSON_SCOPE : stage && srsType.overrides[stage.id] ? stage.id : "all";
   const now = card.place.node.length > 0 ? card.place.node.join(",") : "root";
   const step = answerId === null ? undefined : stepFor(srsType, card, answerId);
   const next = answerId === null || step?.kind === "hidden" ? null : [...card.place.node, answerId].join(",");
@@ -475,13 +510,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   return (
     <section className="review">
       <div className="review-top">
-        {/* What's left, by kind: new + asked again + reviews, the kind of the card on screen underlined. */}
-        <span className="review-counts" role="status" aria-label={`${togo.new} new, ${togo.again} asked again, ${togo.review} to review`}>
-          {KINDS.map((kind, i) => (
-            <Fragment key={kind}>
-              {i > 0 ? <span className="review-plus">+</span> : null}
-              <span className={`review-count is-${kind} ${kindOf(card) === kind ? "is-now" : ""}`.trim()}>{togo[kind]}</span>
-            </Fragment>
+        {/* What's left, by kind, each count with its word ("2 + 0 + 9" said nothing, the owner, 2026-10-21), in the order they come; the kind of the card on screen underlined. */}
+        <span className="review-counts" role="status">
+          {countOrder(deck.settings).map((kind) => (
+            <span key={kind} className={`review-count is-${kind} ${kindOf(card) === kind ? "is-now" : ""}`.trim()}>
+              <span className="review-n">{togo[kind]}</span> {KIND_WORDS[kind](togo[kind])}
+            </span>
           ))}
         </span>
         {/* With a limit on how many are in play, say how many that is right now and how many wait their turn. */}

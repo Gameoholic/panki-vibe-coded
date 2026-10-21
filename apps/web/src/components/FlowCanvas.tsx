@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { WAIT_MAX, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
-import { AGAIN_OPTIONS, MOVE_OPTIONS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
-import { BURNED_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
+import { LESSON_IDX, WAIT_MAX, isNew, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
+import { AGAIN_OPTIONS, MOVE_OPTIONS, NEW_WORDS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
+import { BURNED_SCOPE, LESSON_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { NumberField } from "./NumberField";
@@ -53,7 +53,7 @@ function layout(type: SrsType, flow: Flow, scope: Scope, positions: Record<strin
   const boxes: Box[] = [];
   const links: Link[] = [];
   // A stage's box is big for its fields; where there's nothing to fill in, it's a plain box.
-  const plain = scope === "all" || scope === BURNED_SCOPE || readOnly;
+  const plain = scope === "all" || scope === BURNED_SCOPE || scope === LESSON_SCOPE || readOnly;
   const rootW = plain ? G.nodeW : G.stageW;
   const rootH = plain ? G.nodeH : G.stageH;
   let row = 0;
@@ -152,8 +152,9 @@ function fitView(bounds: Bounds, size: Size, rail = true): View {
 const boxStyle = (b: Box): CSSProperties => ({ left: b.x, top: b.y, width: b.w, height: b.h });
 const kindClass = (kind: string) => (kind.startsWith("to:") ? "to" : kind);
 
-/** The stage the chart is shown for: the picked one, or for the default rules the one chosen on their box (a few rungs up until one is). */
+/** The stage the chart is shown for: New, the picked one, or for the default rules the one chosen on their box (a few rungs up until one is). */
 function exampleIdx(type: SrsType, scope: Scope, shown: string | null): number {
+  if (scope === LESSON_SCOPE) return LESSON_IDX;
   if (scope !== "all") return type.stages.findIndex((s) => s.id === scope);
   const chosen = type.stages.findIndex((s) => s.id === shown);
   return chosen === -1 ? Math.min(2, type.stages.length - 1) : chosen;
@@ -163,11 +164,12 @@ function outcomeOf(type: SrsType, flow: Flow, ex: number, box: Box) {
   return resolve(type, { ...placeAt(type, ex), node: box.path.slice(0, -1) }, last, flow);
 }
 function subWords(type: SrsType, flow: Flow, scope: Scope, ex: number, box: Box): string {
-  if (box.kind === "root") return scope === "all" ? `shown for ${stageName(type, ex)}` : `waits ${spanWords(waitAt(type, ex) ?? 0)}`;
+  if (box.kind === "root") return scope === LESSON_SCOPE ? NEW_WORDS.note : scope === "all" ? `shown for ${stageName(type, ex)}` : `waits ${spanWords(waitAt(type, ex) ?? 0)}`;
   const r = outcomeOf(type, flow, ex, box);
   if (r.hold) return holdNote(r.hold, placeName(type, r.place));
   if (r.burned) return box.kind === "burn" ? "never comes back" : `→ ${type.burnedName} · never comes back`;
   if (r.again) return "";
+  if (isNew(r.place)) return `→ ${NEW_WORDS.name}`;
   return `→ ${placeName(type, r.place)} · ${r.wait ? `back in ${spanWords(r.wait)}` : backWords(0)}`;
 }
 
@@ -182,7 +184,11 @@ type Props = {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  /** For looking only (a type that comes with the app): the chart pans, zooms and shows any stage, and nothing on it changes the rules. */
+  /**
+   * For looking only (a type that comes with the app): the chart pans, zooms and shows any stage, and every box opens
+   * its card with what's set there and what else could be, nothing in it to be changed (the owner, 2026-10-21: "still
+   * read only, but now I can read the extra parameters that were set on it and what others are available").
+   */
   readOnly?: boolean;
   /**
    * A glance at one card's place on the chart (the review, with a mouse resting on an answer): the box the card is at
@@ -299,7 +305,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === "Escape") setSelected(null);
-      else if (sel !== "root" && (e.key === "Delete" || e.key === "Backspace")) {
+      else if (!readOnly && sel !== "root" && (e.key === "Delete" || e.key === "Backspace")) {
         e.preventDefault();
         const path = sel.split(",");
         const current = getStep(type, scope, path);
@@ -308,7 +314,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, type, scope, onChange]);
+  }, [selected, type, scope, onChange, readOnly]);
   // A ladder that no longer ends has no end to show.
   useEffect(() => {
     if (scope === BURNED_SCOPE && type.after !== "burn") onScope("all");
@@ -391,7 +397,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
       if (p.moved && commit) setPositions((ps) => ({ ...ps, [scope]: { ...(ps[scope] ?? {}), [p.id]: p.cur } }));
       setDrag(null);
       // A tap on the name of an answer that keeps asking, or whose button is hidden, picks it: it has no box of its own to tap.
-      const looped = !p.moved && commit && !readOnly ? wires.find((w) => w.key === p.id && (w.link.loop || w.link.hidden)) : undefined;
+      const looped = !p.moved && commit && !glance ? wires.find((w) => w.key === p.id && (w.link.loop || w.link.hidden)) : undefined;
       if (looped) setSelected((s) => (s === looped.link.to ? null : looped.link.to));
     } else if (!p.moved && commit) {
       // A press on the ground that never became a pan is a tap: it lets go of the picked box.
@@ -399,8 +405,9 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     }
   }
   function select(id: string) {
-    // For looking only, the one thing to pick is the default rules' box: it chooses the stage they're shown for.
-    if (suppressClick.current || (readOnly && id !== "root")) return;
+    // A glance has one thing to pick, the default rules' box: it chooses the stage they're shown for. Read only, every
+    // box opens its card, to be read.
+    if (suppressClick.current || (glance && id !== "root")) return;
     setSelected((s) => (s === id ? null : id));
   }
 
@@ -433,6 +440,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             style={tintStyle(i, type.stages.length)}
             aria-label={stageName(type, i)}
             aria-pressed={pickedIdx === i}
+            disabled={readOnly}
             data-opt={`to:${s.id}`}
             onPointerEnter={() => setPeek(i)}
             onFocus={() => setPeek(i)}
@@ -520,6 +528,15 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
           {chart.boxes.map((box) => {
             if (box.kind === "root") {
               const tint = tintStyle(ex, type.stages.length);
+              // New has nothing to fill in: no name of its own, no wait (a card there waits for a day's new cards).
+              if (scope === LESSON_SCOPE) {
+                return (
+                  <div key="root" className={`fnode root is-lesson ${glance?.now === box.id ? "is-now" : ""} ${drag?.id === box.id ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()} data-node="root" data-kind="root" style={boxStyle(box)}>
+                    <span className="t">{NEW_WORDS.name}</span>
+                    <span className="s">{NEW_WORDS.note}</span>
+                  </div>
+                );
+              }
               if ((scope !== "all" || glance) && scope !== BURNED_SCOPE && stage && readOnly) {
                 return (
                   <div key="root" className={`fnode root ${glance?.now === box.id ? "is-now" : ""} ${drag?.id === box.id ? "is-dragging" : ""}`.trim()} data-node="root" data-kind="root" style={{ ...boxStyle(box), ...tint }}>
@@ -616,6 +633,10 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               <span>Default rules</span>
               <small>every stage</small>
             </Button>
+            <Button variant="chip" className="rail-chip is-lesson" aria-pressed={scope === LESSON_SCOPE} onClick={() => onScope(LESSON_SCOPE)}>
+              <span>{NEW_WORDS.name}</span>
+              <small>{NEW_WORDS.note}</small>
+            </Button>
             {type.stages.map((s, i) => (
               <Button key={s.id} variant="chip" className={`rail-chip ${hasOwnRules(type, s.id) ? "has-dot" : ""}`.trim()} aria-pressed={scope === s.id} onClick={() => onScope(s.id)}>
                 <span>{stageName(type, i)}</span>
@@ -709,52 +730,57 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             </>
           ) : current?.kind === "again" ? (
             <>
-              <Toggle id="again-now" says={{ on: "Right away, in the same review", off: "After a wait" }} on={current.now === true} onChange={(now) => onChange(setAgainNow(type, scope, selPath, now))} />
+              <Toggle id="again-now" says={{ on: "Right away, in the same review", off: "After a wait" }} on={current.now === true} disabled={readOnly} onChange={(now) => onChange(setAgainNow(type, scope, selPath, now))} />
               {current.now ? null : (
                 <>
                   <div className="menu-title">Ask again in</div>
                   <div className="menu-wait">
-                    <NumberField id="again-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" onChange={(n) => onChange(setStepWait(type, scope, selPath, { n }), `again-${selected}`)} />
-                    <Segmented size="sm" idPrefix="again-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} onChange={(unit) => onChange(setStepWait(type, scope, selPath, { unit }))} />
+                    <NumberField id="again-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" disabled={readOnly} onChange={(n) => onChange(setStepWait(type, scope, selPath, { n }), `again-${selected}`)} />
+                    <Segmented size="sm" idPrefix="again-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} disabled={readOnly} onChange={(unit) => onChange(setStepWait(type, scope, selPath, { unit }))} />
                   </div>
-                  <Toggle id="again-capped" says={{ on: "Never later than the current stage", off: "Can be later than the current stage" }} on={current.capped === true} onChange={(capped) => onChange(setAgainCapped(type, scope, selPath, capped))} />
+                  <Toggle id="again-capped" says={{ on: "Never later than the current stage", off: "Can be later than the current stage" }} on={current.capped === true} disabled={readOnly} onChange={(capped) => onChange(setAgainCapped(type, scope, selPath, capped))} />
                 </>
               )}
-              <div className="menu-sep" />
-              <Button
-                variant="item"
-                className="is-danger"
-                onClick={() => {
-                  onChange(flattenAgain(type, scope, selPath));
-                  setSelected(null);
-                }}
-              >
-                <Icon name="close" />
-                Remove this step
-              </Button>
+              {readOnly ? null : (
+                <>
+                  <div className="menu-sep" />
+                  <Button
+                    variant="item"
+                    className="is-danger"
+                    onClick={() => {
+                      onChange(flattenAgain(type, scope, selPath));
+                      setSelected(null);
+                    }}
+                  >
+                    <Icon name="close" />
+                    Remove this step
+                  </Button>
+                </>
+              )}
             </>
           ) : (
             <>
               {current?.kind === "bury" ? (
                 <>
-                  <div className="menu-title">Bury for</div>
+                  <div className="menu-title">Snooze for</div>
                   <div className="menu-wait">
-                    <NumberField id="bury-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" onChange={(n) => onChange(setStepWait(type, scope, selPath, { n }), `bury-${selected}`)} />
-                    <Segmented size="sm" idPrefix="bury-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} onChange={(unit) => onChange(setStepWait(type, scope, selPath, { unit }))} />
+                    <NumberField id="bury-wait" label="Wait" value={current.wait.n} min={1} max={WAIT_MAX} steppers={false} size="sm" disabled={readOnly} onChange={(n) => onChange(setStepWait(type, scope, selPath, { n }), `bury-${selected}`)} />
+                    <Segmented size="sm" idPrefix="bury-unit" label="Unit" options={WAIT_UNIT_OPTIONS} value={current.wait.unit} disabled={readOnly} onChange={(unit) => onChange(setStepWait(type, scope, selPath, { unit }))} />
                   </div>
                   <div className="menu-sep" />
                 </>
               ) : null}
-              <Segmented<string> size="sm" idPrefix="step" label="Up or down the ladder" options={MOVE_OPTIONS} value={currentKey} onChange={pick} />
+              <Segmented<string> size="sm" idPrefix="step" label="Up or down the ladder" options={MOVE_OPTIONS} value={currentKey} disabled={readOnly} onChange={pick} />
               <div className="chips menu-chips">
-                {STEP_OPTIONS.filter((o) => o.step.kind !== "move").map((o) => (
-                  <Button key={o.id} variant="chip" aria-pressed={currentKey === o.id} data-opt={o.id} onClick={() => pick(o.id)}>
+                {/* For a new card, New again is where it is already. */}
+                {STEP_OPTIONS.filter((o) => o.step.kind !== "move" && !(scope === LESSON_SCOPE && o.step.kind === "lesson")).map((o) => (
+                  <Button key={o.id} variant="chip" aria-pressed={currentKey === o.id} disabled={readOnly} data-opt={o.id} onClick={() => pick(o.id)}>
                     {o.icon ? <Icon name={o.icon} /> : null}
                     {o.chip ?? stepLabel(type, o.step)}
                   </Button>
                 ))}
                 {AGAIN_OPTIONS.map((o) => (
-                  <Button key={o.id} variant="chip" data-opt={o.id} onClick={() => pick(o.id)}>
+                  <Button key={o.id} variant="chip" disabled={readOnly} data-opt={o.id} onClick={() => pick(o.id)}>
                     <Icon name="review" />
                     {o.label}
                   </Button>

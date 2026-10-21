@@ -4,6 +4,7 @@ import type { AuthDb } from "./authDb";
 import type { Db } from "./db";
 import { accountRouter, loginRouter } from "./routes/auth";
 import type { Forvo } from "./forvo";
+import { cardsRouter } from "./routes/cards";
 import { decksRouter } from "./routes/decks";
 import { dictionariesRouter } from "./routes/dictionaries";
 import { forvoRouter } from "./routes/forvo";
@@ -74,6 +75,7 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, spa
   app.use("/api/srs", srsRouter(dbOf, now));
   app.use("/api/settings", settingsRouter(dbOf, now));
   app.use("/api/decks", decksRouter(dbOf, now));
+  app.use("/api/cards", cardsRouter(dbOf));
   app.use("/api/media", mediaRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), now));
   app.use("/api/word-audio", wordAudioRouter(shared, wordAudioKeys, now));
   app.use("/api/forvo", forvoRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), forvo, shared, wordAudioKeys.forvo, now));

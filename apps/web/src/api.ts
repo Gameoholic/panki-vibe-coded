@@ -1,11 +1,13 @@
 import {
   ApiErrorBody,
+  CalledCards,
   CardList,
   CardResponse,
   CardTypeList,
   CardTypeResponse,
   DeckList,
   DeckResponse,
+  DeckTwins,
   EngineAccountResponse,
   WordAudioResponse,
   MeResponse,
@@ -20,6 +22,7 @@ import {
   SrsTypeResponse,
   StatsResponse,
   TranscriptionResponse,
+  type CalledCard,
   type Card,
   type CardAnswer,
   type CardType,
@@ -186,6 +189,11 @@ export const api = {
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}`, send("PATCH", update), (b) => CardResponse.parse(b).card),
   /** Hides the card from its deck; nothing is destroyed. */
   removeCard: (deckId: string, cardId: string): Promise<void> => request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}`, send("DELETE"), () => undefined),
+  /** A deck's duplicates: each of its cards called the same as another card in any deck, with those others. */
+  deckTwins: (deckId: string): Promise<Record<string, CalledCard[]>> => request(`${deckPath(deckId)}/twins`, undefined, (b) => DeckTwins.parse(b).twins),
+  /** The account's cards, in any deck, already called by one of these words: what a card about to be added says is there. */
+  cardsCalled: (words: readonly string[]): Promise<CalledCard[]> =>
+    request(`/api/cards/called?${words.map((word) => `word=${encodeURIComponent(word)}`).join("&")}`, undefined, (b) => CalledCards.parse(b).cards),
   /** Brings a card put aside (buried or suspended) back into reviews; its schedule stands as it was. */
   liftHold: (deckId: string, cardId: string): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/hold`, send("DELETE"), (b) => CardResponse.parse(b).card),

@@ -13,7 +13,7 @@ import { Toggle } from "../components/Toggle";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { useUndoable } from "../hooks/useUndoable";
 import { addAnswer, addStage, edit, moveStage, patchAnswer, patchStage, removeAnswer, removeStage, renameAnswer, type Scope } from "../srsFlow";
-import { AFTER_OPTIONS, answerClass, stageName, stageWaitWords, tintStyle } from "../srsKinds";
+import { AFTER_OPTIONS, NEW_WORDS, answerClass, stageName, stageWaitWords, tintStyle } from "../srsKinds";
 import { count } from "../words";
 
 /** What a field says when it's wrong. One home. */
@@ -56,7 +56,7 @@ const NO_ERRORS: Errors = { answers: {}, stages: {} };
 function updateOf(type: SrsType, moves: Record<string, string>): unknown {
   const stageIds = new Set(type.stages.map((s) => s.id));
   const pending = Object.fromEntries(Object.entries(moves).filter(([stageId]) => !stageIds.has(stageId)));
-  return { name: type.name, description: type.description, stages: type.stages, answers: type.answers, flow: type.flow, overrides: type.overrides, after: type.after, growBy: type.growBy, burnedName: type.burnedName, moves: pending };
+  return { name: type.name, description: type.description, stages: type.stages, answers: type.answers, flow: type.flow, overrides: type.overrides, lesson: type.lesson, after: type.after, growBy: type.growBy, burnedName: type.burnedName, moves: pending };
 }
 const sameShape = (a: SrsType, b: SrsType) => JSON.stringify(updateOf(a, {})) === JSON.stringify(updateOf(b, {}));
 
@@ -200,7 +200,41 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
   const askingStage = asking ? draft.stages.find((s) => s.id === asking.stageId) : undefined;
   const askingIdx = asking ? draft.stages.findIndex((s) => s.id === asking.stageId) : -1;
 
-  // A type that comes with the app is for looking at and for starting your own from: the same preview and chart, nothing to fill in.
+  /**
+   * An answer's name with whether it sits apart and whether it asks first. `locked` shows them as they're set, to be
+   * read and not changed (a type that comes with the app; the owner, 2026-10-21: "answers too, everything").
+   */
+  const answerBlock = (answer: SrsType["answers"][number], i: number, locked: boolean) => (
+    <div key={answer.id} className={`answer-name ${answerClass(draft.answers, i)} ${locked ? "is-locked" : ""}`.trim()}>
+      <TextField id={`answer-${answer.id}`} label={`Answer ${i + 1}`} autoComplete="off" value={answer.name} readOnly={locked} onChange={(name) => change(renameAnswer(draft, answer.id, name), `answer-${answer.id}`)} error={errors.answers[answer.id]} />
+      {locked ? null : (
+        <Button className="btn-icon" aria-label="Remove answer" disabled={draft.answers.length <= ANSWERS_MIN} onClick={() => change(removeAnswer(draft, answer.id))}>
+          <Icon name="close" />
+        </Button>
+      )}
+      <div className="answer-opts">
+        <Toggle
+          id={`answer-aside-${answer.id}`}
+          says={{ on: "Set apart", off: "With the others" }}
+          on={answer.aside === true}
+          disabled={locked || (!answer.aside && draft.answers.filter((a) => !a.aside).length <= ANSWERS_MIN)}
+          onChange={(aside) => change(patchAnswer(draft, answer.id, { aside }))}
+        />
+        <Toggle id={`answer-confirm-${answer.id}`} says={{ on: "Ask to confirm", off: "No confirmation" }} on={answer.confirm === true} disabled={locked} onChange={(confirm) => change(patchAnswer(draft, answer.id, { confirm }))} />
+      </div>
+    </div>
+  );
+  /** New heads the stages: every type's, before the first, with nothing of its own to set but its rules on the chart. */
+  const lessonLine = (
+    <div className="stage-line lesson-line">
+      <span className="stage-no is-lesson" aria-hidden="true" />
+      <span className="stage-line-name">{NEW_WORDS.name}</span>
+      <span className="field-hint">{NEW_WORDS.note}</span>
+    </div>
+  );
+
+  // A type that comes with the app is for looking at and for starting your own from: the same preview and chart, every
+  // setting shown as it's set and none to be changed.
   if (draft.builtin) {
     return (
       <div className="srs-editor">
@@ -222,26 +256,21 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
           <h2 id="srs-answers-title" className="panel-title">
             Answers
           </h2>
-          <div className="chips">
-            {draft.answers.map((answer, i) => (
-              <span key={answer.id} className={`pill ${answerClass(draft.answers, i)}`}>
-                {answer.name}
-              </span>
-            ))}
-          </div>
+          <div className="answer-names">{draft.answers.map((answer, i) => answerBlock(answer, i, true))}</div>
         </section>
         <section className="panel" aria-labelledby="srs-flow-title">
           <h2 id="srs-flow-title" className="panel-title">
             What each answer does
           </h2>
           <FlowCanvas type={draft} scope={scope} onScope={setScope} onChange={change} onUndo={undo} onRedo={redo} canUndo={false} canRedo={false} readOnly />
-          <p className="field-hint">Pick a stage above the chart to see its rules. Drag the ground to pan, scroll to zoom.</p>
+          <p className="field-hint">Pick a stage above the chart to see its rules, and tap a box to see what it's set to. Drag the ground to pan, scroll to zoom.</p>
         </section>
         <section className="panel" aria-labelledby="srs-stages-title">
           <h2 id="srs-stages-title" className="panel-title">
             Stages
           </h2>
           <div className="stage-lines">
+            {lessonLine}
             {draft.stages.map((stage, i) => (
               <div key={stage.id} className="stage-line">
                 <span className="stage-no" style={tintStyle(i, n)}>
@@ -296,26 +325,7 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
         <h2 id="srs-answers-title" className="panel-title">
           Answers
         </h2>
-        <div className="answer-names">
-          {draft.answers.map((answer, i) => (
-            <div key={answer.id} className={`answer-name ${answerClass(draft.answers, i)}`}>
-              <TextField id={`answer-${answer.id}`} label={`Answer ${i + 1}`} autoComplete="off" value={answer.name} onChange={(name) => change(renameAnswer(draft, answer.id, name), `answer-${answer.id}`)} error={errors.answers[answer.id]} />
-              <Button className="btn-icon" aria-label="Remove answer" disabled={draft.answers.length <= ANSWERS_MIN} onClick={() => change(removeAnswer(draft, answer.id))}>
-                <Icon name="close" />
-              </Button>
-              <div className="answer-opts">
-                <Toggle
-                  id={`answer-aside-${answer.id}`}
-                  says={{ on: "Set apart", off: "With the others" }}
-                  on={answer.aside === true}
-                  disabled={!answer.aside && draft.answers.filter((a) => !a.aside).length <= ANSWERS_MIN}
-                  onChange={(aside) => change(patchAnswer(draft, answer.id, { aside }))}
-                />
-                <Toggle id={`answer-confirm-${answer.id}`} says={{ on: "Ask to confirm", off: "No confirmation" }} on={answer.confirm === true} onChange={(confirm) => change(patchAnswer(draft, answer.id, { confirm }))} />
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className="answer-names">{draft.answers.map((answer, i) => answerBlock(answer, i, false))}</div>
         {errors.answersList ? (
           <p className="field-error" role="alert">
             {errors.answersList}
@@ -348,6 +358,7 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
         </h2>
         <p className="field-hint">Drag to reorder. Pick a stage on the chart to name it and set how long it waits.</p>
         <div className={`stage-rows ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
+          {lessonLine}
           {draft.stages.map((stage, i) => (
             <div key={stage.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`stage-row ${order.dragging === i ? "is-dragging" : ""}`.trim()} data-stage={stage.id}>
               <Button className="btn-icon field-grip" aria-label="Move" disabled={n === 1} {...order.handleProps(i)}>

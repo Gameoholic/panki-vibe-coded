@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
 import {
+  CALLED_MAX,
+  CalledCard,
+  CardId,
   CardType,
+  CardsCalled,
   Deck,
   DeckId,
   FORVO_WORD_MAX,
@@ -64,8 +68,10 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("upload"), mediaKind: MediaKind, mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(BASE64_MAX), cues: MediaCues.optional() }),
   /** Open the options page: to sign in, or to say what fills a deck's fields. */
   z.object({ kind: z.literal("options"), tab: OptionsTab.optional() }),
-  /** Open Panki itself in a tab: the address of the profile in use. Nobody signed in, it opens the options page to sign in instead. */
-  z.object({ kind: z.literal("open") }),
+  /** Open Panki itself in a tab: the address of the profile in use, at one of its cards when one is given (open in its deck's list). Nobody signed in, it opens the options page to sign in instead. */
+  z.object({ kind: z.literal("open"), card: z.object({ deckId: DeckId, cardId: CardId }).optional() }),
+  /** The account's cards already called by the words a card is about to be added with: the drawer says so. */
+  z.object({ kind: z.literal("called"), words: CardsCalled.shape.word }),
   /** Whether pointing at a word looks it up on the page asking, with which key held, and how the popup is laid out. Needs no sign-in: the dictionaries are this browser's own. */
   z.object({ kind: z.literal("lookState") }),
   /** Every word found from the first letter of this text on. */
@@ -154,6 +160,9 @@ export type Pictured = z.infer<typeof Pictured>;
 /** The account's cards taken from the video: each its clip, in ms, and its words. */
 const Carded = z.union([z.object({ ok: z.literal(true), cards: z.array(VideoCard) }), Failed]);
 export type Carded = z.infer<typeof Carded>;
+/** The account's cards already called by some words: each its words, and its deck. */
+const Called = z.union([z.object({ ok: z.literal(true), cards: z.array(CalledCard) }), Failed]);
+export type Called = z.infer<typeof Called>;
 const State = z.union([
   z.object({
     ok: z.literal(true),
@@ -237,9 +246,20 @@ export async function askUpload(upload: Omit<Extract<Ask, { kind: "upload" }>, "
 export async function askOptions(tab: OptionsTab): Promise<void> {
   await ask({ kind: "options", tab });
 }
-/** Opens Panki, the one the profile in use is signed in to, in a tab of its own. */
-export async function askOpenPanki(): Promise<void> {
-  await ask({ kind: "open" });
+/** Opens Panki, the one the profile in use is signed in to, in a tab of its own: at one of its cards, when one is given. */
+export async function askOpenPanki(card?: { deckId: string; cardId: string }): Promise<void> {
+  await ask(card ? { kind: "open", card } : { kind: "open" });
+}
+/** The account's cards already called by one of these words; none when it can't be asked (the card can be added all the same). */
+export async function askCalled(words: readonly string[]): Promise<readonly CalledCard[]> {
+  const sent = words.filter((word) => word.trim() !== "").slice(0, CALLED_MAX);
+  if (sent.length === 0) return [];
+  const answer = Called.safeParse(await ask({ kind: "called", words: sent }));
+  if (!answer.success) {
+    failed(answer.error);
+    return [];
+  }
+  return answer.data.ok ? answer.data.cards : [];
 }
 export async function askLookState(): Promise<LookState> {
   const answer = LookState.safeParse(await ask({ kind: "lookState" }));

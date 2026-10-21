@@ -651,6 +651,131 @@ textarea.field-input {
   color: var(--danger);
   margin-right: auto;
 }
+/* A card being added is called the same as one already there (`AlreadyIn`): said under its field, in the flag's amber
+   seen through the surface so every theme keeps its own ground; a line a deck, each with the newest of its cards to open. */
+.already {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--flag) 60%, var(--line));
+  background: color-mix(in srgb, var(--flag) 14%, var(--surface));
+}
+.already-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.already-line > .icon {
+  width: 18px;
+  height: 18px;
+}
+/* A sign, as a warning is drawn (the `alert` icon): the triangle filled in the flag's amber, its mark in the flag's ink. */
+.icon.is-sign path:first-child {
+  fill: var(--flag);
+  stroke: var(--flag);
+}
+.icon.is-sign path:not(:first-child) {
+  stroke: var(--flag-ink);
+  stroke-width: 2.4;
+}
+/* A card called the same as another (a deck's duplicates), said at its row's top right, under where it stands. */
+.card-twin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--flag) 60%, var(--line));
+  background: color-mix(in srgb, var(--flag) 14%, var(--surface));
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.card-twin > .icon {
+  width: 13px;
+  height: 13px;
+}
+/* Pressed, it shows that word's cards alone: a button, drawn as the same tag. */
+.btn.card-twin {
+  justify-content: flex-end;
+}
+@media (hover: hover) {
+  .btn.card-twin:hover {
+    background: color-mix(in srgb, var(--flag) 30%, var(--surface));
+  }
+}
+/* One word's duplicates alone in a deck's list: which word, the way back to every card, and where else it is. */
+.list-filter {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.list-filter-line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+.btn.list-filter-clear {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface);
+}
+/* A list's title with what sits at its right (how a deck's cards are sorted), wrapping under it on a phone. */
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+.list-head > .list-title {
+  margin: 0;
+}
+/* The sort's list and its two ways stand one height: the ways stretch to the list's chip, in its size of words. */
+.list-sort {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.list-sort-label {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* Over the small `Segmented`'s own (later in this file, so this needs the extra class): the dropdown's chip's words. */
+.list-sort .segmented .btn-seg {
+  padding: 3px 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.already-words {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.btn.already-open {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface);
+}
 /* One of several things that went wrong, a line each (every file of an upload that didn't go up). */
 .failure-line {
   margin: 0;
@@ -1339,34 +1464,37 @@ canvas.media-frame {
   display: grid;
   gap: 16px;
 }
-/* What's left of a review: new + asked again + reviews, each in its own colour, the kind on screen underlined. */
+/* What's left of a review: each count in its kind's colour with its word after it, quieter; the card on screen's kind underlined in its colour. */
 .review-counts {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.review-plus {
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .review-count {
   padding-bottom: 1px;
   border-bottom: 2px solid transparent;
 }
 .review-count.is-new {
-  color: var(--accent);
+  --count: var(--accent);
 }
 .review-count.is-again {
-  color: var(--danger);
+  --count: var(--danger);
 }
 .review-count.is-review {
-  color: var(--good);
+  --count: var(--good);
+}
+.review-n {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--count);
 }
 .review-count.is-now {
-  border-bottom-color: currentColor;
+  border-bottom-color: var(--count);
 }
 .review-card {
   background: var(--surface);
@@ -2342,10 +2470,11 @@ mark.sub-mark {
   font-weight: 800;
 }
 
-/* The Admin tab wants more room across than a column, for the transcription modes side by side: while it's shown, the
-   page is as wide as the editors' are (`.app.is-wide`), a little less. */
-.app:has(.settings-tab.is-admin:not([hidden])) .main,
-.app:has(.settings-tab.is-admin:not([hidden])) .subhead {
+/* The Admin tab wants more room across than a column, for the transcription modes side by side, so Settings is wider
+   than other pages, a little less than the editors (`.app.is-wide`): on every tab alike, so changing tabs never
+   changes its width (it widened for Admin alone until the owner, 2026-10-21: "clicking admin changes the size of it all"). */
+.app:has(.settings-tab) .main,
+.app:has(.settings-tab) .subhead {
   max-width: 1000px;
 }
 
@@ -2969,6 +3098,11 @@ mark.sub-mark {
   grid-row: 2;
   padding: 13px 8px;
 }
+/* An answer of a type that comes with the app: its name shown as a field would hold it, quieter, for reading only. */
+.answer-name.is-locked .field-input {
+  background: var(--surface-2);
+  border-color: transparent;
+}
 /* Under an answer's name: whether it sits apart on the review screen, and whether it asks first. */
 .answer-opts {
   grid-column: 1 / -1;
@@ -3047,6 +3181,11 @@ mark.sub-mark {
 .stage-no.is-burned .icon {
   width: 14px;
   height: 14px;
+}
+/* Lesson, before the first stage: an open ring where a number would be, as it's no stage to count. */
+.stage-no.is-lesson {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--line-strong);
 }
 /* The stages of a type that's only for looking at: number, name, wait, nothing to fill in. */
 .stage-lines {
@@ -3328,10 +3467,19 @@ mark.sub-mark {
   color: var(--good);
   opacity: 0.8;
 }
-.fnode.start .t,
+/* Back to Lesson is the farthest down a card goes. */
+.fnode.lesson .t,
 .fnode.down1 .t,
 .fnode.down2 .t {
   color: var(--danger);
+}
+/* Lesson, before the first stage: quiet, as a card not learned yet is in a list (`.pill.is-new`). */
+.fnode.root.is-lesson {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.rail-chip.is-lesson {
+  color: var(--muted);
 }
 .fnode.up1 .t,
 .fnode.up2 .t {

@@ -47,7 +47,8 @@ const REVIEW_ORDER_WORDS: Record<DeckSettings["reviewOrder"], string> = {
   overdue: "The card that has been due the longest comes first.",
 };
 const AGAIN_PLACE_WORDS: Record<DeckSettings["againPlace"], string> = {
-  end: "A card you're asked again goes to the back, after every other card.",
+  // A pile of its own (the owner, 2026-10-21: "make it more obvious… like there's a separate section for cards that failed").
+  end: "Cards you're asked again collect in a separate pile at the end, after the rest of the review.",
   soon: "A card you're asked again comes back about three cards later.",
   random: "A card you're asked again lands at a random spot in what's left.",
 };

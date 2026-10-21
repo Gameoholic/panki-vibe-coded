@@ -10,6 +10,8 @@ import { AGAIN_OPTIONS, STEP_OPTIONS } from "./srsKinds";
 export type Scope = "all" | string;
 /** The end of the ladder as something to look at on the chart: it has no rules, so nothing there is edited. */
 export const BURNED_SCOPE: Scope = "burned";
+/** Lesson, before the first stage: always rules of its own (`SrsType.lesson`), never the default ones, so nothing syncs it. */
+export const LESSON_SCOPE: Scope = "lesson";
 
 export function edit(type: SrsType, change: (draft: SrsType) => void): SrsType {
   const draft = structuredClone(type);
@@ -41,17 +43,20 @@ function settle(draft: SrsType) {
     if (sameFlow(own, draft.flow, draft.answers)) delete draft.overrides[stageId];
   }
 }
-/** The rules a scope shows: a stage's own when it has them, else the default. */
+/** The rules a scope shows: Lesson's, a stage's own when it has them, else the default. */
 export function scopeFlow(type: SrsType, scope: Scope): Flow {
+  if (scope === LESSON_SCOPE) return type.lesson;
   return scope === "all" ? type.flow : (type.overrides[scope] ?? type.flow);
 }
 /** The rules a scope edits, on a draft: a stage edited for the first time gets its own copy of the default. */
 function ownFlow(draft: SrsType, scope: Scope): Flow {
+  if (scope === LESSON_SCOPE) return draft.lesson;
   if (scope === "all") return draft.flow;
   return (draft.overrides[scope] ??= structuredClone(draft.flow));
 }
+/** Whether a stage has rules of its own, apart from the default ones (Lesson's are never the default ones, so there's nothing to sync). */
 export function hasOwnRules(type: SrsType, scope: Scope): boolean {
-  return scope !== "all" && Boolean(type.overrides[scope]);
+  return scope !== "all" && scope !== LESSON_SCOPE && Boolean(type.overrides[scope]);
 }
 export function getStep(type: SrsType, scope: Scope, path: readonly string[]): Step | undefined {
   return stepAt(scopeFlow(type, scope), path);
@@ -122,10 +127,12 @@ export function syncToDefault(type: SrsType, scope: Scope): SrsType {
   });
 }
 
+/** A new answer stays where the card is on a stage; in Lesson it learns the card, since staying there leaves it a new card. */
 export function addAnswer(type: SrsType, id: string): SrsType {
   return edit(type, (draft) => {
     draft.answers.push({ id, name: "" });
     draft.flow[id] = { ...STAY };
+    draft.lesson[id] = { kind: "move", by: 1 };
   });
 }
 function stripAnswer(flow: Flow, id: string) {
@@ -137,6 +144,7 @@ export function removeAnswer(type: SrsType, id: string): SrsType {
   return edit(type, (draft) => {
     draft.answers = draft.answers.filter((a) => a.id !== id);
     stripAnswer(draft.flow, id);
+    stripAnswer(draft.lesson, id);
     for (const flow of Object.values(draft.overrides)) stripAnswer(flow, id);
   });
 }
@@ -174,6 +182,7 @@ export function removeStage(type: SrsType, id: string): SrsType {
     draft.stages = draft.stages.filter((s) => s.id !== id);
     delete draft.overrides[id];
     stripStage(draft.flow, id);
+    stripStage(draft.lesson, id);
     for (const flow of Object.values(draft.overrides)) stripStage(flow, id);
   });
 }

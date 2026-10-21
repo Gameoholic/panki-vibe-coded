@@ -94,3 +94,26 @@ export type VideoCard = z.infer<typeof VideoCard>;
 /** Every one of a video's, in the video's order. Read live from every card's source, so a card made before this was asked for is there too, and a deleted one is gone. */
 export const VideoCards = z.object({ cards: z.array(VideoCard) });
 export type VideoCards = z.infer<typeof VideoCards>;
+
+/** The most words asked about at once: what a card is being added as, and the dictionary's form of it. */
+export const CALLED_MAX = 4;
+/** The most cards told of in answer, the newest: what's there already is said, not listed. */
+export const CALLED_CARDS_MAX = 5;
+/**
+ * Words a card is about to be added with (what it would be called by, `type.ts` → `wordsFieldOf`): the account's
+ * living cards already called by one of them, in any deck, are asked for, so the card being added can say so.
+ */
+export const CardsCalled = z.object({ word: z.array(z.string().trim().min(1).max(VALUE_MAX)).min(1).max(CALLED_MAX) });
+export type CardsCalled = z.infer<typeof CardsCalled>;
+/** A living card of the account's called by one of the words asked about: its words, exactly as it holds them, and its deck, by id and by name as it stands now. */
+export const CalledCard = z.object({ cardId: CardId, deckId: DeckId, deck: z.string(), words: z.string() });
+export type CalledCard = z.infer<typeof CalledCard>;
+/** The newest of them first. */
+export const CalledCards = z.object({ cards: z.array(CalledCard).max(CALLED_CARDS_MAX) });
+export type CalledCards = z.infer<typeof CalledCards>;
+/**
+ * A deck's duplicates: for each of its living cards called the same as another living card of the account's (in this
+ * deck or any other), those others, the newest first and a few at most. A card called by nothing like another's isn't in it.
+ */
+export const DeckTwins = z.object({ twins: z.record(CardId, z.array(CalledCard).max(CALLED_CARDS_MAX)) });
+export type DeckTwins = z.infer<typeof DeckTwins>;

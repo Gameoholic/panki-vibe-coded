@@ -1,10 +1,11 @@
 import "./setup";
 import { PIECE_MIME, mediaMimeFor } from "@panki/contracts";
+import { routePath } from "@web/routes";
 import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { Ask, type Carded, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type Redone, type State, type Stretched, type Transcripted, type Trigger, type Voiced } from "./messages";
+import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type LookState, type Looked, type Pictured, type Pieced, type Redone, type State, type Stretched, type Transcripted, type Trigger, type Voiced } from "./messages";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
 import { forgetSignIn, prefsOf, readStore, writeStore, type Stored } from "./storage";
@@ -147,7 +148,7 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
   };
 }
 
-async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Transcripted | Pieced | Redone | Stretched> {
+async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched> {
   if (ask.kind === "options") {
     // The page opens on that tab, or turns to it if it's open already (it reads the store again as it gets the focus).
     if (ask.tab) await writeStore({ optionsTab: ask.tab });
@@ -155,9 +156,11 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "open") {
-    // Panki, as the profile in use knows it (the owner, 2026-10-17: "it grabs the url from the extension profile"); the page never holds the address itself.
+    // Panki, as the profile in use knows it (the owner, 2026-10-17: "it grabs the url from the extension profile"); the
+    // page never holds the address itself. A card is opened by its ids alone, at the address the app reads them from.
     const { address, token } = await readStore();
-    if (address && token) await chrome.tabs.create({ url: `${address}/` });
+    const at = ask.card ? routePath({ kind: "deck", id: encodeURIComponent(ask.card.deckId), tab: "cards", card: encodeURIComponent(ask.card.cardId) }) : "/";
+    if (address && token) await chrome.tabs.create({ url: `${address}${at}` });
     else {
       await writeStore({ optionsTab: "account" });
       await chrome.runtime.openOptionsPage();
@@ -222,6 +225,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       return { ok: true, thumbnail, avatar };
     }
     if (ask.kind === "videoCards") return { ok: true, cards: await panki.videoCards(door, ask.videoId) };
+    if (ask.kind === "called") return { ok: true, cards: await panki.cardsCalled(door, ask.words) };
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.
     if (ask.kind === "transcript") return transcripted(door, ask.videoId, store);

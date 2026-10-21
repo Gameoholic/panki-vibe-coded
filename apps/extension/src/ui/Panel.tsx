@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { NEW_PLACE, NewCard, VALUE_MAX, cardProblems, isTyped, pitchValue, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { NEW_PLACE, NewCard, VALUE_MAX, cardProblems, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
@@ -9,13 +10,14 @@ import { MediaView } from "@web/components/MediaView";
 import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import { FIELD_KINDS } from "@web/fieldKinds";
+import { useCalled } from "@web/hooks/useCalled";
 import { count, langOf } from "@web/words";
 import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
 import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found, type Tag } from "../dictionary/found";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askDeck, askLookup, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type State } from "../messages";
+import { askAdd, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type State } from "../messages";
 import { bandOf } from "../popupKinds";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { uuid } from "../uuid";
@@ -415,6 +417,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const taken: Partial<Record<RoleId, string>> = { word, sentence, source: capture.sourceLink, forvoAudio: voice?.mediaId ?? "" };
   for (const role of DICTIONARY_ROLES) taken[role] = dictValue(role);
   const values = type ? valuesFor(type, map, taken, typed) : {};
+
+  // A card already called what this one would be (by its own words field; for one the word or the dictionary fills,
+  // by the dictionary's form of the word too, so a card for 探す is found from 探していた) is said under that field.
+  const leadField = type ? wordsFieldOf(type) : null;
+  const leadRole = leadField ? roleOf(map, leadField.id) : null;
+  const byForm = leadRole === "word" || isDictRole(leadRole) ? [chosen?.term ?? ""] : [];
+  const called = useCalled(leadField ? [values[leadField.id] ?? "", ...byForm] : [], askCalled);
 
   // The word said on Forvo, when the deck takes it: asked for once the dictionaries have answered, as the dictionary
   // has it (探す, not 探していた, which no one records), or as it's typed when they don't know it. Panki's server asks
@@ -893,6 +902,52 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const share = phase.at === "recording" ? Math.min(1, phase.seconds / (phase.of ?? CLIP_MAX_SECONDS)) : phase.at === "sending" ? 1 : 0;
     // Only where the deck keeps the sentence: with none on the card there's nothing for the word to be missing from.
     const stray = lit === null && said !== "" && sentence.trim() !== "" && sentenceField !== null;
+    /** A card already called what this one would be, said under the field it's called by, with a way to it in Panki. */
+    const already = (field: CardField) =>
+      field.id === leadField?.id ? <AlreadyIn cards={called} openWords="Open in Panki" onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })} /> : null;
+    /** One of the card's fields as the drawer shows it: the sentence, the word said on Forvo, or a box to type in; nothing for what's recorded or filled by itself. */
+    const fieldBlock = (field: CardField): ReactNode => {
+      const role = roleOf(map, field.id);
+      if (role === "sentence") {
+        return (
+          <>
+            {sentenceBlock()}
+            {already(field)}
+          </>
+        );
+      }
+      if (role === "forvoAudio") return voiceBlock(field.name);
+      // Every field that's typed has its box: words, a paragraph, a pitch accent (filled by the dictionary or typed, "たべる 2").
+      if (!isTyped(field.kind)) return null;
+      const isWord = role === "word";
+      const fromDict = isDictRole(role) ? role : null;
+      const value = isWord ? word : fromDict ? dictValue(fromDict) : (typed[field.id] ?? "");
+      return (
+        <>
+          {field.id === firstDictField?.id ? dictionaryBlock() : null}
+          <TextField
+            id={`panki-field-${field.id}`}
+            label={field.required ? field.name : `${field.name} · optional`}
+            multiline={FIELD_KINDS[field.kind].multiline}
+            lang={langOf(value)}
+            autoComplete="off"
+            readOnly={busy}
+            value={value}
+            onChange={(text) => {
+              if (isWord) setWord(text);
+              else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
+              else setTyped((t) => ({ ...t, [field.id]: text }));
+              if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
+            }}
+            error={errors[field.id] || (isWord && stray ? MESSAGES.stray : undefined)}
+          />
+          {already(field)}
+          {/* The word's sound stands under the word, and the meanings to tick under where they go. */}
+          {isWord ? wordBlock() : null}
+          {role === "dictMeaning" ? meaningsBlock() : null}
+        </>
+      );
+    };
     const standIns: Record<string, ReactNode | StandIn> = {};
     /** The stretch being played on the page's video right now, if either is. */
     const playing: Cut | null = clip?.playing ? "clip" : wordClip?.playing ? "word" : null;
@@ -923,40 +978,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         {/* With no field for the word, its sound still belongs up here with the rest that's cut from the video. */}
         {wordField ? null : wordBlock()}
         {/* The card's own fields, in the card's own order: what the extension fills, and what's typed. */}
-        {type.fields.map((field) => {
-          const role = roleOf(map, field.id);
-          if (role === "sentence") return <Fragment key={field.id}>{sentenceBlock()}</Fragment>;
-          if (role === "forvoAudio") return <Fragment key={field.id}>{voiceBlock(field.name)}</Fragment>;
-          // Every field that's typed has its box: words, a paragraph, a pitch accent (filled by the dictionary or typed, "たべる 2").
-          if (!isTyped(field.kind)) return null;
-          const isWord = role === "word";
-          const fromDict = isDictRole(role) ? role : null;
-          const value = isWord ? word : fromDict ? dictValue(fromDict) : (typed[field.id] ?? "");
-          return (
-            <Fragment key={field.id}>
-              {field.id === firstDictField?.id ? dictionaryBlock() : null}
-              <TextField
-                id={`panki-field-${field.id}`}
-                label={field.required ? field.name : `${field.name} · optional`}
-                multiline={FIELD_KINDS[field.kind].multiline}
-                lang={langOf(value)}
-                autoComplete="off"
-                readOnly={busy}
-                value={value}
-                onChange={(text) => {
-                  if (isWord) setWord(text);
-                  else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
-                  else setTyped((t) => ({ ...t, [field.id]: text }));
-                  if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
-                }}
-                error={errors[field.id] || (isWord && stray ? MESSAGES.stray : undefined)}
-              />
-              {/* The word's sound stands under the word, and the meanings to tick under where they go. */}
-              {isWord ? wordBlock() : null}
-              {role === "dictMeaning" ? meaningsBlock() : null}
-            </Fragment>
-          );
-        })}
+        {type.fields.map((field) => (
+          <Fragment key={field.id}>{fieldBlock(field)}</Fragment>
+        ))}
         {/* A deck that keeps no sentence still shows the line, to look at and to pick a word from. */}
         {sentenceField ? null : sentenceBlock()}
         {/* The card last, as everything above has made it: looked over, then added. */}

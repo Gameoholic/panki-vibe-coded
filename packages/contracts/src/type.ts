@@ -112,6 +112,15 @@ export type CardType = z.infer<typeof CardType>;
 export const CardTypeList = z.object({ types: z.array(CardType) });
 export const CardTypeResponse = z.object({ type: CardType });
 
+/**
+ * The field a type's cards are called by in words: its first Front field that holds words (a file's id says nothing).
+ * None when it has no such field. A card is named by it wherever it's named: asked about before it's deleted, over its
+ * mark on a video's bar, and as a card already there when one called the same is being added.
+ */
+export function wordsFieldOf(type: Pick<CardType, "fields">): CardField | null {
+  return type.fields.find((f) => f.side === "front" && holdsWords(f.kind)) ?? null;
+}
+
 /** The most one value can hold. */
 export const VALUE_MAX = 2000;
 

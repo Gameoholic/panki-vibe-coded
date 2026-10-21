@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   BURNED_PLACE,
+  CALLED_CARDS_MAX,
   Card,
   CardField,
   CardPlace,
@@ -12,6 +13,7 @@ import {
   DEFAULT_STARTER,
   Deck,
   DeckSettings,
+  Flow,
   Media,
   MediaCues,
   SRS_STARTER_IDS,
@@ -21,8 +23,8 @@ import {
   Settings,
   SrsType,
   Stats,
+  defaultLesson,
   dueAt,
-  holdsWords,
   isBurned,
   isNew,
   layoutOf,
@@ -32,8 +34,11 @@ import {
   sideOf,
   stageTagOf,
   stageIndex,
+  starterStageCount,
   upgradeFlow,
+  wordsFieldOf,
   youtubeLinkOf,
+  type CalledCard,
   type CardAnswer,
   type CardHold,
   type CardTypeUpdate,
@@ -551,6 +556,35 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE card_holds ADD COLUMN until INTEGER");
     db.exec("UPDATE card_holds SET until = at + 86400000 WHERE kind = 'bury'");
   },
+  (db, now) => {
+    // Lesson (2026-10-21, the owner): every type's own, before the first stage, with rules of its own (`lesson`, as
+    // JSON; none for a type from before, which reads with the ones its answers make, contracts → `defaultLesson`). It
+    // takes the place of the stage that did its job in the types that come with the app (Wanikani's and Wanikani+'s
+    // Lesson, Anki's Learning 1: the first, with no wait): that stage is hidden, and each card on it goes back to
+    // Lesson with a 'stage-removed' row, as a card on any stage taken away does. `openDb` then brings the app's types
+    // up to what it defines, their stages lined up again position for position.
+    db.exec("ALTER TABLE srs_types ADD COLUMN lesson TEXT");
+    const firsts = db
+      .prepare(
+        `SELECT s.id FROM srs_stages s JOIN srs_types t ON t.id = s.type_id
+        WHERE t.builtin IS NOT NULL AND s.removed_at IS NULL AND s.wait_n = 0
+          AND s.position = (SELECT MIN(q.position) FROM srs_stages q WHERE q.type_id = s.type_id AND q.removed_at IS NULL)`,
+      )
+      .all() as { id: string }[];
+    const onStage = db.prepare(
+      `SELECT p.card_id AS cardId, p.past_to AS past, p.node_to AS node FROM card_places p
+      WHERE p.stage_to = ? AND p.burned_to = 0 AND p.id = (SELECT MAX(q.id) FROM card_places q WHERE q.card_id = p.card_id)`,
+    );
+    const toLesson = db.prepare(
+      `INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to)
+      VALUES (?, ?, 'stage-removed', NULL, ?, ?, ?, 0, NULL, 0, '[]', 0)`,
+    );
+    const hide = db.prepare("UPDATE srs_stages SET removed_at = ? WHERE id = ?");
+    for (const { id } of firsts) {
+      for (const card of onStage.all(id) as { cardId: string; past: number; node: string }[]) toLesson.run(card.cardId, now, id, card.past, card.node);
+      hide.run(now, id);
+    }
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -579,6 +613,8 @@ type SettingRow = { key: string; value: string };
 type PlaceRow = { placeId: number | null; stageId: string | null; past: number | null; node: string | null; burned: number | null };
 /** `suspendedAt` is when its latest suspend not lifted was made, `buriedUntil` when the last of its buries not lifted ends; null when there's none. */
 type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null; suspendedAt: number | null; buriedUntil: number | null };
+/** A living card holding some words in a field: which field, and its deck with the deck's type and name. */
+type CalledRow = { cardId: string; fieldId: string; value: string; deckId: string; createdAt: number; typeId: string | null; deckName: string };
 /** What a read at one moment needs of the clock: the settings as they are, and how much of today's allowance is used. */
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
@@ -611,8 +647,8 @@ function typeSnapshot(type: CardType): string {
 
 /** The type as its change log keeps it: everything the owner can edit, stages and answers in order. */
 function srsSnapshot(type: SrsType): string {
-  const { name, description, stages, answers, flow, overrides, after, growBy, burnedName } = type;
-  return JSON.stringify(canonical({ name, description, stages, answers, flow, overrides, after, growBy, burnedName }));
+  const { name, description, stages, answers, flow, overrides, lesson, after, growBy, burnedName } = type;
+  return JSON.stringify(canonical({ name, description, stages, answers, flow, overrides, lesson, after, growBy, burnedName }));
 }
 
 /** The place a rung number is on a ladder, with one above its top counting as the top. */
@@ -687,7 +723,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // A card's place is its last card_places row (the highest id); the reads below join it on or look it up.
   const lastPlaceOf = (card: string) => `(SELECT MAX(q.id) FROM card_places q WHERE q.card_id = ${card})`;
   const srsTypeColumns = `
-    t.id, t.name, t.description, t."after", t.grow_by AS growBy, t.burned_name AS burnedName, t.flow, t.overrides, t.created_at AS createdAt, t.builtin IS NOT NULL AS builtin,
+    t.id, t.name, t.description, t."after", t.grow_by AS growBy, t.burned_name AS burnedName, t.flow, t.overrides, t.lesson, t.created_at AS createdAt, t.builtin IS NOT NULL AS builtin,
     (SELECT COUNT(*) FROM decks d WHERE d.srs_type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
   const selectSrsTypes = db.prepare(`SELECT ${srsTypeColumns} FROM srs_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectSrsType = db.prepare(`SELECT ${srsTypeColumns} FROM srs_types t WHERE t.id = ? AND t.removed_at IS NULL`);
@@ -706,8 +742,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     SELECT p.card_id AS cardId, p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned FROM card_places p
     JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
     WHERE d.removed_at IS NULL AND c.removed_at IS NULL AND p.id = ${lastPlaceOf("p.card_id")} AND p.stage_to = ?`);
-  const insertSrsType = db.prepare(`INSERT OR IGNORE INTO srs_types (id, name, description, "after", grow_by, burned_name, flow, overrides, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const updateSrsTypeRow = db.prepare(`UPDATE srs_types SET name = ?, description = ?, "after" = ?, grow_by = ?, burned_name = ?, flow = ?, overrides = ? WHERE id = ?`);  const insertSrsTypeChange = db.prepare(`INSERT INTO srs_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+  const insertSrsType = db.prepare(`INSERT OR IGNORE INTO srs_types (id, name, description, "after", grow_by, burned_name, flow, overrides, lesson, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const updateSrsTypeRow = db.prepare(`UPDATE srs_types SET name = ?, description = ?, "after" = ?, grow_by = ?, burned_name = ?, flow = ?, overrides = ?, lesson = ? WHERE id = ?`);  const insertSrsTypeChange = db.prepare(`INSERT INTO srs_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
   const removeSrsType = db.prepare("UPDATE srs_types SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
   const selectBuiltins = db.prepare("SELECT id, builtin FROM srs_types WHERE builtin IS NOT NULL");
   const markBuiltin = db.prepare("UPDATE srs_types SET builtin = ? WHERE id = ?");
@@ -783,6 +819,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
     WHERE c.removed_at IS NULL AND d.removed_at IS NULL AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
     ORDER BY s.start_ms ASC`);
+  // The living cards holding these words in some field, newest first; which of them are called by it (the field is
+  // their type's words field) is the type's to say, read after.
+  const selectCalled = db.prepare(`
+    SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName
+    FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
+    WHERE v.value = ? AND c.removed_at IS NULL AND d.removed_at IS NULL
+    ORDER BY c.created_at DESC, c.id DESC`);
+  /** The card types the living decks use: whose words fields a deck's duplicates are looked for in. */
+  const selectLivingTypeIds = db.prepare("SELECT DISTINCT type_id AS typeId FROM decks WHERE removed_at IS NULL");
   const insertPlace = db.prepare(`
     INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -876,10 +921,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)) });
   }
-  /** The field a card of a type is told by in words: its first Front field that holds text (a field of files holds an id, which says nothing); none when it has no such field. */
+  /** The field a card of a type is told by in words (the contracts' `wordsFieldOf`); none when it has no such field. */
   function wordFieldOf(typeId: string | null | undefined): string | null {
     const row = typeId ? selectAnyType.get(typeId) : undefined;
-    return (row ? typeFrom(row).fields.find((f) => f.side === "front" && holdsWords(f.kind))?.id : undefined) ?? null;
+    return (row ? wordsFieldOf(typeFrom(row))?.id : undefined) ?? null;
   }
   /** A card in words, from that field (`wordFieldOf`); empty when there's none, or the card left it empty. */
   function wordsOf(cardId: string, fieldId: string | null): string {
@@ -888,14 +933,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
 
   function srsTypeFrom(row: unknown): SrsType {
-    const base = row as { id: string; flow: string; overrides: string };
+    const base = row as { id: string; flow: string; overrides: string; lesson: string | null };
     const stages = (selectStages.all(base.id) as StageRow[]).map((s) => ({ id: s.id, name: s.name, wait: { n: s.n, unit: s.unit } }));
     const answers = (selectAnswers.all(base.id) as { id: string; name: string; aside: number; confirm: number }[]).map((a) => ({ id: a.id, name: a.name, aside: a.aside === 1, confirm: a.confirm === 1 }));
     const cardCounts = Object.fromEntries((selectStageCounts.all(base.id) as { stageId: string; n: number }[]).map((r) => [r.stageId, r.n]));
     const first = stages[0]?.id;
     const flow = upgradeFlow(JSON.parse(base.flow), first);
     const overrides = Object.fromEntries(Object.entries(JSON.parse(base.overrides) as Record<string, unknown>).map(([stageId, own]) => [stageId, upgradeFlow(own, first)]));
-    return SrsType.parse({ ...(row as object), builtin: (row as { builtin: number }).builtin === 1, stages, answers, flow, overrides, cardCounts });
+    // A type kept before Lesson had rules of its own (2026-10-21) reads with the ones its answers and default rules make.
+    const lesson = base.lesson === null ? defaultLesson({ answers, flow: Flow.parse(flow) }) : upgradeFlow(JSON.parse(base.lesson), first);
+    return SrsType.parse({ ...(row as object), builtin: (row as { builtin: number }).builtin === 1, stages, answers, flow, overrides, lesson, cardCounts });
   }
   /** The type a deck's cards follow, removed or not: a removed deck's type may be gone from the list while its cards still have a place. */
   function srsTypeOf(srsTypeId: string): SrsType {
@@ -1090,7 +1137,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /** Idempotent: the same id again returns the type that already exists, stages and answers untouched. */
     insertSrsType(type: NewSrsType, now: number): SrsType {
       return transaction(() => {
-        const inserted = insertSrsType.run(type.id, type.name, type.description, type.after, type.growBy, type.burnedName, JSON.stringify(type.flow), JSON.stringify(type.overrides), now).changes > 0;
+        const inserted = insertSrsType.run(type.id, type.name, type.description, type.after, type.growBy, type.burnedName, JSON.stringify(type.flow), JSON.stringify(type.overrides), JSON.stringify(type.lesson), now).changes > 0;
         if (inserted) {
           type.stages.forEach((s, i) => insertStage.run(s.id, type.id, s.name, s.wait.n, s.wait.unit, i));
           type.answers.forEach((a, i) => insertAnswer.run(a.id, type.id, a.name, i, a.aside ? 1 : 0, a.confirm ? 1 : 0));
@@ -1118,7 +1165,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           else needsMoves[stage.id] = count;
         }
         if (Object.keys(needsMoves).length > 0) return { needsMoves };
-        updateSrsTypeRow.run(update.name, update.description, update.after, update.growBy, update.burnedName, JSON.stringify(update.flow), JSON.stringify(update.overrides), id);
+        updateSrsTypeRow.run(update.name, update.description, update.after, update.growBy, update.burnedName, JSON.stringify(update.flow), JSON.stringify(update.overrides), JSON.stringify(update.lesson), id);
         syncList(selectStageIds.all(id) as IdRow[], update.stages, {
           update: (s, i) => updateStage.run(s.name, s.wait.n, s.wait.unit, i, s.id),
           insert: (s, i) => insertStage.run(s.id, id, s.name, s.wait.n, s.wait.unit, i),
@@ -1304,6 +1351,58 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           if (!fieldOf.has(row.typeId)) fieldOf.set(row.typeId, wordFieldOf(row.typeId));
           return { cardId: row.cardId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: wordsOf(row.cardId, fieldOf.get(row.typeId) ?? null) };
         });
+    },
+    /**
+     * The living cards, in any living deck, called by one of these words: their type's words field holds it exactly.
+     * The newest first, a few at most. What a card about to be added says is already there.
+     */
+    cardsCalled(words: readonly string[]): CalledCard[] {
+      const fieldOf = new Map<string | null, string | null>();
+      const found = new Map<string, CalledCard & { createdAt: number }>();
+      for (const word of new Set(words)) {
+        for (const row of selectCalled.all(word) as CalledRow[]) {
+          if (found.has(row.cardId)) continue;
+          if (!fieldOf.has(row.typeId)) fieldOf.set(row.typeId, wordFieldOf(row.typeId));
+          if (fieldOf.get(row.typeId) !== row.fieldId) continue;
+          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, words: row.value, createdAt: row.createdAt });
+        }
+      }
+      return [...found.values()]
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, CALLED_CARDS_MAX)
+        .map(({ createdAt: _at, ...card }) => card);
+    },
+    /**
+     * A deck's duplicates: each of its living cards called the same as another living card in any living deck, with
+     * those others, the newest first. Every living card's words are read in one go (a field belongs to one type, so a
+     * value in a type's words field is a card called by it), then grouped by the words exactly as they stand.
+     */
+    deckTwins(deckId: string): Record<string, CalledCard[]> {
+      const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
+      const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
+      if (fieldIds.length === 0) return {};
+      const rows = db
+        .prepare(
+          `SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName
+          FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
+          WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL
+          ORDER BY c.created_at DESC, c.id DESC`,
+        )
+        .all(...fieldIds) as CalledRow[];
+      const byWords = new Map<string, CalledRow[]>();
+      for (const row of rows) {
+        const group = byWords.get(row.value);
+        if (group) group.push(row);
+        else byWords.set(row.value, [row]);
+      }
+      const twins: Record<string, CalledCard[]> = {};
+      for (const row of rows) {
+        if (row.deckId !== deckId) continue;
+        const others = (byWords.get(row.value) ?? []).filter((other) => other.cardId !== row.cardId);
+        if (others.length === 0) continue;
+        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, words: other.value }));
+      }
+      return twins;
     },
     /** Hides the card from its deck. Idempotent: removing again keeps the first removal time. False when no such card was ever in that deck. */
     removeCard(deckId: string, cardId: string, now: number): boolean {
@@ -1592,6 +1691,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const before = first ? api.listSrsTypes() : [];
   for (const [i, starter] of SRS_STARTER_IDS.entries()) {
     const existing = api.getSrsType(builtinIds.get(starter) ?? "");
+    // Its stages are matched to the app's position by position: with fewer in the app than it has, every card would
+    // shift a stage. A stage the app took away is a migration's to clear first (Lesson's was, 2026-10-21); until then it's left as it is.
+    if (existing && existing.stages.length > starterStageCount(starter)) {
+      console.warn(`[srs] ${starter} has ${existing.stages.length} stages and the app ${starterStageCount(starter)}: left as it is until a migration lines them up.`);
+      continue;
+    }
     if (existing) {
       const { id, ...today } = makeStarter(starter, mint, { id: existing.id, stageIds: existing.stages.map((s) => s.id), answerIds: existing.answers.map((a) => a.id) });
       // Nothing changes, and nothing is recorded, when it's already the same. A stage the app dropped while cards sit

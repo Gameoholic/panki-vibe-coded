@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import {
   copySrsType,
   emptySrsType,
+  type CalledCard,
   type Card,
   type CardAnswer,
   type CardLayout,
@@ -63,7 +64,8 @@ const TYPE_TABS: readonly { id: TypeTab; label: string }[] = [
 type Screen =
   | { kind: "home" }
   | { kind: "decks" }
-  | { kind: "deck"; deck: Deck; tab: DeckTab }
+  /** `card`: the card open in the list, to change or delete; its address says so. */
+  | { kind: "deck"; deck: Deck; tab: DeckTab; card?: string | undefined }
   | { kind: "pick" }
   | { kind: "review"; deck: Deck; from: "deck" | "pick" }
   | { kind: "add" }
@@ -81,7 +83,7 @@ const HOME: Screen = { kind: "home" };
 function routeOf(screen: Screen): Route {
   switch (screen.kind) {
     case "deck":
-      return { kind: "deck", id: screen.deck.id, tab: screen.tab };
+      return { kind: "deck", id: screen.deck.id, tab: screen.tab, card: screen.card };
     case "review":
       return { kind: "review", id: screen.deck.id, from: screen.from };
     case "type":
@@ -105,7 +107,7 @@ function screenOf(route: Route, { decks, types, srsTypes }: Lists): Screen | nul
       if (!decks) return null;
       const deck = decks.find((d) => d.id === route.id);
       if (!deck) return { kind: route.kind === "deck" || route.from === "deck" ? "decks" : "pick" };
-      return route.kind === "deck" ? { kind: "deck", deck, tab: route.tab } : { kind: "review", deck, from: route.from };
+      return route.kind === "deck" ? { kind: "deck", deck, tab: route.tab, card: route.card } : { kind: "review", deck, from: route.from };
     }
     case "type": {
       if (route.id === null) return { kind: "type", type: null, tab: "fields" };
@@ -405,6 +407,31 @@ export function App() {
   function openDeck(deck: Deck, tab: DeckTab = "cards") {
     go({ kind: "deck", deck, tab });
   }
+  /**
+   * A card of the deck on screen opened in its list, or closed (null). The address follows in place: back still leaves
+   * the deck. The screen is read as it is now, not as it was when a save began: the deck may have been left meanwhile.
+   */
+  function setOpenCard(cardId: string | null) {
+    const at = here.current.screen;
+    if (at.kind !== "deck") return;
+    const next: Screen = { ...at, card: cardId ?? undefined };
+    window.history.replaceState(null, "", routePath(routeOf(next)));
+    setScreen(next);
+  }
+  /** That card closed, when it's still the one open: saved, cancelled or deleted. */
+  function closeCard(cardId: string) {
+    const at = here.current.screen;
+    if (at.kind === "deck" && at.card === cardId) setOpenCard(null);
+  }
+  /** A card called the same as one being added, opened where it is: in its deck's list, this deck's own when it's here. */
+  function openCalled(card: CalledCard) {
+    if (screen.kind === "deck" && screen.deck.id === card.deckId) {
+      setOpenCard(card.cardId);
+      return;
+    }
+    const deck = decks?.find((d) => d.id === card.deckId);
+    if (deck) go({ kind: "deck", deck, tab: "cards", card: card.cardId });
+  }
 
   /** From a screen that needs a deck when there is none: straight to the Decks screen with the form open. */
   function startDeck() {
@@ -527,6 +554,7 @@ export function App() {
     if (screen.kind !== "deck") return;
     await api.removeCard(screen.deck.id, cardId);
     setCards((prev) => prev?.filter((c) => c.id !== cardId) ?? null);
+    closeCard(cardId);
     // The deck's counts are the server's; a card gone changes them.
     loadLists();
   }
@@ -745,7 +773,23 @@ export function App() {
                     This deck's card type is missing.
                   </p>
                 ) : (
-                  <CardsView cards={cards} type={type} srsType={srsType ?? undefined} adding={adding} onAdd={addCard} onCancelAdd={() => setAdding(false)} onSave={saveCard} onRemove={removeCard} onLift={liftHold} />
+                  <CardsView
+                    key={deck.id}
+                    deckId={deck.id}
+                    cards={cards}
+                    type={type}
+                    srsType={srsType ?? undefined}
+                    adding={adding}
+                    openId={screen.card ?? null}
+                    onOpen={setOpenCard}
+                    onClose={closeCard}
+                    onOpenCalled={openCalled}
+                    onAdd={addCard}
+                    onCancelAdd={() => setAdding(false)}
+                    onSave={saveCard}
+                    onRemove={removeCard}
+                    onLift={liftHold}
+                  />
                 )}
               </>
             ) : srsTypes === null || types === null ? (
@@ -806,7 +850,7 @@ export function App() {
           decks === null || types === null ? (
             loading
           ) : (
-            <AddView decks={decks} types={types} deckId={addDeckId ?? decks[0]?.id ?? null} onPick={setAddDeckId} onAdd={addCardTo} onMakeDeck={startDeck} />
+            <AddView decks={decks} types={types} deckId={addDeckId ?? decks[0]?.id ?? null} onPick={setAddDeckId} onAdd={addCardTo} onOpenCalled={openCalled} onMakeDeck={startDeck} />
           );
         break;
       case "types":

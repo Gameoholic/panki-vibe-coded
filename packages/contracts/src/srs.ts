@@ -44,11 +44,14 @@ export function mainAnswers<A extends { aside?: boolean | undefined }>(answers: 
  * until another answer lets it out. `hidden` takes the answer away at that point: its button isn't offered at all
  * (the owner, 2026-10-17: no Bury inside an ask-again, "there's no reason to bury a card if I already failed it");
  * sent all the same, it does nothing (`STAY`). `bury` and `suspend` put the card aside where it stands (`HoldKind`):
- * a bury for its `wait`, a suspend until it's brought back.
+ * a bury for its `wait`, a suspend until it's brought back. `lesson` sends the card back to Lesson (New on screen), a
+ * new card again that waits for a day's new cards: the one way back there once a card has left it. No type that comes
+ * with the app takes it since Wanikani+'s Reset goes to the first stage instead (the owner, 2026-10-21).
  */
 export type Step =
   | { kind: "move"; by: number }
   | { kind: "burn" }
+  | { kind: "lesson" }
   | { kind: "retry" }
   | { kind: "hidden" }
   | { kind: "bury"; wait: Wait }
@@ -62,6 +65,7 @@ export const Step: z.ZodType<Step, Step> = z.lazy(() =>
   z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("move"), by: z.number().int().min(-MOVE_MAX).max(MOVE_MAX) }),
     z.object({ kind: z.literal("burn") }),
+    z.object({ kind: z.literal("lesson") }),
     z.object({ kind: z.literal("retry") }),
     z.object({ kind: z.literal("hidden") }),
     z.object({ kind: z.literal("bury"), wait: Wait }),
@@ -100,6 +104,7 @@ export function upgradeFlow(raw: unknown, firstStageId: string | undefined): unk
  * card that fell due meanwhile is due the moment it's back. Neither is an answer the stats count, and a new card put
  * aside doesn't use up the day's new cards.
  */
+// A bury is Snooze on screen since 2026-10-21 (the owner's word); `bury` stays its id in every rule and row already kept.
 export const HoldKind = z.enum(["bury", "suspend"]);
 export type HoldKind = z.infer<typeof HoldKind>;
 
@@ -125,13 +130,18 @@ const SrsShape = z.object({
   flow: Flow,
   /** A stage's own rules, by stage id, when it has them. */
   overrides: z.record(SrsStageId, Flow),
+  /**
+   * Lesson's rules (New on screen, since the owner named it so, 2026-10-21): what each answer does to a new card, before
+   * the first stage. Every type has them; Lesson is no stage, and nothing but a `lesson` step goes back to it (`resolve`).
+   */
+  lesson: Flow,
   after: SrsAfter,
   /** With `after: "grow"`, what the wait is multiplied by on each rung past the top. */
   growBy: z.number().min(GROW_MIN).max(GROW_MAX),
   /** What the end of the ladder is called, when there is one. */
   burnedName: z.string().trim().min(1).max(40),
 });
-type SrsRules = Pick<z.infer<typeof SrsShape>, "stages" | "answers" | "flow" | "overrides">;
+type SrsRules = Pick<z.infer<typeof SrsShape>, "stages" | "answers" | "flow" | "overrides" | "lesson">;
 
 export const FLOW_PROBLEMS = {
   answer: "A rule names an answer the type doesn't have.",
@@ -154,7 +164,7 @@ export function srsProblem(type: SrsRules): string | null {
     return null;
   }
   for (const stageId of Object.keys(type.overrides)) if (!stages.has(stageId)) return FLOW_PROBLEMS.stage;
-  for (const flow of [type.flow, ...Object.values(type.overrides)]) {
+  for (const flow of [type.flow, type.lesson, ...Object.values(type.overrides)]) {
     const problem = check(flow);
     if (problem) return problem;
   }
@@ -189,9 +199,10 @@ export const SrsTypeList = z.object({ types: z.array(SrsType) });
 export const SrsTypeResponse = z.object({ type: SrsType });
 
 /**
- * Where a card stands. New: no stage, not burned. On a stage: its id, `past` rungs beyond the top when it has
- * climbed past the last stage (the wait repeats or grows there), and `node` the answers taken inside an ask-again
- * since it landed. Burned: the end, never due again. Derived from the card's last answer, never stored on the card.
+ * Where a card stands. In Lesson (New on screen: never learned, or sent back by a `lesson` step): no stage, not burned. On a stage:
+ * its id, `past` rungs beyond the top when it has climbed past the last stage (the wait repeats or grows there), and
+ * `node` the answers taken inside an ask-again since it landed (in Lesson too). Burned: the end, never due again.
+ * Derived from the card's last answer, never stored on the card.
  */
 export const CardPlace = z.object({
   stageId: SrsStageId.nullable(),
@@ -202,18 +213,25 @@ export const CardPlace = z.object({
 export type CardPlace = z.infer<typeof CardPlace>;
 export const NEW_PLACE: CardPlace = { stageId: null, past: 0, node: [], burned: false };
 export const BURNED_PLACE: CardPlace = { stageId: null, past: 0, node: [], burned: true };
+/**
+ * In Lesson (New on screen): not learned yet. A new card is, and so is one a `lesson` step sent back: either waits for
+ * a day's new cards (the owner, 2026-10-21: "it will literally be treated as a new card"). Its own history, kept in its
+ * places, tells the two apart.
+ */
 export const isNew = (place: CardPlace) => place.stageId === null && !place.burned;
+/** Lesson as a rung number: before the first stage. */
+export const LESSON_IDX = -1;
 
 /** What resolving an answer needs of a type. */
-export type SrsLadder = Pick<z.infer<typeof SrsShape>, "stages" | "flow" | "overrides" | "after" | "growBy">;
+export type SrsLadder = Pick<z.infer<typeof SrsShape>, "stages" | "flow" | "overrides" | "lesson" | "after" | "growBy">;
 
-/** A card's rung as a number: 0 the first stage, where a new card stands too, and on past the top. A stage that's gone counts as the first. */
+/** A card's rung as a number: `LESSON_IDX` in Lesson, 0 the first stage, and on past the top. A stage that's gone counts as the first. */
 export function stageIndex(type: Pick<SrsLadder, "stages">, place: CardPlace): number {
-  if (place.stageId === null) return 0;
+  if (place.stageId === null) return LESSON_IDX;
   const i = type.stages.findIndex((s) => s.id === place.stageId);
   return (i < 0 ? 0 : i) + place.past;
 }
-/** The place a rung number is: new, a stage, or `past` rungs beyond the top. */
+/** The place a rung number is: Lesson, a stage, or `past` rungs beyond the top. */
 export function placeAt(type: Pick<SrsLadder, "stages">, idx: number): CardPlace {
   const len = type.stages.length;
   if (idx < 0) return NEW_PLACE;
@@ -246,10 +264,37 @@ export function againWait(type: SrsLadder, idx: number, step: Extract<Step, { ki
   const cap = waitAt(type, Math.max(0, idx));
   return cap === null ? own : Math.min(own, cap);
 }
-/** The rules a card on a rung follows: the stage's own when it has them, else the default. A new card follows the first stage's; past the top, the default. */
-export function flowOf(type: Pick<SrsLadder, "stages" | "flow" | "overrides">, idx: number): Flow {
-  const stage = type.stages[Math.max(0, idx)];
+/** The rules a card on a rung follows: Lesson's in Lesson; on a stage, the stage's own when it has them, else the default; past the top, the default. */
+export function flowOf(type: Pick<SrsLadder, "stages" | "flow" | "overrides" | "lesson">, idx: number): Flow {
+  if (idx < 0) return type.lesson;
+  const stage = type.stages[idx];
   return (stage && type.overrides[stage.id]) ?? type.flow;
+}
+
+/**
+ * Lesson's rules for a type that has none of its own (one made before Lesson had rules, 2026-10-21): the first of
+ * the main answers, when there's more than one, asks again right away until another lets the card out; every other
+ * main answer sends it to the first stage, learned; an answer set apart puts the card aside as it does on a stage, or
+ * isn't offered in Lesson at all.
+ */
+export function defaultLesson(type: Pick<SrsLadder, "flow"> & { answers: readonly SrsAnswer[] }): Flow {
+  const main = mainAnswers(type.answers);
+  const miss = main.length > 1 ? main[0] : undefined;
+  const plain = (answer: SrsAnswer): Step => {
+    if (main.includes(answer)) return { kind: "move", by: 1 };
+    const own = type.flow[answer.id];
+    if (own?.kind === "bury") return { kind: "bury", wait: { ...own.wait } };
+    if (own?.kind === "suspend") return { kind: "suspend" };
+    return { kind: "hidden" };
+  };
+  const lesson: Flow = {};
+  for (const answer of type.answers) lesson[answer.id] = plain(answer);
+  if (miss) {
+    const then: Flow = {};
+    for (const answer of type.answers) then[answer.id] = answer === miss ? { kind: "retry" } : plain(answer);
+    lesson[miss.id] = { kind: "again", wait: { n: 1, unit: "d" }, now: true, then };
+  }
+  return lesson;
 }
 /** The branch a path of answers opens: the flow itself, or the `then` of the ask-again each answer led into. */
 export function branchAt(flow: Flow, node: readonly string[]): Flow {
@@ -280,7 +325,7 @@ export type Outcome = {
 const BURNED: Outcome = { place: BURNED_PLACE, wait: null, again: false, burned: true, hold: null };
 
 /** Whether an answer is offered to a card where it stands: every answer is, but one whose rule there is `hidden`. */
-export function offered(type: Pick<SrsLadder, "stages" | "flow" | "overrides">, place: CardPlace, answerId: string): boolean {
+export function offered(type: Pick<SrsLadder, "stages" | "flow" | "overrides" | "lesson">, place: CardPlace, answerId: string): boolean {
   return branchAt(flowOf(type, stageIndex(type, place)), place.node)[answerId]?.kind !== "hidden";
 }
 
@@ -291,6 +336,8 @@ export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flo
   const step = branchAt(flow, place.node)[answerId] ?? STAY;
   if (step.kind === "again") return { place: { ...place, node: [...place.node, answerId] }, wait: againWait(type, idx, step), again: true, burned: false, hold: null };
   if (step.kind === "burn") return BURNED;
+  // Back in Lesson it's a new card again: no wait of its own, it waits for a day's new cards.
+  if (step.kind === "lesson") return { place: NEW_PLACE, wait: null, again: false, burned: false, hold: null };
   if (step.kind === "retry") return { place, wait: 0, again: true, burned: false, hold: null };
   if (step.kind === "bury") return { place, wait: waitMinutes(step.wait), again: false, burned: false, hold: "bury" };
   if (step.kind === "suspend") return { place, wait: null, again: false, burned: false, hold: "suspend" };
@@ -302,7 +349,9 @@ export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flo
     const target = type.stages.findIndex((s) => s.id === step.stage);
     next = target < 0 ? idx : target;
   }
-  next = Math.max(0, next);
+  // Out of Lesson, the first stage is as low as a card goes: only a `lesson` step takes it back (the owner, 2026-10-21:
+  // "a card can never go back to Lesson… it will be rock bottom at Apprentice 1"). In Lesson, staying is staying there.
+  next = Math.max(idx < 0 ? LESSON_IDX : 0, next);
   const len = type.stages.length;
   if (next >= len) {
     if (type.after === "burn") return BURNED;

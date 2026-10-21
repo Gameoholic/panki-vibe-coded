@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Card, CardType, Deck, NewCard } from "@panki/contracts";
+import type { CalledCard, Card, CardType, Deck, NewCard } from "@panki/contracts";
 import { Button } from "../components/Button";
 import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
@@ -12,11 +12,13 @@ type Props = {
   deckId: string | null;
   onPick: (deckId: string) => void;
   onAdd: (deckId: string, card: NewCard) => Promise<Card>;
+  /** A card called the same as the one being added, opened in its deck. */
+  onOpenCalled: (card: CalledCard) => void;
   onMakeDeck: () => void;
 };
 
 /** Add a card from the home: pick the deck in the form, add, keep adding. What you added this visit stays under the form. */
-export function AddView({ decks, types, deckId, onPick, onAdd, onMakeDeck }: Props) {
+export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onMakeDeck }: Props) {
   const [added, setAdded] = useState<Card[]>([]);
 
   if (deckId === null) return <NoDecksYet onMakeDeck={onMakeDeck} />;
@@ -55,7 +57,7 @@ export function AddView({ decks, types, deckId, onPick, onAdd, onMakeDeck }: Pro
 
   return (
     <>
-      <CardForm key={type.id} type={type} onAdd={add} autoFocus>
+      <CardForm key={type.id} type={type} onAdd={add} onOpenCalled={onOpenCalled} autoFocus>
         {chooser}
       </CardForm>
       {added.length > 0 ? <CardList cards={added.filter((c) => c.deckId === target)} type={type} title="Just added" /> : null}

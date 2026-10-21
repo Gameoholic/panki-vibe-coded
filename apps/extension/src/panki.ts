@@ -1,6 +1,7 @@
 import {
   ApiErrorBody,
   BearerLogin,
+  CalledCards,
   CardResponse,
   CardTypeList,
   DeckList,
@@ -17,6 +18,7 @@ import {
   TranscriptResponse,
   TranscriptionResponse,
   VideoCards,
+  type CalledCard,
   type CardType,
   type Deck,
   type ForvoTake,
@@ -166,6 +168,9 @@ export const panki = {
     bytesAt(door, `/api/videos/${id(videoId)}/avatar`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: shown }) }),
   /** The account's cards taken from a video: each its clip's stretch, in ms, and its words. */
   videoCards: ({ address, token }: Door, videoId: string): Promise<VideoCard[]> => call(address, token, `/api/videos/${id(videoId)}/cards`, {}, (b) => VideoCards.parse(b).cards),
+  /** The account's cards, in any deck, already called by one of these words: the drawer says so before a card is added. */
+  cardsCalled: ({ address, token }: Door, words: readonly string[]): Promise<CalledCard[]> =>
+    call(address, token, `/api/cards/called?${words.map((word) => `word=${id(word)}`).join("&")}`, {}, (b) => CalledCards.parse(b).cards),
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */

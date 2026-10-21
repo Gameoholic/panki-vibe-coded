@@ -4,7 +4,6 @@ import {
   STAY,
   WaitUnit,
   isBurned,
-  isNew,
   mainAnswers,
   stageIndex,
   waitMinutes,
@@ -35,12 +34,21 @@ export const WAIT_UNITS: Record<WaitUnit, { one: string; many: string; short: st
 export const WAIT_UNIT_OPTIONS = WaitUnit.options.map((id) => ({ id, label: WAIT_UNITS[id].short }));
 
 /**
+ * New in words: every type's place before its first stage, where a card not learned yet stands (`LESSON_SCOPE`,
+ * `LESSON_IDX` and `SrsType.lesson` in the code, where it was born as Lesson; the owner had it New on screen the same
+ * day, 2026-10-21, "new cards also makes it explicit"). A card landing there is named by it alone: it has no wait to
+ * say ("with the new cards" followed it for an hour, until the owner had it out).
+ */
+export const NEW_WORDS = { name: "New", note: "new cards" };
+
+/**
  * Putting a card aside, in words and looks: the mark beside it, what it is while it lasts and the button that brings
  * it back (on a card's row in its deck). When it comes back, which for a bury is its own wait, is `holdBack`,
  * `holdAsks` and, on the chart, `holdNote`.
  */
 export const HOLD_KINDS: Record<HoldKind, { icon: IconName; state: string; lift: string }> = {
-  bury: { icon: "moon", state: "buried", lift: "Unbury" },
+  // Snooze on screen (the owner, 2026-10-21: "I think it makes more sense that way"); `bury` in what's kept, as it was.
+  bury: { icon: "moon", state: "snoozed", lift: "Unsnooze" },
   suspend: { icon: "pause", state: "suspended", lift: "Unsuspend" },
 };
 export type HoldStep = Extract<Step, { kind: HoldKind }>;
@@ -49,9 +57,13 @@ export const isHold = (step: Step | undefined): step is HoldStep => step?.kind =
 export function holdBack(step: HoldStep): string {
   return step.kind === "bury" ? `back ${waitWords(step.wait)}` : "until brought back";
 }
-/** The line under a box on the chart that puts a card aside, for a card at `place` (the stage it's shown for): "then comes back as Guru 1", "until brought back". */
+/**
+ * The line under a box on the chart that puts a card aside, for a card at `place` (the stage it's shown for): "then
+ * comes back as Guru 1", "skipped until unsuspended" (the button that brings it back, in its deck's list; it said "until
+ * brought back" until the owner asked for a little more, 2026-10-21). Short enough for the box's one line.
+ */
 export function holdNote(kind: HoldKind, place: string): string {
-  return kind === "bury" ? `then comes back as ${place}` : "until brought back";
+  return kind === "bury" ? `then comes back as ${place}` : "skipped until unsuspended";
 }
 /** The question when an answer that puts a card aside asks first. */
 export function holdAsks(step: HoldStep): string {
@@ -63,7 +75,7 @@ export function holdAsks(step: HoldStep): string {
  * label carries its wait (Bury's chip is lit whatever the wait). The ask-agains (`AGAIN_OPTIONS`) and "go to a stage"
  * are made per type.
  */
-export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "retry" | "hidden" | HoldKind;
+export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "lesson" | "retry" | "hidden" | HoldKind;
 export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step; icon?: IconName; chip?: string }[] = [
   { id: "up1", step: { kind: "move", by: 1 } },
   { id: "up2", step: { kind: "move", by: 2 } },
@@ -71,10 +83,12 @@ export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step; icon?: IconN
   { id: "down1", step: { kind: "move", by: -1 } },
   { id: "down2", step: { kind: "move", by: -2 } },
   { id: "burn", step: { kind: "burn" }, icon: "flame" },
+  // The one way back to New once a card has left it.
+  { id: "lesson", step: { kind: "lesson" }, icon: "undo" },
   { id: "retry", step: { kind: "retry" } },
   // The answer isn't offered at that point of the chart (the owner, 2026-10-17: no Bury inside an ask-again).
   { id: "hidden", step: { kind: "hidden" }, icon: "close" },
-  { id: "bury", step: { kind: "bury", wait: BURY_WAIT }, icon: HOLD_KINDS.bury.icon, chip: "Bury" },
+  { id: "bury", step: { kind: "bury", wait: BURY_WAIT }, icon: HOLD_KINDS.bury.icon, chip: "Snooze" },
   { id: "suspend", step: { kind: "suspend" }, icon: HOLD_KINDS.suspend.icon },
 ];
 /** The mark a step carries on its box and its chip, when it has one. */
@@ -109,9 +123,10 @@ export function stepLabel(type: Named, step: Step | undefined): string {
   if (!step) return MOVE_WORDS[0] ?? "";
   if (step.kind === "move") return MOVE_WORDS[step.by] ?? "Stays";
   if (step.kind === "burn") return type.burnedName;
+  if (step.kind === "lesson") return `${NEW_WORDS.name} again`;
   if (step.kind === "retry") return "Keep asking";
   if (step.kind === "hidden") return "Button hidden";
-  if (step.kind === "bury") return `Bury for ${lengthWords(step.wait)}`;
+  if (step.kind === "bury") return `Snooze for ${lengthWords(step.wait)}`;
   if (step.kind === "suspend") return "Suspend";
   if (step.kind === "again") return `Ask again ${step.now ? "right away" : waitWords(step.wait)}`;
   return `Go to ${stageName(type, type.stages.findIndex((s) => s.id === step.stage))}`;
@@ -119,7 +134,7 @@ export function stepLabel(type: Named, step: Step | undefined): string {
 
 /** What rung number `idx` is called: New before the first, the stage's name (or "Stage N"), the end past the top. */
 export function stageName(type: Named, idx: number): string {
-  if (idx < 0) return "New";
+  if (idx < 0) return NEW_WORDS.name;
   const stage = type.stages[idx];
   if (!stage) return type.after === "burn" ? type.burnedName : `Stage ${idx + 1}`;
   return stage.name || `Stage ${idx + 1}`;
@@ -181,11 +196,15 @@ export function minutesAsWait(minutes: number): Wait {
   if (minutes >= 60) return { n: Math.max(1, Math.round(minutes / 60)), unit: "h" };
   return { n: Math.max(1, Math.round(minutes)), unit: "min" };
 }
-/** When a card comes back, beside it in a list: "new", "due now", "in 3 h", "in 2 d", "in 3 w", the end, or put aside ("buried"). */
-export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt" | "hold">, now: number): string {
+/**
+ * When a card comes back, beside it in a list: "due now", "in 3 h", "in 2 d", "in 3 w", the end, or put aside
+ * ("snoozed"). Nothing for a new card, whose place already says it (it said "new" under "Lesson" until the owner
+ * asked what that meant, 2026-10-21).
+ */
+export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt" | "hold">, now: number): string | null {
   if (card.hold) return HOLD_KINDS[card.hold.kind].state;
   if (isBurned(type, card.place)) return type.burnedName.toLowerCase();
-  if (isNew(card.place) || card.dueAt === null) return "new";
+  if (card.dueAt === null) return null;
   const days = (card.dueAt - now) / 86_400_000;
   if (days <= 0) return "due now";
   if (days < 1) return `in ${Math.max(1, Math.round(days * 24))} h`;
@@ -219,9 +238,9 @@ export const AFTER_OPTIONS: readonly { id: Exclude<SrsAfter, "burn">; label: str
   { id: "grow", label: "with the wait growing" },
 ];
 
-/** A type in one line, under its name in the list: "9 stages · 4h → 4mo, then Burned · 2 answers" (the first wait to the last; the first stage has none). */
+/** A type in one line, under its name in the list: "8 stages · 4h → 4mo, then Burned · 2 answers" (the first wait to the last; a stage with none is passed over). */
 export function typeSummary(type: SrsType): string {
-  const first = type.stages[1];
+  const first = type.stages.find((s) => s.wait.n > 0);
   const last = type.stages[type.stages.length - 1];
   const span = first && last ? `${first.wait.n}${WAIT_UNITS[first.wait.unit].short} → ${last.wait.n}${WAIT_UNITS[last.wait.unit].short}` : "";
   const tail = type.after === "burn" ? `then ${type.burnedName}` : type.after === "repeat" ? "then repeats" : "then keeps growing";

@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { CardAnswer, CardId, CardUpdate, DeckId, DeckUpdate, NewCard, NewDeck, NewReviewSession, ReviewSessionEnd, ReviewSessionId, VALUE_MAX, cardProblems, mediaKindsOf, type CardProblem, type CardType } from "@panki/contracts";
+import { CardAnswer, CardId, CardUpdate, DeckId, DeckUpdate, NewCard, NewDeck, NewReviewSession, ReviewSessionEnd, ReviewSessionId, VALUE_MAX, cardProblems, mediaKindsOf, type CardProblem, type CardType, type DeckTwins } from "@panki/contracts";
 import type { DbOf } from "../app";
 import { signedIn } from "../session";
 
@@ -114,6 +114,15 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
     const deckId = deckIdFrom(req, res);
     if (!deckId) return;
     res.json({ cards: dbOf(res).listCards(deckId, now()) });
+  });
+
+  // The deck's duplicates: each of its cards called the same as another card in any deck, with those others. The
+  // deck's list marks them.
+  router.get("/:deckId/twins", (req, res) => {
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const answer: DeckTwins = { twins: dbOf(res).deckTwins(deckId) };
+    res.json(answer);
   });
 
   router.post("/:deckId/cards", (req, res) => {

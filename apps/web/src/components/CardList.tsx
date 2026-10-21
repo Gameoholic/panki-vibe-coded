@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
+import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import { HOLD_KINDS, dueWords } from "../srsKinds";
@@ -30,7 +30,22 @@ type Props = {
   onLift?: (card: Card) => Promise<void>;
   /** The card that's open, and what stands in its row's place while it is (the form that changes it). */
   editing?: { id: string; form: ReactNode } | null;
+  /** What sits at the right of the title: how the list is sorted, in a deck. */
+  tools?: ReactNode;
+  /** Each card's duplicates (`api.deckTwins`), by its id: a card that has some says so at its top right. */
+  twins?: Record<string, readonly CalledCard[]>;
+  /** When given, what a card says of its duplicates is a button: pressed, the list shows only the cards called the same. */
+  onTwins?: (card: Card) => void;
+  /** What stands between the title and the rows: which cards alone are being shown, and the way back to all. */
+  filter?: ReactNode;
 };
+
+/** A card's duplicates as its row says them: "Duplicate" when one is in its own deck, else where they are. */
+function twinWords(card: Card, twins: readonly CalledCard[]): string {
+  if (twins.some((twin) => twin.deckId === card.deckId)) return "Duplicate";
+  const decks = [...new Set(twins.map((twin) => twin.deck))];
+  return decks.length === 1 ? `Also in ${decks[0]}` : `Also in ${decks.length} decks`;
+}
 
 /** One of a card's values on its row: words in the given style, a file as a chip that plays it or a thumbnail, or a link as a chip that opens it. Nothing when it's empty. */
 function cell(card: Card, field: CardField, className: string) {
@@ -63,9 +78,9 @@ function cell(card: Card, field: CardField, className: string) {
  * cards can be changed (the owner, 2026-10-18: deleting was only inside the opened card, "make deleting easier… the
  * delete button should be directly below the pencil"; and everything at the right sat halfway down the row). Delete
  * asks in the row itself before the card goes. A card that's open is its form, in the row's own place in the list. A
- * card put aside says so where its due time would be, with Unbury or Unsuspend under it.
+ * card put aside says so where its due time would be, with Unsnooze or Unsuspend under it.
  */
-export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, editing = null }: Props) {
+export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, editing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
   const titleId = useId();
   /** The card whose row is asking whether to delete it, how that's going, and why it didn't. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -107,33 +122,61 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
   const back = type.fields.filter((f) => f.side === "back");
   const lead = front.find((f) => holdsWords(f.kind));
   const now = Date.now();
+  const heading = (
+    <h2 id={titleId} className="list-title">
+      {title}
+    </h2>
+  );
   return (
     <section aria-labelledby={titleId}>
-      <h2 id={titleId} className="list-title">
-        {title}
-      </h2>
+      {tools ? (
+        <div className="list-head">
+          {heading}
+          {tools}
+        </div>
+      ) : (
+        heading
+      )}
+      {filter}
       {cards.length === 0 ? (
         empty
       ) : (
         <ul className="card-list">
-          {cards.map((card) =>
-            editing?.id === card.id ? (
-              <li key={card.id}>{editing.form}</li>
-            ) : (
+          {cards.map((card) => {
+            if (editing?.id === card.id) return <li key={card.id}>{editing.form}</li>;
+            const itsTwins = twins[card.id] ?? [];
+            const twin = itsTwins.length > 0 ? twinWords(card, itsTwins) : null;
+            const when = srsType ? dueWords(srsType, card, now) : null;
+            return (
               <li
                 key={card.id}
-                className={`card-row ${srsType ? "has-state" : ""} ${onEdit || onRemove ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${srsType || twin ? "has-state" : ""} ${onEdit || onRemove ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
-                {srsType ? (
+                {srsType || twin ? (
                   <div className="card-state">
-                    <PlacePill type={srsType} place={card.place} />
-                    <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{dueWords(srsType, card, now)}</span>
+                    {srsType ? (
+                      <>
+                        <PlacePill type={srsType} place={card.place} />
+                        {when === null ? null : <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{when}</span>}
+                      </>
+                    ) : null}
                     {card.hold && onLift ? (
                       <Button variant="chip" className="card-lift" disabled={lifting === card.id} onClick={() => void lift(card)}>
                         {HOLD_KINDS[card.hold.kind].lift}
                       </Button>
+                    ) : null}
+                    {twin && onTwins ? (
+                      <Button className="card-twin" onClick={() => onTwins(card)}>
+                        <Icon name="alert" className="is-sign" />
+                        {twin}
+                      </Button>
+                    ) : twin ? (
+                      <span className="card-twin">
+                        <Icon name="alert" className="is-sign" />
+                        {twin}
+                      </span>
                     ) : null}
                   </div>
                 ) : null}
@@ -170,8 +213,8 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                   </div>
                 ) : null}
               </li>
-            ),
-          )}
+            );
+          })}
         </ul>
       )}
     </section>

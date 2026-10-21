@@ -1,10 +1,17 @@
-import { useState } from "react";
-import type { Card, CardType, CardUpdate, NewCard, SrsType } from "@panki/contracts";
+import { useEffect, useMemo, useState } from "react";
+import { wordsFieldOf, type CalledCard, type Card, type CardType, type CardUpdate, type NewCard, type SrsType } from "@panki/contracts";
+import { api } from "../api";
+import { CARD_SORTS, CARD_SORT_IDS, readCardSort, sortCards, waysOf, writeCardSort, type CardSort } from "../cardSort";
+import { AlreadyIn } from "../components/AlreadyIn";
+import { Button } from "../components/Button";
 import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
-import { count } from "../words";
+import { Dropdown } from "../components/Dropdown";
+import { Segmented } from "../components/Segmented";
+import { count, langOf } from "../words";
 
 type Props = {
+  deckId: string;
   cards: Card[];
   /** The deck's card type: the shape of the form and of every row. */
   type: CardType;
@@ -12,6 +19,13 @@ type Props = {
   srsType?: SrsType | undefined;
   /** Whether the "Add a card" form is open; it's opened from the button above and sits above the list. */
   adding: boolean;
+  /** The card open in its row, to change or delete; its address is the screen's (`App` → `setOpenCard`). */
+  openId: string | null;
+  onOpen: (cardId: string) => void;
+  /** That card closed, saved or not; the screen leaves it be if another is open by then. */
+  onClose: (cardId: string) => void;
+  /** A card called the same as the one being added, opened from the add form: here, or in its own deck. */
+  onOpenCalled: (card: CalledCard) => void;
   onAdd: (card: NewCard) => Promise<void>;
   onCancelAdd: () => void;
   onSave: (cardId: string, update: CardUpdate) => Promise<void>;
@@ -21,23 +35,96 @@ type Props = {
 };
 
 /**
- * Inside a deck: the cards, newest first, and the add form above them when asked for. A card's edit button opens it
- * where it stands in the list: its fields to change, Save, and Delete, which asks first; the delete button under it
- * deletes it from the row, asking there first. A card put aside is brought back from its row.
+ * Inside a deck: the cards, in the order picked over them (newest first to begin with, kept on this device), and the
+ * add form above them when asked for. A card called the same as another, in this deck or any other, says so on its
+ * row, and pressed, the list shows that word's cards alone (the owner, 2026-10-21: "when I click duplicate it should
+ * show only the duplicate cards of this same word"), those in other decks named over them. A card's edit button opens it where it stands in the list: its fields to change, Save, and Delete, which asks
+ * first; the delete button under it deletes it from the row, asking there first. A card put aside is brought back from its row.
  */
-export function CardsView({ cards, type, srsType, adding, onAdd, onCancelAdd, onSave, onRemove, onLift }: Props) {
-  const [editingId, setEditingId] = useState<string | null>(null);
+export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen, onClose, onOpenCalled, onAdd, onCancelAdd, onSave, onRemove, onLift }: Props) {
+  const [sort, setSort] = useState<CardSort>(readCardSort);
+  const sorted = useMemo(() => sortCards(cards, sort, { type, srsType }), [cards, sort, type, srsType]);
+  /** The words whose duplicates alone are shown, pressed on a card's mark; null for every card. */
+  const [only, setOnly] = useState<string | null>(null);
+  const lead = wordsFieldOf(type);
+  const wordsOf = (card: Card) => (lead ? (card.values[lead.id] ?? "").trim() : "");
+  // Asked again whenever the cards change (one added, changed or deleted): a duplicate is a pair, and both rows say so.
+  const [twins, setTwins] = useState<Record<string, readonly CalledCard[]>>({});
+  useEffect(() => {
+    let alive = true;
+    api.deckTwins(deckId).then(
+      (found) => {
+        if (alive) setTwins(found);
+      },
+      // Not known, nothing is marked: the cards are all there all the same.
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [deckId, cards]);
   // Read from the list every time: a card that's gone (deleted here) is simply no longer open.
-  const open = cards.find((card) => card.id === editingId) ?? null;
+  const open = cards.find((card) => card.id === openId) ?? null;
+
+  const shown = only === null ? sorted : sorted.filter((card) => wordsOf(card) === only);
+  /** While one word's duplicates are shown, its cards in other decks: each said with a way to it. */
+  const elsewhere =
+    only === null ? [] : [...new Map(shown.flatMap((card) => twins[card.id] ?? []).filter((twin) => twin.deckId !== deckId).map((twin) => [twin.cardId, twin])).values()];
+  const filter =
+    only === null ? null : (
+      <div className="list-filter">
+        <p className="list-filter-line">
+          <span>
+            Duplicates of “<span lang={langOf(only)}>{only}</span>”
+          </span>
+          <Button className="list-filter-clear" onClick={() => setOnly(null)}>
+            Show all
+          </Button>
+        </p>
+        <AlreadyIn cards={elsewhere} onOpen={onOpenCalled} />
+      </div>
+    );
+
+  function pick(next: CardSort) {
+    setSort(next);
+    writeCardSort(next);
+  }
+  const sorter = CARD_SORTS[sort.by];
+  const tools =
+    cards.length > 1 ? (
+      <div className="list-sort">
+        <span className="list-sort-label">Sort by</span>
+        <Dropdown
+          id="card-sort"
+          label="Sort by"
+          options={CARD_SORT_IDS.map((id) => ({ id, label: CARD_SORTS[id].label }))}
+          value={sort.by}
+          onChange={(by) => pick({ by, way: CARD_SORTS[by].first })}
+        />
+        <Segmented
+          idPrefix="card-sort-way"
+          label="Order"
+          size="sm"
+          options={waysOf(sort.by).map((way) => ({ id: way, label: sorter.ways[way] }))}
+          value={sort.way}
+          onChange={(way) => pick({ ...sort, way })}
+        />
+      </div>
+    ) : null;
+
   return (
     <>
-      {adding ? <CardForm type={type} onAdd={onAdd} autoFocus onCancel={onCancelAdd} /> : null}
+      {adding ? <CardForm type={type} onAdd={onAdd} onOpenCalled={onOpenCalled} autoFocus onCancel={onCancelAdd} /> : null}
       <CardList
-        cards={cards}
+        cards={shown}
         type={type}
         srsType={srsType}
-        title={cards.length === 0 ? "No cards yet" : count(cards.length, "card", "cards")}
-        onEdit={(card) => setEditingId(card.id)}
+        title={cards.length === 0 ? "No cards yet" : count(shown.length, "card", "cards")}
+        tools={tools}
+        twins={twins}
+        onTwins={(card) => setOnly(wordsOf(card))}
+        filter={filter}
+        onEdit={(card) => onOpen(card.id)}
         onRemove={(card) => onRemove(card.id)}
         onLift={(card) => onLift(card.id)}
         editing={
@@ -50,10 +137,10 @@ export function CardsView({ cards, type, srsType, adding, onAdd, onCancelAdd, on
                     type={type}
                     card={open}
                     autoFocus
-                    onCancel={() => setEditingId(null)}
+                    onCancel={() => onClose(open.id)}
                     onSave={async (update) => {
                       await onSave(open.id, update);
-                      setEditingId(null);
+                      onClose(open.id);
                     }}
                     onRemove={() => onRemove(open.id)}
                   />
