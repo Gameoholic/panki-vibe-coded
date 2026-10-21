@@ -24,7 +24,6 @@ import {
 import { ApiError, api, type Me } from "./api";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
-import { Intro } from "./components/Intro";
 import { Modal } from "./components/Modal";
 import { Segmented } from "./components/Segmented";
 import { SpaceNotice } from "./components/SpaceNotice";
@@ -993,7 +992,6 @@ export function App() {
           </div>
         </Modal>
       ) : null}
-      <Intro />
     </div>
   );
 }

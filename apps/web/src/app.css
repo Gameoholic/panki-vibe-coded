@@ -2097,59 +2097,9 @@ mark.sub-mark {
   fill: var(--mark-glyph);
 }
 
-/* The opening moment (components/Intro.tsx). One timeline, read top to bottom:
-   the tile lands with a little overshoot, the strokes wipe in top to bottom in stroke order,
-   the ring pops, the name rises, then the whole overlay lifts away. */
-.intro {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  background: var(--bg);
-  animation: intro-out 0.3s ease 1.35s forwards;
-}
-.intro-stage {
-  display: grid;
-  justify-items: center;
-  gap: 16px;
-}
-.intro .mark-tile {
-  animation: intro-land 0.5s cubic-bezier(0.2, 1.25, 0.4, 1) both;
-}
-.intro .mark-left {
-  animation: intro-wipe 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.26s both;
-}
-.intro .mark-right {
-  animation: intro-wipe 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.4s both;
-}
-.intro .mark-dot {
-  animation: intro-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) 0.62s both;
-}
-.intro-name {
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: -0.01em;
-  animation: intro-rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.78s both;
-}
-@keyframes intro-land {
-  from {
-    opacity: 0;
-    transform: scale(0.5) rotate(-8deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes intro-wipe {
-  from {
-    clip-path: inset(0 0 100% 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
+/* The app's way of arriving: something pops in, words rise under it. The extension's "Added" is these two. (They
+   were the opening moment's, `Intro`, which played over the app on every load until the owner had it out, 2026-10-21:
+   "it's just taking too much time and I don't need it".) */
 @keyframes intro-pop {
   from {
     opacity: 0;
@@ -2168,16 +2118,6 @@ mark.sub-mark {
   to {
     opacity: 1;
     transform: none;
-  }
-}
-@keyframes intro-out {
-  to {
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .intro {
-    display: none;
   }
 }
 
