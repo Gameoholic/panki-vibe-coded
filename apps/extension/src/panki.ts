@@ -24,6 +24,7 @@ import {
   StatsResponse,
   type SaveVideo,
   type SavedVideo,
+  type SettingsUpdate,
   type CalledCard,
   type Settings,
   type Stats,
@@ -193,6 +194,9 @@ export const panki = {
     const timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     return call(address, token, "/api/settings", json("PATCH", { timeZone }), (b) => SettingsResponse.parse(b).settings);
   },
+  /** Some of the account's own settings changed (the options page's Video tracking, the same switch as Panki's Settings); the settings after. */
+  updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
+    call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
   /** Videos as their thumbnails on YouTube are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   glance: ({ address, token }: Door, videoIds: readonly string[]): Promise<VideoGlance[]> =>
     call(address, token, "/api/watching/glance", json("POST", { videoIds }), (b) => GlanceResponse.parse(b).videos),

@@ -14,7 +14,7 @@ import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
-import { PankiError, panki } from "../panki";
+import { PankiError, panki, type Door } from "../panki";
 import { SHELF_SIZES, ShelfMax } from "../modules";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
@@ -262,6 +262,57 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         label="Replace YouTube subtitles with Panki's"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
       />
+    </section>
+  );
+}
+
+/**
+ * Video tracking, here too (the owner, 2026-10-21, the extension being what tracks: "shouldn't this be on the
+ * extension too?"): not a second setting but the account's own, the one in Panki's Settings → Immersion, read from
+ * Panki and changed there, so flipping it here or there is the same switch, for every browser signed in to the
+ * account. Shown while signed in; a failure puts it back and says so.
+ */
+function VideoTracking({ door }: { door: Door }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const { address, token } = door;
+  useEffect(() => {
+    let alive = true;
+    setFailure(null);
+    panki
+      .settings({ address, token })
+      .then((settings) => alive && setOn(settings.videoTracking))
+      .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
+    return () => {
+      alive = false;
+    };
+  }, [address, token]);
+  async function change(next: boolean) {
+    setFailure(null);
+    setOn(next);
+    try {
+      setOn((await panki.updateSettings({ address, token }, { videoTracking: next })).videoTracking);
+    } catch (e) {
+      setOn(!next);
+      setFailure(e instanceof Error ? e.message : "Couldn't reach Panki.");
+    }
+  }
+  return (
+    <section className="panel" aria-labelledby="immersion-title">
+      <h2 id="immersion-title" className="panel-title">
+        Immersion
+      </h2>
+      <Setting
+        id="video-tracking"
+        label="Video tracking"
+        control={<Toggle id="video-tracking-on" says={{ on: "On", off: "Off" }} on={on === true} disabled={on === null} onChange={(next) => void change(next)} />}
+        why="Keeps which videos you watch, for how long and where you stopped."
+      />
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -556,6 +607,7 @@ function Options() {
           </div>
           <div className="options-tab" hidden={tab !== "youtube"}>
             <Transcribing store={store} onChanged={refresh} />
+            {door ? <VideoTracking door={door} /> : null}
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
             <HomePanel store={store} onChanged={refresh} />
