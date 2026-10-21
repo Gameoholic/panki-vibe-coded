@@ -313,6 +313,9 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     }
     const now = Date.now();
     const lead = progressOf(first);
+    // How far each was watched, on its picture, is a thumbnail's mark like any other: the same switch shows it on Panki's
+    // own cards as on the site's (the owner, 2026-10-22: "make it also apply to our own").
+    const marked = deps.modules().thumbs;
     return (
       <section className="yh-shelf" aria-label="Continue watching">
         <h2 className="yh-h">
@@ -324,9 +327,11 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           <div className="yc yh-lead-pic-wrap">
             <a className="yh-lead-pic" href={resumeAt(first)} aria-label={`Resume ${first.title || "the video"}`}>
               <img src={thumbnailAt(first.videoId)} alt="" />
-              <span className="yc-bar">
-                <i style={{ width: `${(lead.share * 100).toFixed(1)}%` }} />
-              </span>
+              {marked ? (
+                <span className="yc-bar">
+                  <i style={{ width: `${(lead.share * 100).toFixed(1)}%` }} />
+                </span>
+              ) : null}
             </a>
             <CardSave videoId={first.videoId} about={{ title: first.title.slice(0, 300), channel: first.channel.slice(0, 100) }} />
             <Button className="btn-icon yc-x" aria-label="Put away" onClick={() => void putAway(first.videoId)}>
@@ -351,7 +356,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {rest.length > 0 ? (
           <div className="yh-cards">
             {rest.map((v) => (
-              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save />
+              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={marked ? progressOf(v) : null} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save />
             ))}
           </div>
         ) : null}

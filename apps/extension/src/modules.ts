@@ -22,7 +22,7 @@ import { z } from "zod";
  */
 export const ResumeHow = z.enum(["offer", "continue", "always"]);
 export type ResumeHow = z.infer<typeof ResumeHow>;
-export const RESUME_HOW: Record<ResumeHow, string> = { offer: "Show a button", continue: "Jump, unless the link has a time", always: "Always jump, even over a link's time" };
+export const RESUME_HOW: Record<ResumeHow, string> = { offer: "Show a button", continue: 'Jump, unless the link contains a timestamp ("?t=")', always: 'Always jump, ignoring the link\'s timestamp ("?t=")' };
 export const RESUME_HOW_IDS = ResumeHow.options;
 /**
  * With "Jump, unless the link has a time", what a link with a time of its own does about where the video was stopped:

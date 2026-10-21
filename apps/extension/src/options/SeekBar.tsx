@@ -303,8 +303,8 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
         {store.resumeHow === "continue" ? (
           <Setting
             id="resume-timed"
-            label="When the link has a time"
-            control={<Segmented idPrefix="resume-timed" label="When the link has a time" options={TIMED_OPTIONS} value={store.resumeTimed} disabled={off} onChange={(resumeTimed) => void writeStore({ resumeTimed }).then(onChanged)} />}
+            label='When the link contains a timestamp ("?t=")'
+            control={<Segmented idPrefix="resume-timed" label='When the link contains a timestamp ("?t=")' options={TIMED_OPTIONS} value={store.resumeTimed} disabled={off} onChange={(resumeTimed) => void writeStore({ resumeTimed }).then(onChanged)} />}
           />
         ) : null}
         <Setting
