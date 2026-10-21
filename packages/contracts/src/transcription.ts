@@ -88,7 +88,8 @@ export const TRANSCRIBE_MODES: Record<TranscribeMode, { name: string }> = {
 };
 
 /** What's done about a whole-video download for a video longer than the download limit: it goes ahead, it isn't done, or the viewer is asked first. */
-export const OverLimit = z.enum(["allowed", "notAllowed", "warn"]);
+/** In the order they're offered, left to right: from the most free to the strictest (the owner, 2026-10-21). */
+export const OverLimit = z.enum(["allowed", "warn", "notAllowed"]);
 export type OverLimit = z.infer<typeof OverLimit>;
 export const OVER_LIMIT_IDS = OverLimit.options;
 export const OVER_LIMIT_WORDS: Record<OverLimit, string> = { allowed: "Allowed", notAllowed: "Not allowed", warn: "Warn first" };

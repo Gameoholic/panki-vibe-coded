@@ -19,7 +19,7 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
-import { Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askVideoCards, askWatch, askWatchMark, askWatched } from "../messages";
+import { Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askVideoCards, askWatch, askWatched } from "../messages";
 import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, type Modules } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
@@ -1088,21 +1088,11 @@ function App() {
   const cards = useSyncExternalStore(carded.subscribe, carded.get);
   /** Which parts are on; how the video stands in the account's watching; the offer to go on from where it was stopped. */
   useSyncExternalStore(modules.subscribe, modules.get);
-  const seenNow = useSyncExternalStore(seen.subscribe, seen.get);
+  useSyncExternalStore(seen.subscribe, seen.get);
   const savedNow = useSyncExternalStore(savedHere.subscribe, savedHere.get);
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
   const offerGoing = useSyncExternalStore(offerAway.subscribe, offerAway.get);
   const stop = stopMark();
-  /** This video left out of the watch time, or counted again (the owner, 2026-10-21: a video that isn't study). */
-  async function setCounted(counted: boolean) {
-    const id = videoId();
-    const was = seen.get();
-    if (!id || !was || was.videoId !== id) return;
-    seen.set({ ...was, counted });
-    const answer = await askWatchMark(id, counted ? "count" : "uncount");
-    const now = seen.get();
-    if (now && now.videoId === id) seen.set({ ...now, counted: answer.ok ? answer.video.counted : was.counted });
-  }
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
@@ -1697,8 +1687,6 @@ function App() {
                   state={tx}
                   duration={duration}
                   at={video?.currentTime ?? null}
-                  counted={seenNow?.on && seenNow.videoId === videoId() ? seenNow.counted : null}
-                  onCounted={(counted) => void setCounted(counted)}
                   onStart={() => video && transcriber.start(video)}
                   onStop={() => transcriber.stop()}
                   onRetranscribe={(stretch) => void transcriber.retranscribe(stretch.start, stretch.end)}

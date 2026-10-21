@@ -53,9 +53,8 @@ type Props = {
   onAnswer: (yes: boolean) => void;
   /** How it stands in full, this moment (`Transcriber.detail`), asked for while Details are open. */
   detail: () => TranscribeDetail;
-  /** Whether this video counts toward the watch time (Immersion, or Just watching); null while the account keeps no watching. In the strip's head until the owner put Panki's own switch there, 2026-10-21. */
-  counted: boolean | null;
-  onCounted: (on: boolean) => void;
+  // Whether this video counted toward the watch time (Immersion / Just watching) was a row here until the owner had it
+  // out, 2026-10-21: Panki's own on / off switch is what says whether a video is noted.
 };
 
 /** A part to transcribe again starts as this much of the video from where the viewer is. Seconds. */
@@ -375,7 +374,7 @@ type Asking = "redo" | "forgetAll" | null;
 /** Which of the two folds under the status is open, if either. */
 type Unfolded = "details" | "log" | null;
 
-export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail, counted, onCounted }: Props) {
+export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail }: Props) {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<Asking>(null);
   /** Whether Details or Log is unfolded: kept while the menu is closed, so it's there at the next look. */
@@ -539,13 +538,6 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
             <span>Auto transcribe</span>
             <Toggle id="panki-transcribe-auto" says={{ on: "On", off: "Off" }} on={state.prefs.trigger === "auto"} onChange={onAuto} />
           </div>
-          {/* Whether this video counts toward the watch time; every video does until it's switched. */}
-          {counted !== null ? (
-            <div className="strip-menu-row">
-              <span>This video</span>
-              <Toggle id="panki-counted" says={{ on: "Immersion", off: "Just watching" }} on={counted} onChange={onCounted} />
-            </div>
-          ) : null}
           {/* A part is transcribed again, never forgotten on its own (the owner, 2026-10-20). */}
           {hasAny ? (
             <div className="strip-menu-items">

@@ -130,6 +130,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   const mast = mount(deps.theme());
   mast.host.style.cssText = "display: flex; align-items: center; margin-right: 8px;";
   const known = cell<Known>({ kind: "loading" });
+  /** Bumped whenever a save changes, so a save button shows a tick or a plus afresh. */
+  const savedTick = cell(0);
   let asking = false;
   let asked = false;
 
@@ -204,7 +206,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
    * it was begun), its name, its channel, a line of Panki's; the whole card a link, × at its corner to take it off.
    */
-  function VideoCard({ videoId, title, channel, href, sub, progress, removeLabel, onRemove }: {
+  function VideoCard({ videoId, title, channel, href, sub, progress, removeLabel, onRemove, save = false }: {
     videoId: string;
     title: string;
     channel: string;
@@ -213,6 +215,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     progress: { share: number; left: string } | null;
     removeLabel: string;
     onRemove: () => void;
+    /** The save button at its picture's top left (`CardSave`): Continue watching's cards have it. */
+    save?: boolean;
   }) {
     return (
       <div className="yc">
@@ -238,10 +242,41 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null}
           {sub ? <span className="yc-sub">{sub}</span> : null}
         </a>
+        {save ? <CardSave videoId={videoId} about={{ title: title.slice(0, 300), channel: channel.slice(0, 100) }} /> : null}
         <Button className="btn-icon yc-x" aria-label={removeLabel} onClick={onRemove}>
           <Icon name="close" />
         </Button>
       </div>
+    );
+  }
+
+  /** Whether a video is saved for later: as its thumbnails last heard, or else as the home's Saved shelf has it. */
+  function isSaved(videoId: string): boolean {
+    const heard = glances.get(videoId)?.glance.saved;
+    if (heard !== undefined) return heard;
+    const now = known.get();
+    return now.kind === "home" && now.home.saved.some((v) => v.videoId === videoId);
+  }
+
+  /**
+   * The save button on a card of Panki's own (Continue watching; the owner, 2026-10-21), the floating one's look at the
+   * picture's top left: the site's preview never covers Panki's cards, so it sits in them, seen under the pointer (and
+   * always on a touch screen), and always once saved.
+   */
+  function CardSave({ videoId, about }: { videoId: string; about: SaveVideo }) {
+    useSyncExternalStore(savedTick.subscribe, savedTick.get);
+    const on = deps.modules();
+    if (!on.thumbSave) return null;
+    const saved = isSaved(videoId);
+    return (
+      <Button
+        className={`btn-icon yt-save is-on-card ${saved ? "is-saved" : ""}`.trim()}
+        aria-label={saved ? "Saved for later: take it out" : "Save for later"}
+        aria-pressed={saved}
+        onClick={() => void setSaved(videoId, saved ? null : about)}
+      >
+        <Icon name={saved ? "check" : "add"} />
+      </Button>
     );
   }
 
@@ -288,6 +323,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
                 <i style={{ width: `${(lead.share * 100).toFixed(1)}%` }} />
               </span>
             </a>
+            <CardSave videoId={first.videoId} about={{ title: first.title.slice(0, 300), channel: first.channel.slice(0, 100) }} />
             <Button className="btn-icon yc-x" aria-label="Put away" onClick={() => void putAway(first.videoId)}>
               <Icon name="close" />
             </Button>
@@ -310,7 +346,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {rest.length > 0 ? (
           <div className="yh-cards">
             {rest.map((v) => (
-              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} />
+              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save />
             ))}
           </div>
         ) : null}
@@ -555,8 +591,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    */
   type Aim = { videoId: string; x: number; y: number; about: SaveVideo };
   const aim = cell<Aim | null>(null);
-  /** Bumped whenever a save changes, so the floating button shows a tick or a plus afresh. */
-  const savedTick = cell(0);
   /** The card last pointed at: the site's preview of it has no name or channel of its own to read. */
   let lastCard: { videoId: string; about: SaveVideo } | null = null;
   const floater = mount(deps.theme());

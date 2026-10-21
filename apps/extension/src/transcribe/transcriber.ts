@@ -303,6 +303,9 @@ export function createTranscriber() {
   function limitPending(): boolean {
     if (!decided || !settings || !decided.long || decided.mode === "live") return false;
     if (settings.overLimit === "allowed" || status.kind === "done") return false;
+    // Nothing waits on the viewer until the entire video would be asked for: not while it waits for the minimum watch
+    // time (the "!" went up as the video opened and the menu then had no question in it, 2026-10-21).
+    if (!asking && !refused && watched < settings.wholeAfter) return false;
     return !wholeAsked && !confirmed && !declined && !fellBack;
   }
   let snapshot: TranscribeState = snap();

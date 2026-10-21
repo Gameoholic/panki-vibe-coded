@@ -859,6 +859,27 @@
   background: var(--accent);
   color: var(--accent-ink);
 }
+/* The same button in a card of Panki's own (Continue watching): at its picture's top left, seen under the pointer,
+   always on a touch screen, and always once saved. */
+.btn.btn-icon.yt-save.is-on-card {
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.yc:hover .btn.btn-icon.yt-save.is-on-card,
+.btn.btn-icon.yt-save.is-on-card:focus-visible,
+.btn.btn-icon.yt-save.is-on-card.is-saved {
+  opacity: 1;
+}
+@media (hover: none) {
+  .btn.btn-icon.yt-save.is-on-card {
+    opacity: 1;
+  }
+}
 /* A shelf with nothing on it yet: one quiet line where its cards would be. */
 .yh-empty {
   margin: 0;
