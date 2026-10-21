@@ -28,7 +28,8 @@ import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { useUndoable } from "../hooks/useUndoable";
-import { LOOK_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { shortcutOf, useKeyBinds } from "../keys";
+import { LOOK_OPTIONS, PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import type { UnsavedGuard } from "../unsaved";
 import { waveOf } from "../waveform";
 import type { SaveStatus } from "./SrsTypeView";
@@ -91,6 +92,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [side, setSide] = useState<CardSide>("front");
   const [trying, setTrying] = useState(false);
+  const mediaKeys = useKeyBinds().media.map(shortcutOf);
   const [picked, setPicked] = useState<string | null>(type.layout[0]?.fieldId ?? null);
   const [samples, setSamples] = useState<{ card: Card; deck: Deck }[]>([]);
   const [sampleId, setSampleId] = useState<string>(NO_SAMPLE);
@@ -250,8 +252,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           <Setting
             id="part-auto"
             label="Plays by itself"
-            control={<Toggle id="part-auto-on" says={{ on: "As it comes into view", off: "Only when pressed" }} on={part.auto} onChange={(auto) => update(id, { auto })} />}
-            {...(part.auto ? { why: "Several play one after another, top to bottom." } : {})}
+            control={<Dropdown id="part-auto-when" label="Plays by itself" options={PLAY_OPTIONS} value={part.plays} onChange={(plays) => update(id, { plays })} />}
           />
         ) : null}
         {oneLine ? (
@@ -328,7 +329,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           tag={tag}
           autoplay={trying}
           // Tried as a review, its sounds and clips answer to their keys as a review's do.
-          shortcuts={trying}
+          shortcuts={trying ? mediaKeys : undefined}
           {...(trying
             ? {}
             : {

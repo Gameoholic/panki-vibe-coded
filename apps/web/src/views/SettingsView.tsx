@@ -40,6 +40,7 @@ import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
+import { KeysPanels } from "./KeysSettings";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
@@ -66,9 +67,10 @@ const clock = (hour: number) => `${hour}:00`;
  * changes, and the account. The tab is in the address, so a reload stays on it; every tab is drawn and the others
  * hidden, so a key half typed on one survives a look at another.
  */
-type SettingsTab = "general" | "admin" | "account";
+type SettingsTab = "general" | "keys" | "admin" | "account";
 const TABS: readonly { id: SettingsTab; label: string; admin?: true }[] = [
   { id: "general", label: "General" },
+  { id: "keys", label: "Keybinds" },
   { id: "admin", label: "Admin", admin: true },
   { id: "account", label: "Account" },
 ];
@@ -432,6 +434,17 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           Transcription modes
         </h3>
         <ModeCompare mode={current.mode} modesOff={current.modesOff} estimate={status.estimate} onDefault={(mode) => patch({ mode })} onOn={setModeOn} />
+        {/* How much of a video is watched before the entire video is transcribed by itself (the owner, 2026-10-21). */}
+        <Setting
+          id="wholeAfter"
+          label="Minimum watch time before activating full transcription"
+          control={<NumberField id="transcribe-whole-after" label="Minimum watch time before activating full transcription, in seconds" value={current.wholeAfter} min={0} max={600} suffix="s" onChange={(wholeAfter) => patch({ wholeAfter })} />}
+          why={
+            <>
+              For <ModeChip mode="full" /> and <ModeChip mode="hybrid" /> only.
+            </>
+          }
+        />
         {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen, the engine downloading and transcribing a video at once (the owner, 2026-10-20). */}
         <Setting
           id="downloadLimit"
@@ -928,6 +941,11 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
           </h2>
           <SubtitleStyleFields idPrefix="card-subtitle" style={current.subtitleStyle} onChange={(subtitleStyle) => patch({ subtitleStyle })} />
         </section>
+      </div>
+
+      {/* The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"). */}
+      <div className="settings-tab" hidden={shown !== "keys"}>
+        <KeysPanels />
       </div>
 
       {me.user.admin ? (

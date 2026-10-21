@@ -124,6 +124,11 @@ export const Transcription = z.object({
   mode: TranscribeMode,
   /** The modes switched off for everyone; one that's gone since (Auto) read as nothing. */
   modesOff: z.preprocess((value) => (Array.isArray(value) ? value.filter((mode) => TRANSCRIBE_MODE_IDS.some((id) => id === mode)) : value), z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length)),
+  /**
+   * Seconds of a video the viewer watches (played, on that visit) before the entire video is transcribed by itself, so
+   * a video opened and left at once costs nothing (the owner, 2026-10-21); 0 is at once. A press on Transcribe doesn't wait.
+   */
+  wholeAfter: z.number().int().min(0).max(600),
   /** Minutes: a video longer than this is over the download limit, for the whole-video download. */
   downloadLimit: z.number().int().min(1).max(600),
   overLimit: OverLimit,
@@ -153,6 +158,7 @@ export const DEFAULT_TRANSCRIPTION: Transcription = {
   engine: "elevenlabs",
   mode: "hybrid",
   modesOff: [],
+  wholeAfter: 10,
   downloadLimit: 30,
   overLimit: "warn",
   firstChunk: 3,

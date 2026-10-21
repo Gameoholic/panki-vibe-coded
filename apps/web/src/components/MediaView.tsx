@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
+import type { Shortcut } from "../keys";
 import type { Speed, Volume } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
@@ -35,8 +36,8 @@ type Props = {
   waveOf?: Wave;
   /** Laid over a clip's picture, in the looks that show it (the player and plain): its subtitles (`ClipSubtitles`), or nothing. */
   over?: ReactNode;
-  /** The key that plays or stops it from anywhere on the page, drawn on it as a keycap (a review's); none by default. */
-  shortcut?: string | null;
+  /** The key that plays or stops it from anywhere on the page, and how long it's held first, drawn on it as a keycap (a review's); none by default. */
+  shortcut?: Shortcut | null;
 };
 
 /**
@@ -83,7 +84,7 @@ type BarProps = {
   /** How fast every player plays (`playback.ts`), picked beside how loud. Panki's own player has it. */
   speed?: { speed: Speed; onSpeed: (speed: Speed) => void } | null;
   /** The key that plays it, as a keycap beside the play button; none by default. */
-  shortcut?: string | null;
+  shortcut?: Shortcut | null;
 };
 
 /**
@@ -95,7 +96,7 @@ type BarProps = {
 export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null, speed = null, shortcut = null }: BarProps) {
   return (
     <div className="media-bar">
-      <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} aria-keyshortcuts={shortcut ?? undefined} onClick={onToggle}>
+      <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} aria-keyshortcuts={shortcut?.key} onClick={onToggle}>
         <Icon name={playing ? "pause" : "play"} />
       </Button>
       <MediaKey shortcut={shortcut} />
@@ -272,14 +273,14 @@ function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: L
       ) : null}
       {kind === "video" ? (
         <div className="media-picture">
-          <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} aria-keyshortcuts={shortcut ?? undefined} {...play.events} />
+          <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} aria-keyshortcuts={shortcut?.key} {...play.events} />
           {over}
           {/* The browser's own controls are along its bottom: the key sits in a top corner, clear of them. */}
           <MediaKey shortcut={shortcut} />
         </div>
       ) : (
         <span className="media-plain-row">
-          <audio ref={play.hold} className="media-plain-audio" src={src} preload="metadata" controls aria-label={label} aria-keyshortcuts={shortcut ?? undefined} {...play.events} />
+          <audio ref={play.hold} className="media-plain-audio" src={src} preload="metadata" controls aria-label={label} aria-keyshortcuts={shortcut?.key} {...play.events} />
           <MediaKey shortcut={shortcut} />
         </span>
       )}
@@ -297,7 +298,7 @@ function ChipLook({ kind, src, label, named, cue, onCueEnd, shortcut }: LookProp
         variant="chip"
         className="media-chip"
         aria-label={`${play.playing ? "Pause" : "Play"} ${label}`}
-        aria-keyshortcuts={shortcut ?? undefined}
+        aria-keyshortcuts={shortcut?.key}
         disabled={play.failed}
         onClick={play.toggle}
       >

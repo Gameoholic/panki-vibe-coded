@@ -250,6 +250,11 @@ export function createTranscriber() {
   let pieces: PieceTally = { back: 0, atEngine: null, last: null };
   /** Where the viewer was at the last look, in seconds. */
   let viewerAt = 0;
+  /** Seconds this video has played on this visit, and when it was last looked at, by `performance.now()` (null before the first look): the entire video waits for `wholeAfter` of them. */
+  let watched = 0;
+  let lastLook: number | null = null;
+  /** That the entire video is waiting for the viewer to watch a little has been written down, once a visit. */
+  let saidWaiting = false;
   /** What the mode came to on this video, and whether it has been decided before on it (a later decision is a change of mode). */
   let decided: Decided | null = null;
   let decidedOnce = false;
@@ -474,6 +479,14 @@ export function createTranscriber() {
     const auto = prefs.trigger === "auto" && !autoBlocked;
     if (!auto || wholeAsked || declined || !wantsWhole()) return;
     if (nextUncovered(transcript, 0, duration) === null) return;
+    // A video opened and left at once costs nothing: by itself, only once it has been watched a little (Panki's `wholeAfter`).
+    if (watched < settings.wholeAfter) {
+      if (!saidWaiting) {
+        saidWaiting = true;
+        note(`entire video waits · until ${settings.wholeAfter} s of it are watched`);
+      }
+      return;
+    }
     whole(id, duration, "auto");
   }
 
@@ -898,6 +911,9 @@ export function createTranscriber() {
       saidDone = false;
       wholeAsked = false;
       wholeInFlight = false;
+      watched = 0;
+      lastLook = null;
+      saidWaiting = false;
       asking = false;
       confirmed = false;
       declined = false;
@@ -923,6 +939,10 @@ export function createTranscriber() {
       const t = video.currentTime;
       viewerAt = t;
       const paused = video.paused;
+      // Time it plays counts as watched; a look long after the last (the tab asleep) counts a second at most.
+      const lookAt = performance.now();
+      if (lastLook !== null && !paused) watched += Math.min(1, (lookAt - lastLook) / 1000);
+      lastLook = lookAt;
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
       if (!decided && settings && transcript && duration !== null) decide(duration);
       poll(id);

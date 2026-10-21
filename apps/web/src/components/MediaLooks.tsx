@@ -1,8 +1,9 @@
 import { useEffect, useId, useState, type MouseEvent, type PointerEvent } from "react";
 import type { MediaKind } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
+import type { Shortcut } from "../keys";
 import { AS_SAID, SPEEDS, type Speed } from "../playback";
-import { clock } from "../words";
+import { clock, keyWords } from "../words";
 import { Button } from "./Button";
 import { Dropdown } from "./Dropdown";
 import { Icon, type IconName } from "./Icon";
@@ -24,14 +25,14 @@ export const ownPress = (e: MouseEvent) => e.stopPropagation();
 /** The shape of a file's sound in so many bars, each 0 to 1; null when it can't be read. Drawn by the voice note. */
 export type Wave = (src: string, bars: number) => Promise<readonly number[] | null>;
 
-/** What every look of a sound or a clip is handed. `shortcut` is the key that plays it, drawn on it as a keycap; null for none. */
-export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: string | null };
+/** What every look of a sound or a clip is handed. `shortcut` is the key that plays it (and its hold), drawn on it as a keycap; null for none. */
+export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: Shortcut | null };
 
-/** The key that plays it, drawn as the answers' keys are (`.key`, a keycap); nothing when it has none. */
-export function MediaKey({ shortcut }: { shortcut: string | null }) {
+/** The key that plays it, drawn as the answers' keys are (`.key`, a keycap; a clock face as it's held, when it's held); nothing when it has none. */
+export function MediaKey({ shortcut }: { shortcut: Shortcut | null }) {
   return shortcut ? (
-    <span className="key media-key" aria-hidden="true">
-      {shortcut.toUpperCase()}
+    <span className={shortcut.holdMs > 0 ? "key media-key is-hold" : "key media-key"} aria-hidden="true">
+      {keyWords(shortcut.key)}
     </span>
   ) : null;
 }
@@ -86,7 +87,7 @@ export function VoiceLook({ kind, src, label, named, cue, onCueEnd, shortcut, wa
   return (
     <div className={`media media-voice media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className="btn-icon media-voice-play" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut ?? undefined} disabled={play.failed} onClick={play.toggle}>
+      <Button className="btn-icon media-voice-play" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut?.key} disabled={play.failed} onClick={play.toggle}>
         <Icon name={play.playing ? "pause" : "play"} />
       </Button>
       <MediaKey shortcut={shortcut} />
@@ -115,7 +116,7 @@ export function RoundLook({ kind, src, label, named, cue, onCueEnd, shortcut }: 
   return (
     <span className={`media media-round media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className="media-round-button" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut ?? undefined} disabled={play.failed} onClick={play.toggle}>
+      <Button className="media-round-button" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut?.key} disabled={play.failed} onClick={play.toggle}>
         <svg className="media-ring" viewBox="0 0 60 60" aria-hidden="true">
           <circle className="media-ring-base" cx="30" cy="30" r={RING_R} />
           <circle className="media-ring-heard" cx="30" cy="30" r={RING_R} strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - share)} />
@@ -138,7 +139,7 @@ export function TileLook({ kind, src, label, named, cue, onCueEnd, shortcut }: L
   return (
     <span className={`media media-tile media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
-      <Button className="media-tile-button" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut ?? undefined} disabled={play.failed} onClick={play.toggle}>
+      <Button className="media-tile-button" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut?.key} disabled={play.failed} onClick={play.toggle}>
         <span className="media-tile-fill" style={{ width: `${share * 100}%` }} aria-hidden="true" />
         <span className="media-tile-icon">
           <Icon name={play.playing ? "pause" : MEDIA_ICON[kind]} />
@@ -162,7 +163,7 @@ export function SpeakerLook({ kind, src, label, named, cue, onCueEnd, shortcut }
       <Button
         className={`media-speaker-button ${play.playing ? "is-playing" : ""}`.trim()}
         aria-label={pressWord(play.playing, label)}
-        aria-keyshortcuts={shortcut ?? undefined}
+        aria-keyshortcuts={shortcut?.key}
         disabled={play.failed}
         onClick={play.toggle}
       >

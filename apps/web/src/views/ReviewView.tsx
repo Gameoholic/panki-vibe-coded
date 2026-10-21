@@ -6,11 +6,13 @@ import { FlowCanvas } from "../components/FlowCanvas";
 import { Icon, type IconName } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
+import { useHold } from "../hooks/useHold";
+import { sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
 import { shuffle } from "../shuffle";
 import { LESSON_SCOPE } from "../srsFlow";
 import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
-import { count } from "../words";
+import { count, keyWords } from "../words";
 
 type Props = {
   deck: Deck;
@@ -224,6 +226,18 @@ function Lead({ lead }: { lead: Lead }) {
   );
 }
 
+/** How long a key is held before its button does its thing: its own hold, and `extra` on top (confirmation's). */
+const holdFor = (bind: Bind | undefined, extra = 0) => (bind?.key ? bind.holdMs + extra : 0);
+
+/**
+ * A key as its keycap on the button it presses (this device's, `keys.ts`), none when it has none; a key that's held
+ * is a clock face that fills as it's held (`useHold`, `.key.is-hold`).
+ */
+function AnswerKey({ bind, extra = 0 }: { bind: Bind | undefined; extra?: number }) {
+  if (!bind?.key) return null;
+  return <span className={holdFor(bind, extra) > 0 ? "key is-hold" : "key"}>{keyWords(bind.key)}</span>;
+}
+
 /**
  * The card on its chart (the owner, 2026-10-17: "show the flowchart for this stage, and highlight what node we're on,
  * and what node clicking this button will transfer it to"): which rules the card follows (its stage's own, or the
@@ -273,20 +287,29 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   /** The answer a mouse is on, whose box on the chart lights up; null with none under it. */
   const [hover, setHover] = useState<string | null>(null);
   const [chartOpen, setChartOpen] = useState(readChartOpen);
+  const chartPlace = useRef<HTMLDivElement | null>(null);
+  /** The chart opens under the review, which keeps its place; pressed open, the page goes down to it. */
   function toggleChart() {
-    setChartOpen((was) => {
-      writeChartOpen(!was);
-      return !was;
-    });
+    const opening = !chartOpen;
+    writeChartOpen(opening);
+    setChartOpen(opening);
+    if (opening) requestAnimationFrame(() => chartPlace.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   }
   const rest = (id: string) => setHover(id);
   const leave = () => setHover(null);
+  /** This device's keys (`keys.ts`, Settings → Keybinds), and a key being held on a button until it does its thing. */
+  const binds = useKeyBinds();
+  const hold = useHold();
+  const place = useRef<HTMLElement | null>(null);
   /** How many more new cards to start once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
   const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
   const cardId = line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
-  // A new card on screen, or the answers going away, takes the glance down with them.
-  useEffect(leave, [cardId, revealed]); // eslint-disable-line react-hooks/exhaustive-deps -- `leave` is the same each time
+  // A new card on screen, or the answers going away, takes the glance down with them, and any key being held.
+  useEffect(() => {
+    leave();
+    hold.release();
+  }, [cardId, revealed]); // eslint-disable-line react-hooks/exhaustive-deps -- `leave` and `hold.release` read nothing that changes
 
   const sitting = useRef<Sitting | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -401,33 +424,59 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     function onKey(e: KeyboardEvent) {
       if (!card) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === " " || e.key === "Enter") {
-        if (e.target instanceof HTMLButtonElement && e.key === "Enter") return;
-        if (revealed && e.key === "Enter") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
+      if (e.key === "Enter") {
+        if (e.target instanceof HTMLButtonElement || revealed) return;
         e.preventDefault();
-        // Space turns the card back to its front too (the owner, 2026-10-19); held down, it turns it once.
+        reveal();
+        return;
+      }
+      if (sameKey(e.key, binds.reveal.key)) {
+        e.preventDefault();
         if (e.repeat) return;
-        if (!revealed) reveal();
-        else if (!busy) {
-          setAsking(null);
-          setRevealed(false);
+        // Turned back to its front at a tap (the owner, 2026-10-19 and 2026-10-21); shown with a hold when it's a key to hold.
+        if (revealed) {
+          if (!busy) {
+            setAsking(null);
+            setRevealed(false);
+          }
+          return;
         }
+        hold.begin(e.key, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, binds.reveal.holdMs, reveal);
         return;
       }
       if (e.key === "Escape" && asking) {
         setAsking(null);
         return;
       }
-      // The same key again is the yes to an answer that asked first. A key whose answer isn't offered here does nothing.
-      const n = Number(e.key);
-      const picked = answers[n - 1];
+      // Held for its key's own time, and an answer that asks for confirmation that much plus `confirmMs`, the longer
+      // hold being its yes. With no hold at all it's a press, and such an answer asks, the same key again its yes. A
+      // key whose answer isn't offered here does nothing.
+      const slot = binds.answers.findIndex((bind) => sameKey(bind.key, e.key));
+      const picked = slot >= 0 ? answers[slot] : undefined;
       if (revealed && picked && offered(srsType, card.place, picked.id)) {
         e.preventDefault();
-        press(picked.id);
+        if (e.repeat) return;
+        const ms = holdFor(binds.answers[slot], picked.confirm ? binds.confirmMs : 0);
+        if (ms === 0) {
+          press(picked.id);
+          return;
+        }
+        const button = place.current?.querySelector<HTMLElement>(`[data-answer="${picked.id}"]`) ?? null;
+        hold.begin(e.key, button, ms, () => void answer(picked.id));
       }
     }
+    /** A key let go before its hold is done: nothing happens. */
+    function onUp(e: KeyboardEvent) {
+      hold.release(e.key);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
   });
 
   if (!card) {
@@ -508,7 +557,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   }
 
   return (
-    <section className="review">
+    <section ref={place} className="review is-fit">
       <div className="review-top">
         {/* What's left, by kind, each count with its word ("2 + 0 + 9" said nothing, the owner, 2026-10-21), in the order they come; the kind of the card on screen underlined. */}
         <span className="review-counts" role="status">
@@ -522,7 +571,24 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
       </div>
       {/* Each card its own: what was opened or played on the last one doesn't carry over. */}
-      <ReviewCard key={card.id} type={type} values={card.values} files={card.files} srsType={srsType} place={card.place} revealed={revealed} onPress={reveal} srcOf={api.mediaUrl} waveOf={waveOf} cues={card.cues} subtitleStyle={subtitleStyle} picturesOf={api.videoPictures} autoplay shortcuts revealKey="Space" />
+      <ReviewCard
+        key={card.id}
+        type={type}
+        values={card.values}
+        files={card.files}
+        srsType={srsType}
+        place={card.place}
+        revealed={revealed}
+        onPress={reveal}
+        srcOf={api.mediaUrl}
+        waveOf={waveOf}
+        cues={card.cues}
+        subtitleStyle={subtitleStyle}
+        picturesOf={api.videoPictures}
+        autoplay
+        shortcuts={binds.media.map(shortcutOf)}
+        hint={false}
+      />
 
       {failure ? (
         <p className="load-error" role="alert">
@@ -562,24 +628,26 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
                   >
                     <span className="name">{a.name}</span>
                     <Lead lead={answerLead(srsType, card, a.id)} />
-                    <span className="key">{i + 1}</span>
+                    <AnswerKey bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
                   </Button>
                 ),
               )
             ) : (
-              <Button variant="primary" size="lg" onClick={reveal}>
+              <Button variant="primary" size="lg" data-hold="reveal" onClick={reveal}>
                 Show answer
+                <AnswerKey bind={binds.reveal} />
               </Button>
             )}
           </div>
-          {revealed && answers.some((a) => a.aside && offered(srsType, card.place, a.id)) ? (
-            <div className="review-asides">
+          {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}
+          {answers.some((a) => a.aside && offered(srsType, card.place, a.id)) ? (
+            <div className={revealed ? "review-asides" : "review-asides is-later"} aria-hidden={!revealed}>
               {answers.map((a, i) =>
                 a.aside && offered(srsType, card.place, a.id) ? (
-                  <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={busy} onClick={() => press(a.id)} onMouseEnter={() => rest(a.id)} onMouseLeave={leave}>
+                  <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={busy || !revealed} onClick={() => press(a.id)} onMouseEnter={() => rest(a.id)} onMouseLeave={leave}>
                     <span className="name">{a.name}</span>
                     <Lead lead={answerLead(srsType, card, a.id)} />
-                    <span className="key">{i + 1}</span>
+                    <AnswerKey bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
                   </Button>
                 ) : null,
               )}
@@ -597,7 +665,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
             ? (() => {
                 const glance = chartOf(srsType, card, revealed ? hover : null);
                 return (
-                  <div className="review-chart">
+                  <div ref={chartPlace} className="review-chart">
                     <FlowCanvas type={srsType} scope={glance.scope} onScope={() => undefined} onChange={() => undefined} onUndo={() => undefined} onRedo={() => undefined} canUndo={false} canRedo={false} glance={glance} />
                   </div>
                 );

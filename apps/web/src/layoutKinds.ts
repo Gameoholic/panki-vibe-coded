@@ -1,4 +1,4 @@
-import type { FaceShow, MediaLook, PartSize, PartTone } from "@panki/contracts";
+import type { AutoPlay, FaceShow, MediaLook, PartSize, PartTone } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -20,6 +20,13 @@ export const TONE_OPTIONS: readonly { id: PartTone; label: string }[] = [
   { id: "normal", label: "Normal" },
   { id: "quiet", label: "Quiet" },
   { id: "accent", label: "Accent" },
+];
+/** When a sound or a clip plays by itself in a review (the owner, 2026-10-21). */
+export const PLAY_OPTIONS: readonly { id: AutoPlay; label: string }[] = [
+  { id: "never", label: "Never" },
+  { id: "shown", label: "When the card appears" },
+  { id: "turned", label: "When the card is turned" },
+  { id: "both", label: "Both" },
 ];
 /** A sound's or a clip's player style: every one the owner chose to keep (2026-10-15), by name alone (the words beside each were taken out at their word). */
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [

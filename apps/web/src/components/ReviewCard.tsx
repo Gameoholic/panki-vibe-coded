@@ -9,6 +9,7 @@ import {
   metaOf,
   partsOn,
   pitchesOf,
+  playsOn,
   type CardField,
   type CardPlace,
   type CardSide,
@@ -23,6 +24,7 @@ import {
 } from "@panki/contracts";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
+import type { Shortcut } from "../keys";
 import { langOf } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -47,13 +49,6 @@ export type CardEdit = {
   onPickTag: () => void;
   onMoveTag: (corner: TagCorner) => void;
 };
-
-/**
- * The keys that play a card's sounds and clips in a review, given in the card's order (the layout's, both sides alike,
- * so a field keeps its key when the card is turned): the home row under the left hand, beside the answers' numbers
- * (the owner, 2026-10-18: "keybindings… to the various buttons that play the audio and/or video by a simple keypress").
- */
-export const MEDIA_KEYS = ["a", "s", "d", "f", "g", "h", "j", "k", "l"] as const;
 
 /** How far a press must move before it's a drag of the stage tag rather than a press that picks it. */
 const TAG_DRAG_PX = 4;
@@ -161,10 +156,18 @@ type Props = {
   picturesOf?: (videoId: string) => VideoPictures | null;
   /** A stage tag to draw in place of the type's own: one being laid out. */
   tag?: StageTag;
-  /** Each sound and clip gets a key that plays it (`MEDIA_KEYS`), drawn on it: a review, and a card tried as one. */
-  shortcuts?: boolean;
-  /** The key that turns the card, from anywhere on the page, drawn after "Tap to reveal" as the answers' keys are (a review's: Space); none by default. */
-  revealKey?: string | null;
+  /**
+   * The keys that play its sounds and clips, drawn on them, in the card's order (the layout's, both sides alike, so a
+   * field keeps its key when the card is turned): a review, and a card tried as one, give this device's (`keys.ts`); a
+   * place with no key leaves its sound without one. None by default.
+   */
+  shortcuts?: readonly (Shortcut | null)[];
+  /**
+   * "Tap to reveal" under the parts, on the front; left out where a button under the card shows the answer (the review's
+   * Show answer, which carries its key: the owner, 2026-10-21, "there's no reason for this since we already have the
+   * big blue button").
+   */
+  hint?: boolean;
 };
 
 /**
@@ -201,23 +204,26 @@ export function ReviewCard({
   subtitleStyle = DEFAULT_SUBTITLE_STYLE,
   picturesOf,
   tag = type.tag,
-  shortcuts = false,
-  revealKey = null,
+  shortcuts = [],
+  hint = true,
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
-  /** The spoilers pressed open, and what has played by itself, while the card is showing; turned back to its front, it starts over. */
+  /**
+   * The spoilers pressed open while the card is showing, which turned back to its front start over; and what has played
+   * by itself on the side showing, which starts over each time the card turns, so a clip set to play when the card
+   * comes up and when it's turned plays both times.
+   */
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
   const [played, setPlayed] = useState<ReadonlySet<string>>(() => new Set());
   /** What's playing by itself right now. */
   const [cued, setCued] = useState<string | null>(null);
   useEffect(() => {
-    if (revealed) return;
-    setOpened(new Set());
     setPlayed(new Set());
     setCued(null);
+    if (!revealed) setOpened(new Set());
   }, [revealed]);
 
   const drawn: Drawn[] = layout.flatMap((part) => {
@@ -324,18 +330,20 @@ export function ReviewCard({
     return kind === "audio" || kind === "video";
   };
   /** Each sound and clip's key, in the card's order across both sides, so turning the card changes none. */
-  const keyOf = new Map<string, string>();
-  if (shortcuts && !edit) {
+  const keyOf = new Map<string, Shortcut>();
+  if (!edit) {
+    let place = 0;
     for (const part of layout) {
       const field = fields.get(part.fieldId);
-      const key = MEDIA_KEYS[keyOf.size];
-      if (field && key && playable(field)) keyOf.set(field.id, key);
+      if (!field || !playable(field)) continue;
+      const key = shortcuts[place++];
+      if (key) keyOf.set(field.id, key);
     }
   }
 
-  // What plays by itself: in the card's order, each once while the card shows, as it comes into view (a spoiler as
-  // it's opened); one that leaves the card while it plays is done.
-  const due = autoplay && !edit && srcOf ? drawn.filter((d) => !d.held && d.part.auto && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
+  // What plays by itself: in the card's order, each once on a side, on the side its part says (`playsOn`: when the
+  // card comes up, when it's turned, or both), a spoiler as it's opened; one that leaves the card while it plays is done.
+  const due = autoplay && !edit && srcOf ? drawn.filter((d) => !d.held && playsOn(d.part.plays, side) && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
   const next = due[0]?.field.id ?? null;
   const liveKey = drawn.filter((d) => !d.held).map((d) => d.field.id).join(" ");
   useEffect(() => {
@@ -550,14 +558,7 @@ export function ReviewCard({
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
       {blocks}
-      <div className="review-hint">
-        Tap to reveal
-        {revealKey ? (
-          <span className="key" aria-hidden="true">
-            {revealKey}
-          </span>
-        ) : null}
-      </div>
+      {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>
   );
 }

@@ -19,6 +19,12 @@ export function langOf(text: string): "ja" | undefined {
   return isJapanese(text) ? "ja" : undefined;
 }
 
+const KEY_NAMES: Record<string, string> = { " ": "Space", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+/** A key as its keycap reads: "Space", "↑", "A", "1", "Enter". */
+export function keyWords(key: string): string {
+  return KEY_NAMES[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+}
+
 /** Seconds as a time on a player, "0:03", "12:34", and past the hour "1:02:03". */
 export function clock(seconds: number): string {
   const whole = Math.max(0, Math.floor(seconds));

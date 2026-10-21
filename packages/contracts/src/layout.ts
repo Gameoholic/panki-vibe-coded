@@ -26,6 +26,15 @@ export type PartTone = z.infer<typeof PartTone>;
  */
 export const MediaLook = z.enum(["player", "plain", "button", "voice", "round", "tile", "speaker"]);
 export type MediaLook = z.infer<typeof MediaLook>;
+/**
+ * When a sound or a clip plays by itself in a review (the owner, 2026-10-21: "either when I receive the card or when I
+ * flip to its back"): never, only when pressed; when the card comes up, if it's on the front then; when the card is
+ * turned, if it's on the back (a clip on both sides plays again); or both. A spoiler waits until it's opened.
+ */
+export const AutoPlay = z.enum(["never", "shown", "turned", "both"]);
+export type AutoPlay = z.infer<typeof AutoPlay>;
+/** Whether a part plays by itself on this side. */
+export const playsOn = (plays: AutoPlay, side: "front" | "back") => plays === "both" || plays === (side === "front" ? "shown" : "turned");
 
 /** One field's part on the card. What doesn't apply to its kind (a size for a link, a look for words) is kept and unused. */
 export const LayoutPart = z.object({
@@ -39,8 +48,8 @@ export const LayoutPart = z.object({
   /** Its name: over words, on a player or a button. */
   label: z.boolean(),
   look: MediaLook,
-  /** A sound or a clip plays by itself when it comes into view. */
-  auto: z.boolean(),
+  /** When a sound or a clip plays by itself (it was a switch, `auto`, "as it comes into view", until 2026-10-21). */
+  plays: AutoPlay,
   /** It sits beside the one above it, in one row, rather than under it. */
   beside: z.boolean(),
   /**

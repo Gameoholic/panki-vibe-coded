@@ -44,9 +44,9 @@ const id = (ids: string[], i: number): string => ids[i] ?? "";
  * The answers set apart work the same everywhere: Reset sends the card back to the first stage, Apprentice 1, to climb
  * again (it was Relearn, back to the first stage, then for a few hours back to New; the owner, 2026-10-21: "make it
  * Reset… puts it into the first stage after New"), Easy lifts it two (it was called Bury until 2026-10-17; the owner
- * kept the sound of it in mind for a button that hides a card, which this one never did; it asks first no more since
- * 2026-10-21), and Snooze and Suspend put the card aside where it stands (the owner, 2026-10-21), applied at once, as
- * nothing they do is lost. New (`wanikaniPlusLesson`): Ok or Easy learns it, and Forgot asks it again until it's got
+ * kept the sound of it in mind for a button that hides a card, which this one never did), and Snooze and Suspend put
+ * the card aside where it stands (the owner, 2026-10-21). All four ask for confirmation (Easy, Snooze and Suspend went
+ * without for a day, 2026-10-21, and came back to it at the owner's word). New (`wanikaniPlusLesson`): Ok or Easy learns it, and Forgot asks it again until it's got
  * right, then learns it.
  */
 const WK_CHANCE_FROM = 4;
@@ -112,7 +112,9 @@ const STARTERS: Record<SrsStarterId, Starter> = {
     stages: [[4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
     // The third was Relearn and the fifth Bury until the owner renamed them Reset and Snooze, 2026-10-21; the fifth's rule is still the `bury` step.
-    answers: ["Forgot", "Ok", ["Reset", "aside"], ["Easy", "aside", false], ["Snooze", "aside", false], ["Suspend", "aside", false]],
+    // Every one set apart asks for confirmation (Easy, Snooze and Suspend again at the owner's word, 2026-10-21, once a
+    // held key could be the yes: held longer instead of asked, `keys.ts` → `askMs`).
+    answers: ["Forgot", "Ok", ["Reset", "aside"], ["Easy", "aside"], ["Snooze", "aside"], ["Suspend", "aside"]],
     flow: (a, s) => wanikaniPlusFlow(a, s, false),
     overrides: (a, s) => Object.fromEntries(s.slice(WK_CHANCE_FROM).map((stageId) => [stageId, wanikaniPlusFlow(a, s, true)])),
     lesson: (a) => wanikaniPlusLesson(a),

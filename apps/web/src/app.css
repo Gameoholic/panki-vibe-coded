@@ -2178,6 +2178,8 @@ mark.sub-mark {
 .btn-answer .key,
 .review-aside .key,
 .review-hint .key,
+.review-actions > .btn-primary .key,
+.key-field .key,
 .media-key {
   display: inline-grid;
   place-items: center;
@@ -2195,7 +2197,60 @@ mark.sub-mark {
   margin-top: 4px;
   color: var(--muted);
 }
-/* The key that plays a card's sound or clip in a review (`ReviewCard` → `MEDIA_KEYS`), the same keycap, beside what it
+/* A key set by pressing it (`KeyField`, Settings → Keybinds): its keycap on a chip as wide as "Press a key", × beside it. */
+.key-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-chip.key-field-button {
+  min-width: 108px;
+  justify-content: center;
+}
+.btn-icon.key-field-clear {
+  padding: 6px;
+  color: var(--muted);
+}
+/* The rows of Settings → Keybinds: the key, then whether it's pressed or held. */
+.key-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* A key being held on a button until it does its thing (`useHold`, a key set to hold in Settings → Keybinds): its keycap
+   a clock face, filling round from the top as far as it's been held, its edge drawn round with it (look 6, Keycap
+   clock, of https://claude.ai/artifact/DRi1kaVpLt677h9LUyFDHf, the owner's pick, 2026-10-21). `--hold` is set on the
+   button and read here. In the answer's colour on a plain answer, in the button's own on the filled one. */
+.key.is-hold {
+  --hold-ink: currentColor;
+  position: relative;
+  background: conic-gradient(color-mix(in srgb, var(--hold-ink) 24%, transparent) calc(var(--hold, 0) * 1turn), transparent 0);
+}
+.btn-answer.ans-down .key.is-hold,
+.btn-answer.ans-mid .key.is-hold {
+  --hold-ink: var(--ans);
+}
+.key.is-hold::after {
+  content: "";
+  position: absolute;
+  inset: -1px -1px -3px;
+  padding: 2px;
+  border-radius: 6px;
+  pointer-events: none;
+  background: conic-gradient(var(--hold-ink) calc(var(--hold, 0) * 1turn), transparent 0);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* Show answer carries its key too, the one to hold. */
+.review-actions > .btn-primary {
+  gap: 10px;
+}
+/* The key that plays a card's sound or clip in a review (`ReviewCard`'s `shortcuts`, `keys.ts`), the same keycap, beside what it
    plays: after the play button, at the end of a chip, a tile or a speaker, under a round button. */
 .media-key {
   flex: none;
@@ -2707,6 +2762,165 @@ mark.sub-mark {
 }
 .review-card.is-revealed:active {
   background: var(--surface);
+}
+/* The answers set apart hold their room on the front, unseen (as the back's parts do), so turning the card moves nothing. */
+.review-asides.is-later {
+  visibility: hidden;
+}
+/* The review on a computer fits the window, nothing scrolled to (the owner, 2026-10-21: "make it so I never have to
+   scroll, fit everything into the screen, make the buttons smaller if needed"): the app exactly the window's height;
+   the counts with the Chart button at their right, the card, the answers one line each and the answers set apart take
+   their own height, and the card takes the rest. In the card every part takes its own height but a clip's, which takes
+   what's left (a size container), its picture 16:9 as big as that fits with its bar under it. The back's parts hold
+   their room on the front, so the clip is the same size on both sides. The chart, when it's open, hangs under all of
+   that, the page scrolling down to it, so opening it moves nothing above. On a phone, or where the card can't fit even
+   with the clip at its least, the page scrolls as it always did. */
+@media (min-width: 641px) {
+  .app:has(.main > .review.is-fit) {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .app:has(.main > .review) .main,
+  .app:has(.main > .review) .subhead {
+    max-width: 1080px;
+  }
+  .app:has(.main > .review.is-fit) .subhead {
+    padding-top: 12px;
+  }
+  .app:has(.main > .review.is-fit) .main {
+    min-height: 0;
+    padding-top: 6px;
+    padding-bottom: 8px;
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+  }
+  .main > .review.is-fit {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .main > .review.is-fit > * {
+    flex: none;
+  }
+  .main > .review.is-fit > .review-chart-row {
+    position: absolute;
+    top: -4px;
+    right: 0;
+    margin: 0;
+  }
+  .main > .review.is-fit > .review-chart {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding-bottom: 16px;
+  }
+  .main > .review.is-fit > .review-card {
+    flex: 1 1 0;
+    min-height: auto;
+    padding: 12px 24px;
+    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .main > .review.is-fit > .review-card > * {
+    flex: none;
+  }
+  /* What holds the clip grows: its part, or the run of the back's parts or the row it's in, and then its part. */
+  .main > .review.is-fit > .review-card > :has(video.media-frame),
+  .main > .review.is-fit > .review-card > .review-answer > :has(video.media-frame) {
+    flex: 1 1 0;
+    min-height: 240px;
+    width: 100%;
+  }
+  .main > .review.is-fit > .review-card > .review-answer:has(video.media-frame) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .main > .review.is-fit > .review-card > .review-answer:has(video.media-frame) > * {
+    flex: none;
+  }
+  .main > .review.is-fit .review-row:has(video.media-frame) {
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+  .main > .review.is-fit .review-row > .review-part {
+    align-content: center;
+  }
+  .main > .review.is-fit .review-row > .review-part:has(video.media-frame) {
+    width: auto;
+  }
+  .main > .review.is-fit .review-part:has(video.media-frame) {
+    container-type: size;
+    align-content: center;
+  }
+  /* As wide as a 16:9 picture with the bar under it (about 60 px with its gap) fits in the part's height. */
+  .main > .review.is-fit .review-part:has(video.media-frame) .media.media-player {
+    width: min(100cqw, calc((100cqh - 54px) * 16 / 9));
+    gap: 4px;
+  }
+  .main > .review.is-fit .review-part .media-player video.media-frame {
+    max-height: none;
+  }
+  /* The answers on one line each: the name, where it goes, the key. Show answer as tall. */
+  .main > .review.is-fit .btn-answer {
+    grid-auto-flow: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+  }
+  .main > .review.is-fit .btn-answer .key {
+    margin-top: 0;
+  }
+  /* Show answer and the answers that take its place are one height, so the card keeps its size as it turns. */
+  .main > .review.is-fit > .review-actions {
+    grid-auto-rows: 46px;
+  }
+  .main > .review.is-fit > .review-actions > .btn {
+    height: 100%;
+    padding-block: 0;
+  }
+  .main > .review.is-fit .btn-chip.review-aside {
+    padding: 3px 10px;
+  }
+  .main > .review.is-fit .btn-answer {
+    padding-block: 6px;
+  }
+}
+/* On a wide window the clip stands at the card's left, as tall as the card, and the card's other parts in a column at
+   its right: under one another they didn't fit with the clip any bigger than it was. */
+@media (min-width: 960px) {
+  .main > .review.is-fit > .review-card:has(video.media-frame) {
+    --clip-side: 52%;
+    padding-left: calc(var(--clip-side) + 24px);
+  }
+  .main > .review.is-fit > .review-card > .review-answer:has(video.media-frame) {
+    display: grid;
+    flex: none;
+    min-height: 0;
+  }
+  .main > .review.is-fit > .review-card > .review-part:has(video.media-frame),
+  .main > .review.is-fit > .review-card > .review-answer > .review-part:has(video.media-frame) {
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: 24px;
+    width: calc(var(--clip-side) - 24px);
+    min-height: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+  }
+  /* A long sentence beside the clip, a little closer set. */
+  .main > .review.is-fit > .review-card:has(video.media-frame) .review-words.is-long {
+    line-height: 1.4;
+  }
 }
 /* The stage tag in its corner of the card, at its size (the type's `StageTag`, laid out on the card in the Layout tab). */
 .review-place {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_STAGE_TAG, FaceShow, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type StageTag } from "./layout";
+import { AutoPlay, DEFAULT_STAGE_TAG, FaceShow, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type StageTag } from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -12,6 +12,8 @@ const KeptPart = z.object({
   bold: z.boolean().optional().catch(undefined),
   label: z.boolean().optional().catch(undefined),
   look: MediaLook.optional().catch(undefined),
+  plays: AutoPlay.optional().catch(undefined),
+  /** Kept before `plays`: on was "as it comes into view", which is when the card comes up for a part on the front and when it's turned for one only on the back. */
   auto: z.boolean().optional().catch(undefined),
   beside: z.boolean().optional().catch(undefined),
   over: z.string().nullable().optional().catch(undefined),
@@ -39,7 +41,7 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     bold: field.id === lead?.id,
     label: false,
     look: "player",
-    auto: false,
+    plays: "never",
     beside: false,
     over: null,
     mark: null,
@@ -75,7 +77,9 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
     const base = byId.get(read.data.fieldId);
     if (!base || placed.has(base.fieldId)) continue;
     placed.add(base.fieldId);
-    const { fieldId: _id, ...own } = read.data;
+    const { fieldId: _id, auto, ...own } = read.data;
+    const front = own.front ?? base.front;
+    const plays = own.plays ?? (auto === undefined ? undefined : !auto ? "never" : front !== "hide" ? "shown" : "turned");
     parts.push({
       ...base,
       ...(own.front !== undefined ? { front: own.front } : {}),
@@ -86,7 +90,7 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       bold: own.bold ?? (own.size ?? base.size) === "big",
       ...(own.label !== undefined ? { label: own.label } : {}),
       ...(own.look !== undefined ? { look: own.look } : {}),
-      ...(own.auto !== undefined ? { auto: own.auto } : {}),
+      ...(plays !== undefined ? { plays } : {}),
       ...(own.beside !== undefined ? { beside: own.beside } : {}),
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
       ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
