@@ -4,7 +4,7 @@ import { openAuthDb } from "../authDb";
 import { userDir } from "../dbs";
 import { env } from "../env";
 import { sharedDictionaryDir } from "../mediaFiles";
-import { accountSpace, fileCount, folderBytes, sharedBytes, spaceOf } from "../space";
+import { accountSpace, fileCount, folderBytes, sharedBytes, spaceOf, transcriptsSpace } from "../space";
 
 /**
  * `pnpm space`: what Panki's data takes on the disk, account by account (its clips, sounds and pictures, and the rest:
@@ -47,6 +47,9 @@ function main() {
   const dictionaries = sharedDictionaryDir(env.dataDir);
   const zips = fileCount(dictionaries);
   if (zips > 0) row("  Dictionaries", folderBytes(dictionaries), files(zips));
+  // About: worked out from the transcripts' rows (`transcriptsSpace`).
+  const transcripts = transcriptsSpace(env.dataDir);
+  if (transcripts && transcripts.videos > 0) row("  Transcripts, about", transcripts.bytes, `${transcripts.videos} ${transcripts.videos === 1 ? "video" : "videos"}, ${transcripts.words} words`);
   console.log("");
   const space = spaceOf(env.dataDir, env.lowSpaceBytes);
   row("All of Panki", folderBytes(env.dataDir));

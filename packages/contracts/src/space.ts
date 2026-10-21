@@ -35,7 +35,12 @@ export const StorageReport = z.object({
       kinds: z.array(FilesOfKind).nullable(),
     }),
   ),
-  shared: z.object({ bytes, dictionaries: z.object({ bytes, files }) }),
+  shared: z.object({
+    bytes,
+    dictionaries: z.object({ bytes, files }),
+    /** The transcripts in the shared store: about how much they take (worked out from their rows), how many videos, how many words; null when it couldn't be read. */
+    transcripts: z.object({ bytes, videos: files, words: files }).nullable(),
+  }),
   /** Everything under the data folder. */
   allBytes: bytes,
   disk: Space,

@@ -77,6 +77,47 @@ export function accountSpace(userDir: string): { bytes: number; mediaBytes: numb
   return { bytes: folderBytes(userDir), mediaBytes: folderBytes(mediaDir(userDir)), kinds: filesByKind(userDir) };
 }
 
+/** Bytes a row takes besides its words and ids: its header, its rowid, its numbers; and the share of a page left empty. */
+const ROW_OVERHEAD = { word: 30, wordIndex: 12, piece: 60, pieceIndex: 10, fix: 30, quiet: 100 } as const;
+const PAGE_SLACK = 1.25;
+
+/**
+ * What the transcripts take in the shared store, worked out from their rows (the owner, 2026-10-22: "add to the storage
+ * how much is taken up by transcripts"): every word (its text, its video, its piece, its index entry, those taken out
+ * included, as they're kept), every piece of sound sent, every fix and every stretch of quiet, with what a row and a
+ * page take besides. About, not exact: Node's SQLite can't say what each table takes on the disk (it has no `dbstat`).
+ * Opened for reading only; null when the store can't be read.
+ */
+export function transcriptsSpace(dataDir: string): { bytes: number; videos: number; words: number } | null {
+  const file = path.join(dataDir, "shared.sqlite");
+  if (!existsSync(file)) return null;
+  try {
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      const one = (sql: string) => db.prepare(sql).get() ?? {};
+      const num = (value: unknown) => Number(value ?? 0);
+      const videos = num(one("SELECT COUNT(*) AS n FROM transcripts").n);
+      const words = one("SELECT COUNT(*) AS n, SUM(LENGTH(CAST(text AS BLOB)) + 2 * LENGTH(video_id) + LENGTH(piece_id)) AS data FROM transcript_words");
+      const pieces = one("SELECT COUNT(*) AS n, SUM(2 * LENGTH(id) + LENGTH(video_id) + LENGTH(engine) + LENGTH(user_id)) AS data FROM transcript_pieces");
+      const fixes = one("SELECT COUNT(*) AS n, SUM(LENGTH(CAST(from_text AS BLOB)) + LENGTH(CAST(to_text AS BLOB)) + LENGTH(user_id)) AS data FROM transcript_fixes");
+      const quiet = one("SELECT COUNT(*) AS n FROM transcript_quiet");
+      const raw =
+        num(words.data) +
+        num(words.n) * (ROW_OVERHEAD.word + ROW_OVERHEAD.wordIndex) +
+        num(pieces.data) +
+        num(pieces.n) * (ROW_OVERHEAD.piece + ROW_OVERHEAD.pieceIndex) +
+        num(fixes.data) +
+        num(fixes.n) * ROW_OVERHEAD.fix +
+        num(quiet.n) * ROW_OVERHEAD.quiet;
+      return { bytes: Math.round(raw * PAGE_SLACK), videos, words: num(words.n) };
+    } finally {
+      db.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** The shared store's database with its WAL files, and everything under the shared folder. */
 export function sharedBytes(dataDir: string): number {
   const database = ["shared.sqlite", "shared.sqlite-wal", "shared.sqlite-shm"].reduce((sum, name) => sum + fileBytes(path.join(dataDir, name)), 0);
@@ -91,7 +132,7 @@ export function storageReport(dataDir: string, auth: AuthDb, lowBytes: number): 
   const dictionaries = sharedDictionaryDir(dataDir);
   return {
     accounts: auth.listUsers().map((user) => ({ name: user.name, ...accountSpace(userDir(dataDir, user.id)) })),
-    shared: { bytes: sharedBytes(dataDir), dictionaries: { bytes: folderBytes(dictionaries), files: fileCount(dictionaries) } },
+    shared: { bytes: sharedBytes(dataDir), dictionaries: { bytes: folderBytes(dictionaries), files: fileCount(dictionaries) }, transcripts: transcriptsSpace(dataDir) },
     allBytes: folderBytes(dataDir),
     disk: spaceOf(dataDir, lowBytes),
   };

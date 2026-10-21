@@ -619,7 +619,15 @@ function StorageSection() {
           <div className="kept-row">
             <span className="kept-name">
               Shared
-              <span className="row-sub">{report.shared.dictionaries.files > 0 ? kindWords("Dictionaries", report.shared.dictionaries.bytes, report.shared.dictionaries.files) : "No dictionaries"}</span>
+              <span className="row-sub">
+                {[
+                  report.shared.dictionaries.files > 0 ? kindWords("Dictionaries", report.shared.dictionaries.bytes, report.shared.dictionaries.files) : "No dictionaries",
+                  // About: worked out from the transcripts' rows, the store can't say exactly (the owner, 2026-10-22).
+                  ...(report.shared.transcripts && report.shared.transcripts.videos > 0
+                    ? [`Transcripts about ${sizeWords(report.shared.transcripts.bytes)} (${count(report.shared.transcripts.videos, "video", "videos")}, ${count(report.shared.transcripts.words, "word", "words")})`]
+                    : []),
+                ].join(" · ")}
+              </span>
             </span>
             <span className="kept-size">{sizeWords(report.shared.bytes)}</span>
           </div>
