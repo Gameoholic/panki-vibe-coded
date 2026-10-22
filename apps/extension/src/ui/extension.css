@@ -1130,6 +1130,14 @@
   color: var(--yh-fg);
   font: 500 14px/1 var(--yh-font);
 }
+/* The profile in use, right after the mark: always there while Panki is on, so it's plain which Panki this is. */
+.ym-profile {
+  max-width: 12em;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* An update for the extension, on the mark's corner: the accent while one is available, the flag's amber while one is needed. */
 .ym-update {
   position: absolute;

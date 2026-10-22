@@ -76,9 +76,9 @@ The VPS pulls over HTTPS, which a public repository needs nothing for.
 
 ## The extension
 
-`pnpm build` builds it with everything else, into `apps/extension/dist/chrome` and `apps/extension/dist/firefox`, and writes `apps/extension/dist/chrome.zip`, which Panki hands out: each deploy builds it on the VPS, so panki.pro always carries the extension of its own commit. No store.
+`pnpm build` builds it with everything else, into `apps/extension/dist/chrome` and `apps/extension/dist/firefox`. Panki hands out `dist/chrome` as a zip, with its own address in it for Update Panki: each deploy builds it on the VPS, so panki.pro always carries the extension of its own commit. No store.
 
-**From Panki (any computer):** Settings → Extension → Download, extract the zip to a folder you'll keep (`C:\Panki`), then in Chrome `chrome://extensions`, Developer mode, Load unpacked, that folder. When there's a newer build on Panki, the extension says so (the badge on its button, the strip, the pill, its own page): double-click **Update Panki** in that folder (the first time it asks where your Panki is), then press **Reload Panki**. Or download the zip again and extract it over the folder.
+**From Panki (any computer):** Settings → Extension → Download, extract the zip to a folder you'll keep (`C:\Panki`), then in Chrome `chrome://extensions`, Developer mode, Load unpacked, that folder. When there's a newer build on Panki, the extension says so (the badge on its button, the strip, the pill, its own page): double-click **Update Panki** in that folder (it updates from the Panki the zip came from), then press **Reload Panki**. Or download the zip again and extract it over the folder.
 
 1. **Chrome, from this repo:** open `chrome://extensions`, switch on Developer mode, press Load unpacked, choose `apps/extension/dist/chrome`. It stays until you remove it. After a rebuild, press the reload arrow on its card, then reload any YouTube tab that was already open.
 2. **Firefox:** open `about:debugging#/runtime/this-firefox`, press Load Temporary Add-on, choose `apps/extension/dist/firefox/manifest.json`. Firefox forgets it when it closes; keeping it needs Mozilla's signature, which hasn't been asked for.

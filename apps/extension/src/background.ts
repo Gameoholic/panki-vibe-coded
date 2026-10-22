@@ -286,7 +286,8 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     // Panki on YouTube's own pages: the tiles over its home's videos, and the marks on its thumbnails.
     if (ask.kind === "home") {
       const [stats, decks, settings, saved] = await Promise.all([panki.stats(door), panki.decks(door), panki.settings(door), panki.saved(door)]);
-      return { ok: true, name: store.userName ?? "", stats, decks, settings, saved };
+      // The profile's own name when it has one ("Prod", "Dev"), the account's otherwise: the pill says which Panki this is.
+      return { ok: true, name: store.userName ?? "", profile: store.profileName || (store.userName ?? ""), stats, decks, settings, saved };
     }
     if (ask.kind === "glance") return { ok: true, videos: await panki.glance(door, ask.videoIds) };
     // Saved for later, the account's own on Panki: a save from a thumbnail's button, or one taken back.

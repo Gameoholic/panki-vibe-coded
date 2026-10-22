@@ -6,10 +6,9 @@
 import react from "@vitejs/plugin-react";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { build } from "vite";
-import { filesUnder, writeZip } from "./zip.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const web = path.resolve(root, "../web");
@@ -102,12 +101,24 @@ write(firefox, {
  * files always give the same one, so a deploy that changes nothing of the extension leaves it, and an extension tells
  * an update by comparing its own with the one Panki's server carries (the contracts' `extension.ts`). It's written
  * beside them as `build.json`, left out of what it's worked out from, with the day the extension's sources last changed
- * (from git; the day it's built when git can't say). Last, the zip the server hands out, `dist/chrome.zip`.
+ * (from git; the day it's built when git can't say). The zip is the server's to make as it's downloaded, with its own
+ * address in it (`apps/api/src/routes/extension.ts`).
  */
 const updater = path.join(root, "update");
 // A batch file is read by Windows' own rules: lines that end the Windows way, whatever the checkout gave.
 writeFileSync(path.join(out, "Update Panki.cmd"), readFileSync(path.join(updater, "Update Panki.cmd"), "utf8").replace(/\r?\n/g, "\r\n"));
 cpSync(path.join(updater, "update.ps1"), path.join(out, "update.ps1"));
+
+/** Every file under a folder, as paths from it with forward slashes, in one fixed order. */
+function filesUnder(dir, from = dir) {
+  return readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      const at = path.join(dir, entry.name);
+      if (entry.isDirectory()) return filesUnder(at, from);
+      return entry.isFile() ? [path.relative(from, at).split(path.sep).join("/")] : [];
+    })
+    .sort();
+}
 
 const BUILD_FILE = "build.json";
 const hash = createHash("sha256");
@@ -130,6 +141,5 @@ function changedAt() {
   return new Date().toISOString().slice(0, 10);
 }
 writeFileSync(path.join(out, BUILD_FILE), `${JSON.stringify({ fingerprint, changedAt: changedAt() }, null, 2)}\n`);
-writeZip(out, path.join(dist, "chrome.zip"), new Date());
 
-console.log(`Panki extension ${version} (${fingerprint}) built: ${path.relative(process.cwd(), out)} for Chrome, with ${path.relative(process.cwd(), path.join(dist, "chrome.zip"))}; ${path.relative(process.cwd(), firefox)} for Firefox.`);
+console.log(`Panki extension ${version} (${fingerprint}) built: ${path.relative(process.cwd(), out)} for Chrome, ${path.relative(process.cwd(), firefox)} for Firefox.`);

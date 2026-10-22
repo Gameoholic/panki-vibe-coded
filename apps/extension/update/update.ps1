@@ -2,8 +2,9 @@
 # carries. Chrome won't let an extension change its own files, so this does it from outside; Reload Panki finishes it.
 #
 # It only ever downloads from that one Panki, over HTTPS (or from this computer itself, for a dev server), writes only
-# into this folder, and runs nothing it downloads. Where Panki is, is asked the first time and kept beside it, in
-# update-from.txt, which an update never touches.
+# into this folder, and runs nothing it downloads. Where Panki is, is in update-from.txt beside it: the Panki the zip
+# came from writes its own address there as it hands the zip out, and an update never touches it. Without it (a zip
+# from before), it's asked for.
 #
 # It never replaces itself: this script and Update Panki.cmd are left as they are, whatever the
 # zip holds. Someone who took over the repository or the server could change the extension, which Chrome keeps boxed
@@ -17,8 +18,8 @@ try {
   if (Test-Path $kept) {
     $address = (Get-Content -Path $kept -Raw).Trim()
   } else {
-    $typed = (Read-Host 'Where is your Panki? (Enter for https://panki.pro; a dev server is 127.0.0.1:5173)').Trim()
-    $address = if ($typed) { $typed } else { 'https://panki.pro' }
+    $address = (Read-Host 'Where is your Panki? (its address, as you open it in Chrome)').Trim()
+    if (-not $address) { throw 'No address was typed.' }
     # Typed without its http:// or https://: this computer's own (a dev server) is plain HTTP, anywhere else HTTPS.
     if ($address -notmatch '^https?://') { $address = if ($address -match '^(127\.0\.0\.1|localhost)(:\d+)?/?$') { "http://$address" } else { "https://$address" } }
   }

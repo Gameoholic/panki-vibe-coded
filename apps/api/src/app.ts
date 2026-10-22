@@ -34,7 +34,7 @@ export type AppDeps = {
   shared: Shared;
   /** Where the shared dictionaries' zips live. */
   dictionaryDir: string;
-  /** Where `pnpm build` leaves the extension: its build, and the zip handed out for it. */
+  /** Where `pnpm build` leaves the extension: its Chrome build, handed out as a zip. */
   extensionDir: string;
   /** What's left on the disk under the data. Passed in, like the clock, so it can be pinned in tests. */
   space: () => Space;

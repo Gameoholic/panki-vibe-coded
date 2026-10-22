@@ -223,8 +223,8 @@ export type Moduled = z.infer<typeof Moduled>;
 /** A video as the account's watching has it. */
 const Watched = z.union([z.object({ ok: z.literal(true), video: WatchedVideo }), Failed]);
 export type Watched = z.infer<typeof Watched>;
-/** Panki for YouTube's home: who's signed in, the account's stats, its decks (what's due) and its settings. */
-const Homed = z.union([z.object({ ok: z.literal(true), name: z.string(), stats: Stats, decks: z.array(Deck), settings: Settings, saved: z.array(SavedVideo) }), Failed]);
+/** Panki for YouTube's home: who's signed in (the account, and what the profile in use is called), the account's stats, its decks (what's due) and its settings. */
+const Homed = z.union([z.object({ ok: z.literal(true), name: z.string(), profile: z.string(), stats: Stats, decks: z.array(Deck), settings: Settings, saved: z.array(SavedVideo) }), Failed]);
 export type Homed = z.infer<typeof Homed>;
 /** The videos saved for later, as they stand after a save or a save taken back. */
 const Saved = z.union([z.object({ ok: z.literal(true), videos: z.array(SavedVideo) }), Failed]);

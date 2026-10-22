@@ -61,18 +61,22 @@ export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; wor
  * The pill: the mark, then each shown part (none while `numbers` is null: Panki switched off, or not known yet), the
  * whole of it pressed for `onClick`; then `power`, Panki's on / off switch, when it's to be there. `update` puts a dot
  * on the mark while the extension has an update: the accent's while one is available, the flag's amber while one is
- * needed (`ui/UpdateNotice.tsx` says what it is).
+ * needed (`ui/UpdateNotice.tsx` says what it is). `profile` is what the profile in use is called, right after the mark:
+ * always said while Panki is on and signed in, with no switch to hide it (the owner, 2026-10-22), so it's always plain
+ * which Panki this is, the real one or the one for trying things.
  */
 export function PankiPill({
   layout,
   numbers,
   onClick,
+  profile = null,
   power = null,
   update = null,
 }: {
   layout: PillLayout;
   numbers: PillNumbers | null;
   onClick: () => void;
+  profile?: string | null;
   power?: { on: boolean; onChange: (on: boolean) => void } | null;
   update?: "available" | "needed" | null;
 }) {
@@ -85,9 +89,10 @@ export function PankiPill({
   const said = update === "needed" ? "update needed" : update === "available" ? "update available" : null;
   return (
     <span className="ym-pill-wrap">
-      <Button className="ym-pill" aria-label={["Panki", ...(said ? [said] : []), ...parts.map((p) => p.said)].join(", ")} onClick={onClick}>
+      <Button className="ym-pill" aria-label={["Panki", ...(profile ? [profile] : []), ...(said ? [said] : []), ...parts.map((p) => p.said)].join(", ")} onClick={onClick}>
         <Mark size={18} />
         {update ? <i className={`ym-update is-${update}`} aria-hidden="true" /> : null}
+        {profile ? <span className="ym-profile">{profile}</span> : null}
         {parts.map((p) => (
           <span key={p.id} className={`ym-part is-${p.id}`}>
             <Icon name={p.icon} />

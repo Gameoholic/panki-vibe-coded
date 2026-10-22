@@ -84,7 +84,8 @@ function cell<T>(value: T) {
   };
 }
 
-type Home = { name: string; stats: Stats; decks: Deck[]; settings: Settings; saved: SavedVideo[] };
+/** `profile` is what the profile in use is called (its own name, or the account's): the pill always says it. */
+type Home = { name: string; profile: string; stats: Stats; decks: Deck[]; settings: Settings; saved: SavedVideo[] };
 /** What Panki knows for the page: nothing yet, the account, or why not (signed out, or Panki unreachable). */
 type Known = { kind: "loading" } | { kind: "home"; home: Home } | { kind: "failed"; message: string; signedOut: boolean };
 /** How many cards of `--yh-small` fit one row of an element, as it's laid out now, followed as it changes width; one at least. */
@@ -141,7 +142,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     asked = true;
     try {
       const answer = await askHome();
-      if (answer.ok) known.set({ kind: "home", home: { name: answer.name, stats: answer.stats, decks: answer.decks, settings: answer.settings, saved: answer.saved } });
+      if (answer.ok) known.set({ kind: "home", home: { name: answer.name, profile: answer.profile, stats: answer.stats, decks: answer.decks, settings: answer.settings, saved: answer.saved } });
       else known.set({ kind: "failed", message: answer.message, signedOut: "signedOut" in answer && answer.signedOut === true });
     } finally {
       asking = false;
@@ -170,7 +171,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       );
     }
     // What it says is the viewer's own, picked and ordered on the options page (`modules.ts` → `PillLayout`).
-    return <PankiPill layout={raw.pill} numbers={pillNumbersOf(now.home.stats, now.home.decks)} power={power} update={update} onClick={() => void askOpenPanki()} />;
+    return <PankiPill layout={raw.pill} numbers={pillNumbersOf(now.home.stats, now.home.decks)} profile={now.home.profile} power={power} update={update} onClick={() => void askOpenPanki()} />;
   }
 
   // ---- The top of the home.
