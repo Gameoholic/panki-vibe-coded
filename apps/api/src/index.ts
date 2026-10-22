@@ -30,7 +30,7 @@ const server = createApp({
   shared,
   dictionaryDir: sharedDictionaryDir(env.dataDir),
   space,
-  storage: () => storageReport(env.dataDir, auth, env.lowSpaceBytes),
+  storage: () => storageReport(env.dataDir, env.backupDir, env.backupSlots, auth, env.lowSpaceBytes),
   // Every request to Forvo is counted, for the day's allowance an admin sees in Settings.
   forvo: createForvo(fetch, () => shared.recordCall("forvo", Date.now())),
   wordAudioKeys: env.wordAudioKeys,

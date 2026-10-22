@@ -569,8 +569,8 @@ const kindWords = (name: string, bytes: number, files: number) => `${name} ${siz
 /**
  * What Panki's data takes on the disk, for an admin to keep an eye on the clips and sounds (the owner, 2026-10-17:
  * "the current storage plus storage allocated, so I know once the videos and audios take too much space"; read-only,
- * nothing to clean up here yet, by their word). Each account with its files by kind, what everyone shares, the whole
- * of Panki, and the disk it's on. Read once as the panel opens: it walks every file.
+ * nothing to clean up here yet, by their word). Each account with its files by kind, what everyone shares, the backups,
+ * the whole of Panki, and the disk it's on. Read once as the panel opens: it walks every file.
  */
 function StorageSection() {
   const [report, setReport] = useState<StorageReport | null>(null);
@@ -630,6 +630,19 @@ function StorageSection() {
               </span>
             </span>
             <span className="kept-size">{sizeWords(report.shared.bytes)}</span>
+          </div>
+          <div className="kept-row">
+            <span className="kept-name">
+              Backups
+              <span className="row-sub">
+                {[
+                  report.backups.latestAt === null ? "None yet" : `Latest ${dateWords(report.backups.latestAt)}`,
+                  `${report.backups.snapshots} of ${report.backups.keep} slots`,
+                  ...(report.backups.filesBytes > 0 ? [`Files ${sizeWords(report.backups.filesBytes)}`] : []),
+                ].join(" · ")}
+              </span>
+            </span>
+            <span className="kept-size">{sizeWords(report.backups.bytes)}</span>
           </div>
           <div className="kept-row">
             <span className="kept-name">All of Panki</span>

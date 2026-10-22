@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { MediaKind, type Space, type StorageReport } from "@panki/contracts";
 import type { AuthDb } from "./authDb";
+import { momentOf, snapshotsIn } from "./backups";
 import { userDir } from "./dbs";
 import { mediaDir, sharedDictionaryDir } from "./mediaFiles";
 
@@ -124,16 +125,32 @@ export function sharedBytes(dataDir: string): number {
   return database + folderBytes(path.join(dataDir, "shared"));
 }
 
+/** What `pnpm backup`'s folder takes: all of it, its snapshots of the most kept and the newest's moment, and the files apart. */
+export function backupsSpace(backupDir: string, keep: number): StorageReport["backups"] {
+  const snapshots = snapshotsIn(backupDir);
+  const latest = snapshots.at(-1);
+  return {
+    bytes: folderBytes(backupDir),
+    snapshots: snapshots.length,
+    keep,
+    latestAt: latest ? momentOf(latest) : null,
+    filesBytes: folderBytes(path.join(backupDir, "files")),
+  };
+}
+
 /**
- * The whole of it as one report, for an admin's Settings and for `pnpm space`: each account, what everyone shares, all
- * of Panki, and the disk. Read afresh each time; it walks every file, so it's asked for on purpose, never on every screen.
+ * The whole of it as one report, for an admin's Settings and for `pnpm space`: each account, what everyone shares, the
+ * backups, all of Panki, and the disk. Read afresh each time; it walks every file, so it's asked for on purpose, never
+ * on every screen.
  */
-export function storageReport(dataDir: string, auth: AuthDb, lowBytes: number): StorageReport {
+export function storageReport(dataDir: string, backupDir: string, backupSlots: number, auth: AuthDb, lowBytes: number): StorageReport {
   const dictionaries = sharedDictionaryDir(dataDir);
+  const backups = backupsSpace(backupDir, backupSlots);
   return {
     accounts: auth.listUsers().map((user) => ({ name: user.name, ...accountSpace(userDir(dataDir, user.id)) })),
     shared: { bytes: sharedBytes(dataDir), dictionaries: { bytes: folderBytes(dictionaries), files: fileCount(dictionaries) }, transcripts: transcriptsSpace(dataDir) },
-    allBytes: folderBytes(dataDir),
+    backups,
+    allBytes: folderBytes(dataDir) + backups.bytes,
     disk: spaceOf(dataDir, lowBytes),
   };
 }

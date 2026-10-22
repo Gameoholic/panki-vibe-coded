@@ -4,12 +4,12 @@ import { openAuthDb } from "../authDb";
 import { userDir } from "../dbs";
 import { env } from "../env";
 import { sharedDictionaryDir } from "../mediaFiles";
-import { accountSpace, fileCount, folderBytes, sharedBytes, spaceOf, transcriptsSpace } from "../space";
+import { accountSpace, backupsSpace, fileCount, folderBytes, sharedBytes, spaceOf, transcriptsSpace } from "../space";
 
 /**
  * `pnpm space`: what Panki's data takes on the disk, account by account (its clips, sounds and pictures, and the rest:
- * the cards and their history), then what everyone shares (the shared store and its dictionaries), and what's left on
- * that disk. It changes nothing, and can be run while the server is up. The same numbers stand in an admin's Settings
+ * the cards and their history), then what everyone shares (the shared store and its dictionaries), the backups, and
+ * what's left on that disk. It changes nothing, and can be run while the server is up. The same numbers stand in an admin's Settings
  * (`space.ts` → `storageReport`).
  */
 
@@ -51,8 +51,13 @@ function main() {
   const transcripts = transcriptsSpace(env.dataDir);
   if (transcripts && transcripts.videos > 0) row("  Transcripts, about", transcripts.bytes, `${transcripts.videos} ${transcripts.videos === 1 ? "video" : "videos"}, ${transcripts.words} words`);
   console.log("");
+  const backups = backupsSpace(env.backupDir, env.backupSlots);
+  const latest = backups.latestAt === null ? "none yet" : `latest ${new Date(backups.latestAt).toLocaleString("en-GB", { timeZone: env.timeZone, dateStyle: "long", timeStyle: "short" })}`;
+  row("Backups", backups.bytes, `${backups.snapshots} of ${backups.keep} slots, ${latest}`);
+  if (backups.filesBytes > 0) row("  Files", backups.filesBytes);
+  console.log("");
   const space = spaceOf(env.dataDir, env.lowSpaceBytes);
-  row("All of Panki", folderBytes(env.dataDir));
+  row("All of Panki", folderBytes(env.dataDir) + backups.bytes);
   row("Left on the disk", space.freeBytes, `of ${sizeWords(space.totalBytes)}`);
   if (space.low) console.log(`\nLow: under ${sizeWords(env.lowSpaceBytes)} left. Everyone signed in is being told on their home screen.`);
 }

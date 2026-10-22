@@ -2,6 +2,7 @@ import { constants, copyFileSync, existsSync, mkdirSync, readdirSync, statSync }
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { sizeWords } from "@panki/contracts";
+import { pruneSnapshots, snapshotName } from "../backups";
 import { userDir } from "../dbs";
 import { env } from "../env";
 import { dictionaryDir, mediaDir, sharedDictionaryDir } from "../mediaFiles";
@@ -11,8 +12,9 @@ import { dictionaryDir, mediaDir, sharedDictionaryDir } from "../mediaFiles";
  * with SQLite's own `VACUUM INTO` through a read-only connection: a consistent copy of what was committed, and nothing
  * here can change the data. The snapshots go in a folder named for the moment, one per run. The files (the clips,
  * sounds and pictures on cards, the dictionary zips) never change under their names, so they're copied once each into
- * one `files` folder shared by every run, and a run after the first copies only what's new. Nothing in the backup
- * folder is ever deleted or overwritten by this; pruning old snapshots is the owner's.
+ * one `files` folder shared by every run, and a run after the first copies only what's new. Once the new snapshot is
+ * whole, the oldest are taken away so only the newest `env.backupSlots` stay (`backups.ts`); a run that fails takes
+ * nothing away. A file in `files` is never deleted or overwritten.
  *
  *   <dir>/2026-10-17T21-05-33Z/auth.sqlite, shared.sqlite, users/<account id>/panki.sqlite
  *   <dir>/files/shared/dictionaries/<id>, users/<account id>/media/<id>
@@ -75,8 +77,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  const stamp = new Date().toISOString().replace(/:/g, "-").replace(/\.\d{3}Z$/, "Z");
-  const snapshotDir = path.join(backupDir, stamp);
+  const snapshotDir = path.join(backupDir, snapshotName(new Date()));
   const filesDir = path.join(backupDir, "files");
   console.log(`Backing up ${dataDir}\n`);
 
@@ -99,6 +100,8 @@ function main() {
   }
 
   console.log(`\nSnapshot in ${snapshotDir}\nFiles in ${filesDir}`);
+  const gone = pruneSnapshots(backupDir, env.backupSlots);
+  if (gone.length > 0) console.log(`Older snapshots taken away, ${env.backupSlots} kept: ${gone.join(", ")}`);
 }
 
 try {

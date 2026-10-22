@@ -41,7 +41,12 @@ export const StorageReport = z.object({
     /** The transcripts in the shared store: about how much they take (worked out from their rows), how many videos, how many words; null when it couldn't be read. */
     transcripts: z.object({ bytes, videos: files, words: files }).nullable(),
   }),
-  /** Everything under the data folder. */
+  /**
+   * `pnpm backup`'s folder: all it takes, how many snapshots are in it of the most it keeps, when the newest was taken
+   * (ms since the epoch, null with none yet), and the files every snapshot shares.
+   */
+  backups: z.object({ bytes, snapshots: files, keep: files, latestAt: z.number().int().nullable(), filesBytes: bytes }),
+  /** Everything under the data folder, and the backups. */
   allBytes: bytes,
   disk: Space,
 });

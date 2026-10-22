@@ -11,6 +11,8 @@ export const env = {
   dataDir,
   // Where `pnpm backup` writes: beside the data, never inside it (a backup of the data must not contain the backups).
   backupDir: process.env.PANKI_BACKUP_DIR ?? path.resolve(dataDir, "..", "backups"),
+  // How many of `pnpm backup`'s snapshots are kept; a run past it takes the oldest away (the owner's 3, 2026-10-22).
+  backupSlots: whole(process.env.PANKI_BACKUP_SLOTS, 3),
   // Every account's day turns over in its own zone (Settings, the device's to begin with, the owner's word of
   // 2026-10-21). This is only what stands in for an account that has never opened Panki or the extension yet.
   timeZone: process.env.PANKI_TIME_ZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -24,6 +26,12 @@ export const env = {
   // never sent anywhere but that engine's own host.
   engineKeys: { elevenlabs: process.env.PANKI_ELEVENLABS_KEY?.trim() || null } satisfies Record<EngineId, string | null>,
 };
+
+/** A whole number of at least one from the environment; the fallback when it's missing or isn't one. */
+function whole(said: string | undefined, fallback: number): number {
+  const asked = Number(said);
+  return said !== undefined && Number.isInteger(asked) && asked >= 1 ? asked : fallback;
+}
 
 /** A number of megabytes from the environment, in bytes; the fallback when it's missing or isn't a number. */
 function megabytes(said: string | undefined, fallback: number): number {

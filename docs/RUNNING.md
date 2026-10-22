@@ -17,7 +17,7 @@
 | `pnpm user:list` | List accounts. |
 | `pnpm user:admin <name>` | Make an account an admin: it alone changes the keys, the dictionaries on Panki and how transcribing runs. `pnpm user:admin <name> off` takes it back. |
 | `pnpm space` | Disk used per account (video, audio, images, the rest) and what's left on the disk. |
-| `pnpm backup [dir]` | A copy of all the data, safe while the API runs: the databases as a dated snapshot, the files copied once. Into `apps/api/backups/` unless a folder is given (`PANKI_BACKUP_DIR` changes the default). See Backing up. |
+| `pnpm backup [dir]` | A copy of all the data, safe while the API runs: the databases as a dated snapshot (the newest 3 kept), the files copied once. Into `apps/api/backups/` unless a folder is given (`PANKI_BACKUP_DIR` changes the default). See Backing up. |
 | `pnpm icons` | Redraw the app icons from the mark. |
 | `pnpm verify` | Headless-browser check of the UI. Not kept up since 2026-10-10. |
 
@@ -36,26 +36,43 @@ Data lives under `apps/api/data/`: `auth.sqlite` (accounts and signed-in devices
 - `<moment>/auth.sqlite`, `<moment>/shared.sqlite`, `<moment>/users/<account id>/panki.sqlite`: every database as it stood at that moment, one folder per run.
 - `files/`: every file on a card and every dictionary zip, in the folders they came from. A file never changes, so each is copied once; a run after the first copies only what's new.
 
-Nothing in the backup folder is ever deleted by it: old `<moment>` folders are yours to remove. On the VPS, a cron line runs it (`crontab -e`): `0 4 * * * cd /opt/panki-vibe-coded && PANKI_TIME_ZONE=Asia/Jerusalem pnpm backup /var/backups/panki`. Copying that folder off the machine now and then is what makes it a backup.
+Only the newest 3 `<moment>` folders are kept: once a run's snapshot is whole, older ones are deleted (`PANKI_BACKUP_SLOTS` changes the 3; a run that fails deletes nothing). Nothing in `files/` is ever deleted. Settings → Admin → Storage and `pnpm space` show what the backup folder takes, if it's the default one (or `PANKI_BACKUP_DIR`), not a folder given on the command line. On the VPS, a line in the `panki` user's crontab runs it (`sudo crontab -u panki -e`): `0 4 * * * . $HOME/.nvm/nvm.sh && cd /opt/panki-vibe-coded && PANKI_TIME_ZONE=Asia/Jerusalem pnpm backup` (cron's shell doesn't find nvm's Node by itself), into the same folder as each deploy's, so the 3 are the latest of either. Copying that folder off the machine now and then is what makes it a backup.
 
 To restore: stop the API (`pm2 stop panki-api`), copy the chosen `<moment>` folder's databases over the data folder's (`auth.sqlite`, `shared.sqlite`, each `users/<account id>/panki.sqlite`; delete any `-wal` / `-shm` beside them first), copy `files/shared/dictionaries` to `shared/dictionaries` and each `files/users/<account id>/media` to `users/<account id>/media`, start the API.
 
 ## Deploying
 
-The pull-and-restart block is the README. The first time, on the VPS (Node 22.13 or newer, for the built-in SQLite):
+Panki runs on the VPS as its own user, `panki` (since 2026-10-22): it owns the code, the data and the pm2 that runs the API, has no sudo, and is all the deploy key can log in as. Everything below is run as it (`sudo -iu panki`), the README's block too. It has its own Node through nvm (22.13 or newer, for the built-in SQLite), pnpm through corepack, pm2 installed globally in it. The first time:
 
 ```
-git clone git@github.com:Gameoholic/panki-vibe-coded.git /opt/panki-vibe-coded
+git clone https://github.com/Gameoholic/panki-vibe-coded.git /opt/panki-vibe-coded
 cd /opt/panki-vibe-coded
+chmod 700 apps/api/data
 pnpm install
 pnpm build
 pnpm user:add <name> <password>
 pnpm user:admin <name>
 PORT=4001 PANKI_TIME_ZONE=Asia/Jerusalem pm2 start pnpm --name panki-api -- --filter @panki/api start
 pm2 save
+pm2 startup   # prints a sudo line: run it as a user with sudo, so the API comes back after a reboot
 ```
 
+(`apps/api/data` exists once the API has started; the `chmod` keeps it the `panki` user's alone. nginx reads `apps/web/dist`, which stays readable.)
+
 nginx serves `apps/web/dist` (`try_files $uri /index.html`) and proxies `/api/` to the API's port with `proxy_set_header Host $host`, `X-Forwarded-For $remote_addr` and `X-Forwarded-Proto $scheme` (the API trusts loopback's forwarded headers; the sign-in cookie is `Secure` when the request came over HTTPS), `client_max_body_size 200m` (a dictionary zip; a clip is 40 MB at most) and `proxy_read_timeout 180s` (a minute-long piece at the engine). HTTPS by certbot. A pull that changes `pnpm-lock.yaml` needs `pnpm install` before the build.
+
+### Deploying automatically
+
+`.github/workflows/ci-cd.yml`: every push and pull request to `main` is installed, type-checked and built on GitHub; a push to `main` that passes is then deployed. The deploy logs into the VPS over SSH as `panki` with a key that can run one command only, bound to it in `~/.ssh/authorized_keys`: `git pull --ff-only origin main` in `/opt/panki-vibe-coded`, then `scripts/deploy.sh` (`pnpm install --frozen-lockfile`, `pnpm build`, `pnpm backup` into `apps/api/backups/`, the API being about to run any new migration, `pm2 restart panki-api`). A step that fails stops it before the restart; a change made by hand on the VPS stops it at the pull instead of being thrown away. Actions → Deploy to VPS → Run workflow runs it by hand.
+
+Once, to set it up:
+
+1. On your PC, a key for GitHub alone: `ssh-keygen -t ed25519 -f panki-deploy -N ""`.
+2. On the VPS, its public half as one line of `/home/panki/.ssh/authorized_keys`, bound to the deploy (`restrict` takes away a shell, forwarding and the rest):
+   `restrict,command="cd /opt/panki-vibe-coded && git pull --ff-only origin main && exec sh scripts/deploy.sh" ssh-ed25519 AAAA… github-deploy`
+3. In the repository on GitHub, Settings → Secrets and variables → Actions, add `VPS_HOST` (the VPS's address), `VPS_USER` (`panki`), `SSH_PRIVATE_KEY` (the whole of `panki-deploy`), and `VPS_FINGERPRINT`, the output of `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | cut -d ' ' -f2` on the VPS, so the deploy refuses a machine that isn't yours. Then delete `panki-deploy` from your PC.
+
+The VPS pulls over HTTPS, which a public repository needs nothing for.
 
 ## The extension
 
