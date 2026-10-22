@@ -11,6 +11,8 @@ export const env = {
   dataDir,
   // Where `pnpm backup` writes: beside the data, never inside it (a backup of the data must not contain the backups).
   backupDir: process.env.PANKI_BACKUP_DIR ?? path.resolve(dataDir, "..", "backups"),
+  // The extension as `pnpm build` leaves it (`apps/extension/dist`): its Chrome build and the zip handed out for it.
+  extensionDir: process.env.PANKI_EXTENSION_DIR ?? path.resolve(import.meta.dirname, "../../extension/dist"),
   // How many of `pnpm backup`'s snapshots are kept; a run past it takes the oldest away (the owner's 3, 2026-10-22).
   backupSlots: whole(process.env.PANKI_BACKUP_SLOTS, 3),
   // Every account's day turns over in its own zone (Settings, the device's to begin with, the owner's word of

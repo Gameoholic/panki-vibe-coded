@@ -176,6 +176,111 @@
   border-radius: 50%;
   background: var(--line-strong);
 }
+/* The extension's update (ui/UpdateNotice.tsx): the same button, in the accent while one is available and in the
+   flag's amber while one is needed; what's said and the two ways to it, in its panel or the options page's. */
+.btn.strip-menu-button.is-available {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.btn.strip-menu-button.is-available .strip-menu-dot {
+  background: var(--accent);
+}
+.btn.strip-menu-button.is-needed {
+  background: var(--flag);
+  color: var(--flag-ink);
+}
+.btn.strip-menu-button.is-needed .strip-menu-dot {
+  background: var(--flag-ink);
+}
+.update-body {
+  display: grid;
+  gap: 8px;
+}
+.update-body p {
+  margin: 0;
+}
+.update-what {
+  font-weight: 600;
+}
+/* The two steps, numbered in circles: the first ticked in the good colour once the new files are in the folder, the
+   second's Reload Panki off until then. */
+.update-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.update-steps li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.update-step-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 700;
+}
+.update-steps li.is-done .update-step-mark {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.update-steps li.is-done .update-step-words {
+  color: var(--muted);
+}
+.update-steps li.is-now .update-step-mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.update-step-mark .icon {
+  width: 14px;
+  height: 14px;
+}
+.update-step-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  font-size: 14px;
+}
+.update-by-hand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+.btn.update-find {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.panel.update-panel {
+  border-color: transparent;
+  background: var(--accent-soft);
+}
+.panel.update-panel.is-needed {
+  background: color-mix(in srgb, var(--flag) 24%, var(--surface));
+}
+.update-version {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.update-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 /* Loading, the first moments of a video: plain, the dot breathing in the line's colour, until it's known how it stands. */
 .btn.strip-menu-button.is-loading .strip-menu-dot {
   background: var(--muted);
@@ -1015,6 +1120,7 @@
   background: var(--yh-chip);
 }
 .btn.btn-ghost.ym-pill {
+  position: relative;
   height: 36px;
   padding: 0 12px 0 8px;
   gap: 10px;
@@ -1023,6 +1129,20 @@
   background: transparent;
   color: var(--yh-fg);
   font: 500 14px/1 var(--yh-font);
+}
+/* An update for the extension, on the mark's corner: the accent while one is available, the flag's amber while one is needed. */
+.ym-update {
+  position: absolute;
+  top: 5px;
+  left: 20px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--yh-chip);
+}
+.ym-update.is-needed {
+  background: var(--flag);
 }
 @media (hover: hover) {
   .btn.btn-ghost.ym-pill:hover {

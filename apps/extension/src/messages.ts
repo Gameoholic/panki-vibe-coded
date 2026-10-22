@@ -8,6 +8,8 @@ import {
   CardsCalled,
   Deck,
   DeckId,
+  ExtensionBuild,
+  ExtensionBuildFile,
   FORVO_WORD_MAX,
   ForvoVoice,
   MediaCues,
@@ -65,6 +67,23 @@ const RECORDING_MAX = 3_000_000;
 const PICTURE_BASE64_MAX = 1_400_000;
 /** A piece of a video's sound on its way to the background, as text: a third more than the file itself may weigh. */
 const PIECE_BASE64_MAX = Math.ceil((PIECE_MAX_BYTES * 4) / 3) + 4;
+
+/**
+ * How this extension stands against the build the Panki it's signed in to carries (`updates.ts`, the contracts'
+ * `extension.ts`): up to date, an update available (other files), an update needed (Panki speaks a newer protocol), or
+ * not known (never asked, no build there, no Panki set). `own` is the running build's account of itself, `latest`
+ * Panki's, as last asked; `checkedAt` when; `ready`, Panki's build is in the extension's folder already, waiting for
+ * Reload Panki.
+ */
+export const UpdateState = z.object({
+  state: z.enum(["current", "available", "needed", "unknown"]),
+  own: ExtensionBuildFile.nullable(),
+  latest: ExtensionBuild.nullable(),
+  checkedAt: z.number().nullable(),
+  ready: z.boolean(),
+});
+export type UpdateState = z.infer<typeof UpdateState>;
+export const NO_UPDATE: UpdateState = { state: "unknown", own: null, latest: null, checkedAt: null, ready: false };
 
 /** A tab of the options page the drawer sends the owner to: the sign-in, or a deck's field mapping. */
 export const OptionsTab = z.enum(["account", "decks", "youtube"]);
@@ -148,6 +167,16 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("glance"), videoIds: GlanceAsk.shape.videoIds }),
   /** A video saved for later with its name and channel as the page shows them (`about`), or its save taken back (null). */
   z.object({ kind: z.literal("save"), videoId: VideoId, about: SaveVideo.nullable() }),
+  /** How this extension stands against Panki's build, as last asked. Needs no sign-in, and calls nothing. */
+  z.object({ kind: z.literal("update") }),
+  /** The same, asked of Panki afresh (Check now). */
+  z.object({ kind: z.literal("checkUpdate") }),
+  /** Panki's build downloaded as a zip, into the browser's downloads. */
+  z.object({ kind: z.literal("downloadUpdate") }),
+  /** Chrome's own page for this extension, which says which folder it's loaded from (where Update Panki is). */
+  z.object({ kind: z.literal("showFolder") }),
+  /** The extension reloaded from its folder, where Update Panki has put the new files; `reopen`, its own page opened again once it's back (asked from that page, which the reload closes). */
+  z.object({ kind: z.literal("reloadPanki"), reopen: z.boolean().optional() }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -203,6 +232,9 @@ export type Saved = z.infer<typeof Saved>;
 /** Videos as their thumbnails are marked. */
 const Glanced = z.union([z.object({ ok: z.literal(true), videos: z.array(VideoGlance) }), Failed]);
 export type Glanced = z.infer<typeof Glanced>;
+/** How this extension stands against Panki's build. */
+const Updated = z.union([z.object({ ok: z.literal(true), update: UpdateState }), Failed]);
+export type Updated = z.infer<typeof Updated>;
 /** The account's cards already called by some words: each its words, and its deck. */
 const Called = z.union([z.object({ ok: z.literal(true), cards: z.array(CalledCard) }), Failed]);
 export type Called = z.infer<typeof Called>;
@@ -422,6 +454,33 @@ export async function askGlance(videoIds: readonly string[]): Promise<Glanced> {
 export async function askSave(videoId: string, about: SaveVideo | null): Promise<Saved> {
   const answer = Saved.safeParse(await ask({ kind: "save", videoId, about }));
   return answer.success ? answer.data : failed(answer.error);
+}
+/** How this extension stands against Panki's build, as last asked: not known when it can't be said. */
+export async function askUpdate(): Promise<UpdateState> {
+  const answer = Updated.safeParse(await ask({ kind: "update" }));
+  if (!answer.success) {
+    failed(answer.error);
+    return NO_UPDATE;
+  }
+  return answer.data.ok ? answer.data.update : NO_UPDATE;
+}
+/** The same, asked of Panki afresh. */
+export async function askCheckUpdate(): Promise<Updated> {
+  const answer = Updated.safeParse(await ask({ kind: "checkUpdate" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Panki's build downloaded as a zip, into the browser's downloads. */
+export async function askDownloadUpdate(): Promise<Done> {
+  const answer = Done.safeParse(await ask({ kind: "downloadUpdate" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Chrome's page for this extension, where the folder it's loaded from is said. */
+export async function askShowFolder(): Promise<void> {
+  await ask({ kind: "showFolder" });
+}
+/** The extension reloaded from its folder, and with `reopen` its own page opened again after. Nothing comes back: everything of this extension's on the page stops with it. */
+export async function askReloadPanki(reopen = false): Promise<void> {
+  await ask({ kind: "reloadPanki", reopen });
 }
 /** A video left out of the count, counted again, or put away; the video as it stands then comes back. */
 export async function askWatchMark(videoId: string, mark: WatchMarkKind): Promise<Watched> {

@@ -19,7 +19,8 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
-import { Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askVideoCards, askWatch, askWatched } from "../messages";
+import { NO_UPDATE, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatched, type UpdateState } from "../messages";
+import { UpdateMenu } from "../ui/UpdateNotice";
 import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, switchInPill, type Modules } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
@@ -200,6 +201,27 @@ type Seen = { videoId: string; on: boolean; stoppedAt: number | null; counted: b
 const seen = cell<Seen | null>(null);
 /** Whether the video on the page is saved for later, as Panki says; null until it has (the strip's Save button). */
 const savedHere = cell<{ videoId: string; saved: boolean } | null>(null);
+/** How this extension stands against the build Panki carries (`updates.ts`): an update available, or needed, which stops everything of Panki's here but the strip saying so. */
+const update = cell<UpdateState>(NO_UPDATE);
+const updateNeeded = () => update.get().state === "needed";
+
+/**
+ * Reload Panki pressed in the strip: the extension reloads from its folder, which leaves this page's script behind, so
+ * the page reloads a moment later to take the new one, the video where it was (the site's own `t=`).
+ */
+function reloadPage() {
+  const at = video ? Math.floor(video.currentTime) : 0;
+  const next = new URL(location.href);
+  if (at > 0) next.searchParams.set("t", `${at}s`);
+  setTimeout(() => location.assign(next.toString()), 600);
+}
+
+/** How the extension stands, asked of the worker again: on the first look and whenever the page gets the focus back. */
+async function readUpdate() {
+  const next = await askUpdate();
+  const was = update.get();
+  if (next.state !== was.state || next.latest?.fingerprint !== was.latest?.fingerprint) update.set(next);
+}
 
 /** Asks Panki whether the video on the page is saved for later (a glance at it alone). */
 async function readSaved() {
@@ -246,6 +268,10 @@ const feed = createFeed({
   raw: () => modules.get(),
   onPower: (on) => setPankiOn(on),
   theme: siteTheme,
+  update: () => {
+    const { state } = update.get();
+    return state === "available" || state === "needed" ? state : null;
+  },
 });
 /** What's watched here, noted and sent to Panki while the account keeps it (`watch/watcher.ts`). */
 const watcher = createWatcher({
@@ -426,10 +452,14 @@ async function readModules() {
 
 /** Every part off, as the modules read with Panki switched off altogether. */
 const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeLine: false, homeShelf: false, homeSaved: false, thumbSave: false, thumbs: false };
-/** Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not (the owner, 2026-10-21). */
+/**
+ * Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own
+ * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not (the owner,
+ * 2026-10-21). The same while an update is needed: Panki would refuse all of it, so none of it is tried.
+ */
 function active(): Modules {
   const now = modules.get();
-  return now.on ? now : { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl };
+  return now.on && !updateNeeded() ? now : { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl };
 }
 
 /** Panki switched on or off altogether, from the strip's head or the header bar's pill: on the page at once, and kept for every page from now on. */
@@ -546,8 +576,9 @@ function place() {
   const full = document.fullscreenElement;
   const on = active();
   // The Panki panel switched off: nothing of it is on the page, the line, the drawer or the transcript over the video.
-  // Panki switched off altogether: the line's head alone stays, with the switch to turn it back on.
-  const under = full || !video || !(on.panel || !modules.get().on) ? null : document.querySelector(UNDER_PLAYER);
+  // Panki switched off altogether: the line's head alone stays, with the switch to turn it back on. An update needed:
+  // the head alone too, saying so.
+  const under = full || !video || !(on.panel || !modules.get().on || updateNeeded()) ? null : document.querySelector(UNDER_PLAYER);
   inPlace.set(under !== null);
   // Each is moved only when it isn't there already: moving it takes the cursor out of whatever is being typed in it.
   if (!under) strip.host.remove();
@@ -1098,6 +1129,8 @@ function App() {
   useSyncExternalStore(modules.subscribe, modules.get);
   useSyncExternalStore(seen.subscribe, seen.get);
   const savedNow = useSyncExternalStore(savedHere.subscribe, savedHere.get);
+  /** An update for the extension: a button in the head while one is available; the head and it alone while one is needed. */
+  const updateNow = useSyncExternalStore(update.subscribe, update.get);
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
   const offerGoing = useSyncExternalStore(offerAway.subscribe, offerAway.get);
   const stop = stopMark();
@@ -1662,6 +1695,17 @@ function App() {
             </div>
           </div>
         </div>
+      ) : placed && updateNow.state === "needed" ? (
+        // Too old for Panki (the contracts' `extension.ts`): nothing of it would work, so the head says so and nothing
+        // else is there. Reloaded, the page reloads too, to take the new extension.
+        <div className="strip is-off">
+          <div className="strip-head">
+            <span className="strip-name">Panki</span>
+            <div className="strip-tools">
+              <UpdateMenu update={updateNow} onReloading={reloadPage} />
+            </div>
+          </div>
+        </div>
       ) : placed ? (
         <div className="strip">
           <div className="strip-head">
@@ -1681,6 +1725,8 @@ function App() {
               </span>
             ) : null}
             <div className="strip-tools">
+              {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
+              <UpdateMenu update={updateNow} onReloading={reloadPage} />
               {/* Panki altogether, on or off (the owner, 2026-10-21: "make the button toggle whether Panki is even enabled"), here while it isn't the header bar pill's. */}
               {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
               {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home (the owner, 2026-10-21). */}
@@ -1836,8 +1882,12 @@ function App() {
 strip.root.render(<App />);
 listening.start();
 void readModules();
+void readUpdate();
 look();
 setInterval(look, 1000);
+// The worker asks Panki about a newer build every hour; a page left open in front learns what it found within minutes
+// (a question to the worker alone, nothing sent anywhere).
+setInterval(() => void readUpdate(), 5 * 60_000);
 // Transcribing follows the viewer's player, looked at a few times a second; the line follows the video's time the same way.
 setInterval(() => {
   transcriber.tick(video);
@@ -1858,6 +1908,7 @@ function readAgain() {
   transcriber.refresh();
   void readCarded();
   void readModules();
+  void readUpdate();
   void readSeen();
   void readSaved();
   feed.refresh();
@@ -1881,6 +1932,11 @@ showingOver.subscribe(place);
 carded.subscribe(place);
 // A part switched on or off, and where the video was stopped known: what's on the page follows.
 modules.subscribe(() => {
+  feed.redraw();
+  look();
+});
+// An update found, or needed: the pill's dot, and with one needed, everything of Panki's here stopping.
+update.subscribe(() => {
   feed.redraw();
   look();
 });

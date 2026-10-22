@@ -59,19 +59,35 @@ export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; wor
 
 /**
  * The pill: the mark, then each shown part (none while `numbers` is null: Panki switched off, or not known yet), the
- * whole of it pressed for `onClick`; then `power`, Panki's on / off switch, when it's to be there.
+ * whole of it pressed for `onClick`; then `power`, Panki's on / off switch, when it's to be there. `update` puts a dot
+ * on the mark while the extension has an update: the accent's while one is available, the flag's amber while one is
+ * needed (`ui/UpdateNotice.tsx` says what it is).
  */
-export function PankiPill({ layout, numbers, onClick, power = null }: { layout: PillLayout; numbers: PillNumbers | null; onClick: () => void; power?: { on: boolean; onChange: (on: boolean) => void } | null }) {
+export function PankiPill({
+  layout,
+  numbers,
+  onClick,
+  power = null,
+  update = null,
+}: {
+  layout: PillLayout;
+  numbers: PillNumbers | null;
+  onClick: () => void;
+  power?: { on: boolean; onChange: (on: boolean) => void } | null;
+  update?: "available" | "needed" | null;
+}) {
   const parts = numbers
     ? layout.flatMap((part) => {
         const value = part.shown ? pillValue(part.id, numbers) : null;
         return value ? [{ id: part.id, ...value }] : [];
       })
     : [];
+  const said = update === "needed" ? "update needed" : update === "available" ? "update available" : null;
   return (
     <span className="ym-pill-wrap">
-      <Button className="ym-pill" aria-label={["Panki", ...parts.map((p) => p.said)].join(", ")} onClick={onClick}>
+      <Button className="ym-pill" aria-label={["Panki", ...(said ? [said] : []), ...parts.map((p) => p.said)].join(", ")} onClick={onClick}>
         <Mark size={18} />
+        {update ? <i className={`ym-update is-${update}`} aria-hidden="true" /> : null}
         {parts.map((p) => (
           <span key={p.id} className={`ym-part is-${p.id}`}>
             <Icon name={p.icon} />

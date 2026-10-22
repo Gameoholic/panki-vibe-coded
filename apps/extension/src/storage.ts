@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
-import { OptionsTab } from "./messages";
+import { OptionsTab, UpdateState } from "./messages";
 import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, pillLayoutOf, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
@@ -125,6 +125,10 @@ const Stored = z.object({
   // `homeChips` and `feedFilter` (the chips over YouTube's home feed) went on 2026-10-21; a browser that kept them keeps them unread.
   /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls. */
   speedControl: z.boolean().catch(DEFAULT_MODULES.speedControl),
+  /** How this extension stood against Panki's build when it last asked (`updates.ts`); null until it has. */
+  update: UpdateState.nullable().catch(null),
+  /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
+  reopenOptions: z.boolean().catch(false),
   // `meaningPick` was a key here (2026-10-14): which meanings a card got. The owner had it taken out the next day, the
   // ones ticked in the drawer being enough; a browser that still has it keeps it unread.
 });

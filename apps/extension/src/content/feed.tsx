@@ -123,7 +123,7 @@ function shareOf(g: VideoGlance): number {
  * `raw` what each switch says itself (the pill and its switch stay with Panki off, to turn it back on), `onPower` turns
  * Panki on or off, `theme` how the site is drawn now.
  */
-export function createFeed(deps: { modules: () => Modules; raw: () => Modules; onPower: (on: boolean) => void; theme: () => "light" | "dark" }) {
+export function createFeed(deps: { modules: () => Modules; raw: () => Modules; onPower: (on: boolean) => void; theme: () => "light" | "dark"; update: () => "available" | "needed" | null }) {
   const top = mount(deps.theme());
   // Its left edge and width are set to the grid's as the page stands (`alignTop`): never centred in what holds it.
   top.host.style.cssText = "display: block; box-sizing: border-box; align-self: flex-start; max-width: none; margin: 4px 0 20px;";
@@ -155,7 +155,9 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     const raw = deps.raw();
     // Panki's switch at the pill's end, its one place while the pill is on (`switchInPill`): off, the pill is the mark and the switch alone.
     const power = { on: raw.on, onChange: deps.onPower };
-    if (!raw.on) return <PankiPill layout={raw.pill} numbers={null} power={power} onClick={() => void askOpenPanki()} />;
+    // An update for the extension marks the mark whatever else the pill says (`ui/UpdateNotice.tsx`).
+    const update = deps.update();
+    if (!raw.on) return <PankiPill layout={raw.pill} numbers={null} power={power} update={update} onClick={() => void askOpenPanki()} />;
     if (now.kind === "loading") return null;
     if (now.kind === "failed") {
       return (
@@ -168,7 +170,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       );
     }
     // What it says is the viewer's own, picked and ordered on the options page (`modules.ts` → `PillLayout`).
-    return <PankiPill layout={raw.pill} numbers={pillNumbersOf(now.home.stats, now.home.decks)} power={power} onClick={() => void askOpenPanki()} />;
+    return <PankiPill layout={raw.pill} numbers={pillNumbersOf(now.home.stats, now.home.decks)} power={power} update={update} onClick={() => void askOpenPanki()} />;
   }
 
   // ---- The top of the home.

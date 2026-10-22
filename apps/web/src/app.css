@@ -4059,6 +4059,21 @@ mark.sub-mark {
 .kept-row.is-low .kept-size {
   color: var(--danger);
 }
+/* Setting the extension up on a computer (Settings → Extension): the steps, numbered, as they're done. */
+.setup-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 22px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+/* A path or an address in a step, in a Latin monospace face named first: the browser's own monospace on a Japanese
+   Windows draws a backslash as ¥ ("C:¥Panki"). No chip around it, so a full stop sits right after it. */
+.setup-steps code {
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 0.92em;
+}
 
 /* ---------- Stats and the home's tiles ---------- */
 

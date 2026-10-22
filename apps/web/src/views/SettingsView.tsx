@@ -16,6 +16,7 @@ import {
   WordAudioKeyUpdate,
   sizeWords,
   type EngineAccount,
+  type ExtensionBuild,
   type FilesOfKind,
   type ServerDictionary,
   type StorageReport,
@@ -67,10 +68,11 @@ const clock = (hour: number) => `${hour}:00`;
  * changes, and the account. The tab is in the address, so a reload stays on it; every tab is drawn and the others
  * hidden, so a key half typed on one survives a look at another.
  */
-type SettingsTab = "general" | "keys" | "admin" | "account";
+type SettingsTab = "general" | "keys" | "extension" | "admin" | "account";
 const TABS: readonly { id: SettingsTab; label: string; admin?: true }[] = [
   { id: "general", label: "General" },
   { id: "keys", label: "Keybinds" },
+  { id: "extension", label: "Extension" },
   { id: "admin", label: "Admin", admin: true },
   { id: "account", label: "Account" },
 ];
@@ -663,6 +665,78 @@ function StorageSection() {
   );
 }
 
+/** The day a build of the extension's files last changed ("2026-10-22"), in words. Noon, so no zone turns it into the day before. */
+const buildDay = (changedAt: string) => dateWords(Date.parse(`${changedAt}T12:00:00`));
+
+/**
+ * The Chrome extension, as this Panki carries it (the owner, 2026-10-22: no store): the build to download, and how it's
+ * set up on a computer. Keeping it up to date afterwards is the extension's own to say (Update Panki, in its folder).
+ */
+function ExtensionPanel() {
+  const [build, setBuild] = useState<ExtensionBuild | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.extensionBuild().then(
+      (now) => {
+        if (alive) setBuild(now);
+      },
+      (e: unknown) => {
+        if (alive) setFailure(said(e));
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <>
+      <section className="panel" aria-labelledby="extension-title">
+        <h2 id="extension-title" className="panel-title">
+          Chrome extension
+        </h2>
+        {failure ? (
+          <p className="load-error" role="alert">
+            {failure}
+          </p>
+        ) : null}
+        {build ? (
+          <div className="kept-rows">
+            <div className="kept-row">
+              <span className="kept-name">
+                Latest version
+                <span className="row-sub">
+                  {buildDay(build.changedAt)} · {build.fingerprint}
+                </span>
+              </span>
+              {/* The zip comes as a download: the page stays where it is. */}
+              <Button variant="primary" onClick={() => window.location.assign(api.extensionZip)}>
+                Download
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </section>
+      <section className="panel" aria-labelledby="extension-setup-title">
+        <h2 id="extension-setup-title" className="panel-title">
+          Set up on a computer
+        </h2>
+        <ol className="setup-steps">
+          <li>
+            Download it above and extract it to a folder you'll keep, such as <code>C:\Panki</code>.
+          </li>
+          <li>
+            In Chrome, open <code>chrome://extensions</code> and switch on Developer mode.
+          </li>
+          <li>Press Load unpacked and choose that folder.</li>
+          <li>Sign in on the page that opens.</li>
+          <li>To update it later, open Update Panki in that folder, then press Reload Panki.</li>
+        </ol>
+      </section>
+    </>
+  );
+}
+
 /** What everyone shares and an admin alone changes: how transcribing runs, the engine's key, the Forvo key for word audio; and, to read, what it all takes on the disk. */
 function AdminPanel() {
   const [transcription, setTranscription] = useState<TranscriptionStatus | null>(null);
@@ -967,6 +1041,11 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
       {/* The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"). */}
       <div className="settings-tab" hidden={shown !== "keys"}>
         <KeysPanels />
+      </div>
+
+      {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}
+      <div className="settings-tab" hidden={shown !== "extension"}>
+        <ExtensionPanel />
       </div>
 
       {me.user.admin ? (

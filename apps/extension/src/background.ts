@@ -1,15 +1,16 @@
 import "./setup";
-import { PIECE_MIME, mediaMimeFor } from "@panki/contracts";
+import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor } from "@panki/contracts";
 import { routePath } from "@web/routes";
 import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Voiced, type Watched } from "./messages";
+import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
 import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
 import { sourceOf } from "./subtitles";
+import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, showFolder } from "./updates";
 
 /**
  * The extension's one worker. It holds the sign-in and is the only thing that talks to Panki (word audio from Forvo
@@ -135,6 +136,33 @@ chrome.permissions.onRemoved.addListener(replace);
 chrome.runtime.onStartup.addListener(replace);
 chrome.runtime.onInstalled.addListener(replace);
 
+/**
+ * Whether there's a newer build on Panki (`updates.ts`): asked as Chrome starts and as the extension is installed or
+ * reloaded (an update put in place shows as up to date at once), every hour on an alarm (which wakes the worker), and
+ * when the profile in use changes to another Panki.
+ */
+function startChecking() {
+  void chrome.alarms.create(UPDATE_ALARM, { periodInMinutes: CHECK_EVERY_MINUTES });
+  // The code just loaded is the build in the folder now: noted first, so the check compares Panki's with it.
+  void noteRunning().then(checkForUpdate);
+}
+chrome.runtime.onStartup.addListener(startChecking);
+chrome.runtime.onInstalled.addListener(startChecking);
+// Reloaded from the options page with Reload Panki: that page, closed by the reload, opens again.
+chrome.runtime.onInstalled.addListener(() => {
+  void readStore().then(async (store) => {
+    if (!store.reopenOptions) return;
+    await writeStore({ reopenOptions: false });
+    await chrome.runtime.openOptionsPage();
+  });
+});
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === UPDATE_ALARM) void checkForUpdate();
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && "address" in changes) void checkForUpdate();
+});
+
 /** A video's transcript with what runs transcribing, asked of Panki in one go, and this browser's own: where the words come from, and how transcribing behaves for this viewer. */
 async function transcripted(door: Door, videoId: string, store: Stored): Promise<Transcripted> {
   const [transcript, transcription] = await Promise.all([panki.transcript(door, videoId), panki.transcription(door)]);
@@ -151,7 +179,22 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
   };
 }
 
-async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved> {
+async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated> {
+  // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
+  if (ask.kind === "update") return { ok: true, update: await readUpdate() };
+  if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
+  if (ask.kind === "downloadUpdate") return (await downloadUpdate()) ? { ok: true } : { ok: false, message: "Set where your Panki is first." };
+  if (ask.kind === "showFolder") {
+    await showFolder();
+    return { ok: true };
+  }
+  if (ask.kind === "reloadPanki") {
+    // Asked from the options page, which the reload closes: it opens again on its About tab once the extension is back.
+    if (ask.reopen) await writeStore({ reopenOptions: true, optionsTab: "account" });
+    // Answered first: the reload takes this worker, and every script of this extension's on a page, with it.
+    setTimeout(() => chrome.runtime.reload(), 100);
+    return { ok: true };
+  }
   if (ask.kind === "options") {
     // The page opens on that tab, or turns to it if it's open already (it reads the store again as it gets the focus).
     if (ask.tab) await writeStore({ optionsTab: ask.tab });
@@ -307,6 +350,8 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       await forgetSignIn();
       return { ok: false, message: SIGN_IN_FIRST, signedOut: true };
     }
+    // Refused as too old for Panki: asked again at once, so every page and the badge say "Update needed".
+    if (e instanceof PankiError && e.status === UPDATE_NEEDED_STATUS) void checkForUpdate();
     if (e instanceof PankiError) return { ok: false, message: e.message, status: e.status };
     // Nothing Panki said: a fault of the extension's own. Its words go to the worker's console (never anything of the
     // sign-in), so "Something went wrong" can be looked into from the extension's card in the browser.

@@ -29,6 +29,7 @@ const server = createApp({
   mediaDirFor: dbs.mediaDirFor,
   shared,
   dictionaryDir: sharedDictionaryDir(env.dataDir),
+  extensionDir: env.extensionDir,
   space,
   storage: () => storageReport(env.dataDir, env.backupDir, env.backupSlots, auth, env.lowSpaceBytes),
   // Every request to Forvo is counted, for the day's allowance an admin sees in Settings.

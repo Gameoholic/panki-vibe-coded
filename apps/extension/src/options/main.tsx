@@ -24,6 +24,7 @@ import { Dictionaries, Looking } from "./Dictionary";
 import { PopupLayoutPanel } from "./PopupLayout";
 import { PillParts } from "./PillPanel";
 import { SeekBarPanel } from "./SeekBar";
+import { UpdateBanner, VersionPanel, useUpdate } from "./Updates";
 
 /**
  * The extension's own page, in tabs: the dictionary (how looking a word up works, the dictionaries, how the popup is
@@ -197,7 +198,7 @@ function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void
         <SignIn known={store.address ?? ""} onDone={done} onCancel={() => setAdding(false)} />
       ) : (
         <div className="add-actions add-actions-start">
-          <Button onClick={() => setAdding(true)}>Add another account</Button>
+          <Button onClick={() => setAdding(true)}>Add another profile</Button>
         </div>
       )}
     </>
@@ -412,7 +413,8 @@ const TABS: readonly { id: Tab; label: string }[] = [
   { id: "dictionary", label: "Dictionary" },
   { id: "decks", label: "Decks" },
   { id: "youtube", label: "YouTube" },
-  { id: "account", label: "Account" },
+  // Called About since 2026-10-22, at the owner's pick, once the extension's version joined the profiles here; its id stays `account` (the address, the drawer's way to the sign-in).
+  { id: "account", label: "About" },
 ];
 const tabOfAddress = (): Tab | null => TABS.find((t) => `#${t.id}` === location.hash)?.id ?? null;
 
@@ -536,6 +538,8 @@ function Options() {
     history.replaceState(null, "", `#${next}`);
   }
   const door = address && token ? { address, token } : null;
+  /** An update for the extension, as the worker last found it. */
+  const updates = useUpdate();
   // Sent here by the drawer to sign in or to switch a deck's field mapping on: turned to that tab, once.
   const asked = store?.optionsTab ?? null;
   useEffect(() => {
@@ -560,6 +564,8 @@ function Options() {
       {store === null ? null : (
         <main className="main options-main">
           <Segmented idPrefix="options-tab" label="Settings" options={TABS} value={tab} onChange={choose} />
+          {/* A newer build on Panki: over every tab, until it's in place. */}
+          <UpdateBanner update={updates.update} />
           {failure ? (
             <p className="load-error" role="alert">
               {failure}
@@ -601,6 +607,7 @@ function Options() {
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
             <AccountTab store={store} onChanged={refresh} />
+            <VersionPanel update={updates.update} check={updates.check} checking={updates.checking} />
           </div>
         </main>
       )}

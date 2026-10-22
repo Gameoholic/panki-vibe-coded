@@ -4,6 +4,7 @@ export * from "./card";
 export * from "./cardLayout";
 export * from "./deck";
 export * from "./dictionary";
+export * from "./extension";
 export * from "./forvo";
 export * from "./history";
 export * from "./layout";

@@ -9,6 +9,7 @@ import {
   DeckResponse,
   DeckTwins,
   EngineAccountResponse,
+  ExtensionBuildResponse,
   WordAudioResponse,
   MeResponse,
   MediaResponse,
@@ -35,6 +36,7 @@ import {
   type EngineId,
   type EngineAccount,
   type EventBatch,
+  type ExtensionBuild,
   type WordAudioSourceId,
   type WordAudioStatus,
   type WordAudioUpdate,
@@ -137,6 +139,10 @@ export const api = {
   beaconEvents: (batch: EventBatch): boolean => navigator.sendBeacon(EVENTS_PATH, new Blob([JSON.stringify(batch)], { type: "application/json" })),
   /** What's left on the disk Panki keeps its data on, and whether that's little enough to say so. */
   space: (): Promise<Space> => request("/api/space", undefined, (b) => SpaceResponse.parse(b).space),
+  /** The build of the Chrome extension this Panki carries, to download from Settings. */
+  extensionBuild: (): Promise<ExtensionBuild> => request("/api/extension", undefined, (b) => ExtensionBuildResponse.parse(b).build),
+  /** Where that build is, as a zip. */
+  extensionZip: "/api/extension/chrome.zip",
   /** Everything Panki's data takes on that disk, account by account; an admin's to read. */
   storageReport: (): Promise<StorageReport> => request("/api/space/report", undefined, (b) => StorageReportResponse.parse(b).report),
   stats: (deckId: string | null): Promise<Stats> => request(deckId === null ? "/api/stats" : `/api/stats?deck=${encodeURIComponent(deckId)}`, undefined, (b) => StatsResponse.parse(b).stats),

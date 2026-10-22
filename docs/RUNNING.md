@@ -76,9 +76,11 @@ The VPS pulls over HTTPS, which a public repository needs nothing for.
 
 ## The extension
 
-`pnpm build` builds it with everything else, into `apps/extension/dist/chrome` and `apps/extension/dist/firefox`. It is never deployed: it lives in your browser.
+`pnpm build` builds it with everything else, into `apps/extension/dist/chrome` and `apps/extension/dist/firefox`, and writes `apps/extension/dist/chrome.zip`, which Panki hands out: each deploy builds it on the VPS, so panki.pro always carries the extension of its own commit. No store.
 
-1. **Chrome:** open `chrome://extensions`, switch on Developer mode, press Load unpacked, choose `apps/extension/dist/chrome`. It stays until you remove it. After a rebuild, press the reload arrow on its card, then reload any YouTube tab that was already open.
+**From Panki (any computer):** Settings → Extension → Download, extract the zip to a folder you'll keep (`C:\Panki`), then in Chrome `chrome://extensions`, Developer mode, Load unpacked, that folder. When there's a newer build on Panki, the extension says so (the badge on its button, the strip, the pill, its own page): double-click **Update Panki** in that folder (the first time it asks where your Panki is), then press **Reload Panki**. Or download the zip again and extract it over the folder.
+
+1. **Chrome, from this repo:** open `chrome://extensions`, switch on Developer mode, press Load unpacked, choose `apps/extension/dist/chrome`. It stays until you remove it. After a rebuild, press the reload arrow on its card, then reload any YouTube tab that was already open.
 2. **Firefox:** open `about:debugging#/runtime/this-firefox`, press Load Temporary Add-on, choose `apps/extension/dist/firefox/manifest.json`. Firefox forgets it when it closes; keeping it needs Mozilla's signature, which hasn't been asked for.
 3. Its own page opens the first time (later: right-click its toolbar button, Options). Type where your Panki is (`127.0.0.1:5173` while `pnpm dev` runs, the domain once deployed), your name and password, and allow the address when the browser asks.
 4. On that page, under Field mapping, choose a deck and what fills each of its fields: the selected word, its dictionary form, reading and meaning, the sentence, the sentence's video or audio, the word's video or audio, the link to the video. Switch Field mapping on for the deck first. Fields left on None are typed in the drawer.

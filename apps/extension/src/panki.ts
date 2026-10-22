@@ -5,6 +5,9 @@ import {
   CardResponse,
   CardTypeList,
   DeckList,
+  EXTENSION_HEADER,
+  EXTENSION_PROTOCOL,
+  ExtensionBuildResponse,
   ForvoTakeResponse,
   ForvoVoicesResponse,
   MediaResponse,
@@ -34,6 +37,7 @@ import {
   type WatchedVideo,
   type CardType,
   type Deck,
+  type ExtensionBuild,
   type ForvoTake,
   type ForvoVoice,
   type NewCard,
@@ -66,6 +70,9 @@ export type Door = { address: string; token: string };
 
 type Init = { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; headers?: Record<string, string>; body?: string | Blob };
 
+/** The protocol this extension was built with, on every call: Panki refuses one too old for it (the contracts' `extension.ts`). */
+const PROTOCOL = { [EXTENSION_HEADER]: String(EXTENSION_PROTOCOL) };
+
 /**
  * The only place the extension calls the network, and only ever Panki's own address: the one the owner typed on the
  * options page and gave the browser's OK for. No cookie goes along; the sign-in is the bearer secret. Every answer is
@@ -77,7 +84,7 @@ async function call<T>(address: string, token: string | null, path: string, init
     res = await fetch(`${address}${path}`, {
       method: init.method ?? "GET",
       credentials: "omit",
-      headers: { ...init.headers, ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      headers: { ...init.headers, ...PROTOCOL, ...(token ? { authorization: `Bearer ${token}` } : {}) },
       ...(init.body === undefined ? {} : { body: init.body }),
     });
   } catch {
@@ -98,6 +105,8 @@ export const panki = {
   /** Signs in as one more device of the account; the answer carries the secret that every later call sends back. */
   signIn: (address: string, name: string, password: string) => call(address, null, "/api/login", json("POST", { name, password, bearer: true, client: CLIENT }), (b) => BearerLogin.parse(b)),
   signOut: ({ address, token }: Door): Promise<void> => call(address, token, "/api/logout", { method: "POST" }, () => undefined),
+  /** The build of the extension a Panki carries and the protocol it speaks: what an update is told by. No sign-in needed. */
+  extensionBuild: (address: string): Promise<ExtensionBuild> => call(address, null, "/api/extension", {}, (b) => ExtensionBuildResponse.parse(b).build),
   decks: ({ address, token }: Door): Promise<Deck[]> => call(address, token, "/api/decks", {}, (b) => DeckList.parse(b).decks),
   types: ({ address, token }: Door): Promise<CardType[]> => call(address, token, "/api/types", {}, (b) => CardTypeList.parse(b).types),
   srsTypes: ({ address, token }: Door): Promise<SrsType[]> => call(address, token, "/api/srs", {}, (b) => SrsTypeList.parse(b).types),
@@ -230,7 +239,7 @@ async function bytesAt({ address, token }: Door, path: string, init: Init = {}):
     res = await fetch(`${address}${path}`, {
       method: init.method ?? "GET",
       credentials: "omit",
-      headers: { ...init.headers, authorization: `Bearer ${token}` },
+      headers: { ...init.headers, ...PROTOCOL, authorization: `Bearer ${token}` },
       ...(init.body === undefined ? {} : { body: init.body }),
     });
   } catch {
