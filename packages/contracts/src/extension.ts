@@ -17,7 +17,7 @@ import { z } from "zod";
  * extension alone leaves it as it is. An extension built with a smaller number is refused by every route but the two
  * that tell it how to update, and says "Update needed" until it is.
  */
-export const EXTENSION_PROTOCOL = 1;
+export const EXTENSION_PROTOCOL = 2;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";
