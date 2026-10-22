@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
-import type { ContinueVideo, Day, Deck, Settings, SrsType, Stats } from "@panki/contracts";
+import type { ContinueVideo, Day, Deck, SavedVideo, Settings, SrsType, Stats } from "@panki/contracts";
 import { api } from "./api";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
@@ -28,7 +28,8 @@ export type WidgetId =
   | "watched"
   | "watch-time"
   | "channels"
-  | "continue";
+  | "continue"
+  | "saved";
 
 /**
  * What a widget may need besides the stats: the decks in scope, the types, the settings, the way into a review, and a
@@ -225,8 +226,8 @@ function watchTile(stats: Stats, empty: boolean, draw: () => ReactNode): ReactNo
   return draw();
 }
 
-/** How many videos Continue watching shows; the rest wait their turn. */
-const CONTINUE_SHOWN = 4;
+/** How many videos a tile of videos shows (Continue watching, Saved for later); the rest wait their turn. */
+const VIDEOS_SHOWN = 4;
 
 /**
  * The videos left part-way, newest first, each the video's own card opening on YouTube where it was stopped, with a ×
@@ -249,7 +250,7 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
   const shown = videos
     .filter((v) => !gone.includes(v.videoId))
     .sort((a, b) => b.lastAt - a.lastAt)
-    .slice(0, CONTINUE_SHOWN);
+    .slice(0, VIDEOS_SHOWN);
   return (
     <div className="w-videos">
       {shown.map((v) => (
@@ -261,6 +262,49 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
             progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: `${wanted(v.lengthMs - v.stoppedAtMs)} left` }}
           />
           <Button className="btn-icon w-video-x" aria-label="Put away" onClick={() => void putAway(v.videoId)}>
+            <Icon name="close" />
+          </Button>
+        </div>
+      ))}
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The videos saved for later (the owner, 2026-10-22: "similar to Continue watching"), newest first, each the video's
+ * own card opening it on YouTube from its start (where it was stopped is the extension's to offer), with a × that takes
+ * the save back. One taken back leaves at once; the stats are asked for again so the count catches up.
+ */
+function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale: () => void }) {
+  const [gone, setGone] = useState<readonly string[]>([]);
+  const [failure, setFailure] = useState<string | null>(null);
+  async function unsave(videoId: string) {
+    setFailure(null);
+    setGone((was) => [...was, videoId]);
+    try {
+      await api.unsaveVideo(videoId);
+      onStale();
+    } catch (e) {
+      setGone((was) => was.filter((id) => id !== videoId));
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    }
+  }
+  const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, VIDEOS_SHOWN);
+  return (
+    <div className="w-videos">
+      {shown.map((v) => (
+        <div key={v.videoId} className="w-video">
+          <LinkView
+            meta={{ link: { videoId: v.videoId, seconds: null }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
+            label="Saved for later"
+            pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
+          />
+          <Button className="btn-icon w-video-x" aria-label="Remove from Saved for later" onClick={() => void unsave(v.videoId)}>
             <Icon name="close" />
           </Button>
         </div>
@@ -555,6 +599,18 @@ export const WIDGETS: readonly WidgetEntry[] = [
     render(stats, ctx) {
       const { continuing } = stats.watching;
       return watchTile(stats, continuing.length === 0, () => <ContinueRows videos={continuing} onStale={ctx.onStale} />);
+    },
+  },
+  {
+    // Saving is asked for, so it's shown whether or not Video tracking is on (unlike the watching tiles above).
+    id: "saved",
+    name: "Saved for later",
+    wide: true,
+    home: true,
+    control: (stats) => (stats.saved.length > 0 ? count(stats.saved.length, "video", "videos") : ""),
+    render(stats, ctx) {
+      if (stats.saved.length === 0) return <Quiet>No videos saved</Quiet>;
+      return <SavedRows videos={stats.saved} onStale={ctx.onStale} />;
     },
   },
   // Together and Together · this week (everyone on this Panki) stood here for a day, 2026-10-21, until the owner shelved

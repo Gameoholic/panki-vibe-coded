@@ -1962,6 +1962,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         tough,
         // The account's watching is the same whatever decks are in scope: it isn't any deck's.
         watching: watchingOf(today),
+        saved: api.savedVideos(),
       });
     },
     close() {

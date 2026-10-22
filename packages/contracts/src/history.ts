@@ -3,6 +3,7 @@ import { CardId } from "./card";
 import { DeckId } from "./deck";
 import { SrsStageId, SrsTypeId } from "./srs";
 import { VideoId } from "./transcription";
+import { SAVED_MAX, SavedVideo } from "./watching";
 
 /**
  * The silo: everything that happens is kept, needed now or not. What a stat might one day want is recorded where
@@ -157,6 +158,8 @@ export const Stats = z.object({
   tough: z.array(z.object({ cardId: CardId, deckId: DeckId, front: z.string(), misses: Count })),
   /** The account's watching, whatever decks are in scope (`watching.ts`). */
   watching: Watching,
+  /** The videos saved for later, newest first: the account's own, whatever decks are in scope, and whether or not its watching is kept (saving is asked for). */
+  saved: z.array(SavedVideo).max(SAVED_MAX),
 });
 export type Stats = z.infer<typeof Stats>;
 export const StatsResponse = z.object({ stats: Stats });

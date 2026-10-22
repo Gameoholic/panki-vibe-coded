@@ -25,6 +25,7 @@ import {
   TranscriptionResponse,
   WatchHistoryResponse,
   WatchedVideoResponse,
+  SavedResponse,
   type CalledCard,
   type Card,
   type CardAnswer,
@@ -62,6 +63,7 @@ import {
   type WatchMark,
   type WatchMarkKind,
   type WatchedVideo,
+  type SavedVideo,
 } from "@panki/contracts";
 import type { VideoPictures } from "./components/LinkView";
 
@@ -166,6 +168,8 @@ export const api = {
   /** Something said of one video watched: put away from Continue watching, left out of the count, or counted again. */
   markVideo: (videoId: string, kind: WatchMarkKind): Promise<WatchedVideo> =>
     request(`${WATCHING_PATH}/videos/${encodeURIComponent(videoId)}/marks`, send("POST", { kind } satisfies WatchMark), (b) => WatchedVideoResponse.parse(b).video),
+  /** A video's save for later taken back (the Saved for later tile's ×); the saved videos after. */
+  unsaveVideo: (videoId: string): Promise<SavedVideo[]> => request(`${WATCHING_PATH}/saved/${encodeURIComponent(videoId)}`, send("DELETE"), (b) => SavedResponse.parse(b).videos),
   /** A file's bytes from where it's played (an address of Panki's, or an object URL for one just picked): to draw its sound's shape. */
   fileBytes: async (src: string): Promise<ArrayBuffer> => {
     let res: Response;
