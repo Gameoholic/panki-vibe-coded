@@ -51,7 +51,7 @@ const id = (ids: string[], i: number): string => ids[i] ?? "";
  */
 const WK_CHANCE_FROM = 4;
 function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
-  const [forgot, ok, reset, easy, bury, suspend] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
+  const [forgot, ok, easy, bury, suspend, reset] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
   const apart = (): Flow => ({ [reset]: to(id(s, 0)), [easy]: move(2), [bury]: { kind: "bury", wait: { ...BURY_WAIT } }, [suspend]: { kind: "suspend" } });
   // Once a card is forgotten, neither Easy nor Bury is offered until it leaves the ask-again: a card just forgotten is no
   // card to skip ahead (the owner, 2026-10-18), nor to bury ("there's no reason to bury a card if I already failed it",
@@ -68,7 +68,7 @@ function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
  * again until it's got right in the same review, "and then graduate to Apprentice 1"). Reset has nothing to do there.
  */
 function wanikaniPlusLesson(a: string[]): Flow {
-  const [forgot, ok, reset, easy, bury, suspend] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
+  const [forgot, ok, easy, bury, suspend, reset] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
   const hidden: Step = { kind: "hidden" };
   return {
     [forgot]: now({ [forgot]: { kind: "retry" }, [ok]: move(1), [reset]: { ...hidden }, [easy]: { ...hidden }, [bury]: { ...hidden }, [suspend]: { kind: "suspend" } }),
@@ -108,13 +108,14 @@ const WK_NAMES = ["Apprentice 1", "Apprentice 2", "Apprentice 3", "Apprentice 4"
 const STARTERS: Record<SrsStarterId, Starter> = {
   wanikaniPlus: {
     name: "Wanikani+",
-    description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Adds Easy (skip two stages), Reset (back to Apprentice 1), Snooze (back in 24 hours) and Suspend (out until you bring it back).",
+    description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Adds Easy (skip two stages), Snooze (back in 24 hours), Suspend (out until you bring it back) and Reset (back to Apprentice 1).",
     stages: [[4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
-    // The third was Relearn and the fifth Bury until the owner renamed them Reset and Snooze, 2026-10-21; the fifth's rule is still the `bury` step.
+    // Reset was Relearn and Snooze was Bury until the owner renamed them, 2026-10-21; Snooze's rule is still the `bury` step.
+    // Easy third and Reset last since 2026-10-22 (the owner: Easy on key 3), matched to what each account has by name.
     // Every one set apart asks for confirmation (Easy, Snooze and Suspend again at the owner's word, 2026-10-21, once a
     // held key could be the yes: held longer instead of asked, `keys.ts` → `askMs`).
-    answers: ["Forgot", "Ok", ["Reset", "aside"], ["Easy", "aside"], ["Snooze", "aside"], ["Suspend", "aside"]],
+    answers: ["Forgot", "Ok", ["Easy", "aside"], ["Snooze", "aside"], ["Suspend", "aside"], ["Reset", "aside"]],
     flow: (a, s) => wanikaniPlusFlow(a, s, false),
     overrides: (a, s) => Object.fromEntries(s.slice(WK_CHANCE_FROM).map((stageId) => [stageId, wanikaniPlusFlow(a, s, true)])),
     lesson: (a) => wanikaniPlusLesson(a),
@@ -158,15 +159,38 @@ const STARTERS: Record<SrsStarterId, Starter> = {
 };
 
 /**
- * One of the types that come with the app, with fresh ids from `mint` (`crypto.randomUUID`). Given `as` (the type
- * already made from it), it's the same type as the app defines it today under the ids that one has, stage for stage
- * and answer for answer, so one that exists can be brought up to date without its cards losing their place.
+ * Which of the answers already made each of the app's answers is: the one of the same name, so moving an answer in the
+ * app's order keeps it the same answer (the owner, 2026-10-22: Easy moved to third, Reset to last, in Wanikani+), and
+ * every answer given in the past still reads as the one it was; failing that, the one in its place that no other has
+ * taken, so a renamed answer stays itself (Relearn became Reset so, 2026-10-21); failing that, a new one.
  */
-export function makeStarter(starter: SrsStarterId, mint: () => string, as?: { id: string; stageIds: readonly string[]; answerIds: readonly string[] }): NewSrsType {
+function answerIdsAs(names: readonly string[], made: readonly { id: string; name: string }[], mint: () => string): string[] {
+  const byName = names.map((name) => made.find((a) => a.name === name)?.id);
+  const taken = new Set(byName.filter((id) => id !== undefined));
+  return byName.map((id, i) => {
+    if (id !== undefined) return id;
+    const inPlace = made[i]?.id;
+    if (inPlace !== undefined && !taken.has(inPlace)) {
+      taken.add(inPlace);
+      return inPlace;
+    }
+    return mint();
+  });
+}
+
+/**
+ * One of the types that come with the app, with fresh ids from `mint` (`crypto.randomUUID`). Given `as` (the type
+ * already made from it), it's the same type as the app defines it today under the ids that one has: its stages
+ * position for position, its answers by name (`answerIdsAs`), so one that exists can be brought up to date without its
+ * cards losing their place or a past answer its meaning.
+ */
+export function makeStarter(starter: SrsStarterId, mint: () => string, as?: { id: string; stageIds: readonly string[]; answers: readonly { id: string; name: string }[] }): NewSrsType {
   const s = STARTERS[starter];
   const wk = starter === "anki" ? [] : WK_NAMES;
+  const names = s.answers.map((a) => (typeof a === "string" ? a : a[0]));
+  const ids = as ? answerIdsAs(names, as.answers, mint) : names.map(() => mint());
   const answers = s.answers.map((a, i) => {
-    const id = as?.answerIds[i] ?? mint();
+    const id = ids[i] ?? mint();
     return typeof a === "string" ? { id, name: a } : { id, name: a[0], aside: true, confirm: a[2] ?? true };
   });
   const stages = s.stages.map(([n, unit, name], i) => ({ id: as?.stageIds[i] ?? mint(), name: name ?? wk[i] ?? "", wait: { n, unit } }));

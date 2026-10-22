@@ -1973,7 +1973,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // them, and that first time everything is cleared for them: every deck goes onto the default one (its cards keep
   // their rung, as any switch of type does) and the types from before are hidden. After that a missing one is added,
   // and one that's there is brought up to what the app defines today: nobody can edit it, so it is always the app's
-  // latest (its stages and answers keep their ids, position for position, so cards stay where they are).
+  // latest (its stages keep their ids position for position, so cards stay where they are, and its answers by name, so
+  // an answer moved in the app's order is still the one every past review gave).
   const mint = () => crypto.randomUUID();
   const builtinIds = new Map((selectBuiltins.all() as { id: string; builtin: string }[]).map((row) => [row.builtin, row.id]));
   const first = builtinIds.size === 0;
@@ -1987,7 +1988,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       continue;
     }
     if (existing) {
-      const { id, ...today } = makeStarter(starter, mint, { id: existing.id, stageIds: existing.stages.map((s) => s.id), answerIds: existing.answers.map((a) => a.id) });
+      const { id, ...today } = makeStarter(starter, mint, { id: existing.id, stageIds: existing.stages.map((s) => s.id), answers: existing.answers });
       // Nothing changes, and nothing is recorded, when it's already the same. A stage the app dropped while cards sit
       // on it is left for a migration to move: this never guesses where cards go.
       api.updateSrsType(id, today, now());
