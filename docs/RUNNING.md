@@ -36,7 +36,7 @@ Data lives under `apps/api/data/`: `auth.sqlite` (accounts and signed-in devices
 - `<moment>/auth.sqlite`, `<moment>/shared.sqlite`, `<moment>/users/<account id>/panki.sqlite`: every database as it stood at that moment, one folder per run.
 - `files/`: every file on a card and every dictionary zip, in the folders they came from. A file never changes, so each is copied once; a run after the first copies only what's new.
 
-Only the newest 3 `<moment>` folders are kept: once a run's snapshot is whole, older ones are deleted (`PANKI_BACKUP_SLOTS` changes the 3; a run that fails deletes nothing). Nothing in `files/` is ever deleted. Settings → Admin → Storage and `pnpm space` show what the backup folder takes, if it's the default one (or `PANKI_BACKUP_DIR`), not a folder given on the command line. On the VPS, a line in the `panki` user's crontab runs it (`sudo crontab -u panki -e`): `0 4 * * * . $HOME/.nvm/nvm.sh && cd /opt/panki-vibe-coded && PANKI_TIME_ZONE=Asia/Jerusalem pnpm backup` (cron's shell doesn't find nvm's Node by itself), into the same folder as each deploy's, so the 3 are the latest of either. Copying that folder off the machine now and then is what makes it a backup.
+Only the newest 3 `<moment>` folders are kept: once a run's snapshot is whole, older ones are deleted (`PANKI_BACKUP_SLOTS` changes the 3; a run that fails deletes nothing). Nothing in `files/` is ever deleted. Settings → Admin → Storage and `pnpm space` show what the backup folder takes, if it's the default one (or `PANKI_BACKUP_DIR`), not a folder given on the command line. On the VPS, a line in the `panki` user's crontab runs it (`sudo crontab -u panki -e`): `0 4 * * * bash -c '. $HOME/.nvm/nvm.sh && cd /opt/panki-vibe-coded && pnpm backup'` (cron's shell doesn't find nvm's Node by itself, and nvm needs bash: sourced by `sh` it does nothing; it also needs a default, `nvm alias default 24.13.0`), into the same folder as each deploy's, so the 3 are the latest of either. Copying that folder off the machine now and then is what makes it a backup.
 
 To restore: stop the API (`pm2 stop panki-api`), copy the chosen `<moment>` folder's databases over the data folder's (`auth.sqlite`, `shared.sqlite`, each `users/<account id>/panki.sqlite`; delete any `-wal` / `-shm` beside them first), copy `files/shared/dictionaries` to `shared/dictionaries` and each `files/users/<account id>/media` to `users/<account id>/media`, start the API.
 
@@ -69,7 +69,7 @@ Once, to set it up:
 
 1. On your PC, a key for GitHub alone: `ssh-keygen -t ed25519 -f panki-deploy -N ""`.
 2. On the VPS, its public half as one line of `/home/panki/.ssh/authorized_keys`, bound to the deploy (`restrict` takes away a shell, forwarding and the rest):
-   `restrict,command="cd /opt/panki-vibe-coded && git pull --ff-only origin main && exec sh scripts/deploy.sh" ssh-ed25519 AAAA… github-deploy`
+   `restrict,command="cd /opt/panki-vibe-coded && git pull --ff-only origin main && exec bash scripts/deploy.sh" ssh-ed25519 AAAA… github-deploy`
 3. In the repository on GitHub, Settings → Secrets and variables → Actions, add `VPS_HOST` (the VPS's address), `VPS_USER` (`panki`), `SSH_PRIVATE_KEY` (the whole of `panki-deploy`), and `VPS_FINGERPRINT`, the output of `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | cut -d ' ' -f2` on the VPS, so the deploy refuses a machine that isn't yours. Then delete `panki-deploy` from your PC.
 
 The VPS pulls over HTTPS, which a public repository needs nothing for.

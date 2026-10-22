@@ -21,6 +21,8 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24 # the VPS's
+          # Its own caching reads package.json's packageManager and wants pnpm before the next step has enabled it.
+          package-manager-cache: false
 
       # pnpm at the version package.json names, through Node's own corepack: no third-party action.
       - name: Enable pnpm
