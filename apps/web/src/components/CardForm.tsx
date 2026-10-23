@@ -5,6 +5,7 @@ import {
   MEDIA_MAX_BYTES,
   NewCard,
   VALUE_MAX,
+  apartOf,
   cardProblems,
   holdsFile,
   mediaFor,
@@ -118,7 +119,7 @@ export function CardForm(props: Props) {
   const first = type.fields[0];
   /** The field the card is called by: a card being added says under it when one is already called so. */
   const lead = card ? null : wordsFieldOf(type);
-  const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], api.cardsCalled);
+  const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], apartOf(type, draft), api.cardsCalled);
   const onOpenCalled = "onAdd" in props ? props.onOpenCalled : undefined;
 
   function focusField(fieldId: string) {

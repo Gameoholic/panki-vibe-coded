@@ -75,6 +75,12 @@ export const CardField = z.object({
   kind: FieldKind,
   side: FieldSide,
   required: z.boolean(),
+  /**
+   * Whether two cards called the same (`wordsFieldOf`) are told apart by this field: when both hold something here and
+   * it differs, neither is the other's duplicate (the owner, 2026-10-23: a word added again with another meaning is no
+   * duplicate). Only a field of words means anything by it (`apartOf`); left out, it's off.
+   */
+  tellsApart: z.boolean().default(false),
 });
 
 /** What the browser sends to make a type. The ids are minted by the browser, so a retry is harmless. */

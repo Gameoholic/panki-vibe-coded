@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { NEW_PLACE, NewCard, VALUE_MAX, cardProblems, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { NEW_PLACE, NewCard, VALUE_MAX, apartOf, cardProblems, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
 import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
@@ -423,7 +423,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const leadField = type ? wordsFieldOf(type) : null;
   const leadRole = leadField ? roleOf(map, leadField.id) : null;
   const byForm = leadRole === "word" || isDictRole(leadRole) ? [chosen?.term ?? ""] : [];
-  const called = useCalled(leadField ? [values[leadField.id] ?? "", ...byForm] : [], askCalled);
+  const called = useCalled(leadField ? [values[leadField.id] ?? "", ...byForm] : [], type ? apartOf(type, values) : [], askCalled);
 
   // The word said on Forvo, when the deck takes it: asked for once the dictionaries have answered, as the dictionary
   // has it (探す, not 探していた, which no one records), or as it's typed when they don't know it. Panki's server asks

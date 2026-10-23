@@ -28,6 +28,7 @@ import {
   SavedVideo,
   type SaveVideo,
   WatchHistory,
+  apartOf,
   defaultLesson,
   dueAt,
   isBurned,
@@ -40,9 +41,11 @@ import {
   stageTagOf,
   stageIndex,
   starterStageCount,
+  toldApart,
   upgradeFlow,
   wordsFieldOf,
   youtubeLinkOf,
+  type ApartValue,
   type CalledCard,
   type CardAnswer,
   type CardHold,
@@ -677,6 +680,11 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
     db.exec("CREATE INDEX saved_videos_video_id ON saved_videos (video_id)");
   },
+  (db) => {
+    // 32. A field can tell two cards called the same apart (the owner, 2026-10-23: a word added again with another
+    // meaning is no duplicate). Off for every field there is; a type's save logs it with the rest of its fields.
+    db.exec("ALTER TABLE card_fields ADD COLUMN tells_apart INTEGER NOT NULL DEFAULT 0");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -695,7 +703,7 @@ function migrate(db: DatabaseSync, now: number) {
   });
 }
 
-type FieldRow = { id: string; name: string; kind: string; side: string; required: number };
+type FieldRow = { id: string; name: string; kind: string; side: string; required: number; tellsApart: number };
 /** `mediaKind` is what the file a value names is; null for a value that names none. `cues` is what's said in it, as kept (JSON), when it was recorded with its words. */
 type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null };
 type StageRow = { id: string; name: string; n: number; unit: string };
@@ -824,11 +832,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
   const selectAnyType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ?`);
-  const selectFields = db.prepare("SELECT id, name, kind, side, required FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
+  const selectFields = db.prepare("SELECT id, name, kind, side, required, tells_apart AS tellsApart FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
   const selectFieldIds = db.prepare("SELECT id, removed_at AS removedAt FROM card_fields WHERE type_id = ?");
   const insertType = db.prepare("INSERT OR IGNORE INTO card_types (id, name, created_at) VALUES (?, ?, ?)");
-  const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, position) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  const updateField = db.prepare("UPDATE card_fields SET name = ?, kind = ?, side = ?, required = ?, position = ?, removed_at = NULL WHERE id = ?");
+  const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, tells_apart, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateField = db.prepare("UPDATE card_fields SET name = ?, kind = ?, side = ?, required = ?, tells_apart = ?, position = ?, removed_at = NULL WHERE id = ?");
   const hideField = db.prepare("UPDATE card_fields SET removed_at = ? WHERE id = ?");
   const updateTypeName = db.prepare("UPDATE card_types SET name = ? WHERE id = ?");
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
@@ -1068,7 +1076,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
   function typeFrom(row: unknown): CardType {
     const { layout: kept, stageTag, ...base } = row as { id: string; layout: string; stageTag: string | null };
-    const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1 })));
+    const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept));
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
@@ -1084,6 +1092,23 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   function wordsOf(cardId: string, fieldId: string | null): string {
     const value = fieldId ? (selectValue.get(cardId, fieldId) as { value: string } | undefined) : undefined;
     return value?.value ?? "";
+  }
+  /** A deck's card type by its id, for reading many cards: each asked for once. */
+  function typesById(): (typeId: string | null) => CardType | null {
+    const known = new Map<string | null, CardType | null>();
+    return (typeId) => {
+      if (!known.has(typeId)) {
+        const row = typeId ? selectAnyType.get(typeId) : undefined;
+        known.set(typeId, row ? typeFrom(row) : null);
+      }
+      return known.get(typeId) ?? null;
+    };
+  }
+  /** What a card holds that tells it apart from one called the same (the contracts' `apartOf`), in its type's fields that do. */
+  function apartOfCard(cardId: string, type: CardType | null): ApartValue[] {
+    if (!type) return [];
+    const values = Object.fromEntries(type.fields.filter((f) => f.tellsApart).map((f) => [f.id, wordsOf(cardId, f.id)]));
+    return apartOf(type, values);
   }
 
   function srsTypeFrom(row: unknown): SrsType {
@@ -1302,7 +1327,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (inserted) {
           const layout = type.layout ? layoutOf(type.fields, type.layout) : null;
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
-          type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, i));
+          type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
           if (type.tag) updateTypeTag.run(JSON.stringify(type.tag), type.id);
         }
@@ -1324,8 +1349,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const layout = update.layout ? layoutOf(update.fields, update.layout) : null;
         const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
         syncList(selectFieldIds.all(id) as IdRow[], update.fields, {
-          update: (f, i) => updateField.run(f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, i, f.id),
-          insert: (f, i) => insertField.run(f.id, id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, i),
+          update: (f, i) => updateField.run(f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, i, f.id),
+          insert: (f, i) => insertField.run(f.id, id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, i),
           hide: (fieldId) => hideField.run(now, fieldId),
         });
         if (layout) {
@@ -1579,17 +1604,18 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     /**
      * The living cards, in any living deck, called by one of these words: their type's words field holds it exactly.
-     * The newest first, a few at most. What a card about to be added says is already there.
+     * The newest first, a few at most, each with what tells it apart (`apartOf`): the card about to be added says it's
+     * already there unless that differs from its own.
      */
     cardsCalled(words: readonly string[]): CalledCard[] {
-      const fieldOf = new Map<string | null, string | null>();
+      const typeOf = typesById();
       const found = new Map<string, CalledCard & { createdAt: number }>();
       for (const word of new Set(words)) {
         for (const row of selectCalled.all(word) as CalledRow[]) {
           if (found.has(row.cardId)) continue;
-          if (!fieldOf.has(row.typeId)) fieldOf.set(row.typeId, wordFieldOf(row.typeId));
-          if (fieldOf.get(row.typeId) !== row.fieldId) continue;
-          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, words: row.value, createdAt: row.createdAt });
+          const type = typeOf(row.typeId);
+          if (!type || wordsFieldOf(type)?.id !== row.fieldId) continue;
+          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, words: row.value, apart: apartOfCard(row.cardId, type), createdAt: row.createdAt });
         }
       }
       return [...found.values()]
@@ -1598,11 +1624,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         .map(({ createdAt: _at, ...card }) => card);
     },
     /**
-     * A deck's duplicates: each of its living cards called the same as another living card in any living deck, with
-     * those others, the newest first. Every living card's words are read in one go (a field belongs to one type, so a
-     * value in a type's words field is a card called by it), then grouped by the words exactly as they stand.
+     * A deck's duplicates: each of its living cards called the same as another living card in any living deck, and not
+     * told apart from it (`toldApart`), with those others, the newest first. Every living card's words are read in one
+     * go (a field belongs to one type, so a value in a type's words field is a card called by it), then grouped by the
+     * words exactly as they stand.
      */
     deckTwins(deckId: string): Record<string, CalledCard[]> {
+      const typeOf = typesById();
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
       const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
       if (fieldIds.length === 0) return {};
@@ -1620,12 +1648,18 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (group) group.push(row);
         else byWords.set(row.value, [row]);
       }
+      // What tells each card apart, read only for cards that have another called the same.
+      const apart = new Map<string, ApartValue[]>();
+      const apartOfRow = (row: CalledRow) => {
+        if (!apart.has(row.cardId)) apart.set(row.cardId, apartOfCard(row.cardId, typeOf(row.typeId)));
+        return apart.get(row.cardId) ?? [];
+      };
       const twins: Record<string, CalledCard[]> = {};
       for (const row of rows) {
         if (row.deckId !== deckId) continue;
-        const others = (byWords.get(row.value) ?? []).filter((other) => other.cardId !== row.cardId);
+        const others = (byWords.get(row.value) ?? []).filter((other) => other.cardId !== row.cardId && !toldApart(apartOfRow(row), apartOfRow(other)));
         if (others.length === 0) continue;
-        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, words: other.value }));
+        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, words: other.value, apart: apartOfRow(other) }));
       }
       return twins;
     },

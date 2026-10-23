@@ -4,7 +4,7 @@ import { DeckId } from "./deck";
 import { MediaCues, MediaKind } from "./media";
 import { CardPlace, HoldKind } from "./srs";
 import { Stretch } from "./transcription";
-import { CardFieldId, VALUE_MAX } from "./type";
+import { CardFieldId, VALUE_MAX, holdsWords, wordsFieldOf, type CardType } from "./type";
 
 /** Minted by the browser, so a retried POST returns the card that already exists instead of a second one. */
 export const CardId = z.uuid();
@@ -105,8 +105,32 @@ export const CALLED_CARDS_MAX = 5;
  */
 export const CardsCalled = z.object({ word: z.array(z.string().trim().min(1).max(VALUE_MAX)).min(1).max(CALLED_MAX) });
 export type CardsCalled = z.infer<typeof CardsCalled>;
-/** A living card of the account's called by one of the words asked about: its words, exactly as it holds them, and its deck, by id and by name as it stands now. */
-export const CalledCard = z.object({ cardId: CardId, deckId: DeckId, deck: z.string(), words: z.string() });
+/**
+ * What a card holds in a field that tells cards apart (`CardField.tellsApart`), by the field's name: so a card of
+ * another type is told apart by its own field of the same name. Only what's filled in.
+ */
+export const ApartValue = z.object({ name: z.string(), value: z.string() });
+export type ApartValue = z.infer<typeof ApartValue>;
+/** A card's values in its type's fields that tell cards apart, those filled in (never the field it's called by). */
+export function apartOf(type: Pick<CardType, "fields">, values: Readonly<Record<string, string>>): ApartValue[] {
+  const called = wordsFieldOf(type)?.id;
+  return type.fields.flatMap((f) => {
+    const value = (values[f.id] ?? "").trim();
+    return f.tellsApart && holdsWords(f.kind) && f.id !== called && value !== "" ? [{ name: f.name, value }] : [];
+  });
+}
+/** Words as they're compared: spaces and capitals aside. */
+const plain = (words: string) => words.trim().replace(/\s+/g, " ").toLowerCase();
+/** Whether two cards called the same are told apart: a field of the same name filled in on both, holding different words. */
+export function toldApart(a: readonly ApartValue[], b: readonly ApartValue[]): boolean {
+  return a.some((mine) => b.some((theirs) => plain(theirs.name) === plain(mine.name) && plain(theirs.value) !== plain(mine.value)));
+}
+
+/**
+ * A living card of the account's called by one of the words asked about: its words, exactly as it holds them, its
+ * deck, by id and by name as it stands now, and what it holds that tells it apart (`apartOf`; none from an older server).
+ */
+export const CalledCard = z.object({ cardId: CardId, deckId: DeckId, deck: z.string(), words: z.string(), apart: z.array(ApartValue).default([]) });
 export type CalledCard = z.infer<typeof CalledCard>;
 /** The newest of them first. */
 export const CalledCards = z.object({ cards: z.array(CalledCard).max(CALLED_CARDS_MAX) });

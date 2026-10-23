@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NewCardType, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
+import { NewCardType, holdsWords, wordsFieldOf, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -51,7 +51,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [id] = useState(() => type?.id ?? crypto.randomUUID());
   const [name, setName] = useState(type?.name ?? "");
   // A new type starts with one field on the front, because a card needs something there.
-  const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true }]);
+  const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false }]);
   /** What's saved, to tell changes by; a new type's is how it starts, so an untouched one has nothing to lose. */
   const [saved, setSaved] = useState(() => shapeOf(name, fields));
   const [isNew, setIsNew] = useState(type === null);
@@ -73,6 +73,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   // A new type isn't saved until its first Save, touched or not.
   const state: SaveStatus["state"] = saving ? "saving" : failure ? "failed" : dirty || isNew ? "unsaved" : "saved";
   const shownName = name.trim() || "New card type";
+  const called = wordsFieldOf({ fields });
 
   // While there's unsaved work, leaving asks first: the app's own question for its screens, and the browser's for a
   // reload or a closed tab.
@@ -119,7 +120,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
     else add();
   }
   function add() {
-    const field: CardField = { id: crypto.randomUUID(), name: "", kind: "text", side: "back", required: false };
+    const field: CardField = { id: crypto.randomUUID(), name: "", kind: "text", side: "back", required: false, tellsApart: false };
     setFields((prev) => [...prev, field]);
     setFocusId(field.id);
   }
@@ -229,6 +230,10 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                 <div className="field-row-options">
                   <Dropdown id={`field-kind-${field.id}`} label="Kind" options={FIELD_KIND_OPTIONS} value={field.kind} onChange={(kind) => edit(field.id, { kind })} />
                   <Toggle id={`field-required-${field.id}`} says={{ on: "Required", off: "Optional" }} on={field.required} onChange={(required) => edit(field.id, { required })} />
+                  {/* The field cards are called by is compared always; another field of words can tell two of them apart. */}
+                  {holdsWords(field.kind) && field.id !== called?.id ? (
+                    <Toggle id={`field-apart-${field.id}`} says={{ on: "Compared for duplicates", off: "Ignored for duplicates" }} on={field.tellsApart} onChange={(tellsApart) => edit(field.id, { tellsApart })} />
+                  ) : null}
                 </div>
               </div>
             ))}
