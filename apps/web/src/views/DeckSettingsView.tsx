@@ -52,7 +52,7 @@ const AGAIN_PLACE_WORDS: Record<DeckSettings["againPlace"], string> = {
   random: "A card you're asked again comes back at a random point in the rest of the review.",
 };
 /** With only so many cards in play, a card asked again lands anywhere among them (`againPlaceOf`). */
-const againInPool = (pool: number) => `A card you're asked again comes back at a random point within the next ${count(pool, "card", "cards")}. Set by “Cards in play at once”.`;
+const againInPool = (pool: number) => `A card you're asked again comes back at a random point within the next ${count(pool, "card", "cards")}.`;
 /** Where "Reviews a day, at most" starts when a limit is switched on. */
 const REVIEWS_LIMIT_START = 100;
 const AGAIN_PLACE_OPTIONS = [
@@ -177,7 +177,7 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, o
           why={
             own.pool === null
               ? "Every card of a review is in play from the start."
-              : `Only ${count(own.pool, "card goes", "different cards go")} round at a time. The next one joins when one of them is done for now.`
+              : `Up to ${count(own.pool, "card", "cards")} at once. The next one joins when one of them is done for now.`
           }
         />
       </section>
