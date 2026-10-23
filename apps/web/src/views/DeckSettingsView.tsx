@@ -167,17 +167,17 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, o
         />
         <Setting
           id="pool"
-          label="Cards in play at once"
+          label="Cards at a time"
           control={
             <div className="setting-pair">
               <Toggle id="deck-pool-all" says={{ on: "All of them", off: "Only some" }} on={own.pool === null} onChange={(all) => patch({ pool: all ? null : POOL_START })} />
-              {own.pool === null ? null : <NumberField id="deck-pool" label="Cards in play at once" value={own.pool} min={1} max={POOL_MAX} onChange={(pool) => patch({ pool })} />}
+              {own.pool === null ? null : <NumberField id="deck-pool" label="Cards at a time" value={own.pool} min={1} max={POOL_MAX} onChange={(pool) => patch({ pool })} />}
             </div>
           }
           why={
             own.pool === null
               ? "Every card of a review is in play from the start."
-              : `Up to ${count(own.pool, "card", "cards")} at once. The next one joins when one of them is done for now.`
+              : `Up to ${count(own.pool, "card", "cards")} at a time. A new card is added once you're done with one.`
           }
         />
       </section>
