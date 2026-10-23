@@ -67,13 +67,11 @@ const KIND_WORDS: Record<Kind, (n: number) => string> = {
 /**
  * The counts left to right in the order their cards come (the owner, 2026-10-21: "it should display from left to
  * right in the order"): the new ones before or after the reviews as the deck puts them (scattered among them, first),
- * and the ones asked again where they go back in: last at the end, first a few cards later, between them anywhere.
+ * and the ones asked again where they go back in: last at the end, between them anywhere.
  */
 function countOrder(settings: Deck["settings"]): readonly Kind[] {
   const [front, back]: [Kind, Kind] = settings.newPlace === "last" ? ["review", "new"] : ["new", "review"];
-  const again = againPlaceOf(settings);
-  if (again === "end") return [front, back, "again"];
-  if (again === "soon") return ["again", front, back];
+  if (againPlaceOf(settings) === "end") return [front, back, "again"];
   return [front, "again", back];
 }
 
@@ -99,9 +97,6 @@ function stepsLeft(srsType: SrsType, card: Card, best: string): number {
   return STEPS_MAX;
 }
 
-/** How far on "a few cards later" is, for a card asked again in the same review. */
-const AGAIN_SOON = 3;
-
 /** A card never started that a review can start: new, but not inside an ask-again (it has been started, and comes back as due), and not put aside. */
 const isUnseen = (card: Card) => isNew(card.place) && card.place.node.length === 0 && card.hold === null;
 
@@ -116,7 +111,7 @@ function scatter(items: readonly string[], among: readonly string[]): string[] {
 /**
  * The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones
  * where the deck's settings put them. A card still inside an ask-again (an earlier review was left with it there) is
- * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, first, or
+ * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, or
  * anywhere (the owner, 2026-10-21: it opened on one of those at random, shuffled in among the reviews).
  */
 function buildQueue(cards: Card[], deck: Deck): string[] {
@@ -130,9 +125,7 @@ function buildQueue(cards: Card[], deck: Deck): string[] {
   const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, deck.newCount).map((c) => c.id);
   // Scattered: each new card lands somewhere at random among the reviews, the new ones keeping their own order.
   const line = newPlace === "first" ? [...fresh, ...due] : newPlace === "last" ? [...due, ...fresh] : scatter(fresh, due);
-  const againPlace = againPlaceOf(deck.settings);
-  if (againPlace === "end") return [...line, ...again];
-  if (againPlace === "soon") return [...again, ...line];
+  if (againPlaceOf(deck.settings) === "end") return [...line, ...again];
   return scatter(again, line);
 }
 
@@ -153,7 +146,7 @@ function startLine(queue: string[], pool: number | null): Line {
 function advance(line: Line, cardId: string, comesBack: boolean, againPlace: Deck["settings"]["againPlace"]): Line {
   const active = line.active.slice(1);
   if (!comesBack) return { active: [...active, ...line.waiting.slice(0, 1)], waiting: line.waiting.slice(1) };
-  const spot = active.length === 0 ? 0 : againPlace === "end" ? active.length : againPlace === "soon" ? Math.min(AGAIN_SOON, active.length) : 1 + Math.floor(Math.random() * active.length);
+  const spot = active.length === 0 ? 0 : againPlace === "end" ? active.length : 1 + Math.floor(Math.random() * active.length);
   active.splice(spot, 0, cardId);
   return { active, waiting: line.waiting };
 }

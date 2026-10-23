@@ -49,14 +49,14 @@ const REVIEW_ORDER_WORDS: Record<DeckSettings["reviewOrder"], string> = {
 const AGAIN_PLACE_WORDS: Record<DeckSettings["againPlace"], string> = {
   // A pile of its own (the owner, 2026-10-21: "make it more obvious… like there's a separate section for cards that failed").
   end: "Cards you're asked again collect in a separate pile at the end, after the rest of the review.",
-  soon: "A card you're asked again comes back about three cards later.",
-  random: "A card you're asked again lands at a random spot in what's left.",
+  random: "A card you're asked again comes back at a random point in the rest of the review.",
 };
+/** With only so many cards in play, a card asked again lands anywhere among them (`againPlaceOf`). */
+const againInPool = (pool: number) => `A card you're asked again comes back at a random point within the next ${count(pool, "card", "cards")}. Set by “Cards in play at once”.`;
 /** Where "Reviews a day, at most" starts when a limit is switched on. */
 const REVIEWS_LIMIT_START = 100;
 const AGAIN_PLACE_OPTIONS = [
   { id: "end", label: "At the end" },
-  { id: "soon", label: "A few cards later" },
   { id: "random", label: "Anywhere" },
 ] as const;
 
@@ -163,7 +163,7 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, o
           control={
             <Segmented idPrefix="deck-again-place" label="A card asked again comes back" options={AGAIN_PLACE_OPTIONS} value={againPlaceOf(own)} disabled={own.pool !== null} onChange={(againPlace) => patch({ againPlace })} />
           }
-          why={own.pool !== null ? `${AGAIN_PLACE_WORDS.soon} Set by “Cards in play at once”.` : AGAIN_PLACE_WORDS[own.againPlace]}
+          why={own.pool !== null ? againInPool(own.pool) : AGAIN_PLACE_WORDS[own.againPlace]}
         />
         <Setting
           id="pool"

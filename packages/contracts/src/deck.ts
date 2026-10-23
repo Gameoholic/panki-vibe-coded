@@ -31,17 +31,19 @@ export const DeckSettings = z.object({
   /** Which due cards come first: at random, or the longest overdue. */
   reviewOrder: z.enum(["random", "overdue"]),
   /**
-   * Where a card asked again in the same review goes back in: the end of the line, a few cards on, or anywhere at
-   * random. With a `pool` it's always a few cards on, whatever is stored: the pool is the line (`againPlaceOf`).
+   * Where a card asked again in the same review goes back in: the end of the line, or anywhere at random. With a
+   * `pool` it's always anywhere, whatever is stored: the pool is the line, so it comes back within the cards in play
+   * (`againPlaceOf`). "A few cards on" (`soon`) went at the owner's word, 2026-10-23; a deck that kept it reads as the
+   * default.
    */
-  againPlace: z.enum(["end", "soon", "random"]),
+  againPlace: z.enum(["end", "random"]),
   /** How many different cards are in play at once: the next one only joins when one of them is done for now. Null is all of them. */
   pool: z.number().int().min(1).max(POOL_MAX).nullable(),
 });
 export type DeckSettings = z.infer<typeof DeckSettings>;
 export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null };
-/** Where a card asked again really goes back in: with only so many cards in play, always a few cards on. */
-export const againPlaceOf = (settings: Pick<DeckSettings, "againPlace" | "pool">): DeckSettings["againPlace"] => (settings.pool === null ? settings.againPlace : "soon");
+/** Where a card asked again really goes back in: with only so many cards in play, anywhere among them. */
+export const againPlaceOf = (settings: Pick<DeckSettings, "againPlace" | "pool">): DeckSettings["againPlace"] => (settings.pool === null ? settings.againPlace : "random");
 
 export const Deck = NewDeck.extend({
   settings: DeckSettings,
