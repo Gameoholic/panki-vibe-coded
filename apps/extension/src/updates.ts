@@ -13,7 +13,7 @@ import { readStore, writeStore } from "./storage";
  *
  * Two builds are told apart: the one **running**, noted as the extension's code is loaded (it's what the browser runs
  * until the next reload), and the one **in the folder** now, read from disk each time: Chrome reads an unpacked
- * extension's files afresh, so the moment Update Panki (or a zip extracted by hand) has put Panki's build there, the
+ * extension's files afresh, so the moment Update Panki (or a zip extracted by hand) has put another build there, the
  * notice says it's ready and Reload Panki wakes (the owner, 2026-10-22: a Reload button beside words nobody reads was
  * pressed as if it updated).
  */
@@ -66,9 +66,14 @@ function stateOf(mine: ExtensionBuildFile | null, latest: ExtensionBuild | null)
   return latest.fingerprint === mine.fingerprint ? "current" : "available";
 }
 
-/** Panki's build is in the folder already, waiting for a reload. */
-function readyOf(mine: ExtensionBuildFile | null, folder: ExtensionBuildFile | null, latest: ExtensionBuild | null): boolean {
-  return latest !== null && folder !== null && folder.fingerprint === latest.fingerprint && folder.fingerprint !== mine?.fingerprint;
+/**
+ * Another build is in the folder already, waiting for a reload. Any other than the one running, not only the one Panki
+ * carried when it was last asked: Panki deployed again since (an hour can pass between asks) and Update Panki brings
+ * the newer one, which never matched and left Reload Panki off for good (the owner, 2026-10-24). The reload's own check
+ * says whether it's Panki's latest.
+ */
+function readyOf(mine: ExtensionBuildFile | null, folder: ExtensionBuildFile | null): boolean {
+  return folder !== null && folder.fingerprint !== mine?.fingerprint;
 }
 
 async function badge(update: UpdateState) {
@@ -83,7 +88,7 @@ async function badge(update: UpdateState) {
 /** How it stands, from Panki's build as last asked (or just now), worked out against what's running and what's in the folder. */
 async function standing(latest: ExtensionBuild | null, checkedAt: number | null): Promise<UpdateState> {
   const [mine, folder] = await Promise.all([running(), inFolder()]);
-  return { state: stateOf(mine, latest), own: mine, latest, checkedAt, ready: readyOf(mine, folder, latest) };
+  return { state: stateOf(mine, latest), own: mine, latest, checkedAt, ready: readyOf(mine, folder) };
 }
 
 /** How this extension stands, from Panki's build as last asked: cheap (no call to Panki), so a notice asks it every few seconds while it's open. */

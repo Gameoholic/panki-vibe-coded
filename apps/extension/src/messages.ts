@@ -72,7 +72,7 @@ const PIECE_BASE64_MAX = Math.ceil((PIECE_MAX_BYTES * 4) / 3) + 4;
  * How this extension stands against the build the Panki it's signed in to carries (`updates.ts`, the contracts'
  * `extension.ts`): up to date, an update available (other files), an update needed (Panki speaks a newer protocol), or
  * not known (never asked, no build there, no Panki set). `own` is the running build's account of itself, `latest`
- * Panki's, as last asked; `checkedAt` when; `ready`, Panki's build is in the extension's folder already, waiting for
+ * Panki's, as last asked; `checkedAt` when; `ready`, another build than the running one is in the extension's folder already, waiting for
  * Reload Panki.
  */
 export const UpdateState = z.object({
