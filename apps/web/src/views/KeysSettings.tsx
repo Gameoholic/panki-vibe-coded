@@ -65,6 +65,7 @@ export function KeysPanels() {
         {binds.media.map((bind, index) => (
           <KeyRow key={index} id={`media-${index + 1}`} label={`Sound or clip ${index + 1}`} bind={bind} slot={{ kind: "media", index }} binds={binds} />
         ))}
+        <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} />
       </section>
       {changed ? (
         <div className="add-actions add-actions-start">

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
+import { useHold } from "../hooks/useHold";
 import { usePlayback } from "../hooks/usePlayback";
-import type { Shortcut } from "../keys";
+import { heard, type Shortcut } from "../keys";
 import type { Speed, Volume } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
@@ -38,6 +39,8 @@ type Props = {
   over?: ReactNode;
   /** The key that plays or stops it from anywhere on the page, and how long it's held first, drawn on it as a keycap (a review's); none by default. */
   shortcut?: Shortcut | null;
+  /** The key that fills the screen with a clip in Panki's own player, or leaves it (`useScreenKey`), drawn beside its button (a review's); none by default. */
+  screenKey?: Shortcut | null;
 };
 
 /**
@@ -46,7 +49,7 @@ type Props = {
  * its kind's colour. Every look plays through one hook (`usePlayback`). Never the browser's own controls, and nothing
  * plays until it's pressed or cued.
  */
-export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null }: Props) {
+export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null, screenKey = null }: Props) {
   if (kind === "image") return <img className={`media-frame ${size === "row" ? "media-thumb" : ""}`.trim()} src={src} alt={label} loading="lazy" draggable={false} />;
   const shown = size === "row" ? "button" : look;
   const common = { kind, src, label, cue, onCueEnd, shortcut };
@@ -64,7 +67,7 @@ export function MediaView({ kind, src, label, size = "card", look = "player", na
     case "speaker":
       return <SpeakerLook {...common} named={named ?? false} />;
     default:
-      return <PlayerLook {...common} named={named ?? false} over={over} />;
+      return <PlayerLook {...common} named={named ?? false} over={over} screenKey={screenKey} />;
   }
 }
 
@@ -77,8 +80,10 @@ type BarProps = {
   onToggle: () => void;
   /** Written on the bar beside the button: the kind's icon and the name. */
   tag?: { icon: IconName; label: string } | null;
-  /** Filling the screen and back, at the bar's end: a clip's player has it. */
-  screen?: { full: boolean; onToggle: () => void } | null;
+  /** Filling the screen and back, at the bar's end: a clip's player has it, with the key that does it in a review. */
+  screen?: { full: boolean; onToggle: () => void; shortcut?: Shortcut | null } | null;
+  /** Going to a moment, a share of the way through (0 to 1): the line pressed or pulled like a video site's. Without it the line only shows how far it's got. */
+  onSeek?: ((share: number) => void) | null;
   /** How loud it plays (`playback.ts`): the speaker that mutes it and the line it's turned up and down on. Panki's own player has it. */
   sound?: SoundProps | null;
   /** How fast every player plays (`playback.ts`), picked beside how loud. Panki's own player has it. */
@@ -93,7 +98,8 @@ type BarProps = {
  * holds yet (the extension's clip before it's recorded), so that looks like the player by being the player's own bar.
  * Never a second bar.
  */
-export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, sound = null, speed = null, shortcut = null }: BarProps) {
+export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, onSeek = null, sound = null, speed = null, shortcut = null }: BarProps) {
+  const share = length ? Math.min(1, at / length) : 0;
   return (
     <div className="media-bar">
       <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} aria-keyshortcuts={shortcut?.key} onClick={onToggle}>
@@ -106,16 +112,23 @@ export function MediaBar({ playing, at, length, label, onToggle, tag = null, scr
           {tag.label}
         </span>
       ) : null}
-      <span className="media-track" aria-hidden="true">
-        <i style={{ width: `${length ? Math.min(1, at / length) * 100 : 0}%` }} />
-      </span>
+      {onSeek && length ? (
+        <SeekLine at={at} length={length} label={label} onSeek={onSeek} />
+      ) : (
+        <span className="media-track" aria-hidden="true">
+          <i style={{ width: `${share * 100}%` }} />
+        </span>
+      )}
       <span className="media-time">{length === null ? clock(at) : `${clock(at)} / ${clock(length)}`}</span>
       {speed ? <SpeedControl {...speed} label={label} /> : null}
       {sound ? <SoundControl {...sound} label={label} /> : null}
       {screen ? (
-        <Button className="btn-icon media-screen" aria-label={screen.full ? `Leave full screen` : `${label} full screen`} onClick={screen.onToggle}>
-          <Icon name={screen.full ? "unfull" : "full"} />
-        </Button>
+        <>
+          <MediaKey shortcut={screen.shortcut ?? null} className="media-screen-key" />
+          <Button className="btn-icon media-screen" aria-label={screen.full ? `Leave full screen` : `${label} full screen`} aria-keyshortcuts={screen.shortcut?.key} onClick={screen.onToggle}>
+            <Icon name={screen.full ? "unfull" : "full"} />
+          </Button>
+        </>
       ) : null}
     </div>
   );
@@ -133,22 +146,80 @@ const VOLUME_STEP = 0.1;
 const VOLUME_KEYS: Readonly<Partial<Record<string, number>>> = { ArrowLeft: -VOLUME_STEP, ArrowDown: -VOLUME_STEP, ArrowRight: VOLUME_STEP, ArrowUp: VOLUME_STEP };
 
 /**
+ * A line pressed or pulled along, a pointer that strays off it still pulling: `onShare` is told how far along it is, 0
+ * to 1. Spread `handlers` on its box (taller than the line, to be easy to hit) and give the line `line`. How loud and
+ * where in the clip are both this.
+ */
+function usePull(onShare: (share: number) => void) {
+  const line = useRef<HTMLSpanElement>(null);
+  const [pulling, setPulling] = useState(false);
+  function pull(x: number) {
+    const box = line.current?.getBoundingClientRect();
+    if (box && box.width > 0) onShare(Math.max(0, Math.min(1, (x - box.left) / box.width)));
+  }
+  const handlers = {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      e.currentTarget.focus({ preventScroll: true });
+      setPulling(true);
+      pull(e.clientX);
+    },
+    onPointerMove: (e: PointerEvent<HTMLElement>) => {
+      if (pulling) pull(e.clientX);
+    },
+    onLostPointerCapture: () => setPulling(false),
+  };
+  return { line, pulling, handlers };
+}
+
+/** How far a press of an arrow key moves through a clip, in seconds. */
+const SEEK_STEP = 5;
+
+/**
+ * Where the clip is, as a line that's pressed or pulled to go anywhere in it, as on a video site, or moved with the
+ * arrow keys five seconds at a time (the owner, 2026-10-24: "I can't click on the seek bar to change the timestamp
+ * like in YouTube").
+ */
+function SeekLine({ at, length, label, onSeek }: { at: number; length: number; label: string; onSeek: (share: number) => void }) {
+  const { line, pulling, handlers } = usePull(onSeek);
+  const share = Math.min(1, at / length);
+  return (
+    <span
+      className={`media-seek ${pulling ? "is-pulling" : ""}`.trim()}
+      role="slider"
+      tabIndex={0}
+      aria-label={`${label}: where it is`}
+      aria-orientation="horizontal"
+      aria-valuemin={0}
+      aria-valuemax={Math.round(length)}
+      aria-valuenow={Math.round(at)}
+      aria-valuetext={`${clock(at)} of ${clock(length)}`}
+      {...handlers}
+      onKeyDown={(e) => {
+        const by = e.key === "ArrowLeft" || e.key === "ArrowDown" ? -SEEK_STEP : e.key === "ArrowRight" || e.key === "ArrowUp" ? SEEK_STEP : null;
+        if (e.key === "Home" || e.key === "End") onSeek(e.key === "Home" ? 0 : 1);
+        else if (by !== null) onSeek((at + by) / length);
+        else return;
+        e.preventDefault();
+      }}
+    >
+      <span ref={line} className="media-track">
+        <i style={{ width: `${share * 100}%` }} />
+      </span>
+    </span>
+  );
+}
+
+/**
  * How loud: a speaker that mutes it and unmutes it, and beside it a short line that's pressed, pulled or moved with the
  * arrow keys. On a phone the line gives way (its own buttons turn it up and down) and the speaker stays.
  */
 function SoundControl({ volume, onLevel, onMute, label }: SoundProps & { label: string }) {
-  const line = useRef<HTMLSpanElement>(null);
-  const held = useRef(false);
+  const { line, handlers } = usePull(onLevel);
   const shown = volume.muted ? 0 : volume.level;
   const percent = Math.round(shown * 100);
-  function levelAt(x: number): number | null {
-    const box = line.current?.getBoundingClientRect();
-    return box && box.width > 0 ? Math.max(0, Math.min(1, (x - box.left) / box.width)) : null;
-  }
-  function pull(x: number) {
-    const to = levelAt(x);
-    if (to !== null) onLevel(to);
-  }
   return (
     <span className="media-sound">
       <Button className="btn-icon media-mute" aria-label={`${shown === 0 ? "Unmute" : "Mute"} ${label}`} onClick={onMute}>
@@ -164,21 +235,7 @@ function SoundControl({ volume, onLevel, onMute, label }: SoundProps & { label: 
         aria-valuemax={100}
         aria-valuenow={percent}
         aria-valuetext={`${percent}%`}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          e.preventDefault();
-          // It keeps following a pointer that strays off it.
-          e.currentTarget.setPointerCapture(e.pointerId);
-          e.currentTarget.focus({ preventScroll: true });
-          held.current = true;
-          pull(e.clientX);
-        }}
-        onPointerMove={(e) => {
-          if (held.current) pull(e.clientX);
-        }}
-        onLostPointerCapture={() => {
-          held.current = false;
-        }}
+        {...handlers}
         onKeyDown={(e) => {
           const to = VOLUME_KEYS[e.key];
           if (e.key === "Home" || e.key === "End") onLevel(e.key === "Home" ? 0 : 1);
@@ -201,12 +258,60 @@ function fullOf(el: HTMLElement): Element | null {
   return root instanceof Document || root instanceof ShadowRoot ? root.fullscreenElement : null;
 }
 
+/** Carried by a clip's player while the full screen key is its to answer. */
+const SCREEN_KEYED = "data-screen-key";
+
+/**
+ * Of the clips that answer the full screen key, the one it's for: the one filling the screen leaves it; else the one
+ * playing fills it, else the first on the card.
+ */
+function screenTarget(own: HTMLElement): HTMLElement | null {
+  const root = own.getRootNode();
+  if (!(root instanceof Document || root instanceof ShadowRoot)) return null;
+  const all = [...root.querySelectorAll<HTMLElement>(`[${SCREEN_KEYED}]`)];
+  const full = root.fullscreenElement;
+  const playing = (el: HTMLElement) => {
+    const video = el.querySelector("video");
+    return video !== null && !video.paused;
+  };
+  return all.find((el) => full !== null && el.contains(full)) ?? all.find(playing) ?? all[0] ?? null;
+}
+
+/**
+ * The full screen key (`keys.ts` → `fullScreen`), pressed anywhere on the page or held as long as it's set to be (its
+ * keycap beside the full screen button fills as it's held): every clip hears it, and only the one it's for acts
+ * (`screenTarget`).
+ */
+function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut | null, toggle: () => void) {
+  const held = useHold();
+  const act = useRef(toggle);
+  act.current = toggle;
+  const key = screenKey?.key ?? null;
+  const holdMs = screenKey?.holdMs ?? 0;
+  useEffect(() => {
+    if (!key) return;
+    const onKey = (e: KeyboardEvent) => {
+      const own = frame.current;
+      if (!heard(e, key) || !own || screenTarget(own) !== own) return;
+      e.preventDefault();
+      held.begin(e.key, own.querySelector<HTMLElement>(".media-screen-key"), holdMs, () => act.current());
+    };
+    const onUp = (e: KeyboardEvent) => held.release(e.key);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
+  }, [key, holdMs]); // eslint-disable-line react-hooks/exhaustive-deps -- `frame`, `act` and `held` read through refs
+}
+
 /**
  * Panki's own player: a clip's picture over the app's bar, or a sound's bar alone. A clip fills the screen from its
  * bar's end (the owner, 2026-10-15, who liked this look better than the browser's own, and wanted full screen too);
  * the picture and the bar fill it together, so the controls stay Panki's.
  */
-function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: LookProps & { over: ReactNode }) {
+function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, screenKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null }) {
   const play = usePlayback(cue, onCueEnd, shortcut);
   const frame = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
@@ -224,8 +329,10 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: 
     else void el.requestFullscreen?.().catch(() => undefined);
   }
   const canFill = kind === "video" && typeof document.documentElement.requestFullscreen === "function";
+  const fillKey = canFill ? screenKey : null;
+  useScreenKey(frame, fillKey, toggleFull);
   return (
-    <div ref={frame} className={`media media-player media-${kind}`} onClick={ownPress}>
+    <div ref={frame} className={`media media-player media-${kind}`} onClick={ownPress} {...(fillKey ? { [SCREEN_KEYED]: "" } : {})}>
       {kind === "video" ? (
         // The picture and what's laid over it (its subtitles) in one box, so they fill the screen together.
         <div className="media-picture">
@@ -247,7 +354,8 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: 
           label={label}
           onToggle={play.toggle}
           tag={named ? { icon: MEDIA_ICON[kind], label } : null}
-          screen={canFill ? { full, onToggle: toggleFull } : null}
+          screen={canFill ? { full, onToggle: toggleFull, shortcut: fillKey } : null}
+          onSeek={play.seek}
           sound={{ volume: play.volume, onLevel: play.setLevel, onMute: play.toggleMute }}
           speed={{ speed: play.speed, onSpeed: play.setSpeed }}
           shortcut={shortcut}

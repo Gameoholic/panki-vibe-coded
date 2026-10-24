@@ -92,7 +92,9 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [side, setSide] = useState<CardSide>("front");
   const [trying, setTrying] = useState(false);
-  const mediaKeys = useKeyBinds().media.map(shortcutOf);
+  const binds = useKeyBinds();
+  const mediaKeys = binds.media.map(shortcutOf);
+  const screenKey = shortcutOf(binds.fullScreen);
   const [picked, setPicked] = useState<string | null>(type.layout[0]?.fieldId ?? null);
   const [samples, setSamples] = useState<{ card: Card; deck: Deck }[]>([]);
   const [sampleId, setSampleId] = useState<string>(NO_SAMPLE);
@@ -330,6 +332,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           autoplay={trying}
           // Tried as a review, its sounds and clips answer to their keys as a review's do.
           shortcuts={trying ? mediaKeys : undefined}
+          screenKey={trying ? screenKey : null}
           {...(trying
             ? {}
             : {

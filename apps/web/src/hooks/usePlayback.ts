@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import type { Shortcut } from "../keys";
+import { heard, type Shortcut } from "../keys";
 import { setSpeed, setVolume, speedOf, useSpeed, useVolume, type Speed, type Volume } from "../playback";
 import { useHold } from "./useHold";
 
@@ -70,9 +70,7 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Short
   useEffect(() => {
     if (!key) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== key.toLowerCase()) return;
-      const at = e.target;
-      if (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select"))) return;
+      if (!heard(e, key)) return;
       e.preventDefault();
       held.begin(e.key, media.current?.closest<HTMLElement>(".media") ?? null, holdMs, toggle);
     };

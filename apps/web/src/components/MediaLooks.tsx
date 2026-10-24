@@ -29,9 +29,9 @@ export type Wave = (src: string, bars: number) => Promise<readonly number[] | nu
 export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: Shortcut | null };
 
 /** The key that plays it, drawn as the answers' keys are (`.key`, a keycap; a clock face as it's held, when it's held); nothing when it has none. */
-export function MediaKey({ shortcut }: { shortcut: Shortcut | null }) {
+export function MediaKey({ shortcut, className = "" }: { shortcut: Shortcut | null; className?: string }) {
   return shortcut ? (
-    <span className={shortcut.holdMs > 0 ? "key media-key is-hold" : "key media-key"} aria-hidden="true">
+    <span className={`key media-key ${shortcut.holdMs > 0 ? "is-hold" : ""} ${className}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
       {keyWords(shortcut.key)}
     </span>
   ) : null;

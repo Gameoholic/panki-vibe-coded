@@ -162,6 +162,14 @@ type Props = {
    * place with no key leaves its sound without one. None by default.
    */
   shortcuts?: readonly (Shortcut | null)[];
+  /** The key that fills the screen with a clip or leaves it (`keys.ts` → `fullScreen`), given where `shortcuts` are; none by default. */
+  screenKey?: Shortcut | null;
+  /**
+   * Whether the card takes the focus and turns at Enter and Space as a button does; off where the page's own keys turn
+   * it (the review, whose Space is Show answer's key: the owner, 2026-10-24, "space should act as the space in the
+   * keybind"). On by default.
+   */
+  keys?: boolean;
   /**
    * "Tap to reveal" under the parts, on the front; left out where a button under the card shows the answer (the review's
    * Show answer, which carries its key: the owner, 2026-10-21, "there's no reason for this since we already have the
@@ -205,7 +213,9 @@ export function ReviewCard({
   picturesOf,
   tag = type.tag,
   shortcuts = [],
+  screenKey = null,
   hint = true,
+  keys = true,
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
@@ -416,6 +426,7 @@ export function ReviewCard({
             over={file === "video" ? subtitlesOf(part, cues?.[value]) : null}
             // Only while it's there to play: not under a spoiler, nor held unseen for the back.
             shortcut={live ? (keyOf.get(field.id) ?? null) : null}
+            screenKey={live && !edit ? screenKey : null}
           />
         );
       }
@@ -545,12 +556,14 @@ export function ReviewCard({
   flush();
 
   // The card is pressed like a button, so it answers to a button's keys; a key on something inside it is that thing's.
+  // Where the page's own keys turn it (`keys` off: the review), it's pressed with a pointer alone and never takes the
+  // focus, so a press on it leaves Space to be the page's key, held as long as it's set to be.
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
     e.preventDefault();
     onPress();
   }
-  const pressable = edit ? {} : { role: "button", tabIndex: 0, onClick: onPress, onKeyDown };
+  const pressable = edit ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
 
   return (
     <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>

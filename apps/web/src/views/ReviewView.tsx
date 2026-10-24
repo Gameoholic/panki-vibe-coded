@@ -460,9 +460,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         hold.begin(e.key, button, ms, () => void answer(picked.id));
       }
     }
-    /** A key let go before its hold is done: nothing happens. */
+    /**
+     * A key let go before its hold is done: nothing happens. The answer's key is the page's even with a button focused
+     * (the clip's play button, pressed a moment ago): Firefox presses a focused button as Space is let go, whatever was
+     * done as it went down.
+     */
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
+      if (sameKey(e.key, binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -580,7 +585,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         picturesOf={api.videoPictures}
         autoplay
         shortcuts={binds.media.map(shortcutOf)}
+        screenKey={shortcutOf(binds.fullScreen)}
         hint={false}
+        keys={false}
       />
 
       {failure ? (
