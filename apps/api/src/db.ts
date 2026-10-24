@@ -685,6 +685,11 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // meaning is no duplicate). Off for every field there is; a type's save logs it with the rest of its fields.
     db.exec("ALTER TABLE card_fields ADD COLUMN tells_apart INTEGER NOT NULL DEFAULT 0");
   },
+  (db) => {
+    // 33. A video saved for later keeps its length as the page showed it when it was saved (the owner, 2026-10-24); null
+    // for every save from before, and for one whose page didn't show it.
+    db.exec("ALTER TABLE saved_videos ADD COLUMN length_ms INTEGER");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1047,11 +1052,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     WHERE s.video_id = ? AND s.forgotten_at IS NULL ORDER BY s.at DESC, s.rowid DESC LIMIT 1`);
   const selectWatchVideoLength = db.prepare("SELECT length_ms AS lengthMs FROM watch_videos WHERE video_id = ?");
   // Saved for later: what's saved now is every row not taken back; a video saved twice without taking it back is one.
+  // Its length is the player's once it was watched, the thumbnail's from when it was saved until then.
   const selectSaved = db.prepare(`
-    SELECT video_id AS videoId, title, channel, MAX(saved_at) AS savedAt FROM saved_videos
-    WHERE removed_at IS NULL GROUP BY video_id ORDER BY savedAt DESC LIMIT ?`);
+    SELECT s.video_id AS videoId, s.title, s.channel, MAX(s.saved_at) AS savedAt, COALESCE(w.length_ms, s.length_ms) AS lengthMs
+    FROM saved_videos s LEFT JOIN watch_videos w ON w.video_id = s.video_id
+    WHERE s.removed_at IS NULL GROUP BY s.video_id ORDER BY savedAt DESC LIMIT ?`);
   const selectIsSaved = db.prepare("SELECT 1 FROM saved_videos WHERE video_id = ? AND removed_at IS NULL LIMIT 1");
-  const insertSaved = db.prepare("INSERT INTO saved_videos (video_id, title, channel, saved_at) VALUES (?, ?, ?, ?)");
+  const insertSaved = db.prepare("INSERT INTO saved_videos (video_id, title, channel, saved_at, length_ms) VALUES (?, ?, ?, ?, ?)");
   const unsaveVideo = db.prepare("UPDATE saved_videos SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL");
   const selectWatchMarks = db.prepare("SELECT video_id AS videoId, kind, at FROM watch_marks WHERE forgotten_at IS NULL ORDER BY at ASC, id ASC");
   const selectVideoWatchMarks = db.prepare("SELECT video_id AS videoId, kind, at FROM watch_marks WHERE video_id = ? AND forgotten_at IS NULL ORDER BY at ASC, id ASC");
@@ -1862,9 +1869,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     savedVideos(): SavedVideo[] {
       return selectSaved.all(SAVED_MAX).map((row) => SavedVideo.parse(row));
     },
-    /** A video saved for later, its name and channel as the page showed them; saving one already saved changes nothing. The saved videos after. */
+    /** A video saved for later, its name, channel and length as the page showed them; saving one already saved changes nothing. The saved videos after. */
     saveVideo(videoId: string, about: SaveVideo, now: number): SavedVideo[] {
-      if (selectIsSaved.get(videoId) === undefined) insertSaved.run(videoId, about.title, about.channel, now);
+      if (selectIsSaved.get(videoId) === undefined) insertSaved.run(videoId, about.title, about.channel, now, about.lengthMs ?? null);
       return api.savedVideos();
     },
     /** A save taken back: hidden with the time, never deleted. The saved videos after. */

@@ -103,16 +103,22 @@ export type GlanceResponse = z.infer<typeof GlanceResponse>;
  * A video saved for later (the owner, 2026-10-21, picking the save button on thumbnails of six ways: "I don't want to
  * use YouTube's default feature of Watch later or playlists"): the account's own, kept on Panki, never YouTube's. Its
  * name and channel as the page showed them when it was saved; a save taken back is hidden with the time, never deleted.
+ * Its length (the owner, 2026-10-24: "the watch later ones also have the length of the video") is the player's when it
+ * was watched, else what its thumbnail said when it was saved; null when neither is known (one saved before lengths were kept).
  */
 export const SavedVideo = z.object({
   videoId: VideoId,
   title: z.string().max(300),
   channel: z.string().max(100),
   savedAt: z.number().int().nonnegative(),
+  lengthMs: z.number().int().nonnegative().nullable(),
 });
 export type SavedVideo = z.infer<typeof SavedVideo>;
-/** What's sent to save one: its name and channel as the page shows them (either may be unknown, "" then). */
-export const SaveVideo = z.object({ title: z.string().max(300), channel: z.string().max(100) });
+/**
+ * What's sent to save one: its name, channel and length as the page shows them (either name may be unknown, "" then; the
+ * length null, or left out by an extension from before it was sent).
+ */
+export const SaveVideo = z.object({ title: z.string().max(300), channel: z.string().max(100), lengthMs: z.number().int().positive().max(86_400_000).nullable().optional() });
 export type SaveVideo = z.infer<typeof SaveVideo>;
 /** The most videos the Saved shelf is sent: newest first. */
 export const SAVED_MAX = 50;

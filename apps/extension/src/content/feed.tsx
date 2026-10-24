@@ -4,6 +4,7 @@ import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { agoWords, clock, count, durationWords, langOf } from "@web/words";
+import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
 import { PankiPill, pillNumbersOf } from "../ui/PankiPill";
@@ -53,6 +54,10 @@ const THUMB_LINKS = 'a#thumbnail[href*="/watch?v="], a.yt-lockup-view-model__con
 const VIDEO_CARD = "ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, yt-lockup-view-model";
 const CARD_TITLE = "#video-title, .yt-lockup-metadata-view-model__title, h3";
 const CARD_CHANNEL = "ytd-channel-name #text, #channel-name #text, .yt-content-metadata-view-model__metadata-text";
+/** The badges on a card's thumbnail, old grid and new: one of them is the video's length, "12:34". */
+const CARD_BADGES = "ytd-thumbnail-overlay-time-status-renderer, yt-thumbnail-overlay-badge-view-model, yt-thumbnail-badge-view-model, badge-shape";
+/** A length as a thumbnail's badge writes it: "12:34", "1:02:03". */
+const LENGTH_TEXT = /^(?:\d+:)?\d{1,2}:\d{2}$/;
 /** The site's playing preview, laid over the card the pointer rests on, and the picture in it. */
 const PREVIEW = "ytd-video-preview, #video-preview";
 const PREVIEW_MEDIA = "#media-container, #player-container, ytd-player, video";
@@ -207,19 +212,22 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
   /**
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
-   * it was begun), its name, its channel, a line of Panki's; the whole card a link, × at its corner to take it off.
+   * it was begun, or its length, as the site's own cards have it), its name, its channel, a line of Panki's; the whole
+   * card a link, × at its corner to take it off.
    */
-  function VideoCard({ videoId, title, channel, href, sub, progress, removeLabel, onRemove, save = false }: {
+  function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, removeLabel, onRemove, save }: {
     videoId: string;
     title: string;
     channel: string;
     href: string;
     sub: string;
     progress: { share: number; left: string } | null;
+    /** The video's length, in its picture's corner where `progress` has none: Saved for later's cards have it. */
+    lengthMs?: number | null;
     removeLabel: string;
     onRemove: () => void;
-    /** The save button at its picture's top left (`CardSave`): Continue watching's cards have it. */
-    save?: boolean;
+    /** The save button at its picture's top left (`CardSave`), saving the video as this: Continue watching's cards have it. */
+    save?: SaveVideo;
   }) {
     return (
       <div className="yc">
@@ -228,11 +236,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             <img src={thumbnailAt(videoId)} alt="" loading="lazy" />
             {progress ? (
               <>
-                <span className="yc-left">{progress.left}</span>
+                <span className="yc-time">{progress.left}</span>
                 <span className="yc-bar">
                   <i style={{ width: `${(progress.share * 100).toFixed(1)}%` }} />
                 </span>
               </>
+            ) : lengthMs ? (
+              <span className="yc-time">{clock(lengthMs / 1000)}</span>
             ) : null}
           </span>
           <span className="yc-title" lang={langOf(title)}>
@@ -245,7 +255,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null}
           {sub ? <span className="yc-sub">{sub}</span> : null}
         </a>
-        {save ? <CardSave videoId={videoId} about={{ title: title.slice(0, 300), channel: channel.slice(0, 100) }} /> : null}
+        {save ? <CardSave videoId={videoId} about={save} /> : null}
         <Button className="btn-icon yc-x" aria-label={removeLabel} onClick={onRemove}>
           <Icon name="close" />
         </Button>
@@ -292,6 +302,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * a video from Panki's lists add the t=?").
    */
   const resumeAt = (v: ContinueVideo) => youtubeUrl({ videoId: v.videoId, seconds: null });
+  /** A video left part-way as a save keeps it: its name, its channel, its length. */
+  const aboutContinue = (v: ContinueVideo): SaveVideo => ({ title: v.title.slice(0, 300), channel: v.channel.slice(0, 100), lengthMs: v.lengthMs > 0 ? Math.min(86_400_000, v.lengthMs) : null });
 
   /**
    * The videos left part-way (the owner's pick of six, 2026-10-21: "Hero and the rest"): the one left last big, with
@@ -336,7 +348,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
                 </span>
               ) : null}
             </a>
-            <CardSave videoId={first.videoId} about={{ title: first.title.slice(0, 300), channel: first.channel.slice(0, 100) }} />
+            <CardSave videoId={first.videoId} about={aboutContinue(first)} />
             <Button className="btn-icon yc-x" aria-label="Put away" onClick={() => void putAway(first.videoId)}>
               <Icon name="close" />
             </Button>
@@ -359,7 +371,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {rest.length > 0 ? (
           <div className="yh-cards">
             {rest.map((v) => (
-              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={marked ? progressOf(v) : null} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save />
+              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={marked ? progressOf(v) : null} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save={aboutContinue(v)} />
             ))}
           </div>
         ) : null}
@@ -402,6 +414,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
               href={youtubeUrl({ videoId: v.videoId, seconds: null })}
               sub={`Saved · ${agoWords(v.savedAt, now)}`}
               progress={null}
+              lengthMs={v.lengthMs}
               removeLabel="Take out of Saved"
               onRemove={() => {
                 setFailure(null);
@@ -493,12 +506,22 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     document.head.append(style);
   }
 
-  /** A video's name and channel as the card around its thumbnail shows them, old grid and new: what a save keeps of it. Either may be unknown. */
+  /** A video's name, channel and length as the card around its thumbnail shows them, old grid and new: what a save keeps of it. Any may be unknown. */
   function aboutCard(link: Element): SaveVideo {
     const card = link.closest(VIDEO_CARD);
     const title = card?.querySelector(CARD_TITLE)?.textContent?.trim() ?? "";
     const channel = card?.querySelector(CARD_CHANNEL)?.textContent?.trim() ?? "";
-    return { title: title.slice(0, 300), channel: channel.slice(0, 100) };
+    return { title: title.slice(0, 300), channel: channel.slice(0, 100), lengthMs: card ? lengthOn(card) : null };
+  }
+
+  /** The video's length, as its thumbnail's badge says it; null for one with none (a live stream, a badge not drawn yet). */
+  function lengthOn(card: Element): number | null {
+    for (const badge of card.querySelectorAll(CARD_BADGES)) {
+      const text = badge.textContent?.trim() ?? "";
+      const seconds = LENGTH_TEXT.test(text) ? parseStamp(text) : null;
+      if (seconds !== null && seconds > 0) return Math.min(86_400_000, seconds * 1000);
+    }
+    return null;
   }
 
   /**

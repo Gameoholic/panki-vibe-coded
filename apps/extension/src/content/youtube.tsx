@@ -242,8 +242,9 @@ async function toggleSaved() {
   const now = savedHere.get();
   if (!id || !now || now.videoId !== id) return;
   const about = aboutVideo();
+  const length = video && Number.isFinite(video.duration) && video.duration > 0 ? Math.min(86_400_000, Math.round(video.duration * 1000)) : null;
   savedHere.set({ videoId: id, saved: !now.saved });
-  const answer = await askSave(id, now.saved ? null : { title: about.title, channel: about.channel?.name ?? "" });
+  const answer = await askSave(id, now.saved ? null : { title: about.title, channel: about.channel?.name ?? "", lengthMs: length });
   if (!answer.ok && watching === id) savedHere.set(now);
 }
 /** The offer to go on from where the video was stopped, in seconds, while it stands in the strip. */

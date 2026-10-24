@@ -1048,7 +1048,8 @@
   height: 100%;
   object-fit: cover;
 }
-.yc-left {
+/* The corner of a card's picture: how much is left, or the video's length, as the site's own badge. */
+.yc-time {
   position: absolute;
   right: 4px;
   bottom: 7px;
