@@ -11,13 +11,13 @@ export function userDir(dataDir: string, userId: string): string {
  * Every account is a whole Panki of its own, one database each. Handles are opened the first time an account is
  * asked for (running its migrations then) and kept until shutdown.
  */
-export function createDbs(dataDir: string, now: () => number, timeZone: string) {
+export function createDbs(dataDir: string, now: () => number, timeZone: string, finishedWithinMs?: () => number) {
   const open = new Map<string, Db>();
   return {
     dbFor(userId: string): Db {
       let db = open.get(userId);
       if (!db) {
-        db = openDb(userDir(dataDir, userId), now, timeZone);
+        db = openDb(userDir(dataDir, userId), now, timeZone, finishedWithinMs);
         open.set(userId, db);
       }
       return db;

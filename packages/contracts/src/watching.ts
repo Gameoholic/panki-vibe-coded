@@ -15,10 +15,24 @@ import { VideoId } from "./transcription";
 
 // The daily goals offered (WATCH_GOALS) went with the watch streak, 2026-10-21: no goal and no streak for immersion, for now.
 
+/**
+ * How watching is told, for everyone, set by an admin in Settings → Admin (the owner, 2026-10-25: "make that number
+ * configurable"): a video stopped within this many seconds of its end was watched to the end, so it leaves Continue
+ * watching, isn't offered to continue, and its thumbnail's bar is full. Only what an admin changed is kept; the rest
+ * reads as the defaults.
+ */
+export const WatchingSettings = z.object({ finishedWithinSec: z.number().int().min(0).max(600) });
+export type WatchingSettings = z.infer<typeof WatchingSettings>;
+export const DEFAULT_WATCHING_SETTINGS: WatchingSettings = { finishedWithinSec: 30 };
+export const WatchingSettingsUpdate = WatchingSettings.partial();
+export type WatchingSettingsUpdate = z.infer<typeof WatchingSettingsUpdate>;
+export const WatchingSettingsResponse = z.object({ watching: WatchingSettings });
+export type WatchingSettingsResponse = z.infer<typeof WatchingSettingsResponse>;
+
 /** The magnitudes of watching, one home. */
 export const WATCH = {
-  /** A video stopped within this much of its end was watched to the end: it leaves Continue watching, and isn't offered to continue. */
-  endMs: 30_000,
+  // `endMs` (a video stopped within 30 s of its end was watched to the end) became an admin's setting, 2026-10-25:
+  // `WatchingSettings.finishedWithinSec`.
   // `minStopMs` (a stop under 15 s wasn't somewhere to continue from) went on 2026-10-21: a video counts the moment it
   // plays (the owner: "I want it to count as soon as I clicked the video").
   /** How soon after a video starts playing its first stretch is sent, so it's in Continue watching and on its thumbnail at once. */
@@ -92,6 +106,8 @@ export const VideoGlance = z.object({
   transcribed: z.boolean(),
   /** Saved for later by the account (`SavedVideo`): its thumbnail's save button shows a tick. */
   saved: z.boolean(),
+  /** Watched to its end, as the admin's setting says (`WatchingSettings`): its bar full. None from an older server. */
+  finished: z.boolean().optional(),
 });
 export type VideoGlance = z.infer<typeof VideoGlance>;
 export const GlanceAsk = z.object({ videoIds: z.array(VideoId).min(1).max(GLANCE_MAX) });

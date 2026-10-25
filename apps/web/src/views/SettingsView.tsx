@@ -28,6 +28,7 @@ import {
   type WatchHistory,
   type WordAudio,
   type WordAudioStatus,
+  type WatchingSettings,
 } from "@panki/contracts";
 import { ApiError, api, type Me } from "../api";
 import { Ask } from "../components/Ask";
@@ -533,6 +534,31 @@ type WordAudioProps = {
  * engine for audio pronunciation, we might have others in the future"): the source, saved a moment after it's changed,
  * then its key and how many of the day's requests Panki has made to it.
  */
+/**
+ * How watching is told, for everyone (the owner, 2026-10-25: "make that number configurable"): how close to its end a
+ * video stopped counts as watched to the end, so it leaves Continue watching and isn't offered to continue.
+ */
+function WatchingSection({ settings }: { settings: WatchingSettings }) {
+  const [current, patch, failure] = useSavedSoon<WatchingSettings>(settings, (change) => api.updateWatchingSettings(change));
+  return (
+    <section className="panel-section" aria-labelledby="watching-admin-title">
+      <h3 id="watching-admin-title" className="panel-subtitle">
+        Watching
+      </h3>
+      {failure ? (
+        <p className="load-error" role="alert">
+          {failure}
+        </p>
+      ) : null}
+      <Setting
+        id="finishedWithinSec"
+        label="Finished within the last"
+        control={<NumberField id="finished-within" label="Finished within the last" value={current.finishedWithinSec} min={0} max={600} suffix="s" onChange={(finishedWithinSec) => patch({ finishedWithinSec })} />}
+      />
+    </section>
+  );
+}
+
 function WordAudioSection({ status, onStatus }: WordAudioProps) {
   const [current, patch, failure] = useSavedSoon<WordAudio>(status.settings, async (change) => {
     const next = await api.updateWordAudio(change);
@@ -741,6 +767,7 @@ function ExtensionPanel() {
 function AdminPanel() {
   const [transcription, setTranscription] = useState<TranscriptionStatus | null>(null);
   const [wordAudio, setWordAudio] = useState<WordAudioStatus | null>(null);
+  const [watching, setWatching] = useState<WatchingSettings | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
@@ -748,6 +775,9 @@ function AdminPanel() {
     const failed = (e: unknown) => {
       if (alive) setFailure(said(e));
     };
+    api.watchingSettings().then((now) => {
+      if (alive) setWatching(now);
+    }, failed);
     api.getTranscription().then((now) => {
       if (alive) setTranscription(now);
     }, failed);
@@ -771,6 +801,7 @@ function AdminPanel() {
       ) : null}
       {transcription ? <Transcribing status={transcription} onStatus={setTranscription} /> : null}
       {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : null}
+      {watching ? <WatchingSection settings={watching} /> : null}
       <StorageSection />
     </section>
   );

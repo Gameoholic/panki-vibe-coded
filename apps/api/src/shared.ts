@@ -5,7 +5,10 @@ import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
   DEFAULT_TRANSCRIPTION,
+  DEFAULT_WATCHING_SETTINGS,
   DEFAULT_WORD_AUDIO,
+  WatchingSettings,
+  type WatchingSettingsUpdate,
   ForvoVoice,
   Provides,
   ServerDictionary,
@@ -109,6 +112,7 @@ type Checked = { success: true; data: unknown } | { success: false };
 type Group<T extends Record<string, unknown>> = { shape: Record<string, { safeParse(value: unknown): Checked }>; parse(value: unknown): T; defaults: T };
 const TRANSCRIPTION: Group<Transcription> = { shape: Transcription.shape, parse: (value) => Transcription.parse(value), defaults: DEFAULT_TRANSCRIPTION };
 const WORD_AUDIO: Group<WordAudio> = { shape: WordAudio.shape, parse: (value) => WordAudio.parse(value), defaults: DEFAULT_WORD_AUDIO };
+const WATCHING: Group<WatchingSettings> = { shape: WatchingSettings.shape, parse: (value) => WatchingSettings.parse(value), defaults: DEFAULT_WATCHING_SETTINGS };
 /** A living word: the engine's own, and its latest fix's text and times, when it has one (a fix to "" took it out of the line). */
 type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null; fixedStart: number | null; fixedEnd: number | null };
 type StretchRow = { startMs: number; endMs: number };
@@ -798,6 +802,13 @@ export function openShared(dataDir: string) {
     },
     updateWordAudio(patch: WordAudioUpdate, now: number, userId: string): WordAudio {
       return updateGroup(WORD_AUDIO, patch, now, userId);
+    },
+    /** How watching is told, for everyone (`WatchingSettings`): when a video counts as watched to its end. */
+    getWatching(): WatchingSettings {
+      return groupFrom(WATCHING, selectSettings.all() as SettingRow[]);
+    },
+    updateWatching(patch: WatchingSettingsUpdate, now: number, userId: string): WatchingSettings {
+      return updateGroup(WATCHING, patch, now, userId);
     },
 
     /**

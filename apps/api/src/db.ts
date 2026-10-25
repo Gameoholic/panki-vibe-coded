@@ -11,6 +11,7 @@ import {
   DEFAULT_DECK_SETTINGS,
   DEFAULT_SETTINGS,
   DEFAULT_STARTER,
+  DEFAULT_WATCHING_SETTINGS,
   Deck,
   DeckSettings,
   Flow,
@@ -814,11 +815,12 @@ function marksOf(rows: readonly WatchMarkRow[]): Map<string, { counted: boolean;
 }
 
 /**
- * Where a video was stopped, as somewhere to continue from: none when it was watched to its end, or when its length
+ * Where a video was stopped, as somewhere to continue from: none when it was watched to its end (stopped within
+ * `finishedWithinMs` of it, an admin's setting: `WatchingSettings`), or when its length
  * was never told (then nobody can say it wasn't watched to the end). A video barely begun counts (2026-10-21).
  */
-function stopOf(toMs: number, lengthMs: number | null): number | null {
-  if (lengthMs === null || toMs >= lengthMs - WATCH.endMs) return null;
+function stopOf(toMs: number, lengthMs: number | null, finishedWithinMs: number): number | null {
+  if (lengthMs === null || toMs >= lengthMs - finishedWithinMs) return null;
   return toMs;
 }
 
@@ -867,7 +869,16 @@ function syncList<T extends { id: string }>(
   for (const [id, removedAt] of known) if (!kept.has(id) && removedAt === null) write.hide(id);
 }
 
-export function openDb(dataDir: string, now: () => number = Date.now, timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+/**
+ * An account's own Panki. `finishedWithinMs` is how close to its end a video stopped counts as watched to the end: an
+ * admin's setting for everyone, read afresh each time it's wanted (`WatchingSettings`, kept in the shared store).
+ */
+export function openDb(
+  dataDir: string,
+  now: () => number = Date.now,
+  timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  finishedWithinMs: () => number = () => DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000,
+) {
   checkTimeZone(timeZone);
   mkdirSync(dataDir, { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, "panki.sqlite"));
@@ -1408,7 +1419,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       ? []
       : [...latest.entries()]
           .flatMap(([videoId, s]) => {
-            const stoppedAtMs = stopOf(s.toMs, s.lengthMs);
+            const stoppedAtMs = stopOf(s.toMs, s.lengthMs, finishedWithinMs());
             const putAwayAt = marks.get(videoId)?.putAwayAt ?? null;
             // Put away until it's watched again.
             if (stoppedAtMs === null || (putAwayAt !== null && putAwayAt >= s.at)) return [];
@@ -2010,7 +2021,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
       const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
       const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
-      return { on: videoTracking, stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs) : null, counted: said?.counted ?? true };
+      return { on: videoTracking, stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs, finishedWithinMs()) : null, counted: said?.counted ?? true };
     },
     /**
      * Videos as their thumbnails on YouTube are marked: how far this account got in each (nothing while its Video
@@ -2028,6 +2039,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           lengthMs: length?.lengthMs ?? null,
           cards: api.videoCards(videoId).length,
           saved: selectIsSaved.get(videoId) !== undefined,
+          finished: last !== undefined && length !== undefined && stopOf(last.toMs, length.lengthMs, finishedWithinMs()) === null,
         };
       });
     },

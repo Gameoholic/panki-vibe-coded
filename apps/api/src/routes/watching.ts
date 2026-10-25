@@ -1,7 +1,7 @@
 import { Router, type Response } from "express";
-import { GlanceAsk, SaveVideo, VideoId, WatchBatch, WatchMark, type GlanceResponse, type SavedResponse, type WatchedVideoResponse, type WatchHistoryResponse } from "@panki/contracts";
+import { GlanceAsk, SaveVideo, VideoId, WatchBatch, WatchMark, WatchingSettingsUpdate, type GlanceResponse, type SavedResponse, type WatchedVideoResponse, type WatchHistoryResponse, type WatchingSettingsResponse } from "@panki/contracts";
 import type { DbOf } from "../app";
-import { signedIn } from "../session";
+import { requireAdmin, signedIn } from "../session";
 import type { Shared } from "../shared";
 
 /**
@@ -20,6 +20,21 @@ export function watchingRouter(dbOf: DbOf, shared: Shared, now: () => number) {
     res.status(400).json({ error: { message: "That isn't a video id." } });
     return null;
   }
+
+  // How watching is told, for everyone: read by anyone signed in, changed by an admin alone (Settings → Admin).
+  router.get("/settings", (_req, res) => {
+    const answer: WatchingSettingsResponse = { watching: shared.getWatching() };
+    res.json(answer);
+  });
+  router.patch("/settings", requireAdmin, (req, res) => {
+    const parsed = WatchingSettingsUpdate.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That setting isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    const answer: WatchingSettingsResponse = { watching: shared.updateWatching(parsed.data, now(), signedIn(res).user.id) };
+    res.json(answer);
+  });
 
   // A batch sent again keeps nothing twice: each stretch's id is the extension's. Answered alike whether or not it was
   // kept, since with Video tracking off the extension has nothing to do about it.

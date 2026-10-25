@@ -14,8 +14,9 @@ import { createJobs } from "./transcribe/jobs";
 // server's is only what stands in for an account never opened yet, checked here so a wrong one still fails at startup.
 checkTimeZone(env.timeZone);
 const auth = openAuthDb(env.dataDir);
-const dbs = createDbs(env.dataDir, Date.now, env.timeZone);
 const shared = openShared(env.dataDir);
+// When a video counts as watched to its end is an admin's setting for everyone, kept in the shared store.
+const dbs = createDbs(env.dataDir, Date.now, env.timeZone, () => shared.getWatching().finishedWithinSec * 1000);
 // What accounts held before the shared store existed (a Forvo key, dictionaries) moves over, once, before anyone's served.
 gatherShared(shared, env.dataDir, auth, dbs.dbFor, Date.now);
 // What a kept dictionary not counted yet provides is counted while the API serves.

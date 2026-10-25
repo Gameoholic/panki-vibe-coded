@@ -25,6 +25,7 @@ import {
   TranscriptionResponse,
   WatchHistoryResponse,
   WatchedVideoResponse,
+  WatchingSettingsResponse,
   SavedResponse,
   type CalledCard,
   type Card,
@@ -65,6 +66,8 @@ import {
   type WatchMark,
   type WatchMarkKind,
   type WatchedVideo,
+  type WatchingSettings,
+  type WatchingSettingsUpdate,
   type SavedVideo,
 } from "@panki/contracts";
 import type { VideoPictures } from "./components/LinkView";
@@ -185,6 +188,11 @@ export const api = {
   },
   /** Where word audio comes from, whose key the source has and, for an admin, the key and the day's requests. */
   getWordAudio: (): Promise<WordAudioStatus> => request(WORD_AUDIO_PATH, undefined, (b) => WordAudioResponse.parse(b).wordAudio),
+  /** How watching is told, for everyone: when a video counts as watched to its end. */
+  watchingSettings: (): Promise<WatchingSettings> => request("/api/watching/settings", undefined, (b) => WatchingSettingsResponse.parse(b).watching),
+  /** The same, changed; an admin's to change. */
+  updateWatchingSettings: (patch: WatchingSettingsUpdate): Promise<WatchingSettings> =>
+    request("/api/watching/settings", send("PATCH", patch), (b) => WatchingSettingsResponse.parse(b).watching),
   /** Where word audio comes from, for everyone; an admin's to change. */
   updateWordAudio: (patch: WordAudioUpdate): Promise<WordAudioStatus> => request(WORD_AUDIO_PATH, send("PATCH", patch), (b) => WordAudioResponse.parse(b).wordAudio),
   /** Keeps a source's key for everyone, or forgets it (null). An admin's to change. */

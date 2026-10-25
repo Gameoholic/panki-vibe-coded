@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { WATCH, youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
+import { DEFAULT_WATCHING_SETTINGS, youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
@@ -118,10 +118,14 @@ const spent = (ms: number) => durationWords(ms / 1000);
 const wanted = (ms: number) => durationWords(Math.ceil(Math.max(0, ms) / 60_000) * 60);
 /** The day, as the line over the recommendations opens: "Tuesday". */
 const dayWords = (at: Date) => at.toLocaleDateString("en", { weekday: "long" });
-/** What a thumbnail's mark says of how far you got: all of it once within the last seconds of the end, as the site's own bar has it. */
+/**
+ * What a thumbnail's mark says of how far you got: all of it once it's watched to the end, as the site's own bar has it
+ * (Panki says, by its admin's setting, `VideoGlance.finished`; an older Panki that doesn't, the setting's default).
+ */
 function shareOf(g: VideoGlance): number {
   if (g.watchedToMs === null || !g.lengthMs) return 0;
-  return g.watchedToMs >= g.lengthMs - WATCH.endMs ? 1 : Math.min(1, g.watchedToMs / g.lengthMs);
+  const finished = g.finished ?? g.watchedToMs >= g.lengthMs - DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000;
+  return finished ? 1 : Math.min(1, g.watchedToMs / g.lengthMs);
 }
 
 /**
