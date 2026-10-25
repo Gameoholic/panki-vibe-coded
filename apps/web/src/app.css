@@ -781,6 +781,52 @@ textarea.field-input {
   font-size: 13px;
   background: var(--surface);
 }
+/* No duplicate among them, only the word in the decks: a quiet notice rather than the amber warning. */
+.already.is-notice {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+/* Every card called so, a row each: its words, its deck, what it holds in the fields compared, its tag, its buttons. */
+.already-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.already-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+}
+.already-card-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  overflow-wrap: anywhere;
+}
+.already-card-deck,
+.already-card-value {
+  color: var(--muted);
+}
+.already-tag {
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.already-tag.is-same {
+  background: color-mix(in srgb, var(--flag) 30%, var(--surface));
+}
+.already-tag.is-other {
+  background: var(--surface);
+  color: var(--muted);
+}
 /* Add as an additional example, pressed: the form adds an example to that card instead of a card. */
 .btn.already-example[aria-pressed="true"] {
   border-color: var(--flag);

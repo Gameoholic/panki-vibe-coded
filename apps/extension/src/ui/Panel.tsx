@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
@@ -423,10 +423,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const leadField = type ? wordsFieldOf(type) : null;
   const leadRole = leadField ? roleOf(map, leadField.id) : null;
   const byForm = leadRole === "word" || isDictRole(leadRole) ? [chosen?.term ?? ""] : [];
-  const called = useCalled(leadField ? [values[leadField.id] ?? "", ...byForm] : [], type ? apartOf(type, values) : [], askCalled);
+  const called = useCalled(leadField ? [values[leadField.id] ?? "", ...byForm] : [], askCalled);
+  /** What this card holds in the fields its type compares, and their names: how each card called so stands to it. */
+  const mine = type ? apartOf(type, values) : [];
+  const compared = type ? comparedOf(type) : [];
   // What's here can go onto that card as another example instead (the owner, 2026-10-25): one of this deck's card type,
   // when the type has a field that goes with an example. Only those fields are sent, and only their recordings made.
-  const target = type && exampleFieldsOf(type).length > 0 ? exampleTargetOf(called, type.id) : null;
+  const target = type && exampleFieldsOf(type).length > 0 ? exampleTargetOf(called, type.id, mine, compared) : null;
   const [toExample, setToExample] = useState(false);
   const asExample = toExample && target !== null;
 
@@ -932,6 +935,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       field.id === leadField?.id ? (
         <AlreadyIn
           cards={called}
+          mine={mine}
+          compared={compared}
           openWords="Open in Panki"
           onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })}
           example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null}

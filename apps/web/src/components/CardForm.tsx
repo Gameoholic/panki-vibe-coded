@@ -8,6 +8,7 @@ import {
   VALUE_MAX,
   apartOf,
   cardProblems,
+  comparedOf,
   exampleFieldsOf,
   holdsFile,
   holdsWords,
@@ -224,12 +225,15 @@ export function CardForm(props: Props) {
   const first = type.fields[0];
   /** The field the card is called by: a card being added says under it when one is already called so. */
   const lead = card ? null : wordsFieldOf(type);
-  const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], apartOf(type, draft), api.cardsCalled);
+  const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], api.cardsCalled);
+  /** What the card being added holds in the fields its type compares, and their names: how each card called so stands to it. */
+  const mine = apartOf(type, draft);
+  const compared = comparedOf(type);
   const onOpenCalled = "onAdd" in props ? props.onOpenCalled : undefined;
   const onAddExample = "onAdd" in props ? props.onAddExample : undefined;
   const exampleFields = exampleFieldsOf(type);
   /** The card already there that what's typed can go onto as another example, when there's one. */
-  const target = onAddExample && exampleFields.length > 0 ? exampleTargetOf(called, type.id) : null;
+  const target = onAddExample && exampleFields.length > 0 ? exampleTargetOf(called, type.id, mine, compared) : null;
   const [toExample, setToExample] = useState(false);
   /** Adding an example to that card instead of a card: only while there's still a card to add it to. */
   const asExample = toExample && target !== null;
@@ -382,7 +386,7 @@ export function CardForm(props: Props) {
                   error={errors[field.id] || undefined}
                 />
                 {field.id === lead?.id ? (
-                  <AlreadyIn cards={called} onOpen={onOpenCalled} example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null} />
+                  <AlreadyIn cards={called} onOpen={onOpenCalled} mine={mine} compared={compared} example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null} />
                 ) : null}
               </>
             );

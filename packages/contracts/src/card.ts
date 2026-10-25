@@ -177,6 +177,26 @@ export function toldApart(a: readonly ApartValue[], b: readonly ApartValue[]): b
   return a.some((mine) => b.some((theirs) => plain(theirs.name) === plain(mine.name) && plain(theirs.value) !== plain(mine.value)));
 }
 
+/** The names of a type's fields that are compared beside its main field (Duplicate when these match: `tellsApart`), in its order. */
+export function comparedOf(type: Pick<CardType, "fields" | "mainField">): string[] {
+  const called = wordsFieldOf(type)?.id;
+  return type.fields.filter((f) => f.tellsApart && holdsWords(f.kind) && f.id !== called).map((f) => f.name);
+}
+
+/**
+ * How a card already there, called the same, stands to one being added (the owner, 2026-10-25: "I need to know it has
+ * the same word AND meaning… if it exists but is not a duplicate, a notice, something less dangerous"): the same in
+ * every field compared, a duplicate; told apart by one of them; or not known yet, a field compared still empty on the
+ * card being added, or nothing being added at all (`compared` null: a word looked up in the popup).
+ */
+export type Likeness = "same" | "other" | "unsure";
+export function likenessOf(mine: readonly ApartValue[], theirs: readonly ApartValue[], compared: readonly string[] | null): Likeness {
+  if (toldApart(mine, theirs)) return "other";
+  if (compared === null) return "unsure";
+  const filled = new Set(mine.map((value) => plain(value.name)));
+  return compared.every((name) => filled.has(plain(name))) ? "same" : "unsure";
+}
+
 /**
  * A living card of the account's called by one of the words asked about: its words, exactly as it holds them, its
  * deck, by id and by name as it stands now, and what it holds that tells it apart (`apartOf`; none from an older server).

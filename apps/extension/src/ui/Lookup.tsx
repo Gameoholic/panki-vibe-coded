@@ -276,8 +276,8 @@ function bodyOf(part: BodyPart, found: Found, layout: PopupLayout): ReactNode {
  * out, and nothing at all for a word no card is called by. Not a part of the popup's layout: it's always there.
  */
 function InCards({ found }: { found: Found }) {
-  const called = useCalled([found.term], [], askCalled);
-  return <AlreadyIn cards={called} openWords="Open in Panki" onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })} />;
+  const called = useCalled([found.term], askCalled);
+  return <AlreadyIn cards={called} compared={null} openWords="Open in Panki" onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })} />;
 }
 
 function Word({ found, layout, onAdd, edit }: { found: Found; layout: PopupLayout; onAdd: (found: Found) => void; edit?: PopupEdit }) {
