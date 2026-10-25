@@ -141,8 +141,9 @@ const Stored = z.object({
   moduleShorts: z.boolean().catch(DEFAULT_MODULES.shorts),
   moduleThumbs: z.boolean().catch(DEFAULT_MODULES.thumbs),
   // `homeChips` and `feedFilter` (the chips over YouTube's home feed) went on 2026-10-21; a browser that kept them keeps them unread.
-  /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls. */
+  /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls, and when the video will end. */
   speedControl: z.boolean().catch(DEFAULT_MODULES.speedControl),
+  endTime: z.boolean().catch(DEFAULT_MODULES.endTime),
   /** How this extension stood against Panki's build when it last asked (`updates.ts`); null until it has. */
   update: UpdateState.nullable().catch(null),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
@@ -183,6 +184,7 @@ export const modulesOf = (store: Stored): Modules => ({
   shorts: store.moduleShorts,
   thumbs: store.moduleThumbs,
   speedControl: store.speedControl,
+  endTime: store.endTime,
 });
 
 export async function readStore(): Promise<Stored> {

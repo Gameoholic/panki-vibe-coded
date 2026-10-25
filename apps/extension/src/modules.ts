@@ -115,6 +115,8 @@ export const Modules = z.object({
   thumbs: z.boolean(),
   /** The player's speed changed from a button among its own controls (a YouTube utility, 2026-10-21): there whether or not Panki is on. */
   speedControl: z.boolean(),
+  /** When the video will end on this device's clock, after the player's own time (a YouTube utility, 2026-10-25): on to begin with, as the speed button is (the owner's word). */
+  endTime: z.boolean(),
 });
 export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
@@ -135,6 +137,7 @@ export const DEFAULT_MODULES: Modules = {
   shorts: true,
   thumbs: true,
   speedControl: true,
+  endTime: true,
 };
 
 /**

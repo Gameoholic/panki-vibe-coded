@@ -38,6 +38,7 @@ import { Line, type LineLook } from "../ui/Line";
 import { makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
+import { EndTime } from "../ui/EndTime";
 import { SpeedControl } from "../ui/SpeedControl";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
 import { Stamp } from "../ui/Stamp";
@@ -126,7 +127,9 @@ const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; botto
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
 /** The player's own row of buttons at the right of its controls (settings, theater, full screen): the speed button goes first among them. */
 const RIGHT_CONTROLS = "#movie_player .ytp-right-controls";
-/** Where the speed button stands: one of the player's controls, as tall as they are, its row of speeds opening above it. */
+/** The player's own time ("3:12 / 12:34") among its left-hand controls: when the video will end goes right after it. */
+const TIME_DISPLAY = "#movie_player .ytp-time-display";
+/** Where the speed button stands: one of the player's controls, as tall as they are, its row of speeds opening above it. The end time stands the same way. */
 const AMONG_CONTROLS = "display: inline-flex; align-items: center; height: 100%; vertical-align: top; position: relative;";
 /** How often the transcriber looks at the viewer's player, and the line at the video's time. */
 const FOLLOW_MS = 250;
@@ -186,6 +189,9 @@ resume.host.style.cssText = OVER_CORNER;
 /** The speed button among the player's own controls (a YouTube utility). */
 const speed = makePlace(siteTheme());
 speed.host.style.cssText = AMONG_CONTROLS;
+/** When the video will end, after the player's own time (a YouTube utility). */
+const endTime = makePlace(siteTheme());
+endTime.host.style.cssText = AMONG_CONTROLS;
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
 const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
@@ -518,7 +524,7 @@ const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: 
  */
 function active(): Modules {
   const now = modules.get();
-  return now.on && !updateNeeded() ? now : { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl };
+  return now.on && !updateNeeded() ? now : { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl, endTime: now.endTime };
 }
 
 /** Panki switched on or off altogether, from the strip's head or the header bar's pill: on the page at once, and kept for every page from now on. */
@@ -676,6 +682,11 @@ function place() {
   if (!controls) speed.host.remove();
   else if (speed.host.parentElement !== controls) controls.prepend(speed.host);
   speed.host.dataset.theme = theme;
+  // When the video will end, right after the player's own time: a utility too, taken off while an ad plays (its time isn't the video's).
+  const time = modules.get().endTime && video && !adPlaying() ? document.querySelector(TIME_DISPLAY) : null;
+  if (!time) endTime.host.remove();
+  else if (time.nextElementSibling !== endTime.host) time.after(endTime.host);
+  endTime.host.dataset.theme = theme;
 
   if (!showing.get() || !on.panel) {
     drawer.host.remove();
@@ -1946,6 +1957,7 @@ function App() {
       {createPortal(offer !== null ? <ResumeOffer at={offer} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
       {/* The player's speed, among its own controls: a YouTube utility, drawn for whichever player the page has. */}
       {createPortal(video ? <SpeedControl key={watching ?? ""} video={video} /> : null, speed.ground)}
+      {createPortal(video ? <EndTime video={video} /> : null, endTime.ground)}
       {/* The drawer is drawn into its own place on the page; it's one screen with the line, so they share what's picked. */}
       {createPortal(panel(), drawer.ground)}
       {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}

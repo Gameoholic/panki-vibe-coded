@@ -78,6 +78,12 @@ export function dateWords(at: number): string {
   return DATE_WORDS.format(new Date(at));
 }
 
+const HOUR_WORDS = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+/** A moment (ms since epoch) as the time of day on this device's clock, "21:47": when a video will end. */
+export function hourWords(at: number): string {
+  return HOUR_WORDS.format(new Date(at));
+}
+
 /** How long ago a moment was, by the device's calendar: "Today", "Yesterday", "3 days ago", then the date in words. */
 export function agoWords(at: number, now: number): string {
   const dayStart = (ms: number) => new Date(new Date(ms).toDateString()).getTime();

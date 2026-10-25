@@ -744,6 +744,16 @@
   background: var(--theater-ink);
   color: var(--theater);
 }
+/* When the video will end (ui/EndTime.tsx, a YouTube utility): right after the player's own time, in its own white type,
+   a little quieter than the time itself. */
+.yt-end {
+  padding: 0 8px 0 2px;
+  color: var(--theater-ink);
+  font: 400 13px/1 "Roboto", "Arial", var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.75;
+}
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
   display: inline-flex;
