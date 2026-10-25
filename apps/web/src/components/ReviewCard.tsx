@@ -135,8 +135,12 @@ type Props = {
   place: CardPlace;
   /** Turned to its back. */
   revealed: boolean;
-  /** A press anywhere on the card but on a file's own player or a spoiler, or Enter or Space while the card has the focus. */
-  onPress: () => void;
+  /**
+   * A press anywhere on the card but on a file's own player or a spoiler, or Enter or Space while the card has the focus.
+   * Left out, a press on it does nothing: the review turns its card by its key and Show answer alone (the owner,
+   * 2026-10-25).
+   */
+  onPress?: (() => void) | undefined;
   /** Where a file's bytes are (`api.mediaUrl`). Left out where a card can't hold a file yet, because it isn't made. */
   srcOf?: (mediaId: string) => string;
   /** What's drawn in a field's place for something the card will hold but doesn't yet: a clip before it's recorded. */
@@ -561,12 +565,12 @@ export function ReviewCard({
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
     e.preventDefault();
-    onPress();
+    onPress?.();
   }
-  const pressable = edit ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
+  const pressable = edit || !onPress ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
 
   return (
-    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
+    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
       <StageTagSpot tag={tag} edit={edit} card={card}>
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>

@@ -2896,10 +2896,13 @@ mark.sub-mark {
 .review-card {
   position: relative;
 }
-.review-card.is-revealed {
+/* Turned, or a card a press doesn't turn (the review's: its key and Show answer alone), it isn't pressed like a button. */
+.review-card.is-revealed,
+.review-card.is-still {
   cursor: default;
 }
-.review-card.is-revealed:active {
+.review-card.is-revealed:active,
+.review-card.is-still:active {
   background: var(--surface);
 }
 /* The answers set apart hold their room on the front, unseen (as the back's parts do), so turning the card moves nothing. */

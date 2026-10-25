@@ -111,13 +111,30 @@ const WORDS_KEPT_MS = 60_000;
 /** The words in the cards of the sign-in in use, as last asked for, and when; let go when a card is added here. */
 let wordsKept: { door: string; at: number; words: string[] } | null = null;
 
+/** Whether a page is one of Panki's own: at the address of the sign-in in use or of any profile kept to switch to. */
+function onPanki(url: string | undefined, store: Stored): boolean {
+  if (!url) return false;
+  const originOf = (address: string) => {
+    try {
+      return new URL(address).origin;
+    } catch {
+      return null;
+    }
+  };
+  const here = originOf(url);
+  return here !== null && [store.address, ...store.profiles.map((p) => p.address)].some((address) => address !== null && originOf(address) === here);
+}
+
 /**
  * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`):
- * the words every card is called by, kept a minute (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is.
+ * the words every card is called by, kept a minute (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is; nor
+ * on Panki's own pages, where every word is the cards' own (the owner, 2026-10-25: "it should only be used for
+ * external" pages).
  */
-async function known(): Promise<Known> {
+async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
   const off: Known = { ok: true, words: [], subtitles: false, pages: false, colour: store.knownColour };
+  if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
   // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
   if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown) || !store.address || !store.token) return off;
   const door: Door = { address: store.address, token: store.token };
@@ -264,7 +281,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "lookState" || ask.kind === "lookup" || ask.kind === "lattice") return look(ask, sender);
-  if (ask.kind === "known") return known();
+  if (ask.kind === "known") return known(sender);
   if (ask.kind === "modules") return { ok: true, modules: modulesOf(await readStore()) };
   if (ask.kind === "pankiOn") {
     await writeStore({ pankiOn: ask.on });

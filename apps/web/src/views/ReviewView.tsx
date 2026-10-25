@@ -585,7 +585,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         srsType={srsType}
         place={card.place}
         revealed={revealed}
-        onPress={reveal}
+        // Turned by its key and Show answer alone: a press on the card does nothing (the owner, 2026-10-25).
         srcOf={api.mediaUrl}
         waveOf={waveOf}
         cues={card.cues}
