@@ -397,7 +397,7 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
       />
       <Setting
         id="end-time"
-        label="End time in the player"
+        label="Video end time in the player"
         control={<Toggle id="end-time-on" says={{ on: "Shown", off: "Hidden" }} on={store.endTime} onChange={(endTime) => void writeStore({ endTime }).then(onChanged)} />}
       />
     </section>
