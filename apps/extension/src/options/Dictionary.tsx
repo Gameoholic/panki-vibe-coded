@@ -627,6 +627,12 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
         label="Key to hold"
         control={<Segmented idPrefix="look-key" label="Key to hold" options={LOOK_KEYS} value={store.lookKey} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
       />
+      {/* A video's subtitles (the line under the player, the one over the video, the site's captions) looked up with no key held: the owner, 2026-10-25. */}
+      <Setting
+        id="look-hover"
+        label="Video subtitles"
+        control={<Toggle id="look-hover-on" says={{ on: "On hover", off: `Hold ${keyWordOf(store.lookKey)}` }} on={store.lookHover} onChange={(lookHover) => void writeStore({ lookHover }).then(onChanged)} />}
+      />
     </section>
   );
 }

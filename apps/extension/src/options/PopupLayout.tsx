@@ -200,6 +200,8 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
     looker.current = made;
     const page = listenOnPage(made, {
       key: () => keyNow.current,
+      // The sentences to try it on are a page's, not a video's subtitles: always the key.
+      hover: () => false,
       on: () => true,
       whereAt: (target) => (target instanceof Node && tryText.current?.contains(target) ? { of: "page" } : null),
       inPopup: (e) => over.current !== null && e.composedPath().includes(over.current),

@@ -95,6 +95,7 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
       // Switched off on the Modules tab, the key does nothing anywhere.
       on: store.pankiOn && store.moduleLookup && on.length > 0 && lookAllowed(store.lookWhere, store.lookSites, sender.url ?? sender.tab?.url),
       key: store.lookKey,
+      hover: store.lookHover,
       dictionaries: on.length,
       signature: on.map((d) => d.id).join(","),
       layout: popupLayoutOf(store.popupLayout, withMeanings(dictionaries)),

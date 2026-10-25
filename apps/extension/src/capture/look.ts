@@ -32,8 +32,15 @@ export type Pointed = {
  */
 export type Where = { of: "line"; lineId: number; offset: number; length: number } | { of: "captions" } | { of: "page" };
 
-/** What's showing: the word found, where it is, and whether it's kept open (the key let go on the word, or a click). */
-export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; locked: boolean };
+/**
+ * What's showing: the word found, where it is, whether it's kept open (the key let go on the word, or a click), and
+ * whether it was opened by hover alone (a video's subtitles, with Look up on hover on: `lookHover`), which neither
+ * letting go nor a press on the word keeps open, and which closes once the pointer is well away from the word.
+ */
+export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; locked: boolean; hovered: boolean };
+
+/** How far from its word the pointer may go before a popup opened by hover closes: the popup stands just under the word, and the pointer crosses the gap to it. */
+const HOVER_MARGIN = 24;
 
 /** Where the pointer is on the screen. */
 type At = { x: number; y: number };
@@ -61,6 +68,8 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
   let pointedId: string | null = null;
   /** Counts the look-ups, so an answer that comes after the pointer has moved on is let go. */
   let asked = 0;
+  /** Whether the look-up on its way was asked by hover: the pointer drifting off before it's answered lets it go. */
+  let askedByHover = false;
   const tell = (next: View | null) => {
     view = next;
     onView(next);
@@ -68,10 +77,11 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
   const looker = {
     view: () => view,
     /**
-     * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`. One that's kept open
-     * gives way only to another word: the pointer crossing nothing, or still on its own word, leaves it be.
+     * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
+     * is on a word of a video's subtitles with Look up on hover on. One that's kept open gives way only to another
+     * word: the pointer crossing nothing, or still on its own word, leaves it be.
      */
-    point(pointed: Pointed | null, at?: At) {
+    point(pointed: Pointed | null, at?: At, hover = false) {
       if (view?.locked && (pointed === null || (at && view.word && within(view.word, at.x, at.y)))) return;
       if (pointed === null) {
         looker.close();
@@ -79,6 +89,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
       }
       if (pointed.id === pointedId) return;
       pointedId = pointed.id;
+      askedByHover = hover;
       const turn = ++asked;
       void find(pointed.text)
         .catch((): Found[] => [])
@@ -90,8 +101,21 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
             if (!view?.locked) tell(null);
             return;
           }
-          tell({ pointed, found, word: pointed.measure(first.source.length), locked: false });
+          tell({ pointed, found, word: pointed.measure(first.source.length), locked: false, hovered: hover });
         });
+    },
+    /**
+     * The pointer moved off every word with no key held: a popup opened by hover closes once the pointer is well away
+     * from its word (not crossing to the popup under it), and one still being looked up by hover is let go.
+     */
+    drift(at?: At) {
+      if (!view) {
+        if (askedByHover) looker.close();
+        return;
+      }
+      if (view.locked || !view.hovered) return;
+      if (at && view.word && within(view.word, at.x, at.y, HOVER_MARGIN)) return;
+      looker.close();
     },
     /**
      * The key isn't held (let go, or the pointer moved without it). Let go on the word, the popup is kept open as a
@@ -100,6 +124,11 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      */
     release(at?: At) {
       if (!view || view.locked) return;
+      // Opened by hover, letting go of nothing keeps it: it goes as the pointer drifts away.
+      if (view.hovered) {
+        looker.drift(at);
+        return;
+      }
       if (at && view.word && within(view.word, at.x, at.y)) {
         looker.lock();
         return;
@@ -113,6 +142,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     close() {
       asked++;
       pointedId = null;
+      askedByHover = false;
       if (view !== null) tell(null);
     },
   };
@@ -141,7 +171,8 @@ function letterRect(node: Text, at: number): DOMRect {
   return range.getBoundingClientRect();
 }
 
-const within = (rect: DOMRect, x: number, y: number) => rect.width > 0 && x >= rect.left - 1 && x <= rect.right + 1 && y >= rect.top - 1 && y <= rect.bottom + 1;
+const within = (rect: DOMRect, x: number, y: number, margin = 1) =>
+  rect.width > 0 && x >= rect.left - margin && x <= rect.right + margin && y >= rect.top - margin && y <= rect.bottom + margin;
 
 /** The text nodes of a block that are read as its words: the readings over kanji are left out. */
 function wordNodes(block: Element): Text[] {
@@ -211,6 +242,8 @@ export function pointedOnPage(x: number, y: number, where: Where): Pointed | nul
 
 type PageLook = {
   key: () => LookKey;
+  /** Whether a video's subtitles are looked up on hover, no key held: here, the site's own captions. */
+  hover: () => boolean;
   /** Whether looking up works here right now (the setting, a dictionary to look in). */
   on: () => boolean;
   /** What a point on the page is: the site's captions or ordinary text; null where nothing is looked up (the options page looks only in its own lines to try). */
@@ -218,6 +251,16 @@ type PageLook = {
   /** Whether an event happened in the popup itself. */
   inPopup: (e: Event) => boolean;
 };
+
+/**
+ * The pointer moving over a video's subtitles with no key held, while they're looked up on hover: onto a word opens
+ * its popup (or moves it there), off every word lets a popup opened so drift away. Panki's own lines and the site's
+ * captions are both this.
+ */
+export function hoverOver(looker: Looker, pointed: Pointed | null, at: At): void {
+  if (pointed) looker.point(pointed, at, true);
+  else looker.drift(at);
+}
 
 /**
  * Listens on the page for pointing at its words: moves with the key held, the key pressed and let go, a click to keep
@@ -239,8 +282,9 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     if (!look.on() || inPanki(e) || look.inPopup(e)) return;
     const where = look.whereAt(e.target);
     last = where === null ? null : () => pointedOnPage(x, y, where);
-    if (!held(look.key(), e)) looker.release({ x, y });
-    else looker.point(last ? last() : null, { x, y });
+    if (held(look.key(), e)) looker.point(last ? last() : null, { x, y });
+    else if (look.hover() && where?.of === "captions") hoverOver(looker, last ? last() : null, { x, y });
+    else looker.release({ x, y });
   };
   // Keys typed in Panki's own fields (the drawer's) are theirs: a capital letter isn't a look-up.
   const onDown = (e: KeyboardEvent) => {

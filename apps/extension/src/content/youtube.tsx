@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Co
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { createListening } from "../capture/listening";
-import { held, type Pointed } from "../capture/look";
+import { held, hoverOver, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch } from "../capture/record";
 import { createReplay } from "../capture/replay";
 import { sentenceAround, takeSelection, type Taken } from "../capture/selection";
@@ -1028,15 +1028,20 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
   };
   const look: LineLook = {
     move(i, button, e) {
-      if (e.pointerType !== "mouse" || !listening.settings().on) return;
+      const { on, key, hover } = listening.settings();
+      if (e.pointerType !== "mouse" || !on) return;
       const pointed = i !== null && button ? pointedAt(i, button) : null;
+      const at = { x: e.clientX, y: e.clientY };
       listening.pointedBy(() => pointed);
-      if (!held(listening.settings().key, e)) listening.looker.release({ x: e.clientX, y: e.clientY });
-      else listening.looker.point(pointed, { x: e.clientX, y: e.clientY });
+      if (held(key, e)) listening.looker.point(pointed, at);
+      // Looked up on hover (`lookHover`): the line under the player and the one over the video take no key.
+      else if (hover) hoverOver(listening.looker, pointed, at);
+      else listening.looker.release(at);
     },
     press(i) {
       const view = listening.looker.view();
-      if (!view) return false;
+      // One opened by hover leaves a press as it always was, a pick: it's there whatever the pointer is on.
+      if (!view || view.hovered) return false;
       const token = tokens[i];
       const place = token ? placeOf(at + token.start) : null;
       // A press on the word whose popup is open keeps the popup open; anywhere else it's a pick, and the popup goes.

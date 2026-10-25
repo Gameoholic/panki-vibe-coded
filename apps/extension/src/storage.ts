@@ -65,6 +65,12 @@ const Stored = z.object({
   /** The key held to look a word up by pointing at it. */
   lookKey: LookKey.catch("shift"),
   /**
+   * Whether a video's subtitles (Panki's line under the player, the line over the video, the site's own captions) are
+   * looked up on hover, no key held (the owner, 2026-10-25: "it's annoying to have to Shift over the subtitle when I'm
+   * actively watching"); everywhere else still takes the key. Off to begin with: "I might not like this behavior".
+   */
+  lookHover: z.boolean().catch(false),
+  /**
    * Where pointing at a word works. Every site, to begin with: on the video site at once (the extension is there
    * already), anywhere else once the browser has been asked and has allowed it, on the options page.
    */
