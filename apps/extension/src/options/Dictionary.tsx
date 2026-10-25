@@ -514,7 +514,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
   return (
     <section className="panel" aria-labelledby="known-title">
       <h2 id="known-title" className="panel-title">
-        Words in your cards
+        Words that are in your decks
       </h2>
       <Setting
         id="known-subtitles"
@@ -523,7 +523,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
       />
       <Setting
         id="known-pages"
-        label="Highlight on pages"
+        label="Highlight globally"
         control={<Toggle id="known-pages-on" says={{ on: "On", off: "Off" }} on={store.knownPages} onChange={(knownPages) => void writeStore({ knownPages }).then(onChanged)} />}
       />
       <Setting

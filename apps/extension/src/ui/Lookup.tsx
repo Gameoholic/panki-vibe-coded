@@ -1,11 +1,14 @@
 import { Fragment, useState, type ReactNode } from "react";
+import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { PitchAccent } from "@web/components/PitchAccent";
+import { useCalled } from "@web/hooks/useCalled";
 import type { useDragOrder } from "@web/hooks/useDragOrder";
 import { count } from "@web/words";
 import type { View } from "../capture/look";
 import { wordKey, type Found, type Sense, type Tag } from "../dictionary/found";
+import { askCalled, askOpenPanki } from "../messages";
 import { PART_NAMES, bandOf } from "../popupKinds";
 import { dictionaryOf, dictionaryPart, type BodyPart, type FrequencyWords, type PopupLayout, type ReadingAt, type TagWords } from "../popupLayout";
 import { Glossary } from "./Glossary";
@@ -266,6 +269,17 @@ function bodyOf(part: BodyPart, found: Found, layout: PopupLayout): ReactNode {
   return <Meanings key={part.show} senses={senses} folded={part.show === "folded"} limit={part.meanings} tagWords={layout.tagWords} tagsOn={tagsOn} />;
 }
 
+/**
+ * A word that's already a card, said under its head as the drawer says it (the owner, 2026-10-25: over any word, "in
+ * case it's in a deck, it will show which deck it belongs to and I can click to see it in the deck"): which deck, and
+ * Open in Panki, at that card in its deck's list. Asked by the word as the dictionary lists it; nothing while signed
+ * out, and nothing at all for a word no card is called by. Not a part of the popup's layout: it's always there.
+ */
+function InCards({ found }: { found: Found }) {
+  const called = useCalled([found.term], [], askCalled);
+  return <AlreadyIn cards={called} openWords="Open in Panki" onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })} />;
+}
+
 function Word({ found, layout, onAdd, edit }: { found: Found; layout: PopupLayout; onAdd: (found: Found) => void; edit?: PopupEdit }) {
   const pitch = found.pitches[0];
   const shown = layout.body.filter((part) => part.show !== "hidden");
@@ -294,6 +308,8 @@ function Word({ found, layout, onAdd, edit }: { found: Found; layout: PopupLayou
           </InlinePart>
         ) : null}
       </header>
+      {/* The layout editor's made-up popup asks nothing. */}
+      {edit ? null : <InCards found={found} />}
       {shown.map((part, i) => {
         const drawn = bodyOf(part, found, layout);
         if (drawn === null && !edit) return null;
