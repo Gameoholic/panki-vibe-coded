@@ -6,8 +6,12 @@ import { z } from "zod";
  * is told them (by the worker) and must never carry the code that reads the extension's storage.
  */
 
-/** The key held while pointing at a word. Shift unless the owner picks another. */
-export const LookKey = z.enum(["shift", "ctrl", "alt"]);
+/**
+ * The key held while pointing at a word: Shift unless the owner picks another, or none at all, the word looked up as
+ * the pointer goes onto it (`hover`; the owner, 2026-10-25: "add On hover to Key to hold"). One for everywhere, and
+ * one of its own for Panki's subtitles under and over a video (`storage.ts` → `lookKey`, `lookKeySubtitles`).
+ */
+export const LookKey = z.enum(["shift", "ctrl", "alt", "hover"]);
 export type LookKey = z.infer<typeof LookKey>;
 
 /** Where pointing at a word works: every site, only the ones listed, every site but those, or nowhere. */

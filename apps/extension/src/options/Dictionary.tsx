@@ -546,8 +546,11 @@ export const LOOK_KEYS: readonly { id: LookKey; label: string }[] = [
   { id: "shift", label: "Shift" },
   { id: "ctrl", label: "Ctrl" },
   { id: "alt", label: "Alt" },
+  { id: "hover", label: "On hover" },
 ];
 export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.label ?? "Shift";
+/** How pointing at a word starts, as a sentence begins: "Hold Shift over", or "Point at" when it's On hover. */
+export const pointWords = (key: LookKey) => (key === "hover" ? "Point at" : `Hold ${keyWordOf(key)} over`);
 
 /**
  * How looking a word up works: where on the web, and with which key held. Kept the moment
@@ -617,7 +620,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
         id="look-where"
         label="Where"
         control={<Dropdown id="look-where-choice" label="Where" options={WHERE} value={store.lookWhere} onChange={(where) => keep(where, store.lookSites)} />}
-        why={`Hold ${keyWordOf(store.lookKey)} and point at a word. Let go on the word to keep the popup open.`}
+        why={store.lookKey === "hover" ? "Point at a word. Click it to keep the popup open." : `Hold ${keyWordOf(store.lookKey)} and point at a word. Let go on the word to keep the popup open.`}
       />
       {listed ? (
         <div className="dict-sites">
@@ -658,21 +661,18 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
         label="Key to hold"
         control={<Segmented idPrefix="look-key" label="Key to hold" options={LOOK_KEYS} value={store.lookKey} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
       />
-      {/* A video's subtitles (the line under the player, the one over the video, the site's captions) looked up with no
-          key held: the owner, 2026-10-25, and the row read as Key to hold's exception for subtitles, their pick of four. */}
+      {/* The same choice again for Panki's subtitles alone, under the player and over the video (the owner, 2026-10-25:
+          "duplicate the setting, one for global and one for just Panki subtitles"). */}
       <Setting
-        id="look-hover"
-        label="Key to hold in subtitles"
+        id="look-key-subtitles"
+        label="Key to hold in Panki subtitles"
         control={
           <Segmented
-            idPrefix="look-hover"
-            label="Key to hold in subtitles"
-            options={[
-              { id: "key", label: keyWordOf(store.lookKey) },
-              { id: "hover", label: "None, on hover" },
-            ]}
-            value={store.lookHover ? "hover" : "key"}
-            onChange={(how) => void writeStore({ lookHover: how === "hover" }).then(onChanged)}
+            idPrefix="look-key-subtitles"
+            label="Key to hold in Panki subtitles"
+            options={LOOK_KEYS}
+            value={store.lookKeySubtitles}
+            onChange={(lookKeySubtitles) => void writeStore({ lookKeySubtitles }).then(onChanged)}
           />
         }
       />

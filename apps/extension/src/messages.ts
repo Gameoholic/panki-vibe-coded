@@ -192,8 +192,8 @@ const LookState = z.union([
     /** Pointing at a word looks it up here: the site is one the setting allows, and there's a dictionary to look in. */
     on: z.boolean(),
     key: LookKey,
-    /** A video's subtitles are looked up on hover, no key held (`storage.ts` → `lookHover`). */
-    hover: z.boolean().catch(false),
+    /** The key held in Panki's subtitles, under and over a video (`storage.ts` → `lookKeySubtitles`). */
+    subtitleKey: LookKey.catch("shift"),
     /** How many dictionaries are switched on: none means the line is split the browser's way. */
     dictionaries: z.number(),
     /** Changes whenever the dictionaries do: what was found before is found again. */

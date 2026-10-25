@@ -34,7 +34,7 @@ export type Where = { of: "line"; lineId: number; offset: number; length: number
 
 /**
  * What's showing: the word found, where it is, whether it's kept open (the key let go on the word, or a click), and
- * whether it was opened by hover alone (a video's subtitles, with Look up on hover on: `lookHover`), which neither
+ * whether it was opened by hover alone (where the key to hold is On hover, `LookKey`), which neither
  * letting go nor a press on the word keeps open, and which closes once the pointer is well away from the word.
  */
 export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; locked: boolean; hovered: boolean };
@@ -55,12 +55,24 @@ const askWorker: Find = async (text) => {
   return answer.ok ? answer.found : [];
 };
 
-/** Whether an event has the look-up key held. */
+/** Whether an event has the look-up key held; On hover has none to hold. */
 export function held(key: LookKey, e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
+  if (key === "hover") return false;
   return key === "shift" ? e.shiftKey : key === "ctrl" ? e.ctrlKey : e.altKey;
 }
-/** Whether a key pressed or let go is the look-up key. */
-const isKey = (key: LookKey, name: string) => (key === "shift" ? name === "Shift" : key === "ctrl" ? name === "Control" : name === "Alt");
+/** Whether a key pressed or let go is the look-up key; with On hover, none is. */
+const isKey = (key: LookKey, name: string) => (key === "shift" ? name === "Shift" : key === "ctrl" ? name === "Control" : key === "alt" ? name === "Alt" : false);
+
+/**
+ * The pointer moved over words, with `key` the one to hold there: with On hover, onto a word looks it up and off the
+ * words lets the popup drift away (`hoverOver`); otherwise the key held looks up what's pointed at, and not held is
+ * letting go. A page's text and Panki's own lines both go through this, each with its own key.
+ */
+export function pointWith(looker: Looker, key: LookKey, e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean }, pointed: Pointed | null, at: At): void {
+  if (key === "hover") hoverOver(looker, pointed, at);
+  else if (held(key, e)) looker.point(pointed, at);
+  else looker.release(at);
+}
 
 /** What's open and what's being asked about. `onView` is told every change; null is nothing showing. */
 export function createLooker(onView: (view: View | null) => void, find: Find = askWorker) {
@@ -78,7 +90,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     view: () => view,
     /**
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
-     * is on a word of a video's subtitles with Look up on hover on. One that's kept open gives way only to another
+     * is on a word where the key to hold is On hover. One that's kept open gives way only to another
      * word: the pointer crossing nothing, or still on its own word, leaves it be.
      */
     point(pointed: Pointed | null, at?: At, hover = false) {
@@ -242,8 +254,6 @@ export function pointedOnPage(x: number, y: number, where: Where): Pointed | nul
 
 type PageLook = {
   key: () => LookKey;
-  /** Whether a video's subtitles are looked up on hover, no key held: here, the site's own captions. */
-  hover: () => boolean;
   /** Whether looking up works here right now (the setting, a dictionary to look in). */
   on: () => boolean;
   /** What a point on the page is: the site's captions or ordinary text; null where nothing is looked up (the options page looks only in its own lines to try). */
@@ -253,9 +263,8 @@ type PageLook = {
 };
 
 /**
- * The pointer moving over a video's subtitles with no key held, while they're looked up on hover: onto a word opens
- * its popup (or moves it there), off every word lets a popup opened so drift away. Panki's own lines and the site's
- * captions are both this.
+ * The pointer moving over words where the key to hold is On hover: onto a word opens its popup (or moves it there),
+ * off every word lets a popup opened so drift away.
  */
 export function hoverOver(looker: Looker, pointed: Pointed | null, at: At): void {
   if (pointed) looker.point(pointed, at, true);
@@ -273,6 +282,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   let y = -1;
   /** Where the pointer last was: on the page, or on one of Panki's own words (which says what it is). */
   let last: (() => Pointed | null) | null = null;
+  /** The key to hold where the pointer last was: the page's, or Panki's subtitles' own (`pointedBy`). */
+  let lastKey: LookKey | null = null;
   const onMove = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
     // Where the pointer is, wherever it is: letting go of the key on the word keeps the popup, even on Panki's own line.
@@ -282,18 +293,18 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     if (!look.on() || inPanki(e) || look.inPopup(e)) return;
     const where = look.whereAt(e.target);
     last = where === null ? null : () => pointedOnPage(x, y, where);
-    if (held(look.key(), e)) looker.point(last ? last() : null, { x, y });
-    else if (look.hover() && where?.of === "captions") hoverOver(looker, last ? last() : null, { x, y });
-    else looker.release({ x, y });
+    lastKey = look.key();
+    pointWith(looker, lastKey, e, last ? last() : null, { x, y });
   };
   // Keys typed in Panki's own fields (the drawer's) are theirs: a capital letter isn't a look-up.
   const onDown = (e: KeyboardEvent) => {
     if (inPanki(e)) return;
     if (e.key === "Escape") looker.close();
-    if (!e.repeat && look.on() && isKey(look.key(), e.key) && last) looker.point(last(), { x, y });
+    const key = lastKey ?? look.key();
+    if (!e.repeat && look.on() && isKey(key, e.key) && last) looker.point(last(), { x, y });
   };
   const onUp = (e: KeyboardEvent) => {
-    if (!inPanki(e) && isKey(look.key(), e.key)) looker.release({ x, y });
+    if (!inPanki(e) && isKey(lastKey ?? look.key(), e.key)) looker.release({ x, y });
   };
   // A click anywhere but the popup and its word closes it, however it was kept open: in Panki's own places too (the
   // line's empty room, the drawer).
@@ -320,9 +331,10 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   window.addEventListener("scroll", onScroll, { capture: true, passive: true });
   window.addEventListener("blur", onBlur);
   return {
-    /** Panki's own line says where the pointer is when it's over one of its words. */
-    pointedBy(pointed: () => Pointed | null) {
+    /** Panki's own line says where the pointer is when it's over one of its words, and the key to hold there (its own: `lookKeySubtitles`). */
+    pointedBy(pointed: () => Pointed | null, key: LookKey) {
       last = pointed;
+      lastKey = key;
     },
     stop() {
       document.removeEventListener("pointermove", onMove);

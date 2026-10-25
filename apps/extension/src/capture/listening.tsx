@@ -33,7 +33,7 @@ const OVER_ALL = "position: fixed; inset: 0; z-index: 2147483647; pointer-events
  * The video page and any other page both start one; the video page also points at its own line's words through it.
  */
 export function createListening(options: Options) {
-  let settings: { on: boolean; key: LookKey; hover: boolean; layout: PopupLayout } = { on: false, key: "shift", hover: false, layout: popupLayoutOf(null, []) };
+  let settings: { on: boolean; key: LookKey; subtitleKey: LookKey; layout: PopupLayout } = { on: false, key: "shift", subtitleKey: "shift", layout: popupLayoutOf(null, []) };
   const place = makePlace(options.theme?.() ?? "light");
   place.host.style.cssText = OVER_ALL;
   const root = createRoot(place.ground);
@@ -66,7 +66,6 @@ export function createListening(options: Options) {
 
   const page = listenOnPage(looker, {
     key: () => settings.key,
-    hover: () => settings.hover,
     on: () => settings.on,
     whereAt: options.whereAt,
     inPopup: (e) => e.composedPath().includes(place.host),
@@ -75,14 +74,14 @@ export function createListening(options: Options) {
   async function refresh() {
     const state = await askLookState();
     if (!state.ok) return;
-    settings = { on: state.on, key: state.key, hover: state.hover, layout: state.layout };
+    settings = { on: state.on, key: state.key, subtitleKey: state.subtitleKey, layout: state.layout };
     dictionariesAre(state.signature);
     if (!settings.on) looker.close();
   }
 
   return {
     looker,
-    /** Whether pointing at words works here right now, with which key, and whether a video's subtitles take no key. */
+    /** Whether pointing at words works here right now, with which key, and with which in Panki's subtitles. */
     settings: () => settings,
     /** Panki's own line says where the pointer is when it's over one of its words, so the key pressed there looks it up. */
     pointedBy: page.pointedBy,

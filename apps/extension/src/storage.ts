@@ -65,11 +65,13 @@ const Stored = z.object({
   /** The key held to look a word up by pointing at it. */
   lookKey: LookKey.catch("shift"),
   /**
-   * Whether a video's subtitles (Panki's line under the player, the line over the video, the site's own captions) are
-   * looked up on hover, no key held (the owner, 2026-10-25: "it's annoying to have to Shift over the subtitle when I'm
-   * actively watching"); everywhere else still takes the key. Off to begin with: "I might not like this behavior".
+   * The key held to look a word up in Panki's subtitles, under the player and over the video, apart from everywhere
+   * else's (the owner, 2026-10-25: "duplicate the setting, one for global and one for just Panki subtitles… we can even
+   * have different buttons for the two"), On hover among them ("it's annoying to have to Shift over the subtitle when
+   * I'm actively watching"). Shift to begin with. (For a few hours the same day it was `lookHover`, a switch: a browser
+   * that switched it on reads as On hover here, `readStore`.)
    */
-  lookHover: z.boolean().catch(false),
+  lookKeySubtitles: LookKey.catch("shift"),
   /**
    * Words already in the account's cards, marked where they stand (the owner, 2026-10-25, "both subtitles and
    * everywhere… so they can be separate", "make colour customizable"): in a video's subtitles (Panki's lines under and
@@ -182,7 +184,11 @@ export const modulesOf = (store: Stored): Modules => ({
 });
 
 export async function readStore(): Promise<Stored> {
-  return Stored.parse(await chrome.storage.local.get(null));
+  const kept = await chrome.storage.local.get(null);
+  const stored = Stored.parse(kept);
+  // `lookHover`, the switch it was for a few hours (2026-10-25), switched on and never changed since: On hover.
+  if (kept.lookKeySubtitles === undefined && kept.lookHover === true) return { ...stored, lookKeySubtitles: "hover" };
+  return stored;
 }
 
 export async function writeStore(patch: Partial<Stored>): Promise<void> {

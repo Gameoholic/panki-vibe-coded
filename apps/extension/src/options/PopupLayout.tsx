@@ -21,7 +21,7 @@ import { dictionaryOf, moveBodyPart, popupLayoutOf, withMeanings, type BodyPart,
 import { writeStore } from "../storage";
 import { Lookup, LookupBody } from "../ui/Lookup";
 import { KindChips } from "./DataKinds";
-import { keyWordOf } from "./Dictionary";
+import { pointWords } from "./Dictionary";
 
 /** What this says when something's wrong. One home. */
 const MESSAGES = {
@@ -199,9 +199,8 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
     }, lookUp);
     looker.current = made;
     const page = listenOnPage(made, {
+      // The sentences to try it on are a page's, so they take the key everywhere else takes, On hover too.
       key: () => keyNow.current,
-      // The sentences to try it on are a page's, not a video's subtitles: always the key.
-      hover: () => false,
       on: () => true,
       whereAt: (target) => (target instanceof Node && tryText.current?.contains(target) ? { of: "page" } : null),
       inPopup: (e) => over.current !== null && e.composedPath().includes(over.current),
@@ -314,7 +313,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
 
   const editing = mode === "edit";
   const first = shown?.found[0];
-  const keyWord = keyWordOf(lookKey);
+  const pointAt = pointWords(lookKey);
   return (
     <>
       <div className="popup-head">
@@ -333,7 +332,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
         <div className="layout-stage">
           {/* Above the popup being laid out, so the sentences stay where they are when it takes another word. */}
           <div className="popup-try">
-            <span className="layout-note">Hold {keyWord} over a word to try it</span>
+            <span className="layout-note">{pointAt} a word to try it</span>
             <p ref={tryText} className="popup-try-text" lang="ja">
               {TRY_TEXT}
             </p>
@@ -362,7 +361,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
                 />
               </div>
             ) : (
-              <p className="empty">Hold {keyWord} over a word above to see the popup with it.</p>
+              <p className="empty">{pointAt} a word above to see the popup with it.</p>
             )}
           </div>
           {!editing ? (
