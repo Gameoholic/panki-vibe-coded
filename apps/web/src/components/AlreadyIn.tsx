@@ -1,4 +1,4 @@
-import { likenessOf, type ApartValue, type CalledCard, type Likeness } from "@panki/contracts";
+import { likenessOf, type ApartValue, type CalledCard } from "@panki/contracts";
 import { langOf, listWords } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -35,9 +35,6 @@ export function exampleTargetOf(cards: readonly CalledCard[], typeId: string, mi
   return cards.find((card) => card.typeId === typeId && likenessOf(mine, card.apart, compared) !== "other") ?? null;
 }
 
-/** What a row's tag says, by how its card stands to the one being added; nothing when it isn't known. */
-const LIKENESS_TAG: Record<Likeness, string | null> = { same: "Duplicate", other: "Different", unsure: null };
-
 /** A deck's name once each, in the order met. */
 const decksOf = (cards: readonly CalledCard[]) => listWords([...new Set(cards.map((card) => card.deck))]);
 
@@ -45,8 +42,8 @@ const decksOf = (cards: readonly CalledCard[]) => listWords([...new Set(cards.ma
  * Said under the field a card is called by, while what's typed or picked there is what a card already holds (the
  * owner, 2026-10-25): a warning, in amber, when one of them is the same in every field its type compares (the same
  * word and meaning: "“生” is already in Mining, with the same Meaning."); otherwise a quieter notice that the word is in
- * the decks. Under it, every card called so, each with its deck and what it holds in the fields compared, tagged
- * Duplicate or Different, with a way to open it. It stops nothing: Add still adds a second card, unless Add as an
+ * the decks. Under it, every card called so, each with its deck and what it holds in the fields compared, and a way
+ * to open it (the Duplicate and Different tags on each went at the owner's word, 2026-10-25). It stops nothing: Add still adds a second card, unless Add as an
  * additional example is pressed, which puts what's being added onto the card that's there. The app's form, the
  * extension's drawer and its popup are all this.
  */
@@ -79,8 +76,7 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
         </span>
       </p>
       <ul className="already-cards">
-        {rows.map(({ card, like }) => {
-          const tag = LIKENESS_TAG[like];
+        {rows.map(({ card }) => {
           return (
             <li key={card.cardId} className="already-card">
               <span className="already-card-words">
@@ -92,9 +88,8 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
                   </span>
                 ))}
               </span>
-              {tag || onOpen || example?.card.cardId === card.cardId ? (
+              {onOpen || example?.card.cardId === card.cardId ? (
                 <span className="already-card-actions">
-                  {tag ? <span className={`already-tag is-${like}`}>{tag}</span> : null}
                   {onOpen ? (
                     <Button className="already-open" onClick={() => onOpen(card)}>
                       {openWords}

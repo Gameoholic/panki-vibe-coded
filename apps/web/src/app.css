@@ -787,7 +787,7 @@ textarea.field-input {
   background: var(--surface-2);
 }
 /* Every card called so, a row each: its words, its deck and what it holds in the fields compared across the whole
-   width, then its tag and its buttons on a line under them, so the buttons never squeeze the words. */
+   width, then its buttons on a line under them, so the buttons never squeeze the words. */
 .already-cards {
   margin: 0;
   padding: 0;
@@ -819,20 +819,6 @@ textarea.field-input {
 }
 .already-card-deck,
 .already-card-value {
-  color: var(--muted);
-}
-.already-tag {
-  padding: 1px 7px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.already-tag.is-same {
-  background: color-mix(in srgb, var(--flag) 30%, var(--surface));
-}
-.already-tag.is-other {
-  background: var(--surface);
   color: var(--muted);
 }
 /* Add as an additional example, pressed: the form adds an example to that card instead of a card. */
