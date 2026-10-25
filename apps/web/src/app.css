@@ -786,28 +786,36 @@ textarea.field-input {
   border-color: var(--line);
   background: var(--surface-2);
 }
-/* Every card called so, a row each: its words, its deck, what it holds in the fields compared, its tag, its buttons. */
+/* Every card called so, a row each: its words, its deck and what it holds in the fields compared across the whole
+   width, then its tag and its buttons on a line under them, so the buttons never squeeze the words. */
 .already-cards {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 4px;
+  gap: 8px;
 }
 .already-card {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.already-card + .already-card {
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--flag) 25%, var(--line));
+}
+.already-card-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  overflow-wrap: break-word;
+}
+.already-card-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
-  font-size: 13px;
-}
-.already-card-words {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  overflow-wrap: anywhere;
+  gap: 6px;
 }
 .already-card-deck,
 .already-card-value {

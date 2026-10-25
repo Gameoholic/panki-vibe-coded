@@ -92,16 +92,20 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
                   </span>
                 ))}
               </span>
-              {tag ? <span className={`already-tag is-${like}`}>{tag}</span> : null}
-              {onOpen ? (
-                <Button className="already-open" onClick={() => onOpen(card)}>
-                  {openWords}
-                </Button>
-              ) : null}
-              {example && example.card.cardId === card.cardId ? (
-                <Button className="already-open already-example" aria-pressed={example.on} onClick={example.onToggle}>
-                  {EXAMPLE_WORDS.add}
-                </Button>
+              {tag || onOpen || example?.card.cardId === card.cardId ? (
+                <span className="already-card-actions">
+                  {tag ? <span className={`already-tag is-${like}`}>{tag}</span> : null}
+                  {onOpen ? (
+                    <Button className="already-open" onClick={() => onOpen(card)}>
+                      {openWords}
+                    </Button>
+                  ) : null}
+                  {example && example.card.cardId === card.cardId ? (
+                    <Button className="already-open already-example" aria-pressed={example.on} onClick={example.onToggle}>
+                      {EXAMPLE_WORDS.add}
+                    </Button>
+                  ) : null}
+                </span>
               ) : null}
             </li>
           );
