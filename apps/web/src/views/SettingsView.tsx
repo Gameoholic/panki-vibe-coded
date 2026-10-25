@@ -552,8 +552,8 @@ function WatchingSection({ settings }: { settings: WatchingSettings }) {
       ) : null}
       <Setting
         id="finishedWithinSec"
-        label="Finished within the last"
-        control={<NumberField id="finished-within" label="Finished within the last" value={current.finishedWithinSec} min={0} max={600} suffix="s" onChange={(finishedWithinSec) => patch({ finishedWithinSec })} />}
+        label="Video counts as finished in its last"
+        control={<NumberField id="finished-within" label="Video counts as finished in its last" value={current.finishedWithinSec} min={0} max={600} suffix="s" onChange={(finishedWithinSec) => patch({ finishedWithinSec })} />}
       />
     </section>
   );
