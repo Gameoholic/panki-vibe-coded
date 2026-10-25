@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { DEFAULT_WATCHING_SETTINGS, youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
+import { DEFAULT_WATCHING_SETTINGS, youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type FinishedVideo, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
@@ -389,48 +389,27 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * The videos saved for later with a thumbnail's save button, newest first (the owner, 2026-10-21: "I want to be able
-   * to save videos for later… I don't want to use YouTube's Watch later or playlists"): each the site's own kind of
-   * card opening the video, × taking the save back. Kept on the account's Panki, so every browser signed in sees them.
+   * A shelf of the site's own kind of card, as many as fit its row and Show more for the rest ("Fits the row" of the
+   * artifact, the owner's pick for Saved for later, 2026-10-21). Saved for later and Recently watched are both this.
    */
-  function SavedShelf({ videos }: { videos: readonly SavedVideo[] }) {
-    const [failure, setFailure] = useState<string | null>(null);
-    // As many as fit one row ("Fits the row" of the artifact, the owner's pick for it, 2026-10-21), Show more for the rest.
+  function RowShelf<T>({ title, items, empty, failure, card }: { title: string; items: readonly T[]; empty: string | null; failure: string | null; card: (item: T) => ReactNode }) {
     const [open, setOpen] = useState(false);
     const [row, setRow] = useState<HTMLDivElement | null>(null);
     const perRow = usePerRow(row);
-    const shown = open ? videos : videos.slice(0, perRow);
-    const now = Date.now();
+    const shown = open ? items : items.slice(0, perRow);
     return (
-      <section className="yh-shelf" aria-label="Saved for later">
+      <section className="yh-shelf" aria-label={title}>
         <h2 className="yh-h">
-          Saved for later {videos.length > 0 ? <span className="yh-h-n">{videos.length}</span> : null}
+          {title} {items.length > 0 ? <span className="yh-h-n">{items.length}</span> : null}
         </h2>
-        {/* Empty, it says where saving is (the owner, 2026-10-21, before saving anything: "where can I see the videos I've marked to watch later? and how can I mark videos like that"). */}
-        {videos.length === 0 ? <p className="yh-empty">Nothing saved yet. Point at any video and press + at its top left.</p> : null}
+        {items.length === 0 && empty ? <p className="yh-empty">{empty}</p> : null}
         <div ref={setRow} className="yh-cards is-wrap">
-          {shown.map((v) => (
-            <VideoCard
-              key={v.videoId}
-              videoId={v.videoId}
-              title={v.title}
-              channel={v.channel}
-              href={youtubeUrl({ videoId: v.videoId, seconds: null })}
-              sub={`Saved · ${agoWords(v.savedAt, now)}`}
-              progress={null}
-              lengthMs={v.lengthMs}
-              removeLabel="Take out of Saved"
-              onRemove={() => {
-                setFailure(null);
-                void setSaved(v.videoId, null).then((message) => setFailure(message));
-              }}
-            />
-          ))}
+          {shown.map(card)}
         </div>
-        {videos.length > perRow ? (
+        {items.length > perRow ? (
           <div className="yh-more">
             <Button className="yh-more-btn" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
-              {open ? "Show less" : `Show ${videos.length - perRow} more`}
+              {open ? "Show less" : `Show ${items.length - perRow} more`}
               <Icon name={open ? "up" : "down"} />
             </Button>
           </div>
@@ -444,6 +423,86 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     );
   }
 
+  /**
+   * The videos saved for later with a thumbnail's save button, newest first (the owner, 2026-10-21: "I want to be able
+   * to save videos for later… I don't want to use YouTube's Watch later or playlists"): each the site's own kind of
+   * card opening the video, × taking the save back. Kept on the account's Panki, so every browser signed in sees them.
+   */
+  function SavedShelf({ videos }: { videos: readonly SavedVideo[] }) {
+    const [failure, setFailure] = useState<string | null>(null);
+    const now = Date.now();
+    return (
+      <RowShelf
+        title="Saved for later"
+        items={videos}
+        // Empty, it says where saving is (the owner, 2026-10-21, before saving anything: "where can I see the videos I've marked to watch later? and how can I mark videos like that").
+        empty="Nothing saved yet. Point at any video and press + at its top left."
+        failure={failure}
+        card={(v) => (
+          <VideoCard
+            key={v.videoId}
+            videoId={v.videoId}
+            title={v.title}
+            channel={v.channel}
+            href={youtubeUrl({ videoId: v.videoId, seconds: null })}
+            sub={`Saved · ${agoWords(v.savedAt, now)}`}
+            progress={null}
+            lengthMs={v.lengthMs}
+            removeLabel="Take out of Saved"
+            onRemove={() => {
+              setFailure(null);
+              void setSaved(v.videoId, null).then((message) => setFailure(message));
+            }}
+          />
+        )}
+      />
+    );
+  }
+
+  /**
+   * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
+   * watching", beside Continue watching and Saved for later): each the site's own kind of card opening the video from
+   * its start, its length in its picture's corner and when it was finished under it. × says it isn't finished, which
+   * takes it out of here and back into Continue watching, as the chip under a video does.
+   */
+  function RecentShelf({ videos, onStale }: { videos: readonly FinishedVideo[]; onStale: () => void }) {
+    const [gone, setGone] = useState<readonly string[]>([]);
+    const [failure, setFailure] = useState<string | null>(null);
+    async function unfinish(videoId: string) {
+      setFailure(null);
+      setGone((was) => [...was, videoId]);
+      const answer = await askWatchMark(videoId, "unfinish");
+      if (answer.ok) onStale();
+      else {
+        setGone((was) => was.filter((id) => id !== videoId));
+        setFailure(answer.message);
+      }
+    }
+    const now = Date.now();
+    return (
+      <RowShelf
+        title="Recently watched"
+        items={videos.filter((v) => !gone.includes(v.videoId))}
+        empty={null}
+        failure={failure}
+        card={(v) => (
+          <VideoCard
+            key={v.videoId}
+            videoId={v.videoId}
+            title={v.title}
+            channel={v.channel}
+            href={youtubeUrl({ videoId: v.videoId, seconds: null })}
+            sub={`Finished · ${agoWords(v.finishedAt, now)}`}
+            progress={null}
+            lengthMs={v.lengthMs > 0 ? v.lengthMs : null}
+            removeLabel="Mark as not finished"
+            onRemove={() => void unfinish(v.videoId)}
+          />
+        )}
+      />
+    );
+  }
+
   // The chips sifting the site's feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them out, 2026-10-21.
 
   function Top() {
@@ -452,7 +511,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     return (
       <div className="yt-home">
         {now.kind === "loading" ? null : now.kind === "failed" ? (
-          on.homeLine || on.homeShelf || on.homeSaved ? (
+          on.homeLine || on.homeShelf || on.homeSaved || on.homeRecent ? (
             <section className="yh-bar is-off">
               <p className="yh-bar-words">
                 <Mark size={18} />
@@ -479,6 +538,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
               {on.homeShelf && now.home.stats.watching.on ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
               {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
             </div>
+            {/* Under them, the row of its own: the videos finished, there once there's one. */}
+            {on.homeRecent && now.home.stats.watching.on && now.home.stats.watching.finished.length > 0 ? <RecentShelf videos={now.home.stats.watching.finished} onStale={() => void load()} /> : null}
           </>
         )}
       </div>
@@ -765,7 +826,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       if (floater.host.parentElement !== document.body) document.body.append(floater.host);
       floater.host.dataset.theme = theme;
       // The top of the home, over the recommendations, while that's the page shown and any part of it is on.
-      const grid = on.home && (on.homeLine || on.homeShelf || on.homeSaved) ? document.querySelector(HOME_GRID) : null;
+      const grid = on.home && (on.homeLine || on.homeShelf || on.homeSaved || on.homeRecent) ? document.querySelector(HOME_GRID) : null;
       const contents = grid?.querySelector(GRID_CONTENTS) ?? null;
       if (!contents) top.host.remove();
       else {

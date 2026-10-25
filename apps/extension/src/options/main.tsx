@@ -371,6 +371,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
       {/* How many it shows was a choice here until the owner made it always 5, 2026-10-22 (`modules.ts` → `SHELF_MAX`). */}
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
+      {row("home-recent", "Recently watched", store.homeRecent, { on: "Shown", off: "Hidden" }, (homeRecent) => ({ homeRecent }))}
       {/* Named for what they show (the owner, 2026-10-22: "Thumbnail marks: no clue what that is"; "Save button on thumbnails: what are we saving?"). */}
       {row("module-thumbs", "Progress, cards and subtitles on thumbnails", store.moduleThumbs, { on: "Shown", off: "Hidden" }, (moduleThumbs) => ({ moduleThumbs }))}
       {row("thumb-save", "Save for later button on thumbnails", store.thumbSave, { on: "Shown", off: "Hidden" }, (thumbSave) => ({ thumbSave }))}

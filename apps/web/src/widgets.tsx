@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
-import type { ContinueVideo, Day, Deck, SavedVideo, Settings, SrsType, Stats } from "@panki/contracts";
+import type { ContinueVideo, Day, Deck, FinishedVideo, SavedVideo, Settings, SrsType, Stats } from "@panki/contracts";
 import { api } from "./api";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
@@ -29,7 +29,8 @@ export type WidgetId =
   | "watch-time"
   | "channels"
   | "continue"
-  | "saved";
+  | "saved"
+  | "recent";
 
 /**
  * What a widget may need besides the stats: the decks in scope, the types, the settings, the way into a review, and a
@@ -226,7 +227,7 @@ function watchTile(stats: Stats, empty: boolean, draw: () => ReactNode): ReactNo
   return draw();
 }
 
-/** How many videos a tile of videos shows (Continue watching, Saved for later); the rest wait their turn. */
+/** How many videos a tile of videos shows (Continue watching, Saved for later, Recently watched); the rest wait their turn. */
 const VIDEOS_SHOWN = 4;
 
 /**
@@ -262,6 +263,49 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
             progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: `${wanted(v.lengthMs - v.stoppedAtMs)} left` }}
           />
           <Button className="btn-icon w-video-x" aria-label="Put away" onClick={() => void putAway(v.videoId)}>
+            <Icon name="close" />
+          </Button>
+        </div>
+      ))}
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
+ * watching"), each the video's own card opening it on YouTube from its start, with a × that says it isn't finished: it
+ * leaves here and goes back into Continue watching. The stats are asked for again so both catch up.
+ */
+function RecentRows({ videos, onStale }: { videos: readonly FinishedVideo[]; onStale: () => void }) {
+  const [gone, setGone] = useState<readonly string[]>([]);
+  const [failure, setFailure] = useState<string | null>(null);
+  async function unfinish(videoId: string) {
+    setFailure(null);
+    setGone((was) => [...was, videoId]);
+    try {
+      await api.markVideo(videoId, "unfinish");
+      onStale();
+    } catch (e) {
+      setGone((was) => was.filter((id) => id !== videoId));
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    }
+  }
+  const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, VIDEOS_SHOWN);
+  return (
+    <div className="w-videos">
+      {shown.map((v) => (
+        <div key={v.videoId} className="w-video">
+          <LinkView
+            meta={{ link: { videoId: v.videoId, seconds: null }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
+            label="Recently watched"
+            pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
+          />
+          <Button className="btn-icon w-video-x" aria-label="Mark as not finished" onClick={() => void unfinish(v.videoId)}>
             <Icon name="close" />
           </Button>
         </div>
@@ -611,6 +655,17 @@ export const WIDGETS: readonly WidgetEntry[] = [
     render(stats, ctx) {
       if (stats.saved.length === 0) return <Quiet>No videos saved</Quiet>;
       return <SavedRows videos={stats.saved} onStale={ctx.onStale} />;
+    },
+  },
+  {
+    id: "recent",
+    name: "Recently watched",
+    wide: true,
+    home: true,
+    control: (stats) => (stats.watching.on && stats.watching.finished.length > 0 ? count(stats.watching.finished.length, "video", "videos") : ""),
+    render(stats, ctx) {
+      const { finished } = stats.watching;
+      return watchTile(stats, finished.length === 0, () => <RecentRows videos={finished} onStale={ctx.onStale} />);
     },
   },
   // Together and Together · this week (everyone on this Panki) stood here for a day, 2026-10-21, until the owner shelved

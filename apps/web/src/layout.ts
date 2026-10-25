@@ -54,9 +54,9 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
  * Tiles put on the home once, on each device, the first time it's read after they joined the registry (the owner,
  * 2026-10-21, of the watching tiles: "edit it to look with all the modules on"); from then on each is like any tile,
  * put away with its × and brought back by hand. The ones already put out are kept beside the layout, so one put away
- * stays away.
+ * stays away. Recently watched joined them (2026-10-25), asked for by name.
  */
-const PUT_OUT: readonly WidgetId[] = ["continue", "watched", "watch-time", "channels"];
+const PUT_OUT: readonly WidgetId[] = ["continue", "watched", "watch-time", "channels", "recent"];
 const PUT_OUT_KEY = "panki.board.putOut";
 
 function readStored(): BoardLayout {

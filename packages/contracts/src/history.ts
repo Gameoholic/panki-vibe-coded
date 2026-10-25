@@ -88,6 +88,20 @@ export const ContinueVideo = z.object({
 export type ContinueVideo = z.infer<typeof ContinueVideo>;
 
 /**
+ * A video watched to its end (finished: the latest of its finish and unfinish marks is a finish), for Recently watched
+ * (the owner, 2026-10-25: "a 'recently watched' and it's for videos we FINISHED watching"): when it was last finished.
+ */
+export const FinishedVideo = z.object({
+  videoId: VideoId,
+  title: z.string(),
+  channel: z.string(),
+  lengthMs: Count,
+  /** When it was finished, ms since epoch: the mark that made it so. */
+  finishedAt: Count,
+});
+export type FinishedVideo = z.infer<typeof FinishedVideo>;
+
+/**
  * The account's watching as the immersion tiles read it. Every span is ms on the clock (the time spent, whatever the
  * speed), only videos that count; days are the account's own. With Video tracking off, `on` is false and the tiles say so.
  */
@@ -105,6 +119,8 @@ export const Watching = z.object({
   // A watch streak against a daily goal stood here until the owner had both out, 2026-10-21 ("I don't want a target goal
   // for immersion nor streaks… it might change in the future, we store the data"): every stretch is still kept.
   continuing: z.array(ContinueVideo),
+  /** The videos finished, the latest finished first, `WATCH.finishedMax` at most; none from an older server. */
+  finished: z.array(FinishedVideo).default([]),
 });
 export type Watching = z.infer<typeof Watching>;
 

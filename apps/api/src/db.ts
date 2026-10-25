@@ -816,19 +816,22 @@ type DictionaryMoveRow = { id: string; title: string; revision: string; descript
 type WatchStretchRow = { videoId: string; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
 type WatchMarkRow = { videoId: string; kind: string; at: number };
 
-type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean };
+type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean; finishedAt: number | null };
 /**
  * What's been said of each video, from its marks in the order they were made: whether it counts (its latest count or
  * uncount; a video never marked counts), when it was last put away from Continue watching, and whether it's finished
- * (its latest finish or unfinish, whoever made it).
+ * (its latest finish or unfinish, whoever made it) and since when.
  */
 function marksOf(rows: readonly WatchMarkRow[]): Map<string, VideoSaid> {
   const said = new Map<string, VideoSaid>();
   for (const row of rows) {
-    const video = said.get(row.videoId) ?? { counted: true, putAwayAt: null, finished: false };
+    const video = said.get(row.videoId) ?? { counted: true, putAwayAt: null, finished: false, finishedAt: null };
     if (row.kind === "count" || row.kind === "uncount") video.counted = row.kind === "count";
     else if (row.kind === "put-away") video.putAwayAt = row.at;
-    else if (row.kind === "finish" || row.kind === "unfinish") video.finished = row.kind === "finish";
+    else if (row.kind === "finish" || row.kind === "unfinish") {
+      video.finished = row.kind === "finish";
+      video.finishedAt = video.finished ? row.at : null;
+    }
     said.set(row.videoId, video);
   }
   return said;
@@ -1448,6 +1451,19 @@ export function openDb(
           .sort((a, b) => b.lastAt - a.lastAt)
           .slice(0, WATCH.continueMax);
 
+    // Recently watched: the videos finished, the latest finished first, named as the page last showed them (a video
+    // finished by hand before a stretch of it was kept has nothing to be named by, and waits for one).
+    const finished = !settings.videoTracking
+      ? []
+      : [...marks.entries()]
+          .flatMap(([videoId, said]) => {
+            const s = latest.get(videoId);
+            if (!said.finished || said.finishedAt === null || !s) return [];
+            return [{ videoId, title: s.title ?? "", channel: s.channel ?? "", lengthMs: s.lengthMs ?? 0, finishedAt: said.finishedAt }];
+          })
+          .sort((a, b) => b.finishedAt - a.finishedAt)
+          .slice(0, WATCH.finishedMax);
+
     return {
       on: settings.videoTracking,
       today: msByDay.get(todayKey) ?? 0,
@@ -1464,6 +1480,7 @@ export function openDb(
         .slice(0, 5)
         .map(([name, ms]) => ({ name, ms })),
       continuing,
+      finished,
     };
   }
 

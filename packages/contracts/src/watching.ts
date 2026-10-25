@@ -43,6 +43,8 @@ export const WATCH = {
   flushMs: 30_000,
   /** The most videos Continue watching lists. */
   continueMax: 12,
+  /** The most videos Recently watched lists, the latest finished first. */
+  finishedMax: 50,
 } as const;
 
 /** A video as the page shows it, sent with its stretches: its name, its channel, how long it is. YouTube's words, not the owner's. */

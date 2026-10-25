@@ -107,6 +107,8 @@ export const Modules = z.object({
   homeShelf: z.boolean(),
   /** The Saved for later shelf under it: the videos saved with a thumbnail's save button. */
   homeSaved: z.boolean(),
+  /** The Recently watched shelf under them: the videos finished, the latest first (2026-10-25). */
+  homeRecent: z.boolean(),
   /** The save button on every thumbnail (on hover with a mouse; always without one). */
   thumbSave: z.boolean(),
   /** Whether Shorts stay on YouTube's pages: their shelves and their videos among the rest. Shown to begin with: nothing of the site's is taken away unasked. A YouTube utility, the owner's word (2026-10-21): it holds whether or not Panki is on. */
@@ -133,6 +135,7 @@ export const DEFAULT_MODULES: Modules = {
   homeLine: true,
   homeShelf: true,
   homeSaved: true,
+  homeRecent: true,
   thumbSave: true,
   shorts: true,
   thumbs: true,
