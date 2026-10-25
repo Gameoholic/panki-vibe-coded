@@ -8,8 +8,10 @@ pm2 restart panki-api
 
 
 
-- Auto deploy on chrome extension? Maybe shwo when theres na udpate and sugggest ot udpate immediately? Also build ci/cd pipeline?
 
+- feature: optionally review newly learned words after finsihign a video (like, learn them inside of panki, have a batch of only learning those words) mayeb we can have a tab in the hoem apge ia ndditiio nto cioiontue wathcign dn awathc later which is "recently watched" and its for videos we FINSIHED wathcing. how does panki knw oweh ni finsiehd a video thoguh? cause right now tis nto relaly acurate. videos i finsiehd watching still show up i nthe "continue watching" thing..
+
+- big feature / epic: LLM support for sentence translation and/or correction "touch-up"
 
 - Netflix / Jellyfin Support
 - Fun games for memorization and learning including the video clips
@@ -32,7 +34,11 @@ What was tried and taken out: for one day the branch had a "Together" tile (ever
 Things to think about: friends vs groups vs everyone on the app; what others can see and whether I choose; streaks with friends without a personal goal; nudges ("Rena watched today"); privacy; that Rena and I learn different languages and live in different time zones; that I'm not always on PC (phone has no extension).
 
 
-- redacat all repo history because i put some texts int his repo that probably private
 
 
 - Shadowing practice?
+
+Before sharing with public:
+- Deploy via docker.
+- redacat all repo history because i put some texts int his repo that probably private
+- Remove cronjob for running daily backups. Make it so the app triggers it, like whiteboard, minimal setup on sysadmin side.
