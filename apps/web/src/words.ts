@@ -96,6 +96,22 @@ export function hourWords(at: number): string {
   return HOUR_WORDS.format(new Date(at));
 }
 
+/**
+ * How long ago a moment was, to end a sentence ("Finished just now"; the owner, 2026-10-25): "just now" under an hour,
+ * "1 hour ago", "5 hours ago" under a day, then by the device's calendar "yesterday", "3 days ago" within the week,
+ * and the date after ("on 10 October 2026").
+ */
+export function sinceWords(at: number, now: number): string {
+  const hours = Math.floor((now - at) / 3_600_000);
+  if (hours < 1) return "just now";
+  if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  const dayStart = (ms: number) => new Date(new Date(ms).toDateString()).getTime();
+  const days = Math.max(1, Math.round((dayStart(now) - dayStart(at)) / 86_400_000));
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return `on ${dateWords(at)}`;
+}
+
 /** How long ago a moment was, by the device's calendar: "Today", "Yesterday", "3 days ago", then the date in words. */
 export function agoWords(at: number, now: number): string {
   const dayStart = (ms: number) => new Date(new Date(ms).toDateString()).getTime();

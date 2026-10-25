@@ -3,7 +3,7 @@ import { DEFAULT_WATCHING_SETTINGS, youtubeLinkOf, youtubeUrl, type ContinueVide
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { agoWords, clock, count, durationWords, langOf, leftWords } from "@web/words";
+import { agoWords, clock, count, durationWords, langOf, leftWords, sinceWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
@@ -490,7 +490,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             title={v.title}
             channel={v.channel}
             href={youtubeUrl({ videoId: v.videoId, seconds: null })}
-            sub={`Finished · ${agoWords(v.finishedAt, now)}`}
+            sub={`Finished ${sinceWords(v.finishedAt, now)}`}
             progress={null}
             lengthMs={v.lengthMs > 0 ? v.lengthMs : null}
             removeLabel="Mark as not finished"
