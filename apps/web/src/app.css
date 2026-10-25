@@ -1313,8 +1313,10 @@ canvas.media-frame {
   height: 100%;
   background: var(--kind, var(--accent));
 }
-/* A clip's player filling the screen: the picture as big as fits, Panki's bar under it, on the room's black. */
-.media.media-player:fullscreen {
+/* A clip's player filling the screen: the picture as big as fits, Panki's bar under it, on the room's black. A review's
+   clip taking the room of a review that fills the screen (`.review.is-stage`, `[data-staged]`) looks the same. */
+.media.media-player:fullscreen,
+.review.is-stage .media.media-player[data-staged] {
   width: 100%;
   max-width: none;
   height: 100%;
@@ -1322,7 +1324,8 @@ canvas.media-frame {
   grid-template-rows: minmax(0, 1fr) auto;
   background: var(--theater);
 }
-.media.media-player:fullscreen video.media-frame {
+.media.media-player:fullscreen video.media-frame,
+.review.is-stage .media.media-player[data-staged] video.media-frame {
   width: 100%;
   height: 100%;
   max-height: none;
@@ -1335,11 +1338,13 @@ canvas.media-frame {
   position: relative;
   min-width: 0;
 }
-.media.media-player:fullscreen .media-picture {
+.media.media-player:fullscreen .media-picture,
+.review.is-stage .media.media-player[data-staged] .media-picture {
   min-height: 0;
   height: 100%;
 }
-.media.media-player:fullscreen .media-bar {
+.media.media-player:fullscreen .media-bar,
+.review.is-stage .media.media-player[data-staged] .media-bar {
   width: min(100%, 720px);
   justify-self: center;
 }
@@ -1438,7 +1443,8 @@ canvas.media-frame {
   right: 0;
 }
 /* A clip filling the screen has its bar at the bottom: the speeds open up from it, onto the picture. */
-.media.media-player:fullscreen .media-speed .menu.dropdown-menu {
+.media.media-player:fullscreen .media-speed .menu.dropdown-menu,
+.review.is-stage .media.media-player[data-staged] .media-speed .menu.dropdown-menu {
   top: auto;
   bottom: calc(100% + 4px);
 }
@@ -3062,6 +3068,144 @@ mark.sub-mark {
   /* A long sentence beside the clip, a little closer set. */
   .main > .review.is-fit > .review-card:has(video.media-frame) .review-words.is-long {
     line-height: 1.4;
+  }
+}
+/* A review filling the screen (hooks/useScreenStage.ts; the owner, 2026-10-25): the whole review is what fills it, so it
+   stays filled as the cards change. The card's clip (`[data-staged]`, the first not under a spoiler) takes the screen's
+   room at the left, fixed under everything else of the review, and the rest stands in a rail at the right (A of the
+   ways tried; glass over the clip's corner, B, went at the owner's word: "rail is better"). The rail fits the screen
+   whole ("it all needs to fit in one page… at a lower zoom it all fits perfectly"): wider on a wider screen, set
+   closer and a size smaller than the page's review, and with no scroll bar, a card that still runs over being reached
+   with the wheel. Closed, the clip is alone until the screen is next filled. A card without a clip fills the screen
+   as the review is. A clip only the back shows holds its room dark until the card is turned. */
+.main > .review.is-stage {
+  --stage-rail: clamp(360px, 28vw, 480px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  isolation: isolate;
+  background: var(--bg);
+}
+.main > .review.is-stage > * {
+  flex: none;
+}
+.main > .review.is-stage > .review-card {
+  flex: 1 0 auto;
+  min-height: 0;
+  padding: 14px 12px;
+  gap: 6px;
+}
+.main > .review.is-stage > .review-top {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.review-stage-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+/* The clip, fixed over the screen's room under the rest of the review (`isolation` above keeps it on the review's own
+   ground); the part it stood in takes no room of its own. */
+.review.is-stage .media.media-player[data-staged] {
+  position: fixed;
+  z-index: -2;
+  inset: 0 var(--stage-right, 0px) 0 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+}
+.review.is-stage .review-part:has(> [data-staged]),
+.review.is-stage .review-row > .review-part:has(> [data-staged]) {
+  flex: none;
+  min-height: 0;
+  container-type: normal;
+}
+/* The rail. The clip's room at the left, dark even while the clip waits for the back; the review in the rail. */
+.main > .review.is-stage:has([data-staged]) {
+  --stage-right: var(--stage-rail);
+  padding-left: calc(100% - var(--stage-rail) + 12px);
+  background: linear-gradient(to right, var(--theater) calc(100% - var(--stage-rail)), var(--bg) 0);
+}
+/* The card's words a size smaller than on the page, so a long meaning doesn't take the rail's height. */
+.main > .review.is-stage:has([data-staged]) .review-part.size-big .review-words {
+  font-size: 28px;
+}
+.main > .review.is-stage:has([data-staged]) .review-part.size-normal .review-words {
+  font-size: 16px;
+}
+.main > .review.is-stage:has([data-staged]) .review-part.size-small .review-words {
+  font-size: 13px;
+}
+/* The answers two to a row, each its name and key on a line with where it leads under them; Show answer across both. */
+.main > .review.is-stage:has([data-staged]) > .review-actions {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.main > .review.is-stage:has([data-staged]) > .review-actions > :only-child {
+  grid-column: 1 / -1;
+  min-height: 44px;
+}
+.main > .review.is-stage:has([data-staged]) .btn-answer {
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "name key"
+    "to to";
+  justify-content: center;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 6px 8px;
+}
+.main > .review.is-stage:has([data-staged]) .btn-answer .name {
+  grid-area: name;
+  font-size: 15px;
+}
+.main > .review.is-stage:has([data-staged]) .btn-answer .to {
+  grid-area: to;
+}
+.main > .review.is-stage:has([data-staged]) .btn-answer .key {
+  grid-area: key;
+  margin-top: 0;
+}
+/* The answers set apart two to a row too, each as wide as its column, where it leads cut short before it wraps. */
+.main > .review.is-stage:has([data-staged]) > .review-asides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.main > .review.is-stage:has([data-staged]) .btn-chip.review-aside {
+  min-width: 0;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+}
+.main > .review.is-stage:has([data-staged]) .review-aside .to {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Closed: the review moves off the screen to its right, the clip taking all of it, until the screen is next filled. */
+.main > .review.is-stage.is-closed:has([data-staged]) {
+  --stage-right: 0px;
+  overflow: hidden;
+  padding-left: 100%;
+  background: var(--theater);
+}
+/* On a phone the clip's room is the top of the screen and the review under it. */
+@media (max-width: 640px) {
+  .main > .review.is-stage:not(.is-closed):has([data-staged]) {
+    --stage-right: 0px;
+    padding: calc(42dvh + 12px) 12px 12px;
+    background: linear-gradient(to bottom, var(--theater) 42dvh, var(--bg) 0);
+  }
+  .review.is-stage:not(.is-closed) .media.media-player[data-staged] {
+    bottom: auto;
+    height: 42dvh;
   }
 }
 /* The stage tag in its corner of the card, at its size (the type's `StageTag`, laid out on the card in the Layout tab). */

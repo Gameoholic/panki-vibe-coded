@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
 import { useHold } from "../hooks/useHold";
 import { usePlayback } from "../hooks/usePlayback";
+import { ScreenStageContext } from "../hooks/useScreenStage";
 import { heard, type Shortcut } from "../keys";
 import type { Speed, Volume } from "../playback";
 import { clock } from "../words";
@@ -263,7 +264,8 @@ const SCREEN_KEYED = "data-screen-key";
 
 /**
  * Of the clips that answer the full screen key, the one it's for: the one filling the screen leaves it; else the one
- * playing fills it, else the first on the card.
+ * playing fills it, else the first on the card. (In a review every clip fills the review's stage, so whichever acts,
+ * the stage turns.)
  */
 function screenTarget(own: HTMLElement): HTMLElement | null {
   const root = own.getRootNode();
@@ -314,7 +316,11 @@ function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut 
 function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, screenKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null }) {
   const play = usePlayback(cue, onCueEnd, shortcut);
   const frame = useRef<HTMLDivElement>(null);
-  const [full, setFull] = useState(false);
+  // Inside a review, the screen is the review's to fill (`useScreenStage`): the clip takes it with its card beside it,
+  // and it stays filled as the next card comes. Anywhere else, the clip fills it alone.
+  const stage = useContext(ScreenStageContext);
+  const [ownFull, setFull] = useState(false);
+  const full = stage ? stage.full : ownFull;
   useEffect(() => {
     if (kind !== "video") return;
     const follow = () => setFull(frame.current !== null && fullOf(frame.current) === frame.current);
@@ -322,6 +328,10 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, sc
     return () => document.removeEventListener("fullscreenchange", follow);
   }, [kind]);
   function toggleFull() {
+    if (stage) {
+      stage.toggle();
+      return;
+    }
     const el = frame.current;
     if (!el) return;
     // A browser that won't (a phone that only lets a bare video fill the screen) leaves it as it is.

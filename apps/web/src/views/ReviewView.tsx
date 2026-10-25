@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { againPlaceOf, branchAt, exampleShownOf, flowOf, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
@@ -7,6 +7,7 @@ import { Icon, type IconName } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
 import { useHold } from "../hooks/useHold";
+import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
 import { sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
 import { shuffle } from "../shuffle";
 import { LESSON_SCOPE } from "../srsFlow";
@@ -266,6 +267,9 @@ function writeChartOpen(open: boolean) {
   }
 }
 
+/** Carried by the card's clip that takes the screen's room while the review fills the screen (`app.css` → `.review.is-stage`). */
+const STAGED = "data-staged";
+
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
 export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
@@ -298,6 +302,16 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
   const cardId = line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
+  /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
+  const stage = useScreenStage(place, card !== undefined);
+  /** Whether the card on screen has a clip to take the screen's room while it's filled: the first not under a spoiler, marked for the stage's styles. */
+  const [staged, setStaged] = useState(false);
+  useLayoutEffect(() => {
+    const clips = [...(place.current?.querySelectorAll<HTMLElement>(".review-card .media-player.media-video") ?? [])];
+    const first = clips.find((clip) => clip.closest(".btn-spoiler") === null) ?? null;
+    for (const clip of clips) clip.toggleAttribute(STAGED, clip === first);
+    if ((first !== null) !== staged) setStaged(first !== null);
+  });
   // Which of its examples the card on screen shows, as the deck says: picked once each time it comes up (its count of
   // answers changes with each), so a random one holds still while it's on screen.
   const exampleId = useMemo(
@@ -562,8 +576,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     );
   }
 
+  // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
+  const full = stage.screen.full;
+  const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit";
   return (
-    <section ref={place} className="review is-fit">
+    <section ref={place} className={`review ${look}`.trim()}>
       <div className="review-top">
         {/* What's left, by kind, each count with its word ("2 + 0 + 9" said nothing, the owner, 2026-10-21), in the order they come; the kind of the card on screen underlined. */}
         <span className="review-counts" role="status">
@@ -575,28 +592,43 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         </span>
         {/* With a limit on how many are in play, say how many that is right now and how many wait their turn. */}
         {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
+        {/* Filling the screen: the rail closed to leave the clip alone (until the screen is next filled), and the way out. */}
+        {full ? (
+          <span className="review-stage-tools">
+            {staged ? (
+              <Button className="btn-icon" aria-label="Hide the card" onClick={stage.close}>
+                <Icon name="close" />
+              </Button>
+            ) : null}
+            <Button className="btn-icon" aria-label="Leave full screen" onClick={stage.screen.toggle}>
+              <Icon name="unfull" />
+            </Button>
+          </span>
+        ) : null}
       </div>
-      {/* Each card its own: what was opened or played on the last one doesn't carry over. */}
-      <ReviewCard
-        key={`${card.id}-${exampleId ?? ""}`}
-        type={type}
-        values={valuesWithExample(type, card, exampleId)}
-        files={card.files}
-        srsType={srsType}
-        place={card.place}
-        revealed={revealed}
-        // Turned by its key and Show answer alone: a press on the card does nothing (the owner, 2026-10-25).
-        srcOf={api.mediaUrl}
-        waveOf={waveOf}
-        cues={card.cues}
-        subtitleStyle={subtitleStyle}
-        picturesOf={api.videoPictures}
-        autoplay
-        shortcuts={binds.media.map(shortcutOf)}
-        screenKey={shortcutOf(binds.fullScreen)}
-        hint={false}
-        keys={false}
-      />
+      {/* Each card its own: what was opened or played on the last one doesn't carry over. Its clip fills the screen with the whole review (`useScreenStage`). */}
+      <ScreenStageContext.Provider value={stage.screen}>
+        <ReviewCard
+          key={`${card.id}-${exampleId ?? ""}`}
+          type={type}
+          values={valuesWithExample(type, card, exampleId)}
+          files={card.files}
+          srsType={srsType}
+          place={card.place}
+          revealed={revealed}
+          // Turned by its key and Show answer alone: a press on the card does nothing (the owner, 2026-10-25).
+          srcOf={api.mediaUrl}
+          waveOf={waveOf}
+          cues={card.cues}
+          subtitleStyle={subtitleStyle}
+          picturesOf={api.videoPictures}
+          autoplay
+          shortcuts={binds.media.map(shortcutOf)}
+          screenKey={shortcutOf(binds.fullScreen)}
+          hint={false}
+          keys={false}
+        />
+      </ScreenStageContext.Provider>
 
       {failure ? (
         <p className="load-error" role="alert">
@@ -661,15 +693,17 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
               )}
             </div>
           ) : null}
-          {/* Under the answers (the owner's place for it, 2026-10-18): the card's chart, on or off, kept on this device. */}
-          <div className="review-chart-row">
-            <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
-              <Icon name="srs" />
-              Chart
-            </Button>
-          </div>
+          {/* Under the answers (the owner's place for it, 2026-10-18): the card's chart, on or off, kept on this device. Not while the review fills the screen. */}
+          {full ? null : (
+            <div className="review-chart-row">
+              <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
+                <Icon name="srs" />
+                Chart
+              </Button>
+            </div>
+          )}
           {/* The card's chart, while the Chart button is on: its box lit, and the box the answer under the mouse leads to. */}
-          {chartOpen
+          {chartOpen && !full
             ? (() => {
                 const glance = chartOf(srsType, card, revealed ? hover : null);
                 return (
