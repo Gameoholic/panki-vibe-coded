@@ -1899,10 +1899,11 @@ function App() {
 
 strip.root.render(<App />);
 listening.start();
-// Words already in the cards: Panki's own lines mark them themselves (`Row`); the site's own text is marked on the
-// page's highlight layer, its captions by the subtitles switch and the rest by the pages switch.
+// Words already in the cards: Panki's own lines mark them themselves (`Row`), by Highlight in Panki subtitles; the
+// site's own text, its captions among it, is marked on the page's highlight layer by Highlight globally, as its
+// captions go by Key to hold globally.
 startKnown();
-markKnownOnPage({ isSubtitles: (element) => element.closest(CAPTION_AREA) !== null });
+markKnownOnPage();
 void readModules();
 void readUpdate();
 look();

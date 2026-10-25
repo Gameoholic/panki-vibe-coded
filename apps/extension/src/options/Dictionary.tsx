@@ -506,9 +506,11 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
 }
 
 /**
- * Words already in the cards, marked where they stand (`capture/known.ts`; the owner, 2026-10-25): in a video's
- * subtitles and on pages, each its own switch, and the colour, picked as the seek bar's marks pick theirs. Kept the
- * moment it's changed; a page takes it up as it gets the focus back.
+ * Words already in the cards, marked where they stand (`capture/known.ts`; the owner, 2026-10-25): on pages and in
+ * Panki's subtitles, each its own switch, and the colour, picked as the seek bar's marks pick theirs. Kept the
+ * moment it's changed; a page takes it up as it gets the focus back. Its two switches are named as Looking up words
+ * names its two keys, "globally" and "in Panki subtitles", in the same order (the owner, 2026-10-25: "the
+ * terminology is different… fix it").
  */
 export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
@@ -517,14 +519,14 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
         Words that are in your decks
       </h2>
       <Setting
-        id="known-subtitles"
-        label="Highlight in subtitles"
-        control={<Toggle id="known-subtitles-on" says={{ on: "On", off: "Off" }} on={store.knownSubtitles} onChange={(knownSubtitles) => void writeStore({ knownSubtitles }).then(onChanged)} />}
-      />
-      <Setting
         id="known-pages"
         label="Highlight globally"
         control={<Toggle id="known-pages-on" says={{ on: "On", off: "Off" }} on={store.knownPages} onChange={(knownPages) => void writeStore({ knownPages }).then(onChanged)} />}
+      />
+      <Setting
+        id="known-subtitles"
+        label="Highlight in Panki subtitles"
+        control={<Toggle id="known-subtitles-on" says={{ on: "On", off: "Off" }} on={store.knownSubtitles} onChange={(knownSubtitles) => void writeStore({ knownSubtitles }).then(onChanged)} />}
       />
       <Setting
         id="known-colour"
@@ -658,8 +660,8 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
       ) : null}
       <Setting
         id="look-key"
-        label="Key to hold"
-        control={<Segmented idPrefix="look-key" label="Key to hold" options={LOOK_KEYS} value={store.lookKey} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
+        label="Key to hold globally"
+        control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
       />
       {/* The same choice again for Panki's subtitles alone, under the player and over the video (the owner, 2026-10-25:
           "duplicate the setting, one for global and one for just Panki subtitles"). */}

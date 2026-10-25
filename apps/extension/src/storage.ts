@@ -62,7 +62,7 @@ const Stored = z.object({
   // `clipToWords` was a key here (2026-10-11): whether a clip's end snapped to the edges of words as it was pulled.
   // The owner had the setting taken out on 2026-10-19, never using it: an end goes where it's put, Alt held snaps it.
   // A browser that still has it keeps it unread.
-  /** The key held to look a word up by pointing at it. */
+  /** The key held to look a word up by pointing at it, everywhere but Panki's subtitles: Key to hold globally. */
   lookKey: LookKey.catch("shift"),
   /**
    * The key held to look a word up in Panki's subtitles, under the player and over the video, apart from everywhere
@@ -74,8 +74,10 @@ const Stored = z.object({
   lookKeySubtitles: LookKey.catch("shift"),
   /**
    * Words already in the account's cards, marked where they stand (the owner, 2026-10-25, "both subtitles and
-   * everywhere… so they can be separate", "make colour customizable"): in a video's subtitles (Panki's lines under and
-   * over the player, the site's own captions), on every other page Panki is on, and in which colour. Off to begin with.
+   * everywhere… so they can be separate", "make colour customizable"): in Panki's subtitles (its lines under and over
+   * the player: Highlight in Panki subtitles), on every page Panki is on, the site's own captions among it (Highlight
+   * globally), and in which colour. Off to begin with. The site's captions were the subtitles switch's for a day, until
+   * the owner had the two panels say the same thing (2026-10-25): they go by the global key, so the global highlight.
    */
   knownSubtitles: z.boolean().catch(false),
   knownPages: z.boolean().catch(false),
