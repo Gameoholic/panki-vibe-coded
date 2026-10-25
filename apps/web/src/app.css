@@ -716,6 +716,10 @@ textarea.field-input {
   gap: 8px;
   margin-bottom: 10px;
 }
+/* The search over a deck's cards (cardSearch.ts), between the list's title and its rows. */
+.list-search {
+  margin-bottom: 10px;
+}
 .list-filter-line {
   margin: 0;
   display: flex;

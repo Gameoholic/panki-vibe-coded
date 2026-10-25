@@ -8,6 +8,8 @@ import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
 import { Dropdown } from "../components/Dropdown";
 import { Segmented } from "../components/Segmented";
+import { TextField } from "../components/TextField";
+import { searchCards } from "../cardSearch";
 import { count, langOf } from "../words";
 
 type Props = {
@@ -71,11 +73,15 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
   // Read from the list every time: a card that's gone (deleted here) is simply no longer open.
   const open = cards.find((card) => card.id === openId) ?? null;
 
-  const shown = only === null ? sorted : sorted.filter((card) => wordsOf(card) === only);
+  /** What's typed in the search over the list: the cards with all of it on them somewhere, best first (`cardSearch.ts`). */
+  const [query, setQuery] = useState("");
+  const twinsOnly = useMemo(() => (only === null || !lead ? sorted : sorted.filter((card) => (card.values[lead.id] ?? "").trim() === only)), [sorted, only, lead]);
+  const shown = useMemo(() => searchCards(twinsOnly, query, { type, srsType }), [twinsOnly, query, type, srsType]);
+  const searching = query.trim() !== "";
   /** While one word's duplicates are shown, its cards in other decks: each said with a way to it. */
   const elsewhere =
     only === null ? [] : [...new Map(shown.flatMap((card) => twins[card.id] ?? []).filter((twin) => twin.deckId !== deckId).map((twin) => [twin.cardId, twin])).values()];
-  const filter =
+  const duplicates =
     only === null ? null : (
       <div className="list-filter">
         <p className="list-filter-line">
@@ -89,6 +95,18 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
         <AlreadyIn cards={elsewhere} onOpen={onOpenCalled} />
       </div>
     );
+  // The search, over a deck with more than one card (as Sort by is), above whatever else the list is narrowed to.
+  const filter =
+    cards.length > 1 || duplicates ? (
+      <>
+        {cards.length > 1 ? (
+          <div className="list-search">
+            <TextField id="card-search" label="Search" autoComplete="off" lang={langOf(query)} value={query} onChange={setQuery} />
+          </div>
+        ) : null}
+        {duplicates}
+      </>
+    ) : null;
 
   function pick(next: CardSort) {
     setSort(next);
@@ -125,6 +143,7 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
         type={type}
         srsType={srsType}
         title={cards.length === 0 ? "No cards yet" : count(shown.length, "card", "cards")}
+        empty={searching ? <p className="empty">No cards match.</p> : null}
         tools={tools}
         twins={twins}
         onTwins={(card) => setOnly(wordsOf(card))}
