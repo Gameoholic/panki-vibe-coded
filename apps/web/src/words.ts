@@ -48,6 +48,18 @@ export function durationWords(seconds: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
+/**
+ * What's left of a video stopped part-way, and how much of it was watched: "3 min left · 84%" (the owner, 2026-10-25:
+ * "add the % of the video next to the X min left"). The time left is to the whole minute up, so a few seconds short is
+ * never "0 min"; the share is to the whole percent down, so a video never reads 100% before it's done. Continue
+ * watching's cards and tiles all say it this way.
+ */
+export function leftWords(stoppedAtMs: number, lengthMs: number): string {
+  const left = durationWords(Math.ceil(Math.max(0, lengthMs - stoppedAtMs) / 60_000) * 60);
+  const share = lengthMs > 0 ? Math.min(99, Math.floor((stoppedAtMs / lengthMs) * 100)) : 0;
+  return `${left} left · ${share}%`;
+}
+
 /** How long something took, in full words: "26 seconds", "2 minutes 5 seconds", "1 hour 3 minutes" (seconds left out past the hour). */
 export function tookWords(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));

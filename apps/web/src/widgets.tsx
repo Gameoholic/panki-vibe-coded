@@ -6,7 +6,7 @@ import { Icon } from "./components/Icon";
 import { LinkView } from "./components/LinkView";
 import { Tip } from "./components/Tip";
 import { NEW_WORDS, tintStyle } from "./srsKinds";
-import { count, dateWords, durationWords, langOf } from "./words";
+import { count, dateWords, durationWords, langOf, leftWords } from "./words";
 
 /**
  * The widgets, one registry: every tile the Stats tab shows (all of them, in this order) and the home can carry
@@ -214,8 +214,6 @@ const everyOtherDay = (byDay: readonly { day: Day }[]) => byDay.map((d, i) => (i
 
 /** Time spent, from ms: "48 min", "3 h 12 min". */
 const spent = (ms: number) => durationWords(ms / 1000);
-/** Time still wanted, from ms, rounded up to the minute so a few seconds short is never "0 min". */
-const wanted = (ms: number) => durationWords(Math.ceil(Math.max(0, ms) / 60_000) * 60);
 
 /**
  * A watching tile's body: said to be off while the account's Video tracking is, said to be empty while there's nothing
@@ -260,7 +258,7 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
             meta={{ link: { videoId: v.videoId, seconds: Math.floor(v.stoppedAtMs / 1000) }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
             label="Continue watching"
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
-            progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: `${wanted(v.lengthMs - v.stoppedAtMs)} left` }}
+            progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) }}
           />
           <Button className="btn-icon w-video-x" aria-label="Put away" onClick={() => void putAway(v.videoId)}>
             <Icon name="close" />

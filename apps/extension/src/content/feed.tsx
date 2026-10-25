@@ -3,7 +3,7 @@ import { DEFAULT_WATCHING_SETTINGS, youtubeLinkOf, youtubeUrl, type ContinueVide
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { agoWords, clock, count, durationWords, langOf } from "@web/words";
+import { agoWords, clock, count, durationWords, langOf, leftWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
@@ -114,8 +114,6 @@ function usePerRow(row: HTMLElement | null): number {
 
 /** Time spent, from ms. */
 const spent = (ms: number) => durationWords(ms / 1000);
-/** Time still wanted, from ms, to the whole minute up, so a few seconds short is never "0 min". */
-const wanted = (ms: number) => durationWords(Math.ceil(Math.max(0, ms) / 60_000) * 60);
 /** The day, as the line over the recommendations opens: "Tuesday". */
 const dayWords = (at: Date) => at.toLocaleDateString("en", { weekday: "long" });
 /**
@@ -298,7 +296,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /** How far into a video it was stopped, and what's left, as its picture says it. */
-  const progressOf = (v: ContinueVideo) => ({ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: `${wanted(v.lengthMs - v.stoppedAtMs)} left` });
+  const progressOf = (v: ContinueVideo) => ({ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) });
   /**
    * The address that opens a video to go on with: the video alone, no time in it, so "Where you stopped last" decides
    * (offered, or jumped to, from Panki's latest stop). It carried the stop as a time marked as Panki's own until
