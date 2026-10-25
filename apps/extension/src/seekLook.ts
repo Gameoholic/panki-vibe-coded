@@ -80,6 +80,9 @@ export const SeekLook = z.object({
   // with it keeps it unread.)
   cards: MarkLook.extend({ words: CardWords, entrance: PinEntrance.default("sprout"), click: CardClick.default("sentence") }),
   clip: MarkLook,
+  // Where the words that are in the decks are said (the owner, 2026-10-25: hidden to begin with, green like their
+  // highlight); a look kept before it is given the default.
+  known: MarkLook.default({ shown: false, colour: "green", size: "thin" }),
 });
 export type SeekLook = z.infer<typeof SeekLook>;
 /** Which mark is which, by its key in `SeekLook`. */
@@ -90,12 +93,13 @@ export const DEFAULT_SEEK_LOOK: SeekLook = {
   transcript: { shown: true, colour: "yellow", size: "thin" },
   cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
+  known: { shown: false, colour: "green", size: "thin" },
 };
 
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */
 export function seekVars(look: SeekLook): Record<string, string> {
   const vars: Record<string, string> = {};
-  for (const id of ["transcript", "cards", "clip"] as const satisfies readonly SeekMarkId[]) {
+  for (const id of ["transcript", "cards", "clip", "known"] as const satisfies readonly SeekMarkId[]) {
     vars[`--${id}-colour`] = paintCss(look[id].colour);
     vars[`--${id}-size`] = `${MARK_SIZES[look[id].size].px}px`;
   }

@@ -118,7 +118,8 @@ let wordsKept: { door: string; at: number; words: string[] } | null = null;
 async function known(): Promise<Known> {
   const store = await readStore();
   const off: Known = { ok: true, words: [], subtitles: false, pages: false, colour: store.knownColour };
-  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages) || !store.address || !store.token) return off;
+  // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
+  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown) || !store.address || !store.token) return off;
   const door: Door = { address: store.address, token: store.token };
   const at = Date.now();
   const doorKey = `${door.address}\n${door.token}`;

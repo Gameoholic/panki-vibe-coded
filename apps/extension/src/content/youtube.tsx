@@ -1,8 +1,8 @@
 import "../setup";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
-import { knownIn, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown } from "../capture/known";
+import { knownIn, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { held, hoverOver, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch } from "../capture/record";
@@ -32,6 +32,7 @@ import type { Cut } from "../roles";
 import { paintCss } from "../seekLook";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, engineWanted, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
+import { linesOf } from "../transcribe/lines";
 import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
 import { makePlace, mount } from "../ui/mount";
@@ -1148,6 +1149,9 @@ function App() {
   const stop = stopMark();
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
+  // Where the words that are in the decks are said, for the seek bar: read off Panki's transcript, only while that mark is shown.
+  const spoken = useMemo(() => (tx.transcript && tx.prefs.seek.known.shown ? linesOf(tx.transcript.words) : null), [tx.transcript, tx.prefs.seek.known.shown]);
+  const inDecks = useKnownMoments(spoken);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
   const [splits, setSplits] = useState<readonly Split[]>([]);
 
@@ -1880,6 +1884,7 @@ function App() {
             working={tx.working}
             cards={cards}
             clip={clipMark}
+            inDecks={inDecks}
             look={tx.prefs.seek}
             onGo={goToCard}
             stop={stop}

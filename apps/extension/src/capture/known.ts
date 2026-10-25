@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { isJapanese } from "@web/words";
 import { deinflect, isWordKind } from "../dictionary/deinflect";
 import type { Lattice } from "../dictionary/found";
@@ -82,6 +82,92 @@ const SETTLE_MS = 300;
 export const tintOf = (colour: string) => `color-mix(in srgb, ${colour} ${TINT}, transparent)`;
 
 /**
+ * The lines split by the dictionary for marking, a cache of their own (the line under the player's, `useWords`, keeps
+ * 400 and clears, which a page's or a video's thousands of lines would turn into a loop of asking): each line asked
+ * of the worker once, `IN_FLIGHT` at a time. Followers hear which line came in; the seek bar hears in batches.
+ */
+const lattices = new Map<string, Lattice>();
+const asked = new Set<string>();
+const queue: string[] = [];
+let flying = 0;
+const latticeFollowers = new Set<(text: string) => void>();
+function pump() {
+  while (flying < IN_FLIGHT && queue.length > 0) {
+    const text = queue.shift();
+    if (text === undefined) break;
+    flying++;
+    void askLattice(text).then((answer) => {
+      flying--;
+      if (answer.ok) {
+        lattices.set(text, answer.lattice);
+        for (const follower of latticeFollowers) follower(text);
+      }
+      pump();
+    });
+  }
+}
+/** A line's lattice when it's in; asked for when it isn't (once), the browser's split standing in meanwhile. */
+function latticeFor(text: string): Lattice | null {
+  const known = lattices.get(text);
+  if (known) return known;
+  if (!asked.has(text) && text.length <= LATTICE_MAX) {
+    asked.add(text);
+    queue.push(text);
+    pump();
+  }
+  return null;
+}
+
+/** How often the seek bar's marks are worked out again while a video's lines are coming in. */
+const MOMENTS_EVERY_MS = 600;
+let linesVersion = 0;
+const linesFollowers = new Set<() => void>();
+let linesTimer: ReturnType<typeof setTimeout> | null = null;
+latticeFollowers.add(() => {
+  if (linesTimer !== null) return;
+  linesTimer = setTimeout(() => {
+    linesTimer = null;
+    linesVersion++;
+    for (const follower of linesFollowers) follower();
+  }, MOMENTS_EVERY_MS);
+});
+const subscribeLines = (follower: () => void) => {
+  linesFollowers.add(follower);
+  return () => {
+    linesFollowers.delete(follower);
+  };
+};
+
+/** A line as the seek bar reads it: its text, and when each stretch of it is said (the character it starts at, the video's time then, in seconds). */
+type TimedLine = { text: string; end: number | null; marks: readonly { at: number; time: number }[] };
+
+/**
+ * Where in a video the words that are in the decks are said, for the seek bar (`SeekMark`'s `inDecks`): every known
+ * word of every line, from when its first letter is said to when the next stretch begins (or the line ends), in ms.
+ * `lines` null asks nothing (the mark hidden, or no transcript).
+ */
+export function useKnownMoments(lines: readonly TimedLine[] | null): { startMs: number; endMs: number }[] {
+  const known = useKnown();
+  const version = useSyncExternalStore(subscribeLines, () => linesVersion);
+  return useMemo(() => {
+    if (!lines || known.words.size === 0) return [];
+    const moments: { startMs: number; endMs: number }[] = [];
+    for (const line of lines) {
+      if (!isJapanese(line.text)) continue;
+      for (const token of wordsOf(line.text, latticeFor(line.text))) {
+        if (!token.word || !knownIn(known.words, token.text)) continue;
+        const from = line.marks.filter((mark) => mark.at <= token.start).at(-1)?.time;
+        if (from === undefined) continue;
+        const to = line.marks.find((mark) => mark.at >= token.end)?.time ?? line.end ?? from;
+        moments.push({ startMs: Math.round(from * 1000), endMs: Math.round(Math.max(from, to) * 1000) });
+      }
+    }
+    return moments;
+    // `version` is what says more lines' words are in.
+  }, [lines, known.words, version]);
+}
+
+/**
  * Marks the known words in a page's own text, on the browser's highlight layer: what's in a video's subtitles
  * (`isSubtitles`, the site's own captions) by the subtitles switch, everything else by the pages switch. Each line is
  * split by the dictionary once its words are in (asked a few at a time, each line once); until then the browser's own
@@ -96,10 +182,6 @@ export function markKnownOnPage(options: { isSubtitles?: (element: Element) => b
 
   /** Every text node read so far that's in Japanese and where marks are wanted, with the marks on it. */
   const marked = new Map<Text, Range[]>();
-  const lattices = new Map<string, Lattice>();
-  const asked = new Set<string>();
-  const queue: string[] = [];
-  let flying = 0;
   /** Lines whose words came in since the last reading: the nodes holding them are marked again. */
   const answered = new Set<string>();
   /** What's changed since the last reading. */
@@ -107,29 +189,11 @@ export function markKnownOnPage(options: { isSubtitles?: (element: Element) => b
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const wanted = () => now.words.size > 0 && (now.subtitles || now.pages);
-
-  function pump() {
-    while (flying < IN_FLIGHT && queue.length > 0) {
-      const text = queue.shift();
-      if (text === undefined) break;
-      flying++;
-      void askLattice(text).then((answer) => {
-        flying--;
-        if (answer.ok) {
-          lattices.set(text, answer.lattice);
-          answered.add(text);
-          soon();
-        }
-        pump();
-      });
-    }
-  }
-  function ask(text: string) {
-    if (asked.has(text) || text.length > LATTICE_MAX) return;
-    asked.add(text);
-    queue.push(text);
-    pump();
-  }
+  latticeFollowers.add((text) => {
+    if (!wanted()) return;
+    answered.add(text);
+    soon();
+  });
 
   function unmark(node: Text) {
     for (const range of marked.get(node) ?? []) highlight.delete(range);
@@ -142,10 +206,8 @@ export function markKnownOnPage(options: { isSubtitles?: (element: Element) => b
     const inSubtitles = options.isSubtitles?.(parent) ?? false;
     if (!(inSubtitles ? now.subtitles : now.pages)) return;
     const text = node.data;
-    const lattice = lattices.get(text) ?? null;
-    if (!lattice) ask(text);
     const ranges: Range[] = [];
-    for (const token of wordsOf(text, lattice)) {
+    for (const token of wordsOf(text, latticeFor(text))) {
       if (!token.word || !knownIn(now.words, token.text)) continue;
       const range = new Range();
       range.setStart(node, token.start);

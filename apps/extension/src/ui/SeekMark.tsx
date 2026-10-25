@@ -27,6 +27,8 @@ type Props = {
   cards: readonly VideoCard[];
   /** The open clip, with an end to pull at each side; null while no drawer is open. */
   clip: ClipMark | null;
+  /** Where a word that's in the decks is said, in milliseconds (`capture/known.ts` → `useKnownMoments`): each a tick on the same line. */
+  inDecks?: readonly Stretch[];
   /** How each mark looks, the viewer's own (`seekLook.ts`). */
   look: SeekLook;
   /** The pointer is on the bar: the cards' words rise, when they're set to on hover. */
@@ -112,7 +114,7 @@ function layPins(cards: readonly VideoCard[], length: number, width: number): Pi
  * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever. (Panki's own
  * bar in the player's place, with these marks laid on it, lived a day before the owner had it taken out, 2026-10-19.)
  */
-export function SeekMark({ length, covered, working, cards, clip, look, hover, onGo, onReach, onPeek, stop = null, onStop }: Props) {
+export function SeekMark({ length, covered, working, cards, clip, inDecks = [], look, hover, onGo, onReach, onPeek, stop = null, onStop }: Props) {
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   const [width, setWidth] = useState(0);
@@ -194,6 +196,7 @@ export function SeekMark({ length, covered, working, cards, clip, look, hover, o
         ? covered.map((stretch) => <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />)
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
+      {look.known.shown ? inDecks.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
       {look.cards.shown
         ? cards.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}

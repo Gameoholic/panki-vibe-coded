@@ -1689,6 +1689,16 @@
 .seek-working {
   opacity: 0.3;
 }
+/* Where a word that's in the decks is said (capture/known.ts → useKnownMoments), a tick centred on the same line, under
+   the cards' marks; hidden to begin with (the owner, 2026-10-25). */
+.seek-known {
+  position: absolute;
+  bottom: calc(100% + 3.5px - var(--known-size) / 2);
+  height: var(--known-size);
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--known-colour);
+}
 /* Where a card was taken from (each card's clip), centred on the same line (the owner, 2026-10-18: "orange or some
    other color, parts of the video that have had cards built for them"); the one the video is at, glowing. */
 .seek-card {

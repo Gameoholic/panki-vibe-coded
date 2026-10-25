@@ -33,12 +33,15 @@ const WORDS_OPTIONS = [
   { id: "off", label: "Hidden" },
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
-/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the clip. */
+/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the clip, then where the words that are in the decks are said. */
 const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
   { id: "cards", name: "Cards" },
   { id: "clip", name: "Clip" },
+  { id: "known", name: "Words that are in your decks" },
 ];
+/** Where the made-up video says words that are in the decks, for the preview: a few ticks across what's transcribed. */
+const PREVIEW_IN_DECKS: readonly Stretch[] = [20, 41, 95, 118, 152, 203, 236, 271, 298].map((at) => ({ startMs: at * 1000, endMs: at * 1000 + 600 }));
 
 /**
  * A made-up video for the preview, ten minutes long, never the owner's: most of it transcribed and a little more on
@@ -134,6 +137,7 @@ function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; ma
           working={PREVIEW_WORKING}
           cards={PREVIEW_CARDS}
           clip={mark}
+          inDecks={PREVIEW_IN_DECKS}
           look={look}
           hover={hover}
           stop={marked ? PREVIEW_STOP : null}
