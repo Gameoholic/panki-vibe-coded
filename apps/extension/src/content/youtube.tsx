@@ -13,14 +13,14 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { momentWanted, youtubeMetaValue, youtubeUrl } from "@panki/contracts";
+import { inEndZone, momentWanted, youtubeMetaValue, youtubeUrl, type WatchMarkSource } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
 import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, switchInPill, type Modules } from "../modules";
 import { AD } from "../transcribe/silent";
@@ -277,15 +277,70 @@ const feed = createFeed({
     return state === "available" || state === "needed" ? state : null;
   },
 });
+/** Whether what the player plays right now is an ad (the site plays them in the same player). */
+function adPlaying() {
+  const player = document.querySelector(PLAYER);
+  return player !== null && AD.some((name) => player.classList.contains(name));
+}
 /** What's watched here, noted and sent to Panki while the account keeps it (`watch/watcher.ts`). */
 const watcher = createWatcher({
   send: async (batch) => (await askWatch(batch)).ok,
   about: aboutVideo,
-  isAd: () => {
-    const player = document.querySelector(PLAYER);
-    return player !== null && AD.some((name) => player.classList.contains(name));
-  },
+  isAd: adPlaying,
 });
+
+/**
+ * Whether the video on the page is finished (the owner, 2026-10-25, picking D of ten ways: the strip's status chip):
+ * as Panki says when it opens, then as it's played here. Played into its last `withinMs` from before them, it's
+ * finished, said to Panki at once and kept there as a flag, wherever the video goes after; the chip at the strip's head
+ * says "Watching · 94%" until then and "Finished" after, and a press on it says the other, by hand. Null until Panki
+ * has said, and while the account keeps no watching.
+ */
+type Finish = { videoId: string; finished: boolean; withinMs: number; percent: number | null };
+const finishHere = cell<Finish | null>(null);
+/**
+ * Whether the video has been seen before its last `withinMs` on this visit: only then does reaching them finish it. A
+ * video opened in its end isn't finished by itself, nor one the player still holds the last video's end for as the page
+ * moves to the next, and one taken off by hand there waits until it's been before its end again.
+ */
+let seenBefore = false;
+/** A finish on its way to Panki, and when one that failed may be tried again. */
+let finishing = false;
+let finishRetryAt = 0;
+const FINISH_RETRY_MS = 10_000;
+
+/** The finish followed with the player, a few times a second: how far along it is, and played into its end, finished. */
+function followFinish(player: HTMLVideoElement | null) {
+  const now = finishHere.get();
+  if (!now || now.videoId !== watching || !active().on || !player || player.readyState < 2 || !Number.isFinite(player.duration) || player.duration <= 0 || adPlaying()) return;
+  const inEnd = inEndZone(player.currentTime * 1000, player.duration * 1000, now.withinMs);
+  if (!inEnd) seenBefore = true;
+  const percent = Math.min(100, Math.floor((player.currentTime / player.duration) * 100));
+  if (percent !== now.percent) finishHere.set({ ...now, percent });
+  const played = player.ended || (!player.paused && !player.seeking);
+  if (!now.finished && inEnd && seenBefore && played && !finishing && performance.now() >= finishRetryAt) void sayFinished(true, "end");
+}
+
+/** Finished or not, said: on the chip at once, then to Panki, whose answer is what stands; a failure puts it back. */
+async function sayFinished(finished: boolean, source: WatchMarkSource) {
+  const id = watching;
+  const was = finishHere.get();
+  if (!id || !was || was.videoId !== id) return;
+  // Taken off by hand where it stands, it isn't finished again until it's been before its end.
+  if (!finished && video && inEndZone(video.currentTime * 1000, video.duration * 1000, was.withinMs)) seenBefore = false;
+  finishHere.set({ ...was, finished });
+  finishing = true;
+  const answer = await askWatchMark(id, finished ? "finish" : "unfinish", source);
+  finishing = false;
+  const now = finishHere.get();
+  if (watching !== id || !now || now.videoId !== id) return;
+  if (!answer.ok) {
+    finishRetryAt = performance.now() + FINISH_RETRY_MS;
+    finishHere.set({ ...now, finished: was.finished });
+    return;
+  }
+  finishHere.set({ ...now, finished: answer.video.finished, withinMs: answer.video.finishedWithinMs });
+}
 
 /**
  * Whether the pointer is on the seek bar: read against where the bar is drawn, not from the bar's own events, so the
@@ -493,6 +548,10 @@ async function readSeen() {
   const first = was === null || was.videoId !== id;
   const stoppedAt = answer.video.stoppedAtMs === null ? null : answer.video.stoppedAtMs / 1000;
   seen.set({ videoId: id, on: answer.video.on, stoppedAt: first ? stoppedAt : was.stoppedAt, counted: answer.video.counted });
+  // Whether it's finished, as Panki has it; one being said right now is the chip's until Panki answers it.
+  const had = finishHere.get();
+  const same = had !== null && had.videoId === id;
+  finishHere.set(answer.video.on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
   // Nothing is noted, and nothing offered, while Panki is switched off altogether.
   watcher.video(id, answer.video.on && modules.get().on);
   if (first && answer.video.on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
@@ -661,6 +720,9 @@ function look() {
     carded.set([]);
     void readCarded();
     seen.set(null);
+    finishHere.set(null);
+    seenBefore = false;
+    finishRetryAt = 0;
     offered.set(null);
     offerAway.set(false);
     resuming = null;
@@ -1139,6 +1201,7 @@ function App() {
   useSyncExternalStore(modules.subscribe, modules.get);
   useSyncExternalStore(seen.subscribe, seen.get);
   const savedNow = useSyncExternalStore(savedHere.subscribe, savedHere.get);
+  const finishNow = useSyncExternalStore(finishHere.subscribe, finishHere.get);
   /** An update for the extension: a button in the head while one is available; the head and it alone while one is needed. */
   const updateNow = useSyncExternalStore(update.subscribe, update.get);
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
@@ -1746,6 +1809,19 @@ function App() {
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
               {/* Panki altogether, on or off (the owner, 2026-10-21: "make the button toggle whether Panki is even enabled"), here while it isn't the header bar pill's. */}
               {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
+              {/* Finished or not (`finishHere`): how far along until it's played into its end, then Finished; a press says the other. */}
+              {finishNow && finishNow.videoId === videoId() && (finishNow.finished || finishNow.percent !== null) ? (
+                <Button className={`capture-tool strip-finish ${finishNow.finished ? "is-finished" : ""}`.trim()} aria-pressed={finishNow.finished} onClick={() => void sayFinished(!finishNow.finished, "viewer")}>
+                  {finishNow.finished ? (
+                    <>
+                      <Icon name="check" />
+                      Finished
+                    </>
+                  ) : (
+                    `Watching · ${finishNow.percent}%`
+                  )}
+                </Button>
+              ) : null}
               {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home (the owner, 2026-10-21). */}
               {savedNow && savedNow.videoId === videoId() ? (
                 <Button className={`capture-tool strip-save ${savedNow.saved ? "is-saved" : ""}`.trim()} aria-pressed={savedNow.saved} onClick={() => void toggleSaved()}>
@@ -1916,6 +1992,7 @@ setInterval(() => {
   transcriber.tick(video);
   lines.refresh();
   watcher.tick(video);
+  followFinish(video);
   // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
   tryResume();
   const at = offered.get();

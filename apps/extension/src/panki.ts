@@ -34,7 +34,9 @@ import {
   type Stats,
   type VideoGlance,
   type WatchBatch,
+  type WatchMark,
   type WatchMarkKind,
+  type WatchMarkSource,
   type WatchedVideo,
   type CardType,
   type Deck,
@@ -222,9 +224,9 @@ export const panki = {
   watched: ({ address, token }: Door, videoId: string): Promise<WatchedVideo> => call(address, token, `/api/watching/videos/${id(videoId)}`, {}, (b) => WatchedVideoResponse.parse(b).video),
   /** Stretches of videos watched, kept on the account's Panki (nothing, when its Video tracking is off). */
   watch: ({ address, token }: Door, batch: WatchBatch): Promise<void> => call(address, token, "/api/watching", json("POST", batch), () => undefined),
-  /** A video left out of the count, counted again, or put away from Continue watching. */
-  watchMark: ({ address, token }: Door, videoId: string, kind: WatchMarkKind): Promise<WatchedVideo> =>
-    call(address, token, `/api/watching/videos/${id(videoId)}/marks`, json("POST", { kind }), (b) => WatchedVideoResponse.parse(b).video),
+  /** A video left out of the count, counted again, put away from Continue watching, finished or not; by the viewer, or by Panki as it was played into its end. */
+  watchMark: ({ address, token }: Door, videoId: string, kind: WatchMarkKind, source: WatchMarkSource): Promise<WatchedVideo> =>
+    call(address, token, `/api/watching/videos/${id(videoId)}/marks`, json("POST", { kind, source } satisfies WatchMark), (b) => WatchedVideoResponse.parse(b).video),
   /** The videos saved for later, newest first: the account's own, never YouTube's. */
   saved: ({ address, token }: Door): Promise<SavedVideo[]> => call(address, token, "/api/watching/saved", {}, (b) => SavedResponse.parse(b).videos),
   /** A video saved for later with its name and channel as the page shows them, or the save taken back; the saved videos after. */

@@ -335,7 +335,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       await panki.watch(door, ask.batch);
       return { ok: true };
     }
-    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark) };
+    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark, ask.source) };
     // Panki on YouTube's own pages: the tiles over its home's videos, and the marks on its thumbnails.
     if (ask.kind === "home") {
       const [stats, decks, settings, saved] = await Promise.all([panki.stats(door), panki.decks(door), panki.settings(door), panki.saved(door)]);

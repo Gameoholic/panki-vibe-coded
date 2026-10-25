@@ -536,7 +536,7 @@ type WordAudioProps = {
  */
 /**
  * How watching is told, for everyone (the owner, 2026-10-25: "make that number configurable"): how close to its end a
- * video stopped counts as watched to the end, so it leaves Continue watching and isn't offered to continue.
+ * video played is finished, a flag kept on it, so it leaves Continue watching and isn't offered to continue.
  */
 function WatchingSection({ settings }: { settings: WatchingSettings }) {
   const [current, patch, failure] = useSavedSoon<WatchingSettings>(settings, (change) => api.updateWatchingSettings(change));

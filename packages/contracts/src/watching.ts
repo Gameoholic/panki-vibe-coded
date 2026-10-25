@@ -17,13 +17,15 @@ import { VideoId } from "./transcription";
 
 /**
  * How watching is told, for everyone, set by an admin in Settings → Admin (the owner, 2026-10-25: "make that number
- * configurable"): a video stopped within this many seconds of its end was watched to the end, so it leaves Continue
- * watching, isn't offered to continue, and its thumbnail's bar is full. Only what an admin changed is kept; the rest
- * reads as the defaults.
+ * configurable"): a video played into its last this many seconds is finished (`inEndZone`), a flag kept until it's
+ * taken off by hand, so it leaves Continue watching, isn't offered to continue, and its thumbnail's bar is full. 20 to
+ * begin with (30 for its first day). Only what an admin changed is kept; the rest reads as the defaults.
  */
 export const WatchingSettings = z.object({ finishedWithinSec: z.number().int().min(0).max(600) });
 export type WatchingSettings = z.infer<typeof WatchingSettings>;
-export const DEFAULT_WATCHING_SETTINGS: WatchingSettings = { finishedWithinSec: 30 };
+export const DEFAULT_WATCHING_SETTINGS: WatchingSettings = { finishedWithinSec: 20 };
+/** Whether a moment of a video, in ms, is in its last `finishedWithinMs`: played into there, the video is finished. */
+export const inEndZone = (atMs: number, lengthMs: number, finishedWithinMs: number) => atMs >= lengthMs - finishedWithinMs;
 export const WatchingSettingsUpdate = WatchingSettings.partial();
 export type WatchingSettingsUpdate = z.infer<typeof WatchingSettingsUpdate>;
 export const WatchingSettingsResponse = z.object({ watching: WatchingSettings });
@@ -72,19 +74,36 @@ export type NewWatchStretch = z.infer<typeof NewWatchStretch>;
 export const WatchBatch = z.object({ videos: z.array(WatchVideo).max(20), stretches: z.array(NewWatchStretch).min(1).max(100) });
 export type WatchBatch = z.infer<typeof WatchBatch>;
 
-/** What can be said of one video: leave it out of the count (it isn't study), count it again, or put it away from Continue watching. */
-export const WatchMarkKind = z.enum(["uncount", "count", "put-away"]);
+/**
+ * What can be said of one video: leave it out of the count (it isn't study), count it again, put it away from Continue
+ * watching, or say it's finished or not (the owner, 2026-10-25: "the moment it shows finished, it's a flag set on the
+ * video… however if I manually click the button to make it not finished then that's changed… but keep the history").
+ * Every mark is kept with when it was made, so which videos were finished, unfinished and finished again, and when, can
+ * always be read back; what a video is now is its latest mark of each sort.
+ */
+export const WatchMarkKind = z.enum(["uncount", "count", "put-away", "finish", "unfinish"]);
 export type WatchMarkKind = z.infer<typeof WatchMarkKind>;
-export const WatchMark = z.object({ kind: WatchMarkKind });
+/**
+ * Who made a mark: the viewer, pressing something, or Panki, seeing the video played into its end (`end`). A third,
+ * `history`, is the API's alone: a finish read back from what was watched before videos were marked finished
+ * (migration 36).
+ */
+export const WatchMarkSource = z.enum(["viewer", "end"]);
+export type WatchMarkSource = z.infer<typeof WatchMarkSource>;
+export const WatchMark = z.object({ kind: WatchMarkKind, source: WatchMarkSource.optional() });
 export type WatchMark = z.infer<typeof WatchMark>;
 
-/** One video as the extension asks of it when it opens: whether the account keeps its watching at all, where it was stopped, whether it counts. */
+/** One video as the extension asks of it when it opens: whether the account keeps its watching at all, where it was stopped, whether it counts, whether it's finished. */
 export const WatchedVideo = z.object({
   /** The account's Video tracking: off, nothing is sent and nothing is offered. */
   on: z.boolean(),
-  /** Where it was last stopped, in ms of the video; null when never, when forgotten, or when it was watched to the end. */
+  /** Where it was last stopped, in ms of the video; null when never, when forgotten, or when it's finished. */
   stoppedAtMs: z.number().int().nonnegative().nullable(),
   counted: z.boolean(),
+  /** Finished: its latest finish or unfinish mark is a finish. False from an older server. */
+  finished: z.boolean().default(false),
+  /** How close to its end a video played counts as finished, for everyone (`WatchingSettings`), in ms. */
+  finishedWithinMs: z.number().int().nonnegative().default(DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000),
 });
 export type WatchedVideo = z.infer<typeof WatchedVideo>;
 export const WatchedVideoResponse = z.object({ video: WatchedVideo });
@@ -106,7 +125,7 @@ export const VideoGlance = z.object({
   transcribed: z.boolean(),
   /** Saved for later by the account (`SavedVideo`): its thumbnail's save button shows a tick. */
   saved: z.boolean(),
-  /** Watched to its end, as the admin's setting says (`WatchingSettings`): its bar full. None from an older server. */
+  /** Finished (`WatchedVideo.finished`): its bar full. None from an older server. */
   finished: z.boolean().optional(),
 });
 export type VideoGlance = z.infer<typeof VideoGlance>;

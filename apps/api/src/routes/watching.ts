@@ -114,7 +114,7 @@ export function watchingRouter(dbOf: DbOf, shared: Shared, now: () => number) {
       res.status(400).json({ error: { message: "That isn't something to say of a video.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    const answer: WatchedVideoResponse = { video: dbOf(res).markVideo(videoId, parsed.data.kind, now()) };
+    const answer: WatchedVideoResponse = { video: dbOf(res).markVideo(videoId, parsed.data.kind, parsed.data.source ?? "viewer", now()) };
     res.json(answer);
   });
 

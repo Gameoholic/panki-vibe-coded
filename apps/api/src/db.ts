@@ -69,6 +69,7 @@ import {
   type VideoCard,
   type WatchBatch,
   type WatchMarkKind,
+  type WatchMarkSource,
   type VideoGlance,
   type WatchedVideo,
   type Watching,
@@ -746,6 +747,22 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // for every type there is, the first Front field of words having stood in for it until now; a type's save logs it.
     db.exec("ALTER TABLE card_types ADD COLUMN main_field TEXT");
   },
+  (db) => {
+    // 36. A video is finished as a flag kept on it (the owner, 2026-10-25: "the moment it shows finished, it's a flag set
+    // on the video… even if I go to 0:05 and then exit it will still show as finished"): a finish or an unfinish mark,
+    // each kept with who made it (`source`: the viewer pressing, Panki seeing the video played into its end; every mark
+    // from before is the viewer's). Until now a video was finished while its latest stretch ended near its end. Each video
+    // that ever reached its last 20 s (the new default) is given its finish here, as `history`, at the moment it first
+    // did: nothing finished before comes back to Continue watching, and these finishes can be told from the rest later.
+    db.exec("ALTER TABLE watch_marks ADD COLUMN source TEXT NOT NULL DEFAULT 'viewer'");
+    db.prepare(`
+      INSERT INTO watch_marks (video_id, kind, at, source)
+      SELECT s.video_id, 'finish', MIN(s.at), 'history'
+      FROM watch_stretches s JOIN watch_videos v ON v.video_id = s.video_id
+      WHERE s.forgotten_at IS NULL AND s.to_ms >= v.length_ms - ?
+      GROUP BY s.video_id
+    `).run(DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000);
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -799,29 +816,31 @@ type DictionaryMoveRow = { id: string; title: string; revision: string; descript
 type WatchStretchRow = { videoId: string; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
 type WatchMarkRow = { videoId: string; kind: string; at: number };
 
+type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean };
 /**
- * What the owner said of each video, from its marks in the order they were made: whether it counts (its latest count
- * or uncount; a video never marked counts) and when it was last put away from Continue watching.
+ * What's been said of each video, from its marks in the order they were made: whether it counts (its latest count or
+ * uncount; a video never marked counts), when it was last put away from Continue watching, and whether it's finished
+ * (its latest finish or unfinish, whoever made it).
  */
-function marksOf(rows: readonly WatchMarkRow[]): Map<string, { counted: boolean; putAwayAt: number | null }> {
-  const said = new Map<string, { counted: boolean; putAwayAt: number | null }>();
+function marksOf(rows: readonly WatchMarkRow[]): Map<string, VideoSaid> {
+  const said = new Map<string, VideoSaid>();
   for (const row of rows) {
-    const video = said.get(row.videoId) ?? { counted: true, putAwayAt: null };
+    const video = said.get(row.videoId) ?? { counted: true, putAwayAt: null, finished: false };
     if (row.kind === "count" || row.kind === "uncount") video.counted = row.kind === "count";
     else if (row.kind === "put-away") video.putAwayAt = row.at;
+    else if (row.kind === "finish" || row.kind === "unfinish") video.finished = row.kind === "finish";
     said.set(row.videoId, video);
   }
   return said;
 }
 
 /**
- * Where a video was stopped, as somewhere to continue from: none when it was watched to its end (stopped within
- * `finishedWithinMs` of it, an admin's setting: `WatchingSettings`), or when its length
- * was never told (then nobody can say it wasn't watched to the end). A video barely begun counts (2026-10-21).
+ * Where a video was stopped, as somewhere to continue from: none when it's finished (a flag, wherever it was stopped
+ * after: `marksOf`), or when its length was never told. A video barely begun counts (2026-10-21), and so does one
+ * stopped near its end that isn't finished (taken off by hand): it goes on from there.
  */
-function stopOf(toMs: number, lengthMs: number | null, finishedWithinMs: number): number | null {
-  if (lengthMs === null || toMs >= lengthMs - finishedWithinMs) return null;
-  return toMs;
+function stopOf(toMs: number, lengthMs: number | null, finished: boolean): number | null {
+  return finished || lengthMs === null ? null : toMs;
 }
 
 /** JSON with every object's keys sorted, so two readings of the same thing compare equal as text. */
@@ -870,8 +889,9 @@ function syncList<T extends { id: string }>(
 }
 
 /**
- * An account's own Panki. `finishedWithinMs` is how close to its end a video stopped counts as watched to the end: an
- * admin's setting for everyone, read afresh each time it's wanted (`WatchingSettings`, kept in the shared store).
+ * An account's own Panki. `finishedWithinMs` is how close to its end a video played counts as finished: an admin's
+ * setting for everyone, read afresh each time it's wanted (`WatchingSettings`, kept in the shared store), and told to the
+ * extension with each video, which sees it played there and says so (a finish mark).
  */
 export function openDb(
   dataDir: string,
@@ -1126,7 +1146,7 @@ export function openDb(
       length_ms = excluded.length_ms,
       updated_at = excluded.updated_at`);
   const insertWatchStretch = db.prepare("INSERT OR IGNORE INTO watch_stretches (id, video_id, from_ms, to_ms, spent_ms, rate, at, device) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  const insertWatchMark = db.prepare("INSERT INTO watch_marks (video_id, kind, at) VALUES (?, ?, ?)");
+  const insertWatchMark = db.prepare("INSERT INTO watch_marks (video_id, kind, at, source) VALUES (?, ?, ?, ?)");
   const forgetWatchStretches = db.prepare("UPDATE watch_stretches SET forgotten_at = ? WHERE forgotten_at IS NULL");
   const forgetWatchMarks = db.prepare("UPDATE watch_marks SET forgotten_at = ? WHERE forgotten_at IS NULL");
   const selectWatchHistory = db.prepare("SELECT COUNT(DISTINCT video_id) AS videos, COALESCE(SUM(spent_ms), 0) AS ms, MIN(at) AS since FROM watch_stretches WHERE forgotten_at IS NULL");
@@ -1419,7 +1439,7 @@ export function openDb(
       ? []
       : [...latest.entries()]
           .flatMap(([videoId, s]) => {
-            const stoppedAtMs = stopOf(s.toMs, s.lengthMs, finishedWithinMs());
+            const stoppedAtMs = stopOf(s.toMs, s.lengthMs, marks.get(videoId)?.finished ?? false);
             const putAwayAt = marks.get(videoId)?.putAwayAt ?? null;
             // Put away until it's watched again.
             if (stoppedAtMs === null || (putAwayAt !== null && putAwayAt >= s.at)) return [];
@@ -2016,12 +2036,22 @@ export function openDb(
       });
       return true;
     },
-    /** One video as the extension asks of it when it opens: whether watching is kept at all, where it was stopped (nothing is offered while it isn't kept), whether it counts. */
+    /**
+     * One video as the extension asks of it when it opens: whether watching is kept at all, where it was stopped (nothing
+     * is offered while it isn't kept), whether it counts, whether it's finished, and how close to its end that is.
+     */
     watchedVideo(videoId: string): WatchedVideo {
       const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
       const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
       const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
-      return { on: videoTracking, stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs, finishedWithinMs()) : null, counted: said?.counted ?? true };
+      const finished = said?.finished ?? false;
+      return {
+        on: videoTracking,
+        stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs, finished) : null,
+        counted: said?.counted ?? true,
+        finished,
+        finishedWithinMs: finishedWithinMs(),
+      };
     },
     /**
      * Videos as their thumbnails on YouTube are marked: how far this account got in each (nothing while its Video
@@ -2039,7 +2069,7 @@ export function openDb(
           lengthMs: length?.lengthMs ?? null,
           cards: api.videoCards(videoId).length,
           saved: selectIsSaved.get(videoId) !== undefined,
-          finished: last !== undefined && length !== undefined && stopOf(last.toMs, length.lengthMs, finishedWithinMs()) === null,
+          finished: videoTracking && (marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId)?.finished ?? false),
         };
       });
     },
@@ -2057,9 +2087,17 @@ export function openDb(
       unsaveVideo.run(now, videoId);
       return api.savedVideos();
     },
-    /** What the owner says of a video, kept as it's said; the video as it stands after. Saying it twice is harmless: the latest is what counts. */
-    markVideo(videoId: string, kind: WatchMarkKind, now: number): WatchedVideo {
-      insertWatchMark.run(videoId, kind, now);
+    /**
+     * What's said of a video, kept as it's said, with who said it; the video as it stands after. Saying it twice is
+     * harmless: the latest is what counts. A finish of a video already finished, or an unfinish of one that isn't, is no
+     * change and keeps nothing, so the history holds each time it really turned.
+     */
+    markVideo(videoId: string, kind: WatchMarkKind, source: WatchMarkSource, now: number): WatchedVideo {
+      if (kind === "finish" || kind === "unfinish") {
+        const finished = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId)?.finished ?? false;
+        if (finished === (kind === "finish")) return api.watchedVideo(videoId);
+      }
+      insertWatchMark.run(videoId, kind, now, source);
       return api.watchedVideo(videoId);
     },
     /** All that's kept, in brief: how many videos, the time spent on them, since when. Counted or not. */

@@ -1538,6 +1538,20 @@
   color: var(--accent);
   font-weight: 600;
 }
+/* Finished or not, among the strip's tools (the owner's pick, D, 2026-10-25): how far along in the tools' own quiet
+   shape, the good colour once finished, its tick popping in as it turns (the app's one way of arriving). */
+.btn.capture-tool.strip-finish {
+  font-variant-numeric: tabular-nums;
+}
+.btn.capture-tool.strip-finish.is-finished {
+  border-color: var(--good);
+  background: var(--good-soft);
+  color: var(--good);
+  font-weight: 600;
+}
+.strip-finish.is-finished .icon {
+  animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
 /* A switch among the strip's tools (Panki on / off), the tools' own shape and size, its track scaled to them (the owner, 2026-10-21: "doesn't match the rest of the UI and buttons"). */
 .btn.btn-switch.capture-tool.strip-switch {
   padding: 4px 7px 4px 9px;

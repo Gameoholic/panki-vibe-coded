@@ -35,6 +35,7 @@ import {
   WHOLE_MAX_MS,
   WatchBatch,
   WatchMarkKind,
+  WatchMarkSource,
   WatchedVideo,
   GLANCE_MAX,
   GlanceAsk,
@@ -163,8 +164,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("watched"), videoId: VideoId }),
   /** Stretches of videos watched, with the videos they're of, kept on Panki. */
   z.object({ kind: z.literal("watch"), batch: WatchBatch }),
-  /** A video left out of the count, counted again, or put away from Continue watching. */
-  z.object({ kind: z.literal("watchMark"), videoId: VideoId, mark: WatchMarkKind }),
+  /** A video left out of the count, counted again, put away from Continue watching, finished or not, and who said so. */
+  z.object({ kind: z.literal("watchMark"), videoId: VideoId, mark: WatchMarkKind, source: WatchMarkSource }),
   /** What YouTube's home shows of Panki: who's signed in, the account's stats, its decks and settings. */
   z.object({ kind: z.literal("home") }),
   /** Panki switched on or off altogether, from the strip's head. */
@@ -504,8 +505,8 @@ export async function askShowFolder(): Promise<void> {
 export async function askReloadPanki(reopen = false): Promise<void> {
   await ask({ kind: "reloadPanki", reopen });
 }
-/** A video left out of the count, counted again, or put away; the video as it stands then comes back. */
-export async function askWatchMark(videoId: string, mark: WatchMarkKind): Promise<Watched> {
-  const answer = Watched.safeParse(await ask({ kind: "watchMark", videoId, mark }));
+/** A video left out of the count, counted again, put away, finished or not (by the viewer unless said); the video as it stands then comes back. */
+export async function askWatchMark(videoId: string, mark: WatchMarkKind, source: WatchMarkSource = "viewer"): Promise<Watched> {
+  const answer = Watched.safeParse(await ask({ kind: "watchMark", videoId, mark, source }));
   return answer.success ? answer.data : failed(answer.error);
 }
