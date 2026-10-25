@@ -1743,6 +1743,8 @@
    so quick it read as no animation at all: "the animations are like 0.05 seconds long"): the times are the preview
    page's at real speed, where the owner picked Sprout. */
 .seek-pins {
+  /* Each mark's pins in its own colour: the cards', or the words in the decks' (`.is-known`, laid under the cards'). */
+  --pin-colour: var(--cards-colour);
   --pin-out: 0.14s;
   --sprout-grow: 0.55s;
   --sprout-step: 50ms;
@@ -1756,6 +1758,9 @@
   pointer-events: none;
   perspective: 500px;
 }
+.seek-pins.is-known {
+  --pin-colour: var(--known-colour);
+}
 /* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words
    in its way, never across them (the owner, 2026-10-19: "it looks kind of messy"). */
 .btn.btn-ghost.seek-pin {
@@ -1768,7 +1773,7 @@
   padding: 0 8px;
   gap: 0;
   border-radius: 7px;
-  border: 1px solid color-mix(in srgb, var(--cards-colour) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pin-colour) 60%, transparent);
   background: color-mix(in srgb, var(--theater) 68%, transparent);
   backdrop-filter: blur(8px) saturate(1.4);
   box-shadow:
@@ -1806,7 +1811,7 @@
   margin-left: -1px;
   border-radius: 1px;
   height: calc(8.5px + var(--lane) * 26px);
-  background: linear-gradient(to top, var(--cards-colour), color-mix(in srgb, var(--cards-colour) 20%, transparent));
+  background: linear-gradient(to top, var(--pin-colour), color-mix(in srgb, var(--pin-colour) 20%, transparent));
   transform-origin: 50% 100%;
   pointer-events: none;
   opacity: 0;
@@ -1869,7 +1874,7 @@
 @media (hover: hover) {
   .seek-pins .btn.btn-ghost.seek-pin.is-up:not(:disabled):hover {
     transition-delay: 0s;
-    border-color: var(--cards-colour);
+    border-color: var(--pin-colour);
     background: color-mix(in srgb, var(--theater) 88%, transparent);
   }
 }

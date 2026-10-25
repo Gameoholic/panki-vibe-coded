@@ -142,25 +142,30 @@ const subscribeLines = (follower: () => void) => {
 /** A line as the seek bar reads it: its text, and when each stretch of it is said (the character it starts at, the video's time then, in seconds). */
 type TimedLine = { text: string; end: number | null; marks: readonly { at: number; time: number }[] };
 
+/** A word that's in the decks, where it's said in a video, in ms: from its first letter to the next stretch, its words as said, and where its line starts (its sentence). */
+export type KnownMoment = { startMs: number; endMs: number; words: string; lineMs: number };
+
 /**
  * Where in a video the words that are in the decks are said, for the seek bar (`SeekMark`'s `inDecks`): every known
- * word of every line, from when its first letter is said to when the next stretch begins (or the line ends), in ms.
- * `lines` null asks nothing (the mark hidden, or no transcript).
+ * word of every line, from when its first letter is said to when the next stretch begins (or the line ends), in ms,
+ * with its words for a pin over its tick. `lines` null asks nothing (the mark hidden, or no transcript).
  */
-export function useKnownMoments(lines: readonly TimedLine[] | null): { startMs: number; endMs: number }[] {
+export function useKnownMoments(lines: readonly TimedLine[] | null): KnownMoment[] {
   const known = useKnown();
   const version = useSyncExternalStore(subscribeLines, () => linesVersion);
   return useMemo(() => {
     if (!lines || known.words.size === 0) return [];
-    const moments: { startMs: number; endMs: number }[] = [];
+    const moments: KnownMoment[] = [];
     for (const line of lines) {
       if (!isJapanese(line.text)) continue;
+      const lineAt = line.marks[0]?.time;
+      if (lineAt === undefined) continue;
       for (const token of wordsOf(line.text, latticeFor(line.text))) {
         if (!token.word || !knownIn(known.words, token.text)) continue;
         const from = line.marks.filter((mark) => mark.at <= token.start).at(-1)?.time;
         if (from === undefined) continue;
         const to = line.marks.find((mark) => mark.at >= token.end)?.time ?? line.end ?? from;
-        moments.push({ startMs: Math.round(from * 1000), endMs: Math.round(Math.max(from, to) * 1000) });
+        moments.push({ startMs: Math.round(from * 1000), endMs: Math.round(Math.max(from, to) * 1000), words: token.text, lineMs: Math.round(lineAt * 1000) });
       }
     }
     return moments;

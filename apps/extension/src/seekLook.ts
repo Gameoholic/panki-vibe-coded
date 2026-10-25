@@ -71,29 +71,40 @@ export type CardClick = z.infer<typeof CardClick>;
 export const CARD_CLICKS: Record<CardClick, string> = { none: "Do nothing", sentence: "Go to sentence", word: "Go to word" };
 export const CARD_CLICK_IDS = CardClick.options;
 
+/**
+ * A mark with words on pins over it (the cards', and the words in the decks' since 2026-10-25): when they stand, how
+ * they come in, what pressing one does. `entrance` and `click` came after the rest: a look kept before them is given
+ * the default, and the words in the decks' `words` too (hidden).
+ */
+const WordsLook = MarkLook.extend({ words: CardWords.default("off"), entrance: PinEntrance.default("sprout"), click: CardClick.default("sentence") });
+export type WordsLook = z.infer<typeof WordsLook>;
+
 export const SeekLook = z.object({
   // (`bar`, Panki's own bar in the player's place with its colour and thickness, lived a day before the owner had it
   // taken out, 2026-10-19; a look kept with it keeps it unread.)
   transcript: MarkLook,
-  // `entrance` and `click` came after the rest: a look kept before them is given the default. (`snap`, a press on the
-  // bar near a card's mark landing on the card, lived a day before the owner had it taken out, 2026-10-19; a look kept
-  // with it keeps it unread.)
-  cards: MarkLook.extend({ words: CardWords, entrance: PinEntrance.default("sprout"), click: CardClick.default("sentence") }),
+  // (`snap`, a press on the bar near a card's mark landing on the card, lived a day before the owner had it taken out,
+  // 2026-10-19; a look kept with it keeps it unread.)
+  cards: WordsLook.extend({ words: CardWords }),
   clip: MarkLook,
-  // Where the words that are in the decks are said (the owner, 2026-10-25: hidden to begin with, green like their
-  // highlight); a look kept before it is given the default.
-  known: MarkLook.default({ shown: false, colour: "green", size: "thin" }),
+  // Where the words that are in the decks are said (the owner, 2026-10-25: green like their highlight), with the cards'
+  // own settings for the words on pins over its ticks ("same settings as Cards… the default is the words hidden,
+  // thickness thick and it's shown"); a look kept before either is given what it lacks.
+  known: WordsLook.default({ shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
 });
 export type SeekLook = z.infer<typeof SeekLook>;
 /** Which mark is which, by its key in `SeekLook`. */
 export type SeekMarkId = keyof SeekLook;
+/** The marks with words that can stand on pins over them: one set of settings for both (`WordsLook`). */
+export type WordsMarkId = "cards" | "known";
+export const WORDS_MARK_IDS = ["cards", "known"] as const satisfies readonly WordsMarkId[];
 
-/** As they were drawn before they could be set: the transcript's thin yellow line, the cards a little thicker in orange on it, the clip in Panki's blue. */
+/** As they were drawn before they could be set: the transcript's thin yellow line, the cards a little thicker in orange on it, the clip in Panki's blue; and the words in the decks thick and green, their words hidden. */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
   transcript: { shown: true, colour: "yellow", size: "thin" },
   cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
-  known: { shown: false, colour: "green", size: "thin" },
+  known: { shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
 };
 
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */

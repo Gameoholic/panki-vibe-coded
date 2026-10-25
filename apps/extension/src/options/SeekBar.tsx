@@ -17,7 +17,10 @@ import {
   type MarkLook,
   type SeekLook,
   type SeekMarkId,
+  type WordsLook,
+  type WordsMarkId,
 } from "../seekLook";
+import type { KnownMoment } from "../capture/known";
 import { writeStore, type Stored } from "../storage";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
 import { Swatches } from "./Swatches";
@@ -40,8 +43,20 @@ const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "clip", name: "Clip" },
   { id: "known", name: "Words that are in your decks" },
 ];
-/** Where the made-up video says words that are in the decks, for the preview: a few ticks across what's transcribed. */
-const PREVIEW_IN_DECKS: readonly Stretch[] = [20, 41, 95, 118, 152, 203, 236, 271, 298].map((at) => ({ startMs: at * 1000, endMs: at * 1000 + 600 }));
+/** Where the made-up video says words that are in the decks, for the preview: a few ticks across what's transcribed, each with its word. */
+const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
+  [
+    [20, "今日"],
+    [41, "食べる"],
+    [95, "言葉"],
+    [118, "友達"],
+    [152, "景色"],
+    [203, "電車"],
+    [236, "勉強"],
+    [271, "大丈夫"],
+    [298, "例えば"],
+  ] as const
+).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000 }));
 
 /**
  * A made-up video for the preview, ten minutes long, never the owner's: most of it transcribed and a little more on
@@ -143,10 +158,37 @@ function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; ma
           stop={marked ? PREVIEW_STOP : null}
           onStop={() => setAt(PREVIEW_STOP)}
           // The made-up cards have no transcript to find their words in: a press goes to the sentence, as it does on a video without one.
-          onGo={(card) => setAt(card.startMs / 1000)}
+          onGo={(pinned) => setAt((pinned.of === "cards" ? pinned.card.startMs : look.known.click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000)}
         />
       </div>
     </div>
+  );
+}
+
+/** What the words over a mark are called in its rows: the cards', and the words in the decks' own (`WORDS_MARK_IDS`). */
+const WORDS_LABELS: Record<WordsMarkId, string> = { cards: "Card words", known: "Words" };
+
+/**
+ * A mark's words on pins over it: when they stand, how they come in, what pressing one does. The cards' rows, and the
+ * same for the words that are in the decks (the owner, 2026-10-25: "same settings as Cards").
+ */
+function WordsRows({ id, look, off, onChange }: { id: WordsMarkId; look: WordsLook; off: boolean; onChange: (patch: Partial<WordsLook>) => void }) {
+  const label = WORDS_LABELS[id];
+  const still = off || !look.shown || look.words === "off";
+  return (
+    <>
+      <Setting id={`seek-${id}-words`} label={label} control={<Segmented idPrefix={`seek-${id}-words`} label={label} options={WORDS_OPTIONS} value={look.words} disabled={off || !look.shown} onChange={(words) => onChange({ words })} />} />
+      <Setting
+        id={`seek-${id}-entrance`}
+        label="Word animation"
+        control={<Segmented idPrefix={`seek-${id}-entrance`} label="Word animation" options={ENTRANCE_OPTIONS} value={look.entrance} disabled={still} onChange={(entrance) => onChange({ entrance })} />}
+      />
+      <Setting
+        id={`seek-${id}-click`}
+        label="Clicking a word"
+        control={<Segmented idPrefix={`seek-${id}-click`} label="Clicking a word" options={CLICK_OPTIONS} value={look.click} disabled={still} onChange={(click) => onChange({ click })} />}
+      />
+    </>
   );
 }
 
@@ -192,43 +234,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
               label="Thickness"
               control={<Segmented idPrefix={`seek-${id}-size`} label={`${name} thickness`} options={SIZE_OPTIONS} value={mark.size} disabled={off || !mark.shown} onChange={(size) => change(id, { size })} />}
             />
-            {id === "cards" ? (
-              <>
-                <Setting
-                  id="seek-cards-words"
-                  label="Card words"
-                  control={<Segmented idPrefix="seek-cards-words" label="Card words" options={WORDS_OPTIONS} value={look.cards.words} disabled={off || !look.cards.shown} onChange={(words) => change("cards", { words })} />}
-                />
-                <Setting
-                  id="seek-cards-entrance"
-                  label="Word animation"
-                  control={
-                    <Segmented
-                      idPrefix="seek-cards-entrance"
-                      label="Word animation"
-                      options={ENTRANCE_OPTIONS}
-                      value={look.cards.entrance}
-                      disabled={off || !look.cards.shown || look.cards.words === "off"}
-                      onChange={(entrance) => change("cards", { entrance })}
-                    />
-                  }
-                />
-                <Setting
-                  id="seek-cards-click"
-                  label="Clicking a word"
-                  control={
-                    <Segmented
-                      idPrefix="seek-cards-click"
-                      label="Clicking a word"
-                      options={CLICK_OPTIONS}
-                      value={look.cards.click}
-                      disabled={off || !look.cards.shown || look.cards.words === "off"}
-                      onChange={(click) => change("cards", { click })}
-                    />
-                  }
-                />
-              </>
-            ) : null}
+            {id === "cards" || id === "known" ? <WordsRows id={id} look={look[id]} off={off} onChange={(patch) => change(id, patch)} /> : null}
           </div>
         );
       })}

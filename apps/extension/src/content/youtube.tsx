@@ -40,7 +40,7 @@ import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffe
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
 import { SpeedControl } from "../ui/SpeedControl";
-import { SeekMark, type ClipMark } from "../ui/SeekMark";
+import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { Stamp } from "../ui/Stamp";
 import { TranscribeMenu, type Seconds } from "../ui/TranscribeMenu";
 import type { ClipEnd, MoveBy } from "../ui/Trim";
@@ -385,28 +385,33 @@ function wordMoment(card: VideoCard): number | null {
   return null;
 }
 
-/** Where pressing a card's words takes the video, in seconds: its sentence, or its own words when it's set to and they're found (else its sentence); null when pressing them does nothing. */
-function cardTarget(card: VideoCard): number | null {
-  const click = transcriber.state().prefs.seek.cards.click;
+/**
+ * Where pressing a pin's words takes the video, in seconds, as its mark is set: a card's sentence, or its own words
+ * when they're found (else its sentence); a word that's in the decks, the start of its line, or the word itself; null
+ * when pressing them does nothing.
+ */
+function pinTarget(pinned: Pinned): number | null {
+  const click = transcriber.state().prefs.seek[pinned.of].click;
   if (click === "none") return null;
-  return (click === "word" ? wordMoment(card) : null) ?? card.startMs / 1000;
+  if (pinned.of === "known") return (click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000;
+  return (click === "word" ? wordMoment(pinned.card) : null) ?? pinned.card.startMs / 1000;
 }
 
-function goToCard(card: VideoCard) {
-  const at = cardTarget(card);
+function goToPin(pinned: Pinned) {
+  const at = pinTarget(pinned);
   if (video && at !== null) video.currentTime = at;
 }
 
 /**
  * The player's own preview over its bar (the frame and the time it would go to) shown, while the pointer is on a
- * card's words, for where pressing them goes rather than for where the pointer is (the owner, 2026-10-19: "display
+ * pin's words (a card's, or a word that's in the decks), for where pressing them goes rather than for where the pointer is (the owner, 2026-10-19: "display
  * the frame we will go to"). The pointer's own moves over the words are kept from the bar (`SeekMark` → `onPeek`), and
  * the bar is told of a move at that moment instead: the one place Panki stirs the player's own script, with nothing
  * but a pointer's move, as the pointer itself would make. Panki's own following of the pointer leaves made-up moves
  * alone (`isTrusted`).
  */
-function peekCard(card: VideoCard) {
-  const at = cardTarget(card);
+function peekPin(pinned: Pinned) {
+  const at = pinTarget(pinned);
   const player = video;
   const bar = document.querySelector(SEEK_BAR);
   if (at === null || !player || !bar || !Number.isFinite(player.duration) || player.duration <= 0) return;
@@ -422,7 +427,7 @@ let following = false;
 document.addEventListener(
   "pointermove",
   (e) => {
-    // A move Panki made up for the player's preview (`peekCard`) isn't where the pointer is.
+    // A move Panki made up for the player's preview (`peekPin`) isn't where the pointer is.
     if (!e.isTrusted) return;
     pointerAt = { x: e.clientX, y: e.clientY };
     if (following) return;
@@ -1192,7 +1197,7 @@ function useNow(beats: readonly Beat[]): Chars | null {
 /** The marks on the seek bar, following the pointer on it themselves, so the whole screen isn't drawn again as it comes and goes. */
 function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "onReach" | "onPeek">) {
   const hover = useSyncExternalStore(onBar.subscribe, onBar.get);
-  return <SeekMark {...props} hover={hover} onReach={reachPx.set} onPeek={peekCard} />;
+  return <SeekMark {...props} hover={hover} onReach={reachPx.set} onPeek={peekPin} />;
 }
 
 function App() {
@@ -1971,7 +1976,7 @@ function App() {
             clip={clipMark}
             inDecks={inDecks}
             look={tx.prefs.seek}
-            onGo={goToCard}
+            onGo={goToPin}
             stop={stop}
             onStop={() => {
               if (video && stop !== null) video.currentTime = stop;

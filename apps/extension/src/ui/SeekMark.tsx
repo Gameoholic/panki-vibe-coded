@@ -3,9 +3,13 @@ import type { Stretch, VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { clock } from "@web/words";
+import type { KnownMoment } from "../capture/known";
 import { stamp } from "../capture/words";
-import { seekVars, type SeekLook } from "../seekLook";
+import { seekVars, type SeekLook, type WordsMarkId } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
+
+/** What a pin's words belong to: a card taken from the video, or a word that's in the decks, said in it. */
+export type Pinned = { of: "cards"; card: VideoCard } | { of: "known"; said: KnownMoment };
 
 /** The open clip as it's marked on the bar: its two ends, and what pulling one does. */
 export type ClipMark = {
@@ -27,21 +31,21 @@ type Props = {
   cards: readonly VideoCard[];
   /** The open clip, with an end to pull at each side; null while no drawer is open. */
   clip: ClipMark | null;
-  /** Where a word that's in the decks is said, in milliseconds (`capture/known.ts` → `useKnownMoments`): each a tick on the same line. */
-  inDecks?: readonly Stretch[];
+  /** Where a word that's in the decks is said (`capture/known.ts` → `useKnownMoments`): each a tick on the same line, with its words on a pin over it as the cards have theirs. */
+  inDecks?: readonly KnownMoment[];
   /** How each mark looks, the viewer's own (`seekLook.ts`). */
   look: SeekLook;
-  /** The pointer is on the bar: the cards' words rise, when they're set to on hover. */
+  /** The pointer is on the bar: the pins' words rise, when they're set to on hover. */
   hover: boolean;
-  /** A card's pin pressed (unless pressing one is set to do nothing): where the video goes is the caller's (`look.cards.click`). */
-  onGo: (card: VideoCard) => void;
+  /** A pin pressed (unless pressing one is set to do nothing): where the video goes is the caller's (`look.cards.click`, `look.known.click`). */
+  onGo: (pinned: Pinned) => void;
   /** Told how far above the bar, in pixels, the pointer is to count as on it (`REACH`), whenever that changes. */
   onReach?: (px: number) => void;
   /**
    * The pointer moving on a card's words: the page shows the player's own preview for where pressing them goes. Given,
    * the pointer's moves over the words are kept from the bar, so the player doesn't preview where the pointer is.
    */
-  onPeek?: (card: VideoCard) => void;
+  onPeek?: (pinned: Pinned) => void;
   /** Where the video was stopped the last time it was watched, in seconds: a white tag over the bar saying when (the owner, 2026-10-21: "not color but something more distinct and visible"); null for none. */
   stop?: number | null;
   /** The tag pressed: the video goes there. */
@@ -75,22 +79,31 @@ function pinWidth(words: string): number {
   return Math.min(PIN.max, Math.ceil(width));
 }
 
-/** A card's pin as laid out: its words, where its stem stands and its box begins (in pixels from the bar's left), its lane. */
-type Pin = { card: VideoCard; words: string; x: number; left: number; lane: number };
+/** A pin as laid out: what it's of, its words, where its stem stands and its box begins (in pixels from the bar's left), its lane. */
+type Pin = { pinned: Pinned; key: string; words: string; x: number; left: number; lane: number };
 
-/** The cards' pins, each in the lowest lane where it touches none before it; one with no room in any is left out. */
-function layPins(cards: readonly VideoCard[], length: number, width: number): Pin[] {
+/** Where a pin's mark is, in ms, and its words. */
+const spanOf = (pinned: Pinned) => (pinned.of === "cards" ? pinned.card : pinned.said);
+const wordsOnPin = (pinned: Pinned) => (pinned.of === "cards" ? pinned.card.words : pinned.said.words);
+
+/**
+ * The pins, each in the lowest lane where it touches none before it; one with no room in any is left out. The cards'
+ * come first, so a word that's in the decks never takes a card's place; both are laid together, so none touch.
+ */
+function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
   const ends: number[] = Array.from({ length: PIN.lanes }, () => -Infinity);
   const pins: Pin[] = [];
-  for (const card of cards) {
-    const words = card.words.trim() || clock(card.startMs / 1000);
+  for (const pinned of all) {
+    const { startMs, endMs } = spanOf(pinned);
+    const words = wordsOnPin(pinned).trim() || clock(startMs / 1000);
     const w = pinWidth(words);
-    const x = (((card.startMs + card.endMs) / 2 / 1000) / length) * width;
+    const x = (((startMs + endMs) / 2 / 1000) / length) * width;
     const left = Math.max(0, Math.min(width - w, x - w / 2));
     const lane = ends.findIndex((end) => end + PIN.gap <= left);
     if (lane < 0) continue;
     ends[lane] = left + w;
-    pins.push({ card, words, x, left, lane });
+    const key = pinned.of === "cards" ? `${pinned.card.cardId}-${startMs}` : `known-${startMs}`;
+    pins.push({ pinned, key, words, x, left, lane });
   }
   return pins;
 }
@@ -108,7 +121,8 @@ function layPins(cards: readonly VideoCard[], length: number, width: number): Pi
  * The cards' pins rise while the pointer is on the bar or over it as high as they stand (or stand whenever the bar
  * shows, or never); a pin is edged in the cards' colour only while the pointer is on it, and pressed it does what the
  * viewer set (`look.cards.click`: nothing, and then it isn't a thing to press at all, or the video to the card's
- * sentence or its word). Nothing changes as the video plays through a card: the owner had the card it was at lit and
+ * sentence or its word). The words that are in the decks have pins of their own the same way, with the same settings
+ * of their own (`look.known`; the owner, 2026-10-25: "same settings as Cards"), laid in the same lanes after the cards'. Nothing changes as the video plays through a card: the owner had the card it was at lit and
  * rising by itself taken out, 2026-10-19 ("no flash at all when it's being played"); and snapping, a press on the bar
  * near a card's mark landing on the card, the same day, the words doing that job. Only the pins and the clip's two
  * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever. (Panki's own
@@ -131,8 +145,13 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
     observer.observe(el);
     return () => observer.disconnect();
   }, [known]);
-  const words = look.cards.shown ? look.cards.words : "off";
-  const pins = !known || words === "off" || width === 0 ? [] : layPins(cards, length, width);
+  /** When a mark's words stand: never while the mark itself is hidden. */
+  const wordsOf = (id: WordsMarkId) => (look[id].shown ? look[id].words : "off");
+  const pinned: Pinned[] = [
+    ...(wordsOf("cards") === "off" ? [] : cards.map((card): Pinned => ({ of: "cards", card }))),
+    ...(wordsOf("known") === "off" ? [] : inDecks.map((said): Pinned => ({ of: "known", said }))),
+  ];
+  const pins = !known || pinned.length === 0 || width === 0 ? [] : layPins(pinned, length, width);
   const highest = pins.reduce((lane, pin) => Math.max(lane, pin.lane), -1);
   const reach = highest >= 0 ? LANE.first + highest * LANE.step + LANE.pin + REACH.above : REACH.bare;
   const tellReach = useRef(onReach);
@@ -181,14 +200,49 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
     };
   }
 
-  const up = words === "always" || (words === "hover" && hover);
-  const inert = look.cards.click === "none";
-  /** The pointer on a card's words: kept from the bar, and the page told, so the player previews where a press goes. */
-  const peek = (card: VideoCard) => (e: SyntheticEvent) => {
-    if (!onPeek || inert) return;
+  const upOf = (id: WordsMarkId) => wordsOf(id) === "always" || (wordsOf(id) === "hover" && hover);
+  const inertOf = (id: WordsMarkId) => look[id].click === "none";
+  /** The pointer on a pin's words: kept from the bar, and the page told, so the player previews where a press goes. */
+  const peek = (pin: Pinned) => (e: SyntheticEvent) => {
+    if (!onPeek || inertOf(pin.of)) return;
     e.stopPropagation();
-    if (e.type !== "mousemove") onPeek(card);
+    if (e.type !== "mousemove") onPeek(pin);
   };
+  /** One mark's pins, in a layer of their own that brings them in as that mark's entrance says, edged in its colour. */
+  function pinsOf(id: WordsMarkId) {
+    const mine = pins.filter((pin) => pin.pinned.of === id);
+    if (mine.length === 0) return null;
+    const up = upOf(id);
+    const inert = inertOf(id);
+    return (
+      <div className={`seek-pins is-${id} is-${look[id].entrance}`}>
+        {mine.map((pin, i) => {
+          const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties;
+          return (
+            <Fragment key={pin.key}>
+              {/* The stem apart from its words, so each comes in its own way. */}
+              <span className={`seek-stem ${up ? "is-up" : ""}`.trim()} style={place} aria-hidden="true" />
+              <Button
+                className={`seek-pin ${up ? "is-up" : ""}`.trim()}
+                lang="ja"
+                tabIndex={up && !inert ? 0 : -1}
+                disabled={inert}
+                aria-hidden={!up}
+                aria-label={inert ? pin.words : `Go to ${pin.words}, ${clock(spanOf(pin.pinned).startMs / 1000)}`}
+                style={place}
+                onClick={() => onGo(pin.pinned)}
+                onPointerEnter={peek(pin.pinned)}
+                onPointerMove={peek(pin.pinned)}
+                onMouseMove={peek(pin.pinned)}
+              >
+                <span className="seek-pin-words">{pin.words}</span>
+              </Button>
+            </Fragment>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div ref={whole} className="seek" style={seekVars(look) as CSSProperties}>
@@ -200,34 +254,8 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
       {look.cards.shown
         ? cards.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}
-      {pins.length > 0 ? (
-        <div className={`seek-pins is-${look.cards.entrance}`}>
-          {pins.map((pin, i) => {
-            const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties;
-            return (
-              <Fragment key={`${pin.card.cardId}-${pin.card.startMs}`}>
-                {/* The stem apart from its words, so each comes in its own way. */}
-                <span className={`seek-stem ${up ? "is-up" : ""}`.trim()} style={place} aria-hidden="true" />
-                <Button
-                  className={`seek-pin ${up ? "is-up" : ""}`.trim()}
-                  lang="ja"
-                  tabIndex={up && !inert ? 0 : -1}
-                  disabled={inert}
-                  aria-hidden={!up}
-                  aria-label={inert ? pin.words : `Go to ${pin.words}, ${clock(pin.card.startMs / 1000)}`}
-                  style={place}
-                  onClick={() => onGo(pin.card)}
-                  onPointerEnter={peek(pin.card)}
-                  onPointerMove={peek(pin.card)}
-                  onMouseMove={peek(pin.card)}
-                >
-                  <span className="seek-pin-words">{pin.words}</span>
-                </Button>
-              </Fragment>
-            );
-          })}
-        </div>
-      ) : null}
+      {pinsOf("known")}
+      {pinsOf("cards")}
       {/* Where it was stopped: a white tick across the bar and a tag over it with the time, under the cards' words when they rise. */}
       {stop !== null && stop > 0 && stop < length ? (
         <>
