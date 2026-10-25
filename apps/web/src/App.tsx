@@ -483,7 +483,8 @@ export function App() {
    */
   const saveType = useCallback(async (data: NewCardType, isNew: boolean) => {
     if (!isNew) {
-      const saved = await api.updateType(data.id, { name: data.name, fields: data.fields });
+      // The layout and the stage tag are the Layout tab's to send; the main field is the Fields tab's.
+      const saved = await api.updateType(data.id, { name: data.name, fields: data.fields, mainField: data.mainField ?? null });
       setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
       setScreen((s) => (s.kind === "type" && s.type?.id === saved.id ? { ...s, type: saved } : s));
       return saved;
