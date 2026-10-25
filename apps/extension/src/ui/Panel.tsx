@@ -203,7 +203,7 @@ type Phase =
   | { at: "adding" }
   | { at: "recording"; what: Cut; seconds: number; of: number | null }
   | { at: "sending"; what: Cut }
-  | { at: "done"; deck: string; made: readonly string[]; note: string | null };
+  | { at: "done"; deck: string; note: string | null };
 
 type Props = {
   capture: Capture;
@@ -547,11 +547,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     if (!deck || !type || phase.at !== "idle") return;
     // An example is only the fields that go with one, and the recordings for them; the card's own are as they are on it.
     const fields = asExample ? exampleFieldsOf(type) : type.fields;
-    const sent: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, values[f.id] ?? ""])) : values;
+    const toSend: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, values[f.id] ?? ""])) : values;
     const making = asExample ? cuts.filter((cut) => cut.field.perExample) : cuts;
     /** The fields a recording is about to fill: not missing, whatever the values say before it's made. */
     const toRecord = new Set(making.map((cut) => cut.field.id));
-    const problems = cardProblems({ fields }, sent).filter((problem) => !(problem.problem === "missing" && toRecord.has(problem.fieldId)));
+    const problems = cardProblems({ fields }, toSend).filter((problem) => !(problem.problem === "missing" && toRecord.has(problem.fieldId)));
     if (problems.length > 0) {
       const next: Record<string, string> = {};
       let other: string | null = null;
@@ -574,8 +574,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     // each kept on Panki as a file; then the card, naming them. A field that must be filled is filled as the card is
     // made, and one whose recording didn't make it stops the card when it must be filled, or is left empty otherwise.
     // A recording stopped because the player was touched stops the card whatever its field: it's to be tried again.
-    const filled: Record<string, string> = { ...sent };
-    const made: string[] = [];
+    const filled: Record<string, string> = { ...toSend };
     let note: string | null = null;
     for (const cut of making) {
       const what = cut.of;
@@ -589,10 +588,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         // A clip with its picture goes with what's said in it, as heard on the video: a card plays it with its subtitles.
         const cues = cut.soundOnly ? [] : cut.offer.cues();
         const sent = await askUpload({ mediaKind: cut.soundOnly ? "audio" : "video", mediaId, mime: file.type, base64: await base64Of(file), ...(cues.length > 0 ? { cues } : {}) });
-        if (sent.ok) {
-          filled[cut.field.id] = mediaId;
-          made.push(words);
-        } else why = sent.message;
+        if (sent.ok) filled[cut.field.id] = mediaId;
+        else why = sent.message;
       } catch (e) {
         why = e instanceof RecordError ? e.message : MESSAGES.noClip;
         touched = e instanceof RecordTouched;
@@ -621,7 +618,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         return;
       }
       onAdded?.();
-      setPhase({ at: "done", deck: `“${target.words}” in ${target.deck}`, made, note });
+      setPhase({ at: "done", deck: target.deck, note });
       return;
     }
     const card = NewCard.safeParse({ id: cardId, values: filled, ...source });
@@ -638,7 +635,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       return;
     }
     onAdded?.();
-    setPhase({ at: "done", deck: deck.name, made, note });
+    setPhase({ at: "done", deck: deck.name, note });
   }
 
   /**
@@ -839,7 +836,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     );
   }
 
-  /** What stands in the drawer once the card is added: that it is, and what became of its clips. */
+  /**
+   * What stands in the drawer once the card is added: "Added to Mining", nothing more (the owner, 2026-10-25: which
+   * clips came with it went), and a recording that didn't make it, when one didn't.
+   */
   function added() {
     if (phase.at !== "done") return null;
     return (
@@ -848,10 +848,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <span className="capture-done-mark">
             <Icon name="check" />
           </span>
-          <span className="capture-done-words">
-            Added to {phase.deck}
-            {phase.made.length > 0 ? `, with ${phase.made.join(" and ")}.` : "."}
-          </span>
+          <span className="capture-done-words">Added to {phase.deck}</span>
         </p>
         {phase.note !== null ? (
           <>
