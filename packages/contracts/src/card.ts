@@ -163,7 +163,7 @@ export type CardsCalled = z.infer<typeof CardsCalled>;
 export const ApartValue = z.object({ name: z.string(), value: z.string() });
 export type ApartValue = z.infer<typeof ApartValue>;
 /** A card's values in its type's fields that tell cards apart, those filled in (never the field it's called by). */
-export function apartOf(type: Pick<CardType, "fields">, values: Readonly<Record<string, string>>): ApartValue[] {
+export function apartOf(type: Pick<CardType, "fields" | "mainField">, values: Readonly<Record<string, string>>): ApartValue[] {
   const called = wordsFieldOf(type)?.id;
   return type.fields.flatMap((f) => {
     const value = (values[f.id] ?? "").trim();

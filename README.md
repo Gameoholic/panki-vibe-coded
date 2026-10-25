@@ -16,7 +16,7 @@ pm2 restart panki-api
 - Netflix / Jellyfin Support
 - Fun games for memorization and learning including the video clips
 - Speedrun "Video" sessions - Will pick a random video and will skip along to the parts where there's words I don't understand until I get them?
-
+- Import / export button for all thigns (card types, decks, etc), and make sure all have default presets like srs types does
 
 
 I want to plan a "multiplayer" feature for Panki. Don't write code yet: read CLAUDE.md and docs/ first, then plan with me and show me options I can play with (an artifact is fine).

@@ -98,6 +98,13 @@ export const NewCardType = z.object({
   layout: CardLayout.optional(),
   /** Where its cards' stage tag sits and how (`layout.ts` → `StageTag`); left out, as it stands (or the default). */
   tag: StageTag.optional(),
+  /**
+   * The field its cards are called by (`wordsFieldOf`): what names a card and what a card already there is found by
+   * (the warning on adding, the duplicates, the popup, the highlighting). Picked by the owner, never assumed (2026-10-25:
+   * "I don't want you to assume what the main word is"): null, and its cards have no duplicates. Left out, as it stands
+   * (none for a new type).
+   */
+  mainField: CardFieldId.nullable().optional(),
 });
 
 /** What a type's settings can change: the name, the whole list of fields in order (a field left out is hidden; a new id is added), and its layout and stage tag when they're sent (left out, they stay as they are). */
@@ -108,6 +115,8 @@ export const CardType = NewCardType.extend({
   layout: CardLayout,
   /** The stage tag as it stands; a type from before it could be laid out (or an older server) has the default. */
   tag: StageTag.default(DEFAULT_STAGE_TAG),
+  /** Its main field as it stands, a field of words it has; null when none is picked (or from an older server). */
+  mainField: CardFieldId.nullable().default(null),
   /** Stamped by the API, ms since epoch. */
   createdAt: z.number().int().nonnegative(),
   /** Derived by the API on every read: how many decks use it. */
@@ -125,12 +134,14 @@ export const CardTypeList = z.object({ types: z.array(CardType) });
 export const CardTypeResponse = z.object({ type: CardType });
 
 /**
- * The field a type's cards are called by in words: its first Front field that holds words (a file's id says nothing).
- * None when it has no such field. A card is named by it wherever it's named: asked about before it's deleted, over its
- * mark on a video's bar, and as a card already there when one called the same is being added.
+ * The field a type's cards are called by in words: its main field, as the owner picked it (`mainField`), while it's one
+ * of its fields that holds words. None when none is picked (the owner, 2026-10-25: no assuming which it is; until then
+ * it was the first Front field of words). A card is named by it wherever it's named: asked about before it's deleted,
+ * over its mark on a video's bar, as a card already there when one called the same is being added, and in duplicates.
  */
-export function wordsFieldOf(type: Pick<CardType, "fields">): CardField | null {
-  return type.fields.find((f) => f.side === "front" && holdsWords(f.kind)) ?? null;
+export function wordsFieldOf(type: { fields: readonly CardField[]; mainField?: string | null | undefined }): CardField | null {
+  if (!type.mainField) return null;
+  return type.fields.find((f) => f.id === type.mainField && holdsWords(f.kind)) ?? null;
 }
 
 /** The fields an example holds: its type's fields that are One per example (`CardField.perExample`). None, and its cards take no examples. */

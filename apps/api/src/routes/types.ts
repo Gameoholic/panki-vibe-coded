@@ -1,6 +1,14 @@
 import { Router } from "express";
-import { CardTypeId, CardTypeUpdate, NewCardType } from "@panki/contracts";
+import { CardTypeId, CardTypeUpdate, NewCardType, holdsWords, type CardField } from "@panki/contracts";
 import type { DbOf } from "../app";
+
+/** A main field must be one of the fields sent, and one that holds words: it's what cards are called by. */
+function mainFieldWrong(fields: readonly CardField[], mainField: string | null | undefined): boolean {
+  if (!mainField) return false;
+  const field = fields.find((f) => f.id === mainField);
+  return !field || !holdsWords(field.kind);
+}
+const MAIN_FIELD_WRONG = "The main field must be one of the type's fields that holds words.";
 
 export function typesRouter(dbOf: DbOf, now: () => number) {
   const router = Router();
@@ -13,6 +21,10 @@ export function typesRouter(dbOf: DbOf, now: () => number) {
     const parsed = NewCardType.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: { message: parsed.error.issues[0]?.message ?? "That card type isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    if (mainFieldWrong(parsed.data.fields, parsed.data.mainField)) {
+      res.status(400).json({ error: { message: MAIN_FIELD_WRONG, path: ["mainField"] } });
       return;
     }
     res.status(201).json({ type: dbOf(res).insertType(parsed.data, now()) });
@@ -32,6 +44,10 @@ export function typesRouter(dbOf: DbOf, now: () => number) {
     const parsed = CardTypeUpdate.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: { message: parsed.error.issues[0]?.message ?? "That card type isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    if (mainFieldWrong(parsed.data.fields, parsed.data.mainField)) {
+      res.status(400).json({ error: { message: MAIN_FIELD_WRONG, path: ["mainField"] } });
       return;
     }
     res.json({ type: db.updateType(id.data, parsed.data, now()) });

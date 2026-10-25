@@ -739,6 +739,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX card_example_value_changes_example_id ON card_example_value_changes (example_id)");
     db.exec("ALTER TABLE card_places ADD COLUMN example_id TEXT REFERENCES card_examples(id)");
   },
+  (db) => {
+    // 35. A card type's main field, picked by the owner: what its cards are called by and found by as duplicates (the
+    // owner, 2026-10-25: "make the default be no duplicates… I don't want you to assume what the main word is"). Null
+    // for every type there is, the first Front field of words having stood in for it until now; a type's save logs it.
+    db.exec("ALTER TABLE card_types ADD COLUMN main_field TEXT");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -828,8 +834,8 @@ function canonical(value: unknown): unknown {
 
 /** A card type as its change log keeps it: everything the owner can edit, the fields in order with their layout, and its stage tag. */
 function typeSnapshot(type: CardType): string {
-  const { name, fields, layout, tag } = type;
-  return JSON.stringify(canonical({ name, fields, layout, tag }));
+  const { name, fields, layout, tag, mainField } = type;
+  return JSON.stringify(canonical({ name, fields, layout, tag, mainField }));
 }
 
 /** The type as its change log keeps it: everything the owner can edit, stages and answers in order. */
@@ -887,7 +893,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // Removed types, fields, stages, answers and decks are invisible everywhere the app reads; only an insert's read-back,
   // a deck's own type and remove itself see them.
   const typeColumns = `
-    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag,
+    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag, t.main_field AS mainField,
     (SELECT COUNT(*) FROM decks d WHERE d.type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
@@ -902,6 +908,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
   const updateTypeLayout = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
   const updateTypeTag = db.prepare("UPDATE card_types SET stage_tag = ? WHERE id = ?");
+  const updateTypeMainField = db.prepare("UPDATE card_types SET main_field = ? WHERE id = ?");
   const insertLayoutChange = db.prepare("INSERT INTO card_type_layout_changes (type_id, from_layout, to_layout, at) VALUES (?, ?, ?, ?)");
   const insertTypeChange = db.prepare(`INSERT INTO card_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
   const removeType = db.prepare("UPDATE card_types SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
@@ -1153,13 +1160,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     }
   }
   function typeFrom(row: unknown): CardType {
-    const { layout: kept, stageTag, ...base } = row as { id: string; layout: string; stageTag: string | null };
+    const { layout: kept, stageTag, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; mainField: string | null };
     const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept));
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
-    return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)) });
+    // The main field while it's one of the fields there are (a field hidden since reads as none picked).
+    const mainField = keptMain !== null && fields.some((f) => f.id === keptMain) ? keptMain : null;
+    return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)), mainField });
   }
   /** The field a card of a type is told by in words (the contracts' `wordsFieldOf`); none when it has no such field. */
   function wordFieldOf(typeId: string | null | undefined): string | null {
@@ -1445,6 +1454,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
           if (type.tag) updateTypeTag.run(JSON.stringify(type.tag), type.id);
+          if (type.mainField) updateTypeMainField.run(type.mainField, type.id);
         }
         return typeFrom(selectAnyType.get(type.id));
       });
@@ -1477,6 +1487,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         }
         // The stage tag when it's sent; what it was is in the whole type's log below.
         if (update.tag && JSON.stringify(update.tag) !== JSON.stringify(before.tag)) updateTypeTag.run(JSON.stringify(update.tag), id);
+        // The main field when it's sent (null is none picked); what it was is in the whole type's log below.
+        if (update.mainField !== undefined && update.mainField !== before.mainField) updateTypeMainField.run(update.mainField, id);
         const after = typeFrom(selectType.get(id));
         // The whole type before and after, once per save that changed anything; the name's and the layout's own logs stand beside it.
         const [was, is] = [typeSnapshot(before), typeSnapshot(after)];

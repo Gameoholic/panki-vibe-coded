@@ -4,6 +4,7 @@ import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
 import { Form } from "../components/Form";
+import { Setting } from "../components/Setting";
 import { Icon } from "../components/Icon";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
@@ -21,6 +22,9 @@ const MESSAGES = {
   fieldLong: "Keep it under 60 characters.",
 };
 
+/** The Main field's choice of none, beside the fields' ids. */
+const NO_MAIN = "none";
+
 function nameInputId(fieldId: string) {
   return `field-name-${fieldId}`;
 }
@@ -37,7 +41,7 @@ type Props = {
 };
 
 /** What's compared to say whether there are unsaved changes. */
-const shapeOf = (name: string, fields: readonly CardField[]) => JSON.stringify({ name, fields });
+const shapeOf = (name: string, fields: readonly CardField[], mainField: string | null) => JSON.stringify({ name, fields, mainField });
 
 /**
  * A card type's fields: its name and its fields, each with a kind and whether it's required, in the order a form asks
@@ -52,8 +56,10 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [name, setName] = useState(type?.name ?? "");
   // A new type starts with one field on the front, because a card needs something there.
   const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false, perExample: false }]);
+  /** The field its cards are called by, as picked here: none until one is (the owner, 2026-10-25: never assumed). */
+  const [mainField, setMainField] = useState<string | null>(type?.mainField ?? null);
   /** What's saved, to tell changes by; a new type's is how it starts, so an untouched one has nothing to lose. */
-  const [saved, setSaved] = useState(() => shapeOf(name, fields));
+  const [saved, setSaved] = useState(() => shapeOf(name, fields, wordsFieldOf({ fields, mainField })?.id ?? null));
   const [isNew, setIsNew] = useState(type === null);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -69,11 +75,15 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
     setFocusId(null);
   }, [focusId]);
 
-  const dirty = shapeOf(name, fields) !== saved;
+  // The main field while it's still a field of words here (one hidden, or changed to a file, is none).
+  const called = wordsFieldOf({ fields, mainField });
+  const dirty = shapeOf(name, fields, called?.id ?? null) !== saved;
   // A new type isn't saved until its first Save, touched or not.
   const state: SaveStatus["state"] = saving ? "saving" : failure ? "failed" : dirty || isNew ? "unsaved" : "saved";
   const shownName = name.trim() || "New card type";
-  const called = wordsFieldOf({ fields });
+  /** The fields a card can be called by, and compared on: those that hold words. */
+  const wordFields = fields.filter((f) => holdsWords(f.kind));
+  const fieldLabel = (field: CardField) => field.name.trim() || `Field ${fields.indexOf(field) + 1}`;
 
   // While there's unsaved work, leaving asks first: the app's own question for its screens, and the browser's for a
   // reload or a closed tab.
@@ -128,7 +138,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   /** Save: what's on screen becomes the type. Says whether it did. */
   async function save(): Promise<boolean> {
     if (saving) return false;
-    const parsed = NewCardType.safeParse({ id, name, fields });
+    const parsed = NewCardType.safeParse({ id, name, fields, mainField: called?.id ?? null });
     if (!parsed.success) {
       let nameProblem: string | undefined;
       const fieldProblems: Record<string, string> = {};
@@ -155,7 +165,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
     setFailure(null);
     try {
       await onSave(parsed.data, isNew);
-      setSaved(shapeOf(name, fields));
+      setSaved(shapeOf(name, fields, called?.id ?? null));
       setIsNew(false);
       return true;
     } catch (e) {
@@ -207,6 +217,37 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
           <h2 id="type-fields-title" className="panel-title">
             Fields
           </h2>
+          {/* What cards are called by and when two are the same, said once at the top (the owner, 2026-10-25), in place
+              of a switch on every field: none picked to begin with, so nothing is a duplicate until one is. */}
+          <Setting
+            id="type-main-field"
+            label="Main field"
+            control={
+              <Dropdown
+                id="type-main-field-choice"
+                label="Main field"
+                options={[{ id: NO_MAIN, label: "None" }, ...wordFields.map((f) => ({ id: f.id, label: fieldLabel(f) }))]}
+                value={called?.id ?? NO_MAIN}
+                onChange={(picked) => setMainField(picked === NO_MAIN ? null : picked)}
+              />
+            }
+          />
+          {called ? (
+            <Setting
+              id="type-duplicates"
+              label="Duplicate when these match"
+              control={
+                <div className="chips" role="group" aria-label="Duplicate when these match">
+                  {/* The main field always; another field of words ticked (`tellsApart`) must match too. */}
+                  {wordFields.map((f) => (
+                    <Button key={f.id} variant="chip" aria-pressed={f.id === called.id || f.tellsApart} disabled={f.id === called.id} onClick={() => edit(f.id, { tellsApart: !f.tellsApart })}>
+                      {fieldLabel(f)}
+                    </Button>
+                  ))}
+                </div>
+              }
+            />
+          ) : null}
           <div className={`field-rows ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
             {fields.map((field, i) => (
               <div key={field.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`field-row ${order.dragging === i ? "is-dragging" : ""}`.trim()}>
@@ -230,10 +271,6 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                 <div className="field-row-options">
                   <Dropdown id={`field-kind-${field.id}`} label="Kind" options={FIELD_KIND_OPTIONS} value={field.kind} onChange={(kind) => edit(field.id, { kind })} />
                   <Toggle id={`field-required-${field.id}`} says={{ on: "Required", off: "Optional" }} on={field.required} onChange={(required) => edit(field.id, { required })} />
-                  {/* The field cards are called by is compared always; another field of words can tell two of them apart. */}
-                  {holdsWords(field.kind) && field.id !== called?.id ? (
-                    <Toggle id={`field-apart-${field.id}`} says={{ on: "Compared for duplicates", off: "Ignored for duplicates" }} on={field.tellsApart} onChange={(tellsApart) => edit(field.id, { tellsApart })} />
-                  ) : null}
                   {/* The field cards are called by is the card's own: it's how a card that's already there is found to give another example to. */}
                   {field.id !== called?.id ? (
                     <Toggle id={`field-example-${field.id}`} says={{ on: "One per example", off: "One per card" }} on={field.perExample} onChange={(perExample) => edit(field.id, { perExample })} />
