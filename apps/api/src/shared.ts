@@ -7,12 +7,15 @@ import {
   DEFAULT_TRANSCRIPTION,
   DEFAULT_WORD_AUDIO,
   ForvoVoice,
+  Provides,
   ServerDictionary,
   type Redo,
   Transcript,
   Transcription,
   WholeJob,
   WordAudio,
+  openDictionary,
+  providesOf,
   realignLine,
   type EngineId,
   type HeardLanguage,
@@ -404,6 +407,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("ALTER TABLE transcript_quiet ADD COLUMN redo_id TEXT");
     db.exec("CREATE INDEX transcript_pieces_redo_id ON transcript_pieces (redo_id)");
   },
+  (db) => {
+    // What a kept dictionary provides, counted from its rows as the extension counts what it imports, so the options
+    // page can say so before it's added (the owner, 2026-10-25). JSON of the contracts' `Provides`; null until it's
+    // counted: at upload, or at startup for one kept before (`countDictionaries`).
+    db.exec("ALTER TABLE dictionary_files ADD COLUMN provides TEXT");
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -444,6 +453,20 @@ function median(values: readonly number[]): number | null {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 1 ? (sorted[mid] ?? null) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+}
+
+/** A kept dictionary's row as it's told of: what it provides read from its JSON, null while it's uncounted (or the JSON doesn't read). */
+function dictionaryOf(row: unknown): ServerDictionary {
+  const { provides, ...rest } = z.looseObject({ provides: z.string().nullable() }).parse(row);
+  let counted: Provides | null = null;
+  if (provides !== null) {
+    try {
+      counted = Provides.parse(JSON.parse(provides));
+    } catch {
+      counted = null;
+    }
+  }
+  return ServerDictionary.parse({ ...rest, provides: counted });
 }
 
 /** A word as it reads now: its latest fix's text and times, or the engine's. */
@@ -504,16 +527,17 @@ export function openShared(dataDir: string) {
   const insertCall = db.prepare("INSERT INTO service_calls (service, at) VALUES (?, ?)");
   const countCalls = db.prepare("SELECT COUNT(*) AS n FROM service_calls WHERE service = ? AND at >= ?");
 
-  const dictionaryColumns = "id, title, revision, description, bytes, uploaded_at AS uploadedAt";
+  const dictionaryColumns = "id, title, revision, description, bytes, provides, uploaded_at AS uploadedAt";
   const selectDictionaryFiles = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE removed_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
   const selectDictionaryFile = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE id = ? AND removed_at IS NULL`);
   const selectAnyDictionaryFile = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE id = ?`);
   const selectDictionaryFileHash = db.prepare("SELECT sha256 FROM dictionary_files WHERE id = ?");
   const selectDictionaryFileByTitle = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE title = ? AND removed_at IS NULL`);
   const insertDictionaryFile = db.prepare(
-    "INSERT OR IGNORE INTO dictionary_files (id, title, revision, description, bytes, sha256, uploaded_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO dictionary_files (id, title, revision, description, bytes, provides, sha256, uploaded_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const removeDictionaryFile = db.prepare("UPDATE dictionary_files SET removed_at = ?, removed_by = ? WHERE id = ? AND removed_at IS NULL");
+  const setDictionaryProvides = db.prepare("UPDATE dictionary_files SET provides = ? WHERE id = ? AND provides IS NULL");
 
   const selectSettings = db.prepare("SELECT key, value FROM settings");
   const upsertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value");
@@ -731,17 +755,21 @@ export function openShared(dataDir: string) {
 
     /** The dictionaries kept on Panki, oldest first. */
     listDictionaryFiles(): ServerDictionary[] {
-      return selectDictionaryFiles.all().map((row) => ServerDictionary.parse(row));
+      return selectDictionaryFiles.all().map(dictionaryOf);
     },
     /** One kept dictionary; null when there's none by that id (or it was removed). */
     getDictionaryFile(id: string): ServerDictionary | null {
       const row = selectDictionaryFile.get(id);
-      return row ? ServerDictionary.parse(row) : null;
+      return row ? dictionaryOf(row) : null;
     },
     /** The kept dictionary called this, if there is one: two of the same name would be one dictionary twice. */
     dictionaryFileTitled(title: string): ServerDictionary | null {
       const row = selectDictionaryFileByTitle.get(title);
-      return row ? ServerDictionary.parse(row) : null;
+      return row ? dictionaryOf(row) : null;
+    },
+    /** What a kept dictionary was counted to provide. Counted once: a count already kept stays. */
+    setDictionaryProvides(id: string, provides: Provides): void {
+      setDictionaryProvides.run(JSON.stringify(provides), id);
     },
     /** The hash of the bytes an id already names, removed or not; null when the id is free. */
     dictionaryFileHash(id: string): string | null {
@@ -750,8 +778,8 @@ export function openShared(dataDir: string) {
     },
     /** Idempotent: the same id again returns the row that's already there, untouched. `uploadedAt` is the API's clock, or the time a moved row already had. */
     insertDictionaryFile(file: Omit<ServerDictionary, "uploadedAt"> & { sha256: string }, uploadedBy: string, uploadedAt: number): ServerDictionary {
-      insertDictionaryFile.run(file.id, file.title, file.revision, file.description, file.bytes, file.sha256, uploadedAt, uploadedBy);
-      return ServerDictionary.parse(selectAnyDictionaryFile.get(file.id));
+      insertDictionaryFile.run(file.id, file.title, file.revision, file.description, file.bytes, file.provides && JSON.stringify(file.provides), file.sha256, uploadedAt, uploadedBy);
+      return dictionaryOf(selectAnyDictionaryFile.get(file.id));
     },
     /** Takes one off the list, keeping its row with the time it went and who took it off; whether there was one to take off. */
     removeDictionaryFile(id: string, now: number, userId: string): boolean {
@@ -1090,6 +1118,24 @@ function moveFile(from: string, to: string): void {
 }
 
 /**
+ * What each kept dictionary not counted yet provides (one kept before Panki counted them, or moved from an account),
+ * counted from its zip, one at a time, while the API serves: the list says "counting" for it until then. One whose zip
+ * can't be read is said and left uncounted.
+ */
+export async function countDictionaries(shared: Shared, dir: string): Promise<void> {
+  for (const dictionary of shared.listDictionaryFiles()) {
+    if (dictionary.provides !== null) continue;
+    try {
+      const { entries, index } = await openDictionary(new Blob([readFileSync(path.join(dir, dictionary.id))]));
+      shared.setDictionaryProvides(dictionary.id, await providesOf(entries, index));
+      console.log(`Counted what ${dictionary.title} provides.`);
+    } catch (e) {
+      console.error(`Couldn't count what ${dictionary.title} provides.`, e);
+    }
+  }
+}
+
+/**
  * Until 2026-10-17 the Forvo key and the dictionaries kept on Panki were each account's own. They're everyone's now, and
  * what accounts held moves over here, once, at startup. Every row moved is marked, so running it again moves nothing;
  * one account's trouble is said and doesn't keep the API from starting.
@@ -1165,7 +1211,8 @@ function gatherDictionaries(shared: Shared, db: Db, fromDir: string, toDir: stri
       continue;
     }
     const { sha256, uploadedAt, ...rest } = file;
-    shared.insertDictionaryFile({ ...rest, sha256 }, user.id, uploadedAt);
+    // What it provides is counted after, with every other dictionary not counted yet (`countDictionaries`).
+    shared.insertDictionaryFile({ ...rest, provides: null, sha256 }, user.id, uploadedAt);
     db.markDictionaryMoved(file.id, now());
     console.log(`Moved ${file.title} from ${user.name} to the shared store.`);
   }

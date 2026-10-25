@@ -4,7 +4,7 @@ import { createDbs } from "./dbs";
 import { env } from "./env";
 import { createForvo } from "./forvo";
 import { sharedDictionaryDir } from "./mediaFiles";
-import { gatherShared, openShared } from "./shared";
+import { countDictionaries, gatherShared, openShared } from "./shared";
 import { spaceOf, storageReport } from "./space";
 import { checkTimeZone } from "./time";
 import { createEngines } from "./transcribe/engines";
@@ -18,6 +18,8 @@ const dbs = createDbs(env.dataDir, Date.now, env.timeZone);
 const shared = openShared(env.dataDir);
 // What accounts held before the shared store existed (a Forvo key, dictionaries) moves over, once, before anyone's served.
 gatherShared(shared, env.dataDir, auth, dbs.dbFor, Date.now);
+// What a kept dictionary not counted yet provides is counted while the API serves.
+void countDictionaries(shared, sharedDictionaryDir(env.dataDir));
 const space = () => spaceOf(env.dataDir, env.lowSpaceBytes);
 const engines = createEngines();
 const jobs = createJobs(shared, engines, env.engineKeys, Date.now);

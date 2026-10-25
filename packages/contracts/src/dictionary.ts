@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { Provides, emptyProvides, metaRowOf, tallyMeta, tallyTerm, termRowOf, versionOf } from "./dictionaryRows";
 import { ZipError, readZip, type ZipEntry } from "./zip";
 
 /**
  * A dictionary file as far as both ends read it: what its `index.json` says it is, read out of its zip the same way
  * by the extension (importing it) and by the API (keeping it, to be added to the extension from). And a dictionary
- * kept on Panki's server, as the API tells of it. The format is the term-bank zip most browser dictionaries share; how the extension reads the rest of a
- * dictionary (its words, frequencies, pitch accents) is the extension's (`dictionary/format.ts`).
+ * kept on Panki's server, as the API tells of it. The format is the term-bank zip most browser dictionaries share; its
+ * rows (words, frequencies, pitch accents) are read by `dictionaryRows.ts`, also shared.
  */
 
 const text = (max: number) => z.string().max(max);
@@ -55,6 +56,47 @@ export async function openDictionary(file: Blob): Promise<{ entries: ZipEntry[];
   return { entries, index: index.data };
 }
 
+/** The banks of one kind in a dictionary's zip, in their own order: term_bank_1, term_bank_2, … */
+export function banksOf(entries: readonly ZipEntry[], kind: "term" | "term_meta" | "tag"): ZipEntry[] {
+  const pattern = new RegExp(`^(?:.*/)?${kind}_bank_(\\d+)\\.json$`);
+  return entries
+    .flatMap((entry) => {
+      const match = pattern.exec(entry.name);
+      return match ? [{ entry, n: Number(match[1]) }] : [];
+    })
+    .sort((a, b) => a.n - b.n)
+    .map((bank) => bank.entry);
+}
+
+/** A bank's rows; refused when it isn't a list of rows. */
+export async function rowsOfBank(entry: ZipEntry): Promise<unknown[]> {
+  const json = await jsonOfEntry(entry);
+  if (!Array.isArray(json)) throw new DictionaryFileError(`${entry.name} isn't a list of rows.`);
+  return json;
+}
+
+/**
+ * What a dictionary's zip provides, counted from every row of it that reads as one, as the extension counts what it
+ * imports. A bank at a time, so a big dictionary is never all in memory at once.
+ */
+export async function providesOf(entries: readonly ZipEntry[], index: DictionaryIndex): Promise<Provides> {
+  const provides = emptyProvides();
+  const version = versionOf(index);
+  for (const bank of banksOf(entries, "term")) {
+    for (const row of await rowsOfBank(bank)) {
+      const term = termRowOf(row, version, "");
+      if (term) tallyTerm(provides, term);
+    }
+  }
+  for (const bank of banksOf(entries, "term_meta")) {
+    for (const row of await rowsOfBank(bank)) {
+      const meta = metaRowOf(row, "");
+      if (meta) tallyMeta(provides, meta);
+    }
+  }
+  return provides;
+}
+
 /** Minted by whoever uploads, so sending the same file again is harmless. */
 export const DictionaryFileId = z.uuid();
 
@@ -70,6 +112,8 @@ export const ServerDictionary = z.object({
   /** What it says about itself, when it does; empty when it doesn't. */
   description: z.string(),
   bytes: z.number().int().positive(),
+  /** What it provides, counted from its rows by the API; null while it's still being counted. */
+  provides: Provides.nullable(),
   /** Stamped by the API, ms since epoch. */
   uploadedAt: z.number().int().nonnegative(),
 });

@@ -1,5 +1,6 @@
+import type { MetaRecord, TagRecord, TermRecord } from "@panki/contracts";
 import { deinflect, fits, type Deinflected } from "./deinflect";
-import { shownName, type DictionaryRecord, type MetaRecord, type TagRecord, type TermRecord } from "./format";
+import { shownName, type DictionaryRecord } from "./format";
 import type { Found, Lattice, Tag } from "./found";
 import { listDictionaries, metaFor, tagsOf, termsFor } from "./store";
 

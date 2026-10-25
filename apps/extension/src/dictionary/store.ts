@@ -1,7 +1,23 @@
-import { DictionaryFileError, ZipError, jsonOfEntry, openDictionary, type ZipEntry } from "@panki/contracts";
-import { emptyProvides, type Provides } from "../dataKinds";
+import {
+  DictionaryFileError,
+  ZipError,
+  banksOf,
+  emptyProvides,
+  metaRowOf,
+  openDictionary,
+  rowsOfBank,
+  tagRowOf,
+  tallyMeta,
+  tallyTerm,
+  termRowOf,
+  versionOf,
+  type MetaRecord,
+  type Provides,
+  type TagRecord,
+  type TermRecord,
+} from "@panki/contracts";
 import { uuid } from "../uuid";
-import { metaOf, tagOf, termOf, versionOf, type DictionaryRecord, type MetaRecord, type TagRecord, type TermRecord } from "./format";
+import type { DictionaryRecord } from "./format";
 
 /**
  * Where the dictionaries are kept: the browser's own database, in the extension's own corner of this browser. Never
@@ -101,15 +117,6 @@ export async function setDictionaryName(id: string, name: string | null): Promis
     store.put(own !== "" && own !== record.title ? { ...rest, name: own } : rest);
   }
   await finished(tx);
-}
-
-/** What one row of words provides, added to the counts so far. */
-function tallyTerm(provides: Provides, row: TermRecord): void {
-  provides.form++;
-  if (row.reading !== "") provides.reading++;
-  if (row.glossary.length > 0) provides.meaning++;
-  if (row.termTags.trim() !== "" || row.defTags.trim() !== "") provides.tags++;
-  if (row.rules.trim() !== "") provides.wordType++;
 }
 
 /** How many rows are read at once when a dictionary's words are counted. */
@@ -230,25 +237,6 @@ export async function finishRemovals(): Promise<void> {
 /** How far an import has got: files read of all there are, and the words kept so far. */
 export type Progress = { done: number; of: number; terms: number };
 
-/** The banks of one kind, in their own order: term_bank_1, term_bank_2, … */
-function banks(entries: readonly ZipEntry[], kind: "term" | "term_meta" | "tag"): ZipEntry[] {
-  const pattern = new RegExp(`^(?:.*/)?${kind}_bank_(\\d+)\\.json$`);
-  return entries
-    .flatMap((entry) => {
-      const match = pattern.exec(entry.name);
-      return match ? [{ entry, n: Number(match[1]) }] : [];
-    })
-    .sort((a, b) => a.n - b.n)
-    .map((bank) => bank.entry);
-}
-
-/** A bank's rows, or nothing when it isn't a list of rows. */
-async function rowsOf(entry: ZipEntry): Promise<unknown[]> {
-  const json = await jsonOfEntry(entry);
-  if (!Array.isArray(json)) throw new DictionaryError(`${entry.name} isn't a list of rows.`);
-  return json;
-}
-
 async function putAll(db: IDBDatabase, storeName: "terms" | "meta" | "tags", rows: readonly object[]): Promise<void> {
   if (rows.length === 0) return;
   const tx = db.transaction(storeName, "readwrite");
@@ -276,9 +264,9 @@ export async function importDictionary(file: Blob, onProgress: (progress: Progre
 
   const id = uuid();
   const version = versionOf(index);
-  const termBanks = banks(entries, "term");
-  const metaBanks = banks(entries, "term_meta");
-  const tagBanks = banks(entries, "tag");
+  const termBanks = banksOf(entries, "term");
+  const metaBanks = banksOf(entries, "term_meta");
+  const tagBanks = banksOf(entries, "tag");
   const of = termBanks.length + metaBanks.length + tagBanks.length;
   if (of === 0) throw new DictionaryError("That dictionary has nothing in it Panki reads.");
   const counts = { terms: 0, frequencies: 0, pitches: 0 };
@@ -286,25 +274,22 @@ export async function importDictionary(file: Blob, onProgress: (progress: Progre
   let done = 0;
   try {
     for (const bank of termBanks) {
-      const rows = (await rowsOf(bank)).flatMap((row) => termOf(row, version, id) ?? []);
+      const rows = (await rowsOfBank(bank)).flatMap((row) => termRowOf(row, version, id) ?? []);
       await putAll(db, "terms", rows);
       counts.terms += rows.length;
       for (const row of rows) tallyTerm(provides, row);
       onProgress({ done: ++done, of, terms: counts.terms });
     }
     for (const bank of metaBanks) {
-      const rows: MetaRecord[] = (await rowsOf(bank)).flatMap((row) => metaOf(row, id) ?? []);
+      const rows: MetaRecord[] = (await rowsOfBank(bank)).flatMap((row) => metaRowOf(row, id) ?? []);
       await putAll(db, "meta", rows);
-      for (const row of rows) {
-        if (row.mode === "freq") counts.frequencies++;
-        else counts.pitches++;
-      }
-      provides.frequency = counts.frequencies;
-      provides.pitch = counts.pitches;
+      for (const row of rows) tallyMeta(provides, row);
+      counts.frequencies = provides.frequency;
+      counts.pitches = provides.pitch;
       onProgress({ done: ++done, of, terms: counts.terms });
     }
     for (const bank of tagBanks) {
-      const rows: TagRecord[] = (await rowsOf(bank)).flatMap((row) => tagOf(row, id) ?? []);
+      const rows: TagRecord[] = (await rowsOfBank(bank)).flatMap((row) => tagRowOf(row, id) ?? []);
       await putAll(db, "tags", rows);
       onProgress({ done: ++done, of, terms: counts.terms });
     }

@@ -19,7 +19,6 @@ import {
   SRS_STARTER_IDS,
   NEW_PLACE,
   ReviewSession,
-  ServerDictionary,
   Settings,
   SrsType,
   Stats,
@@ -990,17 +989,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     }
   };
 
-  const dictionaryColumns = "id, title, revision, description, bytes, uploaded_at AS uploadedAt";
-  const selectDictionaryFiles = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE removed_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
-  const selectDictionaryFile = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE id = ? AND removed_at IS NULL`);
-  const selectAnyDictionaryFile = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE id = ?`);
-  const selectDictionaryFileHash = db.prepare("SELECT sha256 FROM dictionary_files WHERE id = ?");
-  const selectDictionaryFileByTitle = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE title = ? AND removed_at IS NULL`);
-  const insertDictionaryFile = db.prepare(
-    "INSERT OR IGNORE INTO dictionary_files (id, title, revision, description, bytes, sha256, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  // An account's own kept dictionaries are only read to be moved to the shared store (`shared.ts` → `gatherDictionaries`).
+  const selectDictionaryFilesToMove = db.prepare(
+    "SELECT id, title, revision, description, bytes, uploaded_at AS uploadedAt, sha256 FROM dictionary_files WHERE removed_at IS NULL AND moved_at IS NULL ORDER BY uploaded_at ASC, id ASC",
   );
-  const removeDictionaryFile = db.prepare("UPDATE dictionary_files SET removed_at = ? WHERE id = ? AND removed_at IS NULL");
-  const selectDictionaryFilesToMove = db.prepare(`SELECT ${dictionaryColumns}, sha256 FROM dictionary_files WHERE removed_at IS NULL AND moved_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
   const markDictionaryMoved = db.prepare("UPDATE dictionary_files SET moved_at = ? WHERE id = ? AND moved_at IS NULL");
 
   const selectForvoKey = db.prepare("SELECT key FROM forvo_key WHERE id = 1");
@@ -1753,37 +1745,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const row = selectMediaCues.get(mediaId) as { cues: string } | undefined;
       return (row && cuesFrom(row.cues)) ?? [];
     },
-    /** The dictionaries kept on Panki, oldest first. */
-    listDictionaryFiles(): ServerDictionary[] {
-      return selectDictionaryFiles.all().map((row) => ServerDictionary.parse(row));
-    },
-    /** One kept dictionary; null when there's none by that id (or it was removed). */
-    getDictionaryFile(id: string): ServerDictionary | null {
-      const row = selectDictionaryFile.get(id);
-      return row ? ServerDictionary.parse(row) : null;
-    },
-    /** The kept dictionary called this, if there is one: two of the same name would be one dictionary twice. */
-    dictionaryFileTitled(title: string): ServerDictionary | null {
-      const row = selectDictionaryFileByTitle.get(title);
-      return row ? ServerDictionary.parse(row) : null;
-    },
-    /** The hash of the bytes an id already names, removed or not; null when the id is free. */
-    dictionaryFileHash(id: string): string | null {
-      const row = selectDictionaryFileHash.get(id) as { sha256: string } | undefined;
-      return row?.sha256 ?? null;
-    },
-    /** Idempotent: the same id again returns the row that's already there, untouched. */
-    insertDictionaryFile(file: Omit<ServerDictionary, "uploadedAt"> & { sha256: string }, now: number): ServerDictionary {
-      insertDictionaryFile.run(file.id, file.title, file.revision, file.description, file.bytes, file.sha256, now);
-      return ServerDictionary.parse(selectAnyDictionaryFile.get(file.id));
-    },
-    /** Takes one off the list, keeping its row with the time it went; whether there was one to take off. */
-    removeDictionaryFile(id: string, now: number): boolean {
-      return removeDictionaryFile.run(now, id).changes > 0;
-    },
     /** The kept dictionaries not yet moved to the shared store, oldest first, with what the move needs of each. */
-    dictionaryFilesToMove(): (ServerDictionary & { sha256: string })[] {
-      return (selectDictionaryFilesToMove.all() as DictionaryMoveRow[]).map(({ sha256, ...rest }) => ({ ...ServerDictionary.parse(rest), sha256 }));
+    dictionaryFilesToMove(): DictionaryMoveRow[] {
+      return selectDictionaryFilesToMove.all() as DictionaryMoveRow[];
     },
     /** That the dictionary is the shared store's now; the row stays. Marking again keeps the first time. */
     markDictionaryMoved(id: string, now: number): void {

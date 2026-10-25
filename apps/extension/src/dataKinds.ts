@@ -1,3 +1,4 @@
+import { DATA_KIND_IDS, type DataKind, type Provides } from "@panki/contracts";
 import { dictionaryOf } from "./popupLayout";
 import type { NamedPart } from "./popupKinds";
 
@@ -7,14 +8,10 @@ import type { NamedPart } from "./popupKinds";
  * parts of the popup it's shown in. Which of a card's fields it can fill is the field mapping's: each piece the
  * dictionary gives names its kind (`roles.ts`). The owner, 2026-10-16: a dictionary should say "we provide this
  * data", in data Panki accepts, each explained where it's named, rather than one list of the fields it fills and
- * another of where it shows in the popup. A new kind is one entry here and one count in `dictionary/store.ts`.
+ * another of where it shows in the popup. The kinds' ids and their counting are the contracts' (`dictionaryRows.ts`:
+ * `DATA_KIND_IDS`, `Provides`), so Panki's server counts a dictionary it keeps the same way; a new kind is an id and
+ * a count there and one entry here.
  */
-export const DATA_KIND_IDS = ["form", "reading", "meaning", "tags", "wordType", "frequency", "pitch"] as const;
-export type DataKind = (typeof DATA_KIND_IDS)[number];
-
-/** How many of a dictionary's entries carry each kind: counted from its rows, never guessed. */
-export type Provides = Record<DataKind, number>;
-export const emptyProvides = (): Provides => ({ form: 0, reading: 0, meaning: 0, tags: 0, wordType: 0, frequency: 0, pitch: 0 });
 
 type Kind = {
   name: string;

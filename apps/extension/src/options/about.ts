@@ -1,5 +1,6 @@
 import { firstRowsOf, metaFor, tagsOf, termsFor } from "../dictionary/store";
-import type { DictionaryRecord, TagRecord, TermRecord } from "../dictionary/format";
+import type { TagRecord, TermRecord } from "@panki/contracts";
+import type { DictionaryRecord } from "../dictionary/format";
 import { glossaryText } from "../ui/Glossary";
 
 /**

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import express, { Router, type Request, type Response } from "express";
-import { DICTIONARY_MAX_BYTES, DictionaryFileError, DictionaryFileId, openDictionary, type DictionaryIndex } from "@panki/contracts";
+import { DICTIONARY_MAX_BYTES, DictionaryFileError, DictionaryFileId, openDictionary, providesOf, type DictionaryIndex, type Provides } from "@panki/contracts";
 import { hasMediaFile, removeFile, writeMediaFile } from "../mediaFiles";
 import { requireAdmin, signedIn } from "../session";
 import type { Shared } from "../shared";
@@ -24,8 +24,8 @@ function idOf(req: Request, res: Response): string | null {
  * Dictionaries kept on Panki (the owner, 2026-10-16: "put all these zips in the server … and I can choose available
  * ones from there to download"): uploaded from Settings, listed, fetched whole by the extension's options page to be
  * imported there, and removed. Everyone's since 2026-10-17 (the shared store; `dir` is its folder): anyone signed in
- * reads them, an admin alone adds or removes one. Panki never reads one beyond its index.json: what's in it is the
- * extension's to read.
+ * reads them, an admin alone adds or removes one. Panki reads one only to say what it is and what it provides (its
+ * index.json, and its rows counted by kind, 2026-10-25); looking words up in it is the extension's.
  */
 export function dictionariesRouter(shared: Shared, dir: string, now: () => number) {
   const router = Router();
@@ -66,8 +66,12 @@ export function dictionariesRouter(shared: Shared, dir: string, now: () => numbe
       // What it is, from its own index.json, read the way the extension reads it; a zip that isn't a dictionary is
       // refused in the words that say why.
       let index: DictionaryIndex;
+      let provides: Provides;
       try {
-        ({ index } = await openDictionary(new Blob([body])));
+        const opened = await openDictionary(new Blob([body]));
+        index = opened.index;
+        // What it provides, counted from its rows as the extension counts an import, so it can be told before it's added.
+        provides = await providesOf(opened.entries, index);
       } catch (e) {
         if (!(e instanceof DictionaryFileError)) throw e;
         res.status(400).json({ error: { message: e.message } });
@@ -80,7 +84,7 @@ export function dictionariesRouter(shared: Shared, dir: string, now: () => numbe
       // The bytes first, then the row: an upload that fails part-way leaves nothing that claims a zip is there.
       if (taken === null || !hasMediaFile(dir, id)) writeMediaFile(dir, id, body);
       const dictionary = shared.insertDictionaryFile(
-        { id, title: index.title, revision: index.revision, description: (index.description ?? "").trim(), bytes: body.length, sha256 },
+        { id, title: index.title, revision: index.revision, description: (index.description ?? "").trim(), bytes: body.length, provides, sha256 },
         signedIn(res).user.id,
         now(),
       );

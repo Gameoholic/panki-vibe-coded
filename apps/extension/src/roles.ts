@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { CardFieldId, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType } from "@panki/contracts";
-import { DATA_KINDS, type DataKind } from "./dataKinds";
+import { CardFieldId, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind } from "@panki/contracts";
+import { DATA_KINDS } from "./dataKinds";
 
 /**
  * What the extension can fill in by itself, one registry: each piece of a capture, what the settings page calls it,

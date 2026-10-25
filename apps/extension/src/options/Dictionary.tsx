@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { sizeWords, type ServerDictionary } from "@panki/contracts";
+import { DATA_KIND_IDS, sizeWords, type DataKind, type Provides, type ServerDictionary } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Icon } from "@web/components/Icon";
@@ -9,7 +9,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useDragOrder } from "@web/hooks/useDragOrder";
 import { count } from "@web/words";
-import { DATA_KINDS, DATA_KIND_IDS, providedBy, type DataKind } from "../dataKinds";
+import { DATA_KINDS, providedBy } from "../dataKinds";
 import { shownName, type DictionaryRecord } from "../dictionary/format";
 import {
   DictionaryError,
@@ -45,6 +45,8 @@ const MESSAGES = {
 
 /** How much of what a dictionary says about itself is shown. */
 const DESCRIPTION_MAX = 240;
+/** How long before the dictionaries on Panki are read again while it's still counting what one provides. */
+const COUNTING_AGAIN_MS = 5000;
 
 /**
  * Where a dictionary comes from, in its own words from its index.json: who made it, its address, what it says it is.
@@ -133,6 +135,26 @@ function exampleOf(kind: DataKind, about: About | undefined, ranked: boolean): R
 }
 
 /**
+ * What a dictionary provides as a line of chips, each with how many of its entries carry it (a dictionary in this
+ * browser, or one kept on Panki, counted there the same way). `example` is one word's of a kind, where it's known.
+ */
+function Provided({ provides, ownName, example }: { provides: Provides; ownName: string; example?: (kind: DataKind) => ReactNode }) {
+  return (
+    <KindChips
+      label="Provides"
+      ownName={ownName}
+      items={providedBy(provides).map((kind) => ({
+        kind,
+        count: provides[kind],
+        // Every entry has its dictionary form: what the rest of its entries' kinds are a part of.
+        ...(DATA_KINDS[kind].perEntry ? { of: provides.form } : {}),
+        example: example?.(kind),
+      }))}
+    />
+  );
+}
+
+/**
  * What a dictionary provides, in the kinds of data Panki reads from one, each with how many of its entries carry it
  * and what it is, one word's, and where it goes in the popup and on a card (the owner, 2026-10-16: a dictionary says
  * "we provide this data", rather than one list of what it fills and another of where it shows). Counted from its
@@ -144,17 +166,7 @@ function WhatsIn({ dictionary, about, uncountable }: { dictionary: DictionaryRec
   return (
     <>
       {provides ? (
-        <KindChips
-          label="Provides"
-          ownName={shownName(dictionary)}
-          items={providedBy(provides).map((kind) => ({
-            kind,
-            count: provides[kind],
-            // Every entry has its dictionary form: what the rest of its entries' kinds are a part of.
-            ...(DATA_KINDS[kind].perEntry ? { of: provides.form } : {}),
-            example: exampleOf(kind, about, dictionary.ranked),
-          }))}
-        />
+        <Provided provides={provides} ownName={shownName(dictionary)} example={(kind) => exampleOf(kind, about, dictionary.ranked)} />
       ) : (
         <p className="dict-what">{uncountable ? MESSAGES.uncounted : "Counting what it provides…"}</p>
       )}
@@ -291,15 +303,20 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
   const [onPanki, setOnPanki] = useState<ServerDictionary[] | null>(null);
   const address = door?.address ?? null;
   const token = door?.token ?? null;
+  // Read again a while later while Panki is still counting what one provides, until every one is counted.
+  const [asked, setAsked] = useState(0);
   useEffect(() => {
     if (!address || !token) {
       setOnPanki(null);
       return;
     }
     let alive = true;
+    let again: ReturnType<typeof setTimeout> | undefined;
     panki.dictionaries({ address, token }).then(
       (kept) => {
-        if (alive) setOnPanki(kept);
+        if (!alive) return;
+        setOnPanki(kept);
+        if (kept.some((d) => d.provides === null)) again = setTimeout(() => setAsked((n) => n + 1), COUNTING_AGAIN_MS);
       },
       (e: unknown) => {
         if (alive) setFailures([e instanceof PankiError ? `${MESSAGES.onPanki} ${e.message}` : MESSAGES.onPanki]);
@@ -307,8 +324,9 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
     );
     return () => {
       alive = false;
+      clearTimeout(again);
     };
-  }, [address, token]);
+  }, [address, token, asked]);
   // Those not here yet, by the name each says it has: a dictionary imported from its own file counts as here.
   const available = onPanki && list ? onPanki.filter((kept) => !list.some((d) => d.title === kept.title)) : [];
 
@@ -449,6 +467,7 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
                   <span>{sizeWords(kept.bytes)}</span>
                   {kept.description ? <span>{kept.description.length > DESCRIPTION_MAX ? `${kept.description.slice(0, DESCRIPTION_MAX).trimEnd()}…` : kept.description}</span> : null}
                 </div>
+                {kept.provides ? <Provided provides={kept.provides} ownName={kept.title} /> : <p className="dict-what">Counting what it provides…</p>}
               </div>
               <Button disabled={importing !== null} onClick={() => void addFromPanki([kept])}>
                 <Icon name="add" />
