@@ -29,6 +29,7 @@ import {
   type CalledCard,
   type Card,
   type CardAnswer,
+  type CardExampleUpdate,
   type CardType,
   type CardTypeUpdate,
   type CardUpdate,
@@ -44,6 +45,7 @@ import {
   type Login,
   type Media,
   type NewCard,
+  type NewCardExample,
   type NewCardType,
   type NewDeck,
   type NewReviewSession,
@@ -215,6 +217,15 @@ export const api = {
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}`, send("PATCH", update), (b) => CardResponse.parse(b).card),
   /** Hides the card from its deck; nothing is destroyed. */
   removeCard: (deckId: string, cardId: string): Promise<void> => request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}`, send("DELETE"), () => undefined),
+  /** Gives a card that's already there another example; answers with the card as it then stands. */
+  addExample: (deckId: string, cardId: string, example: NewCardExample): Promise<Card> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/examples`, send("POST", example), (b) => CardResponse.parse(b).card),
+  /** Changes some of an example's values; each change keeps what the value was. */
+  updateExample: (deckId: string, cardId: string, exampleId: string, update: CardExampleUpdate): Promise<Card> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/examples/${encodeURIComponent(exampleId)}`, send("PATCH", update), (b) => CardResponse.parse(b).card),
+  /** Hides an example of a card; nothing is destroyed. */
+  removeExample: (deckId: string, cardId: string, exampleId: string): Promise<void> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/examples/${encodeURIComponent(exampleId)}`, send("DELETE"), () => undefined),
   /** A deck's duplicates: each of its cards called the same as another card in any deck, with those others. */
   deckTwins: (deckId: string): Promise<Record<string, CalledCard[]>> => request(`${deckPath(deckId)}/twins`, undefined, (b) => DeckTwins.parse(b).twins),
   /** The account's cards, in any deck, already called by one of these words: what a card about to be added says is there. */

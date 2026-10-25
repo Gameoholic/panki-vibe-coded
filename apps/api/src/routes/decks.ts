@@ -1,5 +1,26 @@
 import { Router, type Request, type Response } from "express";
-import { CardAnswer, CardId, CardUpdate, DeckId, DeckUpdate, NewCard, NewDeck, NewReviewSession, ReviewSessionEnd, ReviewSessionId, VALUE_MAX, cardProblems, mediaKindsOf, type CardProblem, type CardType, type DeckTwins } from "@panki/contracts";
+import {
+  CardAnswer,
+  CardExampleId,
+  CardExampleUpdate,
+  CardId,
+  CardUpdate,
+  DeckId,
+  DeckUpdate,
+  NewCard,
+  NewCardExample,
+  NewDeck,
+  NewReviewSession,
+  ReviewSessionEnd,
+  ReviewSessionId,
+  VALUE_MAX,
+  cardProblems,
+  exampleFieldsOf,
+  mediaKindsOf,
+  type CardProblem,
+  type CardType,
+  type DeckTwins,
+} from "@panki/contracts";
 import type { DbOf } from "../app";
 import { signedIn } from "../session";
 
@@ -226,7 +247,115 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
       res.status(400).json({ error: { message: "That review isn't one of this deck's.", path: ["sessionId"] } });
       return;
     }
+    if (outcome === "no-example") {
+      res.status(400).json({ error: { message: "That example isn't one of this card's.", path: ["exampleId"] } });
+      return;
+    }
     res.json({ card: outcome });
+  });
+
+  /** The card type of the deck in the URL with only its fields that go with an example; answers the request itself when it has none. */
+  function exampleTypeOfDeck(res: Response, deckId: string): CardType | null {
+    const type = typeOfDeck(res, deckId);
+    if (!type) return null;
+    const fields = exampleFieldsOf(type);
+    if (fields.length === 0) {
+      res.status(400).json({ error: { message: "This deck's card type has no field that goes with an example." } });
+      return null;
+    }
+    return { ...type, fields };
+  }
+
+  // Another example for a card that's already there: its values in the fields that go with an example, held to their
+  // rules as a card's are. The id is minted by the sender, so a retried add returns the card as it is.
+  router.post("/:deckId/cards/:cardId/examples", (req, res) => {
+    const db = dbOf(res);
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const cardId = CardId.safeParse(req.params.cardId);
+    if (!cardId.success) {
+      res.status(400).json({ error: { message: "That card id isn't valid." } });
+      return;
+    }
+    const parsed = NewCardExample.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That example isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    const type = exampleTypeOfDeck(res, deckId);
+    if (!type) return;
+    const problem = firstProblem(res, type, parsed.data.values, parsed.data.values);
+    if (problem) {
+      res.status(400).json({ error: { message: problemMessage(type, problem), path: ["values", problem.fieldId] } });
+      return;
+    }
+    const card = db.insertExample(deckId, cardId.data, parsed.data, now());
+    if (card === "no-card") {
+      res.status(404).json({ error: { message: "That card isn't in this deck." } });
+      return;
+    }
+    if (card === "taken") {
+      res.status(409).json({ error: { message: "Another card already has an example with that id." } });
+      return;
+    }
+    res.status(201).json({ card });
+  });
+
+  /** The card and example ids in the URL; answers the request itself when either isn't one. */
+  function exampleIdsFrom(req: Request, res: Response): { cardId: string; exampleId: string } | null {
+    const cardId = CardId.safeParse(req.params.cardId);
+    const exampleId = CardExampleId.safeParse(req.params.exampleId);
+    if (!cardId.success || !exampleId.success) {
+      res.status(400).json({ error: { message: cardId.success ? "That example id isn't valid." : "That card id isn't valid." } });
+      return null;
+    }
+    return { cardId: cardId.data, exampleId: exampleId.data };
+  }
+
+  // An example's values changed, the example as it would then stand held to the rules; every value that changes keeps what it was.
+  router.patch("/:deckId/cards/:cardId/examples/:exampleId", (req, res) => {
+    const db = dbOf(res);
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const ids = exampleIdsFrom(req, res);
+    if (!ids) return;
+    const parsed = CardExampleUpdate.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That change isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    const example = db.getCard(deckId, ids.cardId, now())?.examples.find((e) => e.id === ids.exampleId);
+    if (!example) {
+      res.status(404).json({ error: { message: "That example isn't this card's." } });
+      return;
+    }
+    const type = exampleTypeOfDeck(res, deckId);
+    if (!type) return;
+    const standing = Object.fromEntries(type.fields.map((f) => [f.id, example.values[f.id] ?? ""]));
+    const problem = firstProblem(res, type, { ...standing, ...parsed.data.values }, parsed.data.values);
+    if (problem) {
+      res.status(400).json({ error: { message: problemMessage(type, problem), path: ["values", problem.fieldId] } });
+      return;
+    }
+    const card = db.updateExample(deckId, ids.cardId, ids.exampleId, parsed.data, now());
+    if (!card) {
+      res.status(404).json({ error: { message: "That example isn't this card's." } });
+      return;
+    }
+    res.json({ card });
+  });
+
+  // Delete hides the example; nothing is destroyed. Doing it twice is fine: the first removal time stays.
+  router.delete("/:deckId/cards/:cardId/examples/:exampleId", (req, res) => {
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const ids = exampleIdsFrom(req, res);
+    if (!ids) return;
+    if (!dbOf(res).removeExample(deckId, ids.cardId, ids.exampleId, now())) {
+      res.status(404).json({ error: { message: "That example isn't this card's." } });
+      return;
+    }
+    res.status(204).end();
   });
 
   // A card put aside (buried or suspended) brought back into reviews. The hold's row stays, with the time it was lifted;

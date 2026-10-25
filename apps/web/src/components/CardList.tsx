@@ -3,7 +3,7 @@ import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type Cal
 import { api } from "../api";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import { HOLD_KINDS, dueWords } from "../srsKinds";
-import { langOf } from "../words";
+import { count, langOf } from "../words";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { DELETE_CARD } from "./CardForm";
@@ -150,11 +150,11 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
             return (
               <li
                 key={card.id}
-                className={`card-row ${srsType || twin ? "has-state" : ""} ${onEdit || onRemove ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
-                {srsType || twin ? (
+                {srsType || twin || card.examples.length > 0 ? (
                   <div className="card-state">
                     {srsType ? (
                       <>
@@ -162,6 +162,8 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                         {when === null ? null : <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{when}</span>}
                       </>
                     ) : null}
+                    {/* Its own example and each one added to it. */}
+                    {card.examples.length > 0 ? <span className="card-example-count">{count(card.examples.length + 1, "example", "examples")}</span> : null}
                     {card.hold && onLift ? (
                       <Button variant="chip" className="card-lift" disabled={lifting === card.id} onClick={() => void lift(card)}>
                         {HOLD_KINDS[card.hold.kind].lift}

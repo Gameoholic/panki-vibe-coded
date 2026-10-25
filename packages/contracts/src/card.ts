@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { ClientName } from "./auth";
-import { DeckId } from "./deck";
+import { DeckId, type ExampleShown } from "./deck";
 import { MediaCues, MediaKind } from "./media";
 import { CardPlace, HoldKind } from "./srs";
 import { Stretch } from "./transcription";
-import { CardFieldId, VALUE_MAX, holdsWords, wordsFieldOf, type CardType } from "./type";
+import { CardFieldId, CardTypeId, VALUE_MAX, exampleFieldsOf, holdsWords, wordsFieldOf, type CardType } from "./type";
 
 /** Minted by the browser, so a retried POST returns the card that already exists instead of a second one. */
 export const CardId = z.uuid();
@@ -38,6 +38,34 @@ export const NewCard = z.object({
   source: CardSource.optional(),
 });
 
+/** Minted by whoever adds it, so a retried add returns the example that's already there. */
+export const CardExampleId = z.uuid();
+
+/**
+ * Another example given to a card that's already there (the owner, 2026-10-25: a word met again, in another sentence
+ * of another video): its values in the card type's fields that are One per example (`exampleFieldsOf`), and where it
+ * came from. A card's own values are its first example, kept where they always were; these are the ones after it. The
+ * card's place in the SRS is never touched by one.
+ */
+export const NewCardExample = z.object({
+  id: CardExampleId,
+  values: CardValues,
+  source: CardSource.optional(),
+});
+export type NewCardExample = z.infer<typeof NewCardExample>;
+
+export const CardExample = NewCardExample.omit({ source: true }).extend({
+  /** Where it came from, as far as a list names it: the page or the video, and what it was called; null for one typed. */
+  source: CardSource.pick({ url: true, title: true }).nullable(),
+  /** Stamped by the API, ms since epoch. */
+  createdAt: z.number().int().nonnegative(),
+});
+export type CardExample = z.infer<typeof CardExample>;
+
+/** Changing an example: any of its values, by field id; a field left out keeps what it has. */
+export const CardExampleUpdate = z.object({ values: CardValues });
+export type CardExampleUpdate = z.infer<typeof CardExampleUpdate>;
+
 /** A card put aside (`HoldKind`), while that lasts: buried or suspended, and when a bury ends (null for a suspend, which lasts until it's brought back). */
 export const CardHold = z.object({ kind: HoldKind, until: z.number().int().nonnegative().nullable() });
 export type CardHold = z.infer<typeof CardHold>;
@@ -68,6 +96,8 @@ export const Card = NewCard.omit({ source: true }).extend({
    * null when it's in play. A Panki from before holds sends none, and the extension, loaded by hand, may be talking to one.
    */
   hold: CardHold.nullable().default(null),
+  /** The examples added to it after its own, oldest first (`CardExample`); none from a Panki from before examples. */
+  examples: z.array(CardExample).default([]),
 });
 
 /**
@@ -83,6 +113,27 @@ export type Card = z.infer<typeof Card>;
 
 export const CardList = z.object({ cards: z.array(Card) });
 export const CardResponse = z.object({ card: Card });
+
+/**
+ * Which example a review shows, as the deck says (`DeckSettings.exampleShown`): null is the card's own. In turn goes by
+ * how many times it has been answered, so nothing has to be kept for it; `random` is the caller's, from 0 to 1. A type
+ * with no field that's One per example shows its own, whatever examples the card was given.
+ */
+export function exampleShownOf(type: Pick<CardType, "fields">, card: Pick<Card, "examples" | "seen">, how: ExampleShown, random: () => number): string | null {
+  if (exampleFieldsOf(type).length === 0 || card.examples.length === 0) return null;
+  const all = [null, ...card.examples.map((e) => e.id)];
+  const at = how === "newest" ? all.length - 1 : how === "random" ? Math.floor(random() * all.length) : card.seen % all.length;
+  return all[Math.min(at, all.length - 1)] ?? null;
+}
+
+/** A card's values as one of its examples shows them: the example's in the fields that are One per example, the card's own in the rest. */
+export function valuesWithExample(type: Pick<CardType, "fields">, card: Pick<Card, "values" | "examples">, exampleId: string | null): Record<string, string> {
+  const example = exampleId === null ? undefined : card.examples.find((e) => e.id === exampleId);
+  if (!example) return card.values;
+  const values = { ...card.values };
+  for (const field of exampleFieldsOf(type)) values[field.id] = example.values[field.id] ?? "";
+  return values;
+}
 
 /**
  * A living card of the account's taken from a video: where in it, its clip as its source keeps it, in ms of the
@@ -130,7 +181,15 @@ export function toldApart(a: readonly ApartValue[], b: readonly ApartValue[]): b
  * A living card of the account's called by one of the words asked about: its words, exactly as it holds them, its
  * deck, by id and by name as it stands now, and what it holds that tells it apart (`apartOf`; none from an older server).
  */
-export const CalledCard = z.object({ cardId: CardId, deckId: DeckId, deck: z.string(), words: z.string(), apart: z.array(ApartValue).default([]) });
+export const CalledCard = z.object({
+  cardId: CardId,
+  deckId: DeckId,
+  deck: z.string(),
+  /** Its deck's card type: a card being added can be added to it as another example only when it's of the same type. None from an older server. */
+  typeId: CardTypeId.optional(),
+  words: z.string(),
+  apart: z.array(ApartValue).default([]),
+});
 export type CalledCard = z.infer<typeof CalledCard>;
 /** The newest of them first. */
 export const CalledCards = z.object({ cards: z.array(CalledCard).max(CALLED_CARDS_MAX) });

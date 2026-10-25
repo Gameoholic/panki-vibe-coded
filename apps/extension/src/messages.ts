@@ -16,6 +16,7 @@ import {
   MediaId,
   MediaKind,
   NewCard,
+  NewCardExample,
   PIECE_MAX_BYTES,
   PieceId,
   Redo,
@@ -95,6 +96,8 @@ export const Ask = z.discriminatedUnion("kind", [
   /** A deck was chosen in the drawer: it's the one the drawer opens on from now. */
   z.object({ kind: z.literal("deck"), deckId: DeckId }),
   z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
+  /** What the drawer holds, given as another example to a card that's already there, in its deck. */
+  z.object({ kind: z.literal("addExample"), deckId: DeckId, cardId: CardId, example: NewCardExample }),
   /** A recorded clip, kept as a file on Panki before the card that names it is made. */
   z.object({ kind: z.literal("upload"), mediaKind: MediaKind, mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(BASE64_MAX), cues: MediaCues.optional() }),
   /** Open the options page: to sign in, or to say what fills a deck's fields. */
@@ -312,6 +315,10 @@ export async function askDeck(deckId: string): Promise<void> {
 }
 export async function askAdd(add: Omit<Extract<Ask, { kind: "add" }>, "kind">): Promise<Done> {
   const answer = Done.safeParse(await ask({ kind: "add", ...add }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+export async function askAddExample(add: Omit<Extract<Ask, { kind: "addExample" }>, "kind">): Promise<Done> {
+  const answer = Done.safeParse(await ask({ kind: "addExample", ...add }));
   return answer.success ? answer.data : failed(answer.error);
 }
 export async function askUpload(upload: Omit<Extract<Ask, { kind: "upload" }>, "kind">): Promise<Done> {

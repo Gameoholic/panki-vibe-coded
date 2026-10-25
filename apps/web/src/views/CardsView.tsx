@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { wordsFieldOf, type CalledCard, type Card, type CardType, type CardUpdate, type NewCard, type SrsType } from "@panki/contracts";
+import { wordsFieldOf, type CalledCard, type Card, type CardExampleUpdate, type CardType, type CardUpdate, type NewCard, type NewCardExample, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { CARD_SORTS, CARD_SORT_IDS, readCardSort, sortCards, waysOf, writeCardSort, type CardSort } from "../cardSort";
 import { AlreadyIn } from "../components/AlreadyIn";
@@ -32,6 +32,11 @@ type Props = {
   onRemove: (cardId: string) => Promise<void>;
   /** Brings a card put aside (buried or suspended) back into reviews. */
   onLift: (cardId: string) => Promise<void>;
+  /** What's typed in the add form, given as another example to a card that's already there (in this deck or another). */
+  onAddExample: (to: CalledCard, example: NewCardExample) => Promise<Card>;
+  /** One of a card's other examples, changed or deleted from its form. */
+  onSaveExample: (cardId: string, exampleId: string, update: CardExampleUpdate) => Promise<void>;
+  onRemoveExample: (cardId: string, exampleId: string) => Promise<void>;
 };
 
 /**
@@ -41,7 +46,7 @@ type Props = {
  * show only the duplicate cards of this same word"), those in other decks named over them. A card's edit button opens it where it stands in the list: its fields to change, Save, and Delete, which asks
  * first; the delete button under it deletes it from the row, asking there first. A card put aside is brought back from its row.
  */
-export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen, onClose, onOpenCalled, onAdd, onCancelAdd, onSave, onRemove, onLift }: Props) {
+export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen, onClose, onOpenCalled, onAdd, onCancelAdd, onSave, onRemove, onLift, onAddExample, onSaveExample, onRemoveExample }: Props) {
   const [sort, setSort] = useState<CardSort>(readCardSort);
   const sorted = useMemo(() => sortCards(cards, sort, { type, srsType }), [cards, sort, type, srsType]);
   /** The words whose duplicates alone are shown, pressed on a card's mark; null for every card. */
@@ -114,7 +119,7 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
 
   return (
     <>
-      {adding ? <CardForm type={type} onAdd={onAdd} onOpenCalled={onOpenCalled} autoFocus onCancel={onCancelAdd} /> : null}
+      {adding ? <CardForm type={type} onAdd={onAdd} onOpenCalled={onOpenCalled} onAddExample={async (to, example) => void (await onAddExample(to, example))} autoFocus onCancel={onCancelAdd} /> : null}
       <CardList
         cards={shown}
         type={type}
@@ -143,6 +148,8 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
                       onClose(open.id);
                     }}
                     onRemove={() => onRemove(open.id)}
+                    onSaveExample={(exampleId, update) => onSaveExample(open.id, exampleId, update)}
+                    onRemoveExample={(exampleId) => onRemoveExample(open.id, exampleId)}
                   />
                 ),
               }

@@ -81,6 +81,12 @@ export const CardField = z.object({
    * duplicate). Only a field of words means anything by it (`apartOf`); left out, it's off.
    */
   tellsApart: z.boolean().default(false),
+  /**
+   * Whether this field goes with an example rather than the card (the owner, 2026-10-25): a card that's already there
+   * can be given another example (a sentence, its clip, its video), and a field that's One per example holds a value of
+   * each example's own. Off, the field is the card's alone, as every field was before. Left out, it's off.
+   */
+  perExample: z.boolean().default(false),
 });
 
 /** What the browser sends to make a type. The ids are minted by the browser, so a retry is harmless. */
@@ -125,6 +131,11 @@ export const CardTypeResponse = z.object({ type: CardType });
  */
 export function wordsFieldOf(type: Pick<CardType, "fields">): CardField | null {
   return type.fields.find((f) => f.side === "front" && holdsWords(f.kind)) ?? null;
+}
+
+/** The fields an example holds: its type's fields that are One per example (`CardField.perExample`). None, and its cards take no examples. */
+export function exampleFieldsOf(type: Pick<CardType, "fields">): CardField[] {
+  return type.fields.filter((f) => f.perExample);
 }
 
 /** The most one value can hold. */

@@ -195,14 +195,14 @@ export function SeekMark({ length, covered, working, cards, clip, look, hover, o
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
       {look.cards.shown
-        ? cards.map((card) => <div key={card.cardId} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
+        ? cards.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}
       {pins.length > 0 ? (
         <div className={`seek-pins is-${look.cards.entrance}`}>
           {pins.map((pin, i) => {
             const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties;
             return (
-              <Fragment key={pin.card.cardId}>
+              <Fragment key={`${pin.card.cardId}-${pin.card.startMs}`}>
                 {/* The stem apart from its words, so each comes in its own way. */}
                 <span className={`seek-stem ${up ? "is-up" : ""}`.trim()} style={place} aria-hidden="true" />
                 <Button

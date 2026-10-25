@@ -41,6 +41,7 @@ import {
   type ForvoTake,
   type ForvoVoice,
   type NewCard,
+  type NewCardExample,
   type MediaCues,
   type RedoAsk,
   type Stretch,
@@ -114,6 +115,11 @@ export const panki = {
   subtitleStyle: ({ address, token }: Door): Promise<SubtitleStyle> => call(address, token, "/api/settings", {}, (b) => SettingsResponse.parse(b).settings.subtitleStyle),
   addCard: ({ address, token }: Door, deckId: string, card: NewCard): Promise<void> =>
     call(address, token, `/api/decks/${id(deckId)}/cards`, json("POST", card), (b) => {
+      CardResponse.parse(b);
+    }),
+  /** Another example for a card that's already there (`NewCardExample`); the id is the sender's, so a retry is harmless. */
+  addExample: ({ address, token }: Door, deckId: string, cardId: string, example: NewCardExample): Promise<void> =>
+    call(address, token, `/api/decks/${id(deckId)}/cards/${id(cardId)}/examples`, json("POST", example), (b) => {
       CardResponse.parse(b);
     }),
   /** A file kept on Panki under an id the sender minted, before the card that names it is made (a clip recorded for a card). */

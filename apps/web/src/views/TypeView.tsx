@@ -51,7 +51,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [id] = useState(() => type?.id ?? crypto.randomUUID());
   const [name, setName] = useState(type?.name ?? "");
   // A new type starts with one field on the front, because a card needs something there.
-  const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false }]);
+  const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false, perExample: false }]);
   /** What's saved, to tell changes by; a new type's is how it starts, so an untouched one has nothing to lose. */
   const [saved, setSaved] = useState(() => shapeOf(name, fields));
   const [isNew, setIsNew] = useState(type === null);
@@ -120,7 +120,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
     else add();
   }
   function add() {
-    const field: CardField = { id: crypto.randomUUID(), name: "", kind: "text", side: "back", required: false, tellsApart: false };
+    const field: CardField = { id: crypto.randomUUID(), name: "", kind: "text", side: "back", required: false, tellsApart: false, perExample: false };
     setFields((prev) => [...prev, field]);
     setFocusId(field.id);
   }
@@ -233,6 +233,10 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                   {/* The field cards are called by is compared always; another field of words can tell two of them apart. */}
                   {holdsWords(field.kind) && field.id !== called?.id ? (
                     <Toggle id={`field-apart-${field.id}`} says={{ on: "Compared for duplicates", off: "Ignored for duplicates" }} on={field.tellsApart} onChange={(tellsApart) => edit(field.id, { tellsApart })} />
+                  ) : null}
+                  {/* The field cards are called by is the card's own: it's how a card that's already there is found to give another example to. */}
+                  {field.id !== called?.id ? (
+                    <Toggle id={`field-example-${field.id}`} says={{ on: "One per example", off: "One per card" }} on={field.perExample} onChange={(perExample) => edit(field.id, { perExample })} />
                   ) : null}
                 </div>
               </div>

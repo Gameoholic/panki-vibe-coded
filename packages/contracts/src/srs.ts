@@ -457,5 +457,7 @@ export const CardAnswer = z.object({
   sessionId: z.uuid().optional(),
   thinkMs: z.number().int().nonnegative().max(86_400_000).optional(),
   decideMs: z.number().int().nonnegative().max(86_400_000).optional(),
+  /** Which of the card's examples it was shown with (`card.ts` → `exampleShownOf`); left out, its own. */
+  exampleId: z.uuid().optional(),
 });
 export type CardAnswer = z.infer<typeof CardAnswer>;

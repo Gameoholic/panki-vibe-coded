@@ -39,9 +39,15 @@ export const DeckSettings = z.object({
   againPlace: z.enum(["end", "random"]),
   /** How many different cards are in play at once: the next one only joins when one of them is done for now. Null is all of them. */
   pool: z.number().int().min(1).max(POOL_MAX).nullable(),
+  /**
+   * Which of a card's examples a review shows (a card's own, then each one added to it, `Card.examples`): each in turn,
+   * one review after another; the newest; or one at random.
+   */
+  exampleShown: z.enum(["rotate", "newest", "random"]),
 });
 export type DeckSettings = z.infer<typeof DeckSettings>;
-export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null };
+export type ExampleShown = DeckSettings["exampleShown"];
+export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate" };
 /** Where a card asked again really goes back in: with only so many cards in play, anywhere among them. */
 export const againPlaceOf = (settings: Pick<DeckSettings, "againPlace" | "pool">): DeckSettings["againPlace"] => (settings.pool === null ? settings.againPlace : "random");
 

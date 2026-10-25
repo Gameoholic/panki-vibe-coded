@@ -2,9 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import {
   copySrsType,
   emptySrsType,
+  exampleFieldsOf,
   type CalledCard,
   type Card,
   type CardAnswer,
+  type CardExampleUpdate,
   type CardLayout,
   type StageTag,
   type CardType,
@@ -12,6 +14,7 @@ import {
   type Deck,
   type DeckUpdate,
   type NewCard,
+  type NewCardExample,
   type NewCardType,
   type NewDeck,
   type Settings,
@@ -564,6 +567,25 @@ export function App() {
     loadLists();
   }
 
+  /** Another example for a card that's already there, in whichever deck it's in; this deck's list shows it at once when it's here. */
+  async function addExample(to: CalledCard, example: NewCardExample) {
+    const saved = await api.addExample(to.deckId, to.cardId, example);
+    setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
+    return saved;
+  }
+
+  async function saveExample(cardId: string, exampleId: string, update: CardExampleUpdate) {
+    if (screen.kind !== "deck") return;
+    const saved = await api.updateExample(screen.deck.id, cardId, exampleId, update);
+    setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
+  }
+
+  async function removeExample(cardId: string, exampleId: string) {
+    if (screen.kind !== "deck") return;
+    await api.removeExample(screen.deck.id, cardId, exampleId);
+    setCards((prev) => prev?.map((c) => (c.id === cardId ? { ...c, examples: c.examples.filter((e) => e.id !== exampleId) } : c)) ?? null);
+  }
+
   async function liftHold(cardId: string) {
     if (screen.kind !== "deck") return;
     const saved = await api.liftHold(screen.deck.id, cardId);
@@ -795,6 +817,9 @@ export function App() {
                     onSave={saveCard}
                     onRemove={removeCard}
                     onLift={liftHold}
+                    onAddExample={addExample}
+                    onSaveExample={saveExample}
+                    onRemoveExample={removeExample}
                   />
                 )}
               </>
@@ -805,6 +830,7 @@ export function App() {
                 deck={deck}
                 cardCount={cards?.length ?? deck.cardCount}
                 cardTypeName={type?.name ?? "Missing"}
+                takesExamples={type ? exampleFieldsOf(type).length > 0 : false}
                 srsTypeName={srsType?.name ?? "Missing"}
                 onOpenCardType={type ? () => go({ kind: "type", type, tab: "fields" }) : undefined}
                 onOpenSrsType={srsType ? () => go({ kind: "srsEdit", type: srsType, isNew: false }) : undefined}
@@ -856,7 +882,7 @@ export function App() {
           decks === null || types === null ? (
             loading
           ) : (
-            <AddView decks={decks} types={types} deckId={addDeckId ?? decks[0]?.id ?? null} onPick={setAddDeckId} onAdd={addCardTo} onOpenCalled={openCalled} onMakeDeck={startDeck} />
+            <AddView decks={decks} types={types} deckId={addDeckId ?? decks[0]?.id ?? null} onPick={setAddDeckId} onAdd={addCardTo} onOpenCalled={openCalled} onAddExample={addExample} onMakeDeck={startDeck} />
           );
         break;
       case "types":

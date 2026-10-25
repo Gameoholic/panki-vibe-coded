@@ -4,15 +4,19 @@ import {
   MEDIA_ENDINGS,
   MEDIA_MAX_BYTES,
   NewCard,
+  NewCardExample,
   VALUE_MAX,
   apartOf,
   cardProblems,
+  exampleFieldsOf,
   holdsFile,
+  holdsWords,
   mediaFor,
   mediaKindsOf,
   wordsFieldOf,
   type CalledCard,
   type Card,
+  type CardExampleUpdate,
   type CardProblem,
   type CardType,
   type MediaKind,
@@ -20,8 +24,8 @@ import {
 import { api } from "../api";
 import { FIELD_KINDS, fileKindOf } from "../fieldKinds";
 import { useCalled } from "../hooks/useCalled";
-import { langOf, listWords } from "../words";
-import { AlreadyIn } from "./AlreadyIn";
+import { dateWords, langOf, listWords } from "../words";
+import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf } from "./AlreadyIn";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Form } from "./Form";
@@ -67,11 +71,112 @@ type Shared = {
 /**
  * Adding: the form starts empty and stays open after a card is added, for the next one. While what's typed in the field
  * a card is called by is what a card already holds, it says so under it (`AlreadyIn`); `onOpenCalled` opens that card.
+ * With `onAddExample`, a card of the same type that's already there can be given what's typed as another example
+ * instead (only its fields that go with an example are sent; the card's own are left as they are on it).
  */
-type Adding = Shared & { card?: undefined; onAdd: (card: NewCard) => Promise<void>; onOpenCalled?: (card: CalledCard) => void };
-/** Changing a card that's there: the form starts from what it holds, saves only what differs, and can delete it. */
-type Editing = Shared & { card: Card; onSave: (update: CardUpdate) => Promise<void>; onRemove: () => Promise<void> };
+type Adding = Shared & {
+  card?: undefined;
+  onAdd: (card: NewCard) => Promise<void>;
+  onOpenCalled?: (card: CalledCard) => void;
+  onAddExample?: (to: CalledCard, example: NewCardExample) => Promise<void>;
+};
+/**
+ * Changing a card that's there: the form starts from what it holds, saves only what differs, and can delete it. Its
+ * other examples are listed under it, each changed or deleted on its own (`onSaveExample`, `onRemoveExample`). An
+ * example being changed is this form too, given the example as its card: `heading` and `deleting` say so.
+ */
+type Editing = Shared & {
+  card: Card;
+  onSave: (update: CardUpdate) => Promise<void>;
+  onRemove: () => Promise<void>;
+  onSaveExample?: (exampleId: string, update: CardExampleUpdate) => Promise<void>;
+  onRemoveExample?: (exampleId: string) => Promise<void>;
+  heading?: string;
+  deleting?: { question: string; go: { words: string; busy: string } };
+};
 type Props = Adding | Editing;
+
+/** Deleting one of a card's other examples, asked in place. One home for the words. */
+const DELETE_EXAMPLE = { question: "Delete this example?", go: { words: "Delete example", busy: "Deleting…" } };
+
+/**
+ * A card's other examples, under its form: each its words (its first field of words that goes with an example) and
+ * where it came from, with Edit, which opens it as a form of its own in its row's place, and Delete, asked in the row.
+ */
+function OtherExamples({ type, card, onSave, onRemove }: { type: CardType; card: Card; onSave: (exampleId: string, update: CardExampleUpdate) => Promise<void>; onRemove: (exampleId: string) => Promise<void> }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const fields = exampleFieldsOf(type);
+  const exampleType: CardType = { ...type, fields };
+  const lead = fields.find((f) => holdsWords(f.kind));
+
+  async function remove(exampleId: string) {
+    setBusy(true);
+    setFailure(null);
+    try {
+      await onRemove(exampleId);
+      setAsking(null);
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card-examples">
+      <h3 className="panel-subtitle">Other examples</h3>
+      {card.examples.map((example, i) =>
+        open === example.id ? (
+          <CardForm
+            key={example.id}
+            type={exampleType}
+            card={{ ...card, values: example.values, examples: [] }}
+            heading="Edit example"
+            deleting={DELETE_EXAMPLE}
+            onSave={async (update) => {
+              await onSave(example.id, update);
+              setOpen(null);
+            }}
+            onRemove={() => onRemove(example.id)}
+            onCancel={() => setOpen(null)}
+          />
+        ) : (
+          <div key={example.id} className={`card-example ${asking === example.id ? "is-asking" : ""}`.trim()}>
+            <div className="card-example-body">
+              {(() => {
+                const words = lead ? (example.values[lead.id] ?? "").trim() : "";
+                return <span lang={langOf(words)}>{words || `Example ${i + 2}`}</span>;
+              })()}
+              <span className="card-example-from">{[example.source?.title, `Added ${dateWords(example.createdAt)}`].filter(Boolean).join(" · ")}</span>
+            </div>
+            <div className="card-example-tools">
+              <Button disabled={busy} onClick={() => setOpen(example.id)}>
+                Edit
+              </Button>
+              <Button className="is-danger" disabled={busy} onClick={() => setAsking(example.id)}>
+                Delete…
+              </Button>
+            </div>
+            {asking === example.id ? (
+              <Ask
+                idPrefix={`example-delete-${example.id}`}
+                question={DELETE_EXAMPLE.question}
+                go={DELETE_EXAMPLE.go}
+                busy={busy}
+                failure={failure}
+                onKeep={() => setAsking(null)}
+                onGo={() => void remove(example.id)}
+              />
+            ) : null}
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
 
 /** What a card holds, as the form starts from it: the words to type over, and the ids of the files in its fields of files. */
 function startFrom(type: CardType, card: Card) {
@@ -121,6 +226,13 @@ export function CardForm(props: Props) {
   const lead = card ? null : wordsFieldOf(type);
   const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], apartOf(type, draft), api.cardsCalled);
   const onOpenCalled = "onAdd" in props ? props.onOpenCalled : undefined;
+  const onAddExample = "onAdd" in props ? props.onAddExample : undefined;
+  const exampleFields = exampleFieldsOf(type);
+  /** The card already there that what's typed can go onto as another example, when there's one. */
+  const target = onAddExample && exampleFields.length > 0 ? exampleTargetOf(called, type.id) : null;
+  const [toExample, setToExample] = useState(false);
+  /** Adding an example to that card instead of a card: only while there's still a card to add it to. */
+  const asExample = toExample && target !== null;
 
   function focusField(fieldId: string) {
     document.getElementById(inputId(fieldId))?.focus();
@@ -154,12 +266,14 @@ export function CardForm(props: Props) {
   async function submit() {
     // While the question about deleting is up, Enter in a field answers nothing.
     if (asking) return;
+    // An example sends only the fields that go with one; the card's own are left as they are on it.
+    const fields = asExample ? exampleFields : type.fields;
     // A field of files holds its file's id; a file just picked goes to Panki first, below.
     const values: Record<string, string> = {};
-    for (const field of type.fields) values[field.id] = holdsFile(field.kind) ? (picks[field.id]?.id ?? kept[field.id] ?? "") : (draft[field.id] ?? "").trim();
+    for (const field of fields) values[field.id] = holdsFile(field.kind) ? (picks[field.id]?.id ?? kept[field.id] ?? "") : (draft[field.id] ?? "").trim();
     // Words still in a field from before it held links are no fault of a save that leaves them as they are.
     const leftAlone = (problem: CardProblem) => problem.problem === "link" && card !== undefined && values[problem.fieldId] === (card.values[problem.fieldId] ?? "");
-    const problems = cardProblems(type, values).filter((problem) => !leftAlone(problem));
+    const problems = cardProblems({ fields }, values).filter((problem) => !leftAlone(problem));
     if (problems.length > 0) {
       const next: Record<string, string> = {};
       for (const problem of problems) {
@@ -169,7 +283,7 @@ export function CardForm(props: Props) {
           problem.problem === "long" ? MESSAGES.long(field.name) : problem.problem === "link" ? MESSAGES.notLink : holdsFile(field.kind) ? MESSAGES.noFile(field.name) : MESSAGES.missing(field.name);
       }
       setErrors(next);
-      const firstWrong = type.fields.find((f) => next[f.id]);
+      const firstWrong = fields.find((f) => next[f.id]);
       if (firstWrong) focusField(firstWrong.id);
       return;
     }
@@ -178,7 +292,7 @@ export function CardForm(props: Props) {
     // Nothing is wrong with the card as it stands: a file refused earlier, with a good one still picked, is no longer news.
     setErrors({});
     try {
-      for (const field of type.fields) {
+      for (const field of fields) {
         const picked = holdsFile(field.kind) ? picks[field.id] : undefined;
         if (!picked) continue;
         try {
@@ -194,9 +308,11 @@ export function CardForm(props: Props) {
         await props.onSave(CardUpdate.parse({ values: changedFrom(type, props.card, values) }));
         return;
       }
-      await props.onAdd(NewCard.parse({ id: crypto.randomUUID(), values }));
+      if (asExample && onAddExample && target) await onAddExample(target,NewCardExample.parse({ id: crypto.randomUUID(), values }));
+      else await props.onAdd(NewCard.parse({ id: crypto.randomUUID(), values }));
       setDraft({});
       setPicks({});
+      setToExample(false);
       if (first) focusField(first.id);
     } catch (e) {
       setFailure(e instanceof Error ? e.message : "Something went wrong.");
@@ -226,19 +342,19 @@ export function CardForm(props: Props) {
   return (
     <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby={`${formId}-title`}>
       <h2 id={`${formId}-title`} className="panel-title">
-        {card ? "Edit card" : "Add a card"}
+        {"heading" in props && props.heading ? props.heading : card ? "Edit card" : "Add a card"}
       </h2>
       <Form onSubmit={submit} className="add-form">
         {children}
         {type.fields.map((field) => {
           const label = field.required ? field.name : `${field.name} · optional`;
           const kinds = mediaKindsOf(field.kind);
+          let shown: ReactNode;
           if (kinds.length > 0) {
             const held = kept[field.id];
             const picked = picks[field.id];
-            return (
+            shown = (
               <MediaField
-                key={field.id}
                 id={inputId(field.id)}
                 label={label}
                 kinds={kinds}
@@ -249,31 +365,42 @@ export function CardForm(props: Props) {
                 error={errors[field.id] || undefined}
               />
             );
+          } else {
+            const value = draft[field.id] ?? "";
+            shown = (
+              <>
+                <TextField
+                  id={inputId(field.id)}
+                  data-field={field.name}
+                  label={label}
+                  multiline={FIELD_KINDS[field.kind].multiline}
+                  lang={langOf(value)}
+                  autoComplete="off"
+                  autoFocus={autoFocus && field.id === first?.id}
+                  value={value}
+                  onChange={(text) => edit(field.id, text)}
+                  error={errors[field.id] || undefined}
+                />
+                {field.id === lead?.id ? (
+                  <AlreadyIn cards={called} onOpen={onOpenCalled} example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null} />
+                ) : null}
+              </>
+            );
           }
-          const value = draft[field.id] ?? "";
-          return (
-            <Fragment key={field.id}>
-              <TextField
-                id={inputId(field.id)}
-                data-field={field.name}
-                label={label}
-                multiline={FIELD_KINDS[field.kind].multiline}
-                lang={langOf(value)}
-                autoComplete="off"
-                autoFocus={autoFocus && field.id === first?.id}
-                value={value}
-                onChange={(text) => edit(field.id, text)}
-                error={errors[field.id] || undefined}
-              />
-              {field.id === lead?.id ? <AlreadyIn cards={called} onOpen={onOpenCalled} /> : null}
-            </Fragment>
+          // Adding an example, the card's own fields stay as they are on it (but the one it's called by, which found it).
+          return asExample && !field.perExample && field.id !== lead?.id ? (
+            <div key={field.id} className="card-kept" inert>
+              {shown}
+            </div>
+          ) : (
+            <Fragment key={field.id}>{shown}</Fragment>
           );
         })}
         {asking && card ? (
           <Ask
             idPrefix={`${formId}-delete`}
-            question={DELETE_CARD.question(type, card)}
-            go={DELETE_CARD.go}
+            question={"deleting" in props && props.deleting ? props.deleting.question : DELETE_CARD.question(type, card)}
+            go={"deleting" in props && props.deleting ? props.deleting.go : DELETE_CARD.go}
             busy={busy}
             failure={failure}
             onKeep={() => setAsking(false)}
@@ -293,11 +420,14 @@ export function CardForm(props: Props) {
               </Button>
             ) : null}
             <Button type="submit" variant="primary" disabled={busy}>
-              {card ? (busy ? "Saving…" : "Save") : busy ? "Adding…" : "Add card"}
+              {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
             </Button>
           </div>
         )}
       </Form>
+      {"onSaveExample" in props && props.onSaveExample && props.onRemoveExample && props.card.examples.length > 0 ? (
+        <OtherExamples type={type} card={props.card} onSave={props.onSaveExample} onRemove={props.onRemoveExample} />
+      ) : null}
     </section>
   );
 }

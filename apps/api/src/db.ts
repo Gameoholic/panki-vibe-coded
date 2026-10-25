@@ -47,6 +47,9 @@ import {
   type ApartValue,
   type CalledCard,
   type CardAnswer,
+  type CardExample,
+  type CardExampleUpdate,
+  type NewCardExample,
   type CardHold,
   type CardTypeUpdate,
   type CardUpdate,
@@ -689,6 +692,53 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // for every save from before, and for one whose page didn't show it.
     db.exec("ALTER TABLE saved_videos ADD COLUMN length_ms INTEGER");
   },
+  (db) => {
+    // 34. A card can be given more examples (the owner, 2026-10-25: a word met again, in another sentence of another
+    // video, goes onto the card that's already there). A field says whether it goes with an example (off for every
+    // field there is). A card's own values stay where they are and are its first example; each one after is a row here
+    // with its values in the fields that go with an example, where it came from as a card's source keeps it (all null
+    // for one typed), and `removed_at` when it's deleted: hidden, never destroyed. Every change to an example's value
+    // keeps what it was. An answer keeps which example the card was shown with (null for its own, and for every answer
+    // from before). Nothing of a card's place or schedule is touched.
+    db.exec("ALTER TABLE card_fields ADD COLUMN per_example INTEGER NOT NULL DEFAULT 0");
+    db.exec(`
+      CREATE TABLE card_examples (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL REFERENCES cards(id),
+        created_at INTEGER NOT NULL,
+        removed_at INTEGER,
+        client TEXT,
+        url TEXT,
+        title TEXT,
+        text TEXT,
+        start_ms INTEGER,
+        end_ms INTEGER,
+        channel_name TEXT,
+        channel_url TEXT
+      )
+    `);
+    db.exec("CREATE INDEX card_examples_card_id ON card_examples (card_id)");
+    db.exec(`
+      CREATE TABLE card_example_values (
+        example_id TEXT NOT NULL REFERENCES card_examples(id),
+        field_id TEXT NOT NULL REFERENCES card_fields(id),
+        value TEXT NOT NULL,
+        PRIMARY KEY (example_id, field_id)
+      )
+    `);
+    db.exec(`
+      CREATE TABLE card_example_value_changes (
+        id INTEGER PRIMARY KEY,
+        example_id TEXT NOT NULL REFERENCES card_examples(id),
+        field_id TEXT NOT NULL REFERENCES card_fields(id),
+        from_value TEXT NOT NULL,
+        to_value TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX card_example_value_changes_example_id ON card_example_value_changes (example_id)");
+    db.exec("ALTER TABLE card_places ADD COLUMN example_id TEXT REFERENCES card_examples(id)");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -707,9 +757,15 @@ function migrate(db: DatabaseSync, now: number) {
   });
 }
 
-type FieldRow = { id: string; name: string; kind: string; side: string; required: number; tellsApart: number };
+type FieldRow = { id: string; name: string; kind: string; side: string; required: number; tellsApart: number; perExample: number };
 /** `mediaKind` is what the file a value names is; null for a value that names none. `cues` is what's said in it, as kept (JSON), when it was recorded with its words. */
 type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null };
+/** A living example added to a card (`card_examples`); `url` is null for one typed, with its title. */
+type ExampleRow = { id: string; cardId: string; createdAt: number; url: string | null; title: string | null };
+/** One of an example's values, its file's kind and cues as a card's own (`ValueRow`). */
+type ExampleValueRow = { exampleId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null };
+/** What a card is read with, beside its row. */
+type CardReads = { values: ValueRow[]; examples: ExampleRow[]; exampleValues: ExampleValueRow[] };
 type StageRow = { id: string; name: string; n: number; unit: string };
 type IdRow = { id: string; removedAt: number | null };
 type SettingRow = { key: string; value: string };
@@ -723,8 +779,8 @@ type CalledRow = { cardId: string; fieldId: string; value: string; deckId: strin
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
 /** What an answer carries beyond the move: the sitting, the spans the browser measured, and whether it was a miss. */
-type AnswerExtras = { sessionId: string | null; thinkMs: number | null; decideMs: number | null; miss: number | null };
-const NO_EXTRAS: AnswerExtras = { sessionId: null, thinkMs: null, decideMs: null, miss: null };
+type AnswerExtras = { sessionId: string | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
+const NO_EXTRAS: AnswerExtras = { sessionId: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
 type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: number; endedAt: number | null; endedHow: string | null };
 /** An answer as the stats read it. `living` is 0 when its card has since been deleted: the answer still happened, the card is no longer one to name. */
 type AnswerRow = { cardId: string; at: number; miss: number | null; thinkMs: number | null; decideMs: number | null; living: number };
@@ -836,11 +892,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
   const selectAnyType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ?`);
-  const selectFields = db.prepare("SELECT id, name, kind, side, required, tells_apart AS tellsApart FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
+  const selectFields = db.prepare("SELECT id, name, kind, side, required, tells_apart AS tellsApart, per_example AS perExample FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
   const selectFieldIds = db.prepare("SELECT id, removed_at AS removedAt FROM card_fields WHERE type_id = ?");
   const insertType = db.prepare("INSERT OR IGNORE INTO card_types (id, name, created_at) VALUES (?, ?, ?)");
-  const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, tells_apart, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  const updateField = db.prepare("UPDATE card_fields SET name = ?, kind = ?, side = ?, required = ?, tells_apart = ?, position = ?, removed_at = NULL WHERE id = ?");
+  const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, tells_apart, per_example, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateField = db.prepare("UPDATE card_fields SET name = ?, kind = ?, side = ?, required = ?, tells_apart = ?, per_example = ?, position = ?, removed_at = NULL WHERE id = ?");
   const hideField = db.prepare("UPDATE card_fields SET removed_at = ? WHERE id = ?");
   const updateTypeName = db.prepare("UPDATE card_types SET name = ? WHERE id = ?");
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
@@ -943,13 +999,36 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const upsertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (card_id, field_id) DO UPDATE SET value = excluded.value");
   const insertValueChange = db.prepare("INSERT INTO card_value_changes (card_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
   const insertSource = db.prepare("INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, channel_name, channel_url, client, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  // A card's living examples after its own, oldest first, and their values, each file named with what it is, as a card's are.
+  const exampleColumns = "e.id, e.card_id AS cardId, e.created_at AS createdAt, e.url, e.title";
+  const selectDeckExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL) ORDER BY e.created_at ASC, e.id ASC`);
+  const selectCardExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id = ? ORDER BY e.created_at ASC, e.id ASC`);
+  const exampleValueColumns = "x.example_id AS exampleId, x.field_id AS fieldId, x.value, m.kind AS mediaKind, c.cues AS cues";
+  const exampleValuesWithMedia = "FROM card_example_values x JOIN card_examples e ON e.id = x.example_id LEFT JOIN media m ON m.id = x.value AND m.removed_at IS NULL LEFT JOIN media_cues c ON c.media_id = m.id";
+  const selectDeckExampleValues = db.prepare(`SELECT ${exampleValueColumns} ${exampleValuesWithMedia} WHERE e.removed_at IS NULL AND e.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL)`);
+  const selectCardExampleValues = db.prepare(`SELECT ${exampleValueColumns} ${exampleValuesWithMedia} WHERE e.removed_at IS NULL AND e.card_id = ?`);
+  const selectExampleCard = db.prepare("SELECT card_id AS cardId, removed_at AS removedAt FROM card_examples WHERE id = ?");
+  const selectExampleValues = db.prepare("SELECT field_id AS fieldId, value FROM card_example_values WHERE example_id = ?");
+  const insertExample = db.prepare(
+    "INSERT OR IGNORE INTO card_examples (id, card_id, created_at, client, url, title, text, start_ms, end_ms, channel_name, channel_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value) VALUES (?, ?, ?)");
+  const upsertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (example_id, field_id) DO UPDATE SET value = excluded.value");
+  const insertExampleValueChange = db.prepare("INSERT INTO card_example_value_changes (example_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
+  const removeExample = db.prepare("UPDATE card_examples SET removed_at = COALESCE(removed_at, ?) WHERE id = ? AND card_id = ?");
   // Where in a video the living cards were taken from. A source keeps the video's address, not its id: the id written
   // in it narrows the rows here, and the contracts' reader of an address says for certain which video it names.
+  // A card's examples taken from a video mark it there too, each where its own clip was.
   const selectVideoSources = db.prepare(`
-    SELECT s.card_id AS cardId, d.type_id AS typeId, s.url, s.start_ms AS startMs, s.end_ms AS endMs
-    FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
-    WHERE c.removed_at IS NULL AND d.removed_at IS NULL AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
-    ORDER BY s.start_ms ASC`);
+    SELECT cardId, typeId, url, startMs, endMs FROM (
+      SELECT s.card_id AS cardId, d.type_id AS typeId, s.url, s.start_ms AS startMs, s.end_ms AS endMs
+      FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
+      WHERE c.removed_at IS NULL AND d.removed_at IS NULL AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
+      UNION ALL
+      SELECT e.card_id AS cardId, d.type_id AS typeId, e.url, e.start_ms AS startMs, e.end_ms AS endMs
+      FROM card_examples e JOIN cards c ON c.id = e.card_id JOIN decks d ON d.id = c.deck_id
+      WHERE e.removed_at IS NULL AND c.removed_at IS NULL AND d.removed_at IS NULL AND e.start_ms IS NOT NULL AND instr(e.url, ?) > 0
+    ) ORDER BY startMs ASC`);
   // The living cards holding these words in some field, newest first; which of them are called by it (the field is
   // their type's words field) is the type's to say, read after.
   const selectCalled = db.prepare(`
@@ -960,8 +1039,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   /** The card types the living decks use: whose words fields a deck's duplicates are looked for in. */
   const selectLivingTypeIds = db.prepare("SELECT DISTINCT type_id AS typeId FROM decks WHERE removed_at IS NULL");
   const insertPlace = db.prepare(`
-    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss, example_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   // Only what still stands is lifted: a bury whose wait is over had already ended by itself.
   const liftHolds = db.prepare("UPDATE card_holds SET lifted_at = ? WHERE card_id = ? AND lifted_at IS NULL AND (kind = 'suspend' OR until > ?)");
@@ -1075,7 +1154,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
   function typeFrom(row: unknown): CardType {
     const { layout: kept, stageTag, ...base } = row as { id: string; layout: string; stageTag: string | null };
-    const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1 })));
+    const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept));
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
@@ -1180,7 +1259,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       cardId, now, reason, answerId,
       from.stageId, from.past, JSON.stringify(from.node), from.burned ? 1 : 0,
       to.stageId, to.past, JSON.stringify(to.node), to.burned ? 1 : 0,
-      extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss,
+      extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId,
     );
   }
   /** Whether an answer counts as a miss, frozen as the type's answers stand now: the first of the main ones, when there is more than one; nothing for one set apart. */
@@ -1208,22 +1287,59 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const due = at !== null && !isBurned(type, place) && at <= today.now && hold === null;
     return { dueAt: at, due, hold };
   }
-  function cardsFrom(rows: CardRow[], valueRows: ValueRow[], type: SrsType, today: Today): Card[] {
-    const byCard = new Map<string, { values: Record<string, string>; files: Record<string, string>; cues: Record<string, MediaCues> }>();
-    for (const v of valueRows) {
-      const held = byCard.get(v.cardId) ?? { values: {}, files: {}, cues: {} };
-      held.values[v.fieldId] = v.value;
+  /**
+   * Cards from their rows and what was read with them: their values, their examples and the examples' values. What
+   * each file is and what's said in each clip is gathered over the card's own values and its examples' alike, so a
+   * review of any example draws its files.
+   */
+  function cardsFrom(rows: CardRow[], read: CardReads, type: SrsType, today: Today): Card[] {
+    type Held = { values: Record<string, string>; files: Record<string, string>; cues: Record<string, MediaCues>; examples: CardExample[] };
+    const byCard = new Map<string, Held>();
+    const heldOf = (cardId: string): Held => {
+      const held = byCard.get(cardId) ?? { values: {}, files: {}, cues: {}, examples: [] };
+      byCard.set(cardId, held);
+      return held;
+    };
+    const noteFile = (held: Held, v: { value: string; mediaKind: string | null; cues: string | null }) => {
       if (v.mediaKind !== null) held.files[v.value] = v.mediaKind;
       // What's said in a clip, as kept; what no longer reads as cues is left out rather than failing the card.
       const cues = v.cues === null ? null : cuesFrom(v.cues);
       if (cues) held.cues[v.value] = cues;
-      byCard.set(v.cardId, held);
+    };
+    for (const v of read.values) {
+      const held = heldOf(v.cardId);
+      held.values[v.fieldId] = v.value;
+      noteFile(held, v);
+    }
+    const examples = new Map<string, { cardId: string; values: Record<string, string> }>();
+    for (const e of read.examples) {
+      const values: Record<string, string> = {};
+      examples.set(e.id, { cardId: e.cardId, values });
+      heldOf(e.cardId).examples.push({ id: e.id, values, source: e.url === null ? null : { url: e.url, title: e.title ?? "" }, createdAt: e.createdAt });
+    }
+    for (const v of read.exampleValues) {
+      const example = examples.get(v.exampleId);
+      if (!example) continue;
+      example.values[v.fieldId] = v.value;
+      noteFile(heldOf(example.cardId), v);
     }
     return rows.map((row) => {
       const place = placeFrom(row);
       const held = byCard.get(row.id);
-      return Card.parse({ ...row, values: held?.values ?? {}, files: held?.files ?? {}, cues: held?.cues ?? {}, place, ...scheduleOf(type, row, place, today) });
+      return Card.parse({ ...row, values: held?.values ?? {}, files: held?.files ?? {}, cues: held?.cues ?? {}, examples: held?.examples ?? [], place, ...scheduleOf(type, row, place, today) });
     });
+  }
+  /** Everything a card is read with, for one card. */
+  function readsOfCard(cardId: string): CardReads {
+    return {
+      values: selectCardValues.all(cardId) as ValueRow[],
+      examples: selectCardExamples.all(cardId) as ExampleRow[],
+      exampleValues: selectCardExampleValues.all(cardId) as ExampleValueRow[],
+    };
+  }
+  /** One card, as `cardsFrom` makes it. */
+  function cardFrom(row: CardRow, type: SrsType, today: Today): Card | null {
+    return cardsFrom([row], readsOfCard(row.id), type, today)[0] ?? null;
   }
 
   /** `typeOf` is how the deck's SRS type is read: a list of decks reads each type once and hands that in. */
@@ -1326,7 +1442,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (inserted) {
           const layout = type.layout ? layoutOf(type.fields, type.layout) : null;
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
-          type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, i));
+          type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
           if (type.tag) updateTypeTag.run(JSON.stringify(type.tag), type.id);
         }
@@ -1348,8 +1464,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const layout = update.layout ? layoutOf(update.fields, update.layout) : null;
         const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
         syncList(selectFieldIds.all(id) as IdRow[], update.fields, {
-          update: (f, i) => updateField.run(f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, i, f.id),
-          insert: (f, i) => insertField.run(f.id, id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, i),
+          update: (f, i) => updateField.run(f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i, f.id),
+          insert: (f, i) => insertField.run(f.id, id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i),
           hide: (fieldId) => hideField.run(now, fieldId),
         });
         if (layout) {
@@ -1548,13 +1664,18 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return removeDeck.run(now, id).changes > 0;
     },
     listCards(deckId: string, now: number): Card[] {
-      return cardsFrom(selectCards.all(deckId) as CardRow[], selectDeckValues.all(deckId) as ValueRow[], srsTypeOfDeck(deckId), todayAt(now));
+      const read: CardReads = {
+        values: selectDeckValues.all(deckId) as ValueRow[],
+        examples: selectDeckExamples.all(deckId) as ExampleRow[],
+        exampleValues: selectDeckExampleValues.all(deckId) as ExampleValueRow[],
+      };
+      return cardsFrom(selectCards.all(deckId) as CardRow[], read, srsTypeOfDeck(deckId), todayAt(now));
     },
     /** The card, when it is in that deck. */
     getCard(deckId: string, cardId: string, now: number): Card | null {
       const row = selectDeckCard.get(deckId, cardId) as CardRow | undefined;
       if (!row) return null;
-      return cardsFrom([row], selectCardValues.all(cardId) as ValueRow[], srsTypeOfDeck(deckId), todayAt(now))[0] ?? null;
+      return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
     },
     /** Idempotent: the same id again returns the card that already exists, in whatever deck it was first put, values and source untouched. */
     insertCard(deckId: string, card: NewCard, now: number): Card {
@@ -1566,7 +1687,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           if (from) insertSource.run(card.id, from.url, from.title, from.text, from.startMs ?? null, from.endMs ?? null, from.channel?.name ?? null, from.channel?.url ?? null, from.client, now);
         }
         const row = selectCard.get(card.id) as CardRow | undefined;
-        const [saved] = row ? cardsFrom([row], selectCardValues.all(card.id) as ValueRow[], srsTypeOfDeck(row.deckId), todayAt(now)) : [];
+        const saved = row ? cardFrom(row, srsTypeOfDeck(row.deckId), todayAt(now)) : null;
         if (!saved) throw new Error("The card vanished between insert and read-back.");
         return saved;
       });
@@ -1587,12 +1708,60 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           insertValueChange.run(cardId, fieldId, from, value, now);
         }
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
-        return cardsFrom([row], selectCardValues.all(cardId) as ValueRow[], srsTypeOfDeck(deckId), todayAt(now))[0] ?? null;
+        return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
       });
+    },
+    /**
+     * Gives a card another example. Idempotent: the same id again returns the card as it is, the example untouched.
+     * "no-card" when the card isn't in that deck; "taken" when the id is already another card's example.
+     */
+    insertExample(deckId: string, cardId: string, example: NewCardExample, now: number): Card | "no-card" | "taken" {
+      return transaction(() => {
+        if (!selectDeckCard.get(deckId, cardId)) return "no-card";
+        const had = selectExampleCard.get(example.id) as { cardId: string } | undefined;
+        if (had && had.cardId !== cardId) return "taken";
+        if (!had) {
+          const from = example.source;
+          insertExample.run(
+            example.id, cardId, now, from?.client ?? null, from?.url ?? null, from?.title ?? null, from?.text ?? null,
+            from?.startMs ?? null, from?.endMs ?? null, from?.channel?.name ?? null, from?.channel?.url ?? null,
+          );
+          for (const [fieldId, value] of Object.entries(example.values)) insertExampleValue.run(example.id, fieldId, value);
+        }
+        const row = selectDeckCard.get(deckId, cardId) as CardRow;
+        const card = cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
+        if (!card) throw new Error("The card vanished after its example was added.");
+        return card;
+      });
+    },
+    /**
+     * Changes some of an example's values, each one that differs kept with what it changed from and to, as a card's are.
+     * Null when the card isn't in that deck or the example isn't its living one.
+     */
+    updateExample(deckId: string, cardId: string, exampleId: string, update: CardExampleUpdate, now: number): Card | null {
+      return transaction(() => {
+        if (!selectDeckCard.get(deckId, cardId)) return null;
+        const owner = selectExampleCard.get(exampleId) as { cardId: string; removedAt: number | null } | undefined;
+        if (!owner || owner.cardId !== cardId || owner.removedAt !== null) return null;
+        const had = new Map((selectExampleValues.all(exampleId) as { fieldId: string; value: string }[]).map((v) => [v.fieldId, v.value]));
+        for (const [fieldId, value] of Object.entries(update.values)) {
+          const from = had.get(fieldId) ?? "";
+          if (from === value) continue;
+          upsertExampleValue.run(exampleId, fieldId, value);
+          insertExampleValueChange.run(exampleId, fieldId, from, value, now);
+        }
+        const row = selectDeckCard.get(deckId, cardId) as CardRow;
+        return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
+      });
+    },
+    /** Hides an example of the card. Idempotent: the first removal time stays. False when that card never had it, or isn't in that deck. */
+    removeExample(deckId: string, cardId: string, exampleId: string, now: number): boolean {
+      if (!selectDeckCard.get(deckId, cardId)) return false;
+      return removeExample.run(now, exampleId, cardId).changes > 0;
     },
     /** The living cards taken from a video: each one's clip as its source keeps it, and the card in words, in the video's order. */
     videoCards(videoId: string): VideoCard[] {
-      const rows = selectVideoSources.all(videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null }[];
+      const rows = selectVideoSources.all(videoId, videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null }[];
       const fieldOf = new Map<string | null, string | null>();
       return rows
         .filter((row) => youtubeLinkOf(row.url)?.videoId === videoId)
@@ -1614,7 +1783,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           if (found.has(row.cardId)) continue;
           const type = typeOf(row.typeId);
           if (!type || wordsFieldOf(type)?.id !== row.fieldId) continue;
-          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, words: row.value, apart: apartOfCard(row.cardId, type), createdAt: row.createdAt });
+          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, ...(row.typeId ? { typeId: row.typeId } : {}), words: row.value, apart: apartOfCard(row.cardId, type), createdAt: row.createdAt });
         }
       }
       return [...found.values()]
@@ -1658,7 +1827,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (row.deckId !== deckId) continue;
         const others = (byWords.get(row.value) ?? []).filter((other) => other.cardId !== row.cardId && !toldApart(apartOfRow(row), apartOfRow(other)));
         if (others.length === 0) continue;
-        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, words: other.value, apart: apartOfRow(other) }));
+        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, ...(other.typeId ? { typeId: other.typeId } : {}), words: other.value, apart: apartOfRow(other) }));
       }
       return twins;
     },
@@ -1672,15 +1841,22 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
      * frozen on the row; a sitting that isn't this deck's is refused. An answer that puts the card aside (Bury, Suspend)
      * is kept as a hold instead, with its sitting and spans: the card's place and schedule stay as they were.
      */
-    answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" {
+    answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" | "no-example" {
       return transaction(() => {
         const row = selectDeckCard.get(deckId, cardId) as CardRow | undefined;
         if (!row) return "no-card";
         const type = srsTypeOfDeck(deckId);
         if (!type.answers.some((a) => a.id === answer.answerId)) return "no-answer";
         if (answer.sessionId !== undefined && !selectReviewSession.get(answer.sessionId, deckId)) return "no-session";
+        if (answer.exampleId !== undefined && (selectExampleCard.get(answer.exampleId) as { cardId: string } | undefined)?.cardId !== cardId) return "no-example";
         const place = placeFrom(row);
-        const extras: AnswerExtras = { sessionId: answer.sessionId ?? null, thinkMs: answer.thinkMs ?? null, decideMs: answer.decideMs ?? null, miss: missOf(type, answer.answerId) };
+        const extras: AnswerExtras = {
+          sessionId: answer.sessionId ?? null,
+          thinkMs: answer.thinkMs ?? null,
+          decideMs: answer.decideMs ?? null,
+          miss: missOf(type, answer.answerId),
+          exampleId: answer.exampleId ?? null,
+        };
         const outcome = resolve(type, place, answer.answerId);
         if (outcome.hold) {
           const until = outcome.wait === null ? null : now + outcome.wait * 60_000;
@@ -1688,7 +1864,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         }
         else recordPlace(cardId, now, "answer", answer.answerId, place, outcome.place, extras);
         const after = selectDeckCard.get(deckId, cardId) as CardRow;
-        const [card] = cardsFrom([after], selectCardValues.all(cardId) as ValueRow[], type, todayAt(now));
+        const card = cardFrom(after, type, todayAt(now));
         if (!card) throw new Error("The card vanished after its answer.");
         return card;
       });
@@ -1704,7 +1880,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const today = todayAt(now);
         liftHolds.run(now, cardId, now);
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
-        return cardsFrom([row], selectCardValues.all(cardId) as ValueRow[], srsTypeOfDeck(deckId), today)[0] ?? null;
+        return cardFrom(row, srsTypeOfDeck(deckId), today);
       });
     },
     /** Idempotent: the same id again returns the sitting that already exists, as it is. Null when that id is a sitting of another deck. */

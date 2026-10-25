@@ -664,6 +664,7 @@ textarea.field-input {
 .already-line {
   margin: 0;
   display: flex;
+  flex-wrap: wrap; /* its buttons go under the words when there isn't room beside them */
   align-items: center;
   gap: 8px;
   font-size: 14px;
@@ -775,6 +776,60 @@ textarea.field-input {
   border-radius: 8px;
   font-size: 13px;
   background: var(--surface);
+}
+/* Add as an additional example, pressed: the form adds an example to that card instead of a card. */
+.btn.already-example[aria-pressed="true"] {
+  border-color: var(--flag);
+  background: color-mix(in srgb, var(--flag) 30%, var(--surface));
+}
+/* A card's other examples under its form (components/CardForm.tsx → OtherExamples): a row each, its words and where it
+   came from, Edit and Delete at its end; one opened is a form of its own in the row's place. */
+.card-examples {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.card-example {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.card-example.is-asking {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+.card-example-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.card-example-from {
+  font-size: 13px;
+  color: var(--muted);
+}
+.card-example-tools {
+  display: flex;
+  gap: 6px;
+}
+.card-example .ask {
+  grid-column: 1 / -1;
+}
+@media (max-width: 640px) {
+  .card-example {
+    grid-template-columns: 1fr;
+  }
+}
+/* While the form adds an example, the fields that are the card's own stay as they are on it: faded, out of reach. */
+.card-kept {
+  display: contents;
+}
+.card-kept > * {
+  opacity: 0.4;
 }
 /* One of several things that went wrong, a line each (every file of an upload that didn't go up). */
 .failure-line {
@@ -2752,6 +2807,16 @@ mark.sub-mark {
   font-weight: 600;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* How many examples a card has, its own and those added to it, when it has more than one. */
+.card-example-count {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
   white-space: nowrap;
 }
 .due.is-now {

@@ -253,6 +253,10 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       await panki.addCard(door, ask.deckId, ask.card);
       return { ok: true };
     }
+    if (ask.kind === "addExample") {
+      await panki.addExample(door, ask.deckId, ask.cardId, ask.example);
+      return { ok: true };
+    }
     // Word audio from Forvo, through Panki, whose server holds the key: a word's recordings, and one of them kept as
     // a file, with its bytes for the drawer to play.
     if (ask.kind === "voices") return { ok: true, voices: await panki.forvoVoices(door, ask.word) };

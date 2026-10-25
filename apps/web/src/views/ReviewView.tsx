@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { againPlaceOf, branchAt, flowOf, isBurned, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { againPlaceOf, branchAt, exampleShownOf, flowOf, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -298,6 +298,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
   const cardId = line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
+  // Which of its examples the card on screen shows, as the deck says: picked once each time it comes up (its count of
+  // answers changes with each), so a random one holds still while it's on screen.
+  const exampleId = useMemo(
+    () => (card ? exampleShownOf(type, card, deck.settings.exampleShown, Math.random) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the card's id and count of answers are what make it another showing
+    [card?.id, card?.seen, card?.examples.length, type, deck.settings.exampleShown],
+  );
   // A new card on screen, or the answers going away, takes the glance down with them, and any key being held.
   useEffect(() => {
     leave();
@@ -393,6 +400,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         sessionId: s && s.ok !== false ? s.id : undefined,
         thinkMs: span(t.at, revealedAt),
         decideMs: span(revealedAt, now),
+        exampleId: exampleId ?? undefined,
       });
       setById((m) => new Map(m).set(saved.id, saved));
       setCounts((c) => ({ ...c, [answerId]: (c[answerId] ?? 0) + 1 }));
@@ -570,9 +578,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       </div>
       {/* Each card its own: what was opened or played on the last one doesn't carry over. */}
       <ReviewCard
-        key={card.id}
+        key={`${card.id}-${exampleId ?? ""}`}
         type={type}
-        values={card.values}
+        values={valuesWithExample(type, card, exampleId)}
         files={card.files}
         srsType={srsType}
         place={card.place}

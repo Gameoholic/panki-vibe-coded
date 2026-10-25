@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { NEW_PLACE, NewCard, VALUE_MAX, apartOf, cardProblems, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
-import { AlreadyIn } from "@web/components/AlreadyIn";
+import { NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
@@ -17,7 +17,7 @@ import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found, type Tag } from "../dictionary/found";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type State } from "../messages";
+import { askAdd, askAddExample, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type State } from "../messages";
 import { bandOf } from "../popupKinds";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { uuid } from "../uuid";
@@ -424,6 +424,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const leadRole = leadField ? roleOf(map, leadField.id) : null;
   const byForm = leadRole === "word" || isDictRole(leadRole) ? [chosen?.term ?? ""] : [];
   const called = useCalled(leadField ? [values[leadField.id] ?? "", ...byForm] : [], type ? apartOf(type, values) : [], askCalled);
+  // What's here can go onto that card as another example instead (the owner, 2026-10-25): one of this deck's card type,
+  // when the type has a field that goes with an example. Only those fields are sent, and only their recordings made.
+  const target = type && exampleFieldsOf(type).length > 0 ? exampleTargetOf(called, type.id) : null;
+  const [toExample, setToExample] = useState(false);
+  const asExample = toExample && target !== null;
 
   // The word said on Forvo, when the deck takes it: asked for once the dictionaries have answered, as the dictionary
   // has it (探す, not 探していた, which no one records), or as it's typed when they don't know it. Panki's server asks
@@ -540,9 +545,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   async function add() {
     if (!deck || !type || phase.at !== "idle") return;
+    // An example is only the fields that go with one, and the recordings for them; the card's own are as they are on it.
+    const fields = asExample ? exampleFieldsOf(type) : type.fields;
+    const sent: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, values[f.id] ?? ""])) : values;
+    const making = asExample ? cuts.filter((cut) => cut.field.perExample) : cuts;
     /** The fields a recording is about to fill: not missing, whatever the values say before it's made. */
-    const toRecord = new Set(cuts.map((cut) => cut.field.id));
-    const problems = cardProblems(type, values).filter((problem) => !(problem.problem === "missing" && toRecord.has(problem.fieldId)));
+    const toRecord = new Set(making.map((cut) => cut.field.id));
+    const problems = cardProblems({ fields }, sent).filter((problem) => !(problem.problem === "missing" && toRecord.has(problem.fieldId)));
     if (problems.length > 0) {
       const next: Record<string, string> = {};
       let other: string | null = null;
@@ -565,10 +574,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     // each kept on Panki as a file; then the card, naming them. A field that must be filled is filled as the card is
     // made, and one whose recording didn't make it stops the card when it must be filled, or is left empty otherwise.
     // A recording stopped because the player was touched stops the card whatever its field: it's to be tried again.
-    const filled: Record<string, string> = { ...values };
+    const filled: Record<string, string> = { ...sent };
     const made: string[] = [];
     let note: string | null = null;
-    for (const cut of cuts) {
+    for (const cut of making) {
       const what = cut.of;
       const words = madeWords(cut.of, cut.soundOnly);
       let why: string | null = null;
@@ -596,7 +605,26 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       }
       note ??= MESSAGES.notMade(words, why);
     }
-    const card = NewCard.safeParse({ id: cardId, values: filled, ...(capture.source ? { source: { ...capture.source, text: sentence, client: CLIENT } } : {}) });
+    const source = capture.source ? { source: { ...capture.source, text: sentence, client: CLIENT } } : {};
+    if (asExample && target) {
+      const example = NewCardExample.safeParse({ id: cardId, values: filled, ...source });
+      if (!example.success) {
+        setFailure("That can't be made into an example.");
+        setPhase({ at: "idle" });
+        return;
+      }
+      setPhase({ at: "adding" });
+      const added = await askAddExample({ deckId: target.deckId, cardId: target.cardId, example: example.data });
+      if (!added.ok) {
+        setFailure(added.message);
+        setPhase({ at: "idle" });
+        return;
+      }
+      onAdded?.();
+      setPhase({ at: "done", deck: `“${target.words}” in ${target.deck}`, made, note });
+      return;
+    }
+    const card = NewCard.safeParse({ id: cardId, values: filled, ...source });
     if (!card.success) {
       setFailure("That can't be made into a card.");
       setPhase({ at: "idle" });
@@ -904,7 +932,14 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const stray = lit === null && said !== "" && sentence.trim() !== "" && sentenceField !== null;
     /** A card already called what this one would be, said under the field it's called by, with a way to it in Panki. */
     const already = (field: CardField) =>
-      field.id === leadField?.id ? <AlreadyIn cards={called} openWords="Open in Panki" onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })} /> : null;
+      field.id === leadField?.id ? (
+        <AlreadyIn
+          cards={called}
+          openWords="Open in Panki"
+          onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })}
+          example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null}
+        />
+      ) : null;
     /** One of the card's fields as the drawer shows it: the sentence, the word said on Forvo, or a box to type in; nothing for what's recorded or filled by itself. */
     const fieldBlock = (field: CardField): ReactNode => {
       const role = roleOf(map, field.id);
@@ -978,9 +1013,16 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         {/* With no field for the word, its sound still belongs up here with the rest that's cut from the video. */}
         {wordField ? null : wordBlock()}
         {/* The card's own fields, in the card's own order: what the extension fills, and what's typed. */}
-        {type.fields.map((field) => (
-          <Fragment key={field.id}>{fieldBlock(field)}</Fragment>
-        ))}
+        {/* Adding an example, the card's own fields stay as they are on it (but the one it's called by, which found it). */}
+        {type.fields.map((field) =>
+          asExample && !field.perExample && field.id !== leadField?.id ? (
+            <div key={field.id} className="card-kept" inert>
+              {fieldBlock(field)}
+            </div>
+          ) : (
+            <Fragment key={field.id}>{fieldBlock(field)}</Fragment>
+          ),
+        )}
         {/* A deck that keeps no sentence still shows the line, to look at and to pick a word from. */}
         {sentenceField ? null : sentenceBlock()}
         {/* The card last, as everything above has made it: looked over, then added. */}
@@ -1022,7 +1064,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             Discard
           </Button>
           <Button type="submit" variant="primary" size="lg" className="capture-add" disabled={busy}>
-            {phase.at === "done" ? "Added" : busy ? "Adding…" : `Add to ${deck.name}`}
+            {phase.at === "done" ? "Added" : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deck.name}`}
           </Button>
         </div>
       </Form>

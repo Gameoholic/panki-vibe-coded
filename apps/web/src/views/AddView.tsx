@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CalledCard, Card, CardType, Deck, NewCard } from "@panki/contracts";
+import type { CalledCard, Card, CardType, Deck, NewCard, NewCardExample } from "@panki/contracts";
 import { Button } from "../components/Button";
 import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
@@ -14,11 +14,13 @@ type Props = {
   onAdd: (deckId: string, card: NewCard) => Promise<Card>;
   /** A card called the same as the one being added, opened in its deck. */
   onOpenCalled: (card: CalledCard) => void;
+  /** What's typed given as another example to a card that's already there; answers with that card. */
+  onAddExample: (to: CalledCard, example: NewCardExample) => Promise<Card>;
   onMakeDeck: () => void;
 };
 
 /** Add a card from the home: pick the deck in the form, add, keep adding. What you added this visit stays under the form. */
-export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onMakeDeck }: Props) {
+export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onAddExample, onMakeDeck }: Props) {
   const [added, setAdded] = useState<Card[]>([]);
 
   if (deckId === null) return <NoDecksYet onMakeDeck={onMakeDeck} />;
@@ -29,6 +31,11 @@ export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onM
   async function add(card: NewCard) {
     const saved = await onAdd(target, card);
     setAdded((prev) => [saved, ...prev]);
+  }
+  /** A card that's already there, given another example, is shown with what was just added too. */
+  async function addExample(to: CalledCard, example: NewCardExample) {
+    const saved = await onAddExample(to, example);
+    setAdded((prev) => [saved, ...prev.filter((c) => c.id !== saved.id)]);
   }
 
   const chooser = (
@@ -57,7 +64,7 @@ export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onM
 
   return (
     <>
-      <CardForm key={type.id} type={type} onAdd={add} onOpenCalled={onOpenCalled} autoFocus>
+      <CardForm key={type.id} type={type} onAdd={add} onOpenCalled={onOpenCalled} onAddExample={addExample} autoFocus>
         {chooser}
       </CardForm>
       {added.length > 0 ? <CardList cards={added.filter((c) => c.deckId === target)} type={type} title="Just added" /> : null}

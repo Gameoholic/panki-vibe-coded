@@ -15,6 +15,8 @@ type Props = {
   cardCount: number;
   /** The names of what the deck is made of, shown read-only. */
   cardTypeName: string;
+  /** Whether its card type has a field that goes with an example (`exampleFieldsOf`): its cards can have more than one. */
+  takesExamples: boolean;
   srsTypeName: string;
   /** Opens each one's own screen; absent when the type is missing. */
   onOpenCardType?: (() => void) | undefined;
@@ -59,9 +61,14 @@ const AGAIN_PLACE_OPTIONS = [
   { id: "end", label: "At the end" },
   { id: "random", label: "Anywhere" },
 ] as const;
+const EXAMPLE_SHOWN_OPTIONS = [
+  { id: "rotate", label: "Rotate" },
+  { id: "newest", label: "Newest" },
+  { id: "random", label: "Random" },
+] as const;
 
 /** A deck's settings: "About" (its name, and the card type and SRS type it's made of, shown and not changed), how its reviews run (saved a moment after each change), and at the bottom, delete, which asks once, here, with what it costs. */
-export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
+export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples, srsTypeName, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -180,6 +187,14 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, srsTypeName, o
               : `Up to ${count(own.pool, "card", "cards")} at a time. A new card is added once you're done with one.`
           }
         />
+        {/* Only a type with a field that goes with an example has examples to choose between. */}
+        {takesExamples ? (
+          <Setting
+            id="exampleShown"
+            label="Example shown"
+            control={<Segmented idPrefix="deck-example-shown" label="Example shown" options={EXAMPLE_SHOWN_OPTIONS} value={own.exampleShown} onChange={(exampleShown) => patch({ exampleShown })} />}
+          />
+        ) : null}
       </section>
 
       <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="deck-delete-title">
