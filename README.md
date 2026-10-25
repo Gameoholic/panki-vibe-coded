@@ -8,9 +8,6 @@ pm2 restart panki-api
 
 
 
-
-- feature: optionally review newly learned words after finsihign a video (like, learn them inside of panki, have a batch of only learning those words) mayeb we can have a tab in the hoem apge ia ndditiio nto cioiontue wathcign dn awathc later which is "recently watched" and its for videos we FINSIHED wathcing. how does panki knw oweh ni finsiehd a video thoguh? cause right now tis nto relaly acurate. videos i finsiehd watching still show up i nthe "continue watching" thing..
-
 - big feature / epic: LLM support for sentence translation and/or correction "touch-up"
 
 - Netflix / Jellyfin Support
