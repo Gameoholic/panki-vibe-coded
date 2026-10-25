@@ -32,6 +32,7 @@ import { Pitch } from "../ui/Lookup";
 import { Rename } from "../ui/Rename";
 import { aboutOf, type About } from "./about";
 import { KindChips } from "./DataKinds";
+import { Swatches } from "./Swatches";
 
 /** What these say when something's wrong. One home. */
 const MESSAGES = {
@@ -499,6 +500,36 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
           e.target.value = "";
           if (files.length > 0) void importAll(files);
         }}
+      />
+    </section>
+  );
+}
+
+/**
+ * Words already in the cards, marked where they stand (`capture/known.ts`; the owner, 2026-10-25): in a video's
+ * subtitles and on pages, each its own switch, and the colour, picked as the seek bar's marks pick theirs. Kept the
+ * moment it's changed; a page takes it up as it gets the focus back.
+ */
+export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  return (
+    <section className="panel" aria-labelledby="known-title">
+      <h2 id="known-title" className="panel-title">
+        Words in your cards
+      </h2>
+      <Setting
+        id="known-subtitles"
+        label="Highlight in subtitles"
+        control={<Toggle id="known-subtitles-on" says={{ on: "On", off: "Off" }} on={store.knownSubtitles} onChange={(knownSubtitles) => void writeStore({ knownSubtitles }).then(onChanged)} />}
+      />
+      <Setting
+        id="known-pages"
+        label="Highlight on pages"
+        control={<Toggle id="known-pages-on" says={{ on: "On", off: "Off" }} on={store.knownPages} onChange={(knownPages) => void writeStore({ knownPages }).then(onChanged)} />}
+      />
+      <Setting
+        id="known-colour"
+        label="Colour"
+        control={<Swatches id="known-colour" value={store.knownColour} disabled={!store.knownSubtitles && !store.knownPages} onChange={(knownColour) => void writeStore({ knownColour }).then(onChanged)} />}
       />
     </section>
   );

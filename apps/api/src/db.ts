@@ -1791,6 +1791,20 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         .slice(0, CALLED_CARDS_MAX)
         .map(({ createdAt: _at, ...card }) => card);
     },
+    /** The words every living card in a living deck is called by (its type's words field), each once, as they stand. */
+    wordsInCards(): string[] {
+      const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
+      const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
+      if (fieldIds.length === 0) return [];
+      const rows = db
+        .prepare(
+          `SELECT DISTINCT trim(v.value) AS words
+          FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
+          WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND trim(v.value) <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL`,
+        )
+        .all(...fieldIds) as { words: string }[];
+      return rows.map((row) => row.words);
+    },
     /**
      * A deck's duplicates: each of its living cards called the same as another living card in any living deck, and not
      * told apart from it (`toldApart`), with those others, the newest first. Every living card's words are read in one

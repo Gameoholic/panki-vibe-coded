@@ -191,8 +191,16 @@ export const CalledCard = z.object({
   apart: z.array(ApartValue).default([]),
 });
 export type CalledCard = z.infer<typeof CalledCard>;
+/**
+ * The words every living card of the account is called by (its type's `wordsFieldOf`), each once: the extension marks
+ * them where they stand in a video's subtitles and on pages (the owner, 2026-10-25: "highlights words that are already
+ * in my cards").
+ */
+export const WordsInCards = z.object({ words: z.array(z.string()) });
+export type WordsInCards = z.infer<typeof WordsInCards>;
+
 /** The newest of them first. */
-export const CalledCards = z.object({ cards: z.array(CalledCard).max(CALLED_CARDS_MAX) });
+export const CalledCards =z.object({ cards: z.array(CalledCard).max(CALLED_CARDS_MAX) });
 export type CalledCards = z.infer<typeof CalledCards>;
 /**
  * A deck's duplicates: for each of its living cards called the same as another living card of the account's (in this

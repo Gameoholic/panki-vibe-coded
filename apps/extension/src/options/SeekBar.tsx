@@ -1,33 +1,26 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import type { Stretch, VideoCard } from "@panki/contracts";
-import { Button } from "@web/components/Button";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
-import { useDismiss } from "@web/hooks/useDismiss";
 import { OFFER_AWAY_MS, OFFER_MS, RESUME_HOW, RESUME_HOW_IDS, RESUME_TIMED, RESUME_TIMED_IDS, type ResumeHow } from "../modules";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import {
   CARD_CLICKS,
   CARD_CLICK_IDS,
-  MARK_COLOURS,
-  MARK_COLOUR_IDS,
   MARK_SIZES,
   MARK_SIZE_IDS,
-  MarkColour,
   PIN_ENTRANCES,
   PIN_ENTRANCE_IDS,
   paintCss,
-  paintName,
   type CardWords,
   type MarkLook,
-  type MarkPaint,
   type SeekLook,
   type SeekMarkId,
 } from "../seekLook";
 import { writeStore, type Stored } from "../storage";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
-import { ColourWheel } from "./ColourWheel";
+import { Swatches } from "./Swatches";
 
 const SIZE_OPTIONS = MARK_SIZE_IDS.map((id) => ({ id, label: MARK_SIZES[id].name }));
 const ENTRANCE_OPTIONS = PIN_ENTRANCE_IDS.map((id) => ({ id, label: PIN_ENTRANCES[id] }));
@@ -66,60 +59,6 @@ const PREVIEW_PLAYED = 150;
 const PREVIEW_STOP = 440;
 /** How long the preview's offer stays gone before it comes back, so the little scene plays again. */
 const PREVIEW_AGAIN_MS = 1800;
-
-/** A palette colour as the page has it right now, as `#rrggbb`, for the wheel to start from; white when it can't be read. */
-function hexOfPaint(paint: MarkPaint): string {
-  const css = paintCss(paint);
-  const token = /^var\((--[\w-]+)\)$/.exec(css)?.[1];
-  const value = token ? getComputedStyle(document.documentElement).getPropertyValue(token).trim() : css;
-  return /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : "#ffffff";
-}
-
-/**
- * A mark's colour: a round swatch for each of the palette's, the one on ringed, and a last one for a colour of the
- * viewer's own (the owner, 2026-10-19: "a custom colour wheel in case I want custom colours"), rainbow until one is
- * picked, which opens the wheel under the row; its name after them.
- */
-function Swatches({ id, value, disabled, onChange }: { id: string; value: MarkPaint; disabled: boolean; onChange: (colour: MarkPaint) => void }) {
-  const [wheel, setWheel] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
-  useDismiss(root, wheel, () => setWheel(false));
-  const own = MarkColour.safeParse(value).success ? null : value;
-  return (
-    <span ref={root} className="mark-swatches">
-      <span className="mark-swatch-row" role="group" aria-label="Colour">
-        {MARK_COLOUR_IDS.map((colour) => (
-          <Button
-            key={colour}
-            id={`${id}-${colour}`}
-            className="mark-swatch"
-            aria-label={MARK_COLOURS[colour].name}
-            aria-pressed={colour === value}
-            disabled={disabled}
-            style={{ "--swatch": MARK_COLOURS[colour].css } as CSSProperties}
-            onClick={() => onChange(colour)}
-          />
-        ))}
-        <Button
-          id={`${id}-own`}
-          className={`mark-swatch is-own ${own ? "has-colour" : ""}`.trim()}
-          aria-label="Your own colour"
-          aria-pressed={own !== null}
-          aria-expanded={wheel}
-          disabled={disabled}
-          style={own ? ({ "--swatch": own } as CSSProperties) : undefined}
-          onClick={() => setWheel((open) => !open)}
-        />
-      </span>
-      <span className="mark-swatch-name">{paintName(value)}</span>
-      {wheel && !disabled ? (
-        <span className="colour-pop">
-          <ColourWheel id={`${id}-wheel`} start={own ?? hexOfPaint(value)} onPick={onChange} />
-        </span>
-      ) : null}
-    </span>
-  );
-}
 
 /**
  * The bar as it will look, live, one preview for everything on it (the owner, 2026-10-21: "make them use the same

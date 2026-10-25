@@ -20,7 +20,7 @@ import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWo
 import { Rename } from "../ui/Rename";
 import type { TranscribePaused } from "../transcribe/prefs";
 import { deviceTheme } from "../ui/mount";
-import { Dictionaries, Looking } from "./Dictionary";
+import { Dictionaries, KnownWords, Looking } from "./Dictionary";
 import { PopupLayoutPanel } from "./PopupLayout";
 import { PillParts } from "./PillPanel";
 import { SeekBarPanel } from "./SeekBar";
@@ -574,6 +574,7 @@ function Options() {
           {/* Every tab stays drawn, the ones not chosen hidden: nothing laid out and unsaved is lost by looking at another. */}
           <div className="options-tab" hidden={tab !== "dictionary"}>
             <Looking store={store} onChanged={refresh} />
+            <KnownWords store={store} onChanged={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
             <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} onSaved={refresh} />

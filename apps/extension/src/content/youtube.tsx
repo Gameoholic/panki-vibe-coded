@@ -2,6 +2,7 @@ import "../setup";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
+import { knownIn, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { held, hoverOver, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch } from "../capture/record";
@@ -28,6 +29,7 @@ import { createFeed } from "./feed";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
+import { paintCss } from "../seekLook";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, engineWanted, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { createTranscriber } from "../transcribe/transcriber";
@@ -1013,6 +1015,9 @@ type RowProps = {
 
 function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEdit = null, editable = false }: RowProps) {
   const tokens = useWords(text, forced);
+  // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`).
+  const known = useKnown();
+  const knownHere = known.subtitles && known.words.size > 0 ? { at: (i: number) => knownIn(known.words, tokens[i]?.text ?? ""), colour: tintOf(paintCss(known.colour)) } : null;
   /** A word of the row as something pointed at: looked up from its first letter on, through the end of the row. */
   const pointedAt = (i: number, button: HTMLElement): Pointed | null => {
     const token = tokens[i];
@@ -1059,6 +1064,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
       picked={chars ? spanOver(tokens, chars.from - at, chars.to - at) : null}
       now={now ? spanOver(tokens, now.from - at, now.to - at) : null}
       look={look}
+      known={knownHere}
       onPick={(span) => {
         const own = charsOf(tokens, span);
         if (own) onTake({ from: at + own.from, to: at + own.to });
@@ -1605,7 +1611,11 @@ function App() {
         wordClip={wordOffer}
         arrives={taking.fresh}
         onClose={close}
-        onAdded={() => void readCarded()}
+        onAdded={() => {
+          void readCarded();
+          // The new card's word is one of the cards' now.
+          void refreshKnown();
+        }}
       />
     );
   }
@@ -1887,6 +1897,10 @@ function App() {
 
 strip.root.render(<App />);
 listening.start();
+// Words already in the cards: Panki's own lines mark them themselves (`Row`); the site's own text is marked on the
+// page's highlight layer, its captions by the subtitles switch and the rest by the pages switch.
+startKnown();
+markKnownOnPage({ isSubtitles: (element) => element.closest(CAPTION_AREA) !== null });
 void readModules();
 void readUpdate();
 look();

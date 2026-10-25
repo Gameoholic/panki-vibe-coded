@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import { Button } from "@web/components/Button";
 import { langOf } from "@web/words";
 import { pick, type Span, type Token } from "../capture/words";
@@ -23,10 +23,12 @@ type Props = {
   look?: LineLook | null;
   /** A double-click on word `at`: the word is to be fixed (a transcript's word heard wrong). None where words can't be. */
   onFix?: ((at: number) => void) | null;
+  /** Which words are already in the cards, and the tint they get (`capture/known.ts` → `tintOf`); none, and nothing is. */
+  known?: { at: (at: number) => boolean; colour: string } | null;
 };
 
 /** A line as words to press: one press picks a word, a press on the word beside it widens the pick to both. */
-export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null }: Props) {
+export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null, known = null }: Props) {
   const text = tokens.map((token) => token.text).join("");
   const within = (span: Span | null, i: number) => span !== null && i >= span[0] && i <= span[1];
   const onMove = (e: PointerEvent<HTMLElement>) => {
@@ -35,13 +37,19 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
     look.move(button ? Number(button.dataset.at) : null, button, e);
   };
   return (
-    <div className={`line ${small ? "is-small" : ""}`.trim()} lang={langOf(text)} onPointerMove={onMove} onPointerLeave={(e) => look?.move(null, null, e)}>
+    <div
+      className={`line ${small ? "is-small" : ""}`.trim()}
+      lang={langOf(text)}
+      style={known ? ({ "--known": known.colour } as CSSProperties) : undefined}
+      onPointerMove={onMove}
+      onPointerLeave={(e) => look?.move(null, null, e)}
+    >
       {tokens.map((token, i) =>
         token.word ? (
           <Button
             key={token.start}
             data-at={i}
-            className={`tok ${within(now, i) ? "is-now" : ""}`.trim()}
+            className={`tok ${within(now, i) ? "is-now" : ""} ${known?.at(i) ? "is-known" : ""}`.replace(/\s+/g, " ").trim()}
             aria-pressed={within(picked, i)}
             onClick={() => {
               if (look?.press(i)) return;

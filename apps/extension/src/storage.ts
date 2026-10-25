@@ -5,7 +5,7 @@ import { OptionsTab, UpdateState } from "./messages";
 import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, pillLayoutOf, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
-import { DEFAULT_SEEK_LOOK, SeekLook } from "./seekLook";
+import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
 import { DEFAULT_PREFS, TranscribePaused, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
 /**
@@ -70,6 +70,14 @@ const Stored = z.object({
    * actively watching"); everywhere else still takes the key. Off to begin with: "I might not like this behavior".
    */
   lookHover: z.boolean().catch(false),
+  /**
+   * Words already in the account's cards, marked where they stand (the owner, 2026-10-25, "both subtitles and
+   * everywhere… so they can be separate", "make colour customizable"): in a video's subtitles (Panki's lines under and
+   * over the player, the site's own captions), on every other page Panki is on, and in which colour. Off to begin with.
+   */
+  knownSubtitles: z.boolean().catch(false),
+  knownPages: z.boolean().catch(false),
+  knownColour: MarkPaint.catch("green"),
   /**
    * Where pointing at a word works. Every site, to begin with: on the video site at once (the extension is there
    * already), anywhere else once the browser has been asked and has allowed it, on the options page.

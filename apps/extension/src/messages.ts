@@ -49,6 +49,7 @@ import { LookKey } from "./lookSettings";
 import { Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
+import { MarkPaint } from "./seekLook";
 
 /**
  * What the pieces of the extension say to each other. A page's script (the line under a player, the capture panel)
@@ -61,7 +62,7 @@ const BASE64_MAX = 56_000_000;
 /** The most text a look-up is handed: a word is never longer than the stretch looked at. */
 const LOOKUP_MAX = 64;
 /** The most of a line that's split into words in one go. */
-const LATTICE_MAX = 600;
+export const LATTICE_MAX = 600;
 /** A recording of a word is a few dozen kilobytes; this is far more than any, as text. */
 const RECORDING_MAX = 3_000_000;
 /** A video's thumbnail or its channel's picture, as text: a few dozen kilobytes; Panki keeps none over a megabyte. */
@@ -108,6 +109,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("called"), words: CardsCalled.shape.word }),
   /** Whether pointing at a word looks it up on the page asking, with which key held, and how the popup is laid out. Needs no sign-in: the dictionaries are this browser's own. */
   z.object({ kind: z.literal("lookState") }),
+  /** The words in the account's cards, and where and in what colour they're marked. */
+  z.object({ kind: z.literal("known") }),
   /** Every word found from the first letter of this text on. */
   z.object({ kind: z.literal("lookup"), text: z.string().max(LOOKUP_MAX) }),
   /** Every word starting at each place of a line: what the line is split into words by. */
@@ -201,6 +204,12 @@ const LookState = z.union([
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 export type LookState = z.infer<typeof LookState>;
+/** The words every card is called by, and whether they're marked in a video's subtitles, on pages, and in what colour. */
+const Known = z.union([
+  z.object({ ok: z.literal(true), words: z.array(z.string()), subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint }),
+  z.object({ ok: z.literal(false), message: z.string() }),
+]);
+export type Known = z.infer<typeof Known>;
 const Looked = z.union([z.object({ ok: z.literal(true), found: z.array(Found) }), z.object({ ok: z.literal(false), message: z.string() })]);
 const Latticed = z.union([z.object({ ok: z.literal(true), lattice: Lattice }), z.object({ ok: z.literal(false), message: z.string() })]);
 export type Looked = z.infer<typeof Looked>;
@@ -345,6 +354,10 @@ export async function askCalled(words: readonly string[]): Promise<readonly Call
     return [];
   }
   return answer.data.ok ? answer.data.cards : [];
+}
+export async function askKnown(): Promise<Known> {
+  const answer = Known.safeParse(await ask({ kind: "known" }));
+  return answer.success ? answer.data : failed(answer.error);
 }
 export async function askLookState(): Promise<LookState> {
   const answer = LookState.safeParse(await ask({ kind: "lookState" }));

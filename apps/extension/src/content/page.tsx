@@ -1,5 +1,6 @@
 import "../setup";
 import { useState } from "react";
+import { markKnownOnPage, refreshKnown, startKnown } from "../capture/known";
 import { createListening, type Listening } from "../capture/listening";
 import type { Pointed } from "../capture/look";
 import { selectionRect, sentenceAround, takeSelection, type Taken } from "../capture/selection";
@@ -53,7 +54,20 @@ function OnPage({ taken, prefer, arrives, onClose }: { taken: Taken | null; pref
       </Notice>
     );
   }
-  return <Panel capture={{ sentence: taken.sentence, moved: 0, ...pageSource() }} picked={picked} onPick={setPicked} prefer={prefer} clip={null} wordClip={null} arrives={arrives} onClose={onClose} />;
+  return (
+    <Panel
+      capture={{ sentence: taken.sentence, moved: 0, ...pageSource() }}
+      picked={picked}
+      onPick={setPicked}
+      prefer={prefer}
+      clip={null}
+      wordClip={null}
+      arrives={arrives}
+      onClose={onClose}
+      // The new card's word is one of the cards' now.
+      onAdded={() => void refreshKnown()}
+    />
+  );
 }
 
 function start() {
@@ -89,6 +103,9 @@ function start() {
     },
   });
   listening.start();
+  // Words already in the cards, marked on the page's own highlight layer while the pages switch is on.
+  startKnown();
+  markKnownOnPage();
 }
 
 if (!window.__pankiOnPage) {

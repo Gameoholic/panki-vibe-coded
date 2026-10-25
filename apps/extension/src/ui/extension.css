@@ -131,6 +131,11 @@
 .tok-gap {
   white-space: pre-wrap;
 }
+/* A word already in the cards (capture/known.ts): tinted as the line's `--known` says, the colour picked and how
+   strongly (`tintOf`, its one home). A picked word keeps the pick's own colour. */
+.btn.tok.is-known:not([aria-pressed="true"]) {
+  background: var(--known);
+}
 /* At the far end of the line's head: Transcribe or Stop, and a clip taken off the video itself, for when there are no
    words to press. */
 .strip-tools {

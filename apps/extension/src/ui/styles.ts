@@ -26,5 +26,17 @@ export function tokensOn(selector: string): string {
     .replace(/:root\b/g, selector);
 }
 
+/**
+ * A colour as written in the app's terms (`var(--mark-green)`), as the colour itself (`#3ddc84`): for what's drawn
+ * where the app's tokens don't reach (the page's own highlight layer, `capture/known.ts`). The light theme's value for
+ * a token that differs between themes; anything that isn't a token is given back as it is.
+ */
+export function literalOf(css: string): string {
+  const token = /^var\((--[\w-]+)\)$/.exec(css.trim())?.[1];
+  if (!token) return css;
+  const value = new RegExp(`${token}:\\s*([^;]+);`).exec(themeCss)?.[1];
+  return value?.trim() ?? css;
+}
+
 /** `all: initial` first, so nothing the page sets on text (its font, its colour, its line height) is inherited in. */
 export const SHADOW_CSS = `:host { all: initial; }\n${tokens}\n${appCss}\n${ownCss}`;

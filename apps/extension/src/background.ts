@@ -5,7 +5,7 @@ import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
 import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
@@ -104,6 +104,33 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
     console.error("Panki:", e);
     return { ok: false, message: "The dictionary couldn't be read." };
   }
+}
+
+/** How long the words in the cards are kept here before Panki is asked again: every page asks as it opens and gets the focus. */
+const WORDS_KEPT_MS = 60_000;
+/** The words in the cards of the sign-in in use, as last asked for, and when; let go when a card is added here. */
+let wordsKept: { door: string; at: number; words: string[] } | null = null;
+
+/**
+ * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`):
+ * the words every card is called by, kept a minute (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is.
+ */
+async function known(): Promise<Known> {
+  const store = await readStore();
+  const off: Known = { ok: true, words: [], subtitles: false, pages: false, colour: store.knownColour };
+  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages) || !store.address || !store.token) return off;
+  const door: Door = { address: store.address, token: store.token };
+  const at = Date.now();
+  const doorKey = `${door.address}\n${door.token}`;
+  if (wordsKept?.door !== doorKey || at - wordsKept.at > WORDS_KEPT_MS) {
+    try {
+      wordsKept = { door: doorKey, at, words: await panki.wordsInCards(door) };
+    } catch (e) {
+      console.error("Panki:", e);
+      return off;
+    }
+  }
+  return { ok: true, words: wordsKept.words, subtitles: store.knownSubtitles, pages: store.knownPages, colour: store.knownColour };
 }
 
 /**
@@ -236,6 +263,7 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "lookState" || ask.kind === "lookup" || ask.kind === "lattice") return look(ask, sender);
+  if (ask.kind === "known") return known();
   if (ask.kind === "modules") return { ok: true, modules: modulesOf(await readStore()) };
   if (ask.kind === "pankiOn") {
     await writeStore({ pankiOn: ask.on });
@@ -252,6 +280,8 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     }
     if (ask.kind === "add") {
       await panki.addCard(door, ask.deckId, ask.card);
+      // A card's words are words in the cards now: asked for afresh next time.
+      wordsKept = null;
       return { ok: true };
     }
     if (ask.kind === "addExample") {
