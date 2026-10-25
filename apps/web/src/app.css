@@ -2549,6 +2549,10 @@ mark.sub-mark {
 .setting-label {
   font-weight: 700;
 }
+/* A control too wide to stand beside its label goes under it, still at the right, where the rows' controls all stand. */
+.setting-label + * {
+  margin-left: auto;
+}
 .setting-why {
   margin: 0;
   font-size: 13px;
