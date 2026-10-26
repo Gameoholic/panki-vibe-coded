@@ -119,7 +119,8 @@ export const SrsAfter = z.enum(["burn", "repeat", "grow"]);
 export type SrsAfter = z.infer<typeof SrsAfter>;
 
 export const STAGES_MAX = 30;
-export const DESCRIPTION_MAX = 300;
+/** How long a type's description can be: 500 since 2026-10-26, when Wanikani+'s own said a little more than 300 allowed. */
+export const DESCRIPTION_MAX = 500;
 export const ANSWERS_MIN = 2;
 export const ANSWERS_MAX = 6;
 export const GROW_MIN = 1.1;

@@ -113,7 +113,7 @@ const WK_NAMES = ["Apprentice 1", "Apprentice 2", "Apprentice 3", "Apprentice 4"
 const STARTERS: Record<SrsStarterId, Starter> = {
   wanikaniPlus: {
     name: "Wanikani+",
-    description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Adds Easy (three stages up, two from Guru 1), Snooze (back in 24 hours), Suspend (out until you bring it back) and Reset (back to Apprentice 1).",
+    description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Also adds Easy (three stages up, two from Guru 1), Snooze (back in 24 hours), Suspend (out until you bring it back) and Reset (back to Apprentice 1).",
     stages: [[4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
     // Reset was Relearn and Snooze was Bury until the owner renamed them, 2026-10-21; Snooze's rule is still the `bury` step.
