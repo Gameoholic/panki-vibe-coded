@@ -149,7 +149,7 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
   const away = (home?.layout.hidden ?? []).flatMap((id) => widgetOf(id) ?? []);
   const { className: dragClass, ...rootProps } = drag.rootProps;
   return (
-    <div {...rootProps} className={`board ${arranging ? "is-arranging" : ""} ${stale ? "is-stale" : ""} ${dragClass}`.trim()} aria-label={home ? "Home" : "Stats"} aria-busy={stale}>
+    <div {...rootProps} className={`board ${arranging ? "is-arranging" : ""} ${stale ? "is-stale" : ""} ${dragClass}`.trim()} aria-label={home ? "Home" : "All Stats"} aria-busy={stale}>
       {items.map((id) => {
         if (isDoorId(id)) {
           const spec = doorById.get(id);
