@@ -59,6 +59,13 @@ export type NewEvent = z.infer<typeof NewEvent>;
 export const EventBatch = z.object({ events: z.array(NewEvent).min(1).max(100) });
 export type EventBatch = z.infer<typeof EventBatch>;
 
+/**
+ * The most one showing of a card counts for in the time spent reviewing (the owner, 2026-10-26: "cap the time per card
+ * to 2 minutes"): a card left on screen while away isn't time spent on it. What's kept is the time as measured; only
+ * what's worked out from it is capped.
+ */
+export const CARD_TIME_MAX_MS = 120_000;
+
 /** A day on the owner's clock, "YYYY-MM-DD", turning over at the Settings' hour. */
 export const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export type Day = z.infer<typeof Day>;
@@ -164,9 +171,13 @@ export const Stats = z.object({
   /** Cards added in each of the past 12 weeks, oldest first; the last is this week. */
   added: z.array(Count).length(12),
   time: z.object({
-    /** Minutes aren't stored: ms spent in reviews each of the past 14 days, oldest first. */
+    /**
+     * Minutes aren't stored: ms spent in reviews each of the past 14 days, oldest first. Every showing of a card counts,
+     * whatever its answer did (Snooze and Suspend too, an undone one too) and a card left on screen, each at most
+     * `CARD_TIME_MAX_MS`.
+     */
     byDay: z.array(z.object({ day: Day, ms: Count })),
-    /** The typical time from a card coming up to its answer, past 30 days; null before any. */
+    /** The typical time from a card coming up to its answer, past 30 days, each at most `CARD_TIME_MAX_MS`; null before any. */
     perCardMs: Count.nullable(),
     sessions30: Count,
   }),

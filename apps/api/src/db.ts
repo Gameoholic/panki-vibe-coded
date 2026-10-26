@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   BURNED_PLACE,
   CALLED_CARDS_MAX,
+  CARD_TIME_MAX_MS,
   Card,
   CardField,
   CardPlace,
@@ -825,6 +826,8 @@ type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: n
  * card is no longer one to name. `undoneAt` is when it was taken back with Undo: its seconds were still spent.
  */
 type AnswerRow = { cardId: string; at: number; miss: number | null; thinkMs: number | null; decideMs: number | null; living: number; undoneAt: number | null };
+/** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
+type ShowingRow = Pick<AnswerRow, "at" | "thinkMs" | "decideMs" | "undoneAt">;
 type SessionStatRow = { startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null };
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string };
 /** A kept dictionary as the move to the shared store reads it: the row as the app tells of it, and the hash of its zip. */
@@ -1160,6 +1163,11 @@ export function openDb(
     SELECT p.card_id AS cardId, p.at, p.miss, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt FROM card_places p
     JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
+  // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
+  const selectScopeHolds = db.prepare(`
+    SELECT h.at, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
+    JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
+    WHERE ${scopeWhere} ORDER BY h.at ASC, h.id ASC`);
   const selectScopeSessions = db.prepare(`
     SELECT s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow, s.left_shown_ms AS leftShownMs FROM review_sessions s
     JOIN decks d ON d.id = s.deck_id WHERE ${scopeWhere}`);
@@ -2257,9 +2265,16 @@ export function openDb(
         const entry = i === undefined ? undefined : timeByDay[i];
         if (entry) entry.ms += ms;
       };
-      for (const a of kept) addTime(day(a.at), (a.thinkMs ?? 0) + (a.decideMs ?? 0));
-      for (const s of sessions) if (s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null) addTime(day(s.endedAt), s.leftShownMs);
-      const spans = inWindow(from30).flatMap((a) => (a.thinkMs !== null && a.decideMs !== null ? [a.thinkMs + a.decideMs] : [])).sort((x, y) => x - y);
+      // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
+      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it.
+      const spent = (ms: number) => Math.min(ms, CARD_TIME_MAX_MS);
+      const showings: ShowingRow[] = [...kept, ...(selectScopeHolds.all(deckId, deckId) as ShowingRow[])];
+      for (const s of showings) addTime(day(s.at), spent((s.thinkMs ?? 0) + (s.decideMs ?? 0)));
+      for (const s of sessions) if (s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null) addTime(day(s.endedAt), spent(s.leftShownMs));
+      // The typical card: its showings in the past 30 days that stand (not taken back), with both spans measured.
+      const spans = showings
+        .flatMap((s) => (s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null && day(s.at) >= from30 ? [spent(s.thinkMs + s.decideMs)] : []))
+        .sort((x, y) => x - y);
       const mid = spans[Math.floor(spans.length / 2)];
       const perCardMs = spans.length === 0 || mid === undefined ? null : spans.length % 2 === 1 ? mid : Math.round((mid + (spans[spans.length / 2 - 1] ?? mid)) / 2);
 
