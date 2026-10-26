@@ -98,6 +98,8 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   settings: "panels",
   stats: "board",
 };
+/** The most tiles a panel of today's cards is drawn with while it loads: a screenful, not every card due. */
+const TODAY_TILES_MAX = 12;
 
 /** A screen's address: the same screen, by ids alone. */
 function routeOf(screen: Screen): Route {
@@ -749,8 +751,21 @@ export function App() {
     }
   }
 
-  /** The screen as its shape while what it needs loads; a deck's Settings tab is panels, not its cards. */
-  const loading = <Skeleton shape={screen.kind === "deck" && screen.tab === "settings" ? "panels" : SKELETON_OF[screen.kind]} />;
+  /**
+   * The screen as its shape while what it needs loads: a deck's Settings tab is panels, not its cards; a review is
+   * what it opens on, as its deck says (today's cards, as many as are due and new; the review itself; or, with nothing
+   * to do, its end), so nothing changes shape as it arrives.
+   */
+  function loadingOf(): ReactNode {
+    if (screen.kind === "deck" && screen.tab === "settings") return <Skeleton shape="panels" />;
+    if (screen.kind === "review") {
+      const { dueCount, newCount, settings: own } = screen.deck;
+      if (dueCount + newCount === 0) return <Skeleton shape="panels" />;
+      if (own.todayFirst) return <Skeleton shape="today" parts={[dueCount, newCount].filter((n) => n > 0).map((n) => Math.min(n, TODAY_TILES_MAX))} />;
+    }
+    return <Skeleton shape={SKELETON_OF[screen.kind]} />;
+  }
+  const loading = loadingOf();
   let body: ReactNode;
   if (loadError) {
     body = (
@@ -979,7 +994,7 @@ export function App() {
   const bare = me === null;
 
   return (
-    <div className={`app ${screen.kind === "home" ? "is-home" : ""} ${wide ? "is-wide" : ""} ${bare ? "is-bare" : ""}`.trim()}>
+    <div className={`app ${screen.kind === "home" ? "is-home" : ""} ${screen.kind === "review" ? "is-review" : ""} ${wide ? "is-wide" : ""} ${bare ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
       <header className="brand">Panki</header>
       {bare ? null : (
         <nav className="tabs" aria-label="Sections">

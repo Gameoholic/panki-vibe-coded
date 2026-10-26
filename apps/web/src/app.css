@@ -3139,12 +3139,18 @@ mark.sub-mark {
     height: 100vh;
     height: 100dvh;
   }
-  .app:has(.main > .review) .main,
-  .app:has(.main > .review) .subhead {
+  /* The whole review screen is one width and one top, whatever it shows (its shape while it loads, today's cards, the
+     review, the end), so its header never moves from one to the next (the owner, 2026-10-26: it jumped as a review's
+     skeleton gave way to today's cards). `is-review` is the screen's, on `.app` (App.tsx). */
+  .app.is-review .main,
+  .app.is-review .subhead {
     max-width: 1080px;
   }
-  .app:has(.main > .review.is-fit) .subhead {
+  .app.is-review .subhead {
     padding-top: 12px;
+  }
+  .app.is-review .main {
+    padding-top: 6px;
   }
   .app:has(.main > .review.is-fit) .main {
     min-height: 0;

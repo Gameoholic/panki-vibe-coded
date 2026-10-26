@@ -18,11 +18,12 @@ export function Bone({ w = "100%", h = "0.9em", round = false, className = "" }:
 
 /**
  * The shapes a screen or a part of one takes while it loads, one registry: a list of rows (decks, types, SRS types), a
- * deck's cards, the rows of a panel in Settings (`kept-row`: storage, the extension, dictionaries), panels of settings, setting rows inside a panel already there, the board's tiles, a review, a form, an
+ * deck's cards, the rows of a panel in Settings (`kept-row`: storage, the extension, dictionaries), today's cards before
+ * a review (`review-today`), panels of settings, setting rows inside a panel already there, the board's tiles, a review, a form, an
  * editor beside its card, a few lines in a panel, and one tile's body. A new kind of screen takes the one it looks
  * like, or is one entry here built of its own classes.
  */
-export type SkeletonShape = "rows" | "cards" | "kept" | "panels" | "settings" | "board" | "review" | "form" | "editor" | "lines" | "tile";
+export type SkeletonShape = "rows" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "review" | "form" | "editor" | "lines" | "tile";
 
 /** Widths that vary a little from row to row, so a list of blocks reads as a list of things and not a grid. */
 const WIDTHS = ["46%", "62%", "38%", "54%", "70%", "42%"];
@@ -61,8 +62,44 @@ function TileBody() {
   );
 }
 
-export function Skeleton({ shape, count }: { shape: SkeletonShape; count?: number }) {
+/** `count` is how many rows, lines or tiles; `parts`, for `today`, how many tiles each of its panels holds (reviews, then new). */
+export function Skeleton({ shape, count, parts }: { shape: SkeletonShape; count?: number; parts?: readonly number[] }) {
   switch (shape) {
+    case "today":
+      // As `ReviewView` → `TodayCards` draws today's cards: Start at the right, then a panel of tiles for each kind.
+      return (
+        <section className="skel-in review-today" {...status}>
+          <div className="today-bar">
+            <span className="today-left" />
+            <Bone w="12em" h="52px" />
+          </div>
+          {(parts ?? [count ?? 6]).map((tiles, i) => (
+            <section key={i} className="panel today-panel">
+              <div className="today-head">
+                <h2 className="panel-title">
+                  <Bone w="5em" h="0.8em" />
+                </h2>
+                <span className="today-of">
+                  <Bone w="2.5em" h="0.9em" />
+                </span>
+                <span className="chips">
+                  <Bone w="7em" h="2.4em" />
+                  <Bone w="2.6em" h="2.4em" />
+                  <Bone w="3.4em" h="2.4em" />
+                </span>
+              </div>
+              <div className="today-cards">
+                {times(tiles).map((t) => (
+                  <div key={t} className="btn btn-chip today-card">
+                    <Bone w={`${2.4 + (t % 3) * 0.8}em`} h="1.8em" />
+                    <Bone w="6.5em" h="1.4em" round />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </section>
+      );
     case "rows":
       // As `DeckList`, `TypesView` and `SrsTypesView` draw theirs: a title, then rows of a name, a line under it and a pill.
       return (
