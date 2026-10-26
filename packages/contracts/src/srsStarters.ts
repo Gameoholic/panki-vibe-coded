@@ -43,16 +43,21 @@ const id = (ids: string[], i: number): string => ids[i] ?? "";
  * tomorrow (never later than the stage), and only a second Forgot drops it, after it too has been asked until right.
  * The answers set apart work the same everywhere: Reset sends the card back to the first stage, Apprentice 1, to climb
  * again (it was Relearn, back to the first stage, then for a few hours back to New; the owner, 2026-10-21: "make it
- * Reset… puts it into the first stage after New"), Easy lifts it two (it was called Bury until 2026-10-17; the owner
+ * Reset… puts it into the first stage after New"), Easy lifts it three, and two from `WK_CHANCE_FROM` on, the stages
+ * of weeks and months (the owner, 2026-10-26: "go up 3 stages not 2… unless it's one of the higher tiers"; it was two
+ * everywhere until then; it was called Bury until 2026-10-17; the owner
  * kept the sound of it in mind for a button that hides a card, which this one never did), and Snooze and Suspend put
  * the card aside where it stands (the owner, 2026-10-21). All four ask for confirmation (Easy, Snooze and Suspend went
  * without for a day, 2026-10-21, and came back to it at the owner's word). New (`wanikaniPlusLesson`): Ok or Easy learns it, and Forgot asks it again until it's got
  * right, then learns it.
  */
 const WK_CHANCE_FROM = 4;
+/** How many stages Easy lifts a card: below `WK_CHANCE_FROM` (and from New), and from there on. */
+const WK_EASY = 3;
+const WK_EASY_HIGH = 2;
 function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
   const [forgot, ok, easy, bury, suspend, reset] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
-  const apart = (): Flow => ({ [reset]: to(id(s, 0)), [easy]: move(2), [bury]: { kind: "bury", wait: { ...BURY_WAIT } }, [suspend]: { kind: "suspend" } });
+  const apart = (): Flow => ({ [reset]: to(id(s, 0)), [easy]: move(chance ? WK_EASY_HIGH : WK_EASY), [bury]: { kind: "bury", wait: { ...BURY_WAIT } }, [suspend]: { kind: "suspend" } });
   // Once a card is forgotten, neither Easy nor Bury is offered until it leaves the ask-again: a card just forgotten is no
   // card to skip ahead (the owner, 2026-10-18), nor to bury ("there's no reason to bury a card if I already failed it",
   // 2026-10-17). Suspend stays: a card failed again and again is the one to take out and fix.
@@ -74,7 +79,7 @@ function wanikaniPlusLesson(a: string[]): Flow {
     [forgot]: now({ [forgot]: { kind: "retry" }, [ok]: move(1), [reset]: { ...hidden }, [easy]: { ...hidden }, [bury]: { ...hidden }, [suspend]: { kind: "suspend" } }),
     [ok]: move(1),
     [reset]: { ...hidden },
-    [easy]: move(2),
+    [easy]: move(WK_EASY),
     [bury]: { kind: "bury", wait: { ...BURY_WAIT } },
     [suspend]: { kind: "suspend" },
   };
@@ -108,7 +113,7 @@ const WK_NAMES = ["Apprentice 1", "Apprentice 2", "Apprentice 3", "Apprentice 4"
 const STARTERS: Record<SrsStarterId, Starter> = {
   wanikaniPlus: {
     name: "Wanikani+",
-    description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Adds Easy (skip two stages), Snooze (back in 24 hours), Suspend (out until you bring it back) and Reset (back to Apprentice 1).",
+    description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Adds Easy (up three stages, two from Guru 1 up), Snooze (back in 24 hours), Suspend (out until you bring it back) and Reset (back to Apprentice 1).",
     stages: [[4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
     // Reset was Relearn and Snooze was Bury until the owner renamed them, 2026-10-21; Snooze's rule is still the `bury` step.
