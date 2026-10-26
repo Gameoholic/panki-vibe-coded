@@ -2904,6 +2904,10 @@ mark.sub-mark {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* Undo and Chart in the counts' row are a computer's (below, in the fitted review); a phone has them under the answers. */
+.review-tools {
+  display: none;
+}
 .review-card {
   position: relative;
 }
@@ -2956,11 +2960,21 @@ mark.sub-mark {
   .main > .review.is-fit > * {
     flex: none;
   }
+  /* Undo and Chart at the counts' right, in the row itself (pinned over it, they covered "in play · waiting"); a
+     window too narrow for all of it wraps them under, never over. The row's height stays the words'. */
+  .main > .review.is-fit > .review-top {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px 16px;
+  }
+  .main > .review.is-fit > .review-top > .review-tools {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+    margin-block: -6px;
+  }
   .main > .review.is-fit > .review-chart-row {
-    position: absolute;
-    top: -4px;
-    right: 0;
-    margin: 0;
+    display: none;
   }
   .main > .review.is-fit > .review-chart {
     position: absolute;

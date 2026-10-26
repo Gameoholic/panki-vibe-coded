@@ -493,7 +493,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       if (pressed(e, binds.undo.key)) {
         e.preventDefault();
         if (e.repeat) return;
-        hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='undo']"), binds.undo.holdMs, () => void undo());
+        // The Undo button on screen: the counts' row's or the one under the answers, whichever the CSS shows.
+        const button = [...document.querySelectorAll<HTMLElement>("[data-hold='undo']")].find((el) => el.getClientRects().length > 0) ?? null;
+        hold.begin(e.key, button, binds.undo.holdMs, () => void undo());
         return;
       }
       if (!card) return;
@@ -653,6 +655,21 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
   const full = stage.screen.full;
   const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit";
+  // Undo and Chart: in the counts' row on a computer, under the answers on a phone (the owner's place for them,
+  // 2026-10-18), the CSS showing one of the two. Pinned over the counts' row, they covered "in play · waiting".
+  const tools = (
+    <>
+      <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
+        <Icon name="undo" />
+        Undo
+        <AnswerKey bind={binds.undo} />
+      </Button>
+      <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
+        <Icon name="srs" />
+        Chart
+      </Button>
+    </>
+  );
   return (
     <section ref={place} className={`review ${look}`.trim()}>
       <div className="review-top">
@@ -666,7 +683,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         </span>
         {/* With a limit on how many are in play, say how many that is right now and how many wait their turn. */}
         {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
-        {/* Filling the screen: the rail closed to leave the clip alone (until the screen is next filled), and the way out. */}
+        {/* Filling the screen: Undo, the rail closed to leave the clip alone (until the screen is next filled), and the way out. */}
+        {!full ? <span className="review-tools">{tools}</span> : null}
         {full ? (
           <span className="review-stage-tools">
             <Button className="btn-icon" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
@@ -770,20 +788,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
               )}
             </div>
           ) : null}
-          {/* Under the answers (the owner's place for it, 2026-10-18): Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
-          {full ? null : (
-            <div className="review-chart-row">
-              <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
-                <Icon name="undo" />
-                Undo
-                <AnswerKey bind={binds.undo} />
-              </Button>
-              <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
-                <Icon name="srs" />
-                Chart
-              </Button>
-            </div>
-          )}
+          {/* Under the answers on a phone (the owner's place for it, 2026-10-18): Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
+          {full ? null : <div className="review-chart-row">{tools}</div>}
           {/* The card's chart, while the Chart button is on: its box lit, and the box the answer under the mouse leads to. */}
           {chartOpen && !full
             ? (() => {
