@@ -763,6 +763,18 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       GROUP BY s.video_id
     `).run(DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000);
   },
+  (db) => {
+    // 37. An answer taken back in a review with Undo (the owner, 2026-10-26) is never deleted: its row keeps everything
+    // it had and is marked with when it was undone, as a deleted card is with `removed_at` and a hold brought back with
+    // `lifted_at`. An answer also keeps the id the browser gave it, which Undo names and which keeps the same answer
+    // sent again from being given twice. Every row from before has neither: none of it is undone, and nothing moves.
+    db.exec("ALTER TABLE card_places ADD COLUMN given_id TEXT");
+    db.exec("ALTER TABLE card_places ADD COLUMN undone_at INTEGER");
+    db.exec("CREATE UNIQUE INDEX card_places_given_id ON card_places (given_id) WHERE given_id IS NOT NULL");
+    db.exec("ALTER TABLE card_holds ADD COLUMN given_id TEXT");
+    db.exec("ALTER TABLE card_holds ADD COLUMN undone_at INTEGER");
+    db.exec("CREATE UNIQUE INDEX card_holds_given_id ON card_holds (given_id) WHERE given_id IS NOT NULL");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -802,12 +814,17 @@ type CalledRow = { cardId: string; fieldId: string; value: string; deckId: strin
 /** What a read at one moment needs of the clock: the settings as they are, and how much of today's allowance is used. */
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
-/** What an answer carries beyond the move: the sitting, the spans the browser measured, and whether it was a miss. */
-type AnswerExtras = { sessionId: string | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
-const NO_EXTRAS: AnswerExtras = { sessionId: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
+/** What an answer carries beyond the move: the id it was given, the sitting, the spans the browser measured, and whether it was a miss. */
+type AnswerExtras = { givenId: string | null; sessionId: string | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
+const NO_EXTRAS: AnswerExtras = { givenId: null, sessionId: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
+/** An answer found by the id it was given: the row it made, a move (`card_places`) or a card put aside (`card_holds`). `liftedAt` is a hold's alone. */
+type GivenRow = { kind: "place" | "hold"; id: number; cardId: string; at: number; undoneAt: number | null; liftedAt: number | null };
 type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: number; endedAt: number | null; endedHow: string | null };
-/** An answer as the stats read it. `living` is 0 when its card has since been deleted: the answer still happened, the card is no longer one to name. */
-type AnswerRow = { cardId: string; at: number; miss: number | null; thinkMs: number | null; decideMs: number | null; living: number };
+/**
+ * An answer as the stats read it. `living` is 0 when its card has since been deleted: the answer still happened, the
+ * card is no longer one to name. `undoneAt` is when it was taken back with Undo: its seconds were still spent.
+ */
+type AnswerRow = { cardId: string; at: number; miss: number | null; thinkMs: number | null; decideMs: number | null; living: number; undoneAt: number | null };
 type SessionStatRow = { startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null };
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string };
 /** A kept dictionary as the move to the shared store reads it: the row as the app tells of it, and the hash of its zip. */
@@ -948,8 +965,9 @@ export function openDb(
   const removeType = db.prepare("UPDATE card_types SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
   const decksUsing = db.prepare("SELECT COUNT(*) AS n FROM decks WHERE type_id = ? AND removed_at IS NULL");
 
-  // A card's place is its last card_places row (the highest id); the reads below join it on or look it up.
-  const lastPlaceOf = (card: string) => `(SELECT MAX(q.id) FROM card_places q WHERE q.card_id = ${card})`;
+  // A card's place is its last card_places row (the highest id) that wasn't undone; the reads below join it on or look
+  // it up. An undone answer is passed over by every read of where a card stands and of what was answered.
+  const lastPlaceOf = (card: string) => `(SELECT MAX(q.id) FROM card_places q WHERE q.card_id = ${card} AND q.undone_at IS NULL)`;
   const srsTypeColumns = `
     t.id, t.name, t.description, t."after", t.grow_by AS growBy, t.burned_name AS burnedName, t.flow, t.overrides, t.lesson, t.created_at AS createdAt, t.builtin IS NOT NULL AS builtin,
     (SELECT COUNT(*) FROM decks d WHERE d.srs_type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
@@ -988,11 +1006,11 @@ export function openDb(
   const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES (?, ?, ?, ?)");
   // Today's allowances, each deck's own: its new cards are used up by the cards started in it (an answer given from new).
   const countStartedSince = db.prepare(
-    "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND stage_from IS NULL AND burned_from = 0 AND node_from = '[]' AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
+    "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND undone_at IS NULL AND stage_from IS NULL AND burned_from = 0 AND node_from = '[]' AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
   );
   // A deck's own reviews: its answers but for the ones that started a new card, which come off the new cards instead.
   const countReviewedSince = db.prepare(
-    "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND NOT (stage_from IS NULL AND burned_from = 0 AND node_from = '[]') AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
+    "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND undone_at IS NULL AND NOT (stage_from IS NULL AND burned_from = 0 AND node_from = '[]') AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
   );
   const deckColumns = `
     d.id, d.name, d.type_id AS typeId, d.srs_type_id AS srsTypeId, d.settings, d.created_at AS createdAt,
@@ -1018,10 +1036,10 @@ export function openDb(
   const cardColumns = `
     c.id, c.deck_id AS deckId, c.created_at AS createdAt,
     p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned,
-    (SELECT COUNT(*) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer') AS seen,
-    (SELECT MAX(a.at) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer') AS lastAt,
-    (SELECT MAX(h.at) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL) AS suspendedAt,
-    (SELECT MAX(h.until) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'bury' AND h.lifted_at IS NULL) AS buriedUntil`;
+    (SELECT COUNT(*) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer' AND a.undone_at IS NULL) AS seen,
+    (SELECT MAX(a.at) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer' AND a.undone_at IS NULL) AS lastAt,
+    (SELECT MAX(h.at) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspendedAt,
+    (SELECT MAX(h.until) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'bury' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS buriedUntil`;
   const cardsWithPlace = `FROM cards c LEFT JOIN card_places p ON p.card_id = c.id AND p.id = ${lastPlaceOf("c.id")}`;
   // A deleted card is out of everything from the moment it leaves: the lists, the counts, a review, the ladder, and
   // whatever is later done to its deck's cards (a switch of SRS type, a stage taken away). Only an insert's read-back
@@ -1080,11 +1098,20 @@ export function openDb(
   /** The card types the living decks use: whose words fields a deck's duplicates are looked for in. */
   const selectLivingTypeIds = db.prepare("SELECT DISTINCT type_id AS typeId FROM decks WHERE removed_at IS NULL");
   const insertPlace = db.prepare(`
-    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss, example_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  // Only what still stands is lifted: a bury whose wait is over had already ended by itself.
-  const liftHolds = db.prepare("UPDATE card_holds SET lifted_at = ? WHERE card_id = ? AND lifted_at IS NULL AND (kind = 'suspend' OR until > ?)");
+    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss, example_id, given_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms, given_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  // Only what still stands is lifted: a bury whose wait is over had already ended by itself, an undone one never stood.
+  const liftHolds = db.prepare("UPDATE card_holds SET lifted_at = ? WHERE card_id = ? AND lifted_at IS NULL AND undone_at IS NULL AND (kind = 'suspend' OR until > ?)");
+  // An answer by the id it was given, wherever it was kept, and what has happened to its card since.
+  const selectGiven = db.prepare(`
+    SELECT 'place' AS kind, id, card_id AS cardId, at, undone_at AS undoneAt, NULL AS liftedAt FROM card_places WHERE given_id = ?
+    UNION ALL SELECT 'hold', id, card_id, at, undone_at, lifted_at FROM card_holds WHERE given_id = ?`);
+  const selectLastPlaceId = db.prepare(`SELECT ${lastPlaceOf("?")} AS id`);
+  const countPlacesSince = db.prepare("SELECT COUNT(*) AS n FROM card_places WHERE card_id = ? AND undone_at IS NULL AND at >= ?");
+  const countHoldsSince = db.prepare("SELECT COUNT(*) AS n FROM card_holds WHERE card_id = ? AND undone_at IS NULL AND at >= ? AND id <> ?");
+  const undoPlace = db.prepare("UPDATE card_places SET undone_at = ? WHERE id = ? AND undone_at IS NULL");
+  const undoHold = db.prepare("UPDATE card_holds SET undone_at = ? WHERE id = ? AND undone_at IS NULL");
 
   const reviewSessionColumns = "s.id, s.deck_id AS deckId, s.kind, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow";
   const insertReviewSession = db.prepare("INSERT OR IGNORE INTO review_sessions (id, deck_id, kind, started_at, device, user_agent) VALUES (?, ?, ?, ?, ?, ?)");
@@ -1130,7 +1157,7 @@ export function openDb(
   const scopeWhere = "d.removed_at IS NULL AND (? IS NULL OR d.id = ?)";
   const selectScopeDecks = db.prepare(`SELECT d.id, d.type_id AS typeId, d.srs_type_id AS srsTypeId FROM decks d WHERE ${scopeWhere} ORDER BY d.created_at ASC, d.id ASC`);
   const selectScopeAnswers = db.prepare(`
-    SELECT p.card_id AS cardId, p.at, p.miss, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living FROM card_places p
+    SELECT p.card_id AS cardId, p.at, p.miss, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt FROM card_places p
     JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
   const selectScopeSessions = db.prepare(`
@@ -1302,7 +1329,7 @@ export function openDb(
       cardId, now, reason, answerId,
       from.stageId, from.past, JSON.stringify(from.node), from.burned ? 1 : 0,
       to.stageId, to.past, JSON.stringify(to.node), to.burned ? 1 : 0,
-      extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId,
+      extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId, extras.givenId,
     );
   }
   /** Whether an answer counts as a miss, frozen as the type's answers stand now: the first of the main ones, when there is more than one; nothing for one set apart. */
@@ -1913,9 +1940,10 @@ export function openDb(
      * Records what the answer does to the card's place (the contracts' `resolve`, with the deck's type as it is now) and
      * returns the card fresh. The sitting it happened in, the spans the browser measured and whether it was a miss are
      * frozen on the row; a sitting that isn't this deck's is refused. An answer that puts the card aside (Bury, Suspend)
-     * is kept as a hold instead, with its sitting and spans: the card's place and schedule stay as they were.
+     * is kept as a hold instead, with its sitting and spans: the card's place and schedule stay as they were. An answer
+     * sent again under the id it was given is kept once: the card is told as it stands.
      */
-    answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" | "no-example" {
+    answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" | "no-example" | "given-elsewhere" {
       return transaction(() => {
         const row = selectDeckCard.get(deckId, cardId) as CardRow | undefined;
         if (!row) return "no-card";
@@ -1923,8 +1951,18 @@ export function openDb(
         if (!type.answers.some((a) => a.id === answer.answerId)) return "no-answer";
         if (answer.sessionId !== undefined && !selectReviewSession.get(answer.sessionId, deckId)) return "no-session";
         if (answer.exampleId !== undefined && (selectExampleCard.get(answer.exampleId) as { cardId: string } | undefined)?.cardId !== cardId) return "no-example";
+        if (answer.givenId !== undefined) {
+          const given = selectGiven.get(answer.givenId, answer.givenId) as GivenRow | undefined;
+          if (given && given.cardId !== cardId) return "given-elsewhere";
+          if (given) {
+            const card = cardFrom(row, type, todayAt(now));
+            if (!card) throw new Error("The card vanished before its answer.");
+            return card;
+          }
+        }
         const place = placeFrom(row);
         const extras: AnswerExtras = {
+          givenId: answer.givenId ?? null,
           sessionId: answer.sessionId ?? null,
           thinkMs: answer.thinkMs ?? null,
           decideMs: answer.decideMs ?? null,
@@ -1934,12 +1972,39 @@ export function openDb(
         const outcome = resolve(type, place, answer.answerId);
         if (outcome.hold) {
           const until = outcome.wait === null ? null : now + outcome.wait * 60_000;
-          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.thinkMs, extras.decideMs);
+          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.thinkMs, extras.decideMs, extras.givenId);
         }
         else recordPlace(cardId, now, "answer", answer.answerId, place, outcome.place, extras);
         const after = selectDeckCard.get(deckId, cardId) as CardRow;
         const card = cardFrom(after, type, todayAt(now));
         if (!card) throw new Error("The card vanished after its answer.");
+        return card;
+      });
+    },
+    /**
+     * Takes an answer back (Undo in a review): its row stays as it was, marked with when it was undone, and from then on
+     * every read passes over it, so the card stands where it stood before, due when it was due, and the answer counts
+     * for nothing but the seconds spent on it. Only the last thing that happened to the card can be taken back: an
+     * answer since, a move of the deck's, a hold made or brought back since, and it's `changed`. Taking back an answer
+     * already undone changes nothing and tells the card as it stands.
+     */
+    undoAnswer(deckId: string, cardId: string, givenId: string, now: number): Card | "no-card" | "no-answer" | "changed" {
+      return transaction(() => {
+        if (!selectDeckCard.get(deckId, cardId)) return "no-card";
+        const given = selectGiven.get(givenId, givenId) as GivenRow | undefined;
+        if (!given || given.cardId !== cardId) return "no-answer";
+        if (given.undoneAt === null) {
+          const holdsSince = (countHoldsSince.get(cardId, given.at, given.kind === "hold" ? given.id : -1) as { n: number }).n;
+          const last =
+            given.kind === "place"
+              ? (selectLastPlaceId.get(cardId) as { id: number | null }).id === given.id && holdsSince === 0
+              : given.liftedAt === null && holdsSince === 0 && (countPlacesSince.get(cardId, given.at) as { n: number }).n === 0;
+          if (!last) return "changed";
+          (given.kind === "place" ? undoPlace : undoHold).run(now, given.id);
+        }
+        const after = selectDeckCard.get(deckId, cardId) as CardRow;
+        const card = cardFrom(after, srsTypeOfDeck(deckId), todayAt(now));
+        if (!card) throw new Error("The card vanished after its answer was undone.");
         return card;
       });
     },
@@ -2139,8 +2204,10 @@ export function openDb(
       const todayKey = day(now);
       const from30 = addDays(todayKey, -29);
       const decks = selectScopeDecks.all(deckId, deckId) as DeckScopeRow[];
-      const answers = selectScopeAnswers.all(deckId, deckId) as AnswerRow[];
+      const kept = selectScopeAnswers.all(deckId, deckId) as AnswerRow[];
       const sessions = selectScopeSessions.all(deckId, deckId) as SessionStatRow[];
+      // An answer taken back with Undo counts for nothing but the time spent on it.
+      const answers = kept.filter((a) => a.undoneAt === null);
 
       // Every answer by the day it fell in; the windows are read off the day keys, so a clock change moves nothing.
       const dayed = answers.map((a) => ({ ...a, day: day(a.at) }));
@@ -2190,7 +2257,7 @@ export function openDb(
         const entry = i === undefined ? undefined : timeByDay[i];
         if (entry) entry.ms += ms;
       };
-      for (const a of dayed) addTime(a.day, (a.thinkMs ?? 0) + (a.decideMs ?? 0));
+      for (const a of kept) addTime(day(a.at), (a.thinkMs ?? 0) + (a.decideMs ?? 0));
       for (const s of sessions) if (s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null) addTime(day(s.endedAt), s.leftShownMs);
       const spans = inWindow(from30).flatMap((a) => (a.thinkMs !== null && a.decideMs !== null ? [a.thinkMs + a.decideMs] : [])).sort((x, y) => x - y);
       const mid = spans[Math.floor(spans.length / 2)];

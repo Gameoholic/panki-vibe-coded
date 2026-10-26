@@ -4,7 +4,8 @@ import { ledger } from "./ledger";
 /**
  * The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"): the key
  * that shows the answer, one for each answer by its place in the row (the main answers, then those set apart), and one
- * for each sound and clip on the card in the layout's order, and one that fills the screen with a clip. Each key is held for a time of its own before it does its
+ * for each sound and clip on the card in the layout's order, one that fills the screen with a clip, and one that takes
+ * the last answer back (Undo, none to begin with: the owner, 2026-10-26). Each key is held for a time of its own before it does its
  * thing, none being a press (the owner: "hold for all buttons, each keybind separately"); an answer that asks for
  * confirmation is held for `confirmMs` more on top of its own, that longer hold being its yes ("the extra ones for
  * confirmation is additive"). Space held shows the answer; a tap turns it back. Kept in `localStorage`, as the theme
@@ -12,7 +13,10 @@ import { ledger } from "./ledger";
  * Settings → Keybinds all read it here.
  */
 
-/** A key and how long it's held before it does its thing, in milliseconds (0, a press); no key, nothing does it from the keyboard. */
+/**
+ * A key and how long it's held before it does its thing, in milliseconds (0, a press); no key, nothing does it from the
+ * keyboard. The key is as `keyOf` writes it: the key itself, after Ctrl and Alt when they're held with it ("Ctrl+z").
+ */
 export type Bind = { key: string | null; holdMs: number };
 /** A sound's or a clip's key, as the players are handed it (`usePlayback`): a key it has, and its hold. */
 export type Shortcut = { key: string; holdMs: number };
@@ -24,6 +28,8 @@ export type KeyBinds = {
   media: readonly Bind[];
   /** Fills the screen with a card's clip, or leaves it (the owner, 2026-10-24: "keybind to toggle full screen for video player, f by default"). */
   fullScreen: Bind;
+  /** Takes the review's last answer back, as its Undo button does (the owner, 2026-10-26: no key until one is set). */
+  undo: Bind;
   /** How much longer an answer that asks for confirmation is held, on top of its own key's hold. */
   confirmMs: number;
 };
@@ -44,6 +50,7 @@ export const DEFAULT_KEYS: KeyBinds = {
   answers: Array.from({ length: SLOTS }, (_, i) => ({ key: ANSWER_START[i] ?? null, holdMs: HOLD_START })),
   media: Array.from({ length: SLOTS }, (_, i) => ({ key: MEDIA_START[i] ?? null, holdMs: 0 })),
   fullScreen: { key: "f", holdMs: 0 },
+  undo: { key: null, holdMs: 0 },
   confirmMs: 1000,
 };
 
@@ -54,15 +61,27 @@ export const bindable = (key: string) => !NEVER.has(key);
 /** One key the same as another, whatever its case: "a" and "A" are the one key. */
 export const sameKey = (a: string | null, b: string | null) => a !== null && b !== null && a.toLowerCase() === b.toLowerCase();
 
+/**
+ * The key a press is, as a bind keeps it: the key itself, after Ctrl and Alt when either is held with it ("Ctrl+z",
+ * "Ctrl+Alt+z"). Shift isn't written: it only changes how the key reads ("A" for "a"), as it always has.
+ */
+export function keyOf(e: KeyboardEvent): string {
+  const held = [e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null].filter((name) => name !== null);
+  return [...held, e.key.length === 1 ? e.key.toLowerCase() : e.key].join("+");
+}
+
+/** Whether a press is a bind's key: the same key with the same held with it. The Windows or Command key held, it's none. */
+export const pressed = (e: KeyboardEvent, key: string | null) => !e.metaKey && sameKey(keyOf(e), key);
+
 /** A sound's or a clip's key as its player takes it; none without a key. */
 export const shortcutOf = (bind: Bind | undefined): Shortcut | null => (bind?.key ? { key: bind.key, holdMs: bind.holdMs } : null);
 
 /**
  * Whether a key going down is a player's key (`Shortcut`) pressed anywhere on the page: not in something typed into,
- * with nothing held with it, and not the key held down repeating.
+ * with what's held with it as the key says, and not the key held down repeating.
  */
 export function heard(e: KeyboardEvent, key: string): boolean {
-  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== key.toLowerCase()) return false;
+  if (e.repeat || !pressed(e, key)) return false;
   const at = e.target;
   return !(at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select")));
 }
@@ -76,7 +95,7 @@ const holdOf = (raw: unknown): number | undefined => HOLD_TIMES.find((t) => t ==
  */
 function bindOf(raw: unknown, fallback: Bind, oldHold: number | undefined): Bind {
   if (typeof raw !== "object" || raw === null) return fallback;
-  const key = "key" in raw && (raw.key === null || (typeof raw.key === "string" && raw.key.length > 0 && raw.key.length <= 20 && bindable(raw.key))) ? raw.key : fallback.key;
+  const key = "key" in raw && (raw.key === null || (typeof raw.key === "string" && raw.key.length > 0 && raw.key.length <= 40 && bindable(raw.key))) ? raw.key : fallback.key;
   const own = "holdMs" in raw ? holdOf(raw.holdMs) : undefined;
   const old = "hold" in raw && typeof raw.hold === "boolean" ? (raw.hold ? (oldHold ?? HOLD_START) : 0) : undefined;
   return { key, holdMs: own ?? old ?? fallback.holdMs };
@@ -99,7 +118,8 @@ function read(): KeyBinds {
     // Kept before there was a full screen key: it starts on F, unless F already does something else here.
     const taken = [reveal, ...answers, ...media].some((bind) => sameKey(bind.key, DEFAULT_KEYS.fullScreen.key));
     const fullScreen = "fullScreen" in raw ? bindOf(raw.fullScreen, DEFAULT_KEYS.fullScreen, undefined) : taken ? { ...DEFAULT_KEYS.fullScreen, key: null } : DEFAULT_KEYS.fullScreen;
-    return { reveal, answers, media, fullScreen, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
+    return { reveal, answers, media, fullScreen, undo, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -129,11 +149,11 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, answers: next.answers, media: next.media, fullScreen: next.fullScreen, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, answers: next.answers, media: next.media, fullScreen: next.fullScreen, undo: next.undo, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: the answer's, full screen's, an answer's place, or a sound's or clip's place. */
-export type Slot = { kind: "reveal" } | { kind: "fullScreen" } | { kind: "answers" | "media"; index: number };
+/** Where a key is bound: showing the answer, full screen's, Undo's, an answer's place, or a sound's or clip's place. */
+export type Slot = { kind: "reveal" | "fullScreen" | "undo" } | { kind: "answers" | "media"; index: number };
 
 /**
  * The keys with one slot's key set: the key taken from wherever else it was, so one key is never two things (what
@@ -141,13 +161,12 @@ export type Slot = { kind: "reveal" } | { kind: "fullScreen" } | { kind: "answer
  */
 export function withKey(binds: KeyBinds, slot: Slot, key: string | null): KeyBinds {
   const clear = (bind: Bind): Bind => (sameKey(bind.key, key) ? { ...bind, key: null } : bind);
-  const next: KeyBinds = { ...binds, reveal: clear(binds.reveal), answers: binds.answers.map(clear), media: binds.media.map(clear), fullScreen: clear(binds.fullScreen) };
+  const next: KeyBinds = { ...binds, reveal: clear(binds.reveal), answers: binds.answers.map(clear), media: binds.media.map(clear), fullScreen: clear(binds.fullScreen), undo: clear(binds.undo) };
   return withBind(next, slot, (bind) => ({ ...bind, key }));
 }
 /** The keys with one slot's bind changed. */
 export function withBind(binds: KeyBinds, slot: Slot, change: (bind: Bind) => Bind): KeyBinds {
-  if (slot.kind === "reveal") return { ...binds, reveal: change(binds.reveal) };
-  if (slot.kind === "fullScreen") return { ...binds, fullScreen: change(binds.fullScreen) };
+  if (!("index" in slot)) return { ...binds, [slot.kind]: change(binds[slot.kind]) };
   const list = binds[slot.kind].map((bind, i) => (i === slot.index ? change(bind) : bind));
   return { ...binds, [slot.kind]: list };
 }

@@ -7,6 +7,7 @@ import {
   CardUpdate,
   DeckId,
   DeckUpdate,
+  GivenId,
   NewCard,
   NewCardExample,
   NewDeck,
@@ -249,6 +250,37 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
     }
     if (outcome === "no-example") {
       res.status(400).json({ error: { message: "That example isn't one of this card's.", path: ["exampleId"] } });
+      return;
+    }
+    if (outcome === "given-elsewhere") {
+      res.status(409).json({ error: { message: "That answer was given to another card.", path: ["givenId"] } });
+      return;
+    }
+    res.json({ card: outcome });
+  });
+
+  // Undo: an answer taken back. Nothing is deleted: the answer is kept, marked with when it was undone, and the card
+  // stands where it stood before it. Only the last thing that happened to the card can be; taking it back again is harmless.
+  router.delete("/:deckId/cards/:cardId/answers/:givenId", (req, res) => {
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const cardId = CardId.safeParse(req.params.cardId);
+    const givenId = GivenId.safeParse(req.params.givenId);
+    if (!cardId.success || !givenId.success) {
+      res.status(400).json({ error: { message: "That answer isn't valid." } });
+      return;
+    }
+    const outcome = dbOf(res).undoAnswer(deckId, cardId.data, givenId.data, now());
+    if (outcome === "no-card") {
+      res.status(404).json({ error: { message: "That card isn't in this deck." } });
+      return;
+    }
+    if (outcome === "no-answer") {
+      res.status(404).json({ error: { message: "That answer isn't one of this card's." } });
+      return;
+    }
+    if (outcome === "changed") {
+      res.status(409).json({ error: { message: "This card has changed since, so the answer can't be undone." } });
       return;
     }
     res.json({ card: outcome });

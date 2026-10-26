@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDismiss } from "../hooks/useDismiss";
-import { bindable } from "../keys";
+import { bindable, keyOf } from "../keys";
 import { keyWords } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -17,8 +17,9 @@ type Props = {
 
 /**
  * A key set by pressing it: its keycap on a chip; pressed, the chip says "Press a key" and takes the next key pressed
- * (but a modifier, or one the page keeps for itself); Escape, or a press anywhere else, leaves it as it was. × takes
- * the key off. Settings → Keybinds is made of these.
+ * (but a modifier alone, or one the page keeps for itself), with Ctrl or Alt when either is held with it ("Ctrl+Z",
+ * `keys.ts` → `keyOf`); Escape, or a press anywhere else, leaves it as it was. × takes the key off. Settings →
+ * Keybinds is made of these.
  */
 export function KeyField({ id, label, value, onChange }: Props) {
   const [listening, setListening] = useState(false);
@@ -36,8 +37,8 @@ export function KeyField({ id, label, value, onChange }: Props) {
         setListening(false);
         return;
       }
-      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !bindable(e.key)) return;
-      latest.current(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+      if (e.repeat || e.metaKey || !bindable(e.key)) return;
+      latest.current(keyOf(e));
       setListening(false);
       // Space or Enter on the chip would press it again as it's let go.
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();

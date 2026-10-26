@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { againPlaceOf, branchAt, exampleShownOf, flowOf, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { Icon, type IconName } from "../components/Icon";
@@ -8,7 +8,7 @@ import { NumberField } from "../components/NumberField";
 import { ReviewCard } from "../components/ReviewCard";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
-import { sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
+import { keyOf, pressed, sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
 import { shuffle } from "../shuffle";
 import { LESSON_SCOPE } from "../srsFlow";
 import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
@@ -26,6 +26,8 @@ type Props = {
   subtitleStyle: SubtitleStyle;
   /** The answer with the sitting it happened in and how long the card was on screen before and after the flip. */
   onAnswer: (cardId: string, answer: CardAnswer) => Promise<Card>;
+  /** An answer taken back, by the id it was given; the card as it stood before it. */
+  onUndo: (cardId: string, givenId: string) => Promise<Card>;
   onGoAdd: () => void;
   onHome: () => void;
 };
@@ -37,11 +39,18 @@ const SPAN_MAX = DAY_MS;
 const span = (from: number, to: number) => Math.min(SPAN_MAX, Math.max(0, Math.round(to - from)));
 
 /**
- * A sitting with the deck, as the API knows it. Started as the screen opens and ended once, as done when the line
- * runs out or as left when the screen goes with a card still on it. `ok` is null until the start is answered;
- * a start that failed never blocks the review, the answers just go without a sitting.
+ * A sitting with the deck, as the API knows it. Started as the screen opens and ended once, as the screen or the page
+ * goes (or extra study starts): as done when the line had run out, so an answer undone at the end stays in it, or as
+ * left with a card still on screen. `ok` is null until the start is answered; a start that failed never blocks the
+ * review, the answers just go without a sitting.
  */
 type Sitting = { id: string; ready: Promise<boolean>; ok: boolean | null; ended: boolean };
+
+/**
+ * An answer this sitting gave, newest last, that Undo can take back: the id it was given, its card, and the review as
+ * it stood just before it (the line, the tally), which taking it back puts on screen again.
+ */
+type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
 /** "Coming up" at the end: the days ahead each row covers. */
@@ -271,11 +280,15 @@ function writeChartOpen(open: boolean) {
 const STAGED = "data-staged";
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer, onUndo, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck), deck.settings.pool));
   /** How many answers this review has taken, a card asked again counting each time. */
   const [answered, setAnswered] = useState(0);
+  /** Each time a card is put on screen, by an answer or by Undo: a showing of its own, timed afresh, even the same card's. */
+  const [turn, setTurn] = useState(0);
+  /** What Undo can take back, newest last (the owner, 2026-10-26): every answer of this sitting, until it's left. */
+  const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
@@ -327,8 +340,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
 
   const sitting = useRef<Sitting | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh. */
-  const shown = useRef<{ cardId: string | null; at: number; revealedAt: number | null }>({ cardId: null, at: 0, revealedAt: null });
+  /**
+   * The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh,
+   * and has the id its answer will be given (so the same answer sent again is kept once).
+   */
+  const shown = useRef<{ cardId: string | null; at: number; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, revealedAt: null, givenId: "" });
   function startSitting(kind: "review" | "extra") {
     const s: Sitting = { id: crypto.randomUUID(), ready: Promise.resolve(false), ok: null, ended: false };
     s.ready = api.startSession(deck.id, { id: s.id, kind }).then(
@@ -343,30 +359,33 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     s.ended = true;
     void s.ready.then((ok) => (ok ? api.endSession(deck.id, s.id, end, keepalive).catch(() => undefined) : undefined));
   }
+  /**
+   * The sitting in the ref (the day's, or extra study's) ends as the screen goes or the page is closed: left with a card
+   * on screen, done at the end. Not as the line runs out, which an Undo at the end screen takes back.
+   */
+  function endHere() {
+    const s = shown.current;
+    if (s.cardId) endSitting({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: s.revealedAt !== null }, true);
+    else endSitting({ how: "done" }, true);
+  }
   useEffect(() => {
-    // A remount straight after an unmount (StrictMode in development) is no leaving: the deferred "left" is called off.
+    // A remount straight after an unmount (StrictMode in development) is no leaving: the deferred end is called off.
     if (leaveTimer.current !== null) {
       clearTimeout(leaveTimer.current);
       leaveTimer.current = null;
     }
     if (!sitting.current) startSitting("review");
+    window.addEventListener("pagehide", endHere);
     return () => {
-      leaveTimer.current = setTimeout(() => {
-        const s = shown.current;
-        if (s.cardId) endSitting({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: s.revealedAt !== null }, true);
-      }, 0);
+      window.removeEventListener("pagehide", endHere);
+      leaveTimer.current = setTimeout(endHere, 0);
     };
     // Once per screen: the deck never changes under it (App keys this view by the deck's id).
   }, []);
   // A card comes on screen: its clock starts. A card back for another go, even the same one, starts afresh.
   useEffect(() => {
-    shown.current = { cardId: cardId ?? null, at: performance.now(), revealedAt: null };
-  }, [cardId, answered]);
-  const atEnd = card === undefined;
-  useEffect(() => {
-    // Whichever sitting is in the ref by then: the day's, or the extra study started from the end screen.
-    if (atEnd) endSitting({ how: "done" });
-  }, [atEnd]);
+    shown.current = { cardId: cardId ?? null, at: performance.now(), revealedAt: null, givenId: crypto.randomUUID() };
+  }, [cardId, turn]);
 
   function reveal() {
     if (revealed) return;
@@ -407,8 +426,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     const t = shown.current;
     const revealedAt = t.revealedAt ?? now;
     const s = sitting.current;
+    const before: Given = { givenId: t.givenId, cardId: card.id, line, counts, answered };
     try {
       const saved = await onAnswer(card.id, {
+        givenId: t.givenId,
         answerId,
         // A sitting that failed to start is left out; one still starting is named, the API has it by the time this lands.
         sessionId: s && s.ok !== false ? s.id : undefined,
@@ -427,8 +448,37 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         return joining ? joinLine(next, joining, deck.settings.pool) : next;
       });
       setAnswered((n) => n + 1);
+      setTurn((n) => n + 1);
+      setGiven((g) => [...g, before]);
       setRevealed(false);
     } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  /**
+   * Takes the last answer back: Panki keeps it, marked undone, and the card stands where it stood before it. The review
+   * is put back as it was just before it, the card on screen again on its front, a showing of its own. One Panki
+   * can't take back (the card answered elsewhere since, or gone) leaves nothing before it to take back either.
+   */
+  async function undo() {
+    const last = given.at(-1);
+    if (!last || busy) return;
+    setBusy(true);
+    setFailure(null);
+    setAsking(null);
+    try {
+      const restored = await onUndo(last.cardId, last.givenId);
+      setById((m) => new Map(m).set(restored.id, restored));
+      setLine(last.line);
+      setCounts(last.counts);
+      setAnswered(last.answered);
+      setTurn((n) => n + 1);
+      setGiven((g) => g.slice(0, -1));
+      setRevealed(false);
+    } catch (e) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) setGiven([]);
       setFailure(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBusy(false);
@@ -437,17 +487,26 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!card) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.metaKey) return;
+      // Undo's key works at the end too, where there's no card: the last answer is what it takes back.
+      if (pressed(e, binds.undo.key)) {
+        e.preventDefault();
+        if (e.repeat) return;
+        hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='undo']"), binds.undo.holdMs, () => void undo());
+        return;
+      }
+      if (!card) return;
+      // What's held with it is part of the key ("Ctrl+z" isn't "z"), as Settings → Keybinds keeps it.
+      const key = keyOf(e);
       // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
-      if (e.key === "Enter") {
+      if (key === "Enter") {
         if (e.target instanceof HTMLButtonElement || revealed) return;
         e.preventDefault();
         reveal();
         return;
       }
-      if (sameKey(e.key, binds.reveal.key)) {
+      if (sameKey(key, binds.reveal.key)) {
         e.preventDefault();
         if (e.repeat) return;
         // Turned back to its front at a tap (the owner, 2026-10-19 and 2026-10-21); shown with a hold when it's a key to hold.
@@ -461,14 +520,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         hold.begin(e.key, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, binds.reveal.holdMs, reveal);
         return;
       }
-      if (e.key === "Escape" && asking) {
+      if (key === "Escape" && asking) {
         setAsking(null);
         return;
       }
       // Held for its key's own time, and an answer that asks for confirmation that much plus `confirmMs`, the longer
       // hold being its yes. With no hold at all it's a press, and such an answer asks, the same key again its yes. A
       // key whose answer isn't offered here does nothing.
-      const slot = binds.answers.findIndex((bind) => sameKey(bind.key, e.key));
+      const slot = binds.answers.findIndex((bind) => sameKey(bind.key, key));
       const picked = slot >= 0 ? answers[slot] : undefined;
       if (revealed && picked && offered(srsType, card.place, picked.id)) {
         e.preventDefault();
@@ -489,7 +548,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
      */
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
-      if (sameKey(e.key, binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      if (pressed(e, binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -515,8 +574,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     const more = Math.min(extra, unseen.length);
     const startMore = () => {
       const picked = (deck.settings.newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, more).map((c) => c.id);
-      // The day's sitting ended as done when the line ran out; extra study is a sitting of its own.
+      // The day's sitting ends as done; extra study is a sitting of its own, and Undo goes back no further than its start.
+      endSitting({ how: "done" });
       startSitting("extra");
+      setGiven([]);
+      setFailure(null);
       setLine(startLine(picked, deck.settings.pool));
     };
     return (
@@ -561,6 +623,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
             ))}
           </div>
         </section>
+        {failure ? (
+          <p className="load-error" role="alert">
+            {failure}
+          </p>
+        ) : null}
         <div className="add-actions add-actions-start">
           {nothing && cards.length === 0 ? (
             <Button id="review-add" variant="primary" onClick={onGoAdd}>
@@ -571,6 +638,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
               Home
             </Button>
           )}
+          {given.length > 0 ? (
+            <Button id="review-undo" className="review-undo-end" data-hold="undo" disabled={busy} onClick={() => void undo()}>
+              <Icon name="undo" />
+              Undo
+              <AnswerKey bind={binds.undo} />
+            </Button>
+          ) : null}
         </div>
       </section>
     );
@@ -595,6 +669,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         {/* Filling the screen: the rail closed to leave the clip alone (until the screen is next filled), and the way out. */}
         {full ? (
           <span className="review-stage-tools">
+            <Button className="btn-icon" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
+              <Icon name="undo" />
+            </Button>
             {staged ? (
               <Button className="btn-icon" aria-label="Hide the card" onClick={stage.close}>
                 <Icon name="close" />
@@ -693,9 +770,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
               )}
             </div>
           ) : null}
-          {/* Under the answers (the owner's place for it, 2026-10-18): the card's chart, on or off, kept on this device. Not while the review fills the screen. */}
+          {/* Under the answers (the owner's place for it, 2026-10-18): Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
           {full ? null : (
             <div className="review-chart-row">
+              <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
+                <Icon name="undo" />
+                Undo
+                <AnswerKey bind={binds.undo} />
+              </Button>
               <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
                 <Icon name="srs" />
                 Chart

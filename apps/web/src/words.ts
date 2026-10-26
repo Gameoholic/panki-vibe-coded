@@ -20,9 +20,16 @@ export function langOf(text: string): "ja" | undefined {
 }
 
 const KEY_NAMES: Record<string, string> = { " ": "Space", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
-/** A key as its keycap reads: "Space", "↑", "A", "1", "Enter". */
+/**
+ * A key as its keycap reads: "Space", "↑", "A", "1", "Enter", and one pressed with Ctrl or Alt as it's kept
+ * (`keys.ts` → `keyOf`, the held keys before a "+") "Ctrl+Z". The last "+" but the key itself is where it splits, so
+ * "Ctrl++" is Ctrl with "+".
+ */
 export function keyWords(key: string): string {
-  return KEY_NAMES[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+  const at = key.length < 2 ? -1 : key.lastIndexOf("+", key.length - 2);
+  const own = key.slice(at + 1);
+  const cap = KEY_NAMES[own] ?? (own.length === 1 ? own.toUpperCase() : own);
+  return at < 0 ? cap : `${key.slice(0, at)}+${cap}`;
 }
 
 /** Seconds as a time on a player, "0:03", "12:34", and past the hour "1:02:03". */

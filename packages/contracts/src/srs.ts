@@ -448,11 +448,19 @@ export function isTimeZone(zone: string): boolean {
 }
 
 /**
+ * An answer as it was given: its own id, minted by the browser, so the same answer sent again is kept once, and Undo
+ * names it to take it back (`DELETE /decks/:deckId/cards/:cardId/answers/:givenId`).
+ */
+export const GivenId = z.uuid();
+
+/**
  * What the browser sends when a card is answered. The time and the outcome are the API's; the browser adds the
  * sitting it happened in and how long the card was on screen before the flip (`thinkMs`) and after it (`decideMs`),
  * spans measured on its own clock, kept for the stats.
  */
 export const CardAnswer = z.object({
+  /** Left out, the answer can't be undone, and sending it again gives it twice. */
+  givenId: GivenId.optional(),
   answerId: SrsAnswerId,
   sessionId: z.uuid().optional(),
   thinkMs: z.number().int().nonnegative().max(86_400_000).optional(),

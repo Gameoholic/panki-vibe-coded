@@ -600,6 +600,11 @@ export function App() {
     setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
     return saved;
   }
+  async function undoAnswer(deck: Deck, cardId: string, givenId: string) {
+    const restored = await api.undoAnswer(deck.id, cardId, givenId);
+    setCards((prev) => prev?.map((c) => (c.id === restored.id ? restored : c)) ?? null);
+    return restored;
+  }
 
   /** Into a review from outside a deck: straight into the one deck when there is only one, else the picker. */
   function reviewAny() {
@@ -872,6 +877,7 @@ export function App() {
               srsType={srsType}
               subtitleStyle={settings.subtitleStyle}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
+              onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}
               onGoAdd={() => openDeck(deck)}
               onHome={() => go(HOME)}
             />

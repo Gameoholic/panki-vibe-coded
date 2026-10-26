@@ -2106,9 +2106,11 @@ mark.sub-mark {
 .review-chart-row {
   display: flex;
   justify-content: center;
+  gap: 4px;
   margin-top: 12px;
 }
-.btn.review-chart-toggle {
+.btn.review-chart-toggle,
+.btn.review-undo {
   padding: 4px 10px;
   font-size: 13px;
   color: var(--muted);
@@ -2192,7 +2194,8 @@ mark.sub-mark {
   font-size: 11px;
 }
 @media (hover: none) {
-  .review-aside .key {
+  .review-aside .key,
+  .review-undo .key {
     display: none;
   }
 }
@@ -2306,6 +2309,8 @@ mark.sub-mark {
 .review-aside .key,
 .review-hint .key,
 .review-actions > .btn-primary .key,
+.review-undo .key,
+.review-undo-end .key,
 .key-field .key,
 .media-key {
   display: inline-grid;

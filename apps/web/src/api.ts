@@ -258,6 +258,9 @@ export const api = {
   /** Answers a card in a review; the API decides where it goes and when it comes back. */
   answerCard: (deckId: string, cardId: string, answer: CardAnswer): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/answers`, send("POST", answer), (b) => CardResponse.parse(b).card),
+  /** Takes an answer back by the id it was given (Undo): Panki keeps it, marked undone, and answers with the card where it stood before it; a 409 when the card has changed since. */
+  undoAnswer: (deckId: string, cardId: string, givenId: string): Promise<Card> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/answers/${encodeURIComponent(givenId)}`, send("DELETE"), (b) => CardResponse.parse(b).card),
   /** A sitting with a deck begins; the browser mints its id, so a retry returns the one already started. */
   startSession: (deckId: string, session: NewReviewSession): Promise<ReviewSession> =>
     request(`${deckPath(deckId)}/sessions`, send("POST", session), (b) => ReviewSessionResponse.parse(b).session),
