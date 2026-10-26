@@ -2336,27 +2336,37 @@ export function openDb(
   const builtinIds = new Map((selectBuiltins.all() as { id: string; builtin: string }[]).map((row) => [row.builtin, row.id]));
   const first = builtinIds.size === 0;
   const before = first ? api.listSrsTypes() : [];
+  let failed = false;
   for (const [i, starter] of SRS_STARTER_IDS.entries()) {
-    const existing = api.getSrsType(builtinIds.get(starter) ?? "");
-    // Its stages are matched to the app's position by position: with fewer in the app than it has, every card would
-    // shift a stage. A stage the app took away is a migration's to clear first (Lesson's was, 2026-10-21); until then it's left as it is.
-    if (existing && existing.stages.length > starterStageCount(starter)) {
-      console.warn(`[srs] ${starter} has ${existing.stages.length} stages and the app ${starterStageCount(starter)}: left as it is until a migration lines them up.`);
-      continue;
+    // One the app can't bring up to date (an edit to `srsStarters.ts` that breaks its own type's rules) is left as this
+    // database has it and said in the log, so the account still opens: on 2026-10-26 one such edit made every call to
+    // Panki fail until it was fixed. A write it began is undone with it (`transaction`).
+    try {
+      const existing = api.getSrsType(builtinIds.get(starter) ?? "");
+      // Its stages are matched to the app's position by position: with fewer in the app than it has, every card would
+      // shift a stage. A stage the app took away is a migration's to clear first (Lesson's was, 2026-10-21); until then it's left as it is.
+      if (existing && existing.stages.length > starterStageCount(starter)) {
+        console.warn(`[srs] ${starter} has ${existing.stages.length} stages and the app ${starterStageCount(starter)}: left as it is until a migration lines them up.`);
+        continue;
+      }
+      if (existing) {
+        const { id, ...today } = makeStarter(starter, mint, { id: existing.id, stageIds: existing.stages.map((s) => s.id), answers: existing.answers });
+        // Nothing changes, and nothing is recorded, when it's already the same. A stage the app dropped while cards sit
+        // on it is left for a migration to move: this never guesses where cards go.
+        api.updateSrsType(id, today, now());
+        continue;
+      }
+      // A millisecond apart, so the list keeps this order rather than sorting them by id.
+      const made = api.insertSrsType(makeStarter(starter, mint), now() + i);
+      markBuiltin.run(starter, made.id);
+      if (first && starter === DEFAULT_STARTER) for (const deck of api.listDecks(now())) api.updateDeck(deck.id, { srsTypeId: made.id }, now());
+    } catch (e) {
+      failed = true;
+      console.error(`[srs] ${starter} couldn't be brought up to what the app defines, so it's left as it is:`, e instanceof Error ? e.message : e);
     }
-    if (existing) {
-      const { id, ...today } = makeStarter(starter, mint, { id: existing.id, stageIds: existing.stages.map((s) => s.id), answers: existing.answers });
-      // Nothing changes, and nothing is recorded, when it's already the same. A stage the app dropped while cards sit
-      // on it is left for a migration to move: this never guesses where cards go.
-      api.updateSrsType(id, today, now());
-      continue;
-    }
-    // A millisecond apart, so the list keeps this order rather than sorting them by id.
-    const made = api.insertSrsType(makeStarter(starter, mint), now() + i);
-    markBuiltin.run(starter, made.id);
-    if (first && starter === DEFAULT_STARTER) for (const deck of api.listDecks(now())) api.updateDeck(deck.id, { srsTypeId: made.id }, now());
   }
-  for (const type of before) removeSrsType.run(now(), type.id);
+  // The types from before are hidden only once every one that comes with the app is there to take their place.
+  if (!failed) for (const type of before) removeSrsType.run(now(), type.id);
 
   return api;
 }
