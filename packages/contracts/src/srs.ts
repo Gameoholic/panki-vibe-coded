@@ -61,7 +61,8 @@ export type Step =
   | { kind: "again"; wait: Wait; then: Flow; capped?: boolean | undefined; now?: boolean | undefined };
 /** A rule for every answer, by answer id. An answer with no rule stays where it is. */
 export type Flow = Record<string, Step>;
-export const MOVE_MAX = 2;
+/** How many stages one move goes up or down at most: Wanikani+'s Easy goes three (2026-10-26; two until then, when a move of three made every built-in type fail its own rule as it was brought up to date). */
+export const MOVE_MAX = 3;
 export const Step: z.ZodType<Step, Step> = z.lazy(() =>
   z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("move"), by: z.number().int().min(-MOVE_MAX).max(MOVE_MAX) }),
