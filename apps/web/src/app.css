@@ -1612,9 +1612,132 @@ canvas.media-frame {
   }
 }
 .empty,
-.loading {
-  color: var(--muted);
-  margin: 0;
+/* Loading, as the shape of what's coming (components/Skeleton.tsx): blocks in the theme's second surface, a soft sweep
+   passing over them, the whole coming in after a beat so a quick load never flashes. One look for every loading place. */
+.skel {
+  position: relative;
+  display: block;
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+.skel.is-round {
+  border-radius: 999px;
+}
+.skel.is-faint {
+  opacity: 0.6;
+}
+.skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 7%, transparent), transparent);
+  animation: skel-sweep 1.4s ease-in-out infinite;
+}
+@keyframes skel-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+.skel-in {
+  animation: skel-in 0.25s ease-out 0.15s both;
+}
+@keyframes skel-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel::after {
+    animation: none;
+  }
+  .skel-in {
+    animation: none;
+  }
+}
+.skel-rows {
+  display: grid;
+}
+.skel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.skel-row:last-child {
+  border-bottom: 0;
+}
+.skel-stack {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+.skel-lines {
+  display: grid;
+  gap: 10px;
+  padding-block: 4px;
+}
+.skel-panels {
+  display: grid;
+  gap: 16px;
+}
+.skel-panel {
+  display: grid;
+  gap: 16px;
+}
+.skel-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.skel-field {
+  display: grid;
+  gap: 8px;
+}
+.skel-tile {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+.skel-review {
+  display: grid;
+  gap: 12px;
+}
+.skel-review-top {
+  display: flex;
+  gap: 14px;
+}
+.skel-review-card {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 18px;
+  min-height: min(52vh, 460px);
+}
+.skel-review-card > .skel:first-child {
+  justify-self: start;
+}
+.skel-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  gap: 16px;
+  align-items: start;
+}
+.skel-editor-main {
+  display: grid;
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .skel-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .load-error {
   color: var(--danger);

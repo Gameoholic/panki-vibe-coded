@@ -32,11 +32,12 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const none = decks !== null && decks.length === 0;
   const due = decks?.reduce((sum, deck) => sum + deck.dueCount, 0) ?? 0;
   const fresh = decks?.reduce((sum, deck) => sum + deck.newCount, 0) ?? 0;
-  const reviewDetail = decks === null ? "" : none ? "No decks yet" : due + fresh === 0 ? "Nothing due right now" : `${due} due · ${fresh} new`;
-  const decksDetail = decks === null ? "" : none ? "None yet" : count(decks.length, "deck", "decks");
+  // Null while what a door says is loading: the door draws its shape there.
+  const reviewDetail = decks === null ? null : none ? "No decks yet" : due + fresh === 0 ? "Nothing due right now" : `${due} due · ${fresh} new`;
+  const decksDetail = decks === null ? null : none ? "None yet" : count(decks.length, "deck", "decks");
   const addDetail = none ? "Make a deck first" : "to any deck";
-  const typesDetail = types === null ? "" : types.length === 0 ? "None yet" : types.map((t) => t.name).join(", ");
-  const srsDetail = srsTypes === null ? "" : srsTypes.length === 0 ? "None yet" : srsTypes.map((t) => t.name).join(", ");
+  const typesDetail = types === null ? null : types.length === 0 ? "None yet" : types.map((t) => t.name).join(", ");
+  const srsDetail = srsTypes === null ? null : srsTypes.length === 0 ? "None yet" : srsTypes.map((t) => t.name).join(", ");
 
   const [layout, setLayout] = useState<BoardLayout>(readLayout);
   const [arranging, setArranging] = useState(false);

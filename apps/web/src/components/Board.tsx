@@ -2,6 +2,7 @@ import { useEffect, type CSSProperties } from "react";
 import type { Stats } from "@panki/contracts";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
+import { Bone, Skeleton } from "./Skeleton";
 import { useGridDrag } from "../hooks/useGridDrag";
 import { isDoorId, type BoardItemId, type BoardLayout, type DoorId } from "../layout";
 import { controlOf, WIDGETS, Widget, widgetOf, type WidgetContext, type WidgetEntry, type WidgetId } from "../widgets";
@@ -11,7 +12,8 @@ export type DoorSpec = {
   id: DoorId;
   icon: IconName;
   label: string;
-  detail: string;
+  /** The line under its name; null while what it says is loading, drawn as its shape (`Bone`). */
+  detail: string | null;
   /** The accent one: only while there's something to do. */
   hot?: boolean;
   onClick: () => void;
@@ -121,7 +123,7 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
     >
       <Icon name={spec.icon} className="door-icon" />
       <span className="door-label">{spec.label}</span>
-      <span className="door-detail">{spec.detail}</span>
+      {spec.detail === null ? <Bone w="6em" h="0.8em" className="door-detail" /> : <span className="door-detail">{spec.detail}</span>}
     </Button>
   );
 
@@ -141,7 +143,7 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
         ) : undefined
       }
     >
-      {stats && ctx ? entry.render(stats, ctx) : <p className="w-quiet">…</p>}
+      {stats && ctx ? entry.render(stats, ctx) : <Skeleton shape="tile" />}
     </Widget>
   );
 

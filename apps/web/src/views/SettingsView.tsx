@@ -41,6 +41,7 @@ import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
+import { Skeleton } from "../components/Skeleton";
 import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
 import { KeysPanels } from "./KeysSettings";
 import { TextField } from "../components/TextField";
@@ -163,7 +164,9 @@ function WatchHistoryPanel() {
         <p className="session-who">
           {kept ? `${count(history.videos, "video", "videos")} · ${durationWords(history.ms / 1000)}${history.since === null ? "" : ` since ${dateWords(history.since)}`}` : "Nothing kept."}
         </p>
-      ) : null}
+      ) : failure ? null : (
+        <Skeleton shape="lines" count={1} />
+      )}
       {asking ? (
         <Ask
           idPrefix="watch-forget"
@@ -381,7 +384,7 @@ function EngineAccountLines({ keyed, turn }: { keyed: boolean; turn: number }) {
       </p>
     );
   }
-  if (!account) return null;
+  if (!account) return <Skeleton shape="lines" count={2} />;
   return (
     <>
       <p className="setting-why">
@@ -686,7 +689,9 @@ function StorageSection() {
             <span className="kept-size">{sizeWords(report.disk.freeBytes)} left</span>
           </div>
         </div>
-      ) : null}
+      ) : failure ? null : (
+        <Skeleton shape="rows" count={4} />
+      )}
     </section>
   );
 }
@@ -741,7 +746,9 @@ function ExtensionPanel() {
               </Button>
             </div>
           </div>
-        ) : null}
+        ) : failure ? null : (
+          <Skeleton shape="rows" count={1} />
+        )}
       </section>
       <section className="panel" aria-labelledby="extension-setup-title">
         <h2 id="extension-setup-title" className="panel-title">
@@ -799,9 +806,9 @@ function AdminPanel() {
           {failure}
         </p>
       ) : null}
-      {transcription ? <Transcribing status={transcription} onStatus={setTranscription} /> : null}
-      {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : null}
-      {watching ? <WatchingSection settings={watching} /> : null}
+      {transcription ? <Transcribing status={transcription} onStatus={setTranscription} /> : failure ? null : <Skeleton shape="settings" count={5} />}
+      {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : failure ? null : <Skeleton shape="settings" count={2} />}
+      {watching ? <WatchingSection settings={watching} /> : failure ? null : <Skeleton shape="settings" count={1} />}
       <StorageSection />
     </section>
   );
@@ -876,6 +883,7 @@ function DictionariesPanel() {
       <h2 id="dictionaries-title" className="panel-title">
         Dictionaries
       </h2>
+      {list === null && failures.length === 0 ? <Skeleton shape="rows" count={2} /> : null}
       {list && list.length === 0 && !uploading ? <p className="empty">No dictionaries on Panki yet.</p> : null}
       {list && list.length > 0 ? (
         <div className="kept-rows">

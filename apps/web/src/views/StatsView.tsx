@@ -62,7 +62,8 @@ export function StatsView({ decks, srsTypes, settings, onReview }: Props) {
           {failure}
         </p>
       ) : null}
-      {stats === null ? failure ? null : <p className="loading">Loading…</p> : <Board stats={stats} ctx={ctx} stale={loading} />}
+      {/* Before the first stats, every tile is there as its shape (`Board` draws a tile's body as a skeleton until it has stats). */}
+      {stats === null ? failure ? null : <Board stats={null} ctx={ctx} /> : <Board stats={stats} ctx={ctx} stale={loading} />}
     </>
   );
 }

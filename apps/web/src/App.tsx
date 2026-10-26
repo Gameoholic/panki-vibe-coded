@@ -29,6 +29,7 @@ import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
 import { Modal } from "./components/Modal";
 import { Segmented } from "./components/Segmented";
+import { Skeleton, type SkeletonShape } from "./components/Skeleton";
 import { SpaceNotice } from "./components/SpaceNotice";
 import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
@@ -80,6 +81,23 @@ type Screen =
   | { kind: "stats" };
 
 const HOME: Screen = { kind: "home" };
+
+/** What each screen looks like while what it needs is loading (`Skeleton`): its own shape, never "Loading…" in words. */
+const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
+  home: "board",
+  decks: "rows",
+  deck: "rows",
+  pick: "rows",
+  review: "review",
+  add: "form",
+  types: "rows",
+  type: "editor",
+  srs: "rows",
+  srsNew: "rows",
+  srsEdit: "editor",
+  settings: "panels",
+  stats: "board",
+};
 
 /** A screen's address: the same screen, by ids alone. */
 function routeOf(screen: Screen): Route {
@@ -731,7 +749,8 @@ export function App() {
     }
   }
 
-  const loading = <p className="loading">Loading…</p>;
+  /** The screen as its shape while what it needs loads; a deck's Settings tab is panels, not its cards' rows. */
+  const loading = <Skeleton shape={screen.kind === "deck" && screen.tab === "settings" ? "panels" : SKELETON_OF[screen.kind]} />;
   let body: ReactNode;
   if (loadError) {
     body = (
@@ -981,7 +1000,8 @@ export function App() {
               {UNREACHED}
             </p>
           ) : (
-            loading
+            // Whether anyone is signed in isn't known yet: no screen's shape, since it may be the sign-in's.
+            <Skeleton shape="lines" />
           )}
         </main>
       ) : null}

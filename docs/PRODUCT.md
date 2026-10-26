@@ -252,6 +252,8 @@ The owner's notes of a week ("think client complaints"), played with as a protot
 
 What A is, as built: a light neutral ground, white bordered cards, **Urbanist** (self-hosted) for Latin text and the device's own Japanese font, a quiet indigo accent, 12px radius, counts as small accent pills, section labels in small uppercase, the review word at 40px on a card with a soft shadow. The dark set follows the system for now.
 
+**Loading is the shape of what's coming** (the owner, 2026-10-26: "I don't like all the loading… make it a skeleton whenever we do loading across the entire app"): never "Loading…" in words, never a blank that pops in. Each screen shows its own shape in quiet blocks with a soft sweep over them (a list's rows, the board's tiles, a review's card, Settings' panels), a home door's line and each Settings section the same, faded in after a beat so a quick load doesn't flash.
+
 The principles underneath, carried from the Board:
 
 - **Clean, modern-SaaS:** a light neutral background, white bordered cards. Not themed, not skeuomorphic.
