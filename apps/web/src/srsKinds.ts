@@ -75,13 +75,18 @@ export function holdAsks(step: HoldStep): string {
  * label carries its wait (Bury's chip is lit whatever the wait). The ask-agains (`AGAIN_OPTIONS`) and "go to a stage"
  * are made per type.
  */
-export type StepOptionId = "up1" | "up2" | "stay" | "down1" | "down2" | "burn" | "lesson" | "retry" | "hidden" | HoldKind;
+export type StepOptionId = "up1" | "upX" | "stay" | "down1" | "downX" | "burn" | "lesson" | "retry" | "hidden" | HoldKind;
+/**
+ * How far ↑ X and ↓ X go when first picked: two, as the far moves always did; then as many stages as are set beside them
+ * (the owner, 2026-10-26: "it's not ↑1 and ↑2 anymore, it's ↑1 and ↑X, X being modifiable"), up to the contracts' `MOVE_MAX`.
+ */
+export const FAR_MOVE = 2;
 export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step; icon?: IconName; chip?: string }[] = [
   { id: "up1", step: { kind: "move", by: 1 } },
-  { id: "up2", step: { kind: "move", by: 2 } },
+  { id: "upX", step: { kind: "move", by: FAR_MOVE } },
   { id: "stay", step: STAY },
   { id: "down1", step: { kind: "move", by: -1 } },
-  { id: "down2", step: { kind: "move", by: -2 } },
+  { id: "downX", step: { kind: "move", by: -FAR_MOVE } },
   { id: "burn", step: { kind: "burn" }, icon: "flame" },
   // The one way back to New once a card has left it.
   { id: "lesson", step: { kind: "lesson" }, icon: "undo" },
@@ -101,27 +106,36 @@ export const AGAIN_OPTIONS: readonly { id: "again" | "again-now"; label: string;
   { id: "again", label: "Ask again later", now: false },
   { id: "again-now", label: "Ask again right away", now: true },
 ];
-/** The moves along the ladder as one short row on the box's card, lowest first. */
-export const MOVE_OPTIONS: readonly { id: StepOptionId; label: string }[] = [
-  { id: "down2", label: "↓ 2" },
-  { id: "down1", label: "↓ 1" },
-  { id: "stay", label: "Stay" },
-  { id: "up1", label: "↑ 1" },
-  { id: "up2", label: "↑ 2" },
-];
-const MOVE_WORDS: Record<number, string> = { 1: "Up one", 2: "Up two", 0: "Stays", [-1]: "Down one", [-2]: "Down two" };
+/** The moves along the ladder as one short row on the box's card, lowest first: the far ones as many stages as `far`. */
+export function moveOptions(far: number): readonly { id: StepOptionId; label: string }[] {
+  return [
+    { id: "downX", label: `↓ ${far}` },
+    { id: "down1", label: "↓ 1" },
+    { id: "stay", label: "Stay" },
+    { id: "up1", label: "↑ 1" },
+    { id: "upX", label: `↑ ${far}` },
+  ];
+}
+/** How many stages a far move goes, when a step is one; null for any other step. */
+export const farOf = (step: Step | undefined): number | null => (step?.kind === "move" && Math.abs(step.by) >= 2 ? Math.abs(step.by) : null);
+const COUNT_WORDS = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+/** A move in words: "Up one", "Down three", "Up 12", "Stays". */
+function moveWords(by: number): string {
+  if (by === 0) return "Stays";
+  return `${by > 0 ? "Up" : "Down"} ${COUNT_WORDS[Math.abs(by)] ?? Math.abs(by)}`;
+}
 
-/** The option a step is: one of the fixed ones, `again`, or `to:<stage id>`. */
+/** The option a step is: one of the fixed ones (a far move is `upX` or `downX`, whatever its stages), `again`, or `to:<stage id>`. */
 export function stepKey(step: Step | undefined): string {
   if (!step) return "stay";
-  if (step.kind === "move") return step.by === 1 ? "up1" : step.by === 2 ? "up2" : step.by === -1 ? "down1" : step.by === -2 ? "down2" : "stay";
+  if (step.kind === "move") return step.by >= 2 ? "upX" : step.by === 1 ? "up1" : step.by <= -2 ? "downX" : step.by === -1 ? "down1" : "stay";
   if (step.kind === "to") return `to:${step.stage}`;
   return step.kind;
 }
 type Named = Pick<SrsType, "stages" | "after" | "burnedName">;
 export function stepLabel(type: Named, step: Step | undefined): string {
-  if (!step) return MOVE_WORDS[0] ?? "";
-  if (step.kind === "move") return MOVE_WORDS[step.by] ?? "Stays";
+  if (!step) return moveWords(0);
+  if (step.kind === "move") return moveWords(step.by);
   if (step.kind === "burn") return type.burnedName;
   if (step.kind === "lesson") return `${NEW_WORDS.name} again`;
   if (step.kind === "retry") return "Keep asking";

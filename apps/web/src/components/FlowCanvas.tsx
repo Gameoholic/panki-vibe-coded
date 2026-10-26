@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { LESSON_IDX, WAIT_MAX, isNew, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
-import { AGAIN_OPTIONS, MOVE_OPTIONS, NEW_WORDS, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
-import { BURNED_SCOPE, LESSON_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
+import { LESSON_IDX, MOVE_MAX, WAIT_MAX, isNew, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
+import { AGAIN_OPTIONS, FAR_MOVE, NEW_WORDS, farOf, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
+import { BURNED_SCOPE, LESSON_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setMove, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { NumberField } from "./NumberField";
@@ -419,9 +419,13 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   const selBox: Pick<Box, "x" | "y" | "w" | "h"> | null = selected ? (byId.get(selected) ?? (selLoop ? { x: selLoop.label.x, y: selLoop.label.y, w: 0, h: 0 } : null)) : null;
   const current = selPath ? getStep(type, scope, selPath) : undefined;
   const currentKey = stepKey(current);
+  /** How many stages ↑ X and ↓ X go: the step's own when it's one of them, else where they start. */
+  const far = farOf(current) ?? FAR_MOVE;
   function pick(key: string) {
     if (!selPath) return;
-    onChange(setStep(type, scope, selPath, key));
+    // A far move keeps its stages whichever way it's turned.
+    if (key === "upX" || key === "downX") onChange(setMove(type, scope, selPath, key === "upX" ? far : -far));
+    else onChange(setStep(type, scope, selPath, key));
   }
   const pickedIdx = current?.kind === "to" ? type.stages.findIndex((s) => s.id === current.stage) : -1;
   const namedIdx = peek ?? pickedIdx;
@@ -770,7 +774,23 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                   <div className="menu-sep" />
                 </>
               ) : null}
-              <Segmented<string> size="sm" idPrefix="step" label="Up or down the ladder" options={MOVE_OPTIONS} value={currentKey} disabled={readOnly} onChange={pick} />
+              <Segmented<string> size="sm" idPrefix="step" label="Up or down the ladder" options={moveOptions(far)} value={currentKey} disabled={readOnly} onChange={pick} />
+              {/* A far move picked: how many stages it goes, set here. */}
+              {current?.kind === "move" && farOf(current) !== null ? (
+                <div className="menu-wait">
+                  <NumberField
+                    id="move-far"
+                    label="Stages"
+                    value={far}
+                    min={FAR_MOVE}
+                    max={MOVE_MAX}
+                    size="sm"
+                    suffix=" stages"
+                    disabled={readOnly}
+                    onChange={(n) => onChange(setMove(type, scope, selPath ?? [], current.by > 0 ? n : -n), `far-${selected}`)}
+                  />
+                </div>
+              ) : null}
               <div className="chips menu-chips">
                 {/* For a new card, New again is where it is already. */}
                 {STEP_OPTIONS.filter((o) => o.step.kind !== "move" && !(scope === LESSON_SCOPE && o.step.kind === "lesson")).map((o) => (

@@ -4046,7 +4046,7 @@ mark.sub-mark {
 /* Back to Lesson is the farthest down a card goes. */
 .fnode.lesson .t,
 .fnode.down1 .t,
-.fnode.down2 .t {
+.fnode.downX .t {
   color: var(--danger);
 }
 /* New, before the first stage: set apart in its own colour as Burned is at the end (the owner, 2026-10-21), the accent
@@ -4059,7 +4059,7 @@ mark.sub-mark {
   color: var(--accent);
 }
 .fnode.up1 .t,
-.fnode.up2 .t {
+.fnode.upX .t {
   color: var(--accent);
 }
 /* The stage itself, when its rules are shown: its name and its wait, right on the chart. */

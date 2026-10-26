@@ -75,6 +75,14 @@ export function setStep(type: SrsType, scope: Scope, path: readonly string[], ke
     branchAt(ownFlow(draft, scope), path.slice(0, -1))[last] = stepOf(key);
   });
 }
+/** Sets the answer at the end of `path` to move a card `by` stages: a far move picked, or its stages changed. */
+export function setMove(type: SrsType, scope: Scope, path: readonly string[], by: number): SrsType {
+  const last = path[path.length - 1];
+  if (last === undefined) return type;
+  return edit(type, (draft) => {
+    branchAt(ownFlow(draft, scope), path.slice(0, -1))[last] = { kind: "move", by };
+  });
+}
 /** Puts an ask-again in front of a step, after a wait or (`now`) in the same review: the same answer then leads to what the step was; the other answers keep the stage. */
 export function wrapInAgain(type: SrsType, scope: Scope, path: readonly string[], now = false): SrsType {
   const last = path[path.length - 1];

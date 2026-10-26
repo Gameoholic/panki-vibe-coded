@@ -61,8 +61,12 @@ export type Step =
   | { kind: "again"; wait: Wait; then: Flow; capped?: boolean | undefined; now?: boolean | undefined };
 /** A rule for every answer, by answer id. An answer with no rule stays where it is. */
 export type Flow = Record<string, Step>;
-/** How many stages one move goes up or down at most: Wanikani+'s Easy goes three (2026-10-26; two until then, when a move of three made every built-in type fail its own rule as it was brought up to date). */
-export const MOVE_MAX = 3;
+/**
+ * How many stages one move goes up or down at most: as many as a ladder can have (`STAGES_MAX`), since the far move on
+ * the chart is as many as you set (the owner, 2026-10-26: "↑1 and ↑X, X being modifiable"). It was two until that day,
+ * when Wanikani+'s Easy of three made every built-in type fail its own rule as it was brought up to date.
+ */
+export const MOVE_MAX = 30;
 export const Step: z.ZodType<Step, Step> = z.lazy(() =>
   z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("move"), by: z.number().int().min(-MOVE_MAX).max(MOVE_MAX) }),
