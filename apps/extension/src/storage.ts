@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, UpdateState } from "./messages";
-import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, pillLayoutOf, type Modules } from "./modules";
+import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -145,6 +145,10 @@ const Stored = z.object({
   /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls, and when the video will end. */
   speedControl: z.boolean().catch(DEFAULT_MODULES.speedControl),
   endTime: z.boolean().catch(DEFAULT_MODULES.endTime),
+  /** A short skip with ← or → and a key held (`modules.ts` → `shortSkip`). */
+  shortSkip: z.boolean().catch(DEFAULT_MODULES.shortSkip),
+  shortSkipKey: SkipKey.catch(DEFAULT_MODULES.shortSkipKey),
+  shortSkipSeconds: SkipSeconds.catch(DEFAULT_MODULES.shortSkipSeconds),
   /** How this extension stood against Panki's build when it last asked (`updates.ts`); null until it has. */
   update: UpdateState.nullable().catch(null),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
@@ -187,6 +191,9 @@ export const modulesOf = (store: Stored): Modules => ({
   thumbs: store.moduleThumbs,
   speedControl: store.speedControl,
   endTime: store.endTime,
+  shortSkip: store.shortSkip,
+  shortSkipKey: store.shortSkipKey,
+  shortSkipSeconds: store.shortSkipSeconds,
 });
 
 export async function readStore(): Promise<Stored> {

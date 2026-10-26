@@ -9,11 +9,13 @@ import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
+import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
+import { SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
@@ -401,9 +403,44 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
         label="Video end time in the player"
         control={<Toggle id="end-time-on" says={{ on: "Shown", off: "Hidden" }} on={store.endTime} onChange={(endTime) => void writeStore({ endTime }).then(onChanged)} />}
       />
+      <Setting
+        id="short-skip"
+        label="Short skip with the arrow keys"
+        control={<Toggle id="short-skip-on" says={{ on: "On", off: "Off" }} on={store.shortSkip} onChange={(shortSkip) => void writeStore({ shortSkip }).then(onChanged)} />}
+      />
+      <Setting
+        id="short-skip-key"
+        label="Key to hold"
+        control={
+          <Segmented idPrefix="short-skip-key" label="Key to hold" options={SKIP_KEY_OPTIONS} value={store.shortSkipKey} disabled={!store.shortSkip} onChange={(shortSkipKey) => void writeStore({ shortSkipKey }).then(onChanged)} />
+        }
+      />
+      <Setting
+        id="short-skip-seconds"
+        label="Skip by"
+        control={
+          <NumberField
+            id="short-skip-seconds-field"
+            label="Skip by"
+            value={store.shortSkipSeconds}
+            min={SKIP_SECONDS_MIN}
+            max={SKIP_SECONDS_MAX}
+            step={0.1}
+            suffix=" s"
+            disabled={!store.shortSkip}
+            onChange={(shortSkipSeconds) => void writeStore({ shortSkipSeconds }).then(onChanged)}
+          />
+        }
+      />
     </section>
   );
 }
+/** The keys a short skip can be held with, as the options page names them. */
+const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
+  { id: "shift", label: "Shift" },
+  { id: "ctrl", label: "Ctrl" },
+  { id: "alt", label: "Alt" },
+];
 
 // Where you stopped last was a panel of its own here until the owner had it folded into Seek bar, 2026-10-21 (`SeekBar.tsx`).
 

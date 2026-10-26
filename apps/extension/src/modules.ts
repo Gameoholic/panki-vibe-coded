@@ -71,6 +71,15 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  */
 export const SHELF_MAX = 5;
 
+/** The key held with ← or → for a short skip (`Modules.shortSkip`): one, held alone. */
+export const SKIP_KEYS = ["shift", "ctrl", "alt"] as const;
+export const SkipKey = z.enum(SKIP_KEYS);
+export type SkipKey = z.infer<typeof SkipKey>;
+/** How far a short skip goes, in seconds, to a tenth. */
+export const SKIP_SECONDS_MIN = 0.1;
+export const SKIP_SECONDS_MAX = 60;
+export const SkipSeconds = z.number().min(SKIP_SECONDS_MIN).max(SKIP_SECONDS_MAX);
+
 export const Modules = z.object({
   /**
    * Panki at all, in this browser: switched on YouTube where `switchInPill` says (the pill in the header bar, or the
@@ -119,6 +128,13 @@ export const Modules = z.object({
   speedControl: z.boolean(),
   /** When the video will end on this device's clock, after the player's own time (a YouTube utility, 2026-10-25): on to begin with, as the speed button is (the owner's word). */
   endTime: z.boolean(),
+  /**
+   * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube utility,
+   * the owner, 2026-10-26: "holding shift/ctrl/alt… will instead do a (customizable) 1s back/after"): on, Shift, 1 s to begin with.
+   */
+  shortSkip: z.boolean(),
+  shortSkipKey: SkipKey,
+  shortSkipSeconds: SkipSeconds,
 });
 export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
@@ -141,6 +157,9 @@ export const DEFAULT_MODULES: Modules = {
   thumbs: true,
   speedControl: true,
   endTime: true,
+  shortSkip: true,
+  shortSkipKey: "shift",
+  shortSkipSeconds: 1,
 };
 
 /**

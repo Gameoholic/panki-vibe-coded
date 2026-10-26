@@ -22,7 +22,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { NO_UPDATE, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, switchInPill, type Modules } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, switchInPill, type Modules, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -35,7 +35,7 @@ import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
 import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
-import { makePlace, mount } from "../ui/mount";
+import { inPanki, makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
@@ -529,7 +529,9 @@ const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: 
  */
 function active(): Modules {
   const now = modules.get();
-  return now.on && !updateNeeded() ? now : { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, shorts: now.shorts, speedControl: now.speedControl, endTime: now.endTime };
+  if (now.on && !updateNeeded()) return now;
+  const utilities = { shorts: now.shorts, speedControl: now.speedControl, endTime: now.endTime, shortSkip: now.shortSkip, shortSkipKey: now.shortSkipKey, shortSkipSeconds: now.shortSkipSeconds };
+  return { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, ...utilities };
 }
 
 /** Panki switched on or off altogether, from the strip's head or the header bar's pill: on the page at once, and kept for every page from now on. */
@@ -1045,6 +1047,8 @@ type Taking = (
   fresh: boolean;
   /** The dictionary's word to start the drawer on: the one whose Add was pressed in the popup. */
   prefer?: Found | null;
+  /** The card is in: the drawer only says so. The clip, its marks, the pick and the hold on the video are let go (`letGo`), and a word taken now is a capture of its own. */
+  added?: boolean;
 };
 
 /** The picked word as letters of the clip's sentence; null when it isn't in the sentence (the clip's ends were pulled away from it). */
@@ -1277,7 +1281,7 @@ function App() {
       return from >= 0 && from + split.length <= length ? [{ from, to: from + split.length }] : [];
     });
   /** The pick, said in what's under the player now: its lines may have moved on since it was made. */
-  const pickedUnder = taking?.of === "caption" && taking.chars && clip ? reread(taking.chars, clip.base, underText.parts) : null;
+  const pickedUnder = taking?.of === "caption" && !taking.added && taking.chars && clip ? reread(taking.chars, clip.base, underText.parts) : null;
   /** Every word that's been heard and is still kept, with when: the ticks on the clip's bar, and where an end stops when it's set to stop at words. */
   const heard = clip ? beatsOf(transcriptOf(view.lines).parts) : [];
 
@@ -1398,7 +1402,7 @@ function App() {
 
   // The video stops by itself at the clip's end, once for each clip (`stopAt`): a new capture, or the clip taken to
   // another sentence, is a new clip; an end pulled elsewhere is the same clip, stopping at its new end if it hasn't yet.
-  const clipEnd = clip?.end ?? null;
+  const clipEnd = taking?.added ? null : (clip?.end ?? null);
   const clipKey = taking?.of === "caption" ? `${taking.turn}:${taking.moved}` : taking?.of === "stretch" ? `${taking.turn}` : null;
   useEffect(() => {
     stopSpent = false;
@@ -1422,12 +1426,29 @@ function App() {
     wasPlaying = false;
     setTaking(null);
   }, []);
+  /**
+   * The card is in (the owner, 2026-10-26: playing the video while the drawer still said Added went back into the
+   * clip): the video is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
+   * with it; the drawer stays only to say Added, then closes as it always did. Never back: it goes on from the latest of
+   * where it stands, where it stood before the clip was played and the clip's end.
+   */
+  const letGo = useCallback(() => {
+    pauseAfter = null;
+    const stood = replay.leave();
+    if (video?.paused) {
+      const after = Math.max(video.currentTime, stood ?? 0, ends.current.clip?.end ?? 0);
+      if (after - video.currentTime > 0.05) video.currentTime = after;
+      if (wasPlaying) void video.play().catch(() => undefined);
+    }
+    wasPlaying = false;
+    setTaking((now) => (now ? { ...now, added: true } : now));
+  }, []);
 
   /** The video holds still while something of it is being added: at once, or at the end of a line still being written. */
   function hold(waitsFor: number | null) {
     if (!video) return;
-    // What the video was doing is noted once, as the drawer first opens on something of it.
-    if (taking === null || taking.of === "nothing") wasPlaying = !video.paused;
+    // What the video was doing is noted once, as the drawer first opens on something of it (or on something new once the last card is in).
+    if (taking === null || taking.of === "nothing" || taking.added) wasPlaying = !video.paused;
     replay.stop();
     if (waitsFor !== null) {
       pauseAfter = waitsFor;
@@ -1446,7 +1467,7 @@ function App() {
   function takeCaption(lineIds: readonly number[], chars: Chars | null) {
     const there = sentenceOf(lineIds, chars);
     if (!there) return;
-    const open = taking?.of === "caption" && sameIds(taking.lineIds, lineIds) ? taking : null;
+    const open = taking?.of === "caption" && !taking.added && sameIds(taking.lineIds, lineIds) ? taking : null;
     // The clip's words are counted in its own text, which may begin sooner than the lines taken do.
     const inClip = open && chars && clip ? reread(chars, clip.base, clip.parts) : null;
     // Another word: its own sound is that word's, as it was said, whatever was done to the last one's. The same word
@@ -1468,7 +1489,7 @@ function App() {
   }
   /** A word pressed under the player. While a capture is open on lines that are still there, it's another pick in that capture; otherwise it starts one on what's there now. */
   function takeUnder(chars: Chars) {
-    const inOpen = taking?.of === "caption" && clip ? reread(chars, underText.parts, clip.base) : null;
+    const inOpen = taking?.of === "caption" && !taking.added && clip ? reread(chars, underText.parts, clip.base) : null;
     if (taking?.of === "caption" && inOpen) takeCaption(taking.lineIds, inOpen);
     else takeCaption(underIds, chars);
   }
@@ -1692,6 +1713,7 @@ function App() {
         arrives={taking.fresh}
         onClose={close}
         onAdded={() => {
+          letGo();
           void readCarded();
           // The new card's word is one of the cards' now.
           void refreshKnown();
@@ -1776,7 +1798,7 @@ function App() {
     if (answer.ok) transcriber.take(answer.transcript);
   }
   /** The clip as it's marked on the player's seek bar, once it has both ends. */
-  const clipMark: ClipMark | null = clip && clip.end !== null ? { start: clip.start, end: clip.end, onMove: (which, to, by) => moveEnd("clip", which, to, by), onSettle: (which) => hearCut("clip", which) } : null;
+  const clipMark: ClipMark | null = clip && clip.end !== null && !taking?.added ? { start: clip.start, end: clip.end, onMove: (which, to, by) => moveEnd("clip", which, to, by), onSettle: (which) => hearCut("clip", which) } : null;
 
   return (
     <>
@@ -2017,6 +2039,33 @@ setInterval(() => {
 }, FOLLOW_MS);
 // What's been watched is sent as the page is hidden or left: a closed tab loses no more than the moment.
 window.addEventListener("pagehide", () => watcher.leave());
+
+/** Whether a key going down has the short skip's key held with it, and that one alone. */
+const SKIP_HELD: Record<SkipKey, (e: KeyboardEvent) => boolean> = {
+  shift: (e) => e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey,
+  ctrl: (e) => e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey,
+  alt: (e) => e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey,
+};
+/**
+ * A short skip (a YouTube utility, the owner, 2026-10-26): ← or → with the chosen key held goes back or on by the
+ * seconds set, in place of the site's 5 s, and held down it goes on skipping. Heard before the site's own keys (the
+ * window, capturing) and kept from them. There with Panki on or off; never while typing, in Panki's own places, or
+ * while an ad plays.
+ */
+window.addEventListener(
+  "keydown",
+  (e) => {
+    const on = active();
+    if (!on.shortSkip || !video || (e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !SKIP_HELD[on.shortSkipKey](e)) return;
+    const at = e.target;
+    if (inPanki(e) || adPlaying() || (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select")))) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const end = Number.isFinite(video.duration) ? video.duration : Infinity;
+    video.currentTime = Math.max(0, Math.min(end, video.currentTime + (e.key === "ArrowLeft" ? -1 : 1) * on.shortSkipSeconds));
+  },
+  true,
+);
 // The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page; a card may have
 // been deleted in Panki: read again when this page gets the focus back, and when its tab is shown again (a switch of
 // tabs doesn't always bring a focus event: a switch set on the options page was ignored until the window was clicked,
