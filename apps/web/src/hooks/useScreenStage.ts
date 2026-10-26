@@ -43,15 +43,18 @@ export const ScreenStageContext = createContext<ScreenStage | null>(null);
 
 /**
  * The stage for a review: `place` is the review's own element, which fills the screen and stays while its cards change;
- * `present` is whether it's there (a review at its end shows its tally instead, and extra study brings it back).
- * Leaving the screen filled by the browser's way (Escape) is kept as leaving it; the review ending, or being left,
- * isn't (its element goes, and the screen with it), so the next one fills it again. `open` is whether the rail is
- * shown: closed, it stays closed until the screen is filled again.
+ * `present` is whether it's there (a review at its end shows its tally instead, and extra study or an answer undone
+ * there brings it back). Leaving the screen filled by the browser's way (Escape) is kept as leaving it; the review
+ * ending, or being left, isn't: the end's tally leaves the screen (the owner, 2026-10-26: it "looks bad in the full
+ * screen view"), and the next review, or the card an Undo there brings back, fills it again. `open` is whether the rail
+ * is shown: closed, it stays closed until the screen is filled again.
  */
 export function useScreenStage(place: RefObject<HTMLElement | null>, present: boolean) {
   const [full, setFull] = useState(false);
   const [open, setOpen] = useState(true);
   const keptNow = useRef(readKept());
+  /** The element last seen filling the screen. React keeps the review's element for the end's tally, out of the ref but still filling the screen. */
+  const filled = useRef<Element | null>(null);
   function keep(next: Kept) {
     keptNow.current = next;
     writeKept(next);
@@ -75,12 +78,18 @@ export function useScreenStage(place: RefObject<HTMLElement | null>, present: bo
       // The rail closed is for this time the screen is filled: the next time, it's there again.
       if (!now) setOpen(true);
       // Left while the review is still here: the owner's choice, kept. Gone with the review's element: not a choice.
-      if (now) keep({ full: true });
-      else if (el !== null && el.isConnected && keptNow.current.full) keep({ full: false });
+      if (now) {
+        filled.current = el;
+        keep({ full: true });
+      } else if (el !== null && el.isConnected && keptNow.current.full) keep({ full: false });
     }
     document.addEventListener("fullscreenchange", follow);
+    // At the end, the tally is drawn in the element that filled the screen: the screen is left, and it isn't a choice.
+    if (!present && filled.current !== null && document.fullscreenElement === filled.current) void document.exitFullscreen().catch(() => undefined);
     // As it stands now: a screen the review's last element filled was left with it, unheard.
-    setFull(place.current !== null && document.fullscreenElement === place.current);
+    const fullNow = place.current !== null && document.fullscreenElement === place.current;
+    if (fullNow) filled.current = place.current;
+    setFull(fullNow);
     // Filled when the last review was left so: asked for at once (allowed straight after the press that opened the
     // review), else at the first key or press here, which the browser lets fill the screen.
     let alive = true;
