@@ -28,8 +28,9 @@ import { ApiError, api, type Me } from "./api";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
 import { Modal } from "./components/Modal";
+import { Board } from "./components/Board";
 import { Segmented } from "./components/Segmented";
-import { Skeleton, type SkeletonShape } from "./components/Skeleton";
+import { Bone, Skeleton, type SkeletonShape } from "./components/Skeleton";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { SpaceNotice } from "./components/SpaceNotice";
 import { ledger } from "./ledger";
@@ -215,6 +216,14 @@ export function App() {
   useEffect(() => {
     if (srsTypes !== null) rememberShape("rows:srs", srsTypes.length);
   }, [srsTypes]);
+  // And each deck's: its cards, and what a review of it opens on — read back while an address is still arriving, when
+  // only the deck's id is known.
+  useEffect(() => {
+    if (screen.kind !== "deck" && screen.kind !== "review") return;
+    if (cards !== null) rememberShape(`cards:${screen.deck.id}`, cards.length);
+    rememberShape(`due:${screen.deck.id}`, screen.deck.dueCount);
+    rememberShape(`new:${screen.deck.id}`, screen.deck.newCount);
+  }, [screen, cards]);
   const [creating, setCreating] = useState(false);
   const [adding, setAdding] = useState(false);
   const [addDeckId, setAddDeckId] = useState<string | null>(null);
@@ -766,11 +775,36 @@ export function App() {
    * The screen as its shape while what it needs loads, fitting exactly what will stand there (the owner, 2026-10-26):
    * a list with as many rows as it really drew last time on this device (`skeletonMemory.ts`), a deck's cards as many
    * as it holds, a review what it opens on as its deck says (today's cards, as many as are due and new; the review
-   * itself; or, with nothing to do, its end). Only a count nothing has said yet is a guess.
+   * itself; or, with nothing to do, its end). While an address is still arriving only the route is known, so a deck's
+   * shapes come from what this device remembers of it; a count nothing has said yet is a guess.
    */
   const rowsOf = (name: string, guess: number) => Math.min(shapeOf(name, guess), SKELETON_ROWS_MAX);
-  function loadingOf(): ReactNode {
-    switch (screen.kind) {
+  function deckLoading(deckId: string, deck: Deck | null, tab: DeckTab): ReactNode {
+    const body = tab === "settings" ? <Skeleton shape="panels" /> : <Skeleton shape="cards" count={Math.min(Math.max(deck ? deck.cardCount : shapeOf(`cards:${deckId}`, 5), 1), SKELETON_ROWS_MAX)} />;
+    if (deck) return body;
+    // Still arriving: the deck's own tabs and buttons aren't up yet, so their room is held too.
+    return (
+      <>
+        <Bone h="44px" />
+        <div className="deck-actions">
+          <Bone h="46px" />
+          <Bone h="46px" />
+        </div>
+        {body}
+      </>
+    );
+  }
+  function reviewLoading(deckId: string, deck: Deck | null): ReactNode {
+    const due = deck ? deck.dueCount : shapeOf(`due:${deckId}`, 4);
+    const fresh = deck ? deck.newCount : shapeOf(`new:${deckId}`, 3);
+    // An arriving deck's settings aren't known yet: today first is how every deck begins.
+    const todayFirst = deck ? deck.settings.todayFirst : true;
+    if (due + fresh === 0) return <Skeleton shape="panels" />;
+    if (todayFirst) return <Skeleton shape="today" parts={[due, fresh].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX))} firstReviews={due > 0} />;
+    return <Skeleton shape="review" />;
+  }
+  function plainLoading(kind: Screen["kind"]): ReactNode {
+    switch (kind) {
       case "decks":
       case "pick":
         return <Skeleton shape="rows" count={rowsOf("rows:decks", 4)} />;
@@ -779,20 +813,27 @@ export function App() {
       case "srs":
       case "srsNew":
         return <Skeleton shape="rows" count={rowsOf("rows:srs", 4)} />;
-      case "deck":
-        if (screen.tab === "settings") return <Skeleton shape="panels" />;
-        return <Skeleton shape="cards" count={Math.min(Math.max(screen.deck.cardCount, 1), SKELETON_ROWS_MAX)} />;
-      case "review": {
-        const { dueCount, newCount, settings: own } = screen.deck;
-        if (dueCount + newCount === 0) return <Skeleton shape="panels" />;
-        if (own.todayFirst) return <Skeleton shape="today" parts={[dueCount, newCount].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX))} />;
-        return <Skeleton shape="review" />;
-      }
+      case "stats":
+        // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
+        return <Board stats={null} ctx={null} />;
+      case "settings":
+        return <Skeleton shape="panels" tabs />;
       default:
-        return <Skeleton shape={SKELETON_OF[screen.kind]} />;
+        return <Skeleton shape={SKELETON_OF[kind]} />;
     }
   }
-  const loading = loadingOf();
+  const loading =
+    arriving !== null
+      ? arriving.kind === "deck"
+        ? deckLoading(arriving.id, null, arriving.tab)
+        : arriving.kind === "review"
+          ? reviewLoading(arriving.id, null)
+          : plainLoading(arriving.kind)
+      : screen.kind === "deck"
+        ? deckLoading(screen.deck.id, screen.deck, screen.tab)
+        : screen.kind === "review"
+          ? reviewLoading(screen.deck.id, screen.deck)
+          : plainLoading(screen.kind);
   let body: ReactNode;
   if (loadError) {
     body = (
@@ -1016,21 +1057,30 @@ export function App() {
   const tab = tabOf(screen);
   // The SRS editor needs more room than a column (the preview sits beside it on a wide screen), and so does a card
   // type's layout (the card with its choices beside it); the home and Stats too, for a board three tiles across.
-  const wide = screen.kind === "srsEdit" || (screen.kind === "type" && screen.tab === "layout") || screen.kind === "home" || screen.kind === "stats";
-  // Before the sign-in is known, and while signed out, the bar is the brand alone: no tabs, no screen header.
+  // While an address is still arriving the frame already takes its screen's width, so nothing moves as it resolves.
+  const kindNow = arriving?.kind ?? screen.kind;
+  const layoutTab = arriving !== null ? (arriving.kind === "type" ? arriving.tab : null) : screen.kind === "type" ? screen.tab : null;
+  const wide = kindNow === "srsEdit" || (kindNow === "type" && layoutTab === "layout") || kindNow === "home" || kindNow === "stats";
+  // Before the sign-in is known, and while signed out, the bar is the brand alone: no tabs, no screen header. While
+  // it's only not known yet, the tabs' room is held as their shape, so the bar doesn't grow the moment it is.
   const bare = me === null;
+  const checking = bare && !authKnown && !unreached;
+  // Only once it's known nobody is signed in does the frame narrow to the brand alone (`.is-bare` has no room for tabs).
+  const bareLook = bare && !checking;
 
   return (
-    <div className={`app ${screen.kind === "home" ? "is-home" : ""} ${screen.kind === "review" ? "is-review" : ""} ${wide ? "is-wide" : ""} ${bare ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
+    <div className={`app ${kindNow === "home" ? "is-home" : ""} ${kindNow === "review" ? "is-review" : ""} ${wide ? "is-wide" : ""} ${bareLook ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
       <header className="brand">Panki</header>
-      {bare ? null : (
+      {bare && !checking ? null : (
         <nav className="tabs" aria-label="Sections">
-          {TABS.map((t) => (
-            <Button key={t.id} id={`tab-${t.id}`} variant="tab" aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.to)}>
-              <Icon name={t.id} />
-              <span>{t.label}</span>
-            </Button>
-          ))}
+          {checking
+            ? TABS.map((t) => <Bone key={t.id} w="5.5em" h="2.4em" />)
+            : TABS.map((t) => (
+                <Button key={t.id} id={`tab-${t.id}`} variant="tab" aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.to)}>
+                  <Icon name={t.id} />
+                  <span>{t.label}</span>
+                </Button>
+              ))}
         </nav>
       )}
       {bare ? (
@@ -1041,8 +1091,10 @@ export function App() {
             <p className="load-error" role="alert">
               {UNREACHED}
             </p>
+          ) : arriving !== null && arriving.kind !== "home" ? (
+            // Who is signed in isn't known yet, but the address says where this is going: its shape already.
+            loading
           ) : (
-            // Whether anyone is signed in isn't known yet: no screen's shape, since it may be the sign-in's.
             <Skeleton shape="lines" />
           )}
         </main>
@@ -1061,6 +1113,13 @@ export function App() {
             </h1>
           ) : null}
           {head.action}
+        </div>
+      ) : null}
+      {/* An address still arriving: its screen's header isn't known yet, so its room is held as its shape. */}
+      {!head && (checking || !bare) && arriving !== null && arriving.kind !== "home" ? (
+        <div className="subhead">
+          <Bone w="5.5em" h="36px" />
+          <Bone w="8em" h="1.3em" />
         </div>
       ) : null}
       {bare ? null : <main className="main">{body}</main>}

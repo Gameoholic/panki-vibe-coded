@@ -1678,6 +1678,16 @@ canvas.media-frame {
   display: grid;
   gap: 16px;
 }
+/* The Sort by row's stand-ins at the list head's right, in one line as the real controls are. */
+.skel-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Stand-ins for the deck's two buttons share the row as the buttons do. */
+.deck-actions > .skel {
+  flex: 1;
+}
 .skel-field {
   display: grid;
   gap: 8px;

@@ -16,7 +16,7 @@ function readAll(): Record<string, number> {
     if (typeof raw !== "object" || raw === null) return {};
     const out: Record<string, number> = {};
     for (const [name, value] of Object.entries(raw)) {
-      if (typeof value === "number" && Number.isFinite(value) && value > 0 && value <= SHAPE_MAX) out[name] = value;
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= SHAPE_MAX) out[name] = value;
     }
     return out;
   } catch {
@@ -26,7 +26,7 @@ function readAll(): Record<string, number> {
 
 /** Writes a shape down for next time; nothing when it hasn't changed. */
 export function rememberShape(name: string, value: number): void {
-  const settled = Math.round(Math.min(Math.max(value, 1), SHAPE_MAX));
+  const settled = Math.round(Math.min(Math.max(value, 0), SHAPE_MAX));
   const all = readAll();
   if (all[name] === settled) return;
   all[name] = settled;

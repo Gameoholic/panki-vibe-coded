@@ -62,8 +62,11 @@ function TileBody() {
   );
 }
 
-/** `count` is how many rows, lines or tiles; `parts`, for `today`, how many tiles each of its panels holds (reviews, then new). */
-export function Skeleton({ shape, count, parts }: { shape: SkeletonShape; count?: number; parts?: readonly number[] }) {
+/**
+ * `count` is how many rows, lines or tiles; `parts`, for `today`, how many tiles each of its panels holds (reviews,
+ * then new), and `firstReviews` whether the first is the reviews one, whose head alone carries a stage's chip.
+ */
+export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean }) {
   switch (shape) {
     case "today":
       // As `ReviewView` → `TodayCards` draws today's cards: Start at the right, then a panel of tiles for each kind.
@@ -71,7 +74,7 @@ export function Skeleton({ shape, count, parts }: { shape: SkeletonShape; count?
         <section className="skel-in review-today" {...status}>
           <div className="today-bar">
             <span className="today-left" />
-            <Bone w="12em" h="52px" />
+            <Bone w="11em" h="52px" />
           </div>
           {(parts ?? [count ?? 6]).map((tiles, i) => (
             <section key={i} className="panel today-panel">
@@ -83,9 +86,9 @@ export function Skeleton({ shape, count, parts }: { shape: SkeletonShape; count?
                   <Bone w="2.5em" h="0.9em" />
                 </span>
                 <span className="chips">
-                  <Bone w="7em" h="2.4em" />
-                  <Bone w="2.6em" h="2.4em" />
-                  <Bone w="3.4em" h="2.4em" />
+                  {firstReviews && i === 0 ? <Bone w="7em" h="2em" /> : null}
+                  <Bone w="2.4em" h="2em" />
+                  <Bone w="3.2em" h="2em" />
                 </span>
               </div>
               <div className="today-cards">
@@ -126,30 +129,61 @@ export function Skeleton({ shape, count, parts }: { shape: SkeletonShape; count?
           </ul>
         </section>
       );
-    case "cards":
-      // As `CardList` draws a deck's cards: the word big, what it means under it, where it stands at the right.
+    case "cards": {
+      // As `CardsView` really stands: the count with Sort by at its right and Search under them (there with two cards
+      // or more, as the real ones are), then `CardList`'s rows: the word with its sentence, the meaning under them,
+      // the pill and its due time at the right, the pencil and delete past them.
+      const rows = count ?? 5;
       return (
         <section className="skel-in" {...status}>
-          <h2 className="list-title">
-            <Bone w="4em" h="1em" />
-          </h2>
+          {rows >= 2 ? (
+            <>
+              <div className="list-head">
+                <h2 className="list-title">
+                  <Bone w="4em" h="0.8em" />
+                </h2>
+                <span className="skel-tools">
+                  <Bone w="3em" h="0.8em" className="is-faint" />
+                  <Bone w="5.5em" h="2em" />
+                  <Bone w="10.5em" h="2em" />
+                </span>
+              </div>
+              <div className="list-search">
+                <span className="skel-field">
+                  <Bone w="3em" h="0.75em" className="is-faint" />
+                  <Bone h="38px" />
+                </span>
+              </div>
+            </>
+          ) : (
+            <h2 className="list-title">
+              <Bone w="4em" h="0.8em" />
+            </h2>
+          )}
           <ul className="card-list">
-            {times(count ?? 5).map((i) => (
-              <li key={i} className="card-row has-state">
+            {times(rows).map((i) => (
+              <li key={i} className="card-row has-state has-tools">
                 <div className="card-row-ja">
-                  <Bone w={`${4 + (i % 3) * 1.5}em`} h="1.3em" />
+                  <Bone w={`${3 + (i % 3)}em`} h="1.1em" />
+                  <Bone w={widthAt(i)} h="0.95em" className="is-faint" />
                 </div>
                 <div className="card-meaning">
-                  <Bone w={widthAt(i + 1)} h="0.85em" className="is-faint" />
+                  <Bone w={widthAt(i + 2)} h="0.95em" />
                 </div>
                 <div className="card-state">
-                  <Bone w="5.5em" h="1.3em" round />
+                  <Bone w="3.5em" h="1.35em" round />
+                  <Bone w="2.5em" h="0.8em" className="is-faint" />
+                </div>
+                <div className="card-tools">
+                  <Bone w="28px" h="28px" />
+                  <Bone w="28px" h="28px" />
                 </div>
               </li>
             ))}
           </ul>
         </section>
       );
+    }
     case "kept":
       // As Settings' panels list what's kept: a name with a line under it, and a size or a button at the right.
       return (
@@ -170,10 +204,12 @@ export function Skeleton({ shape, count, parts }: { shape: SkeletonShape; count?
         </div>
       );
     case "panels":
-      // As Settings and a deck's settings draw theirs: panels of setting rows under a small title.
+      // As Settings and a deck's settings draw theirs: panels of setting rows under a small title; `tabs` is the
+      // Segmented row over the app's Settings, which a deck's settings don't have.
       return (
         <div className="skel-in skel-panels" {...status}>
-          {[3, 2].map((rows, i) => (
+          {tabs ? <Bone h="42px" /> : null}
+          {[4, 3].map((rows, i) => (
             <section key={i} className="panel">
               <h2 className="panel-title">
                 <Bone w="7em" h="0.8em" />
