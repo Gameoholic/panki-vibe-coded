@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, UpdateState } from "./messages";
-import { DEFAULT_MODULES, PillLayout, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type Modules } from "./modules";
+import { DEFAULT_MODULES, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -127,6 +127,7 @@ const Stored = z.object({
   moduleSeek: z.boolean().catch(DEFAULT_MODULES.seek),
   resumeHow: ResumeHow.catch(DEFAULT_MODULES.resume),
   resumeTimed: ResumeTimed.catch(DEFAULT_MODULES.resumeTimed),
+  resumeBack: ResumeBack.catch(DEFAULT_MODULES.resumeBack),
   markStop: z.boolean().catch(DEFAULT_MODULES.markStop),
   moduleHome: z.boolean().catch(DEFAULT_MODULES.home),
   /** The parts of YouTube's home, each its own under the master switch (`modules.ts`). */
@@ -178,6 +179,7 @@ export const modulesOf = (store: Stored): Modules => ({
   seek: store.moduleSeek,
   resume: store.resumeHow,
   resumeTimed: store.resumeTimed,
+  resumeBack: store.resumeBack,
   markStop: store.markStop,
   home: store.moduleHome,
   homePill: store.homePill,

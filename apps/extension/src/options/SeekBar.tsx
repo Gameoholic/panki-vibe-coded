@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import type { Stretch, VideoCard } from "@panki/contracts";
+import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
-import { OFFER_AWAY_MS, OFFER_MS, RESUME_HOW, RESUME_HOW_IDS, RESUME_TIMED, RESUME_TIMED_IDS, type ResumeHow } from "../modules";
+import { OFFER_AWAY_MS, OFFER_MS, RESUME_BACK_MAX, RESUME_HOW, RESUME_HOW_IDS, RESUME_TIMED, RESUME_TIMED_IDS, resumeTo, type ResumeHow } from "../modules";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import {
   CARD_CLICKS,
@@ -87,10 +88,12 @@ const PREVIEW_AGAIN_MS = 1800;
  * it only fades; over, it goes; a moment later the scene plays again. With the jump, the video stands at the stop as
  * it opens (a press on the bar still moves it).
  */
-function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; marked: boolean }) {
+function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeHow; back: number; marked: boolean }) {
   const [hover, setHover] = useState(false);
   const jump = how !== "offer";
-  const [at, setAt] = useState(jump ? PREVIEW_STOP : PREVIEW_PLAYED);
+  /** Where going back to the stop lands, as many seconds before it as set. */
+  const landing = resumeTo(PREVIEW_STOP, back);
+  const [at, setAt] = useState(jump ? landing : PREVIEW_PLAYED);
   const [clip, setClip] = useState({ start: 240, end: 252 });
   const [offer, setOffer] = useState<"up" | "away" | "gone">("up");
   const mark: ClipMark = {
@@ -101,9 +104,9 @@ function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; ma
   };
   // The way picked changes: the video opens afresh, where that way puts it, and the offer comes back.
   useEffect(() => {
-    setAt(jump ? PREVIEW_STOP : PREVIEW_PLAYED);
+    setAt(jump ? landing : PREVIEW_PLAYED);
     setOffer("up");
-  }, [jump]);
+  }, [jump, landing]);
   // The offer on its way: fading, then gone for a moment, then back with the video from the start again.
   useEffect(() => {
     if (jump || offer === "up") return;
@@ -127,7 +130,7 @@ function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; ma
   }, [jump, offer]);
   function take() {
     if (offer !== "up") return;
-    setAt(PREVIEW_STOP);
+    setAt(landing);
     setOffer("away");
   }
   function close() {
@@ -156,7 +159,7 @@ function SeekPreview({ look, how, marked }: { look: SeekLook; how: ResumeHow; ma
           look={look}
           hover={hover}
           stop={marked ? PREVIEW_STOP : null}
-          onStop={() => setAt(PREVIEW_STOP)}
+          onStop={() => setAt(landing)}
           // The made-up cards have no transcript to find their words in: a press goes to the sentence, as it does on a video without one.
           onGo={(pinned) => setAt((pinned.of === "cards" ? pinned.card.startMs : look.known.click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000)}
         />
@@ -212,7 +215,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
       <h2 id="seek-bar-title" className="panel-title">
         Seek bar
       </h2>
-      <SeekPreview look={look} how={store.resumeHow} marked={store.moduleSeek && store.markStop} />
+      <SeekPreview look={look} how={store.resumeHow} back={store.resumeBack} marked={store.moduleSeek && store.markStop} />
       <Setting id="module-seek" label="Seek bar marks" control={<Toggle id="module-seek-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleSeek} onChange={(moduleSeek) => void writeStore({ moduleSeek }).then(onChanged)} />} />
       {MARKS.map(({ id, name }) => {
         const mark: MarkLook = look[id];
@@ -256,6 +259,22 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
             control={<Segmented idPrefix="resume-timed" label='When the link contains a timestamp ("?t=")' options={TIMED_OPTIONS} value={store.resumeTimed} disabled={off} onChange={(resumeTimed) => void writeStore({ resumeTimed }).then(onChanged)} />}
           />
         ) : null}
+        <Setting
+          id="resume-back"
+          label="Seconds before where you stopped"
+          control={
+            <NumberField
+              id="resume-back-field"
+              label="Seconds before where you stopped"
+              value={store.resumeBack}
+              min={0}
+              max={RESUME_BACK_MAX}
+              suffix=" s"
+              disabled={off}
+              onChange={(resumeBack) => void writeStore({ resumeBack }).then(onChanged)}
+            />
+          }
+        />
         <Setting
           id="mark-stop"
           label="On the seek bar"

@@ -22,7 +22,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { NO_UPDATE, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, switchInPill, type Modules, type SkipKey } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, resumeTo, switchInPill, type Modules, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -602,8 +602,10 @@ function tryResume() {
   // Always jump goes there over a time that was asked for too (the owner, 2026-10-22).
   if (how === "always" || (how === "continue" && !wanted)) {
     // Jump automatically goes to Panki's stop wherever the site put the video: its own `t=` on a half-watched video is
-    // its place, which can be past Panki's (a phone's watching the site knows of and Panki doesn't).
-    if (Math.abs(player.currentTime - at) > 1) player.currentTime = at;
+    // its place, which can be past Panki's (a phone's watching the site knows of and Panki doesn't). As many seconds
+    // before it as the options page says.
+    const to = landing(at);
+    if (Math.abs(player.currentTime - to) > 1) player.currentTime = to;
     return;
   }
   // A link with a time of its own under "Jump, unless the link has a time": the button, or nothing, as picked.
@@ -628,10 +630,15 @@ function dismissOffer() {
   }, OFFER_AWAY_MS);
 }
 
-/** The offer taken: the video goes where it was stopped. */
+/** Where going back to a stop takes the video: that many seconds before it, as the options page says (`resumeBack`). */
+function landing(stop: number): number {
+  return resumeTo(stop, modules.get().resumeBack);
+}
+
+/** The offer taken: the video goes where it was stopped, or as far before it as set. */
 function takeOffer() {
   const at = offered.get();
-  if (video && at !== null) video.currentTime = at;
+  if (video && at !== null) video.currentTime = landing(at);
   dismissOffer();
 }
 
@@ -2001,7 +2008,7 @@ function App() {
             onGo={goToPin}
             stop={stop}
             onStop={() => {
-              if (video && stop !== null) video.currentTime = stop;
+              if (video && stop !== null) video.currentTime = landing(stop);
               dismissOffer();
             }}
           />
@@ -2035,7 +2042,7 @@ setInterval(() => {
   // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
   tryResume();
   const at = offered.get();
-  if (at !== null && video && video.currentTime >= at - 2) dismissOffer();
+  if (at !== null && video && video.currentTime >= landing(at) - 2) dismissOffer();
 }, FOLLOW_MS);
 // What's been watched is sent as the page is hidden or left: a closed tab loses no more than the moment.
 window.addEventListener("pagehide", () => watcher.leave());

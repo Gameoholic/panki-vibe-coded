@@ -33,6 +33,14 @@ export const ResumeTimed = z.enum(["offer", "nothing"]);
 export type ResumeTimed = z.infer<typeof ResumeTimed>;
 export const RESUME_TIMED: Record<ResumeTimed, string> = { offer: "Show a button", nothing: "Do nothing" };
 export const RESUME_TIMED_IDS = ResumeTimed.options;
+/**
+ * How many seconds before where it was stopped a video goes back to (the owner, 2026-10-26: "optionally jump to X
+ * seconds before"): by a jump, the button or the stop's tag on the bar. 0, exactly there, to begin with.
+ */
+export const RESUME_BACK_MAX = 60;
+export const ResumeBack = z.number().int().min(0).max(RESUME_BACK_MAX);
+/** Where going back to a stop lands: that many seconds before it, never before the video's start. */
+export const resumeTo = (stop: number, back: number): number => Math.max(0, stop - back);
 
 // Chips sifting YouTube's home feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them
 // out, 2026-10-21 ("in the home page remove this line"); a browser that kept `feedFilter` or `homeChips` keeps them unread.
@@ -96,6 +104,7 @@ export const Modules = z.object({
   seek: z.boolean(),
   resume: ResumeHow,
   resumeTimed: ResumeTimed,
+  resumeBack: ResumeBack,
   /** Where a video was stopped, marked on its seek bar (while the marks are on). */
   markStop: z.boolean(),
   /**
@@ -144,6 +153,7 @@ export const DEFAULT_MODULES: Modules = {
   seek: true,
   resume: "offer",
   resumeTimed: "offer",
+  resumeBack: 0,
   markStop: true,
   home: true,
   homePill: true,
