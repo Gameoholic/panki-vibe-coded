@@ -3,6 +3,7 @@ import type { Stats } from "@panki/contracts";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { Bone, Skeleton } from "./Skeleton";
+import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
 import { isDoorId, type BoardItemId, type BoardLayout, type DoorId } from "../layout";
 import { controlOf, WIDGETS, Widget, widgetOf, type WidgetContext, type WidgetEntry, type WidgetId } from "../widgets";
@@ -127,14 +128,27 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
     </Button>
   );
 
+  // A tile's real height is remembered on this device, and held while its body is a skeleton, so nothing grows or
+  // shrinks as its numbers arrive (`skeletonMemory.ts`; the owner, 2026-10-26: the skeleton fits what comes).
+  const tileHeight = (id: string): CSSProperties | undefined => {
+    const kept = shapeOf(`tile:${id}`, 0);
+    return kept > 0 ? { minHeight: `${kept}px` } : undefined;
+  };
   const tile = (entry: WidgetEntry) => (
     <Widget
       key={entry.id}
       entry={entry}
       control={controlOf(entry, stats)}
       className={drag.tileClass(entry.id)}
+      ref={
+        stats && ctx
+          ? (el) => {
+              if (el !== null) rememberShape(`tile:${entry.id}`, el.offsetHeight);
+            }
+          : undefined
+      }
       // A wide tile takes two of the board's columns.
-      style={{ ...(entry.wide ? ({ "--w": 2 } as CSSProperties) : undefined), ...drag.tileStyle(entry.id) }}
+      style={{ ...(entry.wide ? ({ "--w": 2 } as CSSProperties) : undefined), ...drag.tileStyle(entry.id), ...(stats && ctx ? undefined : tileHeight(entry.id)) }}
       overlay={
         arranging ? (
           <Button className="tile-x" aria-label={`Hide ${entry.name}`} data-no-drag onClick={() => hide(entry.id)}>

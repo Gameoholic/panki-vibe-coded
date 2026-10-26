@@ -30,6 +30,7 @@ import { Icon } from "./components/Icon";
 import { Modal } from "./components/Modal";
 import { Segmented } from "./components/Segmented";
 import { Skeleton, type SkeletonShape } from "./components/Skeleton";
+import { rememberShape, shapeOf } from "./skeletonMemory";
 import { SpaceNotice } from "./components/SpaceNotice";
 import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
@@ -98,8 +99,8 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   settings: "panels",
   stats: "board",
 };
-/** The most tiles a panel of today's cards is drawn with while it loads: a screenful, not every card due. */
-const TODAY_TILES_MAX = 12;
+/** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
+const SKELETON_ROWS_MAX = 12;
 
 /** A screen's address: the same screen, by ids alone. */
 function routeOf(screen: Screen): Route {
@@ -204,6 +205,16 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [cards, setCards] = useState<Card[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // How many rows each list really drew, remembered so its skeleton fits exactly next time (`skeletonMemory.ts`).
+  useEffect(() => {
+    if (decks !== null) rememberShape("rows:decks", decks.length);
+  }, [decks]);
+  useEffect(() => {
+    if (types !== null) rememberShape("rows:types", types.length);
+  }, [types]);
+  useEffect(() => {
+    if (srsTypes !== null) rememberShape("rows:srs", srsTypes.length);
+  }, [srsTypes]);
   const [creating, setCreating] = useState(false);
   const [adding, setAdding] = useState(false);
   const [addDeckId, setAddDeckId] = useState<string | null>(null);
@@ -752,18 +763,34 @@ export function App() {
   }
 
   /**
-   * The screen as its shape while what it needs loads: a deck's Settings tab is panels, not its cards; a review is
-   * what it opens on, as its deck says (today's cards, as many as are due and new; the review itself; or, with nothing
-   * to do, its end), so nothing changes shape as it arrives.
+   * The screen as its shape while what it needs loads, fitting exactly what will stand there (the owner, 2026-10-26):
+   * a list with as many rows as it really drew last time on this device (`skeletonMemory.ts`), a deck's cards as many
+   * as it holds, a review what it opens on as its deck says (today's cards, as many as are due and new; the review
+   * itself; or, with nothing to do, its end). Only a count nothing has said yet is a guess.
    */
+  const rowsOf = (name: string, guess: number) => Math.min(shapeOf(name, guess), SKELETON_ROWS_MAX);
   function loadingOf(): ReactNode {
-    if (screen.kind === "deck" && screen.tab === "settings") return <Skeleton shape="panels" />;
-    if (screen.kind === "review") {
-      const { dueCount, newCount, settings: own } = screen.deck;
-      if (dueCount + newCount === 0) return <Skeleton shape="panels" />;
-      if (own.todayFirst) return <Skeleton shape="today" parts={[dueCount, newCount].filter((n) => n > 0).map((n) => Math.min(n, TODAY_TILES_MAX))} />;
+    switch (screen.kind) {
+      case "decks":
+      case "pick":
+        return <Skeleton shape="rows" count={rowsOf("rows:decks", 4)} />;
+      case "types":
+        return <Skeleton shape="rows" count={rowsOf("rows:types", 2)} />;
+      case "srs":
+      case "srsNew":
+        return <Skeleton shape="rows" count={rowsOf("rows:srs", 4)} />;
+      case "deck":
+        if (screen.tab === "settings") return <Skeleton shape="panels" />;
+        return <Skeleton shape="cards" count={Math.min(Math.max(screen.deck.cardCount, 1), SKELETON_ROWS_MAX)} />;
+      case "review": {
+        const { dueCount, newCount, settings: own } = screen.deck;
+        if (dueCount + newCount === 0) return <Skeleton shape="panels" />;
+        if (own.todayFirst) return <Skeleton shape="today" parts={[dueCount, newCount].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX))} />;
+        return <Skeleton shape="review" />;
+      }
+      default:
+        return <Skeleton shape={SKELETON_OF[screen.kind]} />;
     }
-    return <Skeleton shape={SKELETON_OF[screen.kind]} />;
   }
   const loading = loadingOf();
   let body: ReactNode;
