@@ -2,9 +2,12 @@ import type { CSSProperties } from "react";
 
 /**
  * What's coming, drawn as its shape while it loads (the owner, 2026-10-26: "make it a skeleton whenever we do loading
- * across the entire app"): quiet blocks where the words, rows and tiles will be, a soft sweep passing over them. It
- * comes in after a beat (`.skel-in`), so something that loads at once never flashes. The one way anything in the app
- * says it's loading; never "Loading…" in words.
+ * across the entire app"): quiet blocks where the words, rows and tiles will be, a soft sweep passing over them. Each
+ * shape is built of the real screen's own classes (a deck's row is a `deck-row`, a setting a `setting`, the review a
+ * `review is-fit`), so it stands exactly where the real thing will and nothing jumps as it arrives; and it shows only
+ * once a load has taken a moment (`.skel-in`, `.skel`), so a quick one never shows it at all (the owner, the same day:
+ * the first skeletons "don't really fit the UI… super jumpy"). The one way anything in the app says it's loading; never
+ * "Loading…" in words.
  */
 
 /** One block: a line of words, a button, a picture, as wide and as tall as given. */
@@ -14,63 +17,36 @@ export function Bone({ w = "100%", h = "0.9em", round = false, className = "" }:
 }
 
 /**
- * The shapes a screen or a part of one takes while it loads, one registry: rows of a list, panels of settings, setting
- * rows inside a panel already there, the board's tiles, a review, a form, an editor beside its card, a few lines in a
- * panel, and one tile's body. A new kind of
- * screen takes the one it looks like, or is one entry here.
+ * The shapes a screen or a part of one takes while it loads, one registry: a list of rows (decks, types, SRS types), a
+ * deck's cards, the rows of a panel in Settings (`kept-row`: storage, the extension, dictionaries), panels of settings, setting rows inside a panel already there, the board's tiles, a review, a form, an
+ * editor beside its card, a few lines in a panel, and one tile's body. A new kind of screen takes the one it looks
+ * like, or is one entry here built of its own classes.
  */
-export type SkeletonShape = "rows" | "panels" | "settings" | "board" | "review" | "form" | "editor" | "lines" | "tile";
+export type SkeletonShape = "rows" | "cards" | "kept" | "panels" | "settings" | "board" | "review" | "form" | "editor" | "lines" | "tile";
 
 /** Widths that vary a little from row to row, so a list of blocks reads as a list of things and not a grid. */
 const WIDTHS = ["46%", "62%", "38%", "54%", "70%", "42%"];
 const widthAt = (i: number) => WIDTHS[i % WIDTHS.length] ?? "50%";
+const times = (n: number) => Array.from({ length: n }, (_, i) => i);
 
-function Rows({ count }: { count: number }) {
-  return (
-    <div className="skel-rows">
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="skel-row">
-          <span className="skel-stack">
-            <Bone w={widthAt(i)} h="1.05em" />
-            <Bone w={widthAt(i + 3)} h="0.75em" className="is-faint" />
-          </span>
-          <Bone w="4.5em" h="1.5em" round />
-        </div>
-      ))}
-    </div>
-  );
-}
+/** What says it's loading, on the shape's own root. */
+const status = { role: "status", "aria-label": "Loading", "aria-busy": true } as const;
 
-function Lines({ count }: { count: number }) {
-  return (
-    <div className="skel-lines">
-      {Array.from({ length: count }, (_, i) => (
-        <Bone key={i} w={i === count - 1 && count > 1 ? "40%" : widthAt(i + 1)} />
-      ))}
-    </div>
-  );
-}
-
-/** A setting's row: its label at the left, its control at the right. */
+/** Setting rows as `Setting` draws them: the label at the left, the control at the right. */
 function SettingRows({ count }: { count: number }) {
   return (
     <>
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="skel-setting">
-          <Bone w={widthAt(i)} h="1em" />
-          <Bone w="7em" h="2.2em" />
+      {times(count).map((i) => (
+        <div key={i} className="setting">
+          <div className="setting-head">
+            <span className="setting-label">
+              <Bone w={`${7 + (i % 3) * 2}em`} h="1em" />
+            </span>
+            <Bone w="9em" h="2.4em" />
+          </div>
         </div>
       ))}
     </>
-  );
-}
-
-function Panel({ rows }: { rows: number }) {
-  return (
-    <section className="panel skel-panel">
-      <Bone w="8em" h="0.8em" className="is-faint" />
-      <SettingRows count={rows} />
-    </section>
   );
 }
 
@@ -86,94 +62,174 @@ function TileBody() {
 }
 
 export function Skeleton({ shape, count }: { shape: SkeletonShape; count?: number }) {
-  let body;
   switch (shape) {
     case "rows":
-      body = <Rows count={count ?? 5} />;
-      break;
-    case "lines":
-      body = <Lines count={count ?? 3} />;
-      break;
-    case "tile":
-      body = <TileBody />;
-      break;
+      // As `DeckList`, `TypesView` and `SrsTypesView` draw theirs: a title, then rows of a name, a line under it and a pill.
+      return (
+        <section className="skel-in" {...status}>
+          <h2 className="list-title">
+            <Bone w="5em" h="1em" />
+          </h2>
+          <ul className="deck-list">
+            {times(count ?? 4).map((i) => (
+              <li key={i} className="deck-item">
+                <div className="btn btn-row deck-row">
+                  <span className="deck-name">
+                    <Bone w={widthAt(i)} h="1em" />
+                    <span className="row-sub">
+                      <Bone w={widthAt(i + 3)} h="0.8em" className="is-faint" />
+                    </span>
+                  </span>
+                  <span className="deck-count">
+                    <Bone w="3.5em" h="0.9em" />
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    case "cards":
+      // As `CardList` draws a deck's cards: the word big, what it means under it, where it stands at the right.
+      return (
+        <section className="skel-in" {...status}>
+          <h2 className="list-title">
+            <Bone w="4em" h="1em" />
+          </h2>
+          <ul className="card-list">
+            {times(count ?? 5).map((i) => (
+              <li key={i} className="card-row has-state">
+                <div className="card-row-ja">
+                  <Bone w={`${4 + (i % 3) * 1.5}em`} h="1.3em" />
+                </div>
+                <div className="card-meaning">
+                  <Bone w={widthAt(i + 1)} h="0.85em" className="is-faint" />
+                </div>
+                <div className="card-state">
+                  <Bone w="5.5em" h="1.3em" round />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    case "kept":
+      // As Settings' panels list what's kept: a name with a line under it, and a size or a button at the right.
+      return (
+        <div className="skel-in kept-rows" {...status}>
+          {times(count ?? 2).map((i) => (
+            <div key={i} className="kept-row">
+              <span className="kept-name">
+                <Bone w={widthAt(i)} h="1em" />
+                <span className="row-sub">
+                  <Bone w={widthAt(i + 2)} h="0.8em" className="is-faint" />
+                </span>
+              </span>
+              <span className="kept-size">
+                <Bone w="4em" h="1em" />
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    case "panels":
+      // As Settings and a deck's settings draw theirs: panels of setting rows under a small title.
+      return (
+        <div className="skel-in skel-panels" {...status}>
+          {[3, 2].map((rows, i) => (
+            <section key={i} className="panel">
+              <h2 className="panel-title">
+                <Bone w="7em" h="0.8em" />
+              </h2>
+              <SettingRows count={rows} />
+            </section>
+          ))}
+        </div>
+      );
     case "settings":
-      body = (
-        <div className="skel-panel">
+      return (
+        <div className="skel-in" {...status}>
           <SettingRows count={count ?? 3} />
         </div>
       );
-      break;
-    case "panels":
-      body = (
-        <div className="skel-panels">
-          <Panel rows={3} />
-          <Panel rows={2} />
-        </div>
-      );
-      break;
     case "board":
-      body = (
-        <div className="board skel-board">
-          {Array.from({ length: count ?? 6 }, (_, i) => (
+      return (
+        <div className="skel-in board" {...status}>
+          {times(count ?? 6).map((i) => (
             <section key={i} className="panel widget">
               <div className="w-head">
-                <Bone w={widthAt(i)} h="0.8em" className="is-faint" />
+                <h3 className="panel-title">
+                  <Bone w={widthAt(i)} h="0.8em" />
+                </h3>
               </div>
               <TileBody />
             </section>
           ))}
         </div>
       );
-      break;
     case "review":
-      body = (
-        <div className="skel-review">
-          <div className="skel-review-top">
-            <Bone w="4.5em" />
-            <Bone w="3.5em" />
-            <Bone w="3.5em" />
+      // The review's own frame (`ReviewView`, `.review.is-fit`): the counts, the card taking the room, Show answer under it.
+      return (
+        <section className="skel-in review is-fit" {...status}>
+          <div className="review-top">
+            <span className="review-counts">
+              <Bone w="4.5em" h="1em" />
+              <Bone w="3.5em" h="1em" />
+              <Bone w="3.5em" h="1em" />
+            </span>
           </div>
-          <div className="panel skel-review-card">
-            <Bone w="5em" h="1.4em" round />
+          <div className="review-card is-still skel-review-card">
+            <span className="review-place">
+              <Bone w="6em" h="1.5em" round />
+            </span>
             <Bone w="30%" h="3em" />
-            <Bone w="70%" h="1.1em" className="is-faint" />
+            <Bone w="60%" h="1.1em" className="is-faint" />
           </div>
-          <Bone h="2.9em" />
-        </div>
+          <div className="review-actions">
+            <Bone h="46px" />
+          </div>
+        </section>
       );
-      break;
     case "form":
-      body = (
-        <section className="panel skel-panel">
-          <Bone w="9em" h="0.8em" className="is-faint" />
-          {[0, 1, 2].map((i) => (
+      return (
+        <section className="skel-in panel skel-form" {...status}>
+          <h2 className="panel-title">
+            <Bone w="8em" h="0.8em" />
+          </h2>
+          {times(3).map((i) => (
             <span key={i} className="skel-field">
               <Bone w="6em" h="0.8em" />
-              <Bone h="2.6em" />
+              <Bone h="2.75em" />
             </span>
           ))}
           <Bone w="7em" h="2.6em" />
         </section>
       );
-      break;
     case "editor":
-      body = (
-        <div className="skel-editor">
+      return (
+        <div className="skel-in skel-editor" {...status}>
           <div className="panel skel-editor-main">
             <Bone w="40%" h="1.2em" />
             <Bone h="16em" />
           </div>
-          <div className="skel-panels">
-            <Panel rows={3} />
-          </div>
+          <section className="panel">
+            <SettingRows count={3} />
+          </section>
         </div>
       );
-      break;
+    case "lines":
+      return (
+        <div className="skel-in skel-lines" {...status}>
+          {times(count ?? 3).map((i) => (
+            <Bone key={i} w={i === (count ?? 3) - 1 && (count ?? 3) > 1 ? "40%" : widthAt(i + 1)} />
+          ))}
+        </div>
+      );
+    case "tile":
+      return (
+        <div className="skel-in" {...status}>
+          <TileBody />
+        </div>
+      );
   }
-  return (
-    <div className={`skel-in skel-${shape}-shape`} role="status" aria-label="Loading" aria-busy="true">
-      {body}
-    </div>
-  );
 }

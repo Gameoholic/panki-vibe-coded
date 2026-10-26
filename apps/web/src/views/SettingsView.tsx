@@ -690,7 +690,7 @@ function StorageSection() {
           </div>
         </div>
       ) : failure ? null : (
-        <Skeleton shape="rows" count={4} />
+        <Skeleton shape="kept" count={6} />
       )}
     </section>
   );
@@ -747,7 +747,7 @@ function ExtensionPanel() {
             </div>
           </div>
         ) : failure ? null : (
-          <Skeleton shape="rows" count={1} />
+          <Skeleton shape="kept" count={1} />
         )}
       </section>
       <section className="panel" aria-labelledby="extension-setup-title">
@@ -883,7 +883,7 @@ function DictionariesPanel() {
       <h2 id="dictionaries-title" className="panel-title">
         Dictionaries
       </h2>
-      {list === null && failures.length === 0 ? <Skeleton shape="rows" count={2} /> : null}
+      {list === null && failures.length === 0 ? <Skeleton shape="kept" count={2} /> : null}
       {list && list.length === 0 && !uploading ? <p className="empty">No dictionaries on Panki yet.</p> : null}
       {list && list.length > 0 ? (
         <div className="kept-rows">

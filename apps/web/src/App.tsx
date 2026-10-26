@@ -86,7 +86,7 @@ const HOME: Screen = { kind: "home" };
 const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   home: "board",
   decks: "rows",
-  deck: "rows",
+  deck: "cards",
   pick: "rows",
   review: "review",
   add: "form",
@@ -749,7 +749,7 @@ export function App() {
     }
   }
 
-  /** The screen as its shape while what it needs loads; a deck's Settings tab is panels, not its cards' rows. */
+  /** The screen as its shape while what it needs loads; a deck's Settings tab is panels, not its cards. */
   const loading = <Skeleton shape={screen.kind === "deck" && screen.tab === "settings" ? "panels" : SKELETON_OF[screen.kind]} />;
   let body: ReactNode;
   if (loadError) {
