@@ -35,6 +35,8 @@ The backlog lives in `docs/BACKLOG.md` (it was the README's until the owner made
 
 Why: it took far too long, cost far too much, and kept stopping to ask for permissions. The owner would rather look themselves.
 
+**The one standing exception (the owner, 2026-10-27): the skeletons.** Loading-shape work is checked in a browser against a scratch Panki — its own data dir and ports, a scratch account, the API behind a delaying proxy; never the owner's data, their dev server or panki.pro ("A scratch Panki" in `docs/RUNNING.md`; the full rule in `docs/CONVENTIONS.md`).
+
 ## The owner's standing rules
 
 Each is here because it kept being broken on the owner's last project. The full version is in `docs/CONVENTIONS.md`.

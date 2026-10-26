@@ -1118,7 +1118,7 @@ export function App() {
       {/* An address still arriving: its screen's header isn't known yet, so its room is held as its shape. */}
       {!head && (checking || !bare) && arriving !== null && arriving.kind !== "home" ? (
         <div className="subhead">
-          <Bone w="5.5em" h="36px" />
+          <Bone w="5.75em" h="42px" />
           <Bone w="8em" h="1.3em" />
         </div>
       ) : null}

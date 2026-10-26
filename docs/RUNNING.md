@@ -29,6 +29,16 @@ Data lives under `apps/api/data/`: `auth.sqlite` (accounts and signed-in devices
 
 `PANKI_DATA_DIR` puts the data elsewhere, `PANKI_BACKUP_DIR` the backups (default: a `backups` folder beside the data), `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` is only the clock for an account never opened yet (each account's day turns over in its own zone, set in its Settings; default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio and `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, each used when none is typed in Settings → Admin.
 
+## A scratch Panki
+
+A whole second Panki for checking the skeletons in a browser, the one such check the conventions allow — its own data, its own ports, never the owner's data or their dev server:
+
+1. Data and account: `PANKI_DATA_DIR=<scratch dir> pnpm user:add scratch <password>`.
+2. API: `PANKI_DATA_DIR=<scratch dir> PORT=3101 pnpm --dir apps/api exec tsx src/index.ts`.
+3. A small local proxy on 3102 that forwards to 3101 a couple of seconds late, so every skeleton stands still long enough to measure.
+4. Web: `PANKI_WEB_PORT=5274 PANKI_API_PORT=3102 pnpm --dir apps/web exec vite` (hot-reloads edits while comparing).
+5. Seed a type, a deck and a few cards over HTTP (sign in with `POST /api/login`, reuse the cookie), then compare each screen's skeleton against the loaded screen with `getBoundingClientRect` in the page, not by eye.
+
 ## Backing up
 
 `pnpm backup` can run while the API is up. It writes, under the backup folder:

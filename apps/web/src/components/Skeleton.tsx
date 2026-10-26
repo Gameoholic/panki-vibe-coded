@@ -74,7 +74,7 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
         <section className="skel-in review-today" {...status}>
           <div className="today-bar">
             <span className="today-left" />
-            <Bone w="11em" h="52px" />
+            <Bone w="12em" h="56px" />
           </div>
           {(parts ?? [count ?? 6]).map((tiles, i) => (
             <section key={i} className="panel today-panel">
@@ -86,16 +86,16 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
                   <Bone w="2.5em" h="0.9em" />
                 </span>
                 <span className="chips">
-                  {firstReviews && i === 0 ? <Bone w="7em" h="2em" /> : null}
-                  <Bone w="2.4em" h="2em" />
-                  <Bone w="3.2em" h="2em" />
+                  {firstReviews && i === 0 ? <Bone w="8.5em" h="33px" /> : null}
+                  <Bone w="2.6em" h="33px" />
+                  <Bone w="3.6em" h="33px" />
                 </span>
               </div>
               <div className="today-cards">
                 {times(tiles).map((t) => (
                   <div key={t} className="btn btn-chip today-card">
-                    <Bone w={`${2.4 + (t % 3) * 0.8}em`} h="1.8em" />
-                    <Bone w="6.5em" h="1.4em" round />
+                    <Bone w={`${2.4 + (t % 3) * 0.8}em`} h="25px" />
+                    <Bone w="5.5em" h="21px" round />
                   </div>
                 ))}
               </div>
