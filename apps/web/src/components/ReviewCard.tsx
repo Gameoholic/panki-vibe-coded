@@ -180,6 +180,12 @@ type Props = {
    * big blue button").
    */
   hint?: boolean;
+  /**
+   * What switches between the card's examples (the review's arrows, 2026-10-26): drawn right after the last part of the
+   * example the front shows (a field that's One per example), or its last part at all, so it stands under the example
+   * whatever the layout; at the card's end when none is drawn. None by default.
+   */
+  examplePager?: ReactNode;
 };
 
 /**
@@ -220,6 +226,7 @@ export function ReviewCard({
   screenKey = null,
   hint = true,
   keys = true,
+  examplePager = null,
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
@@ -368,6 +375,10 @@ export function ReviewCard({
     }
     if (cued === null && next !== null) setCued(next);
   }, [cued, next, liveKey]);
+  // Playing by itself switched off while the card is up (another example looked at): nothing goes on playing by itself.
+  useEffect(() => {
+    if (!autoplay) setCued(null);
+  }, [autoplay]);
   function finishCue(fieldId: string) {
     setPlayed((was) => new Set(was).add(fieldId));
     setCued((now) => (now === fieldId ? null : now));
@@ -539,6 +550,16 @@ export function ReviewCard({
     );
     later = [];
   };
+  // The examples' switch goes under the example: after the last row holding a part of it the front shows, else its last.
+  const backOnly = (row: Drawn[]) => row.every((d) => d.part.front === "hide");
+  const exampleRows = examplePager === null ? [] : rows.filter((row) => row.some((d) => d.field.perExample));
+  const pagerAfter = exampleRows.filter((row) => !backOnly(row)).at(-1) ?? exampleRows.at(-1) ?? null;
+  const pager = examplePager === null ? null : (
+    <div key="examples" className="review-examples">
+      {examplePager}
+    </div>
+  );
+  let pagerPlaced = false;
   for (const row of rows) {
     const parts = row.map(partView).filter((p) => p !== null);
     if (parts.length === 0) continue;
@@ -551,13 +572,15 @@ export function ReviewCard({
           {parts}
         </div>
       );
-    if (row.every((d) => d.part.front === "hide")) later.push(view);
-    else {
-      flush();
-      blocks.push(view);
+    const into = backOnly(row) ? later : (flush(), blocks);
+    into.push(view);
+    if (row === pagerAfter && pager) {
+      into.push(pager);
+      pagerPlaced = true;
     }
   }
   flush();
+  if (pager && !pagerPlaced) blocks.push(pager);
 
   // The card is pressed like a button, so it answers to a button's keys; a key on something inside it is that thing's.
   // Where the page's own keys turn it (`keys` off: the review), it's pressed with a pointer alone and never takes the

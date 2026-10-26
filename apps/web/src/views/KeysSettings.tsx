@@ -58,6 +58,8 @@ export function KeysPanels() {
           control={<Segmented idPrefix="key-confirm" label="Extra hold for answers that ask for confirmation" options={EXTRA_OPTIONS} value={String(binds.confirmMs)} onChange={(id) => setKeyBinds({ ...binds, confirmMs: holdOf(id, binds.confirmMs) })} />}
         />
         <KeyRow id="undo" label="Undo" bind={binds.undo} slot={{ kind: "undo" }} binds={binds} />
+        <KeyRow id="example-prev" label="Previous example" bind={binds.examplePrev} slot={{ kind: "examplePrev" }} binds={binds} />
+        <KeyRow id="example-next" label="Next example" bind={binds.exampleNext} slot={{ kind: "exampleNext" }} binds={binds} />
       </section>
       <section className="panel" aria-labelledby="keys-media-title">
         <h2 id="keys-media-title" className="panel-title">

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { againPlaceOf, branchAt, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -463,6 +463,23 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the card's id and count of answers are what make it another showing
     [card?.id, card?.seen, card?.examples.length, type, deck.settings.exampleShown],
   );
+  /**
+   * The card's examples in the order its arrows turn through them (its own first, then each added, as Rotate goes), and
+   * the one looked at by hand (the owner, 2026-10-26, A of https://claude.ai/artifact/NvKf27gK3s88efz7WeRjV2): none
+   * until an arrow is pressed, and none again on each showing. The answer counts for the one the review picked
+   * (`exampleId`); looking at another plays nothing by itself.
+   */
+  const exampleIds = card && exampleFieldsOf(type).length > 0 && card.examples.length > 0 ? [null, ...card.examples.map((e) => e.id)] : [];
+  const [browsed, setBrowsed] = useState<{ id: string | null } | null>(null);
+  useEffect(() => setBrowsed(null), [cardId, turn]);
+  const onScreen = browsed ? browsed.id : exampleId;
+  function stepExample(by: 1 | -1) {
+    if (exampleIds.length < 2 || !card) return;
+    const at = Math.max(0, exampleIds.indexOf(onScreen));
+    const next = exampleIds[(at + by + exampleIds.length) % exampleIds.length] ?? null;
+    setBrowsed({ id: next });
+    ledger.record("example", { data: { deckId: deck.id, cardId: card.id, sessionId: sitting.current?.id, exampleId: next, shown: exampleId } });
+  }
   // A new card on screen, or the answers going away, takes the glance down with them, and any key being held.
   useEffect(() => {
     leave();
@@ -682,6 +699,15 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         return;
       }
       if (!card) return;
+      // Another of the card's examples, either way, with its key held as long as it's set to be.
+      const step = exampleIds.length > 1 ? (sameKey(key, binds.examplePrev.key) ? -1 : sameKey(key, binds.exampleNext.key) ? 1 : 0) : 0;
+      if (step !== 0) {
+        e.preventDefault();
+        if (e.repeat) return;
+        const bind = step < 0 ? binds.examplePrev : binds.exampleNext;
+        hold.begin(e.key, place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, bind.holdMs, () => stepExample(step));
+        return;
+      }
       // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
       if (key === "Enter") {
         if (e.target instanceof HTMLButtonElement || revealed) return;
@@ -892,7 +918,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         <ReviewCard
           key={`${card.id}-${exampleId ?? ""}`}
           type={type}
-          values={valuesWithExample(type, card, exampleId)}
+          values={valuesWithExample(type, card, onScreen)}
           files={card.files}
           srsType={srsType}
           place={card.place}
@@ -903,11 +929,29 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
           cues={card.cues}
           subtitleStyle={subtitleStyle}
           picturesOf={api.videoPictures}
-          autoplay
+          // Another example looked at: it plays when it's pressed, not by itself.
+          autoplay={browsed === null}
           shortcuts={binds.media.map(shortcutOf)}
           screenKey={shortcutOf(binds.fullScreen)}
           hint={false}
           keys={false}
+          examplePager={
+            exampleIds.length > 1 ? (
+              <>
+                <Button className="review-example-step" data-hold="example-prev" aria-label="Previous example" onClick={() => stepExample(-1)}>
+                  <Icon name="back" />
+                  <AnswerKey bind={binds.examplePrev} />
+                </Button>
+                <span className="review-examples-at">
+                  {Math.max(0, exampleIds.indexOf(onScreen)) + 1} / {exampleIds.length}
+                </span>
+                <Button className="review-example-step" data-hold="example-next" aria-label="Next example" onClick={() => stepExample(1)}>
+                  <AnswerKey bind={binds.exampleNext} />
+                  <Icon name="forward" />
+                </Button>
+              </>
+            ) : null
+          }
         />
       </ScreenStageContext.Provider>
 

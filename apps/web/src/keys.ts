@@ -30,6 +30,9 @@ export type KeyBinds = {
   fullScreen: Bind;
   /** Takes the review's last answer back, as its Undo button does (the owner, 2026-10-26: no key until one is set). */
   undo: Bind;
+  /** Shows the card's previous or next example, as the arrows under its example do (2026-10-26, none to begin with, as Undo). */
+  examplePrev: Bind;
+  exampleNext: Bind;
   /** How much longer an answer that asks for confirmation is held, on top of its own key's hold. */
   confirmMs: number;
 };
@@ -51,6 +54,8 @@ export const DEFAULT_KEYS: KeyBinds = {
   media: Array.from({ length: SLOTS }, (_, i) => ({ key: MEDIA_START[i] ?? null, holdMs: 0 })),
   fullScreen: { key: "f", holdMs: 0 },
   undo: { key: null, holdMs: 0 },
+  examplePrev: { key: null, holdMs: 0 },
+  exampleNext: { key: null, holdMs: 0 },
   confirmMs: 1000,
 };
 
@@ -119,7 +124,9 @@ function read(): KeyBinds {
     const taken = [reveal, ...answers, ...media].some((bind) => sameKey(bind.key, DEFAULT_KEYS.fullScreen.key));
     const fullScreen = "fullScreen" in raw ? bindOf(raw.fullScreen, DEFAULT_KEYS.fullScreen, undefined) : taken ? { ...DEFAULT_KEYS.fullScreen, key: null } : DEFAULT_KEYS.fullScreen;
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
-    return { reveal, answers, media, fullScreen, undo, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    const examplePrev = "examplePrev" in raw ? bindOf(raw.examplePrev, DEFAULT_KEYS.examplePrev, undefined) : DEFAULT_KEYS.examplePrev;
+    const exampleNext = "exampleNext" in raw ? bindOf(raw.exampleNext, DEFAULT_KEYS.exampleNext, undefined) : DEFAULT_KEYS.exampleNext;
+    return { reveal, answers, media, fullScreen, undo, examplePrev, exampleNext, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -149,11 +156,11 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, answers: next.answers, media: next.media, fullScreen: next.fullScreen, undo: next.undo, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, answers: next.answers, media: next.media, fullScreen: next.fullScreen, undo: next.undo, examplePrev: next.examplePrev, exampleNext: next.exampleNext, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the answer, full screen's, Undo's, an answer's place, or a sound's or clip's place. */
-export type Slot = { kind: "reveal" | "fullScreen" | "undo" } | { kind: "answers" | "media"; index: number };
+/** Where a key is bound: showing the answer, full screen's, Undo's, an example's either way, an answer's place, or a sound's or clip's place. */
+export type Slot = { kind: "reveal" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" } | { kind: "answers" | "media"; index: number };
 
 /**
  * The keys with one slot's key set: the key taken from wherever else it was, so one key is never two things (what
@@ -161,7 +168,7 @@ export type Slot = { kind: "reveal" | "fullScreen" | "undo" } | { kind: "answers
  */
 export function withKey(binds: KeyBinds, slot: Slot, key: string | null): KeyBinds {
   const clear = (bind: Bind): Bind => (sameKey(bind.key, key) ? { ...bind, key: null } : bind);
-  const next: KeyBinds = { ...binds, reveal: clear(binds.reveal), answers: binds.answers.map(clear), media: binds.media.map(clear), fullScreen: clear(binds.fullScreen), undo: clear(binds.undo) };
+  const next: KeyBinds = { ...binds, reveal: clear(binds.reveal), answers: binds.answers.map(clear), media: binds.media.map(clear), fullScreen: clear(binds.fullScreen), undo: clear(binds.undo), examplePrev: clear(binds.examplePrev), exampleNext: clear(binds.exampleNext) };
   return withBind(next, slot, (bind) => ({ ...bind, key }));
 }
 /** The keys with one slot's bind changed. */
