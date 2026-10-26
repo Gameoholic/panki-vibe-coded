@@ -165,6 +165,11 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
           During a review
         </h2>
         <Setting
+          id="todayFirst"
+          label="Today's cards before a review"
+          control={<Toggle id="deck-today-first" says={{ on: "Shown", off: "Skipped" }} on={own.todayFirst} onChange={(todayFirst) => patch({ todayFirst })} />}
+        />
+        <Setting
           id="againPlace"
           label="A card asked again comes back"
           control={

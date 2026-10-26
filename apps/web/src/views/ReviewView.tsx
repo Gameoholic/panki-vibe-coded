@@ -1,19 +1,21 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { againPlaceOf, branchAt, exampleShownOf, flowOf, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, branchAt, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { Icon, type IconName } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
+import { PlacePill } from "../components/PlacePill";
 import { ReviewCard } from "../components/ReviewCard";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
 import { keyOf, pressed, sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
+import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
 import { LESSON_SCOPE } from "../srsFlow";
 import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
-import { count, keyWords } from "../words";
+import { count, keyWords, langOf } from "../words";
 
 type Props = {
   deck: Deck;
@@ -122,17 +124,18 @@ function scatter(items: readonly string[], among: readonly string[]): string[] {
  * The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones
  * where the deck's settings put them. A card still inside an ask-again (an earlier review was left with it there) is
  * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, or
- * anywhere (the owner, 2026-10-21: it opened on one of those at random, shuffled in among the reviews).
+ * anywhere (the owner, 2026-10-21: it opened on one of those at random, shuffled in among the reviews). Not `capped`,
+ * every card given is in it: the ones picked on the Today screen, new cards past today's count among them.
  */
-function buildQueue(cards: Card[], deck: Deck): string[] {
+function buildQueue(cards: Card[], deck: Deck, capped = true): string[] {
   const { newOrder, newPlace, reviewOrder } = deck.settings;
   const overdue = cards.filter((c) => c.due).sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
   // The order decides which cards make it under the day's limit, as well as when they show.
-  const allDue = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, deck.dueCount);
+  const allDue = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, capped ? deck.dueCount : undefined);
   const again = allDue.filter((c) => kindOf(c) === "again").map((c) => c.id);
   const due = allDue.filter((c) => kindOf(c) !== "again").map((c) => c.id);
   const unseen = cards.filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt);
-  const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, deck.newCount).map((c) => c.id);
+  const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, capped ? deck.newCount : undefined).map((c) => c.id);
   // Scattered: each new card lands somewhere at random among the reviews, the new ones keeping their own order.
   const line = newPlace === "first" ? [...fresh, ...due] : newPlace === "last" ? [...due, ...fresh] : scatter(fresh, due);
   if (againPlaceOf(deck.settings) === "end") return [...line, ...again];
@@ -241,6 +244,127 @@ function AnswerKey({ bind, extra = 0 }: { bind: Bind | undefined; extra?: number
   return <span className={holdFor(bind, extra) > 0 ? "key is-hold" : "key"}>{keyWords(bind.key)}</span>;
 }
 
+/** The words a card goes by on the Today screen: its type's main field, else its first Front field of words (as a deck's list leads with it), else any words it holds. */
+function wordsOf(type: CardType, card: Card): string {
+  const lead = wordsFieldOf(type) ?? type.fields.find((f) => f.side === "front" && holdsWords(f.kind));
+  const own = lead ? (card.values[lead.id] ?? "").trim() : "";
+  return own || type.fields.map((f) => (holdsWords(f.kind) ? (card.values[f.id] ?? "").trim() : "")).find((v) => v.length > 0) || "…";
+}
+
+/** Today's cards as the Today screen holds them: which are picked, and whether every new card in the deck is offered. */
+type Today = { picked: ReadonlySet<string>; more: boolean };
+
+/**
+ * Today's cards before the first one (the owner's pick, B of https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62,
+ * 2026-10-26; a deck's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
+ * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
+ * press away. Start runs the review on what's picked, its key the one that shows an answer.
+ */
+function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, onPick, onMore, onStart }: {
+  type: CardType;
+  srsType: SrsType;
+  /** Today's due cards, in the line's order. */
+  reviews: readonly Card[];
+  /** Today's new cards, in the line's order. */
+  fresh: readonly Card[];
+  /** The deck's other new cards, oldest first. */
+  others: readonly Card[];
+  today: Today;
+  startKey: Bind;
+  onPick: (ids: readonly string[], on: boolean) => void;
+  onMore: (more: boolean) => void;
+  onStart: () => void;
+}) {
+  const offered = today.more ? [...fresh, ...others] : fresh;
+  const picked = (list: readonly Card[]) => list.filter((c) => today.picked.has(c.id));
+  const total = picked(reviews).length + picked(offered).length;
+  const leftReviews = reviews.length - picked(reviews).length;
+  const leftNew = fresh.length - picked(fresh).length;
+  const left = [leftReviews > 0 ? count(leftReviews, "review", "reviews") : "", leftNew > 0 ? `${leftNew} new` : ""].filter(Boolean).join(" and ");
+  // A chip for each stage today's reviews stand on, in the ladder's order: pressed while every one of them is picked.
+  const stages = [...new Set(reviews.map((c) => stageIndex(srsType, c.place)))].sort((a, b) => a - b);
+  const onStage = (idx: number) => reviews.filter((c) => stageIndex(srsType, c.place) === idx);
+  const tile = (card: Card) => {
+    const words = wordsOf(type, card);
+    const on = today.picked.has(card.id);
+    return (
+      <Button key={card.id} variant="chip" className="today-card" aria-pressed={on} onClick={() => onPick([card.id], !on)}>
+        <span className="today-word" lang={langOf(words)}>
+          {words}
+        </span>
+        <PlacePill type={srsType} place={card.place} />
+      </Button>
+    );
+  };
+  const allNone = (list: readonly Card[], prefix: string) => (
+    <>
+      <Button id={`${prefix}-all`} variant="chip" onClick={() => onPick(list.map((c) => c.id), true)}>
+        All
+      </Button>
+      <Button id={`${prefix}-none`} variant="chip" onClick={() => onPick(list.map((c) => c.id), false)}>
+        None
+      </Button>
+    </>
+  );
+  return (
+    <section className="review-today">
+      <div className="today-bar">
+        <span className="today-left">{left ? `${left} for later` : null}</span>
+        <Button id="today-start" variant="primary" size="lg" data-hold="today-start" disabled={total === 0} onClick={onStart}>
+          Start {count(total, "card", "cards")}
+          <AnswerKey bind={startKey} />
+        </Button>
+      </div>
+      {reviews.length > 0 ? (
+        <section className="panel today-panel" aria-labelledby="today-reviews-title">
+          <div className="today-head">
+            <h2 id="today-reviews-title" className="panel-title">
+              Reviews
+            </h2>
+            <span className="today-of">
+              {picked(reviews).length} of {reviews.length}
+            </span>
+            <span className="chips">
+              {stages.map((idx) => {
+                const here = onStage(idx);
+                const on = here.every((c) => today.picked.has(c.id));
+                return (
+                  <Button key={idx} variant="chip" aria-pressed={on} onClick={() => onPick(here.map((c) => c.id), !on)}>
+                    {srsType.stages[idx]?.name ?? NEW_WORDS.name} · {here.length}
+                  </Button>
+                );
+              })}
+              {allNone(reviews, "today-reviews")}
+            </span>
+          </div>
+          <div className="today-cards">{reviews.map(tile)}</div>
+        </section>
+      ) : null}
+      {fresh.length > 0 || others.length > 0 ? (
+        <section className="panel today-panel" aria-labelledby="today-new-title">
+          <div className="today-head">
+            <h2 id="today-new-title" className="panel-title">
+              {NEW_WORDS.name}
+            </h2>
+            <span className="today-of">
+              {picked(offered).length} of {offered.length}
+            </span>
+            <span className="chips">
+              {others.length > 0 ? (
+                <Button id="today-more" variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
+                  Every new card · {fresh.length + others.length}
+                </Button>
+              ) : null}
+              {offered.length > 0 ? allNone(offered, "today-new") : null}
+            </span>
+          </div>
+          {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : <p className="empty">No new cards today.</p>}
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
 /**
  * The card on its chart (the owner, 2026-10-17: "show the flowchart for this stage, and highlight what node we're on,
  * and what node clicking this button will transfer it to"): which rules the card follows (its stage's own, or the
@@ -283,6 +407,13 @@ const STAGED = "data-staged";
 export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer, onUndo, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck), deck.settings.pool));
+  /** Today's cards first, while they're on screen (the deck's `todayFirst`, when there's anything to review); null once it's under way. */
+  const [today, setToday] = useState<Today | null>(() => {
+    const queue = [...line.active, ...line.waiting];
+    return deck.settings.todayFirst && queue.length > 0 ? { picked: new Set(queue), more: false } : null;
+  });
+  /** The line was picked by hand on the Today screen: a new card put aside then hands its place to no other. */
+  const pickedByHand = useRef(false);
   /** How many answers this review has taken, a card asked again counting each time. */
   const [answered, setAnswered] = useState(0);
   /** Each time a card is put on screen, by an answer or by Undo: a showing of its own, timed afresh, even the same card's. */
@@ -313,7 +444,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
   const place = useRef<HTMLElement | null>(null);
   /** How many more new cards to start once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
   const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
-  const cardId = line.active[0];
+  const cardId = today ? undefined : line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
   /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
   const stage = useScreenStage(place, card !== undefined);
@@ -374,7 +505,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       clearTimeout(leaveTimer.current);
       leaveTimer.current = null;
     }
-    if (!sitting.current) startSitting("review");
+    // Opening on today's cards, the sitting starts with Start: leaving from there is no review.
+    if (!sitting.current && today === null) startSitting("review");
     window.addEventListener("pagehide", endHere);
     return () => {
       window.removeEventListener("pagehide", endHere);
@@ -391,6 +523,43 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     if (revealed) return;
     shown.current.revealedAt ??= performance.now();
     setRevealed(true);
+  }
+
+  // Today's cards, as the Today screen shows them: the day's line split into reviews and new, and every other new card.
+  const queue = [...line.active, ...line.waiting];
+  const cardsOf = (ids: readonly string[]) => ids.flatMap((id) => byId.get(id) ?? []);
+  const queued = cardsOf(queue);
+  const todayReviews = queued.filter((c) => !isUnseen(c));
+  const todayNew = queued.filter(isUnseen);
+  const otherNew = today ? [...byId.values()].filter((c) => isUnseen(c) && !queue.includes(c.id)).sort((a, b) => a.createdAt - b.createdAt) : [];
+  function pick(ids: readonly string[], on: boolean) {
+    setToday((t) => {
+      if (!t) return t;
+      const picked = new Set(t.picked);
+      for (const id of ids) on ? picked.add(id) : picked.delete(id);
+      return { ...t, picked };
+    });
+  }
+  function offerMore(more: boolean) {
+    // The new cards past today's count go back out of the pick when they're no longer offered.
+    setToday((t) => (t ? { more, picked: more ? t.picked : new Set([...t.picked].filter((id) => queue.includes(id))) } : t));
+  }
+  /**
+   * The review begins on what's picked: today's line as it was when every card is, else a line of the picked cards
+   * alone, in the deck's order, new cards past today's count among them. The sitting starts here, and the pick is kept
+   * in the ledger with it: what today offered, what was left for later, what was added.
+   */
+  function start() {
+    if (!today || today.picked.size === 0) return;
+    const left = queue.filter((id) => !today.picked.has(id));
+    const added = [...today.picked].filter((id) => !queue.includes(id));
+    startSitting("review");
+    ledger.record("pick", { data: { deckId: deck.id, sessionId: sitting.current?.id, today: queue, left, added } });
+    if (left.length > 0 || added.length > 0) {
+      pickedByHand.current = true;
+      setLine(startLine(buildQueue(cardsOf([...today.picked]), deck, false), deck.settings.pool));
+    }
+    setToday(null);
   }
   /**
    * What's left of the review, by kind: a new card and a review each count once; a card being asked again counts the
@@ -441,7 +610,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       setCounts((c) => ({ ...c, [answerId]: (c[answerId] ?? 0) + 1 }));
       // Only a card asked again right away comes back in this review; one that reached an end of the chart is for a
       // later one, whatever its wait, and so is one put aside. A new card put aside leaves its place to the next.
-      const handsOn = outcome.hold !== null && kindOf(card) === "new";
+      // Not in a line picked by hand: the cards left out were left out on purpose.
+      const handsOn = !pickedByHand.current && outcome.hold !== null && kindOf(card) === "new";
       setLine((l) => {
         const next = advance(l, card.id, comesBack(outcome), againPlaceOf(deck.settings));
         const joining = handsOn ? nextFresh(byId.values(), next, card.id, deck) : null;
@@ -489,6 +659,19 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.metaKey) return;
+      // What's held with it is part of the key ("Ctrl+z" isn't "z"), as Settings → Keybinds keeps it.
+      const key = keyOf(e);
+      // On today's cards, the key that shows an answer starts the review, held as long; Enter does too, but on a button.
+      if (today) {
+        if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+          e.preventDefault();
+          start();
+        } else if (sameKey(key, binds.reveal.key)) {
+          e.preventDefault();
+          if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='today-start']"), binds.reveal.holdMs, start);
+        }
+        return;
+      }
       // Undo's key works at the end too, where there's no card: the last answer is what it takes back.
       if (pressed(e, binds.undo.key)) {
         e.preventDefault();
@@ -499,8 +682,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
         return;
       }
       if (!card) return;
-      // What's held with it is part of the key ("Ctrl+z" isn't "z"), as Settings → Keybinds keeps it.
-      const key = keyOf(e);
       // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
       if (key === "Enter") {
         if (e.target instanceof HTMLButtonElement || revealed) return;
@@ -560,6 +741,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
     };
   });
 
+  if (today) {
+    return (
+      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.reveal} onPick={pick} onMore={offerMore} onStart={start} />
+    );
+  }
   if (!card) {
     const now = Date.now();
     // A suspended card comes back when it's brought back, which nothing foresees; a buried one once its bury is over at the soonest.

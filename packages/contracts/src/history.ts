@@ -45,7 +45,7 @@ export const ReviewSessionResponse = z.object({ session: ReviewSession });
  * here and nothing else; the API stores the kind and the data as they come. `at` is the browser's clock, kept as a
  * hint for ordering inside a batch; the API's own stamp is the time that counts.
  */
-export const EVENT_KINDS = ["app-open", "app-show", "app-hide", "screen", "layout", "theme", "sort", "keys"] as const;
+export const EVENT_KINDS = ["app-open", "app-show", "app-hide", "screen", "layout", "theme", "sort", "keys", "pick"] as const;
 export const EventKind = z.enum(EVENT_KINDS);
 export type EventKind = z.infer<typeof EventKind>;
 export const NewEvent = z.object({

@@ -44,10 +44,16 @@ export const DeckSettings = z.object({
    * one review after another; the newest; or one at random.
    */
   exampleShown: z.enum(["rotate", "newest", "random"]),
+  /**
+   * Whether a review opens on today's cards (the reviews and the new ones, each ticked) before the first one, to untick
+   * what's left for the next review and to add new cards past today's count (the owner's pick, B of
+   * https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62, 2026-10-26); off, it starts straight in, as it always did.
+   */
+  todayFirst: z.boolean(),
 });
 export type DeckSettings = z.infer<typeof DeckSettings>;
 export type ExampleShown = DeckSettings["exampleShown"];
-export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate" };
+export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", todayFirst: true };
 /** Where a card asked again really goes back in: with only so many cards in play, anywhere among them. */
 export const againPlaceOf = (settings: Pick<DeckSettings, "againPlace" | "pool">): DeckSettings["againPlace"] => (settings.pool === null ? settings.againPlace : "random");
 

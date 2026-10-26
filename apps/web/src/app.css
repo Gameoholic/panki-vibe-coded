@@ -1616,6 +1616,73 @@ canvas.media-frame {
   display: grid;
   gap: 16px;
 }
+/* Today's cards before a review (ReviewView → TodayCards, a deck's todayFirst): Start at the top with what's left for
+   later, then the reviews and the new cards as tiles, each a chip lit while it's picked and faint while it's left out. */
+.review-today {
+  display: grid;
+  gap: 14px;
+}
+.today-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 14px;
+}
+.today-left {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.today-panel {
+  display: grid;
+  gap: 12px;
+}
+.today-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.today-head .panel-title {
+  margin: 0;
+}
+.today-of {
+  margin-right: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.today-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 8px;
+}
+.btn-chip.today-card {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 8px 10px;
+}
+.btn-chip.today-card[aria-pressed="false"] {
+  opacity: 0.45;
+}
+.today-word {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
 /* What's left of a review: each count in its kind's colour with its word after it, quieter; the card on screen's kind underlined in its colour. */
 .review-counts {
   display: inline-flex;
@@ -2309,6 +2376,7 @@ mark.sub-mark {
 .review-aside .key,
 .review-hint .key,
 .review-actions > .btn-primary .key,
+.today-bar > .btn-primary .key,
 .review-undo .key,
 .review-undo-end .key,
 .key-field .key,
