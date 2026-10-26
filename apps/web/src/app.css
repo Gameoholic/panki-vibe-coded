@@ -1613,9 +1613,10 @@ canvas.media-frame {
 }
 .empty,
 /* Loading, as the shape of what's coming (components/Skeleton.tsx): blocks in the theme's second surface, a soft sweep
-   passing over them. Each shape is the real screen's own classes, so it stands where the real thing will; and it's
-   unseen until a load has taken half a second (`SKEL_WAIT` below, on the shape and on a lone block alike), so a quick
-   one never shows it (the owner, 2026-10-26: the first skeletons were "super jumpy"). One look for every loading place. */
+   passing over them. Each shape is the real screen's own classes, so it stands where the real thing will, and it shows
+   almost at once (`SKEL_WAIT` below, on the shape and on a lone block alike): a tenth of a second, just enough that an
+   instant load never flashes one. (It waited half a second for an evening, and the owner saw blank screens: "there's
+   no skeleton anywhere", 2026-10-26.) One look for every loading place. */
 .skel {
   position: relative;
   display: block;
@@ -1624,7 +1625,7 @@ canvas.media-frame {
   overflow: hidden;
   border-radius: 6px;
   background: var(--surface-2);
-  animation: skel-in 0.3s ease-out 0.5s both;
+  animation: skel-in 0.2s ease-out 0.1s both;
 }
 .skel.is-round {
   border-radius: 999px;
@@ -1645,10 +1646,10 @@ canvas.media-frame {
     transform: translateX(100%);
   }
 }
-/* SKEL_WAIT: the half second before a shape shows, the same on its root and on each block in it. */
+/* SKEL_WAIT: the tenth of a second before a shape shows, the same on its root and on each block in it. */
 .skel-in {
   pointer-events: none;
-  animation: skel-in 0.3s ease-out 0.5s both;
+  animation: skel-in 0.2s ease-out 0.1s both;
 }
 @keyframes skel-in {
   from {
