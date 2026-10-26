@@ -1611,7 +1611,10 @@ canvas.media-frame {
     animation: none;
   }
 }
-.empty,
+.empty {
+  color: var(--muted);
+  margin: 0;
+}
 /* Loading, as the shape of what's coming (components/Skeleton.tsx): blocks in the theme's second surface, a soft sweep
    passing over them, there the instant the screen is (the owner, 2026-10-27: no fade; a half-second wait before had
    left every load looking blank, and a fade after showed on every real load). Each shape is the real screen's own
