@@ -774,23 +774,36 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                   <div className="menu-sep" />
                 </>
               ) : null}
-              <Segmented<string> size="sm" idPrefix="step" label="Up or down the ladder" options={moveOptions(far)} value={currentKey} disabled={readOnly} onChange={pick} />
-              {/* A far move picked: how many stages it goes, set here. */}
-              {current?.kind === "move" && farOf(current) !== null ? (
-                <div className="menu-wait">
-                  <NumberField
-                    id="move-far"
-                    label="Stages"
-                    value={far}
-                    min={FAR_MOVE}
-                    max={MOVE_MAX}
-                    size="sm"
-                    suffix=" stages"
-                    disabled={readOnly}
-                    onChange={(n) => onChange(setMove(type, scope, selPath ?? [], current.by > 0 ? n : -n), `far-${selected}`)}
-                  />
-                </div>
-              ) : null}
+              {/* A far move picked holds its stages in its own cell, typed in place: ↑ [3]. */}
+              <Segmented<string>
+                size="sm"
+                idPrefix="step"
+                label="Up or down the ladder"
+                options={moveOptions(far).map((option) => {
+                  const dir = option.id === "upX" ? 1 : option.id === "downX" ? -1 : 0;
+                  if (dir === 0) return option;
+                  const lit = (
+                    <>
+                      {dir > 0 ? "↑" : "↓"}
+                      <NumberField
+                        id="move-far"
+                        label={dir > 0 ? "Stages up" : "Stages down"}
+                        value={far}
+                        min={FAR_MOVE}
+                        max={MOVE_MAX}
+                        steppers={false}
+                        size="sm"
+                        disabled={readOnly}
+                        onChange={(n) => onChange(setMove(type, scope, selPath ?? [], dir * n), `far-${selected}`)}
+                      />
+                    </>
+                  );
+                  return { ...option, lit };
+                })}
+                value={currentKey}
+                disabled={readOnly}
+                onChange={pick}
+              />
               <div className="chips menu-chips">
                 {/* For a new card, New again is where it is already. */}
                 {STEP_OPTIONS.filter((o) => o.step.kind !== "move" && !(scope === LESSON_SCOPE && o.step.kind === "lesson")).map((o) => (

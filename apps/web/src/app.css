@@ -297,10 +297,26 @@ body {
   font-weight: 700;
   color: var(--muted);
 }
-.btn-seg[aria-pressed="true"] {
+.btn-seg[aria-pressed="true"],
+.btn-seg.is-lit {
   background: var(--surface);
   color: var(--fg);
   box-shadow: var(--lift);
+}
+/* The cell on holding a control of its own (Segmented's `lit`): a number typed in place, as small as the cell's words. */
+.btn-seg.is-lit {
+  gap: 3px;
+  cursor: default;
+}
+.btn-seg.is-lit:active {
+  transform: none;
+}
+.btn-seg.is-lit .field-input.num {
+  width: 2.4em;
+  padding: 0 2px;
+  font-size: inherit;
+  font-weight: 700;
+  border-radius: 4px;
 }
 /* An on/off setting with its label (components/Toggle.tsx): the track says which, lit when on. */
 .btn-switch {

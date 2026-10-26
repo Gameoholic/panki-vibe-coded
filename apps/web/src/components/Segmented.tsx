@@ -1,6 +1,16 @@
+import type { ReactNode } from "react";
 import { Button } from "./Button";
 
-type Option<T extends string> = { id: T; label: string };
+type Option<T extends string> = {
+  id: T;
+  label: string;
+  /**
+   * What its cell holds in place of the label while it's the one on: a control of its own, like a far move's stages
+   * typed in the ↑ X it is (the owner, 2026-10-26: "make it inline in the ↑3"). The cell is then no button, since a
+   * control can't sit in one; it's pressed to be picked like any other until it's on.
+   */
+  lit?: ReactNode;
+};
 
 type Props<T extends string> = {
   options: readonly Option<T>[];
@@ -20,11 +30,17 @@ type Props<T extends string> = {
 export function Segmented<T extends string>({ options, value, onChange, label, idPrefix, size = "md", disabled = false }: Props<T>) {
   return (
     <div className={`segmented ${size === "sm" ? "segmented-sm" : ""} ${disabled ? "is-disabled" : ""}`.trim()} role="group" aria-label={label}>
-      {options.map((option) => (
-        <Button key={option.id} id={`${idPrefix}-${option.id}`} variant="seg" aria-pressed={option.id === value} disabled={disabled} onClick={() => onChange(option.id)}>
-          {option.label}
-        </Button>
-      ))}
+      {options.map((option) =>
+        option.id === value && option.lit !== undefined ? (
+          <span key={option.id} id={`${idPrefix}-${option.id}`} className="btn btn-seg is-lit">
+            {option.lit}
+          </span>
+        ) : (
+          <Button key={option.id} id={`${idPrefix}-${option.id}`} variant="seg" aria-pressed={option.id === value} disabled={disabled} onClick={() => onChange(option.id)}>
+            {option.label}
+          </Button>
+        ),
+      )}
     </div>
   );
 }
