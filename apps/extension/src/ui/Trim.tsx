@@ -40,6 +40,8 @@ type Props = {
   onMove: (which: ClipEnd, to: number, by: MoveBy) => void;
   /** An end has been let go where it is. */
   onSettle: (which: ClipEnd) => void;
+  /** The clip pressed between its ends: it's heard from that moment. */
+  onHear: (at: number) => void;
 };
 
 /** What the bar shows to begin with: the clip, with room either side to pull an end into. */
@@ -58,9 +60,10 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
  * room, or less, the bar's own two edges are pulled: outwards takes in more of the video on that side, inwards less.
  * An end goes exactly where the pointer is, or stops at the edges of words while Alt is held (a setting once made
  * stopping at words the rule and Alt the exception; the owner had it taken out on 2026-10-19, never using it); the
- * arrow keys on it move it a tenth of a second. The thin line is where the video stands.
+ * arrow keys on it move it a tenth of a second. The thin line is where the video stands; a press on the clip between
+ * its ends plays it from there (the owner, 2026-10-27).
  */
-export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle }: Props) {
+export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle, onHear }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   /** An edge of the bar being pulled: where the pointer took hold, and what the bar showed and how much a pixel was worth just then. */
@@ -170,7 +173,16 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
     <div className={`trim ${disabled ? "is-off" : ""}`.trim()}>
       <div ref={track} className="trim-track">
         {ticks.map((tick, i) => (tick > view.from && tick < view.to ? <i key={i} className="trim-tick" style={{ left: `${share(tick)}%` }} /> : null))}
-        <div className={`trim-clip ${end === null ? "is-open" : ""}`.trim()} style={{ left: `${left}%`, width: `${Math.max(0, right - left)}%` }}>
+        <div
+          className={`trim-clip ${end === null ? "is-open" : ""}`.trim()}
+          style={{ left: `${left}%`, width: `${Math.max(0, right - left)}%` }}
+          onPointerDown={(e) => {
+            // An end pressed is that end's; only the clip itself between them is heard from.
+            if (disabled || end === null || e.button !== 0 || e.target !== e.currentTarget) return;
+            const at = timeAt(e.clientX);
+            if (at !== null) onHear(Math.max(start, Math.min(end, at)));
+          }}
+        >
           <span {...grip("start", start)} />
           {end === null ? null : <span {...grip("end", end)} />}
         </div>

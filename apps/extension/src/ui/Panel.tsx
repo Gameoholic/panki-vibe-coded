@@ -119,6 +119,8 @@ export type ClipOffer = {
   move: (which: ClipEnd, to: number, by: MoveBy) => void;
   /** An end has been let go where it is. */
   settle: (which: ClipEnd) => void;
+  /** Plays it from a moment inside it: a press on its bar. */
+  hear: (at: number) => void;
   /** Plays it round and round; or stops it, while any of it is playing. */
   toggle: () => void;
   record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Blob>;
@@ -763,6 +765,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           within={offer.within}
           onMove={offer.move}
           onSettle={offer.settle}
+          onHear={offer.hear}
         />
         <div className="capture-times">
           <Button className="capture-play" disabled={off} onClick={offer.toggle}>

@@ -1626,6 +1626,10 @@
   bottom: -1px;
   border-radius: 6px;
   background: var(--accent);
+  cursor: pointer; /* pressed between its ends, it plays from there */
+}
+.trim.is-off .trim-clip {
+  cursor: default;
 }
 /* Still being said: it has no end yet, so it runs off the bar. */
 .trim-clip.is-open {

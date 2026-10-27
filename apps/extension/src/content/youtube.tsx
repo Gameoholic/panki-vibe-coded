@@ -1592,11 +1592,16 @@ function App() {
    */
   function hearCut(cut: Cut, which: ClipEnd) {
     const now = ends.current[cut];
+    if (!now || now.end === null) return;
+    hearFrom(cut, which === "start" ? now.start : Math.max(now.start, now.end - CUT));
+  }
+  /** Plays a cut from a moment inside it (an end let go, or a press on the cut's bar): to its end, or on round if it was going round. */
+  function hearFrom(cut: Cut, from: number) {
+    const now = ends.current[cut];
     if (recording || !video || !now || now.end === null) return;
-    const from = which === "start" ? now.start : Math.max(now.start, now.end - CUT);
     const round = replay.mode() === "round" && played.current === cut;
     played.current = cut;
-    replay.play(video, { from: now.start, to: now.end }, round ? "round" : "once", from);
+    replay.play(video, { from: now.start, to: now.end }, round ? "round" : "once", Math.max(now.start, Math.min(now.end, from)));
   }
   /** Play a cut, round and round; or, while any of it is playing (round, or once after an end was moved), stop. Asked of one while the other plays, it takes over. */
   function toggleCut(cut: Cut) {
@@ -1706,6 +1711,7 @@ function App() {
             anchor,
             move: (which, to, by) => moveEnd(cut, which, to, by),
             settle: (which) => hearCut(cut, which),
+            hear: (at) => hearFrom(cut, at),
             toggle: () => toggleCut(cut),
             record: (soundOnly, onProgress) => recordClip(() => ends.current[cut], soundOnly, onProgress),
             // What's said in it, from the lines being read right now (the transcript or the captions), at its ends as they stand.
