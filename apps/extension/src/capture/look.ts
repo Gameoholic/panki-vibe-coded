@@ -255,8 +255,8 @@ export function pointedOnPage(x: number, y: number, where: Where): Pointed | nul
 type PageLook = {
   /** The key to hold over what the pointer is on (null: wherever it last was). */
   key: (target: EventTarget | null) => LookKey;
-  /** Whether looking up works here right now (the setting, a dictionary to look in). */
-  on: () => boolean;
+  /** Whether looking up works over what the pointer is on right now (the settings, a dictionary to look in). */
+  on: (target: EventTarget | null) => boolean;
   /** What a point on the page is: the site's captions or ordinary text; null where nothing is looked up (the options page looks only in its own lines to try). */
   whereAt: (target: EventTarget | null) => Where | null;
   /** Whether an event happened in the popup itself. */
@@ -291,8 +291,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     x = e.clientX;
     y = e.clientY;
     // The popup's own room is the popup's, wherever it's drawn (on the options page it isn't in a place of Panki's).
-    if (!look.on() || inPanki(e) || look.inPopup(e)) return;
-    const where = look.whereAt(e.target);
+    if (inPanki(e) || look.inPopup(e)) return;
+    const where = look.on(e.target) ? look.whereAt(e.target) : null;
     last = where === null ? null : () => pointedOnPage(x, y, where);
     lastKey = look.key(e.target);
     pointWith(looker, lastKey, e, last ? last() : null, { x, y });
@@ -302,7 +302,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     if (inPanki(e)) return;
     if (e.key === "Escape") looker.close();
     const key = lastKey ?? look.key(null);
-    if (!e.repeat && look.on() && isKey(key, e.key) && last) looker.point(last(), { x, y });
+    // Where looking up is off, the pointer's last place is none (`onMove`); Panki's line sets its own only while it's on.
+    if (!e.repeat && isKey(key, e.key) && last) looker.point(last(), { x, y });
   };
   const onUp = (e: KeyboardEvent) => {
     if (!inPanki(e) && isKey(lastKey ?? look.key(null), e.key)) looker.release({ x, y });

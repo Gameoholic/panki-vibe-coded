@@ -28,7 +28,7 @@ function whereWords(kind: DataKind, ownName: string | undefined): string[] {
   const entry = DATA_KINDS[kind];
   const parts = [...entry.parts.map((part) => PART_NAMES[part]), ...(entry.ownPart ? [ownName ? `its own part, ${ownName}` : "a part of its own, under the dictionary's name"] : [])];
   // Every kind can fill a field: the field mapping offers each by its own name.
-  return [...(parts.length > 0 ? [`In the popup: ${listWords(parts)}.`] : []), `Can fill: ${ROLES[DICTIONARY_ROLE[kind]].name}.`];
+  return [...(parts.length > 0 ? [`In the word lookup: ${listWords(parts)}.`] : []), `Can fill: ${ROLES[DICTIONARY_ROLE[kind]].name}.`];
 }
 
 /**

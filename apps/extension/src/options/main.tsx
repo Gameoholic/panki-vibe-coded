@@ -252,14 +252,14 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
   return (
     <section className="panel" aria-labelledby="transcribing-title">
       <h2 id="transcribing-title" className="panel-title">
-        Video page
+        Panki panel
       </h2>
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
       <Setting
         id="transcribe-over-video"
-        label="Override YouTube's native subtitles"
+        label="Replace YouTube subtitles"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
-        why="While the Panki panel is set to Panki subtitles, they're also shown on the video, in place of YouTube's own subtitles."
+        why="While the Panki panel shows Panki subtitles, they're shown on the video too, in place of YouTube subtitles."
       />
       <Setting
         id="after-add"
@@ -332,14 +332,14 @@ function VideoTracking({ door }: { door: Door }) {
 function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="current-word-title">
-      {/* The owner's own words for the two places (2026-10-18, "not clear what this is talking about"): the Panki tab under the player, the YouTube subtitles on the picture. */}
+      {/* The two places, named as everywhere else (2026-10-28): the Panki panel under the player, and Panki subtitles on the video. */}
       <h2 id="current-word-title" className="panel-title">
         Spoken word underline
       </h2>
-      <Setting id="mark-under" label="Panki tab" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
+      <Setting id="mark-under" label="Panki panel" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
       <Setting
         id="mark-over"
-        label="Video subtitles"
+        label="On the video"
         control={<Toggle id="mark-over-on" says={{ on: "Shown", off: "Hidden" }} on={store.markOver} disabled={!store.transcribeOverVideo} onChange={(markOver) => void writeStore({ markOver }).then(onChanged)} />}
       />
     </section>
@@ -369,7 +369,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
       <h2 id="home-title" className="panel-title">
         YouTube home
       </h2>
-      <Setting id="module-home" label="Panki on YouTube home" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
+      <Setting id="module-home" label="YouTube home" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
       {row("home-line", "Today line", store.homeLine, { on: "Shown", off: "Hidden" }, (homeLine) => ({ homeLine }))}
@@ -394,8 +394,8 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
       <h2 id="utilities-title" className="panel-title">
         YouTube utilities
       </h2>
-      {/* Said as hiding (the owner, 2026-10-21: "Hide Shorts… off by default"); what's kept is still whether they're shown, so a browser that set it keeps its choice. */}
-      <Setting id="hide-shorts" label="Hide Shorts" control={<Toggle id="hide-shorts-on" says={{ on: "On", off: "Off" }} on={!store.moduleShorts} onChange={(hide) => void writeStore({ moduleShorts: !hide }).then(onChanged)} />} />
+      {/* Shown or hidden as its neighbours say it (2026-10-28; "Hide Shorts", On / Off, until then), Shown to begin with. */}
+      <Setting id="shorts" label="Shorts" control={<Toggle id="shorts-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleShorts} onChange={(moduleShorts) => void writeStore({ moduleShorts }).then(onChanged)} />} />
       <Setting
         id="speed-control"
         label="Speed button in the player"

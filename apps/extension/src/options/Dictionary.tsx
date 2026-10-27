@@ -553,6 +553,9 @@ export const LOOK_KEYS: readonly { id: LookKey; label: string }[] = [
 export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.label ?? "Shift";
 /** How pointing at a word starts, as a sentence begins: "Hold Shift over", or "Point at" when it's On hover. */
 export const pointWords = (key: LookKey) => (key === "hover" ? "Point at" : `Hold ${keyWordOf(key)} over`);
+/** How a key to hold is used, said under it. */
+const usageWords = (key: LookKey) =>
+  key === "hover" ? "Point at a word to look it up. Click it to keep the word lookup open." : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the word lookup open.`;
 
 /**
  * How looking a word up works: where on the web, and with which key held. Kept the moment
@@ -611,73 +614,82 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   }
 
   const listed = store.lookWhere === "only" || store.lookWhere === "except";
+  // Word lookup heads the panel (the owner, 2026-10-21); off, every row under it is greyed, as every panel's own switch greys its rows (2026-10-28).
+  const off = !store.moduleLookup;
   return (
     <section className="panel" aria-labelledby="looking-title">
       <h2 id="looking-title" className="panel-title">
-        Looking up words
+        Word lookup
       </h2>
-      {/* The whole of it on or off, on every site: the row that heads the panel since the Modules tab went (the owner, 2026-10-21). */}
       <Setting id="module-lookup" label="Word lookup" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
-      <Setting
-        id="look-where"
-        label="Where"
-        control={<Dropdown id="look-where-choice" label="Where" options={WHERE} value={store.lookWhere} onChange={(where) => keep(where, store.lookSites)} />}
-        why={store.lookKey === "hover" ? "Point at a word. Click it to keep the popup open." : `Hold ${keyWordOf(store.lookKey)} and point at a word. Let go on the word to keep the popup open.`}
-      />
-      {listed ? (
-        <div className="dict-sites">
-          <TextField
-            id="look-sites"
-            label={store.lookWhere === "only" ? "Sites, one a line" : "Sites left out, one a line"}
-            multiline
-            autoComplete="off"
-            value={sites}
-            onChange={(text) => {
-              setSites(text);
-              setSitesError(undefined);
-            }}
-            error={sitesError}
-          />
+      {/* Where and the key held there are one setting's two halves (the owner, 2026-10-28: "link these settings"); Panki
+          subtitles are a group of their own, Where never reaching them. Named as Words that are in your decks names its
+          two places, "globally" and "in Panki subtitles". */}
+      <div className="seek-group">
+        <h3 className="seek-group-title">Globally</h3>
+        <Setting id="look-where" label="Where" control={<Dropdown id="look-where-choice" label="Where" options={WHERE} value={store.lookWhere} disabled={off} onChange={(where) => keep(where, store.lookSites)} />} />
+        {listed ? (
+          <div className="dict-sites">
+            <TextField
+              id="look-sites"
+              label={store.lookWhere === "only" ? "Sites, one a line" : "Sites left out, one a line"}
+              multiline
+              autoComplete="off"
+              value={sites}
+              disabled={off}
+              onChange={(text) => {
+                setSites(text);
+                setSitesError(undefined);
+              }}
+              error={sitesError}
+            />
+            <div className="add-actions add-actions-start">
+              <Button variant="primary" disabled={off || sites.trim() === store.lookSites.join("\n").trim()} onClick={saveSites}>
+                Save sites
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {allowed === false && store.lookWhere !== "nowhere" ? (
           <div className="add-actions add-actions-start">
-            <Button variant="primary" disabled={sites.trim() === store.lookSites.join("\n").trim()} onClick={saveSites}>
-              Save sites
+            <span className="empty">The browser hasn't allowed it on other sites yet. YouTube works already.</span>
+            <Button variant="primary" disabled={off} onClick={() => keep(store.lookWhere, store.lookSites)}>
+              Allow
             </Button>
           </div>
-        </div>
-      ) : null}
-      {allowed === false && store.lookWhere !== "nowhere" ? (
-        <div className="add-actions add-actions-start">
-          <span className="empty">The browser hasn't allowed it on other sites yet. YouTube works already.</span>
-          <Button variant="primary" onClick={() => keep(store.lookWhere, store.lookSites)}>
-            Allow
-          </Button>
-        </div>
-      ) : null}
-      {failure ? (
-        <p className="form-failure" role="alert">
-          {failure}
-        </p>
-      ) : null}
-      <Setting
-        id="look-key"
-        label="Key to hold globally"
-        control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
-      />
-      {/* The same choice again for Panki's subtitles alone, under the player and over the video (the owner, 2026-10-25:
-          "duplicate the setting, one for global and one for just Panki subtitles"). */}
-      <Setting
-        id="look-key-subtitles"
-        label="Key to hold in Panki subtitles"
-        control={
-          <Segmented
-            idPrefix="look-key-subtitles"
-            label="Key to hold in Panki subtitles"
-            options={LOOK_KEYS}
-            value={store.lookKeySubtitles}
-            onChange={(lookKeySubtitles) => void writeStore({ lookKeySubtitles }).then(onChanged)}
-          />
-        }
-      />
+        ) : null}
+        {failure ? (
+          <p className="form-failure" role="alert">
+            {failure}
+          </p>
+        ) : null}
+        <Setting
+          id="look-key"
+          label="Key to hold"
+          control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} disabled={off} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
+          why={usageWords(store.lookKey)}
+        />
+      </div>
+      {/* The same choice again for Panki's subtitles alone (the owner, 2026-10-25: "duplicate the setting, one for global
+          and one for just Panki subtitles"); which those are is said under it, since a card's clip in a review is one. */}
+      <div className="seek-group">
+        <h3 className="seek-group-title">In Panki subtitles</h3>
+        <Setting
+          id="look-key-subtitles"
+          label="Key to hold"
+          control={
+            <Segmented
+              idPrefix="look-key-subtitles"
+              label="Key to hold in Panki subtitles"
+              options={LOOK_KEYS}
+              value={store.lookKeySubtitles}
+              disabled={off}
+              onChange={(lookKeySubtitles) => void writeStore({ lookKeySubtitles }).then(onChanged)}
+            />
+          }
+          why="Under and over a YouTube video, and on a card's clip in Panki. Not limited by Where."
+        />
+      </div>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import "./setup";
 import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor } from "@panki/contracts";
 import { routePath } from "@web/routes";
+import { hostPattern } from "./address";
 import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
@@ -90,12 +91,14 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
     if (ask.kind === "lattice") return { ok: true, lattice: await latticeOf(ask.text) };
     const [store, dictionaries] = await Promise.all([readStore(), listDictionaries()]);
     const on = dictionaries.filter((d) => d.on);
+    // Word lookup switched off, the key does nothing anywhere; Where is the global key's alone, never Panki's subtitles'.
+    const usable = store.pankiOn && store.moduleLookup && on.length > 0;
     return {
       ok: true,
-      // Switched off on the Modules tab, the key does nothing anywhere.
-      on: store.pankiOn && store.moduleLookup && on.length > 0 && lookAllowed(store.lookWhere, store.lookSites, sender.url ?? sender.tab?.url),
+      on: usable && lookAllowed(store.lookWhere, store.lookSites, sender.url ?? sender.tab?.url),
       key: store.lookKey,
       subtitleKey: store.lookKeySubtitles,
+      subtitlesOn: usable,
       dictionaries: on.length,
       signature: on.map((d) => d.id).join(","),
       layout: popupLayoutOf(store.popupLayout, withMeanings(dictionaries)),
@@ -151,24 +154,41 @@ async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   return { ok: true, words: wordsKept.words, subtitles: store.knownSubtitles, pages: store.knownPages, colour: store.knownColour };
 }
 
+/** Panki's own addresses, as the browser matches them: the sign-in in use and every profile kept, each allowed as it was signed in to. */
+function pankiPatterns(store: Stored): string[] {
+  const patterns = [store.address, ...store.profiles.map((p) => p.address)].flatMap((address) => {
+    try {
+      return address ? [hostPattern(address)] : [];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set(patterns)];
+}
+
 /**
  * Panki's script on every page, for pointing at a word: put there by the browser on each page it loads while the
- * setting and the browser's permission both allow it, and taken off when either stops. The video site is left out:
- * its own script does the same there. Without this, the script is only ever put into a tab when the owner acts (the
- * menu, the button).
+ * setting and the browser's permission both allow it, and taken off when either stops; and always on Panki's own
+ * pages, whose cards' clips carry Panki subtitles, looked up whatever Where says (the worker's `lookState` tells the
+ * page which of its words it may look up). The video site is left out: its own script does the same there. Without
+ * this, the script is only ever put into a tab when the owner acts (the menu, the button).
  */
 const PAGE_SCRIPT = "panki-page";
 async function placePageScript(): Promise<void> {
   const store = await readStore();
   const wanted = permissionsFor(store.lookWhere, store.lookSites);
   const allowed = wanted.length > 0 && (await chrome.permissions.contains({ origins: wanted }));
+  const own = (await Promise.all(pankiPatterns(store).map(async (pattern) => ((await chrome.permissions.contains({ origins: [pattern] })) ? [pattern] : [])))).flat();
+  const matches = [...new Set([...(allowed ? wanted : []), ...own])];
   const there = (await chrome.scripting.getRegisteredContentScripts({ ids: [PAGE_SCRIPT] })).length > 0;
   if (there) await chrome.scripting.unregisterContentScripts({ ids: [PAGE_SCRIPT] });
-  if (!allowed) return;
-  const left = [VIDEO_SITE, ...(store.lookWhere === "except" ? patternsOf(store.lookSites) : [])];
-  await chrome.scripting.registerContentScripts([{ id: PAGE_SCRIPT, js: ["page.js"], matches: wanted, excludeMatches: left, runAt: "document_idle", persistAcrossSessions: true }]);
+  if (matches.length === 0) return;
+  // Sites left out by Where are left out but for Panki itself, whose subtitles are looked up all the same.
+  const ownHosts = new Set(own.map((pattern) => new URL(pattern).hostname));
+  const leftOut = store.lookWhere === "except" ? patternsOf(store.lookSites.filter((site) => !ownHosts.has(site))) : [];
+  await chrome.scripting.registerContentScripts([{ id: PAGE_SCRIPT, js: ["page.js"], matches, excludeMatches: [VIDEO_SITE, ...leftOut], runAt: "document_idle", persistAcrossSessions: true }]);
 }
-const LOOK_KEYS = new Set(["lookWhere", "lookSites"]);
+const LOOK_KEYS = new Set(["lookWhere", "lookSites", "address", "profiles"]);
 /** One at a time: two settled at once would both take the script off and both put it back. */
 let placing = Promise.resolve();
 const replace = () => {

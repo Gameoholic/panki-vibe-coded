@@ -538,6 +538,10 @@ body {
   outline-offset: 1px;
   border-color: transparent;
 }
+/* Greyed as a button is while what it belongs to is switched off. */
+.field-input:disabled {
+  opacity: 0.55;
+}
 /* A field of several lines: never the browser's resize grip; the box grows with the text instead, where the browser can. */
 textarea.field-input {
   display: block;

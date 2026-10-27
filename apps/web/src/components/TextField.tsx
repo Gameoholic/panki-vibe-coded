@@ -18,6 +18,8 @@ type Props = {
   autoComplete?: "off" | "username" | "current-password";
   /** Shown, not edited: the words of something that's only for looking at. */
   readOnly?: boolean;
+  /** Shown, greyed, while what it belongs to is switched off. */
+  disabled?: boolean;
   /**
    * For a field of several lines: a stretch of its text shown lit, behind the words, from one character up to (not
    * counting) another; null when nothing is lit just now. The word a sentence is about. Left out, nothing is ever lit.
@@ -29,11 +31,12 @@ type Props = {
 };
 
 /** A labelled text input, one line or several, with the app's own error bubble under it; never Chrome's "Please fill out this field." */
-export function TextField({ id, label, value, onChange, error, multiline = false, onEnter, type = "text", lang, autoFocus, autoComplete, readOnly = false, mark, className = "", "data-field": dataField }: Props) {
+export function TextField({ id, label, value, onChange, error, multiline = false, onEnter, type = "text", lang, autoFocus, autoComplete, readOnly = false, disabled = false, mark, className = "", "data-field": dataField }: Props) {
   const behind = useRef<HTMLDivElement>(null);
   const shared = {
     id,
     readOnly,
+    disabled,
     className: "field-input",
     value,
     lang,

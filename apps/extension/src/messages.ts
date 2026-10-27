@@ -193,8 +193,10 @@ const LookState = z.union([
     /** Pointing at a word looks it up here: the site is one the setting allows, and there's a dictionary to look in. */
     on: z.boolean(),
     key: LookKey,
-    /** The key held in Panki's subtitles, under and over a video (`storage.ts` → `lookKeySubtitles`). */
+    /** The key held in Panki's subtitles, under and over a video and on a card's clip (`storage.ts` → `lookKeySubtitles`). */
     subtitleKey: LookKey.catch("shift"),
+    /** Pointing at a word in Panki's subtitles looks it up: Word lookup is on and there's a dictionary, whatever Where says (`on`). */
+    subtitlesOn: z.boolean(),
     /** How many dictionaries are switched on: none means the line is split the browser's way. */
     dictionaries: z.number(),
     /** Changes whenever the dictionaries do: what was found before is found again. */

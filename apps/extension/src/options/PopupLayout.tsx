@@ -102,7 +102,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, onSaved }
         <Editor kept={kept} lookKey={lookKey} dictionaries={dictionaries} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
-          Popup layout
+          Word lookup layout
         </h2>
       )}
       {failure ? (
@@ -201,6 +201,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
     const page = listenOnPage(made, {
       // The sentences to try it on are a page's, so they take the key everywhere else takes, On hover too.
       key: () => keyNow.current,
+      // Tried here whatever the settings say: this page's own sentences.
       on: () => true,
       whereAt: (target) => (target instanceof Node && tryText.current?.contains(target) ? { of: "page" } : null),
       inPopup: (e) => over.current !== null && e.composedPath().includes(over.current),
@@ -240,7 +241,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
   ];
 
   function showSetting(options: readonly { id: PartShow; label: string }[], value: PartShow, onChange: (show: PartShow) => void) {
-    return <Setting id="popup-show" label="In the popup" control={<Segmented idPrefix="popup-show" label="In the popup" options={options} value={value} onChange={onChange} />} />;
+    return <Setting id="popup-show" label="Visibility" control={<Segmented idPrefix="popup-show" label="Visibility" options={options} value={value} onChange={onChange} />} />;
   }
   /** The dictionaries a part's data of a kind comes from: those that are on and provide it (a dictionary's own part, from that dictionary). */
   function sourcesOf(part: string, kind: DataKind): string[] {
@@ -283,10 +284,10 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
 
   /** The picked part's choices: whether it's there (and folded), then how it's written. */
   function choices(): ReactNode {
-    // The word is always there: it's what the popup is about.
+    // The word is always there: it's what the word lookup is about.
     if (picked === "word") return null;
     if (picked === "reading") {
-      return <Setting id="popup-reading" label="In the popup" control={<Segmented idPrefix="popup-reading" label="Reading" options={READING_OPTIONS} value={layout.reading} onChange={(reading) => setLayout({ reading })} />} />;
+      return <Setting id="popup-reading" label="Position" control={<Segmented idPrefix="popup-reading" label="Reading" options={READING_OPTIONS} value={layout.reading} onChange={(reading) => setLayout({ reading })} />} />;
     }
     if (isFixed(picked)) {
       const part = picked;
@@ -318,7 +319,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
     <>
       <div className="popup-head">
         <h2 id="popup-layout-title" className="panel-title">
-          Popup layout
+          Word lookup layout
         </h2>
         <span id="popup-layout-saved" className={`saved is-${state}`} data-state={state} role="status">
           <Icon name="check" />
@@ -350,7 +351,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
           </div>
           <div className={`popup-stage ${editing ? "is-editing" : ""}`.trim()}>
             {shown && first ? (
-              <div className="look is-here" role="group" aria-label="The popup">
+              <div className="look is-here" role="group" aria-label="Word lookup">
                 <LookupBody
                   // Shown afresh, as a page would open it: nothing unfolded.
                   key={`${mode}:${shown.text}`}
@@ -361,7 +362,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
                 />
               </div>
             ) : (
-              <p className="empty">{pointAt} a word above to see the popup with it.</p>
+              <p className="empty">{pointAt} a word above to see the word lookup with it.</p>
             )}
           </div>
           {!editing ? (

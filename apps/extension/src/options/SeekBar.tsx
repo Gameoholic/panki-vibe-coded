@@ -168,15 +168,13 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
   );
 }
 
-/** What the words over a mark are called in its rows: the cards', and the words in the decks' own (`WORDS_MARK_IDS`). */
-const WORDS_LABELS: Record<WordsMarkId, string> = { cards: "Card words", known: "Words" };
-
 /**
  * A mark's words on pins over it: when they stand, how they come in, what pressing one does. The cards' rows, and the
  * same for the words that are in the decks (the owner, 2026-10-25: "same settings as Cards").
  */
 function WordsRows({ id, look, off, onChange }: { id: WordsMarkId; look: WordsLook; off: boolean; onChange: (patch: Partial<WordsLook>) => void }) {
-  const label = WORDS_LABELS[id];
+  // "Words" for both: the group's title already says whose (2026-10-28; the cards' were "Card words").
+  const label = "Words";
   const still = off || !look.shown || look.words === "off";
   return (
     <>
@@ -213,10 +211,10 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
   return (
     <section className="panel" aria-labelledby="seek-bar-title">
       <h2 id="seek-bar-title" className="panel-title">
-        Seek bar
+        Seek bar marks
       </h2>
       <SeekPreview look={look} how={store.resumeHow} back={store.resumeBack} marked={store.moduleSeek && store.markStop} />
-      <Setting id="module-seek" label="Seek bar marks" control={<Toggle id="module-seek-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleSeek} onChange={(moduleSeek) => void writeStore({ moduleSeek }).then(onChanged)} />} />
+      <Setting id="module-seek" label="Seek bar marks" control={<Toggle id="module-seek-on" says={{ on: "On", off: "Off" }} on={store.moduleSeek} onChange={(moduleSeek) => void writeStore({ moduleSeek }).then(onChanged)} />} />
       {MARKS.map(({ id, name }) => {
         const mark: MarkLook = look[id];
         return (

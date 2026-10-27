@@ -24,7 +24,7 @@ export function PillParts({ store, disabled, onChanged }: { store: Stored; disab
   });
   return (
     <div className="pill-parts">
-      <div className="pill-preview" aria-label="How the pill looks">
+      <div className="pill-preview" aria-label="How the header bar looks">
         {/* The profile in use, as the pill always says it: its own name, or the account's. */}
         <PankiPill layout={layout} numbers={SAMPLE_NUMBERS} profile={store.profileName || store.userName} power={{ on: true, onChange: () => undefined }} onClick={() => undefined} />
       </div>

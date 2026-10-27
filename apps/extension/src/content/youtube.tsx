@@ -1134,8 +1134,8 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
   const look: LineLook = {
     move(i, button, e) {
       // Panki's subtitles, under the player and over the video, take a key of their own (`lookKeySubtitles`), On hover among them.
-      const { on, subtitleKey } = listening.settings();
-      if (e.pointerType !== "mouse" || !on) return;
+      const { subtitlesOn, subtitleKey } = listening.settings();
+      if (e.pointerType !== "mouse" || !subtitlesOn) return;
       const pointed = i !== null && button ? pointedAt(i, button) : null;
       listening.pointedBy(() => pointed, subtitleKey);
       pointWith(listening.looker, subtitleKey, e, pointed, { x: e.clientX, y: e.clientY });
