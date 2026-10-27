@@ -429,10 +429,10 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
 
   return (
     <>
-      <section className="panel-section" aria-labelledby="transcribing-title">
-        <h3 id="transcribing-title" className="panel-subtitle">
+      <section className="panel" aria-labelledby="transcribing-title">
+        <h2 id="transcribing-title" className="panel-title">
           Transcribing
-        </h3>
+        </h2>
         {failure ? (
           <p className="load-error" role="alert">
             {failure}
@@ -440,11 +440,16 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
         ) : null}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
         {/* The language every video was transcribed in stood here from 2026-10-18 until the owner made it each account's own, 2026-10-21 (General → Watching). */}
+        <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
+          <p className="setting-why">{transcribedWords(status.seconds, engine.centsPerHour)}</p>
+          {/* Read again whenever the key changes: the saved key's text is the sign of that. */}
+          <EngineAccountLines keyed={status.key !== null} turn={(status.saved ?? "").length} />
+        </KeyPanel>
       </section>
-      <section className="panel-section" aria-labelledby="modes-title">
-        <h3 id="modes-title" className="panel-subtitle">
+      <section className="panel" aria-labelledby="modes-title">
+        <h2 id="modes-title" className="panel-title">
           Transcription modes
-        </h3>
+        </h2>
         <ModeCompare mode={current.mode} modesOff={current.modesOff} estimate={status.estimate} onDefault={(mode) => patch({ mode })} onOn={setModeOn} />
         {/* How much of a video is watched before the entire video is transcribed by itself (the owner, 2026-10-21). */}
         <Setting
@@ -474,10 +479,10 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           control={<Segmented idPrefix="transcribe-over-limit" label="Videos over the length limit" options={OVER_LIMIT_OPTIONS} value={current.overLimit} onChange={(overLimit) => patch({ overLimit })} />}
         />
       </section>
-      <section className="panel-section" aria-labelledby="chunks-title">
-        <h3 id="chunks-title" className="panel-subtitle">
+      <section className="panel" aria-labelledby="chunks-title">
+        <h2 id="chunks-title" className="panel-title">
           Chunks
-        </h3>
+        </h2>
         {/* How a chunk is cut, at the owner's ask (2026-10-20: "a short description under chunks explaining how it works"). */}
         <p className="setting-why">The background player records a chunk until it reaches its length, then stops at the first pause in the speech. If there's no pause, it's forcefully cut after the wait, and the next chunk starts 1.5 s earlier so the word that was cut is heard in its entirety.</p>
         <Setting
@@ -528,10 +533,10 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           why="Long stretches with no speech aren't transcribed. Try turning it off if subtitles are missing in quiet parts."
         />
       </section>
-      <section className="panel-section" aria-labelledby="fixing-title">
-        <h3 id="fixing-title" className="panel-subtitle">
+      <section className="panel" aria-labelledby="fixing-title">
+        <h2 id="fixing-title" className="panel-title">
           Editing
-        </h3>
+        </h2>
         <Setting
           id="fixes"
           label="Editing Panki subtitles"
@@ -539,15 +544,10 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           why={
             current.fixes
               ? "Anyone using Panki can edit a word or a line of Panki subtitles on a video's page. Everyone sees the same Panki subtitles for a video, so an edit changes them for everyone."
-              : "Nobody can change Panki subtitles."
+              : "Nobody can edit Panki subtitles."
           }
         />
       </section>
-      <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
-        <p className="setting-why">{transcribedWords(status.seconds, engine.centsPerHour)}</p>
-        {/* Read again whenever the key changes: the saved key's text is the sign of that. */}
-        <EngineAccountLines keyed={status.key !== null} turn={(status.saved ?? "").length} />
-      </KeyPanel>
     </>
   );
 }
@@ -570,10 +570,10 @@ type WordAudioProps = {
 function WatchingSection({ settings }: { settings: WatchingSettings }) {
   const [current, patch, failure] = useSavedSoon<WatchingSettings>(settings, (change) => api.updateWatchingSettings(change));
   return (
-    <section className="panel-section" aria-labelledby="watching-admin-title">
-      <h3 id="watching-admin-title" className="panel-subtitle">
+    <section className="panel" aria-labelledby="watching-admin-title">
+      <h2 id="watching-admin-title" className="panel-title">
         Watching
-      </h3>
+      </h2>
       {failure ? (
         <p className="load-error" role="alert">
           {failure}
@@ -596,18 +596,16 @@ function WordAudioSection({ status, onStatus }: WordAudioProps) {
   });
   const source = WORD_AUDIO_SOURCES[current.source];
   return (
-    <>
-      <section className="panel-section" aria-labelledby="word-audio-title">
-        <h3 id="word-audio-title" className="panel-subtitle">
-          Word audio
-        </h3>
-        {failure ? (
-          <p className="load-error" role="alert">
-            {failure}
-          </p>
-        ) : null}
-        <Setting id="wordAudioSource" label="Source" control={<Dropdown id="word-audio-source" label="Source" options={SOURCE_OPTIONS} value={current.source} disabled={WORD_AUDIO_SOURCE_IDS.length < 2} onChange={(next) => patch({ source: next })} />} />
-      </section>
+    <section className="panel" aria-labelledby="word-audio-title">
+      <h2 id="word-audio-title" className="panel-title">
+        Word audio
+      </h2>
+      {failure ? (
+        <p className="load-error" role="alert">
+          {failure}
+        </p>
+      ) : null}
+      <Setting id="wordAudioSource" label="Source" control={<Dropdown id="word-audio-source" label="Source" options={SOURCE_OPTIONS} value={current.source} disabled={WORD_AUDIO_SOURCE_IDS.length < 2} onChange={(next) => patch({ source: next })} />} />
       <KeyPanel id="word-audio" title={source.name} from={source.vendor} label="API key" status={status.key} saved={status.saved} schema={WordAudioKeyUpdate} onSave={async (key) => onStatus(await api.setWordAudioKey(current.source, key))}>
         {/* Forvo tells nothing of its use, so Panki counts its own requests against the day's allowance (the owner, 2026-10-17). */}
         {status.calls !== undefined && source.dailyLimit !== null ? (
@@ -616,7 +614,7 @@ function WordAudioSection({ status, onStatus }: WordAudioProps) {
           </p>
         ) : null}
       </KeyPanel>
-    </>
+    </section>
   );
 }
 
@@ -648,10 +646,10 @@ function StorageSection() {
   }, []);
   const used = report ? report.disk.totalBytes - report.disk.freeBytes : 0;
   return (
-    <section className="panel-section" aria-labelledby="storage-title">
-      <h3 id="storage-title" className="panel-subtitle">
+    <section className="panel" aria-labelledby="storage-title">
+      <h2 id="storage-title" className="panel-title">
         Storage
-      </h3>
+      </h2>
       {failure ? (
         <p className="load-error" role="alert">
           {failure}
@@ -796,7 +794,7 @@ function ExtensionPanel() {
   );
 }
 
-/** What everyone shares and an admin alone changes: how transcribing runs, the engine's key, the Forvo key for word audio; and, to read, what it all takes on the disk. */
+/** What everyone shares and an admin alone changes, a panel each: how transcribing runs, the engine's key, the Forvo key for word audio, watching; and, to read, what it all takes on the disk. */
 function AdminPanel() {
   const [transcription, setTranscription] = useState<TranscriptionStatus | null>(null);
   const [wordAudio, setWordAudio] = useState<WordAudioStatus | null>(null);
@@ -822,20 +820,41 @@ function AdminPanel() {
     };
   }, []);
 
+  // Panels of their own, as every other tab has (the owner, 2026-10-27: "all the settings are under Admin… organize it
+  // better, similar to other tabs"); each stands with its title while what's in it loads.
   return (
-    <section className="panel" aria-labelledby="admin-title">
-      <h2 id="admin-title" className="panel-title">
-        Admin
-      </h2>
+    <>
       {failure ? (
         <p className="load-error" role="alert">
           {failure}
         </p>
       ) : null}
-      {transcription ? <Transcribing status={transcription} onStatus={setTranscription} /> : failure ? null : <Skeleton shape="settings" count={5} />}
-      {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : failure ? null : <Skeleton shape="settings" count={2} />}
-      {watching ? <WatchingSection settings={watching} /> : failure ? null : <Skeleton shape="settings" count={1} />}
+      {transcription ? (
+        <Transcribing status={transcription} onStatus={setTranscription} />
+      ) : failure ? null : (
+        <>
+          {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki (2026-10-27); the modes' chart is far taller on a phone. */}
+          <LoadingPanel id="transcribing" title="Transcribing" rows={5} />
+          <LoadingPanel id="modes" title="Transcription modes" rows={19} />
+          <LoadingPanel id="chunks" title="Chunks" rows={15} />
+          <LoadingPanel id="fixing" title="Editing" rows={2} />
+        </>
+      )}
+      {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : failure ? null : <LoadingPanel id="word-audio" title="Word audio" rows={5} />}
+      {watching ? <WatchingSection settings={watching} /> : failure ? null : <LoadingPanel id="watching-admin" title="Watching" rows={1} />}
       <StorageSection />
+    </>
+  );
+}
+
+/** An admin's panel while what's in it loads: its title, already known, over the shape of its rows. */
+function LoadingPanel({ id, title, rows }: { id: string; title: string; rows: number }) {
+  return (
+    <section className="panel" aria-labelledby={`${id}-title`}>
+      <h2 id={`${id}-title`} className="panel-title">
+        {title}
+      </h2>
+      <Skeleton shape="settings" count={rows} />
     </section>
   );
 }
