@@ -268,6 +268,16 @@ body {
   font-weight: 600;
   opacity: 0.75;
 }
+/* A door's key (Settings → Keybinds → Home), its keycap after the name; a phone has no keys. */
+.door-label .key {
+  margin-left: 10px;
+  vertical-align: middle;
+}
+@media (hover: none) {
+  .door-label .key {
+    display: none;
+  }
+}
 /* Small words after a door's line, on the same line: what's there besides (the Review door's new cards available). */
 .door-note {
   margin-left: 0.6em;

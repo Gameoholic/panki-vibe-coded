@@ -2,7 +2,9 @@ import { useEffect, type CSSProperties } from "react";
 import type { Stats } from "@panki/contracts";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
+import { KeyCap } from "./KeyCap";
 import { Bone, Skeleton } from "./Skeleton";
+import type { Bind } from "../keys";
 import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
 import { isDoorId, type BoardItemId, type BoardLayout, type DoorId } from "../layout";
@@ -19,6 +21,8 @@ export type DoorSpec = {
   note?: string | null;
   /** The accent one: only while there's something to do. */
   hot?: boolean;
+  /** The key that opens it from the keyboard, its keycap after the name (Settings → Keybinds). */
+  bind?: Bind;
   onClick: () => void;
 };
 
@@ -125,7 +129,10 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
       onClick={arranging ? undefined : spec.onClick}
     >
       <Icon name={spec.icon} className="door-icon" />
-      <span className="door-label">{spec.label}</span>
+      <span className="door-label">
+        {spec.label}
+        <KeyCap bind={spec.bind} />
+      </span>
       {spec.detail === null ? (
         <Bone w="6em" h="0.8em" className="door-detail" />
       ) : (

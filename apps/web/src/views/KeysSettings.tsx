@@ -36,7 +36,7 @@ function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; b
 }
 
 /**
- * Settings → Keybinds: the review's keys on this device (`keys.ts`), each set by pressing it and each pressed or held for
+ * Settings → Keybinds: the home's and the review's keys on this device (`keys.ts`), each set by pressing it and each pressed or held for
  * a time of its own, and how much longer an answer that asks for confirmation is held on top.
  */
 export function KeysPanels() {
@@ -44,10 +44,17 @@ export function KeysPanels() {
   const changed = JSON.stringify(binds) !== JSON.stringify(DEFAULT_KEYS);
   return (
     <>
+      <section className="panel" aria-labelledby="keys-home-title">
+        <h2 id="keys-home-title" className="panel-title">
+          Home
+        </h2>
+        <KeyRow id="home-review" label="Review" bind={binds.homeReview} slot={{ kind: "homeReview" }} binds={binds} />
+      </section>
       <section className="panel" aria-labelledby="keys-review-title">
         <h2 id="keys-review-title" className="panel-title">
           Review
         </h2>
+        <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} />
         <KeyRow id="reveal" label="Show answer" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} />
         {binds.answers.map((bind, index) => (
           <KeyRow key={index} id={`answer-${index + 1}`} label={`Answer ${index + 1}`} bind={bind} slot={{ kind: "answers", index }} binds={binds} />

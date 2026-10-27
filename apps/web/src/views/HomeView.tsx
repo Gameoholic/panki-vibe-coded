@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { CardType, Deck, Settings, SrsType, Stats } from "@panki/contracts";
 import { Board, type DoorSpec } from "../components/Board";
 import { readLayout, writeLayout, type BoardLayout } from "../layout";
+import { useHold } from "../hooks/useHold";
+import { pressed, useKeyBinds } from "../keys";
 import type { WidgetContext } from "../widgets";
 import { count } from "../words";
 
@@ -51,6 +53,31 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
     writeLayout(next);
   }
 
+  // The Review door's key (Settings → Keybinds, none to begin with), held as long as it's set to be. Its going down is
+  // kept from the page, so a Space here never scrolls it; let go, it's kept from a focused button, which Firefox would press.
+  const binds = useKeyBinds();
+  const hold = useHold();
+  useEffect(() => {
+    const bind = binds.homeReview;
+    if (bind.key === null || arranging) return;
+    const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.closest("input, textarea, select") !== null);
+    function onKey(e: KeyboardEvent) {
+      if (!pressed(e, bind.key) || typing(e)) return;
+      e.preventDefault();
+      if (!e.repeat) hold.begin(e.key, document.getElementById("door-review"), bind.holdMs, onReview);
+    }
+    function onUp(e: KeyboardEvent) {
+      hold.release(e.key);
+      if (pressed(e, bind.key) && !typing(e)) e.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
+  });
+
   // Arranging ends on purpose: the header carries Done for as long as it's on.
   useEffect(() => {
     onTool(arranging ? { id: "home-done", label: "Done", onPress: () => setArranging(false) } : null);
@@ -60,7 +87,7 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const ctx: WidgetContext | null = decks && srsTypes && settings ? { decks, srsTypes, settings, onReview, onStale } : null;
   // The Review door is the accent one only while there's something to do.
   const doors: DoorSpec[] = [
-    { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, note: reviewNote, hot: due + fresh > 0, onClick: onReview },
+    { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, note: reviewNote, hot: due + fresh > 0, bind: binds.homeReview, onClick: onReview },
     { id: "door-decks", icon: "decks", label: "Decks", detail: decksDetail, onClick: onDecks },
     { id: "door-add", icon: "add", label: "Add a card", detail: addDetail, onClick: onAdd },
     { id: "door-types", icon: "type", label: "Card types", detail: typesDetail, onClick: onTypes },

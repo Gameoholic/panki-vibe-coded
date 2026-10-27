@@ -4,6 +4,7 @@ import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { Icon, type IconName } from "../components/Icon";
+import { KeyCap, holdFor } from "../components/KeyCap";
 import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
 import { ReviewCard } from "../components/ReviewCard";
@@ -15,7 +16,7 @@ import { shuffle } from "../shuffle";
 import { LESSON_SCOPE } from "../srsFlow";
 import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
-import { count, keyWords, langOf } from "../words";
+import { count, langOf } from "../words";
 
 type Props = {
   deck: Deck;
@@ -232,18 +233,6 @@ function Lead({ lead }: { lead: Lead }) {
   );
 }
 
-/** How long a key is held before its button does its thing: its own hold, and `extra` on top (confirmation's). */
-const holdFor = (bind: Bind | undefined, extra = 0) => (bind?.key ? bind.holdMs + extra : 0);
-
-/**
- * A key as its keycap on the button it presses (this device's, `keys.ts`), none when it has none; a key that's held
- * is a clock face that fills as it's held (`useHold`, `.key.is-hold`).
- */
-function AnswerKey({ bind, extra = 0 }: { bind: Bind | undefined; extra?: number }) {
-  if (!bind?.key) return null;
-  return <span className={holdFor(bind, extra) > 0 ? "key is-hold" : "key"}>{keyWords(bind.key)}</span>;
-}
-
 /** The words a card goes by on the Today screen: its type's main field, else its first Front field of words (as a deck's list leads with it), else any words it holds. */
 function wordsOf(type: CardType, card: Card): string {
   const lead = wordsFieldOf(type) ?? type.fields.find((f) => f.side === "front" && holdsWords(f.kind));
@@ -312,7 +301,7 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, on
         <span className="today-left">{left ? `${left} for later` : null}</span>
         <Button id="today-start" variant="primary" size="lg" data-hold="today-start" disabled={total === 0} onClick={onStart}>
           Start {count(total, "card", "cards")}
-          <AnswerKey bind={startKey} />
+          <KeyCap bind={startKey} />
         </Button>
       </div>
       {reviews.length > 0 ? (
@@ -678,14 +667,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       if (e.metaKey) return;
       // What's held with it is part of the key ("Ctrl+z" isn't "z"), as Settings → Keybinds keeps it.
       const key = keyOf(e);
-      // On today's cards, the key that shows an answer starts the review, held as long; Enter does too, but on a button.
+      // On today's cards, Start's own key starts the review (the owner, 2026-10-27: not Show answer's); Enter does too, but on a button.
       if (today) {
         if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           start();
-        } else if (sameKey(key, binds.reveal.key)) {
+        } else if (sameKey(key, binds.start.key)) {
           e.preventDefault();
-          if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='today-start']"), binds.reveal.holdMs, start);
+          if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='today-start']"), binds.start.holdMs, start);
         }
         return;
       }
@@ -757,7 +746,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
      */
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
-      if (pressed(e, binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      if (pressed(e, today ? binds.start.key : binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -769,7 +758,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
 
   if (today) {
     return (
-      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.reveal} onPick={pick} onMore={offerMore} onStart={start} />
+      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} onPick={pick} onMore={offerMore} onStart={start} />
     );
   }
   if (!card) {
@@ -856,7 +845,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
             <Button id="review-undo" className="review-undo-end" data-hold="undo" disabled={busy} onClick={() => void undo()}>
               <Icon name="undo" />
               Undo
-              <AnswerKey bind={binds.undo} />
+              <KeyCap bind={binds.undo} />
             </Button>
           ) : null}
         </div>
@@ -874,7 +863,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
       <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
         <Icon name="undo" />
         Undo
-        <AnswerKey bind={binds.undo} />
+        <KeyCap bind={binds.undo} />
       </Button>
       <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
         <Icon name="srs" />
@@ -940,13 +929,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
               <>
                 <Button className="review-example-step" data-hold="example-prev" aria-label="Previous example" onClick={() => stepExample(-1)}>
                   <Icon name="back" />
-                  <AnswerKey bind={binds.examplePrev} />
+                  <KeyCap bind={binds.examplePrev} />
                 </Button>
                 <span className="review-examples-at">
                   {Math.max(0, exampleIds.indexOf(onScreen)) + 1} / {exampleIds.length}
                 </span>
                 <Button className="review-example-step" data-hold="example-next" aria-label="Next example" onClick={() => stepExample(1)}>
-                  <AnswerKey bind={binds.exampleNext} />
+                  <KeyCap bind={binds.exampleNext} />
                   <Icon name="forward" />
                 </Button>
               </>
@@ -993,14 +982,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
                   >
                     <span className="name">{a.name}</span>
                     <Lead lead={answerLead(srsType, card, a.id)} />
-                    <AnswerKey bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
+                    <KeyCap bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
                   </Button>
                 ),
               )
             ) : (
               <Button variant="primary" size="lg" data-hold="reveal" onClick={reveal}>
                 Show answer
-                <AnswerKey bind={binds.reveal} />
+                <KeyCap bind={binds.reveal} />
               </Button>
             )}
           </div>
@@ -1012,7 +1001,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
                   <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={busy || !revealed} onClick={() => press(a.id)} onMouseEnter={() => rest(a.id)} onMouseLeave={leave}>
                     <span className="name">{a.name}</span>
                     <Lead lead={answerLead(srsType, card, a.id)} />
-                    <AnswerKey bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
+                    <KeyCap bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
                   </Button>
                 ) : null,
               )}
