@@ -116,6 +116,8 @@ const Stored = z.object({
   /** Whether the word being said carries its mark, on the line under the player and on the subtitles over the video (`transcribe/prefs.ts`). */
   markUnder: z.boolean().catch(DEFAULT_PREFS.markUnder),
   markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
+  /** Whether Panki's subtitles can be fixed on a video's page (`transcribe/prefs.ts` → `edit`). */
+  transcriptEdit: z.boolean().catch(DEFAULT_PREFS.edit),
   /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (YouTube → Seek bar). */
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
   /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
@@ -168,6 +170,7 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   markUnder: store.markUnder,
   markOver: store.markOver,
   seek: store.seekLook,
+  edit: store.transcriptEdit,
   mode: store.transcribeMode,
 });
 

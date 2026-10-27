@@ -30,8 +30,13 @@ export const TranscribePrefs = z.object({
   markOver: z.boolean(),
   /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's, riding here for the same reason. */
   seek: SeekLook,
+  /**
+   * Whether Panki's subtitles can be fixed here, a word double-clicked or a row's pencil (the owner, 2026-10-27: "on by
+   * default but toggleable"): a fix is to the one transcript of the video everyone on Panki reads.
+   */
+  edit: z.boolean(),
   /** The transcription mode this viewer picked in the strip's menu, among those an admin left on; null for the one everyone starts on (`modeOf`). */
   mode: TranscribeMode.nullable(),
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, mode: null };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, edit: true, mode: null };

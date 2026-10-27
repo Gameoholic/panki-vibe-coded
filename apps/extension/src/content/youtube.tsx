@@ -1955,7 +1955,7 @@ function App() {
                 const last = underText.parts.find((part) => part.line.id === row.lines.at(-1)?.id);
                 if (!first || !last) return null;
                 const text = underText.text.slice(first.at, last.at + last.line.text.length);
-                const transcribed = view.mode === "transcript";
+                const fixable = view.mode === "transcript" && tx.prefs.edit;
                 return (
                   <Row
                     key={row.key}
@@ -1966,8 +1966,8 @@ function App() {
                     forced={forcedIn(first.at, text.length)}
                     onTake={takeUnder}
                     placeOf={placeOf}
-                    onFix={transcribed ? fixAt : null}
-                    onEdit={transcribed ? () => editRow(row.lines.map((line) => line.id)) : null}
+                    onFix={fixable ? fixAt : null}
+                    onEdit={fixable ? () => editRow(row.lines.map((line) => line.id)) : null}
                     editable={editable}
                   />
                 );
@@ -2002,7 +2002,7 @@ function App() {
       {createPortal(
         overLine && overPart ? (
           <div className={`sub-band over-line ${styling ? "is-dragging" : ""}`.trim()} lang="ja" onPointerDown={styling ? dragSubtitles : undefined}>
-            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={fixAt} />
+            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={tx.prefs.edit ? fixAt : null} />
           </div>
         ) : null,
         over.ground,

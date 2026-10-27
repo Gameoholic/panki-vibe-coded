@@ -262,6 +262,16 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         why="While the Panki panel is set to Panki subtitles, they're also shown on the video, in place of YouTube's own subtitles."
       />
       <Setting
+        id="transcript-edit"
+        label="Fixing Panki subtitles"
+        control={<Toggle id="transcript-edit-on" says={{ on: "On", off: "Off" }} on={store.transcriptEdit} disabled={off} onChange={(transcriptEdit) => void writeStore({ transcriptEdit }).then(onChanged)} />}
+        why={
+          store.transcriptEdit
+            ? "Double-click a word, or press a line's pencil while the video is paused, to fix what was heard wrong. Each video has one set of Panki subtitles for everyone on this Panki, so a fix changes them for everyone."
+            : "Panki subtitles can't be changed from the video page."
+        }
+      />
+      <Setting
         id="after-add"
         label="After adding a card"
         control={<Segmented idPrefix="after-add" label="After adding a card" options={AFTER_ADD_OPTIONS} value={store.afterAdd} disabled={off} onChange={(afterAdd) => void writeStore({ afterAdd }).then(onChanged)} />}
