@@ -33,6 +33,8 @@ import { Segmented } from "./components/Segmented";
 import { Bone, Skeleton, type SkeletonShape } from "./components/Skeleton";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { SpaceNotice } from "./components/SpaceNotice";
+import { todayWords } from "./components/TodayBar";
+import { count } from "./words";
 import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
 import { SAVE_WORDS, type UnsavedGuard } from "./unsaved";
@@ -45,7 +47,7 @@ import { HomeView, type HomeTool } from "./views/HomeView";
 import { LayoutView } from "./views/LayoutView";
 import { LoginView } from "./views/LoginView";
 import { ReviewPickView } from "./views/ReviewPickView";
-import { ReviewView } from "./views/ReviewView";
+import { ReviewView, type ReviewBegin } from "./views/ReviewView";
 import { DEVICE_ZONE, SettingsView } from "./views/SettingsView";
 import { SrsNewView } from "./views/SrsNewView";
 import { SrsTypeView, type SaveStatus } from "./views/SrsTypeView";
@@ -72,7 +74,8 @@ type Screen =
   /** `card`: the card open in the list, to change or delete; its address says so. */
   | { kind: "deck"; deck: Deck; tab: DeckTab; card?: string | undefined }
   | { kind: "pick" }
-  | { kind: "review"; deck: Deck; from: "deck" | "pick" }
+  /** `begin`: opened from the deck picker's Start or Show cards (not kept in the address). */
+  | { kind: "review"; deck: Deck; from: "deck" | "pick"; begin?: ReviewBegin | undefined }
   | { kind: "add" }
   | { kind: "types" }
   | { kind: "type"; type: CardType | null; tab: TypeTab }
@@ -89,7 +92,7 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   home: "board",
   decks: "rows",
   deck: "cards",
-  pick: "rows",
+  pick: "picks",
   review: "review",
   add: "form",
   types: "rows",
@@ -794,20 +797,23 @@ export function App() {
       </>
     );
   }
-  function reviewLoading(deckId: string, deck: Deck | null): ReactNode {
+  function reviewLoading(deckId: string, deck: Deck | null, begin?: ReviewBegin): ReactNode {
     const due = deck ? deck.dueCount : shapeOf(`due:${deckId}`, 4);
     const fresh = deck ? deck.newCount : shapeOf(`new:${deckId}`, 3);
     // An arriving deck's settings aren't known yet: today first is how every deck begins.
-    const todayFirst = deck ? deck.settings.todayFirst : true;
+    const todayFirst = begin === "cards" || (begin !== "start" && (deck ? deck.settings.todayFirst : true));
     if (due + fresh === 0) return <Skeleton shape="panels" />;
-    if (todayFirst) return <Skeleton shape="today" parts={[due, fresh].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX))} firstReviews={due > 0} />;
+    // Today's cards open folded to their counts, but for Show cards on the deck picker, which opens them shown.
+    const parts = begin === "cards" ? [due, fresh].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX)) : [];
+    if (todayFirst) return <Skeleton shape="today" parts={parts} firstReviews={due > 0} words={todayWords(due, fresh) ?? ""} start={`Start ${count(due + fresh, "card", "cards")}`} />;
     return <Skeleton shape="review" />;
   }
   function plainLoading(kind: Screen["kind"]): ReactNode {
     switch (kind) {
       case "decks":
-      case "pick":
         return <Skeleton shape="rows" count={rowsOf("rows:decks", 4)} />;
+      case "pick":
+        return <Skeleton shape="picks" count={rowsOf("rows:decks", 3)} />;
       case "types":
         return <Skeleton shape="rows" count={rowsOf("rows:types", 2)} />;
       case "srs":
@@ -832,7 +838,7 @@ export function App() {
       : screen.kind === "deck"
         ? deckLoading(screen.deck.id, screen.deck, screen.tab)
         : screen.kind === "review"
-          ? reviewLoading(screen.deck.id, screen.deck)
+          ? reviewLoading(screen.deck.id, screen.deck, screen.begin)
           : plainLoading(screen.kind);
   let body: ReactNode;
   if (loadError) {
@@ -953,7 +959,7 @@ export function App() {
         break;
       }
       case "pick":
-        body = decks === null || srsTypes === null ? loading : <ReviewPickView decks={decks} srsTypes={srsTypes} onPick={(deck) => go({ kind: "review", deck, from: "pick" })} onMakeDeck={startDeck} />;
+        body = decks === null ? loading : <ReviewPickView decks={decks} onPick={(deck, begin) => go({ kind: "review", deck, from: "pick", begin })} onMakeDeck={startDeck} />;
         break;
       case "review": {
         const deck = freshDeck(screen.deck);
@@ -978,6 +984,7 @@ export function App() {
               type={type}
               srsType={srsType}
               subtitleStyle={settings.subtitleStyle}
+              begin={screen.begin}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}
               onGoAdd={() => openDeck(deck)}

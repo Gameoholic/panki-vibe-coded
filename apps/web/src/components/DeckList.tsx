@@ -18,7 +18,7 @@ type Props = {
   countOf?: (deck: Deck) => string;
 };
 
-/** The decks as rows you press, each with its count. The Decks screen and the Review picker are both this. */
+/** The decks as rows you press, each with its count: the Decks screen. */
 export function DeckList({ decks, title, empty, onOpen, onSettings, subOf, countOf = (deck) => count(deck.cardCount, "card", "cards") }: Props) {
   const titleId = useId();
   return (

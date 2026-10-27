@@ -23,7 +23,7 @@ export function Bone({ w = "100%", h = "0.9em", round = false, className = "" }:
  * editor beside its card, a few lines in a panel, and one tile's body. A new kind of screen takes the one it looks
  * like, or is one entry here built of its own classes.
  */
-export type SkeletonShape = "rows" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "review" | "form" | "editor" | "lines" | "tile";
+export type SkeletonShape = "rows" | "picks" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "review" | "form" | "editor" | "lines" | "tile";
 
 /** Widths that vary a little from row to row, so a list of blocks reads as a list of things and not a grid. */
 const WIDTHS = ["46%", "62%", "38%", "54%", "70%", "42%"];
@@ -62,45 +62,91 @@ function TileBody() {
   );
 }
 
+/** `TodayBar`'s parts as measured: a character of its bold words, Show cards and Hide cards, a button's height, and Start's room besides its words (its padding, gap and keycap). */
+const TODAY_CHAR_PX = 8.6;
+const TODAY_SHOW_PX = "136px";
+const TODAY_HIDE_PX = "128px";
+const TODAY_BUTTON_H = "42px";
+const TODAY_START_PX = 82;
+
 /**
  * `count` is how many rows, lines or tiles; `parts`, for `today`, how many tiles each of its panels holds (reviews,
- * then new), and `firstReviews` whether the first is the reviews one, whose head alone carries a stage's chip.
+ * then new), and `firstReviews` whether the first is the reviews one, whose head alone carries a stage's chip; `words`
+ * and `start`, for `today`, what its bar will say (the counts, Start's label), known from the deck, so their blocks
+ * are as wide as the words will be.
  */
-export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean }) {
+export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false, words = "", start = "" }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean; words?: string; start?: string }) {
   switch (shape) {
-    case "today":
-      // As `ReviewView` → `TodayCards` draws today's cards: Start at the right, then a panel of tiles for each kind.
+    case "today": {
+      // As `ReviewView` → `TodayCards` draws today's cards: the folded bar (`TodayBar`: the counts, Show cards, Start at
+      // the right), then, only when they open shown, a panel of tiles for each kind.
+      const open = (parts ?? []).length > 0;
       return (
         <section className="skel-in review-today" {...status}>
-          <div className="today-bar">
+          <div className="panel today-bar">
+            <span className="today-counts">
+              <Bone w={`${Math.max(words.length, 5) * TODAY_CHAR_PX}px`} h="1em" />
+            </span>
+            <Bone w={open ? TODAY_HIDE_PX : TODAY_SHOW_PX} h={TODAY_BUTTON_H} />
             <span className="today-left" />
-            <Bone w="12em" h="56px" />
+            <Bone w={`${TODAY_START_PX + Math.max(start.length, 13) * TODAY_CHAR_PX}px`} h="56px" />
           </div>
-          {(parts ?? [count ?? 6]).map((tiles, i) => (
-            <section key={i} className="panel today-panel">
-              <div className="today-head">
-                <h2 className="panel-title">
-                  <Bone w="5em" h="0.8em" />
-                </h2>
-                <span className="today-of">
-                  <Bone w="2.5em" h="0.9em" />
-                </span>
-                <span className="chips">
-                  {firstReviews && i === 0 ? <Bone w="8.5em" h="33px" /> : null}
-                  <Bone w="2.6em" h="33px" />
-                  <Bone w="3.6em" h="33px" />
-                </span>
-              </div>
-              <div className="today-cards">
-                {times(tiles).map((t) => (
-                  <div key={t} className="btn btn-chip today-card">
-                    <Bone w={`${2.4 + (t % 3) * 0.8}em`} h="25px" />
-                    <Bone w="5.5em" h="21px" round />
+          {(parts ?? []).length > 0 ? (
+            <div className="review-today">
+              {(parts ?? []).map((tiles, i) => (
+                <section key={i} className="panel today-panel">
+                  <div className="today-head">
+                    <h2 className="panel-title">
+                      <Bone w="5em" h="0.8em" />
+                    </h2>
+                    <span className="today-of">
+                      <Bone w="2.5em" h="0.9em" />
+                    </span>
+                    <span className="chips">
+                      {firstReviews && i === 0 ? <Bone w="8.5em" h="33px" /> : null}
+                      <Bone w="2.6em" h="33px" />
+                      <Bone w="3.6em" h="33px" />
+                    </span>
                   </div>
-                ))}
-              </div>
-            </section>
-          ))}
+                  <div className="today-cards">
+                    {times(tiles).map((t) => (
+                      <div key={t} className="btn btn-chip today-card">
+                        <Bone w={`${2.4 + (t % 3) * 0.8}em`} h="26px" />
+                        <Bone w="5.5em" h="21px" round />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      );
+    }
+    case "picks":
+      // As `ReviewPickView` draws the decks to review: a title, then a `TodayBar` for each deck.
+      return (
+        <section className="skel-in" {...status}>
+          <h2 className="list-title">
+            <Bone w="6em" h="1.5em" />
+          </h2>
+          <ul className="pick-list">
+            {times(count ?? 3).map((i) => (
+              <li key={i}>
+                <div className="panel today-bar">
+                  <span className="today-name">
+                    <Bone w={`${[7.5, 4.5, 6][i % 3]}em`} h="1em" />
+                  </span>
+                  <span className="today-counts">
+                    <Bone w={`${9 * TODAY_CHAR_PX}px`} h="1em" className="is-faint" />
+                  </span>
+                  <Bone w={TODAY_SHOW_PX} h={TODAY_BUTTON_H} />
+                  <span className="today-left" />
+                  <Bone w="66px" h={TODAY_BUTTON_H} />
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       );
     case "rows":

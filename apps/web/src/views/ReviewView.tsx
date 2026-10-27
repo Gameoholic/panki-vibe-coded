@@ -8,6 +8,7 @@ import { KeyCap, holdFor } from "../components/KeyCap";
 import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
 import { ReviewCard } from "../components/ReviewCard";
+import { TodayBar, todayWords } from "../components/TodayBar";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
 import { keyOf, pressed, sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
@@ -18,6 +19,9 @@ import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, ho
 import { waveOf } from "../waveform";
 import { count, langOf } from "../words";
 
+/** How a review opens from the deck picker: its Start, or its Show cards. */
+export type ReviewBegin = "start" | "cards";
+
 type Props = {
   deck: Deck;
   cards: Card[];
@@ -27,6 +31,8 @@ type Props = {
   srsType: SrsType;
   /** How a clip's subtitles look on the card: the account's. */
   subtitleStyle: SubtitleStyle;
+  /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the deck's `todayFirst` says, folded. */
+  begin?: ReviewBegin;
   /** The answer with the sitting it happened in and how long the card was on screen before and after the flip. */
   onAnswer: (cardId: string, answer: CardAnswer) => Promise<Card>;
   /** An answer taken back, by the id it was given; the card as it stood before it. */
@@ -249,7 +255,7 @@ type Today = { picked: ReadonlySet<string>; more: boolean };
  * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
  * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`).
  */
-function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, onPick, onMore, onStart }: {
+function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
   type: CardType;
   srsType: SrsType;
   /** Today's due cards, in the line's order. */
@@ -260,10 +266,13 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, on
   others: readonly Card[];
   today: Today;
   startKey: Bind;
+  /** Whether the cards are shown to begin with (Show cards on the deck picker); folded to the counts otherwise. */
+  opened: boolean;
   onPick: (ids: readonly string[], on: boolean) => void;
   onMore: (more: boolean) => void;
   onStart: () => void;
 }) {
+  const [open, setOpen] = useState(opened);
   const offered = today.more ? [...fresh, ...others] : fresh;
   const picked = (list: readonly Card[]) => list.filter((c) => today.picked.has(c.id));
   const total = picked(reviews).length + picked(offered).length;
@@ -297,58 +306,62 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, on
   );
   return (
     <section className="review-today">
-      <div className="today-bar">
-        <span className="today-left">{left ? `${left} for later` : null}</span>
+      {/* Folded to the counts to begin with; Show cards unfolds the tiles under it. */}
+      <TodayBar id="today" counts={todayWords(picked(reviews).length, picked(offered).length) ?? "None picked"} shown={open} onShow={() => setOpen(!open)} left={left ? `${left} for later` : null}>
         <Button id="today-start" variant="primary" size="lg" data-hold="today-start" disabled={total === 0} onClick={onStart}>
           Start {count(total, "card", "cards")}
           <KeyCap bind={startKey} />
         </Button>
-      </div>
-      {reviews.length > 0 ? (
-        <section className="panel today-panel" aria-labelledby="today-reviews-title">
-          <div className="today-head">
-            <h2 id="today-reviews-title" className="panel-title">
-              Reviews
-            </h2>
-            <span className="today-of">
-              {picked(reviews).length} of {reviews.length}
-            </span>
-            <span className="chips">
-              {stages.map((idx) => {
-                const here = onStage(idx);
-                const on = here.every((c) => today.picked.has(c.id));
-                return (
-                  <Button key={idx} variant="chip" aria-pressed={on} onClick={() => onPick(here.map((c) => c.id), !on)}>
-                    {srsType.stages[idx]?.name ?? NEW_WORDS.name} · {here.length}
-                  </Button>
-                );
-              })}
-              {allNone(reviews, "today-reviews")}
-            </span>
-          </div>
-          <div className="today-cards">{reviews.map(tile)}</div>
-        </section>
-      ) : null}
-      {fresh.length > 0 || others.length > 0 ? (
-        <section className="panel today-panel" aria-labelledby="today-new-title">
-          <div className="today-head">
-            <h2 id="today-new-title" className="panel-title">
-              {NEW_WORDS.name}
-            </h2>
-            <span className="today-of">
-              {picked(offered).length} of {offered.length}
-            </span>
-            <span className="chips">
-              {others.length > 0 ? (
-                <Button id="today-more" variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
-                  Every new card · {fresh.length + others.length}
-                </Button>
-              ) : null}
-              {offered.length > 0 ? allNone(offered, "today-new") : null}
-            </span>
-          </div>
-          {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : <p className="empty">No new cards today.</p>}
-        </section>
+      </TodayBar>
+      {open ? (
+        <div className="review-today">
+          {reviews.length > 0 ? (
+            <section className="panel today-panel" aria-labelledby="today-reviews-title">
+              <div className="today-head">
+                <h2 id="today-reviews-title" className="panel-title">
+                  Reviews
+                </h2>
+                <span className="today-of">
+                  {picked(reviews).length} of {reviews.length}
+                </span>
+                <span className="chips">
+                  {stages.map((idx) => {
+                    const here = onStage(idx);
+                    const on = here.every((c) => today.picked.has(c.id));
+                    return (
+                      <Button key={idx} variant="chip" aria-pressed={on} onClick={() => onPick(here.map((c) => c.id), !on)}>
+                        {srsType.stages[idx]?.name ?? NEW_WORDS.name} · {here.length}
+                      </Button>
+                    );
+                  })}
+                  {allNone(reviews, "today-reviews")}
+                </span>
+              </div>
+              <div className="today-cards">{reviews.map(tile)}</div>
+            </section>
+          ) : null}
+          {fresh.length > 0 || others.length > 0 ? (
+            <section className="panel today-panel" aria-labelledby="today-new-title">
+              <div className="today-head">
+                <h2 id="today-new-title" className="panel-title">
+                  {NEW_WORDS.name}
+                </h2>
+                <span className="today-of">
+                  {picked(offered).length} of {offered.length}
+                </span>
+                <span className="chips">
+                  {others.length > 0 ? (
+                    <Button id="today-more" variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
+                      Every new card · {fresh.length + others.length}
+                    </Button>
+                  ) : null}
+                  {offered.length > 0 ? allNone(offered, "today-new") : null}
+                </span>
+              </div>
+              {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : <p className="empty">No new cards today.</p>}
+            </section>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
@@ -393,13 +406,17 @@ function writeChartOpen(open: boolean) {
 const STAGED = "data-staged";
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer, onUndo, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, onAnswer, onUndo, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck), deck.settings.pool));
-  /** Today's cards first, while they're on screen (the deck's `todayFirst`, when there's anything to review); null once it's under way. */
+  /**
+   * Today's cards first, while they're on screen (the deck's `todayFirst`, when there's anything to review); null once
+   * it's under way. Opened from the deck picker, its Start goes straight in and its Show cards opens on them.
+   */
   const [today, setToday] = useState<Today | null>(() => {
     const queue = [...line.active, ...line.waiting];
-    return deck.settings.todayFirst && queue.length > 0 ? { picked: new Set(queue), more: false } : null;
+    const first = begin === "cards" || (begin !== "start" && deck.settings.todayFirst);
+    return first && queue.length > 0 ? { picked: new Set(queue), more: false } : null;
   });
   /** The line was picked by hand on the Today screen: a new card put aside then hands its place to no other. */
   const pickedByHand = useRef(false);
@@ -758,7 +775,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, onAnswer
 
   if (today) {
     return (
-      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} onPick={pick} onMore={offerMore} onStart={start} />
+      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} onPick={pick} onMore={offerMore} onStart={start} />
     );
   }
   if (!card) {

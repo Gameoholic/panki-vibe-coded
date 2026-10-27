@@ -1,25 +1,53 @@
-import type { Deck, SrsType } from "@panki/contracts";
-import { DeckList } from "../components/DeckList";
+import { useId } from "react";
+import type { Deck } from "@panki/contracts";
+import { Button } from "../components/Button";
 import { NoDecksYet } from "../components/NoDecksYet";
+import { TodayBar, todayWords } from "../components/TodayBar";
+import type { ReviewBegin } from "./ReviewView";
 
 type Props = {
   decks: Deck[];
-  srsTypes: SrsType[];
-  onPick: (deck: Deck) => void;
+  /** Into a deck's review: Start goes straight in, Show cards opens on its cards, Open on a deck with nothing today. */
+  onPick: (deck: Deck, begin?: ReviewBegin) => void;
   onMakeDeck: () => void;
 };
 
-/** Review starts here: which deck? One deck at a time, by the owner's call; each says what's due and what's new. */
-export function ReviewPickView({ decks, srsTypes, onPick, onMakeDeck }: Props) {
-  const srsNames = new Map(srsTypes.map((t) => [t.id, t.name]));
+/**
+ * Review starts here when there's more than one deck: each deck folded to today's counts, as one deck's review opens
+ * (`TodayBar`, the owner's pick, A of https://claude.ai/artifact/XVHRcYb8TKjrgrBdsUFtoG, 2026-10-27), with its own
+ * Start. One deck at a time, by the owner's call.
+ */
+export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
+  const titleId = useId();
   return (
-    <DeckList
-      decks={decks}
-      title="Which deck?"
-      empty={<NoDecksYet onMakeDeck={onMakeDeck} />}
-      onOpen={onPick}
-      subOf={(deck) => srsNames.get(deck.srsTypeId) ?? ""}
-      countOf={(deck) => `${deck.dueCount} due · ${deck.newCount} new`}
-    />
+    <section aria-labelledby={titleId}>
+      <h2 id={titleId} className="list-title">
+        Which deck?
+      </h2>
+      {decks.length === 0 ? (
+        <NoDecksYet onMakeDeck={onMakeDeck} />
+      ) : (
+        <ul className="pick-list">
+          {decks.map((deck) => {
+            const words = todayWords(deck.dueCount, deck.newCount);
+            return (
+              <li key={deck.id}>
+                <TodayBar id={`pick-${deck.id}`} name={deck.name} counts={words ?? "Nothing due right now"} onShow={words ? () => onPick(deck, "cards") : undefined}>
+                  {words ? (
+                    <Button id={`pick-${deck.id}-start`} variant="primary" onClick={() => onPick(deck, "start")}>
+                      Start
+                    </Button>
+                  ) : (
+                    <Button id={`pick-${deck.id}-open`} onClick={() => onPick(deck)}>
+                      Open
+                    </Button>
+                  )}
+                </TodayBar>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

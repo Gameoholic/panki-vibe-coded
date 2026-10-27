@@ -1777,12 +1777,44 @@ canvas.media-frame {
   display: grid;
   gap: 14px;
 }
+/* Today's cards folded to their counts (`TodayBar`): the deck's name on the picker, the counts, Show cards, what's
+   left for later pushing Start to the end. Wraps on a phone, Start still last. */
 .today-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px 14px;
+}
+/* A line tall whatever's in it, so a skeleton's block stands where the words will. */
+.today-name,
+.today-counts {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5em;
+}
+.today-name {
+  font-size: 17px;
+  font-weight: 800;
+}
+.today-counts {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.btn-ghost.today-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-color: transparent;
+  color: var(--muted);
+}
+.pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 .today-left {
   margin-right: auto;
