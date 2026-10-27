@@ -1298,12 +1298,18 @@
   background: transparent;
   color: inherit;
 }
-.skip-resume .btn.btn-ghost.skip-resume-go {
+.skip-resume .btn.btn-ghost.skip-resume-go,
+.skip-resume-said {
   padding: 0 18px 0 22px;
   font: 700 var(--skip-font) / 1 "Roboto", "Arial", var(--font);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+/* After a jump: the same words in the same place, nothing to press. */
+.skip-resume-said {
+  display: inline-flex;
+  align-items: center;
 }
 /* The × at its end, set off by a hairline, as quiet as the words beside it are bold. */
 .skip-resume .btn.btn-icon.skip-resume-x {

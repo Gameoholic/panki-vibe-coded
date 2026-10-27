@@ -256,8 +256,12 @@ async function toggleSaved() {
   const answer = await askSave(id, now.saved ? null : { title: about.title, channel: about.channel?.name ?? "", lengthMs: length });
   if (!answer.ok && watching === id) savedHere.set(now);
 }
-/** The offer to go on from where the video was stopped, in seconds, while it stands in the strip. */
-const offered = cell<number | null>(null);
+/**
+ * The offer to go on from where the video was stopped, in seconds, while it stands on the picture; `jumped`, Panki has
+ * already gone there by itself and the box only says so (the owner, 2026-10-27: to be sure it was Panki's jump).
+ */
+type Offer = { at: number; jumped: boolean };
+const offered = cell<Offer | null>(null);
 /** The offer on its way out: it fades for a moment before it's gone (the owner, 2026-10-21: "so it doesn't just bam cut away"). */
 const offerAway = cell(false);
 /** The video's name and channel as the page shows them: the channel's name and where it links, none when the site has moved it. */
@@ -606,26 +610,32 @@ function tryResume() {
     // before it as the options page says.
     const to = landing(at);
     if (Math.abs(player.currentTime - to) > 1) player.currentTime = to;
+    // Said in the offer's place, so it's plain the video is where Panki put it.
+    putOffer({ at: to, jumped: true });
     return;
   }
   // A link with a time of its own under "Jump, unless the link has a time": the button, or nothing, as picked.
   if (how === "continue" && modules.get().resumeTimed === "nothing") return;
   // Already there or past it (the site keeps a place of its own for a viewer signed in to it, and went there first): nothing to offer.
   if (player.currentTime >= at - 5) return;
-  offered.set(at);
-  // Its bar fills over the same span, then it goes by itself.
+  putOffer({ at, jumped: false });
+}
+
+/** The offer put on the picture; its bar fills over `OFFER_MS`, then it goes by itself. */
+function putOffer(now: Offer) {
+  offered.set(now);
   setTimeout(() => {
-    if (offered.get() === at) dismissOffer();
+    if (offered.get() === now) dismissOffer();
   }, OFFER_MS);
 }
 
 /** The offer goes: taken, closed with its ×, over, or the video there by any way. It fades first; another call while it fades changes nothing. */
 function dismissOffer() {
-  const at = offered.get();
-  if (at === null || offerAway.get()) return;
+  const now = offered.get();
+  if (now === null || offerAway.get()) return;
   offerAway.set(true);
   setTimeout(() => {
-    if (offered.get() === at) offered.set(null);
+    if (offered.get() === now) offered.set(null);
     offerAway.set(false);
   }, OFFER_AWAY_MS);
 }
@@ -637,8 +647,8 @@ function landing(stop: number): number {
 
 /** The offer taken: the video goes where it was stopped, or as far before it as set. */
 function takeOffer() {
-  const at = offered.get();
-  if (video && at !== null) video.currentTime = landing(at);
+  const now = offered.get();
+  if (video && now !== null && !now.jumped) video.currentTime = landing(now.at);
   dismissOffer();
 }
 
@@ -1988,7 +1998,7 @@ function App() {
         over.ground,
       )}
       {/* Where the video was stopped the time before, offered on the picture for a few seconds as it opens, as Netflix offers to skip an intro (the owner, 2026-10-21). */}
-      {createPortal(offer !== null ? <ResumeOffer at={offer} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
+      {createPortal(offer !== null ? <ResumeOffer at={offer.at} jumped={offer.jumped} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
       {/* The player's speed, among its own controls: a YouTube utility, drawn for whichever player the page has. */}
       {createPortal(video ? <SpeedControl key={watching ?? ""} video={video} /> : null, speed.ground)}
       {createPortal(video ? <EndTime video={video} /> : null, endTime.ground)}
@@ -2041,8 +2051,9 @@ setInterval(() => {
   followFinish(video);
   // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
   tryResume();
-  const at = offered.get();
-  if (at !== null && video && video.currentTime >= landing(at) - 2) dismissOffer();
+  // (After a jump the video is there already: the box saying so stays its time.)
+  const now = offered.get();
+  if (now !== null && !now.jumped && video && video.currentTime >= landing(now.at) - 2) dismissOffer();
 }, FOLLOW_MS);
 // What's been watched is sent as the page is hidden or left: a closed tab loses no more than the moment.
 window.addEventListener("pagehide", () => watcher.leave());

@@ -86,7 +86,7 @@ const PREVIEW_AGAIN_MS = 1800;
  * the white tag while its mark is on, with what opening the video does. With the button, the real offer over the
  * picture, its line filling; pressed, the video goes to the stop and the offer fades, as it does on a video; closed,
  * it only fades; over, it goes; a moment later the scene plays again. With the jump, the video stands at the stop as
- * it opens (a press on the bar still moves it).
+ * it opens, the same box saying "Jumped to" with nothing to press (a press on the bar still moves it).
  */
 function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeHow; back: number; marked: boolean }) {
   const [hover, setHover] = useState(false);
@@ -109,25 +109,25 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
   }, [jump, landing]);
   // The offer on its way: fading, then gone for a moment, then back with the video from the start again.
   useEffect(() => {
-    if (jump || offer === "up") return;
+    if (offer === "up") return;
     const timer = setTimeout(
       () => {
         if (offer === "away") setOffer("gone");
         else {
-          setAt(PREVIEW_PLAYED);
+          setAt(jump ? landing : PREVIEW_PLAYED);
           setOffer("up");
         }
       },
       offer === "away" ? OFFER_AWAY_MS : PREVIEW_AGAIN_MS,
     );
     return () => clearTimeout(timer);
-  }, [jump, offer]);
+  }, [jump, landing, offer]);
   // Its line reaches the right edge: it goes by itself, as on a video.
   useEffect(() => {
-    if (jump || offer !== "up") return;
+    if (offer !== "up") return;
     const timer = setTimeout(() => setOffer("away"), OFFER_MS);
     return () => clearTimeout(timer);
-  }, [jump, offer]);
+  }, [offer]);
   function take() {
     if (offer !== "up") return;
     setAt(landing);
@@ -138,7 +138,7 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
   }
   return (
     <div className="seek-preview" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
-      {!jump && offer !== "gone" ? <ResumeOffer at={PREVIEW_STOP} away={offer === "away"} onTake={take} onClose={close} /> : null}
+      {offer !== "gone" ? <ResumeOffer at={jump ? landing : PREVIEW_STOP} jumped={jump} away={offer === "away"} onTake={take} onClose={close} /> : null}
       <div
         className="seek-preview-bar"
         onPointerDown={(e) => {
