@@ -17,7 +17,7 @@ export type TranscribeTrigger = z.infer<typeof TranscribeTrigger>;
 
 export const TranscribePrefs = z.object({
   trigger: TranscribeTrigger,
-  /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Panki tab's subtitles on the video"; it was "Replace YouTube subtitles with Panki's" until the owner, 2026-10-27, read that as YouTube's swapped for some of Panki's own, and asked for the line under it too). */
+  /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Panki panel's subtitles on the video", the panel being the Panki panel switched above it; it was "Replace YouTube subtitles with Panki's" until the owner, 2026-10-27, read that as YouTube's swapped for some of Panki's own, and asked for the line under it too). */
   overVideo: z.boolean(),
   /** How the transcript looks over the video (the contracts' `subtitleStyle.ts`): this browser's own, as the rest here. */
   style: SubtitleStyle,
