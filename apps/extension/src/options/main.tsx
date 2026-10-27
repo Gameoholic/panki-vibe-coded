@@ -15,7 +15,7 @@ import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
@@ -244,6 +244,12 @@ const PAUSED_OPTIONS = [
   { id: "stop", label: "Stops at once" },
 ] as const satisfies readonly { id: TranscribePaused; label: string }[];
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
+// What the choice made does, under it (the owner, 2026-10-27: "not clear what this does, add description").
+const AFTER_ADD_WHY: Record<AfterAdd, string> = {
+  before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
+  pause: "Once a card from a video is added, the video stays paused.",
+  play: "Once a card from a video is added, the video plays.",
+};
 // The Panki panel's switch heads it since the Modules tab went (the owner, 2026-10-21: "most of this can just live under the YouTube settings"); off, nothing is transcribed, so the rest is greyed.
 function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const off = !store.modulePanel;
@@ -269,6 +275,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         id="after-add"
         label="After adding a card"
         control={<Segmented idPrefix="after-add" label="After adding a card" options={AFTER_ADD_OPTIONS} value={store.afterAdd} disabled={off} onChange={(afterAdd) => void writeStore({ afterAdd }).then(onChanged)} />}
+        why={AFTER_ADD_WHY[store.afterAdd]}
       />
     </section>
   );
