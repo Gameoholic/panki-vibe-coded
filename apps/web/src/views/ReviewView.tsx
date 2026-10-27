@@ -247,7 +247,7 @@ type Today = { picked: ReadonlySet<string>; more: boolean };
  * Today's cards before the first one (the owner's pick, B of https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62,
  * 2026-10-26; a deck's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
  * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
- * press away. Start runs the review on what's picked, its key the one that shows an answer.
+ * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`).
  */
 function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, onPick, onMore, onStart }: {
   type: CardType;
