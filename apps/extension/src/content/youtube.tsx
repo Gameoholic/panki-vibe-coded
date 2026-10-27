@@ -1343,6 +1343,8 @@ function App() {
   const [editBusy, setEditBusy] = useState(false);
   const still = useSyncExternalStore(stillNow.subscribe, stillNow.get);
   const editable = still && view.mode === "transcript" && tx.transcript?.job?.state !== "running";
+  /** Whether Panki's subtitles can be fixed by hand at all: an admin's, for everyone (`Transcription.fixes`). */
+  const fixesOn = tx.settings?.fixes ?? false;
   function editRow(lineIds: readonly number[]) {
     const row = lines.linesAsOne(lineIds);
     if (!row) return;
@@ -1955,7 +1957,7 @@ function App() {
                 const last = underText.parts.find((part) => part.line.id === row.lines.at(-1)?.id);
                 if (!first || !last) return null;
                 const text = underText.text.slice(first.at, last.at + last.line.text.length);
-                const fixable = view.mode === "transcript" && tx.prefs.edit;
+                const fixable = view.mode === "transcript" && fixesOn;
                 return (
                   <Row
                     key={row.key}
@@ -2002,7 +2004,7 @@ function App() {
       {createPortal(
         overLine && overPart ? (
           <div className={`sub-band over-line ${styling ? "is-dragging" : ""}`.trim()} lang="ja" onPointerDown={styling ? dragSubtitles : undefined}>
-            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={tx.prefs.edit ? fixAt : null} />
+            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={fixesOn ? fixAt : null} />
           </div>
         ) : null,
         over.ground,

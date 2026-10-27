@@ -197,10 +197,17 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     },
   );
 
+  /** Fixing a transcript by hand is everyone's to do only while an admin leaves it on (`Transcription.fixes`). */
+  function fixesOff(res: Response): boolean {
+    if (shared.getTranscription().fixes) return false;
+    res.status(403).json({ error: { message: "Fixing Panki subtitles is switched off." } });
+    return true;
+  }
+
   // A word put right by hand: kept beside the engine's word, never over it.
   router.post("/:videoId/fixes", (req, res) => {
     const videoId = videoOf(req, res);
-    if (!videoId) return;
+    if (!videoId || fixesOff(res)) return;
     const parsed = TranscriptFix.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: { message: "That isn't a fix.", path: parsed.error.issues[0]?.path ?? [] } });
@@ -216,7 +223,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
   // A line put right by hand (the pencil): its words and where it starts and ends, each word changed kept beside the engine's.
   router.post("/:videoId/lines", (req, res) => {
     const videoId = videoOf(req, res);
-    if (!videoId) return;
+    if (!videoId || fixesOff(res)) return;
     const parsed = TranscriptLineFix.safeParse(req.body);
     if (!parsed.success) {
       const refined = parsed.error.issues.find((issue) => issue.code === "custom");

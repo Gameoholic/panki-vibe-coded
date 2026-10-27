@@ -528,6 +528,21 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           why="Long stretches with no speech aren't transcribed. Try turning it off if subtitles are missing in quiet parts."
         />
       </section>
+      <section className="panel-section" aria-labelledby="fixing-title">
+        <h3 id="fixing-title" className="panel-subtitle">
+          Fixing
+        </h3>
+        <Setting
+          id="fixes"
+          label="Fixing Panki subtitles"
+          control={<Toggle id="transcribe-fixes" says={{ on: "On", off: "Off" }} on={current.fixes} onChange={(fixes) => patch({ fixes })} />}
+          why={
+            current.fixes
+              ? "Anyone on this Panki can fix a word or a line of Panki subtitles on a video's page. Each video has one set of Panki subtitles, so a fix changes them for everyone."
+              : "Nobody can change Panki subtitles."
+          }
+        />
+      </section>
       <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
         <p className="setting-why">{transcribedWords(status.seconds, engine.centsPerHour)}</p>
         {/* Read again whenever the key changes: the saved key's text is the sign of that. */}

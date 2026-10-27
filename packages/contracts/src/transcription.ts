@@ -151,6 +151,11 @@ export const Transcription = z.object({
   pauseWait: z.number().int().min(1).max(PAUSE_WAIT_MAX),
   /** Long stretches with no speech aren't sent to the engine. */
   skipSilence: z.boolean(),
+  /**
+   * Whether anyone can fix a transcript by hand, a word or a line (the owner, 2026-10-27: "an admin setting… it's
+   * global"): each video has one transcript for everyone, so a fix is everyone's. Off, the API refuses a fix.
+   */
+  fixes: z.boolean(),
 });
 export type Transcription = z.infer<typeof Transcription>;
 /**
@@ -176,6 +181,7 @@ export const DEFAULT_TRANSCRIPTION: Transcription = {
   chunkLength: 45,
   pauseWait: 30,
   skipSilence: true,
+  fixes: true,
 };
 export const TranscriptionUpdate = Transcription.partial();
 export type TranscriptionUpdate = z.infer<typeof TranscriptionUpdate>;
