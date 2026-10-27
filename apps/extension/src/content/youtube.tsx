@@ -1182,7 +1182,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
   return (
     <div className="strip-row">
       {line}
-      <Button className="btn-icon strip-row-edit" aria-label="Fix this line" disabled={!editable} onClick={onEdit}>
+      <Button className="btn-icon strip-row-edit" aria-label="Edit this line" disabled={!editable} onClick={onEdit}>
         <Icon name="edit" />
       </Button>
     </div>

@@ -530,15 +530,15 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
       </section>
       <section className="panel-section" aria-labelledby="fixing-title">
         <h3 id="fixing-title" className="panel-subtitle">
-          Fixing
+          Editing
         </h3>
         <Setting
           id="fixes"
-          label="Fixing Panki subtitles"
+          label="Editing Panki subtitles"
           control={<Toggle id="transcribe-fixes" says={{ on: "On", off: "Off" }} on={current.fixes} onChange={(fixes) => patch({ fixes })} />}
           why={
             current.fixes
-              ? "Anyone on this Panki can fix a word or a line of Panki subtitles on a video's page. Each video has one set of Panki subtitles, so a fix changes them for everyone."
+              ? "Anyone on this Panki can edit a word or a line of Panki subtitles on a video's page. Each video has one set of Panki subtitles, so an edit changes them for everyone."
               : "Nobody can change Panki subtitles."
           }
         />

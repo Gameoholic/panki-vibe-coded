@@ -200,7 +200,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
   /** Fixing a transcript by hand is everyone's to do only while an admin leaves it on (`Transcription.fixes`). */
   function fixesOff(res: Response): boolean {
     if (shared.getTranscription().fixes) return false;
-    res.status(403).json({ error: { message: "Fixing Panki subtitles is switched off." } });
+    res.status(403).json({ error: { message: "Editing Panki subtitles is switched off." } });
     return true;
   }
 
@@ -210,7 +210,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     if (!videoId || fixesOff(res)) return;
     const parsed = TranscriptFix.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: { message: "That isn't a fix.", path: parsed.error.issues[0]?.path ?? [] } });
+      res.status(400).json({ error: { message: "That isn't an edit.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
     if (!shared.fixWord(videoId, parsed.data.wordId, parsed.data.text, signedIn(res).user.id, now())) {
