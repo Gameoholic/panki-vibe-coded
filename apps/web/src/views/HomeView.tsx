@@ -34,8 +34,11 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const fresh = decks?.reduce((sum, deck) => sum + deck.newCount, 0) ?? 0;
   // Null while what a door says is loading: the door draws its shape there.
   const reviewDetail = decks === null ? null : none ? "No decks yet" : due + fresh === 0 ? "Nothing due right now" : `${due} due · ${fresh} new`;
-  const available = decks?.reduce((sum, deck) => sum + deck.newAvailable, 0) ?? 0;
-  const reviewNote = available > 0 ? `${count(available, "new card", "new cards")} available` : null;
+  // Once today's limits are reached (the door no longer blue), what's still there past them, said small after the line.
+  const newPast = decks?.reduce((sum, deck) => sum + deck.newAvailable - deck.newCount, 0) ?? 0;
+  const duePast = decks?.reduce((sum, deck) => sum + deck.dueAvailable - deck.dueCount, 0) ?? 0;
+  const past = [newPast > 0 ? `${count(newPast, "new card", "new cards")} available` : null, duePast > 0 ? `${count(duePast, "extra review", "extra reviews")} available` : null];
+  const reviewNote = due + fresh > 0 ? null : past.filter((p) => p !== null).join(" · ") || null;
   const decksDetail = decks === null ? null : none ? "None yet" : count(decks.length, "deck", "decks");
   const addDetail = none ? "Make a deck first" : "to any deck";
   const typesDetail = types === null ? null : types.length === 0 ? "None yet" : types.map((t) => t.name).join(", ");

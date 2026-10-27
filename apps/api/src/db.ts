@@ -1439,7 +1439,7 @@ export function openDb(
     const newCount = Math.min(fresh, Math.max(0, own.newPerDay - started));
     const ownLeft = own.reviewsPerDay === null ? Infinity : Math.max(0, own.reviewsPerDay - (countReviewedSince.get(today.dayStart, base.id) as { n: number }).n);
     const dueCount = Math.min(due, ownLeft);
-    return Deck.parse({ ...(row as object), settings: own, newCount, dueCount, newAvailable: fresh });
+    return Deck.parse({ ...(row as object), settings: own, newCount, dueCount, newAvailable: fresh, dueAvailable: due });
   }
 
   /**
