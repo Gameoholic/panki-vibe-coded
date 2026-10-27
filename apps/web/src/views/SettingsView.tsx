@@ -538,7 +538,7 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           control={<Toggle id="transcribe-fixes" says={{ on: "On", off: "Off" }} on={current.fixes} onChange={(fixes) => patch({ fixes })} />}
           why={
             current.fixes
-              ? "Anyone on this Panki can edit a word or a line of Panki subtitles on a video's page. Each video has one set of Panki subtitles, so an edit changes them for everyone."
+              ? "Anyone using Panki can edit a word or a line of Panki subtitles on a video's page. Each video has one set of Panki subtitles, so an edit changes them for everyone."
               : "Nobody can change Panki subtitles."
           }
         />
