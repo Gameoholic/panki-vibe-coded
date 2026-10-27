@@ -257,7 +257,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
       <Setting
         id="transcribe-over-video"
-        label="Panki panel's subtitles on the video"
+        label="Override YouTube's native subtitles"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
         why="While the Panki panel is set to Panki subtitles, they're also shown on the video, in place of YouTube's own subtitles."
       />
