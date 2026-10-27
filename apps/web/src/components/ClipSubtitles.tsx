@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { SUBTITLE_REF_HEIGHT, cueAt, subtitleVars, type MediaCues, type SubtitleStyle } from "@panki/contracts";
 import { langOf } from "../words";
 
+/** What a clip's subtitles stand in on a page: the extension's dictionary takes Panki subtitles' own key to hold there. */
+export const SUBTITLES_AREA = ".sub-ground";
+
 /** Where a clip is, in seconds from its start, as its picture shows it; null while its picture is of no moment of it. */
 export type ClipTime = () => number | null;
 

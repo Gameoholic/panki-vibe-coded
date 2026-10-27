@@ -253,7 +253,8 @@ export function pointedOnPage(x: number, y: number, where: Where): Pointed | nul
 }
 
 type PageLook = {
-  key: () => LookKey;
+  /** The key to hold over what the pointer is on (null: wherever it last was). */
+  key: (target: EventTarget | null) => LookKey;
   /** Whether looking up works here right now (the setting, a dictionary to look in). */
   on: () => boolean;
   /** What a point on the page is: the site's captions or ordinary text; null where nothing is looked up (the options page looks only in its own lines to try). */
@@ -293,18 +294,18 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     if (!look.on() || inPanki(e) || look.inPopup(e)) return;
     const where = look.whereAt(e.target);
     last = where === null ? null : () => pointedOnPage(x, y, where);
-    lastKey = look.key();
+    lastKey = look.key(e.target);
     pointWith(looker, lastKey, e, last ? last() : null, { x, y });
   };
   // Keys typed in Panki's own fields (the drawer's) are theirs: a capital letter isn't a look-up.
   const onDown = (e: KeyboardEvent) => {
     if (inPanki(e)) return;
     if (e.key === "Escape") looker.close();
-    const key = lastKey ?? look.key();
+    const key = lastKey ?? look.key(null);
     if (!e.repeat && look.on() && isKey(key, e.key) && last) looker.point(last(), { x, y });
   };
   const onUp = (e: KeyboardEvent) => {
-    if (!inPanki(e) && isKey(lastKey ?? look.key(), e.key)) looker.release({ x, y });
+    if (!inPanki(e) && isKey(lastKey ?? look.key(null), e.key)) looker.release({ x, y });
   };
   // A click anywhere but the popup and its word closes it, however it was kept open: in Panki's own places too (the
   // line's empty room, the drawer).

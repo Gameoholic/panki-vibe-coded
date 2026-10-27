@@ -19,6 +19,8 @@ type Options = {
   theme?: () => "light" | "dark";
   /** What the popup's place goes in: the page, or what's filling the screen (a player gone full screen). */
   parent?: () => Element;
+  /** Whether a point on the page is on Panki subtitles drawn by the page itself (a card's clip in Panki), where the key to hold is theirs. */
+  subtitlesAt?: (target: EventTarget | null) => boolean;
 };
 
 export type Listening = ReturnType<typeof createListening>;
@@ -65,7 +67,7 @@ export function createListening(options: Options) {
   }
 
   const page = listenOnPage(looker, {
-    key: () => settings.key,
+    key: (target) => (options.subtitlesAt?.(target) ? settings.subtitleKey : settings.key),
     on: () => settings.on,
     whereAt: options.whereAt,
     inPopup: (e) => e.composedPath().includes(place.host),
