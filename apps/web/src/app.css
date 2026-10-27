@@ -268,6 +268,13 @@ body {
   font-weight: 600;
   opacity: 0.75;
 }
+/* Small words after a door's line, on the same line: what's there besides (the Review door's new cards available). */
+.door-note {
+  margin-left: 0.6em;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+}
 /* One of a few choices. A rounded rectangle, like everything else in the app that's pressed, and not a pill: the
    owner, 2026-10-11, of the pill it first was: it "doesn't fit the rest of our apps". The small ones further down
    (on a card's row, in a menu) are rounded a little less, so they don't close back up into pills. */

@@ -15,6 +15,8 @@ export type DoorSpec = {
   label: string;
   /** The line under its name; null while what it says is loading, drawn as its shape (`Bone`). */
   detail: string | null;
+  /** Small words after the line, when there's something to add to it. */
+  note?: string | null;
   /** The accent one: only while there's something to do. */
   hot?: boolean;
   onClick: () => void;
@@ -124,7 +126,14 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
     >
       <Icon name={spec.icon} className="door-icon" />
       <span className="door-label">{spec.label}</span>
-      {spec.detail === null ? <Bone w="6em" h="0.8em" className="door-detail" /> : <span className="door-detail">{spec.detail}</span>}
+      {spec.detail === null ? (
+        <Bone w="6em" h="0.8em" className="door-detail" />
+      ) : (
+        <span className="door-detail">
+          {spec.detail}
+          {spec.note && <small className="door-note">{spec.note}</small>}
+        </span>
+      )}
     </Button>
   );
 

@@ -398,7 +398,7 @@ All JSON, but for a file's own bytes (the two `/api/media` routes). Validation a
 | `DELETE /api/srs/:typeId` | — | `204`; `409` while a deck uses it; `404` for an id that never existed |
 | `GET /api/settings` | — | `{ settings: Settings }`, the owner's changes over the defaults |
 | `PATCH /api/settings` | `SettingsUpdate` (any of the keys) | `{ settings }`; `400` for a value outside its rule |
-| `GET /api/decks` | — | `{ decks: Deck[] }`, oldest first, each with its `typeId`, `srsTypeId`, `cardCount`, and `dueCount` / `newCount` for a review now |
+| `GET /api/decks` | — | `{ decks: Deck[] }`, oldest first, each with its `typeId`, `srsTypeId`, `cardCount`, and `dueCount` / `newCount` for a review now, and `newAvailable`, every new card not yet started past today's limit too (the home's Review door says it small after its line) |
 | `POST /api/decks` | `NewDeck` (`id`, `name`, `typeId`, `srsTypeId`) | `201 { deck: Deck }`; the same `id` again returns the existing deck; `400` for a card type or SRS type that doesn't exist |
 | `PATCH /api/decks/:deckId` | `DeckUpdate` (`name` and/or `srsTypeId`) | `{ deck: Deck }`; a changed SRS type moves every card by position and records it; `400` bad value, `404` no such deck (or removed) |
 | `DELETE /api/decks/:deckId` | — | `204`; hides the deck and its cards; again is `204` too; `404` only for an id that never existed |

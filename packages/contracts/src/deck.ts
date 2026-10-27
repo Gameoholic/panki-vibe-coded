@@ -66,6 +66,8 @@ export const Deck = NewDeck.extend({
   /** Derived on every read with the API's clock and the settings: how many cards a review of this deck would show now, already within today's limits. */
   dueCount: z.number().int().nonnegative(),
   newCount: z.number().int().nonnegative(),
+  /** Every new card not yet started, past today's limit too: what's there to learn at all. */
+  newAvailable: z.number().int().nonnegative(),
 });
 
 /** What a deck's settings can change: the name, the SRS type its cards follow, and any of how its reviews run. The rules are NewDeck's and DeckSettings', never restated. */

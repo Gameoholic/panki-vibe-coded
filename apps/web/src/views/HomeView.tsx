@@ -34,6 +34,8 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const fresh = decks?.reduce((sum, deck) => sum + deck.newCount, 0) ?? 0;
   // Null while what a door says is loading: the door draws its shape there.
   const reviewDetail = decks === null ? null : none ? "No decks yet" : due + fresh === 0 ? "Nothing due right now" : `${due} due · ${fresh} new`;
+  const available = decks?.reduce((sum, deck) => sum + deck.newAvailable, 0) ?? 0;
+  const reviewNote = available > 0 ? `${count(available, "new card", "new cards")} available` : null;
   const decksDetail = decks === null ? null : none ? "None yet" : count(decks.length, "deck", "decks");
   const addDetail = none ? "Make a deck first" : "to any deck";
   const typesDetail = types === null ? null : types.length === 0 ? "None yet" : types.map((t) => t.name).join(", ");
@@ -55,7 +57,7 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const ctx: WidgetContext | null = decks && srsTypes && settings ? { decks, srsTypes, settings, onReview, onStale } : null;
   // The Review door is the accent one only while there's something to do.
   const doors: DoorSpec[] = [
-    { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, hot: due + fresh > 0, onClick: onReview },
+    { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, note: reviewNote, hot: due + fresh > 0, onClick: onReview },
     { id: "door-decks", icon: "decks", label: "Decks", detail: decksDetail, onClick: onDecks },
     { id: "door-add", icon: "add", label: "Add a card", detail: addDetail, onClick: onAdd },
     { id: "door-types", icon: "type", label: "Card types", detail: typesDetail, onClick: onTypes },
