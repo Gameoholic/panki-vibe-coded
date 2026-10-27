@@ -12,13 +12,11 @@ import { DEFAULT_SEEK_LOOK, SeekLook } from "../seekLook";
 /** When transcribing starts: on every video played, or only at a press on Transcribe. */
 export const TranscribeTrigger = z.enum(["auto", "press"]);
 export type TranscribeTrigger = z.infer<typeof TranscribeTrigger>;
-/** While the viewer's video is paused: the silent player keeps filling its lead, or stops at once. */
-export const TranscribePaused = z.enum(["keep", "stop"]);
-export type TranscribePaused = z.infer<typeof TranscribePaused>;
+// What it does while the video is paused was the viewer's here (`paused`) until it became an admin's, Panki's
+// `Transcription.paused` (the owner, 2026-10-27); a browser that kept `transcribePaused` keeps it unread.
 
 export const TranscribePrefs = z.object({
   trigger: TranscribeTrigger,
-  paused: TranscribePaused,
   /** Whether the transcript is drawn over the video in place of the site's own captions, as well as under it ("Replace YouTube subtitles with Panki's"). */
   overVideo: z.boolean(),
   /** How the transcript looks over the video (the contracts' `subtitleStyle.ts`): this browser's own, as the rest here. */
@@ -36,4 +34,4 @@ export const TranscribePrefs = z.object({
   mode: TranscribeMode.nullable(),
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", paused: "keep", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, mode: null };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, mode: null };

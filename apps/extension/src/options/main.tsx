@@ -20,7 +20,6 @@ import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
-import type { TranscribePaused } from "../transcribe/prefs";
 import { deviceTheme } from "../ui/mount";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
 import { PopupLayoutPanel } from "./PopupLayout";
@@ -239,10 +238,7 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
  * it again with the transcript as it gets the focus. The words are the ones Panki's Settings had (the owner's own).
  */
 // Whether it starts by itself is switched in the strip's menu alone (Auto transcribe); its row here went at the owner's word, 2026-10-17.
-const PAUSED_OPTIONS = [
-  { id: "keep", label: "Keeps its lead" },
-  { id: "stop", label: "Stops at once" },
-] as const satisfies readonly { id: TranscribePaused; label: string }[];
+// While paused went to Panki's Settings → Admin the same way, 2026-10-27 ("should be an admin setting").
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
 // What the choice made does, under it (the owner, 2026-10-27: "not clear what this does, add description").
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
@@ -259,13 +255,6 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         Video page
       </h2>
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
-      <Setting
-        id="transcribe-paused"
-        label="While paused"
-        control={
-          <Segmented idPrefix="transcribe-paused" label="While paused" options={PAUSED_OPTIONS} value={store.transcribePaused} disabled={off} onChange={(transcribePaused) => void writeStore({ transcribePaused }).then(onChanged)} />
-        }
-      />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles with Panki's"

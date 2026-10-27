@@ -268,10 +268,9 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     return { ok: true };
   }
   if (ask.kind === "prefs") {
-    const { trigger, paused, overVideo, style, markUnder, markOver, mode } = ask.prefs;
+    const { trigger, overVideo, style, markUnder, markOver, mode } = ask.prefs;
     await writeStore({
       ...(trigger !== undefined ? { transcribeTrigger: trigger } : {}),
-      ...(paused !== undefined ? { transcribePaused: paused } : {}),
       ...(overVideo !== undefined ? { transcribeOverVideo: overVideo } : {}),
       ...(style !== undefined ? { subtitleStyle: style } : {}),
       ...(markUnder !== undefined ? { markUnder } : {}),

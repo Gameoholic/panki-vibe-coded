@@ -864,7 +864,7 @@ export function createTranscriber() {
     setWorking(heardBy(mine, r.at));
     const lead = settings.lead * 60;
     const ahead = r.at - t;
-    const stoppedWithViewer = paused && prefs.paused === "stop";
+    const stoppedWithViewer = paused && settings.paused === "stop";
     // Under the lead it plays (once held, from when the viewer has come `slack` closer). At the lead no new chunk is
     // begun, but the one being recorded is finished and sent first, so everything up to where it holds is transcribed:
     // the lead is words ahead of the viewer, never sound held back unsent (the owner, 2026-10-20). A pause with "While

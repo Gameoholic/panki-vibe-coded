@@ -6,6 +6,7 @@ import {
   ENGINE_IDS,
   EngineKeyUpdate,
   OVER_LIMIT_IDS,
+  type TranscribePaused,
   OVER_LIMIT_WORDS,
   PAUSE_WAIT_MAX,
   TRANSCRIBE_LANGUAGES,
@@ -99,6 +100,11 @@ const KIND_WORDS: Record<FilesOfKind["kind"], string> = { video: "Video", audio:
 const KIND_ORDER: readonly FilesOfKind["kind"][] = ["video", "audio", "image"];
 const SPEED_OPTIONS = TRANSCRIBE_SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
 const OVER_LIMIT_OPTIONS = OVER_LIMIT_IDS.map((id) => ({ id, label: OVER_LIMIT_WORDS[id] }));
+// The words the extension's options page had for it, when it was each viewer's (until 2026-10-27).
+const PAUSED_OPTIONS = [
+  { id: "keep", label: "Keeps its lead" },
+  { id: "stop", label: "Stops at once" },
+] as const satisfies readonly { id: TranscribePaused; label: string }[];
 const ENGINE_OPTIONS = ENGINE_IDS.map((id) => ({ id, label: ENGINES[id].name }));
 const LANGUAGE_OPTIONS = TRANSCRIBE_LANGUAGE_IDS.map((id) => ({ id, label: TRANSCRIBE_LANGUAGES[id] }));
 const SOURCE_OPTIONS = WORD_AUDIO_SOURCE_IDS.map((id) => ({ id, label: WORD_AUDIO_SOURCES[id].name }));
@@ -485,6 +491,11 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           label="Lead"
           control={<NumberField id="transcribe-lead" label="Minutes ahead" value={current.lead} min={1} max={180} suffix="min" onChange={(lead) => patch({ lead })} />}
           why="How far ahead of you it keeps transcribed."
+        />
+        <Setting
+          id="paused"
+          label="While paused"
+          control={<Segmented idPrefix="transcribe-paused" label="While paused" options={PAUSED_OPTIONS} value={current.paused} onChange={(paused) => patch({ paused })} />}
         />
         <Setting
           id="firstChunk"

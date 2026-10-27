@@ -104,8 +104,7 @@ export const PAUSE_WAIT_MAX = 60;
  * settings until the owner cut them, 2026-10-17: "if I open a video, it means I want to watch it", and "there's no
  * situation in which I'd want to start from the beginning"). What's the viewer's own is the extension's, kept in the
  * browser, not a setting here: where the words come from ("Until Panki catches up" was one, replaced the same day),
- * and, since later that day ("any option that's client side"), whether it starts by itself or at a press, what it does
- * while the video is paused, whether the transcript replaces the site's captions on the picture, and which of the modes
+ * and, since later that day ("any option that's client side"), whether it starts by itself or at a press, whether the transcript replaces the site's captions on the picture, and which of the modes
  * left on they use. A stored value for a setting that's gone reads as nothing; one for a setting that's new reads as its
  * default.
  *
@@ -115,10 +114,19 @@ export const PAUSE_WAIT_MAX = 60;
  * past its length or cut where it stands after the wait, and long stretches with no speech skipped. The rest of the
  * cutter's tuning stays the extension's (`transcribe/pieces.ts` → `CUT`, documented there).
  */
+/** While the viewer's video is paused: the chunks keep filling the lead, or stop at once. */
+export const TranscribePaused = z.enum(["keep", "stop"]);
+export type TranscribePaused = z.infer<typeof TranscribePaused>;
+
 export const Transcription = z.object({
   speed: TranscribeSpeed,
   /** How far ahead of the viewer the chunks go before waiting for them, in minutes. */
   lead: z.number().int().min(1).max(180),
+  /**
+   * While the viewer's video is paused, the chunks keep filling the lead or stop at once: an admin's since 2026-10-27
+   * (the owner: "should be an admin setting"), the viewer's own on the extension's options page before.
+   */
+  paused: TranscribePaused,
   engine: EngineId,
   // The language every video was told in was here until 2026-10-21; it's each account's own now (`Settings.language`).
   /** The mode everyone starts on, until a viewer picks another. Never switched off (`modesOn`). */
@@ -156,6 +164,7 @@ export type Transcription = z.infer<typeof Transcription>;
 export const DEFAULT_TRANSCRIPTION: Transcription = {
   speed: 4,
   lead: 3,
+  paused: "keep",
   engine: "elevenlabs",
   mode: "hybrid",
   modesOff: [],

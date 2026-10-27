@@ -6,7 +6,7 @@ import { AfterAdd, DEFAULT_MODULES, PillLayout, ResumeBack, ResumeHow, ResumeTim
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
-import { DEFAULT_PREFS, TranscribePaused, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
+import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
 /**
  * What the extension keeps on this browser, in its own storage: where Panki is, the sign-in, what fills each deck's
@@ -105,7 +105,7 @@ const Stored = z.object({
    * Transcribing); they were Panki's settings, an admin's, until the owner moved what's client-side here (2026-10-17).
    */
   transcribeTrigger: TranscribeTrigger.catch(DEFAULT_PREFS.trigger),
-  transcribePaused: TranscribePaused.catch(DEFAULT_PREFS.paused),
+  // `transcribePaused` went to Panki's settings, an admin's, on 2026-10-27; a browser that kept it keeps it unread.
   transcribeOverVideo: z.boolean().catch(DEFAULT_PREFS.overVideo),
   /**
    * How the transcript looks over the video (the contracts' `subtitleStyle.ts`), set in the strip's Subtitles menu.
@@ -163,7 +163,6 @@ export type Stored = z.infer<typeof Stored>;
 /** The viewer's transcribing preferences as one value, as the page gets them with the transcript. */
 export const prefsOf = (store: Stored): TranscribePrefs => ({
   trigger: store.transcribeTrigger,
-  paused: store.transcribePaused,
   overVideo: store.transcribeOverVideo,
   style: store.subtitleStyle,
   markUnder: store.markUnder,
