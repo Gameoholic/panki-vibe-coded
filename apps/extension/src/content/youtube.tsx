@@ -1447,7 +1447,9 @@ function App() {
    * The card is in (the owner, 2026-10-26: playing the video while the drawer still said Added went back into the
    * clip): the video is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
    * with it; the drawer stays only to say Added, then closes as it always did. Never back: it goes on from the latest of
-   * where it stands, where it stood before the clip was played and the clip's end.
+   * where it stands, where it stood before the clip was played and the clip's end. Whether it then plays is the options
+   * page's After adding a card (`afterAdd`): as it was before the drawer held it (a video started by hand since is left
+   * be), paused, or playing.
    */
   const letGo = useCallback(() => {
     pauseAfter = null;
@@ -1455,8 +1457,10 @@ function App() {
     if (video?.paused) {
       const after = Math.max(video.currentTime, stood ?? 0, ends.current.clip?.end ?? 0);
       if (after - video.currentTime > 0.05) video.currentTime = after;
-      if (wasPlaying) void video.play().catch(() => undefined);
     }
+    const then = modules.get().afterAdd;
+    if (video && then === "pause") video.pause();
+    else if (video?.paused && (then === "play" || wasPlaying)) void video.play().catch(() => undefined);
     wasPlaying = false;
     setTaking((now) => (now ? { ...now, added: true } : now));
   }, []);

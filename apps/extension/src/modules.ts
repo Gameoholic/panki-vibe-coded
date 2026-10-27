@@ -42,6 +42,15 @@ export const ResumeBack = z.number().int().min(0).max(RESUME_BACK_MAX);
 /** Where going back to a stop lands: that many seconds before it, never before the video's start. */
 export const resumeTo = (stop: number, back: number): number => Math.max(0, stop - back);
 
+/**
+ * What the video does once a card from it is in (the owner, 2026-10-27: "always pause, always unpause or depending"):
+ * goes on as it was before the drawer held it, stays paused, or plays. As before to begin with, as it always did.
+ */
+export const AfterAdd = z.enum(["before", "pause", "play"]);
+export type AfterAdd = z.infer<typeof AfterAdd>;
+export const AFTER_ADD: Record<AfterAdd, string> = { before: "As before", pause: "Pause", play: "Play" };
+export const AFTER_ADD_IDS = AfterAdd.options;
+
 // Chips sifting YouTube's home feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them
 // out, 2026-10-21 ("in the home page remove this line"); a browser that kept `feedFilter` or `homeChips` keeps them unread.
 
@@ -107,6 +116,8 @@ export const Modules = z.object({
   resumeBack: ResumeBack,
   /** Where a video was stopped, marked on its seek bar (while the marks are on). */
   markStop: z.boolean(),
+  /** Whether the video plays once a card from it is in. */
+  afterAdd: AfterAdd,
   /**
    * YouTube's home made Panki's (the owner, 2026-10-21: "redesign YouTube around our goals whilst still looking and
    * feeling like YouTube… our own super deluxe premium YouTube"; of seven mock-ups they picked Shelves, with the
@@ -155,6 +166,7 @@ export const DEFAULT_MODULES: Modules = {
   resumeTimed: "offer",
   resumeBack: 0,
   markStop: true,
+  afterAdd: "before",
   home: true,
   homePill: true,
   pill: DEFAULT_PILL,
