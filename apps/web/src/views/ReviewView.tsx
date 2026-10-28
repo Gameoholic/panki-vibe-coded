@@ -287,7 +287,10 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
   onStart: () => void;
 }) {
   const [open, setOpen] = useState(opened);
-  const offered = today.more ? [...fresh, ...others] : fresh;
+  // New cards past today's count are extra study, which waits until the reviews are done (the owner, 2026-10-28: "it
+  // shouldn't do extra study before I finished all reviews"): before a review with reviews in it, they aren't offered.
+  const locked = label === undefined && reviews.length > 0 && others.length > 0;
+  const offered = today.more && !locked ? [...fresh, ...others] : fresh;
   const picked = (list: readonly Card[]) => list.filter((c) => today.picked.has(c.id));
   const total = picked(reviews).length + picked(offered).length;
   const leftReviews = reviews.length - picked(reviews).length;
@@ -372,7 +375,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
                   {picked(offered).length} of {offered.length}
                 </span>
                 <span className="chips">
-                  {others.length > 0 ? (
+                  {others.length > 0 && !locked ? (
                     <Button id={`${id}-more`} variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
                       Show every new card
                     </Button>
@@ -380,7 +383,8 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
                   {offered.length > 0 ? allNone(offered, `${id}-new`) : null}
                 </span>
               </div>
-              {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : <p className="empty">No new cards today.</p>}
+              {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : locked ? null : <p className="empty">No new cards today.</p>}
+              {locked ? <p className="empty">Finish these reviews to unlock extra study.</p> : null}
             </section>
           ) : null}
         </div>
