@@ -153,12 +153,18 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
         {rows.map((profile) => {
           const inUse = active !== null && sameProfile(profile, active);
           return (
-            <div key={`${profile.address} ${profile.userName}`} className="kept-row">
+            // The one in use stands out in the accent, its words saying so; Switch on the others is a quiet button, never the primary look (the owner, 2026-10-28: "it makes it seem like it's the primary selected one").
+            <div key={`${profile.address} ${profile.userName}`} className={`kept-row ${inUse ? "is-current" : ""}`.trim()}>
               <Rename
                 id={`profile-${profile.address}-${profile.userName}`}
                 className="kept-name"
                 shown={profileWords(profile)}
-                below={<span className="row-sub">{[profile.name ? profile.userName : "", profile.address, inUse ? "In use" : ""].filter((part) => part !== "").join(" · ")}</span>}
+                below={
+                  <span className="row-sub">
+                    {[profile.name ? profile.userName : "", profile.address].filter((part) => part !== "").join(" · ")}
+                    {inUse ? <span className="kept-in-use"> · In use</span> : null}
+                  </span>
+                }
                 canReset={profile.name !== ""}
                 max={PROFILE_NAME_MAX}
                 onKeep={async (name) => {
@@ -168,7 +174,7 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
               />
               <span className="add-actions">
                 {inUse ? null : (
-                  <Button variant="primary" disabled={busy} onClick={() => void run(() => useProfile(profile))}>
+                  <Button disabled={busy} onClick={() => void run(() => useProfile(profile))}>
                     Switch
                   </Button>
                 )}

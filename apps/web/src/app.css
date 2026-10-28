@@ -4636,6 +4636,21 @@ mark.sub-mark {
 .kept-row.is-asking {
   flex-wrap: wrap;
 }
+/* The one of them in use (the extension's profile signed in with): lit in the accent, said in its words too. */
+.kept-row.is-current {
+  padding-inline: 10px;
+  border-radius: 10px;
+  border-top-color: transparent;
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.kept-row.is-current + .kept-row {
+  border-top-color: transparent;
+}
+.kept-in-use {
+  color: var(--accent);
+  font-weight: 700;
+}
 .kept-row.is-asking .add-actions {
   width: 100%;
 }
