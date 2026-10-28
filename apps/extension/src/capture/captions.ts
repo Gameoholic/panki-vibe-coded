@@ -13,8 +13,12 @@ export type Line = {
   text: string;
   start: number;
   end: number | null;
-  /** When each stretch of it appeared: the character it starts at, and the video's time then. One for a caption shown whole; one per word or so for a row written as it's spoken. */
-  marks: readonly { at: number; time: number }[];
+  /**
+   * When each stretch of it appeared: the character it starts at, and the video's time then. One for a caption shown
+   * whole; one per word or so for a row written as it's spoken. `over` is when the stretch's own sound was over, where
+   * that's known: a transcript's words are timed as they were said, the site's captions only as they were shown.
+   */
+  marks: readonly { at: number; time: number; over?: number }[];
   /** The stretch of talk it belongs to (lines that follow one another without a silence), named by its first line's id, and its place in it, counted from 0. */
   run: number;
   seq: number;
@@ -76,15 +80,35 @@ export function timeAfter(line: Line, offset: number): number | null {
 /**
  * A stretch of such a text that appeared in one go: a word or so of the site's own captions, the whole of a caption
  * shown whole. Where it is in the text, when it appeared, and when what follows it did (null while it's the last of a
- * line still being written). These are the places a clip can begin and end without cutting a word in two.
+ * line still being written). These are the places a clip can begin and end without cutting a word in two. `over` is
+ * when its own sound was over: known for a transcript's word, timed as it was said; null for a caption's, timed as it
+ * was shown, a touch after it was said.
  */
-export type Beat = { from: number; to: number; start: number; end: number | null };
+export type Beat = { from: number; to: number; start: number; end: number | null; over: number | null };
+
+/**
+ * Whether a stretch of the video holds a stretch of words: more of it inside than out. The words last as long as
+ * their own sound where that's known, else until what follows them appeared; words still being written are where they
+ * began. So an end can sit a little either side of a word without the words held changing, and an end put where a word
+ * begins holds that word.
+ */
+export function holds(start: number, end: number, beat: Beat): boolean {
+  const middle = (beat.start + (beat.over ?? beat.end ?? beat.start)) / 2;
+  return middle >= start && middle <= end;
+}
+
+/** Whether these words are timed as they were said (a transcript's), rather than as they were shown (the site's captions). */
+export function timedAsSaid(beats: readonly Beat[]): boolean {
+  return beats.some((beat) => beat.over !== null);
+}
 
 /**
  * What's said in a stretch of the video (a clip being recorded), from the lines being read (the transcript or the
  * site's captions, as `Line`s): each line that's said in it, from the stretch's own start, in ms, and when each piece of
  * it is said, so a card plays the clip with its words in sync (the contracts' `MediaCues`). A line that began before the
- * stretch shows from its start; one still being written ends with it. At most `CUES_MAX`.
+ * stretch shows from its start; one still being written ends with it. A line timed as it was said (the transcript's)
+ * is in it only when the stretch holds some of its words (`holds`), so the last word of the sentence before, a hair
+ * inside the stretch's start, puts nothing of that sentence over the clip. At most `CUES_MAX`.
  */
 export function cuesOf(lines: readonly Line[], from: number, to: number): MediaCues {
   const ms = (seconds: number) => Math.max(0, Math.round((seconds - from) * 1000));
@@ -92,6 +116,8 @@ export function cuesOf(lines: readonly Line[], from: number, to: number): MediaC
   for (const line of lines) {
     const end = line.end ?? to;
     if (line.text.trim() === "" || line.text.length > 500 || end <= from || line.start >= to) continue;
+    const pieces = beatsOf([{ line, at: 0 }]);
+    if (timedAsSaid(pieces) && !pieces.some((beat) => holds(from, to, beat))) continue;
     const startMs = ms(line.start);
     const endMs = ms(Math.min(end, to));
     if (endMs <= startMs) continue;
@@ -106,7 +132,7 @@ export function beatsOf(parts: Parts): Beat[] {
   for (const { line, at } of parts) {
     line.marks.forEach((mark, i) => {
       const next = line.marks[i + 1];
-      beats.push({ from: at + mark.at, to: at + (next ? next.at : line.text.length), start: mark.time, end: next ? next.time : line.end });
+      beats.push({ from: at + mark.at, to: at + (next ? next.at : line.text.length), start: mark.time, end: next ? next.time : line.end, over: mark.over ?? null });
     });
   }
   return beats;

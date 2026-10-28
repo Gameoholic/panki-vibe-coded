@@ -4,7 +4,8 @@ import type { Line } from "../capture/captions";
 /**
  * A transcript's words as lines under the player, in the same shape the site's captions come in (`captions.ts` →
  * `Line`), so the rows under the player, a pick, a sentence and a clip all read a transcript exactly as they read
- * captions. Each word is a mark, so the word being said carries the mark and a clip's ends know every word's time.
+ * captions. Each word is a mark, so the word being said carries the mark and a clip's ends know every word's time:
+ * when it began and when it was over, as the engine heard it.
  *
  * A line is a sentence or a clause: it ends at a full stop, at a pause between words, or when it's long enough that it
  * wouldn't fit a row. A transcript line's id is negative, so it's never taken for a caption line's.
@@ -42,7 +43,7 @@ export type TranscriptLine = Line & { words: readonly Placed[] };
 
 export function linesOf(words: readonly TranscriptWord[]): TranscriptLine[] {
   const lines: TranscriptLine[] = [];
-  let open: { text: string; start: number; end: number; marks: { at: number; time: number }[]; placed: Placed[] } | null = null;
+  let open: { text: string; start: number; end: number; marks: { at: number; time: number; over: number }[]; placed: Placed[] } | null = null;
   const close = () => {
     if (!open) return;
     const id = -(lines.length + 1);
@@ -64,7 +65,7 @@ export function linesOf(words: readonly TranscriptWord[]): TranscriptLine[] {
     }
     if (!open) open = { text: "", start, end, marks: [], placed: [] };
     const at = open.text.length;
-    open.marks.push({ at, time: start });
+    open.marks.push({ at, time: start, over: end });
     open.placed.push({ id: word.id, from: at, to: at + text.length });
     open.text += text;
     open.end = Math.max(open.end, end);

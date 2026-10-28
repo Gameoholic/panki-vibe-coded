@@ -1,7 +1,7 @@
 import "../setup";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { beatsOf, createCaptions, cuesOf, lineAt, timeAfter, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
+import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { knownIn, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
@@ -72,7 +72,11 @@ const CHANNEL_NAME = "ytd-watch-flexy #owner ytd-channel-name a[href], ytd-watch
 /** The channel's picture beside its name, under the player: Panki keeps it with the card's video (`askPictures`). */
 const CHANNEL_PICTURE = "ytd-watch-flexy #owner #avatar img, ytd-watch-flexy ytd-video-owner-renderer #avatar img";
 
-/** A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a touch early. */
+/**
+ * A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a
+ * touch early. A transcript's words, timed as they were said, are given the same room, short of the words either side
+ * (`beginsAt`, `endsAt`).
+ */
 const LEAD = 0.35;
 const TAIL = 0.25;
 /** A clip is never shorter than this, however its ends are pulled. */
@@ -850,9 +854,22 @@ function sentenceOf(lineIds: readonly number[], chars: Chars | null) {
 type Trim = { start: number | null; end: number | null };
 const AS_SAID: Trim = { start: null, end: null };
 
-/** Where a clip that begins with these words begins, and where one that ends with them ends (not known while they're the last of a line still being written). */
-const beginsAt = (beat: Beat) => Math.max(0, beat.start - LEAD);
-const endsAt = (beat: Beat) => (beat.end === null ? null : beat.end + TAIL);
+/**
+ * Where a clip that begins with these words begins, and where one that ends with them ends (not known while they're
+ * the last of a line still being written), given the words said just before and just after them. Words timed as they
+ * were said (the transcript's) have their lead and tail only up to those words, never into them (the owner,
+ * 2026-10-28: "there's half a word he says before that"), and end on their own sound rather than on what follows; a
+ * caption's, timed as it was shown, have them whole.
+ */
+function beginsAt(beat: Beat, before: Beat | undefined): number {
+  const lead = Math.max(0, beat.start - LEAD);
+  return beat.over !== null && before !== undefined && before.over !== null ? Math.max(lead, Math.min(beat.start, before.over)) : lead;
+}
+function endsAt(beat: Beat, after: Beat | undefined): number | null {
+  if (beat.over === null) return beat.end === null ? null : beat.end + TAIL;
+  const tail = beat.over + TAIL;
+  return after !== undefined && after.over !== null ? Math.min(tail, Math.max(beat.over, after.start)) : tail;
+}
 
 /**
  * A clip being made: its stretch of the video (`end` not known while its last words are being said), the words it
@@ -875,10 +892,44 @@ function nearest(beats: readonly Beat[], time: number, moment: (beat: Beat) => n
 }
 
 /**
+ * The first words a clip that begins at a moment holds, and the last ones a clip that ends at one holds; null when it
+ * holds none. Words timed as they were said (the transcript's) are held when more of them is inside the clip than out
+ * (`holds`), so a start put where a word begins keeps that word (the owner, 2026-10-28: the い of いやー went, as
+ * every word was taken to begin a lead earlier than it was said). A caption's, timed as it was shown, are the ones whose
+ * lead begins nearest the start and whose tail ends nearest the end, the lead and tail being how late it's shown.
+ */
+function firstHeld(beats: readonly Beat[], start: number): Beat | null {
+  if (!timedAsSaid(beats)) return nearest(beats, start, (beat) => beginsAt(beat, undefined));
+  return beats.find((beat) => holds(start, Infinity, beat)) ?? null;
+}
+function lastHeld(beats: readonly Beat[], end: number): Beat | null {
+  if (!timedAsSaid(beats)) return nearest(beats, end, (beat) => endsAt(beat, undefined));
+  return beats.filter((beat) => holds(-Infinity, end, beat)).at(-1) ?? null;
+}
+
+/**
+ * A sentence's clip as it was said: from a lead before its first words to a tail after its last. Words timed as they
+ * were said (the transcript's) have them only up to the words either side, looked for in every line kept; a caption's
+ * has them whole, and its end isn't known until the sentence is over.
+ */
+function asSaidOf(said: { parts: Parts; found: { at: number; sentence: string }; start: number; end: number | null }): Ends {
+  const stop = said.found.at + said.found.sentence.length;
+  const own = beatsOf(said.parts).filter((beat) => beat.to > said.found.at && beat.from < stop);
+  const first = own[0];
+  const last = own.at(-1);
+  if (!first || !last || first.over === null) return { start: Math.max(0, said.start - LEAD), end: said.end === null ? null : said.end + TAIL };
+  const kept = lines.snapshot();
+  const around = beatsOf(transcriptOf(kept.length > 0 ? kept : said.parts.map((part) => part.line)).parts);
+  const before = around.filter((beat) => beat.start < first.start).at(-1);
+  const after = around.find((beat) => beat.start > last.start);
+  return { start: beginsAt(first, before), end: endsAt(last, after) };
+}
+
+/**
  * The clip being made: its stretch of the video, and the words it covers. As it was said, that is the sentence and
- * the sentence's own time. Once its ends have been put somewhere by hand, the time is what was set, and the words
- * are the ones nearest to it: from the word that begins nearest the start to the word that ends nearest the end, so
- * the sentence on the card follows the clip a word at a time while an end can still sit a hair either side of one.
+ * the sentence's own time (`asSaidOf`). Once its ends have been put somewhere by hand, the time is what was set, and
+ * the words are the ones it holds (`firstHeld`, `lastHeld`), so the sentence on the card follows the clip a word at a
+ * time while an end can still sit a hair either side of one.
  *
  * An end can be put anywhere in the video, and the words follow as far as they're known: they're looked for in every
  * line that's kept and that the clip reaches into, before and after the ones that were taken. So a start pulled back
@@ -890,8 +941,9 @@ function clipOf(lineIds: readonly number[], chars: Chars | null, trim: Trim): Cl
   const said = sentenceOf(lineIds, chars);
   if (!said) return null;
   const { found } = said;
-  const start = trim.start ?? Math.max(0, said.start - LEAD);
-  const end = trim.end ?? (said.end === null ? null : said.end + TAIL);
+  const asSaid = asSaidOf(said);
+  const start = trim.start ?? asSaid.start;
+  const end = trim.end ?? asSaid.end;
   const taken = said.parts.map((part) => part.line);
   const first = taken[0];
   const last = taken.at(-1);
@@ -905,11 +957,14 @@ function clipOf(lineIds: readonly number[], chars: Chars | null, trim: Trim): Cl
   const sentenceAt = reread({ from: found.at, to: found.at + Math.max(1, found.sentence.length) }, said.parts, parts)?.from ?? found.at;
   let from = sentenceAt;
   let to = sentenceAt + found.sentence.length;
-  if (trim.start !== null) from = nearest(beats, trim.start, beginsAt)?.from ?? from;
-  if (trim.end !== null) to = nearest(beats, trim.end, endsAt)?.to ?? to;
+  // An end holding none of the words timed as they were said leaves them to the stretch most of the clip is in, below;
+  // a caption's keeps the sentence's own end, as it always has.
+  const timed = timedAsSaid(beats);
+  if (trim.start !== null) from = firstHeld(beats, trim.start)?.from ?? (timed ? text.length : from);
+  if (trim.end !== null) to = lastHeld(beats, trim.end)?.to ?? (timed ? 0 : to);
   if (to <= from && end !== null) {
     // Both ends inside one stretch of words (a caption shown whole is one): the stretch most of the clip is in.
-    const inIt = (beat: Beat) => Math.min(end, beat.end ?? beat.start) - Math.max(start, beat.start);
+    const inIt = (beat: Beat) => Math.min(end, beat.over ?? beat.end ?? beat.start) - Math.max(start, beat.start);
     const most = beats.reduce<Beat | null>((best, beat) => (best === null || inIt(beat) > inIt(best) ? beat : best), null);
     if (most) {
       from = most.from;
@@ -931,8 +986,8 @@ function stretchOf(start: number, end: number): Clip {
   const reached = lines.snapshot().filter((line) => (line.end ?? line.start) > start && line.start < end);
   const { text, parts } = transcriptOf(reached);
   const beats = beatsOf(parts);
-  const first = nearest(beats, start, beginsAt);
-  const last = nearest(beats, end, endsAt);
+  const first = firstHeld(beats, start);
+  const last = lastHeld(beats, end);
   const raw = first && last && last.to > first.from ? text.slice(first.from, last.to) : "";
   const sentence = raw.trim();
   const at = (first?.from ?? 0) + (raw.length - raw.trimStart().length);
@@ -973,9 +1028,9 @@ type Ends = { start: number; end: number | null };
 
 /**
  * The stretch of the video a picked word was said in, as far as the captions tell: from when its first piece appeared
- * to when what follows its last did, with the same margin either side as a sentence gets. Captions written a word at
- * a time give about the word; a caption shown whole gives only its whole line, and the ends are then put by hand.
- * Null with no word picked.
+ * to when what follows its last did (a transcript's: to when its last was over), with the same margin either side as a
+ * sentence gets. Captions written a word at a time give about the word; a caption shown whole gives only its whole
+ * line, and the ends are then put by hand. Null with no word picked.
  */
 function wordStretch(clip: Clip): Ends | null {
   const pick = clip.pick;
@@ -984,8 +1039,8 @@ function wordStretch(clip: Clip): Ends | null {
   const first = said[0];
   const last = said.at(-1);
   if (!first || !last) return null;
-  const start = beginsAt(first);
-  const end = endsAt(last);
+  const start = beginsAt(first, clip.beats[clip.beats.indexOf(first) - 1]);
+  const end = endsAt(last, clip.beats[clip.beats.indexOf(last) + 1]);
   return { start, end: end === null ? null : Math.max(end, start + CLIP_MIN) };
 }
 
@@ -1580,10 +1635,10 @@ function App() {
     const around = ends.current.clip;
     const limit = cut === "word" && around && around.end !== null ? { from: around.start, to: around.end } : limitOf(video);
     if (which === "start") {
-      const stops = by === "word" ? heard.map(beginsAt) : [];
+      const stops = by === "word" ? heard.map((beat, i) => beginsAt(beat, heard[i - 1])) : [];
       setEnds(cut, { start: restAt(to, Math.max(limit.from, now.end - CLIP_MAX_SECONDS), now.end - CLIP_MIN, stops), end: now.end });
     } else {
-      const stops = by === "word" ? heard.flatMap((beat) => endsAt(beat) ?? []) : [];
+      const stops = by === "word" ? heard.flatMap((beat, i) => endsAt(beat, heard[i + 1]) ?? []) : [];
       setEnds(cut, { start: now.start, end: restAt(to, now.start + CLIP_MIN, Math.min(limit.to, now.start + CLIP_MAX_SECONDS), stops) });
     }
   }
