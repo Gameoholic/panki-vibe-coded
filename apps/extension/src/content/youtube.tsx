@@ -264,7 +264,8 @@ async function toggleSaved() {
  * The offer to go on from where the video was stopped, in seconds, while it stands on the picture; `jumped`, Panki has
  * already gone there by itself and the box only says so (the owner, 2026-10-27: to be sure it was Panki's jump).
  */
-type Offer = { at: number; jumped: boolean };
+/** `arrives`: it goes by itself once the video gets there, as it does when it opened short of it. */
+type Offer = { at: number; jumped: boolean; arrives: boolean };
 const offered = cell<Offer | null>(null);
 /** The offer on its way out: it fades for a moment before it's gone (the owner, 2026-10-21: "so it doesn't just bam cut away"). */
 const offerAway = cell(false);
@@ -593,8 +594,7 @@ function resumeAt(at: number) {
  * timestamp the page was loaded on, `loadedOn`) the video is never pulled away from it, whichever way is picked:
  * going on from the stop is offered, since a button for a few seconds takes nothing away. The `t=` the site puts on
  * a half-watched video as it moves between its own pages is only its place in it, and counts for nothing: Jump
- * automatically goes to Panki's stop from there too. Offering, already there or past it (the site keeps a place of
- * its own for a viewer signed in to it, and went there first), nothing is said.
+ * automatically goes to Panki's stop from there too. Offering, it's offered even when the video is there already.
  */
 function tryResume() {
   const at = resuming;
@@ -615,14 +615,15 @@ function tryResume() {
     const to = landing(at);
     if (Math.abs(player.currentTime - to) > 1) player.currentTime = to;
     // Said in the offer's place, so it's plain the video is where Panki put it.
-    putOffer({ at: to, jumped: true });
+    putOffer({ at: to, jumped: true, arrives: false });
     return;
   }
   // A link with a time of its own under "Jump, unless the link has a time": the button, or nothing, as picked.
   if (how === "continue" && modules.get().resumeTimed === "nothing") return;
-  // Already there or past it (the site keeps a place of its own for a viewer signed in to it, and went there first): nothing to offer.
-  if (player.currentTime >= at - 5) return;
-  putOffer({ at, jumped: false });
+  // Offered even when the video opened at the stop already (a link at its time): it says the place is right, and
+  // pressed it goes back as many seconds as set (the owner, 2026-10-28: "for my peace of mind… it will put me back 3
+  // seconds"). Opened short of it, it goes by itself once the video gets there.
+  putOffer({ at, jumped: false, arrives: player.currentTime < landing(at) - 2 });
 }
 
 /** The offer put on the picture; its bar fills over `OFFER_MS`, then it goes by itself. */
@@ -2172,7 +2173,7 @@ setInterval(() => {
   tryResume();
   // (After a jump the video is there already: the box saying so stays its time.)
   const now = offered.get();
-  if (now !== null && !now.jumped && video && video.currentTime >= landing(now.at) - 2) dismissOffer();
+  if (now !== null && now.arrives && video && video.currentTime >= landing(now.at) - 2) dismissOffer();
 }, FOLLOW_MS);
 // What's been watched is sent as the page is hidden or left: a closed tab loses no more than the moment.
 window.addEventListener("pagehide", () => watcher.leave());
