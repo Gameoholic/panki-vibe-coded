@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ClientName } from "./auth";
 import { DeckId, type ExampleShown } from "./deck";
+import { ExtensionFingerprint } from "./extension";
 import { MediaCues, MediaKind } from "./media";
 import { CardPlace, HoldKind } from "./srs";
 import { Stretch } from "./transcription";
@@ -13,9 +14,32 @@ export const CardId = z.uuid();
 export const CardValues = z.record(CardFieldId, z.string().trim().max(VALUE_MAX));
 
 /**
+ * What the extension knew as it made a card or an example, beyond its source's own, so a backfill can do later what
+ * wasn't thought of then (the owner, 2026-10-28: "I want to save all the data we can, so if something arises and I
+ * want to add a backfill it's possible"). How it was taken (`caption`: words picked on the line under a video, whichever
+ * subtitles it was; `stretch`: a stretch of a video with no words picked; `selection`: a page's selected words); which
+ * subtitles the line was (`panki`: Panki's transcript, `youtube`: the site's own captions); whether the clip's ends
+ * were put by hand rather than where its words put them; the picked word's own stretch of the video (ms of its own
+ * time), put by hand or not; the dictionary's word the card was made with, and the dictionaries its ticked meanings came
+ * from; what filled each field (the extension's role for it, by the deck's field mapping then: a field not named was
+ * typed or left empty); and the extension's build. Each part only where it was known. Written once, never changed.
+ */
+export const CaptureFacts = z.object({
+  taken: z.enum(["caption", "stretch", "selection"]).optional(),
+  subtitles: z.enum(["panki", "youtube"]).optional(),
+  clipByHand: z.boolean().optional(),
+  word: z.object({ startMs: z.number().int().nonnegative(), endMs: z.number().int().nonnegative().optional(), byHand: z.boolean() }).optional(),
+  dictionary: z.object({ term: z.string().max(200), reading: z.string().max(200), dictionaries: z.array(z.string().max(200)).max(50) }).optional(),
+  fields: z.record(CardFieldId, z.string().max(40)).optional(),
+  build: ExtensionFingerprint.optional(),
+});
+export type CaptureFacts = z.infer<typeof CaptureFacts>;
+
+/**
  * Where a card came from, when it was captured rather than typed: the page or the video, the line as it was shown,
  * and the stretch of the video it ran over. Kept beside the card as it was at that moment; the stretch is read back
- * to mark the video's bar (`VideoCards`), the rest nowhere yet.
+ * to mark the video's bar (`VideoCards`), the rest nowhere yet. `capture` is everything else that was known then
+ * (`CaptureFacts`).
  * Only a web address is taken, so nothing kept here can ever be a link that runs a script.
  */
 export const CardSource = z.object({
@@ -28,6 +52,7 @@ export const CardSource = z.object({
   /** Whose the video is, as the page showed it: the channel's name and its address (the owner, 2026-10-17: the source is the video's link and name, and the channel's). */
   channel: z.object({ name: z.string().trim().max(100), url: z.string().trim().max(2000).regex(/^https?:\/\//i) }).optional(),
   client: ClientName,
+  capture: CaptureFacts.optional(),
 });
 export type CardSource = z.infer<typeof CardSource>;
 
@@ -77,7 +102,7 @@ export const Card = NewCard.omit({ source: true }).extend({
    * media takes a clip or a sound, so the value alone (an id) doesn't say which to draw; this does.
    */
   files: z.record(z.string(), MediaKind),
-  /** Derived on every read: what's said in each clip the card holds that was recorded with its words, by the file's id (`media.ts` → `MediaCues`). */
+  /** Derived on every read: what's said in each clip or sound the card holds that was recorded with its words, by the file's id (`media.ts` → `MediaCues`). */
   cues: z.record(z.string(), MediaCues),
   /** Stamped by the API, ms since epoch. The server is the authority on time. */
   createdAt: z.number().int().nonnegative(),

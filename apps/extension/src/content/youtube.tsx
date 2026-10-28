@@ -5,7 +5,7 @@ import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid,
 import { knownIn, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
-import { CLIP_MAX_SECONDS, RecordError, recordStretch } from "../capture/record";
+import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
 import { createReplay } from "../capture/replay";
 import { sentenceAround, takeSelection, type Taken } from "../capture/selection";
 import { pageSource } from "../capture/source";
@@ -13,14 +13,14 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { inEndZone, momentWanted, youtubeMetaValue, youtubeUrl, type WatchMarkSource } from "@panki/contracts";
+import { inEndZone, momentWanted, youtubeMetaValue, youtubeUrl, type CaptureFacts, type WatchMarkSource } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
 import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, resumeTo, switchInPill, type Modules, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
@@ -36,7 +36,7 @@ import { linesOf } from "../transcribe/lines";
 import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
 import { inPanki, makePlace, mount } from "../ui/mount";
-import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer } from "../ui/Panel";
+import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
 import { SpeedControl } from "../ui/SpeedControl";
@@ -1059,8 +1059,11 @@ function inside(word: Ends, clip: Ends): Ends {
 /** A clip is being recorded right now: its ends are what they were when that began, and can't be pulled about under it. */
 let recording = false;
 
-/** Records the clip as it stands when it's asked for. `read` gives its ends afresh each time: they may still be settling. */
-async function recordClip(read: () => Ends | null, soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void): Promise<Blob> {
+/**
+ * Records a cut (the clip, or the word's own) as it stands when it's asked for, with how it was made. `read` gives its
+ * ends afresh each time: they may still be settling.
+ */
+async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void): Promise<Made> {
   const player = video;
   if (!player) throw new RecordError("The video is gone.");
   replay.stop();
@@ -1073,10 +1076,45 @@ async function recordClip(read: () => Ends | null, soundOnly: boolean, onProgres
   const end = clip.end ?? player.currentTime;
   recording = true;
   try {
-    return await recordStretch(player, { from: clip.start, until: (now) => now >= end, expectedEnd: end, soundOnly }, onProgress);
+    const { file, facts } = await recordStretch(player, { from: clip.start, until: (now) => now >= end, expectedEnd: end, soundOnly }, onProgress);
+    return { file, recording: recordingOf(cut, clip.start, end, facts) };
   } finally {
     recording = false;
   }
+}
+
+/** A moment of the video in whole ms, as Panki keeps it. */
+const msOf = (seconds: number) => Math.max(0, Math.round(seconds * 1000));
+
+/**
+ * How a cut was recorded off this video, for recording it again later (the contracts' `MediaRecording`, less who made
+ * it, which the worker adds); null off a video Panki can't name, or when it doesn't read as one. A part the browser
+ * didn't say is left out.
+ */
+function recordingOf(cut: Cut, start: number, end: number, facts: RecordFacts): RecordingAsk | null {
+  const id = videoId();
+  if (!id) return null;
+  const said = Object.fromEntries(
+    Object.entries({ width: facts.width, height: facts.height, frameRate: facts.frameRate, videoBits: facts.videoBits, audioBits: facts.audioBits }).filter(([, value]) => value !== null),
+  );
+  const asked = RecordingAsk.safeParse({ url: youtubeUrl({ videoId: id, seconds: Math.floor(start) }), cut, startMs: msOf(start), endMs: msOf(end), stoppedMs: msOf(facts.stoppedAt), ...said });
+  return asked.success ? asked.data : null;
+}
+
+/**
+ * What the page knows of how a capture off the video was taken, for the card to keep (the contracts' `CaptureFacts`;
+ * the drawer adds what it knows, the worker the build): words picked on the line or a stretch with none, which
+ * subtitles the line was, whether the clip's ends were put by hand (said only for words picked: a stretch's are always
+ * put), and the picked word's own stretch.
+ */
+function takenFacts(taken: "caption" | "stretch", clipByHand: boolean | null, word: (Ends & { byHand: boolean }) | null): CaptureFacts {
+  const mode = lines.get().mode;
+  return {
+    taken,
+    ...(mode === "transcript" ? { subtitles: "panki" as const } : mode === "captions" ? { subtitles: "youtube" as const } : {}),
+    ...(clipByHand === null ? {} : { clipByHand }),
+    ...(word ? { word: { startMs: msOf(word.start), ...(word.end === null ? {} : { endMs: msOf(word.end) }), byHand: word.byHand } } : {}),
+  };
 }
 
 /** Stops the video at the open clip's end, the first time it's played up to it (`stopAt`). */
@@ -1732,7 +1770,7 @@ function App() {
       );
     }
     if (taking.of === "selection") {
-      const capture: Capture = { sentence: taking.taken.sentence, moved: 0, ...pageSource() };
+      const capture: Capture = { sentence: taking.taken.sentence, moved: 0, ...pageSource(), facts: { taken: "selection" } };
       return (
         <Panel
           key={`selection-${taking.turn}`}
@@ -1751,7 +1789,11 @@ function App() {
     /** The lines a pick is kept in; a stretch taken off the video by itself has none. */
     const lineIds = taking.of === "caption" ? taking.lineIds : null;
     const moved = taking.of === "caption" ? taking.moved : 0;
-    const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end) };
+    const facts =
+      taking.of === "caption"
+        ? takenFacts("caption", taking.trim.start !== null, wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null)
+        : takenFacts("stretch", null, null);
+    const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts };
     const player = video;
     /** A cut as the drawer is handed it: where it stands, and what can be asked of it. */
     const offerOf = (cut: Cut, now: Ends, anchor: number): ClipOffer | null =>
@@ -1770,7 +1812,7 @@ function App() {
             settle: (which) => hearCut(cut, which),
             hear: (at) => hearFrom(cut, at),
             toggle: () => toggleCut(cut),
-            record: (soundOnly, onProgress) => recordClip(() => ends.current[cut], soundOnly, onProgress),
+            record: (soundOnly, onProgress) => recordClip(cut, () => ends.current[cut], soundOnly, onProgress),
             // What's said in it, from the lines being read right now (the transcript or the captions), at its ends as they stand.
             cues: () => {
               const at = ends.current[cut];

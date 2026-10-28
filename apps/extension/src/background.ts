@@ -1,5 +1,5 @@
 import "./setup";
-import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor } from "@panki/contracts";
+import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor, type CardSource } from "@panki/contracts";
 import { routePath } from "@web/routes";
 import { hostPattern } from "./address";
 import { latticeOf, lookUp } from "./dictionary/lookup";
@@ -7,11 +7,12 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { Ask, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { CLIENT } from "./client";
 import { PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
 import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
 import { sourceOf } from "./subtitles";
-import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, showFolder } from "./updates";
+import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, runningBuild, showFolder } from "./updates";
 
 /**
  * The extension's one worker. It holds the sign-in and is the only thing that talks to Panki (word audio from Forvo
@@ -247,6 +248,13 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
   };
 }
 
+/** A capture's source with the build that made it written into what it knew (`CaptureFacts.build`): as it came when there's no source, or the build can't be told. */
+async function stamped(source: CardSource | undefined): Promise<{ source?: CardSource }> {
+  if (!source) return {};
+  const build = await runningBuild();
+  return { source: build ? { ...source, capture: { ...source.capture, build } } : source };
+}
+
 async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
@@ -318,13 +326,13 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       return { ok: true, decks, types, srsTypes, maps: store.maps, decksOn, defaultDeckId: store.defaultDeckId, subtitleStyle };
     }
     if (ask.kind === "add") {
-      await panki.addCard(door, ask.deckId, ask.card);
+      await panki.addCard(door, ask.deckId, { ...ask.card, ...(await stamped(ask.card.source)) });
       // A card's words are words in the cards now: asked for afresh next time.
       wordsKept = null;
       return { ok: true };
     }
     if (ask.kind === "addExample") {
-      await panki.addExample(door, ask.deckId, ask.cardId, ask.example);
+      await panki.addExample(door, ask.deckId, ask.cardId, { ...ask.example, ...(await stamped(ask.example.source)) });
       return { ok: true };
     }
     // Word audio from Forvo, through Panki, whose server holds the key: a word's recordings, and one of them kept as
@@ -418,6 +426,14 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
     await panki.uploadMedia(door, ask.mediaId, mime, new Blob([bytes], { type: mime }));
     // What's said in it, kept with it: a card plays the clip with its subtitles. A clip that can't keep them isn't made.
     if (ask.cues && ask.cues.length > 0) await panki.putCues(door, ask.mediaId, ask.cues);
+    // How it was recorded, kept with it for recording it again later. It never stops the card: a Panki from before that
+    // can't keep it leaves the file as it is, and the fault goes to the worker's console.
+    if (ask.recording) {
+      const build = await runningBuild();
+      await panki
+        .putRecording(door, ask.mediaId, { ...ask.recording, client: CLIENT, ...(build ? { build } : {}) })
+        .catch((e: unknown) => console.error("Panki: how the recording was made wasn't kept.", e instanceof Error ? e.message : e));
+    }
     return { ok: true };
   } catch (e) {
     // Signed out from Panki's own Settings: the secret is no good any more, and is forgotten here too.

@@ -59,6 +59,11 @@ async function running(): Promise<ExtensionBuildFile | null> {
   return noted.success ? noted.data : null;
 }
 
+/** The build running, for what it makes to say which build made it (a card's capture, a recording); null when it can't be told. */
+export async function runningBuild(): Promise<string | null> {
+  return (await running())?.fingerprint ?? null;
+}
+
 /** How the running build stands against Panki's: needed when Panki speaks a newer protocol, else available when the files differ. */
 function stateOf(mine: ExtensionBuildFile | null, latest: ExtensionBuild | null): UpdateState["state"] {
   if (!mine || !latest) return "unknown";

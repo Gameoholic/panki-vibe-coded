@@ -66,7 +66,7 @@ function OnPage({ taken, prefer, arrives, onClose }: { taken: Taken | null; pref
   }
   return (
     <Panel
-      capture={{ sentence: taken.sentence, moved: 0, ...pageSource() }}
+      capture={{ sentence: taken.sentence, moved: 0, ...pageSource(), facts: { taken: "selection" } }}
       picked={picked}
       onPick={setPicked}
       prefer={prefer}

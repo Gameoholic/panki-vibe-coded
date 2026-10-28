@@ -15,6 +15,7 @@ import {
   MediaCues,
   MediaId,
   MediaKind,
+  MediaRecording,
   NewCard,
   NewCardExample,
   PIECE_MAX_BYTES,
@@ -88,6 +89,10 @@ export const UpdateState = z.object({
 export type UpdateState = z.infer<typeof UpdateState>;
 export const NO_UPDATE: UpdateState = { state: "unknown", own: null, latest: null, checkedAt: null, ready: false };
 
+/** How a recording was made off a video, as a page's script knows it: the contracts' `MediaRecording` less who made it, which the worker adds. */
+export const RecordingAsk = MediaRecording.omit({ client: true, build: true });
+export type RecordingAsk = z.infer<typeof RecordingAsk>;
+
 /** A tab of the options page the drawer sends the owner to: the sign-in, or a deck's field mapping. */
 export const OptionsTab = z.enum(["account", "decks", "youtube"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
@@ -100,8 +105,16 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
   /** What the drawer holds, given as another example to a card that's already there, in its deck. */
   z.object({ kind: z.literal("addExample"), deckId: DeckId, cardId: CardId, example: NewCardExample }),
-  /** A recorded clip, kept as a file on Panki before the card that names it is made. */
-  z.object({ kind: z.literal("upload"), mediaKind: MediaKind, mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(BASE64_MAX), cues: MediaCues.optional() }),
+  /** A recorded clip, kept as a file on Panki before the card that names it is made, with what's said in it and how it was recorded. */
+  z.object({
+    kind: z.literal("upload"),
+    mediaKind: MediaKind,
+    mediaId: MediaId,
+    mime: z.string().max(100),
+    base64: z.string().max(BASE64_MAX),
+    cues: MediaCues.optional(),
+    recording: RecordingAsk.optional(),
+  }),
   /** Open the options page: to sign in, or to say what fills a deck's fields. */
   z.object({ kind: z.literal("options"), tab: OptionsTab.optional() }),
   /** Open Panki itself in a tab: the address of the profile in use, at one of its cards when one is given (open in its deck's list). Nobody signed in, it opens the options page to sign in instead. */

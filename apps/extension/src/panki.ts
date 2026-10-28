@@ -46,6 +46,7 @@ import {
   type NewCard,
   type NewCardExample,
   type MediaCues,
+  type MediaRecording,
   type RedoAsk,
   type Stretch,
   type ServerDictionary,
@@ -135,6 +136,9 @@ export const panki = {
   /** What's said in a clip just kept, as it was heard on the video, kept with it once. */
   putCues: ({ address, token }: Door, mediaId: string, cues: MediaCues): Promise<void> =>
     call(address, token, `/api/media/${id(mediaId)}/cues`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ cues }) }, () => undefined),
+  /** How a sound or a clip just kept was recorded off its video, kept with it once: what records it again later. */
+  putRecording: ({ address, token }: Door, mediaId: string, recording: MediaRecording): Promise<void> =>
+    call(address, token, `/api/media/${id(mediaId)}/recording`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ recording }) }, () => undefined),
   /** A word's recordings on Forvo, asked of Panki, which holds the key and calls Forvo. */
   forvoVoices: ({ address, token }: Door, word: string): Promise<ForvoVoice[]> =>
     call(address, token, `/api/forvo/voices?word=${encodeURIComponent(word)}`, {}, (b) => ForvoVoicesResponse.parse(b).voices),

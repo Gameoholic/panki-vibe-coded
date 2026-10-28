@@ -29,6 +29,15 @@ export type Stretch = {
   soundOnly: boolean;
 };
 
+/**
+ * How a recording came out, as the player and the recorder had it, so it can be recorded again later (the contracts'
+ * `MediaRecording`): where the video stood when it stopped (its own seconds), the picture's size and rate as the player
+ * played it (null where the browser doesn't say), and the bit rates the recorder was given (none for the picture when
+ * only the sound was kept).
+ */
+export type RecordFacts = { stoppedAt: number; width: number | null; height: number | null; frameRate: number | null; videoBits: number | null; audioBits: number | null };
+export type Recorded = { file: Blob; facts: RecordFacts };
+
 /** The longest a clip can be, whatever `until` says. */
 export const CLIP_MAX_SECONDS = 30;
 /** How long the video may take to get going (a jump, a slow connection) before the recording gives up. */
@@ -100,6 +109,12 @@ function formatFor(soundOnly: boolean): string | undefined {
   return FORMATS[soundOnly ? "sound" : "video"].find((format) => MediaRecorder.isTypeSupported(format));
 }
 
+/** The picture's size and rate as the player plays it right now: what a recording of it holds. */
+function pictureOf(video: HTMLVideoElement, stream: MediaStream): Pick<RecordFacts, "width" | "height" | "frameRate"> {
+  const rate = stream.getVideoTracks()[0]?.getSettings().frameRate;
+  return { width: video.videoWidth || null, height: video.videoHeight || null, frameRate: rate !== undefined && rate > 0 ? rate : null };
+}
+
 /** Moves the video to a moment and waits until it's there. */
 function seek(video: HTMLVideoElement, to: number): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -121,10 +136,11 @@ function seek(video: HTMLVideoElement, to: number): Promise<void> {
 }
 
 /**
- * Plays `stretch` once and gives back what was recorded. The video is left paused where it was before; whoever asked
- * decides when it goes on. `onProgress` is told how many seconds are recorded so far, and of how many when that's known.
+ * Plays `stretch` once and gives back what was recorded, and how. The video is left paused where it was before; whoever
+ * asked decides when it goes on. `onProgress` is told how many seconds are recorded so far, and of how many when that's
+ * known.
  */
-export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Blob> {
+export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Recorded> {
   if (typeof MediaRecorder !== "function") throw new RecordError("This browser can't record a player.");
   const { stream, release } = capture(video);
   try {
@@ -135,7 +151,7 @@ export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, o
 }
 
 /** The recording itself, off a stream taken for it. */
-async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Blob> {
+async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Recorded> {
   const sound = stream.getAudioTracks();
   if (stretch.soundOnly && sound.length === 0) throw new RecordError("This video has no sound to record.");
   const input = stretch.soundOnly ? new MediaStream(sound) : stream;
@@ -148,6 +164,8 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
   const stopped = new Promise<void>((resolve) => recorder.addEventListener("stop", () => resolve(), { once: true }));
 
   const before = { time: video.currentTime, rate: video.playbackRate };
+  let stoppedAt = stretch.from;
+  let picture = pictureOf(video, stream);
   try {
     video.pause();
     video.playbackRate = 1;
@@ -192,6 +210,9 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
       tick();
     });
   } finally {
+    // Where it really stopped, and the picture as it last was: what the recording ends on.
+    stoppedAt = video.currentTime;
+    picture = pictureOf(video, stream);
     video.pause();
     if (recorder.state !== "inactive") recorder.stop();
     video.playbackRate = before.rate;
@@ -200,7 +221,8 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
   await stopped;
   const clip = new Blob(pieces, { type: recorder.mimeType || format || (stretch.soundOnly ? "audio/webm" : "video/webm") });
   if (!(await holdsMedia(clip))) throw new RecordError("Nothing came out of the player. A protected video can't be recorded.");
-  return clip;
+  const bits = { videoBits: stretch.soundOnly ? null : recorder.videoBitsPerSecond || null, audioBits: recorder.audioBitsPerSecond || null };
+  return { file: clip, facts: { stoppedAt, ...picture, ...bits } };
 }
 
 /** A file as the text a message can carry (the part of a data address after its comma). */

@@ -18,6 +18,7 @@ import {
   Flow,
   Media,
   MediaCues,
+  MediaRecording,
   SRS_STARTER_IDS,
   NEW_PLACE,
   ReviewSession,
@@ -51,6 +52,7 @@ import {
   type CardAnswer,
   type CardExample,
   type CardExampleUpdate,
+  type CardSource,
   type NewCardExample,
   type CardHold,
   type CardTypeUpdate,
@@ -776,6 +778,33 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE card_holds ADD COLUMN undone_at INTEGER");
     db.exec("CREATE UNIQUE INDEX card_holds_given_id ON card_holds (given_id) WHERE given_id IS NOT NULL");
   },
+  (db) => {
+    // 38. Everything the extension knew as it made a card, kept for a backfill (the owner, 2026-10-28: "save all the data
+    // we can… so in the future I can re-record batch on client side"): on a card's source and an example's, what it knew
+    // beyond the source's own, as JSON (the contracts' `CaptureFacts`); and how each file was recorded off a video, a row
+    // a file (`MediaRecording`). Each is written once with what it's about and never changed. Every row from before has
+    // none: what wasn't kept then isn't made up now.
+    db.exec("ALTER TABLE card_sources ADD COLUMN capture TEXT");
+    db.exec("ALTER TABLE card_examples ADD COLUMN capture TEXT");
+    db.exec(`
+      CREATE TABLE media_recordings (
+        media_id TEXT PRIMARY KEY REFERENCES media(id),
+        url TEXT NOT NULL,
+        cut TEXT NOT NULL,
+        start_ms INTEGER NOT NULL,
+        end_ms INTEGER NOT NULL,
+        stopped_ms INTEGER NOT NULL,
+        width INTEGER,
+        height INTEGER,
+        frame_rate REAL,
+        video_bits INTEGER,
+        audio_bits INTEGER,
+        client TEXT NOT NULL,
+        build TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `);
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1060,7 +1089,11 @@ export function openDb(
   const insertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?)");
   const upsertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (card_id, field_id) DO UPDATE SET value = excluded.value");
   const insertValueChange = db.prepare("INSERT INTO card_value_changes (card_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
-  const insertSource = db.prepare("INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, channel_name, channel_url, client, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const insertSource = db.prepare(
+    "INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, channel_name, channel_url, client, created_at, capture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  /** What was known as a card or an example was captured, as it's kept (`CaptureFacts`); null for none. */
+  const captureOf = (from: CardSource | undefined): string | null => (from?.capture ? JSON.stringify(from.capture) : null);
   // A card's living examples after its own, oldest first, and their values, each file named with what it is, as a card's are.
   const exampleColumns = "e.id, e.card_id AS cardId, e.created_at AS createdAt, e.url, e.title";
   const selectDeckExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL) ORDER BY e.created_at ASC, e.id ASC`);
@@ -1072,7 +1105,7 @@ export function openDb(
   const selectExampleCard = db.prepare("SELECT card_id AS cardId, removed_at AS removedAt FROM card_examples WHERE id = ?");
   const selectExampleValues = db.prepare("SELECT field_id AS fieldId, value FROM card_example_values WHERE example_id = ?");
   const insertExample = db.prepare(
-    "INSERT OR IGNORE INTO card_examples (id, card_id, created_at, client, url, title, text, start_ms, end_ms, channel_name, channel_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO card_examples (id, card_id, created_at, client, url, title, text, start_ms, end_ms, channel_name, channel_url, capture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const insertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value) VALUES (?, ?, ?)");
   const upsertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (example_id, field_id) DO UPDATE SET value = excluded.value");
@@ -1129,6 +1162,13 @@ export function openDb(
   const insertMedia = db.prepare("INSERT OR IGNORE INTO media (id, kind, mime, bytes, sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)");
   const insertMediaCues = db.prepare("INSERT OR IGNORE INTO media_cues (media_id, cues, created_at) VALUES (?, ?, ?)");
   const selectMediaCues = db.prepare("SELECT cues FROM media_cues WHERE media_id = ?");
+  const insertMediaRecording = db.prepare(`
+    INSERT OR IGNORE INTO media_recordings (media_id, url, cut, start_ms, end_ms, stopped_ms, width, height, frame_rate, video_bits, audio_bits, client, build, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const selectMediaRecording = db.prepare(`
+    SELECT url, cut, start_ms AS startMs, end_ms AS endMs, stopped_ms AS stoppedMs, width, height, frame_rate AS frameRate,
+      video_bits AS videoBits, audio_bits AS audioBits, client, build
+    FROM media_recordings WHERE media_id = ?`);
   /** What's said in a clip, read from what's kept; null when it no longer reads as cues. */
   const cuesFrom = (raw: string): MediaCues | null => {
     try {
@@ -1779,7 +1819,7 @@ export function openDb(
         if (inserted) {
           for (const [fieldId, value] of Object.entries(card.values)) insertValue.run(card.id, fieldId, value);
           const from = card.source;
-          if (from) insertSource.run(card.id, from.url, from.title, from.text, from.startMs ?? null, from.endMs ?? null, from.channel?.name ?? null, from.channel?.url ?? null, from.client, now);
+          if (from) insertSource.run(card.id, from.url, from.title, from.text, from.startMs ?? null, from.endMs ?? null, from.channel?.name ?? null, from.channel?.url ?? null, from.client, now, captureOf(from));
         }
         const row = selectCard.get(card.id) as CardRow | undefined;
         const saved = row ? cardFrom(row, srsTypeOfDeck(row.deckId), todayAt(now)) : null;
@@ -1819,7 +1859,7 @@ export function openDb(
           const from = example.source;
           insertExample.run(
             example.id, cardId, now, from?.client ?? null, from?.url ?? null, from?.title ?? null, from?.text ?? null,
-            from?.startMs ?? null, from?.endMs ?? null, from?.channel?.name ?? null, from?.channel?.url ?? null,
+            from?.startMs ?? null, from?.endMs ?? null, from?.channel?.name ?? null, from?.channel?.url ?? null, captureOf(from),
           );
           for (const [fieldId, value] of Object.entries(example.values)) insertExampleValue.run(example.id, fieldId, value);
         }
@@ -2067,6 +2107,22 @@ export function openDb(
       insertMediaCues.run(mediaId, JSON.stringify(cues), now);
       const row = selectMediaCues.get(mediaId) as { cues: string } | undefined;
       return (row && cuesFrom(row.cues)) ?? [];
+    },
+    /**
+     * How a file was recorded off a video, kept with it once: the same file's again is the one already kept, untouched
+     * (a retry is harmless; it's what was true when it was recorded, never changed). Gives back what's kept; null when
+     * that no longer reads as one.
+     */
+    insertMediaRecording(mediaId: string, recording: MediaRecording, now: number): MediaRecording | null {
+      const r = recording;
+      insertMediaRecording.run(
+        mediaId, r.url, r.cut, r.startMs, r.endMs, r.stoppedMs, r.width ?? null, r.height ?? null, r.frameRate ?? null,
+        r.videoBits ?? null, r.audioBits ?? null, r.client, r.build ?? null, now,
+      );
+      const row = selectMediaRecording.get(mediaId) as Record<string, unknown> | undefined;
+      // An empty column is a part that wasn't known: left out, as it was when it was sent.
+      const kept = MediaRecording.safeParse(row ? Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null)) : null);
+      return kept.success ? kept.data : null;
     },
     /** The kept dictionaries not yet moved to the shared store, oldest first, with what the move needs of each. */
     dictionaryFilesToMove(): DictionaryMoveRow[] {

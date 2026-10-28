@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import express, { Router, type Request, type RequestHandler, type Response } from "express";
-import { MEDIA_MAX_BYTES, MediaCuesBody, MediaId, bareMime, mediaKindOfMime, type MediaKind } from "@panki/contracts";
+import { MEDIA_MAX_BYTES, MediaCuesBody, MediaId, MediaRecordingBody, bareMime, mediaKindOfMime, type MediaKind } from "@panki/contracts";
 import type { DbOf } from "../app";
 import { hasMediaFile, sniffMimes, writeMediaFile } from "../mediaFiles";
 
@@ -94,6 +94,25 @@ export function mediaRouter(dbOf: DbOf, mediaDirOf: MediaDirOf, now: () => numbe
       return;
     }
     res.json({ cues: db.insertMediaCues(id.data, body.data.cues, now()) });
+  });
+
+  // How a sound or a clip was recorded off a video, sent with it by whoever recorded it (the extension): kept once, for
+  // a file the account holds, so it can be recorded again later from this alone. A retry is harmless and answers with
+  // what's kept; what's kept never changes.
+  router.put("/:mediaId/recording", (req, res) => {
+    const id = MediaId.safeParse(req.params.mediaId);
+    const body = MediaRecordingBody.safeParse(req.body);
+    if (!id.success || !body.success) {
+      res.status(400).json({ error: { message: "That recording's details aren't valid." } });
+      return;
+    }
+    const db = dbOf(res);
+    const media = db.getMedia(id.data);
+    if (!media || media.kind === "image") {
+      res.status(404).json({ error: { message: NOT_THERE } });
+      return;
+    }
+    res.json({ recording: db.insertMediaRecording(id.data, body.data.recording, now()) });
   });
 
   // The bytes, to a signed-in device of the account that holds them and to no one else. A file never changes under its

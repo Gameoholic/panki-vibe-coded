@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { ClientName } from "./auth";
+import { ExtensionFingerprint } from "./extension";
 
 /** Minted by whoever sends the file, so a retried upload returns the file that's already there instead of a second one. */
 export const MediaId = z.uuid();
@@ -50,7 +52,8 @@ export const MediaResponse = z.object({ media: Media });
  * captions): each line, when it's said in ms from the clip's own start, and where each piece of it begins (`marks`: a
  * character of the text and when it's said). A card plays its clip with these in sync, the piece being said underlined,
  * as the extension draws them over YouTube (the owner, 2026-10-18: "the timestamps and words sourced from the video",
- * in place of a field's words laid over the whole clip). Kept with the file, written once with it, never changed.
+ * in place of a field's words laid over the whole clip). A sound recorded off a video keeps them too (2026-10-28),
+ * though nothing shows a sound's. Kept with the file, written once with it, never changed.
  */
 export const CueMark = z.object({ at: z.number().int().nonnegative(), ms: z.number().int().nonnegative() });
 export const SubtitleCue = z.object({
@@ -64,6 +67,36 @@ export const CUES_MAX = 100;
 export const MediaCues = z.array(SubtitleCue).max(CUES_MAX);
 export type MediaCues = z.infer<typeof MediaCues>;
 export const MediaCuesBody = z.object({ cues: MediaCues });
+
+/** Which of a capture's two cuts a recording is: the sentence's clip, or the picked word's own stretch of it. */
+export const RecordingCut = z.enum(["clip", "word"]);
+export type RecordingCut = z.infer<typeof RecordingCut>;
+
+/**
+ * How a file was recorded off a video, so it can be recorded again, longer or better, from this alone (the owner,
+ * 2026-10-28: "save all the data we can… so in the future I can re-record batch on client side"): the video's address,
+ * which cut it is, the stretch asked for (ms of the video's own time) and where the video really stood when the
+ * recording stopped, the picture's size and rate as the player played it (said for a sound recorded alone too: how good
+ * the video was then), and the bit rates the recorder was given (none for the picture of a sound alone). `client` and
+ * `build` are the extension that recorded it. Kept with the file, written once with it, never changed; read by nothing
+ * yet.
+ */
+export const MediaRecording = z.object({
+  url: z.string().trim().max(2000).regex(/^https?:\/\//i),
+  cut: RecordingCut,
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().nonnegative(),
+  stoppedMs: z.number().int().nonnegative(),
+  width: z.number().int().positive().max(100_000).optional(),
+  height: z.number().int().positive().max(100_000).optional(),
+  frameRate: z.number().positive().max(1000).optional(),
+  videoBits: z.number().int().positive().optional(),
+  audioBits: z.number().int().positive().optional(),
+  client: ClientName,
+  build: ExtensionFingerprint.optional(),
+});
+export type MediaRecording = z.infer<typeof MediaRecording>;
+export const MediaRecordingBody = z.object({ recording: MediaRecording });
 
 /** The cue being said at a moment of its clip (ms from the start), and which of its pieces: null between lines. */
 export function cueAt(cues: readonly SubtitleCue[], ms: number): { cue: SubtitleCue; piece: { from: number; to: number } | null } | null {

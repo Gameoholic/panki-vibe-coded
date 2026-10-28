@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { CaptureFacts, NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
@@ -17,7 +17,7 @@ import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found, type Tag } from "../dictionary/found";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askAddExample, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type State } from "../messages";
+import { askAdd, askAddExample, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type RecordingAsk, type State } from "../messages";
 import { bandOf } from "../popupKinds";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { uuid } from "../uuid";
@@ -94,7 +94,12 @@ export type Capture = {
   sourceLink: string;
   /** The video it's from, for the pictures Panki keeps of it: its id, and where its page shows the channel's picture (null where it doesn't). */
   video: { id: string; avatar: string | null } | null;
+  /** What the page knows of how it was taken (the contracts' `CaptureFacts`), kept with the card for a backfill; the drawer adds what it knows. */
+  facts?: CaptureFacts;
 };
+
+/** A cut as recorded: the file, and how it was made off the video (null where that can't be said). */
+export type Made = { file: Blob; recording: RecordingAsk | null };
 
 /**
  * A cut of the page's video the panel can shape, hear and ask for: a stretch of it, in the video's own seconds.
@@ -123,8 +128,8 @@ export type ClipOffer = {
   hear: (at: number) => void;
   /** Plays it round and round; or stops it, while any of it is playing. */
   toggle: () => void;
-  record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Blob>;
-  /** What's said in it as it stands now, from its start (`captions.ts` → `cuesOf`): kept with the clip, so a card plays it with its subtitles. */
+  record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Made>;
+  /** What's said in it as it stands now, from its start (`captions.ts` → `cuesOf`): kept with the recording, so a card plays a clip with its subtitles. */
   cues: () => MediaCues;
 };
 
@@ -587,12 +592,20 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       let why: string | null = null;
       let touched = false;
       try {
-        const file = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }));
+        const { file, recording } = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }));
         setPhase({ at: "sending", what });
         const mediaId = uuid();
-        // A clip with its picture goes with what's said in it, as heard on the video: a card plays it with its subtitles.
-        const cues = cut.soundOnly ? [] : cut.offer.cues();
-        const sent = await askUpload({ mediaKind: cut.soundOnly ? "audio" : "video", mediaId, mime: file.type, base64: await base64Of(file), ...(cues.length > 0 ? { cues } : {}) });
+        // It goes with what's said in it, as heard on the video (a card plays a clip with its subtitles; a sound keeps
+        // its words too), and how it was recorded, so it can be recorded again later.
+        const cues = cut.offer.cues();
+        const sent = await askUpload({
+          mediaKind: cut.soundOnly ? "audio" : "video",
+          mediaId,
+          mime: file.type,
+          base64: await base64Of(file),
+          ...(cues.length > 0 ? { cues } : {}),
+          ...(recording ? { recording } : {}),
+        });
         if (sent.ok) filled[cut.field.id] = mediaId;
         else why = sent.message;
       } catch (e) {
@@ -607,7 +620,21 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       }
       note ??= MESSAGES.notMade(words, why);
     }
-    const source = capture.source ? { source: { ...capture.source, text: sentence, client: CLIENT } } : {};
+    // Everything known of how it was taken goes with it, for a backfill later: the page's, the dictionary's word it was
+    // made with and the dictionaries its meanings came from, and what filled each field. It never stops the card: what
+    // doesn't read as the contracts' `CaptureFacts` is left out.
+    const dictionaries = [...new Set(tickedSenses.map((sense) => sense.dict.slice(0, 200)))].slice(0, 50);
+    const facts = CaptureFacts.safeParse({
+      ...capture.facts,
+      ...(chosen ? { dictionary: { term: chosen.term.slice(0, 200), reading: chosen.reading.slice(0, 200), dictionaries } } : {}),
+      fields: Object.fromEntries(
+        fields.flatMap((field) => {
+          const role = roleOf(map, field.id);
+          return role ? [[field.id, role] as const] : [];
+        }),
+      ),
+    });
+    const source = capture.source ? { source: { ...capture.source, text: sentence, client: CLIENT, ...(facts.success ? { capture: facts.data } : {}) } } : {};
     if (asExample && target) {
       const example = NewCardExample.safeParse({ id: cardId, values: filled, ...source });
       if (!example.success) {
