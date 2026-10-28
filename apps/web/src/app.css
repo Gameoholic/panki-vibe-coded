@@ -268,10 +268,12 @@ body {
   font-weight: 600;
   opacity: 0.75;
 }
-/* A door's key (Settings → Keybinds → Home), its keycap after the name; a phone has no keys. */
+/* A door's key (Settings → Keybinds → Home), its keycap after the name, the keycap every key is drawn as (it was bare
+   words, "Space", until 2026-10-28: it wasn't among them); a phone has no keys. */
 .door-label .key {
   margin-left: 10px;
   vertical-align: middle;
+  letter-spacing: 0;
 }
 @media (hover: none) {
   .door-label .key {
@@ -2577,6 +2579,7 @@ mark.sub-mark {
 .review-undo .key,
 .review-undo-end .key,
 .key-field .key,
+.door-label .key,
 .media-key {
   display: inline-grid;
   place-items: center;
