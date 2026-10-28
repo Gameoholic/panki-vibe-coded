@@ -666,7 +666,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
         <Setting
           id="look-key"
           label="Key to hold"
-          control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} disabled={off} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
+          control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} disabled={off || store.lookWhere === "nowhere"} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
           why={usageWords(store.lookKey)}
         />
       </div>

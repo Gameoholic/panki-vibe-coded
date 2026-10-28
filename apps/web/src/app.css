@@ -2869,6 +2869,10 @@ mark.sub-mark {
 .setting-label + * {
   margin-left: auto;
 }
+/* A setting shown, not set here: its value in words where a control would stand (Data tracking's Video tracking). */
+.setting-value {
+  font-weight: 700;
+}
 .setting-why {
   margin: 0;
   font-size: 13px;
@@ -3977,6 +3981,21 @@ mark.sub-mark {
 .ask {
   display: grid;
   gap: 10px;
+}
+/* What doing it changes and what it leaves, under the question (`Ask`'s `detail`): a heading and a list for each. */
+.ask-detail {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.ask-detail h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.ask-detail ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
 }
 
 /* The rules chart (components/FlowCanvas.tsx): a frame you pan and zoom, boxes you drag, a menu beside the picked one. */

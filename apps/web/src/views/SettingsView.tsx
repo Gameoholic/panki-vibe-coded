@@ -123,8 +123,30 @@ function zoneOptions(saved: string): { id: string; label: string; note?: string 
 }
 
 /**
- * All that's kept of the videos watched, in one line, and a way to forget it, asked in place first. The rows are hidden
- * on Panki with the time they went, never destroyed; the watch time and Continue watching start over.
+ * Whether the account's videos are being recorded, said and not changed: Video tracking is the extension's to switch,
+ * the extension being what records (the owner, 2026-10-28: "it's not changeable and it's synced to the extension
+ * setting and it just displays the status"). Where it's switched is said under it.
+ */
+function DataTrackingPanel({ on }: { on: boolean }) {
+  return (
+    <section className="panel" aria-labelledby="data-tracking-title">
+      <h2 id="data-tracking-title" className="panel-title">
+        Data tracking
+      </h2>
+      <Setting
+        id="videoTracking"
+        label="Video tracking"
+        control={<span className="setting-value">{on ? "On" : "Off"}</span>}
+        why="Set in the extension's settings, on its YouTube tab."
+      />
+    </section>
+  );
+}
+
+/**
+ * All that's kept of the videos watched, in one line, and a way to forget it, asked in place first, with words to type
+ * since 2026-10-28 (on the Account tab until then). The rows are hidden on Panki with the time they went, never
+ * destroyed; the watch time and Continue watching start over.
  */
 function WatchHistoryPanel() {
   const [history, setHistory] = useState<WatchHistory | null>(null);
@@ -177,6 +199,7 @@ function WatchHistoryPanel() {
         <Ask
           idPrefix="watch-forget"
           question="Forget your watch history? Your watch time and Continue watching start again from nothing."
+          typed="I understand"
           go={{ words: "Forget history", busy: "Forgetting…" }}
           busy={busy}
           failure={failure}
@@ -1098,20 +1121,8 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
           />
         </section>
 
-        {/* Was "Watching" until the owner asked for another name, 2026-10-21: Immersion is their own word (the strip's Immersion / Just watching). */}
-        <section className="panel" aria-labelledby="watching-title">
-          <h2 id="watching-title" className="panel-title">
-            Immersion
-          </h2>
-          <Setting
-            id="videoTracking"
-            label="Video tracking"
-            control={<Toggle id="setting-video-tracking" says={{ on: "On", off: "Off" }} on={current.videoTracking} onChange={(videoTracking) => patch({ videoTracking })} />}
-            why="Keeps which videos you watch, for how long and where you stopped."
-          />
-          {/* Daily goal went with the watch streak, 2026-10-21: no goal and no streak for immersion, for now. */}
-          {/* Share my watching (Off, Minutes and streak, Also what I watch) went at the owner's word, 2026-10-21: "either we share all or nothing". Video tracking on is all of it shared. */}
-        </section>
+        {/* Immersion (Watching until 2026-10-21) stood here with Video tracking's switch until the owner had it changed in
+            the extension alone and shown on the Extension tab, 2026-10-28 (`DataTrackingPanel`). */}
 
         {/* How a card's clip's subtitles look (a part's Subtitles in a card type's Layout): the app's own, apart from the extension's over YouTube. */}
         <section className="panel" aria-labelledby="card-subtitles-title">
@@ -1130,6 +1141,8 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
       {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
+        <DataTrackingPanel on={current.videoTracking} />
+        <WatchHistoryPanel />
       </div>
 
       {me.user.admin ? (
@@ -1193,7 +1206,6 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
             </div>
           )}
         </section>
-        <WatchHistoryPanel />
       </div>
     </>
   );

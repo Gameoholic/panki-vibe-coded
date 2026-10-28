@@ -801,18 +801,6 @@
   margin: 0;
   font: 500 15px/1.4 var(--yh-font);
 }
-.yh-part {
-  display: inline-flex;
-  align-items: center;
-}
-.yh-sep {
-  display: inline-block;
-  width: 4px;
-  height: 4px;
-  margin: 0 10px;
-  border-radius: 50%;
-  background: var(--yh-muted);
-}
 .yh-bar.is-off .yh-bar-words {
   gap: 8px;
   color: var(--yh-muted);

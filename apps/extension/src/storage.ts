@@ -138,13 +138,11 @@ const Stored = z.object({
   /** What the pill in the header bar says, in what order (`modules.ts` → `PillLayout`), made whole as it's read. */
   pill: PillLayout.transform(pillLayoutOf).catch(DEFAULT_MODULES.pill),
   // `pillPower` went on 2026-10-22 (the switch is the pill's whenever the pill is on); a browser that kept it keeps it unread.
-  homeLine: z.boolean().catch(DEFAULT_MODULES.homeLine),
   homeShelf: z.boolean().catch(DEFAULT_MODULES.homeShelf),
   homeSaved: z.boolean().catch(DEFAULT_MODULES.homeSaved),
   homeRecent: z.boolean().catch(DEFAULT_MODULES.homeRecent),
   thumbSave: z.boolean().catch(DEFAULT_MODULES.thumbSave),
   moduleShorts: z.boolean().catch(DEFAULT_MODULES.shorts),
-  moduleThumbs: z.boolean().catch(DEFAULT_MODULES.thumbs),
   // `homeChips` and `feedFilter` (the chips over YouTube's home feed) went on 2026-10-21; a browser that kept them keeps them unread.
   /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls, and when the video will end. */
   speedControl: z.boolean().catch(DEFAULT_MODULES.speedControl),
@@ -187,13 +185,11 @@ export const modulesOf = (store: Stored): Modules => ({
   home: store.moduleHome,
   homePill: store.homePill,
   pill: store.pill,
-  homeLine: store.homeLine,
   homeShelf: store.homeShelf,
   homeSaved: store.homeSaved,
   homeRecent: store.homeRecent,
   thumbSave: store.thumbSave,
   shorts: store.moduleShorts,
-  thumbs: store.moduleThumbs,
   speedControl: store.speedControl,
   endTime: store.endTime,
   shortSkip: store.shortSkip,

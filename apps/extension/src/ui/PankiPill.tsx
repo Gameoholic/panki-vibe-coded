@@ -45,13 +45,13 @@ export const SAMPLE_NUMBERS: PillNumbers = { watching: true, watchedMs: 23 * 60_
 export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; words: string; said: string } | null {
   switch (part) {
     case "watched":
-      return n.watching ? { icon: "tv", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watched today` } : null;
+      return n.watching ? { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watched today` } : null;
     case "due":
       return { icon: "review", words: `${n.due} due`, said: `${count(n.due, "card", "cards")} due` };
     case "reviews":
       return { icon: "check", words: String(n.reviews), said: `${count(n.reviews, "review", "reviews")} today` };
     case "reviewTime":
-      return { icon: "clock", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} reviewing today` };
+      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} reviewing today` };
     case "streak":
       return { icon: "flame", words: String(n.streak), said: `${count(n.streak, "day", "days")} review streak` };
   }

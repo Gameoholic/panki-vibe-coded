@@ -525,7 +525,7 @@ async function readModules() {
 }
 
 /** Every part off, as the modules read with Panki switched off altogether. */
-const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeLine: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false, thumbs: false };
+const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false };
 /**
  * Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own
  * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not (the owner,

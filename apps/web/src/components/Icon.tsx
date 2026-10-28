@@ -41,6 +41,12 @@ const ICONS = {
   clock: ["M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z", "M12 7v5l3 2"],
   /** A screen: a video watched, the immersion tiles. */
   tv: ["M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M9 21h6", "M12 18v3"],
+  /**
+   * Time spent, by what on: a clock at the foot of a screen (time watched) or of a card (time reviewing). The pill's
+   * two times, told apart at a glance with the clock the same in both (the owner, 2026-10-28).
+   */
+  watchTime: ["M3 3h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z", "M8 12v4", "M6 16h4", "M17.5 13a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9z", "M17.5 15.5v2l1.5 1"],
+  reviewTime: ["M3 2h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z", "M5 6h4", "M5 9h3", "M17.5 13a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9z", "M17.5 15.5v2l1.5 1"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],
   /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`, picked by the owner, 2026-10-20): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live), the download with a chunk's head start (Hybrid). (Auto's bolt went with Auto.) */

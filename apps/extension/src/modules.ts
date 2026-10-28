@@ -130,8 +130,6 @@ export const Modules = z.object({
   pill: PillLayout,
   // `pillPower` (Panki's switch at the pill's end, shown or not) went on 2026-10-22: the switch is the pill's whenever
   // the pill is on (`switchInPill`).
-  /** The line over the recommendations: the day, today's minutes, who else watched today, and Review. */
-  homeLine: z.boolean(),
   /** The Continue watching shelf: the one left last big, the rest as the site's own kind of card under it. */
   homeShelf: z.boolean(),
   /** The Saved for later shelf under it: the videos saved with a thumbnail's save button. */
@@ -142,8 +140,6 @@ export const Modules = z.object({
   thumbSave: z.boolean(),
   /** Whether Shorts stay on YouTube's pages: their shelves and their videos among the rest. Shown to begin with: nothing of the site's is taken away unasked. A YouTube utility, the owner's word (2026-10-21): it holds whether or not Panki is on. */
   shorts: z.boolean(),
-  /** On every video's thumbnail anywhere on YouTube: how far you got with Panki, the cards made from it, whether Panki has its subtitles. */
-  thumbs: z.boolean(),
   /** The player's speed changed from a button among its own controls (a YouTube utility, 2026-10-21): there whether or not Panki is on. */
   speedControl: z.boolean(),
   /** When the video will end on this device's clock, after the player's own time (a YouTube utility, 2026-10-25): on to begin with, as the speed button is (the owner's word). */
@@ -170,13 +166,11 @@ export const DEFAULT_MODULES: Modules = {
   home: true,
   homePill: true,
   pill: DEFAULT_PILL,
-  homeLine: true,
   homeShelf: true,
   homeSaved: true,
   homeRecent: true,
   thumbSave: true,
   shorts: true,
-  thumbs: true,
   speedControl: true,
   endTime: true,
   shortSkip: true,

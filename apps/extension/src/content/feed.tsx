@@ -1,9 +1,9 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { DEFAULT_WATCHING_SETTINGS, youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type FinishedVideo, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
+import { youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type FinishedVideo, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { agoWords, clock, count, durationWords, langOf, leftWords, sinceWords } from "@web/words";
+import { agoWords, clock, langOf, leftWords, sinceWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
@@ -112,20 +112,6 @@ function usePerRow(row: HTMLElement | null): number {
   return n;
 }
 
-/** Time spent, from ms. */
-const spent = (ms: number) => durationWords(ms / 1000);
-/** The day, as the line over the recommendations opens: "Tuesday". */
-const dayWords = (at: Date) => at.toLocaleDateString("en", { weekday: "long" });
-/**
- * What a thumbnail's mark says of how far you got: all of it once it's watched to the end, as the site's own bar has it
- * (Panki says, by its admin's setting, `VideoGlance.finished`; an older Panki that doesn't, the setting's default).
- */
-function shareOf(g: VideoGlance): number {
-  if (g.watchedToMs === null || !g.lengthMs) return 0;
-  const finished = g.finished ?? g.watchedToMs >= g.lengthMs - DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000;
-  return finished ? 1 : Math.min(1, g.watchedToMs / g.lengthMs);
-}
-
 /**
  * Panki on YouTube's pages beyond a video's: `modules` says which parts are on (all off while Panki is switched off),
  * `raw` what each switch says itself (the pill and its switch stay with Panki off, to turn it back on), `onPower` turns
@@ -183,34 +169,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
   // ---- The top of the home.
 
-  /**
-   * One line where the site puts a shelf's heading: the day and today's minutes; Review at its end. (Who else on this
-   * Panki watched today stood in it until everything about other people was shelved, 2026-10-21.)
-   */
-  function Today({ home }: { home: Home }) {
-    const { stats, decks } = home;
-    const w = stats.watching;
-    const due = decks.reduce((sum, d) => sum + d.dueCount + d.newCount, 0);
-    const parts: ReactNode[] = [<span key="day">{dayWords(new Date())}</span>];
-    parts.push(w.on ? <span key="today">{`${spent(w.today)} watched today`}</span> : <span key="off">Video tracking is off</span>);
-    return (
-      <section className="yh-bar" aria-label="Today in Panki">
-        <p className="yh-bar-words">
-          {parts.map((part, i) => (
-            <span key={i} className="yh-part">
-              {i > 0 ? <span className="yh-sep" aria-hidden="true" /> : null}
-              {part}
-            </span>
-          ))}
-        </p>
-        <div className="yh-actions">
-          <Button variant={due > 0 ? "primary" : "ghost"} className="yh-review" onClick={() => void askOpenPanki()}>
-            {due > 0 ? `Review · ${count(due, "card", "cards")} due` : "Open Panki"}
-          </Button>
-        </div>
-      </section>
-    );
-  }
+  // The Today line (the day, today's minutes watched, Review) stood here until the owner had it out, 2026-10-28: "I don't need it".
 
   /**
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
@@ -330,9 +289,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     }
     const now = Date.now();
     const lead = progressOf(first);
-    // How far each was watched, on its picture, is a thumbnail's mark like any other: the same switch shows it on Panki's
-    // own cards as on the site's (the owner, 2026-10-22: "make it also apply to our own").
-    const marked = deps.modules().thumbs;
     return (
       <section className="yh-shelf" aria-label="Continue watching">
         <h2 className="yh-h">
@@ -344,11 +300,9 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           <div className="yc yh-lead-pic-wrap">
             <a className="yh-lead-pic" href={resumeAt(first)} aria-label={`Resume ${first.title || "the video"}`}>
               <img src={thumbnailAt(first.videoId)} alt="" />
-              {marked ? (
-                <span className="yc-bar">
-                  <i style={{ width: `${(lead.share * 100).toFixed(1)}%` }} />
-                </span>
-              ) : null}
+              <span className="yc-bar">
+                <i style={{ width: `${(lead.share * 100).toFixed(1)}%` }} />
+              </span>
             </a>
             <CardSave videoId={first.videoId} about={aboutContinue(first)} />
             <Button className="btn-icon yc-x" aria-label="Put away" onClick={() => void putAway(first.videoId)}>
@@ -373,7 +327,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {rest.length > 0 ? (
           <div className="yh-cards">
             {rest.map((v) => (
-              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={marked ? progressOf(v) : null} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save={aboutContinue(v)} />
+              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save={aboutContinue(v)} />
             ))}
           </div>
         ) : null}
@@ -509,7 +463,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     return (
       <div className="yt-home">
         {now.kind === "loading" ? null : now.kind === "failed" ? (
-          on.homeLine || on.homeShelf || on.homeSaved || on.homeRecent ? (
+          on.homeShelf || on.homeSaved || on.homeRecent ? (
             <section className="yh-bar is-off">
               <p className="yh-bar-words">
                 <Mark size={18} />
@@ -530,7 +484,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null
         ) : (
           <>
-            {on.homeLine ? <Today home={now.home} /> : null}
             {/* Continue watching and Saved for later side by side, half the row each (the owner, 2026-10-21: "it can appear in the same row… 50% 50%"); one alone takes the row. */}
             <div className="yh-shelves">
               {on.homeShelf && now.home.stats.watching.on ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
@@ -634,14 +587,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     }
   }
 
-  /** What a thumbnail's mark says, as a key: nothing when there's nothing to say. A saved video's tick stands at its top right while saving is switched on. */
+  /**
+   * What a thumbnail's mark says, as a key: a saved video's tick at its top right while saving is switched on, nothing
+   * otherwise. How far you got, the cards made from it and whether Panki had its subtitles were marked on it too until
+   * the owner had them out, 2026-10-28 ("I don't need it").
+   */
   function sayOf(g: VideoGlance | null, on: Modules): string {
-    const share = g && on.thumbs ? shareOf(g) : 0;
-    const cards = g && on.thumbs ? g.cards : 0;
-    const transcribed = g !== null && on.thumbs && g.transcribed;
-    const saved = g !== null && on.thumbSave && g.saved;
-    if (share === 0 && cards === 0 && !transcribed && !saved) return "";
-    return JSON.stringify([Math.round(share * 1000) / 1000, cards, transcribed, saved]);
+    return g !== null && on.thumbSave && g.saved ? "saved" : "";
   }
 
   function draw(link: HTMLAnchorElement, g: VideoGlance | null, on: Modules) {
@@ -672,13 +624,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     }
     if (mark.drawn === said) return;
     mark.drawn = said;
-    const [share, cards, transcribed, saved] = JSON.parse(said) as [number, number, boolean, boolean];
-    const chips = [transcribed ? `<span class="chip">${SUBTITLES_ICON}</span>` : "", cards > 0 ? `<span class="chip">${CARD_ICON}${cards}</span>` : ""].join("");
-    const badge = share > 0 || cards > 0 || transcribed ? `<span class="badge"><b class="glyph">パ</b>${chips}</span>` : "";
-    const bar = share > 0 ? `<span class="bar"><i style="width:${(share * 100).toFixed(1)}%"></i></span>` : "";
     // Saved: a tick at the top right, seen without pointing at it. Saving itself is the floating button (`SaveFloat`).
-    const tick = saved ? `<span class="saved">${TICK_ICON}</span>` : "";
-    mark.root.innerHTML = `<style>${THUMB_CSS}</style>${badge}${bar}${tick}`;
+    mark.root.innerHTML = `<style>${THUMB_CSS}</style><span class="saved">${TICK_ICON}</span>`;
   }
 
   /**
@@ -824,7 +771,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       if (floater.host.parentElement !== document.body) document.body.append(floater.host);
       floater.host.dataset.theme = theme;
       // The top of the home, over the recommendations, while that's the page shown and any part of it is on.
-      const grid = on.home && (on.homeLine || on.homeShelf || on.homeSaved || on.homeRecent) ? document.querySelector(HOME_GRID) : null;
+      const grid = on.home && (on.homeShelf || on.homeSaved || on.homeRecent) ? document.querySelector(HOME_GRID) : null;
       const contents = grid?.querySelector(GRID_CONTENTS) ?? null;
       if (!contents) top.host.remove();
       else {
@@ -836,8 +783,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
       sift(on);
 
-      // The marks on every thumbnail on the page, and its save button.
-      if (!on.thumbs && !on.thumbSave) {
+      // A saved video's tick on every thumbnail on the page.
+      if (!on.thumbSave) {
         clearMarks();
         return;
       }
@@ -866,42 +813,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   };
 }
 
-/** A box with two lines in it: subtitles. Drawn as the app's icons are, on a 24-unit grid. */
-const SUBTITLES_ICON = `<svg viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M7 11h4M13 11h4M7 15h10"/></svg>`;
-/** A card, as the decks' icon has it. */
-const CARD_ICON = `<svg viewBox="0 0 24 24"><path d="M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"/><path d="M7 4h10"/></svg>`;
-/** A saved video's tick. */
+/** A saved video's tick. Drawn as the app's icons are, on a 24-unit grid. */
 const TICK_ICON = `<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 
-/**
- * A thumbnail's mark, in its own shadow root: in the top left corner a small dark pill with Panki's パ, and what Panki
- * has of the video (its subtitles, the cards made from it); along the bottom edge how far you got, in the accent, as
- * the site draws its own red bar for what it watched. On the picture, so in the theater's colours whatever the theme.
- * The tokens come from the host (`tokensOn`).
- */
+/** A thumbnail's mark, in its own shadow root: a saved video's tick. The tokens come from the host (`tokensOn`). */
 const THUMB_CSS = `
 :host { all: initial; }
-.badge {
-  position: absolute; top: 6px; left: 6px;
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 20px; padding: 0 6px 0 2px; border-radius: 7px;
-  background: color-mix(in srgb, var(--theater) 72%, transparent);
-  color: var(--theater-ink);
-  font: 700 11px/1 "Roboto", "Arial", var(--font);
-  backdrop-filter: blur(6px);
-}
-.glyph {
-  display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 5px;
-  background: var(--mark-tile); color: var(--mark-glyph);
-  font: 800 10px/1 var(--font-ja);
-}
-.chip { display: inline-flex; align-items: center; gap: 2px; }
-svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.bar {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
-  background: color-mix(in srgb, var(--theater-ink) 30%, transparent);
-}
-.bar i { display: block; height: 100%; background: var(--accent); }
+svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
 /* Saved for later: a tick in the accent at the top right. */
 .saved {
   position: absolute; top: 6px; right: 6px;

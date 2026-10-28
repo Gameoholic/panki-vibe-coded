@@ -11,6 +11,7 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
 import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
+import { Ask } from "@web/components/Ask";
 import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
@@ -272,14 +273,16 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
 }
 
 /**
- * Video tracking, here too (the owner, 2026-10-21, the extension being what tracks: "shouldn't this be on the
- * extension too?"): not a second setting but the account's own, the one in Panki's Settings → Immersion, read from
- * Panki and changed there, so flipping it here or there is the same switch, for every browser signed in to the
- * account. Shown while signed in; a failure puts it back and says so.
+ * Video tracking (the owner, 2026-10-21, the extension being what tracks: "shouldn't this be on the extension too?"):
+ * the account's own setting, kept on Panki, and changed here alone since 2026-10-28 (Panki's Settings → Extension
+ * shows it, and forgets what's kept). Turning it off asks first, saying what stops and what stays. Shown while signed
+ * in; a failure puts it back and says so. The panel was Immersion until the owner renamed it, 2026-10-28.
  */
 function VideoTracking({ door }: { door: Door }) {
   const [on, setOn] = useState<boolean | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
   const { address, token } = door;
   useEffect(() => {
     let alive = true;
@@ -294,26 +297,71 @@ function VideoTracking({ door }: { door: Door }) {
   }, [address, token]);
   async function change(next: boolean) {
     setFailure(null);
+    setBusy(true);
     setOn(next);
     try {
       setOn((await panki.updateSettings({ address, token }, { videoTracking: next })).videoTracking);
+      setAsking(false);
     } catch (e) {
       setOn(!next);
       setFailure(e instanceof Error ? e.message : "Couldn't reach Panki.");
+    } finally {
+      setBusy(false);
     }
   }
   return (
-    <section className="panel" aria-labelledby="immersion-title">
-      <h2 id="immersion-title" className="panel-title">
-        Immersion
+    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="data-tracking-title">
+      <h2 id="data-tracking-title" className="panel-title">
+        Data tracking
       </h2>
       <Setting
         id="video-tracking"
         label="Video tracking"
-        control={<Toggle id="video-tracking-on" says={{ on: "On", off: "Off" }} on={on === true} disabled={on === null} onChange={(next) => void change(next)} />}
-        why="Keeps which videos you watch, for how long and where you stopped."
+        control={
+          <Toggle
+            id="video-tracking-on"
+            says={{ on: "On", off: "Off" }}
+            on={on === true}
+            disabled={on === null || asking || busy}
+            // Turning it on just does it; turning it off asks first.
+            onChange={(next) => (next ? void change(true) : setAsking(true))}
+          />
+        }
+        why="Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats are built from it."
       />
-      {failure ? (
+      {asking ? (
+        <Ask
+          idPrefix="video-tracking-off"
+          question="Turn off video tracking?"
+          detail={
+            <>
+              <div>
+                <h3>From now on</h3>
+                <ul>
+                  <li>The videos you watch aren&apos;t recorded, in any browser signed in to this account.</li>
+                  <li>Your watch time stops growing, and Continue watching and Recently watched stop updating.</li>
+                  <li>Where you stopped in a video isn&apos;t kept, so you can&apos;t continue from it next time.</li>
+                </ul>
+              </div>
+              <div>
+                <h3>What stays</h3>
+                <ul>
+                  <li>Everything already recorded is kept. To forget it, use Watch history in Panki&apos;s Settings → Extension.</li>
+                  <li>Turning it on again carries on from there.</li>
+                </ul>
+              </div>
+            </>
+          }
+          go={{ words: "Turn off", busy: "Turning off…" }}
+          busy={busy}
+          failure={failure}
+          onKeep={() => {
+            setAsking(false);
+            setFailure(null);
+          }}
+          onGo={() => void change(false)}
+        />
+      ) : failure ? (
         <p className="form-failure" role="alert">
           {failure}
         </p>
@@ -367,18 +415,16 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
   return (
     <section className="panel" aria-labelledby="home-title">
       <h2 id="home-title" className="panel-title">
-        YouTube home
+        YouTube home add-ons
       </h2>
-      <Setting id="module-home" label="YouTube home" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
+      <Setting id="module-home" label="YouTube home add-ons" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
-      {row("home-line", "Today line", store.homeLine, { on: "Shown", off: "Hidden" }, (homeLine) => ({ homeLine }))}
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
       {/* How many it shows was a choice here until the owner made it always 5, 2026-10-22 (`modules.ts` → `SHELF_MAX`). */}
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
       {row("home-recent", "Recently watched", store.homeRecent, { on: "Shown", off: "Hidden" }, (homeRecent) => ({ homeRecent }))}
-      {/* Named for what they show (the owner, 2026-10-22: "Thumbnail marks: no clue what that is"; "Save button on thumbnails: what are we saving?"). */}
-      {row("module-thumbs", "Progress, cards and subtitles on thumbnails", store.moduleThumbs, { on: "Shown", off: "Hidden" }, (moduleThumbs) => ({ moduleThumbs }))}
+      {/* Named for what it shows (the owner, 2026-10-22: "Save button on thumbnails: what are we saving?"). Progress, cards and subtitles on thumbnails stood above it until the owner had them out, 2026-10-28: "I don't need it". */}
       {row("thumb-save", "Save for later button on thumbnails", store.thumbSave, { on: "Shown", off: "Hidden" }, (thumbSave) => ({ thumbSave }))}
     </section>
   );
@@ -406,35 +452,39 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
         label="Video end time in the player"
         control={<Toggle id="end-time-on" says={{ on: "Shown", off: "Hidden" }} on={store.endTime} onChange={(endTime) => void writeStore({ endTime }).then(onChanged)} />}
       />
-      <Setting
-        id="short-skip"
-        label="Short skip with the arrow keys"
-        control={<Toggle id="short-skip-on" says={{ on: "On", off: "Off" }} on={store.shortSkip} onChange={(shortSkip) => void writeStore({ shortSkip }).then(onChanged)} />}
-      />
-      <Setting
-        id="short-skip-key"
-        label="Key to hold"
-        control={
-          <Segmented idPrefix="short-skip-key" label="Key to hold" options={SKIP_KEY_OPTIONS} value={store.shortSkipKey} disabled={!store.shortSkip} onChange={(shortSkipKey) => void writeStore({ shortSkipKey }).then(onChanged)} />
-        }
-      />
-      <Setting
-        id="short-skip-seconds"
-        label="Skip by"
-        control={
-          <NumberField
-            id="short-skip-seconds-field"
-            label="Skip by"
-            value={store.shortSkipSeconds}
-            min={SKIP_SECONDS_MIN}
-            max={SKIP_SECONDS_MAX}
-            step={0.1}
-            suffix=" s"
-            disabled={!store.shortSkip}
-            onChange={(shortSkipSeconds) => void writeStore({ shortSkipSeconds }).then(onChanged)}
-          />
-        }
-      />
+      {/* One group, its switch and the two rows it greys (the owner, 2026-10-28: they read as three settings apart). */}
+      <div className="seek-group">
+        <h3 className="seek-group-title">Short skip with the arrow keys</h3>
+        <Setting
+          id="short-skip"
+          label="Short skip"
+          control={<Toggle id="short-skip-on" says={{ on: "On", off: "Off" }} on={store.shortSkip} onChange={(shortSkip) => void writeStore({ shortSkip }).then(onChanged)} />}
+        />
+        <Setting
+          id="short-skip-key"
+          label="Key to hold"
+          control={
+            <Segmented idPrefix="short-skip-key" label="Key to hold" options={SKIP_KEY_OPTIONS} value={store.shortSkipKey} disabled={!store.shortSkip} onChange={(shortSkipKey) => void writeStore({ shortSkipKey }).then(onChanged)} />
+          }
+        />
+        <Setting
+          id="short-skip-seconds"
+          label="Skip by"
+          control={
+            <NumberField
+              id="short-skip-seconds-field"
+              label="Skip by"
+              value={store.shortSkipSeconds}
+              min={SKIP_SECONDS_MIN}
+              max={SKIP_SECONDS_MAX}
+              step={0.1}
+              suffix=" s"
+              disabled={!store.shortSkip}
+              onChange={(shortSkipSeconds) => void writeStore({ shortSkipSeconds }).then(onChanged)}
+            />
+          }
+        />
+      </div>
     </section>
   );
 }
