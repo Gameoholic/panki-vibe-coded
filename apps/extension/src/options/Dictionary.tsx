@@ -26,7 +26,7 @@ import {
   type Progress,
 } from "../dictionary/store";
 import { HOVER_KEEP } from "../capture/look";
-import { hostOf, permissionsFor, type LookKey, type LookWhere } from "../lookSettings";
+import { LOOK_KEYS, hostOf, keyWordOf, permissionsFor, type LookKey, type LookWhere } from "../lookSettings";
 import { PankiError, panki, type Door } from "../panki";
 import { writeStore, type Stored } from "../storage";
 import { Pitch } from "../ui/Lookup";
@@ -543,14 +543,6 @@ const WHERE: { id: LookWhere; label: string }[] = [
   { id: "except", label: "On every site but these" },
   { id: "nowhere", label: "Nowhere" },
 ];
-/** The keys that can be held to look a word up, and what each is called. */
-export const LOOK_KEYS: readonly { id: LookKey; label: string }[] = [
-  { id: "shift", label: "Shift" },
-  { id: "ctrl", label: "Ctrl" },
-  { id: "alt", label: "Alt" },
-  { id: "hover", label: "On hover" },
-];
-export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.label ?? "Shift";
 /** How pointing at a word starts, as a sentence begins: "Hold Shift over", or "Point at" when it's On hover. */
 export const pointWords = (key: LookKey) => (key === "hover" ? "Point at" : `Hold ${keyWordOf(key)} over`);
 /** How a key to hold is used, said under it. */

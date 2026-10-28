@@ -205,7 +205,7 @@ try {
   await click("#tab-settings");
   await waitFor("settings", async () => (await cdp.text("#screen-title")) === "Settings");
   await waitFor("the settings", () => cdp.exists("#setting-new"));
-  assert((await cdp.value("#setting-new")) === "10" && (await cdp.checked("#setting-no-limit")) && (await cdp.pressed("#setting-first-reviews")) && (await cdp.checked("#setting-fuzz")), "Settings shows the defaults: 10 new a day, no limit, reviews first, waits spread");
+  assert((await cdp.value("#setting-new")) === "10" && (await cdp.checked("#setting-no-limit")) && (await cdp.pressed("#setting-first-reviews")), "Settings shows the defaults: 10 new a day, no limit, reviews first");
   assert((await cdp.litTab("settings")) && !(await cdp.litTab("home")), "the Settings tab is lit there");
   shotsTaken.push(await cdp.screenshot("desktop-settings"));
   await click("[data-setting='newPerDay'] [aria-label='More']");

@@ -1356,11 +1356,11 @@ export function openDb(
     return null;
   }
   /**
-   * When a card comes back and whether a review now would show it, from its place under the ladder as it is now. The
-   * seed is its last row, so the fuzz holds still between reads. A card put aside is never due; its due time stands.
+   * When a card comes back and whether a review now would show it, from its place under the ladder as it is now. A
+   * card put aside is never due; its due time stands.
    */
   function scheduleOf(type: SrsLadder, row: CardRow, place: CardPlace, today: Today): { dueAt: number | null; due: boolean; hold: CardHold | null } {
-    const at = row.lastAt === null || row.placeId === null ? null : dueAt(type, place, row.lastAt, row.placeId, today.settings.fuzz);
+    const at = row.lastAt === null || row.placeId === null ? null : dueAt(type, place, row.lastAt);
     const hold = holdOf(row, today);
     const due = at !== null && !isBurned(type, place) && at <= today.now && hold === null;
     return { dueAt: at, due, hold };

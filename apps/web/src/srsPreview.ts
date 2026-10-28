@@ -1,4 +1,4 @@
-import { NEW_PLACE, mainAnswers, offered, resolve, stageIndex, type CardPlace, type Settings, type SrsType } from "@panki/contracts";
+import { NEW_PLACE, mainAnswers, offered, resolve, stageIndex, type CardPlace, type SrsType } from "@panki/contracts";
 
 /**
  * What a type does to a card, worked out ahead of time for the live preview: one card answered with the best
@@ -63,7 +63,7 @@ const ASKS_MAX = 6;
  * (evenly through the day; a card that comes due between two waits for the next one, and its wait counts from when
  * it was answered). Deterministic, so the chart holds still.
  */
-export function forecast(type: SrsType, settings: Pick<Settings, "fuzz"> & { newPerDay: number }, days: number, sittings: number): number[] {
+export function forecast(type: SrsType, settings: { newPerDay: number }, days: number, sittings: number): number[] {
   let seed = 11;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const main = mainAnswers(type.answers);
@@ -71,7 +71,6 @@ export function forecast(type: SrsType, settings: Pick<Settings, "fuzz"> & { new
   const best = main.at(-1)?.id ?? "";
   const cards: { place: CardPlace; due: number }[] = [];
   const perDay: number[] = [];
-  const spread = () => (settings.fuzz ? 0.9 + rnd() * 0.2 : 1);
   for (let day = 0; day < days; day++) {
     for (let k = 0; k < settings.newPerDay; k++) cards.push({ place: NEW_PLACE, due: day });
     let n = 0;
@@ -86,7 +85,7 @@ export function forecast(type: SrsType, settings: Pick<Settings, "fuzz"> & { new
       for (const card of cards) {
         for (let asks = 0; card.due < day + 1 && asks < ASKS_MAX; asks++) {
           const wait = ask(card);
-          card.due = wait === null ? Infinity : card.due + (Math.max(wait, 1) / 1440) * spread();
+          card.due = wait === null ? Infinity : card.due + Math.max(wait, 1) / 1440;
         }
       }
     } else {
@@ -97,7 +96,7 @@ export function forecast(type: SrsType, settings: Pick<Settings, "fuzz"> & { new
           for (let asks = 0; card.due <= at && asks < ASKS_MAX; asks++) {
             const wait = ask(card);
             if (wait === null) card.due = Infinity;
-            else if (wait > 0) card.due = at + (wait / 1440) * spread();
+            else if (wait > 0) card.due = at + wait / 1440;
           }
         }
       }

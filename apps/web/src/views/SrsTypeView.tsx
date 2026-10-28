@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, type Settings, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
+import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -37,7 +37,6 @@ type Props = {
   type: SrsType;
   /** Never saved yet: it exists only on this screen until its first Save. */
   isNew: boolean;
-  settings: Settings;
   onSave: (typeId: string, update: Update, isNew: boolean) => Promise<SrsType>;
   onRemove: () => Promise<void>;
   /** Start a new type as a copy of this one (the way to change one that comes with the app). */
@@ -88,7 +87,7 @@ function errorsOf(type: SrsType, error: ParseError): Errors {
  * leaving asks first (the guard, and the browser's own question on a reload or a closed tab), and discarding is what
  * leaving without saving does. Ctrl+Z undoes a change. One that comes with the app is shown, not edited.
  */
-export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, onStatus, onGuard }: Props) {
+export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, onGuard }: Props) {
   const history = useUndoable(type);
   const { change, undo, redo } = history;
   const draft = history.present;
@@ -238,7 +237,7 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
   if (draft.builtin) {
     return (
       <div className="srs-editor">
-        <FlowPreview type={draft} settings={settings} />
+        <FlowPreview type={draft} />
         <section className="panel" aria-labelledby="srs-builtin-title">
           <h2 id="srs-builtin-title" className="panel-title">
             Comes with Panki
@@ -297,7 +296,7 @@ export function SrsTypeView({ type, isNew, settings, onSave, onRemove, onCopy, o
 
   return (
     <div className="srs-editor">
-      <FlowPreview type={draft} settings={settings} />
+      <FlowPreview type={draft} />
 
       {failure || saveFailure ? (
         <p className="load-error" role="alert">

@@ -1042,7 +1042,7 @@ export function App() {
         break;
       case "srsEdit": {
         const type = screen.type;
-        body = settings === null ? loading : <SrsTypeView key={type.id} type={type} isNew={screen.isNew} settings={settings} onSave={saveSrs} onRemove={() => removeSrs(type)} onCopy={() => startSrs(type)} onStatus={setEditStatus} onGuard={setGuard} />;
+        body = <SrsTypeView key={type.id} type={type} isNew={screen.isNew} onSave={saveSrs} onRemove={() => removeSrs(type)} onCopy={() => startSrs(type)} onStatus={setEditStatus} onGuard={setGuard} />;
         break;
       }
       case "settings":

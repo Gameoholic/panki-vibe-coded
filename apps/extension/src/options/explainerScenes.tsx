@@ -5,6 +5,8 @@ import { Icon } from "@web/components/Icon";
 import { TextField } from "@web/components/TextField";
 import { hourWords } from "@web/words";
 import { tintOf } from "../capture/known";
+import { HOVER_KEEP } from "../capture/look";
+import { keyWordOf, type LookKey } from "../lookSettings";
 import { spanOver, tokensOf, type Span, type Token } from "../capture/words";
 import type { DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
@@ -199,7 +201,29 @@ function usePointing() {
   };
 }
 
-/** The Pop-up dictionary: Shift held over a word of a Japanese page, along the line, let go, closed. */
+/**
+ * The key to hold as this browser has it, held down (nothing, for On hover, where pointing is enough); the key's name,
+ * or null. The explainers play with the settings as they are (the owner, 2026-10-28: "have the animation reflect the
+ * current settings").
+ */
+function holdKey(t: Tools, key: LookKey): string | null {
+  if (key === "hover") return null;
+  const name = keyWordOf(key);
+  t.hold(name);
+  return name;
+}
+/** The pop-up kept open as this browser keeps it: the key let go on the word, or, opened by hover, Shift pressed. */
+async function keepOpen(t: Tools, held: string | null) {
+  if (held) {
+    t.letGo(held);
+    return;
+  }
+  t.hold(HOVER_KEEP);
+  await t.wait(250);
+  t.letGo(HOVER_KEEP);
+}
+
+/** The Pop-up dictionary: the key held over a word of a Japanese page, along the line, let go, closed. */
 function PopupScene({ store }: { store: Stored }) {
   const { dictionaries, found } = useLookups();
   const p = usePointing();
@@ -208,14 +232,14 @@ function PopupScene({ store }: { store: Stored }) {
     t.frame(p.article());
     await t.move([34, 44], 400);
     await t.move(p.el("kissa"));
-    t.hold("Shift");
+    const key = holdKey(t, store.lookKey);
     await t.wait(200);
     await p.point(t, "kissa");
     await t.wait(1300);
     await t.move(p.el("mitsuke"), 450);
     await p.point(t, "mitsuke");
     await t.wait(1300);
-    t.letGo("Shift");
+    await keepOpen(t, key);
     await t.wait(300);
     await t.move(p.popup(), 550);
     await t.wait(900);
@@ -251,20 +275,20 @@ function KnownScene({ store }: { store: Stored }) {
     }
     await t.wait(700);
     await t.move(p.el("kissa"));
-    t.hold("Shift");
+    const key = holdKey(t, store.lookKey);
     await t.wait(200);
     await p.point(t, "kissa");
     await t.wait(1600);
-    t.letGo("Shift");
+    if (key) t.letGo(key);
     p.close();
     t.frame(p.article());
     await t.wait(250);
     await t.move(p.el("mitsuke"));
-    t.hold("Shift");
+    holdKey(t, store.lookKey);
     await t.wait(200);
     await p.point(t, "mitsuke");
     await t.wait(1300);
-    t.letGo("Shift");
+    if (key) t.letGo(key);
     p.close();
     t.frame(p.article());
     await t.wait(400);
@@ -389,7 +413,7 @@ function Strip({ tokens, now, picked, shown = true, line }: { tokens: readonly T
 const wordsOf = (tokens: readonly Token[]) => tokens.flatMap((token, i) => (token.word ? [i] : []));
 
 /** The Panki panel: the line following the video, a word clicked, the card made in the drawer, added. */
-function PanelScene() {
+function PanelScene({ store }: { store: Stored }) {
   const id = useId();
   const tokens = useMemo(() => tokensOf(SENTENCE), []);
   const target = spanOver(tokens, PICKED.from, PICKED.to);
@@ -398,6 +422,7 @@ function PanelScene() {
   const [picked, setPicked] = useState<Span | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [added, setAdded] = useState(false);
+  const [paused, setPaused] = useState(false);
   const line = useRef<HTMLDivElement | null>(null);
   const card = useRef<HTMLDivElement | null>(null);
   const script = async (t: Tools) => {
@@ -406,24 +431,29 @@ function PanelScene() {
     setPicked(null);
     setDrawer(false);
     setAdded(false);
+    setPaused(false);
     await t.wait(200);
     setShown(true);
     t.frame(line.current?.closest(".strip") ?? null);
     await t.wait(450);
-    for (const i of wordsOf(tokens).slice(0, 4)) {
+    for (const i of store.markUnder ? wordsOf(tokens).slice(0, 4) : []) {
       setNow([i, i]);
       await t.wait(320);
     }
+    if (!store.markUnder) await t.wait(1280);
     setNow(null);
     await t.move(target ? line.current?.querySelector(`[data-at="${target[0]}"]`) ?? null : null);
     await t.click();
     setPicked(target);
     setDrawer(true);
+    setPaused(true);
     t.frame(card.current);
     await t.wait(1100);
     await t.move(card.current?.querySelector(".capture-add") ?? null);
     await t.click();
     setAdded(true);
+    // The video was playing before the word was clicked, so "As before" plays it too.
+    setPaused(store.afterAdd === "pause");
     await t.wait(900);
     setDrawer(false);
     setPicked(null);
@@ -433,7 +463,7 @@ function PanelScene() {
   return (
     <Stage site={WATCH} script={script}>
       <WatchPage
-        paused={drawer && !added}
+        paused={paused}
         under={
           <Strip
             tokens={tokens}
@@ -491,10 +521,13 @@ function PanelScene() {
 }
 
 /** Spoken word underline: the word being said underlined in the Panki panel and in the subtitles on the video. */
-function UnderlineScene() {
+function UnderlineScene({ store }: { store: Stored }) {
   const tokens = useMemo(() => tokensOf(SENTENCE), []);
   const [now, setNow] = useState<Span | null>(null);
   const over = useRef<HTMLDivElement | null>(null);
+  // Where the mark is drawn, as set: the video's line only while the transcript is over the video.
+  const underNow = store.markUnder ? now : null;
+  const overNow = store.markOver ? now : null;
   const script = async (t: Tools) => {
     setNow(null);
     const video = over.current?.closest(".ex-video") ?? null;
@@ -514,12 +547,14 @@ function UnderlineScene() {
       <WatchPage
         video={
           <div ref={over} className="ex-over">
-            <div className="sub-band over-line" lang="ja">
-              <Line tokens={tokens} picked={null} now={now} onPick={nothing} />
-            </div>
+            {store.transcribeOverVideo ? (
+              <div className="sub-band over-line" lang="ja">
+                <Line tokens={tokens} picked={null} now={overNow} onPick={nothing} />
+              </div>
+            ) : null}
           </div>
         }
-        under={<Strip tokens={tokens} now={now} picked={null} />}
+        under={<Strip tokens={tokens} now={underNow} picked={null} />}
       />
     </Stage>
   );
@@ -539,33 +574,35 @@ function HomeScene({ store }: { store: Stored }) {
     setSaved(false);
     t.frame();
     await t.wait(200);
-    setPill(true);
-    const pillEl = feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null;
-    t.frame(pillEl);
-    await t.move(pillEl, 550);
-    await t.wait(700);
-    await t.move([36, 34], 450);
-    setShelves(1);
-    // Framed once the shelves have opened to their height.
-    await t.wait(650);
-    t.frame(feed.current?.querySelector(".ex-shelves") ?? null);
-    await t.wait(450);
-    setShelves(2);
-    await t.wait(900);
+    // The whole home stays in view (the owner, 2026-10-28: "the zoom there is kinda unnecessary"), but for the + pressed.
+    if (store.homePill) {
+      setPill(true);
+      await t.move(feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null, 550);
+      await t.wait(700);
+    }
+    if (store.homeShelf || store.homeSaved) {
+      await t.move([36, 34], 450);
+      setShelves(1);
+      await t.wait(900);
+      setShelves(2);
+      await t.wait(900);
+    }
+    if (!store.thumbSave) return;
     const card = feed.current?.querySelector(".ex-grid > :nth-child(2)") ?? null;
-    t.frame(card);
     await t.move(card, 450);
     setHover(true);
     await t.wait(250);
-    await t.move(card?.querySelector(".yt-save") ?? null, 350);
+    const plus = card?.querySelector(".yt-save") ?? null;
+    t.frame(card);
+    await t.move(plus, 500);
     await t.click();
     setSaved(true);
-    await t.wait(800);
+    await t.wait(900);
     t.frame();
-    await t.wait(500);
+    await t.wait(600);
   };
   const grid = [1, 2, 3, 4, 5, 6].map(videoAt);
-  const lead = videoAt(2);
+  const lead = videoAt(7);
   const kept = videoAt(8);
   const savedNow = grid[1] ?? lead;
   return (
@@ -596,7 +633,7 @@ function HomeScene({ store }: { store: Stored }) {
           </div>
           <div className={`yt-home ex-shelves ${shelves > 0 ? "is-on" : ""}`.trim()}>
             <div className="yh-shelves">
-              <section className={`yh-shelf ex-shelf ${shelves > 0 ? "is-on" : ""}`.trim()} aria-label="Continue watching">
+              <section className={`yh-shelf ex-shelf ${shelves > 0 ? "is-on" : ""}`.trim()} aria-label="Continue watching" hidden={!store.homeShelf}>
                 <h2 className="yh-h">
                   Continue watching <span className="yh-h-n">3</span>
                 </h2>
@@ -624,7 +661,7 @@ function HomeScene({ store }: { store: Stored }) {
                   </div>
                 </div>
               </section>
-              <section className={`yh-shelf ex-shelf ${shelves > 1 ? "is-on" : ""}`.trim()} aria-label="Saved for later">
+              <section className={`yh-shelf ex-shelf ${shelves > (store.homeShelf ? 1 : 0) ? "is-on" : ""}`.trim()} aria-label="Saved for later" hidden={!store.homeSaved}>
                 <h2 className="yh-h">
                   Saved for later <span className="yh-h-n">{saved ? 2 : 1}</span>
                 </h2>
@@ -679,15 +716,14 @@ function HomeScene({ store }: { store: Stored }) {
   );
 }
 
-/** YouTube utilities: the speed button, when the video will end, a one-second skip, Shorts gone. */
-function UtilitiesScene() {
+/** YouTube utilities, each as it's set: the speed button, when the video will end, a short skip, Shorts shown or gone. */
+function UtilitiesScene({ store }: { store: Stored }) {
   // The speed button is the real one, and plays on a video of its own: one that's never shown and never played.
   const video = useMemo(() => document.createElement("video"), []);
   const [rate, setRate] = useState(1);
   const [ends, setEnds] = useState(false);
   const [skip, setSkip] = useState<string | null>(null);
   const [at, setAt] = useState(17.1);
-  const [shorts, setShorts] = useState(true);
   const player = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const read = () => setRate(video.playbackRate);
@@ -700,44 +736,48 @@ function UtilitiesScene() {
     setEnds(false);
     setSkip(null);
     setAt(17.1);
-    setShorts(true);
-    const speedButton = () => player.current?.querySelector<HTMLButtonElement>(".yt-speed-button") ?? null;
     t.frame(player.current);
-    await t.move(speedButton());
-    await t.click();
-    speedButton()?.click();
-    await t.wait(350);
-    const chip = [...(player.current?.querySelectorAll<HTMLButtonElement>(".yt-speed-chip") ?? [])].find((b) => b.textContent === "1.5×") ?? null;
-    await t.move(chip, 350);
-    await t.click();
-    chip?.click();
-    await t.wait(600);
-    await t.move(player.current?.querySelector(".ex-time") ?? null, 400);
-    setEnds(true);
-    await t.wait(1000);
-    await t.move([30, 30], 400);
-    t.hold("Shift");
-    await t.wait(250);
-    t.hold("←");
-    setAt((a) => a - 0.09);
-    setSkip("−1 s");
-    await t.wait(500);
-    t.letGo("←");
-    setSkip(null);
-    await t.wait(200);
-    t.hold("→");
-    setAt((a) => a + 0.09);
-    setSkip("+1 s");
-    await t.wait(500);
-    t.letGo("→");
-    t.letGo("Shift");
-    setSkip(null);
-    await t.wait(350);
-    const side = player.current?.closest(".ex-yt")?.querySelector(".ex-shorts") ?? null;
-    t.frame(side);
-    await t.move(side, 450);
-    setShorts(false);
-    await t.wait(950);
+    if (store.speedControl) {
+      const speedButton = () => player.current?.querySelector<HTMLButtonElement>(".yt-speed-button") ?? null;
+      await t.move(speedButton());
+      await t.click();
+      speedButton()?.click();
+      await t.wait(350);
+      const chip = [...(player.current?.querySelectorAll<HTMLButtonElement>(".yt-speed-chip") ?? [])].find((b) => b.textContent === "1.5×") ?? null;
+      await t.move(chip, 350);
+      await t.click();
+      chip?.click();
+      await t.wait(600);
+    }
+    if (store.endTime) {
+      await t.move(player.current?.querySelector(".ex-time") ?? null, 400);
+      setEnds(true);
+      await t.wait(1000);
+    }
+    if (store.shortSkip) {
+      const key = keyWordOf(store.shortSkipKey);
+      const by = store.shortSkipSeconds;
+      const step = (by / LENGTH) * 100;
+      const words = `${by} s`;
+      await t.move([30, 30], 400);
+      t.hold(key);
+      await t.wait(250);
+      t.hold("←");
+      setAt((a) => a - step);
+      setSkip(`−${words}`);
+      await t.wait(500);
+      t.letGo("←");
+      setSkip(null);
+      await t.wait(200);
+      t.hold("→");
+      setAt((a) => a + step);
+      setSkip(`+${words}`);
+      await t.wait(500);
+      t.letGo("→");
+      t.letGo(key);
+      setSkip(null);
+      await t.wait(350);
+    }
     t.frame();
     await t.wait(400);
   };
@@ -759,20 +799,23 @@ function UtilitiesScene() {
               </span>
               {ends ? <span className="yt-end">Ends {hourWords(Date.now() + ((LENGTH - played) / rate) * 1000)}</span> : null}
               <span className="ex-grow" />
-              <SpeedControl video={video} />
+              {store.speedControl ? <SpeedControl video={video} /> : null}
               <Icon name="settings" />
             </span>
           </div>
         }
         side={
-          <div className={`ex-shorts ${shorts ? "" : "is-gone"}`.trim()}>
-            <b>Shorts</b>
-            <div>
-              {[3, 7, 5, 9, 6, 4].map(videoAt).map((v) => (
-                <img key={v.title} className="ex-thumb" src={v.picture} alt="" />
-              ))}
+          // Shorts as set: shown beside the video, or gone and the recommendations in their place.
+          store.moduleShorts ? (
+            <div className="ex-shorts">
+              <b>Shorts</b>
+              <div>
+                {[3, 7, 5, 9, 6, 4].map(videoAt).map((v) => (
+                  <img key={v.title} className="ex-thumb" src={v.picture} alt="" />
+                ))}
+              </div>
             </div>
-          </div>
+          ) : undefined
         }
       />
     </Stage>
@@ -812,12 +855,12 @@ function ExplainerScene({ id, store }: { id: ExplainerId; store: Stored }) {
     case "known":
       return <KnownScene store={store} />;
     case "panel":
-      return <PanelScene />;
+      return <PanelScene store={store} />;
     case "underline":
-      return <UnderlineScene />;
+      return <UnderlineScene store={store} />;
     case "home":
       return <HomeScene store={store} />;
     case "utilities":
-      return <UtilitiesScene />;
+      return <UtilitiesScene store={store} />;
   }
 }

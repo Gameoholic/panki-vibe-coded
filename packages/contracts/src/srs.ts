@@ -379,17 +379,15 @@ export function waitNow(type: SrsLadder, place: CardPlace): number | null {
   return waitAt(type, idx);
 }
 
-/** Spread the waits a little, so cards learned together don't all land on one morning: ±10 %, the same every time for the same answer. */
-export const FUZZ = 0.1;
-export function fuzzFactor(seed: number): number {
-  const hash = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
-  return 1 - FUZZ + (hash % 2001) / 10000;
-}
-/** When a card is next due, ms since epoch: its last answer plus the wait its place has now. Null when it never is. */
-export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number, fuzzSeed: number, fuzz: boolean): number | null {
+/**
+ * When a card is next due, ms since epoch: its last answer plus the wait its place has now, exactly. Null when it never
+ * is. (Each wait was spread ±10 % by a setting until the owner had it out, 2026-10-28: "I might add something back
+ * similar later down the line if it turns out to be a problem.")
+ */
+export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number | null {
   const wait = waitNow(type, place);
   if (wait === null) return null;
-  return Math.round(lastAt + wait * 60_000 * (fuzz ? fuzzFactor(fuzzSeed) : 1));
+  return Math.round(lastAt + wait * 60_000);
 }
 
 /**
@@ -398,7 +396,7 @@ export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number, fuzzSee
  * `DeckSettings`.
  */
 export const Settings = z.object({
-  fuzz: z.boolean(),
+  // `fuzz` (each wait spread ±10 %) went at the owner's word, 2026-10-28. A row kept of it is read by nothing.
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
   dayStartHour: z.number().int().min(0).max(23),
   /**
@@ -431,7 +429,6 @@ export const Settings = z.object({
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = {
-  fuzz: true,
   dayStartHour: 4,
   subtitleStyle: DEFAULT_SUBTITLE_STYLE,
   timeZone: "",

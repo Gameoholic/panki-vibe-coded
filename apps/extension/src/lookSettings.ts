@@ -13,6 +13,14 @@ import { z } from "zod";
  */
 export const LookKey = z.enum(["shift", "ctrl", "alt", "hover"]);
 export type LookKey = z.infer<typeof LookKey>;
+/** The keys that can be held to look a word up, and what each is called: the options page's choices, and the keycap an explainer holds. */
+export const LOOK_KEYS: readonly { id: LookKey; label: string }[] = [
+  { id: "shift", label: "Shift" },
+  { id: "ctrl", label: "Ctrl" },
+  { id: "alt", label: "Alt" },
+  { id: "hover", label: "On hover" },
+];
+export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.label ?? "Shift";
 
 /** Where pointing at a word works: every site, only the ones listed, every site but those, or nowhere. */
 export const LookWhere = z.enum(["everywhere", "only", "except", "nowhere"]);

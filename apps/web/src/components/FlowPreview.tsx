@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { DEFAULT_DECK_SETTINGS, mainAnswers, type Settings, type SrsType } from "@panki/contracts";
+import { DEFAULT_DECK_SETTINGS, mainAnswers, type SrsType } from "@panki/contracts";
 import { count } from "../words";
 import { Dropdown } from "./Dropdown";
 import { Tip } from "./Tip";
@@ -8,7 +8,6 @@ import { ASAP, forecast, journey, type JourneyStep } from "../srsPreview";
 
 type Props = {
   type: SrsType;
-  settings: Settings;
 };
 
 /** The chart's box: its size, the room under the bars for the axis words and over them for the peak, and how many last days are lit. */
@@ -72,12 +71,12 @@ const SITTING_OPTIONS: readonly { id: number; label: string }[] = [
 ];
 
 /** The live preview beside the editor: one card's journey, and how many reviews a day the type comes to, tried with a pace and a horizon picked here. */
-export function FlowPreview({ type, settings }: Props) {
+export function FlowPreview({ type }: Props) {
   const steps = useMemo(() => journey(type), [type]);
   const [newPerDay, setNewPerDay] = useState(DEFAULT_DECK_SETTINGS.newPerDay);
   const [months, setMonths] = useState(3);
   const [sittings, setSittings] = useState(1);
-  const days = useMemo(() => forecast(type, { ...settings, newPerDay }, months * MONTH_DAYS, sittings), [type, settings, newPerDay, months, sittings]);
+  const days = useMemo(() => forecast(type, { newPerDay }, months * MONTH_DAYS, sittings), [type, newPerDay, months, sittings]);
   const newOptions = NEW_CHOICES.map((n) => ({ id: n, label: `${n} new cards a day` }));
   const monthOptions = MONTH_CHOICES.map((m) => ({ id: m, label: m === 12 ? "after a year" : m === 1 ? "after a month" : `after ${m} months` }));
   const horizon = months === 12 ? "year 1" : `month ${months}`;

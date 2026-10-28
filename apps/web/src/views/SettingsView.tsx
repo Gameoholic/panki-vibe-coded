@@ -1005,7 +1005,7 @@ function DictionariesPanel() {
 }
 
 /**
- * The theme first, kept on this device; then General: whether waits are spread, when the day turns over and in which
+ * The theme first, kept on this device; then General: when the day turns over and in which
  * time zone, and the language videos are transcribed in. How a review runs is in each deck's own settings. Then
  * Immersion: whether watching is kept. Each change is saved a moment after
  * it's made. Then for an admin alone, the Admin tab with what every account shares (how transcribing runs, the keys, the
@@ -1084,16 +1084,10 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
             General
           </h2>
           <Setting
-            id="fuzz"
-            label="Spread the waits a little"
-            control={<Toggle id="setting-fuzz" says={{ on: "±10 %", off: "Exact" }} on={current.fuzz} onChange={(fuzz) => patch({ fuzz })} />}
-            why={current.fuzz ? "Each wait comes out up to 10% shorter or longer, so cards learned together don't all come back at the same time." : "Every wait is exactly as long as its stage says."}
-          />
-          <Setting
             id="dayStartHour"
             label="The day starts at"
             control={<NumberField id="setting-day-start" label="Hour the day starts" value={current.dayStartHour} min={0} max={23} suffix=":00" onChange={(dayStartHour) => patch({ dayStartHour })} />}
-            why={`A review before ${clock(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit start over at ${clock(current.dayStartHour)}.`}
+            why={`A review before ${clock(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit reset at ${clock(current.dayStartHour)}.`}
           />
           {/* Never empty once the account has opened Panki (App writes the device's zone); shown as this device's until that write lands. */}
           <Setting

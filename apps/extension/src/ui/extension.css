@@ -3556,14 +3556,6 @@
 .ex-shorts {
   display: grid;
   gap: 10px;
-  transition:
-    opacity 0.5s,
-    transform 0.5s;
-  transform-origin: top;
-}
-.ex-shorts.is-gone {
-  opacity: 0;
-  transform: scaleY(0.5);
 }
 .ex-shorts > b {
   font: 800 18px var(--font);
@@ -3625,6 +3617,17 @@
 }
 .ex-shelves.is-on {
   max-height: 340px;
+}
+/* Continue watching and Saved for later side by side, each in its half: the lead's picture as narrow as the real home
+   draws it in a window this size, so the words beside it keep to their own shelf. */
+.yt-home.ex-shelves {
+  --yh-small: 132px;
+  --yh-gap: 12px;
+}
+/* Two halves whatever the options page's own width: the page in the picture is always the same size. */
+.ex-shelves .yh-shelves {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 20px 32px;
 }
 .ex-shelf {
   opacity: 0;
