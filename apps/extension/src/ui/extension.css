@@ -2945,3 +2945,737 @@
   touch-action: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
 }
+
+/* ---------- What a panel's feature is, shown (options/Explainer.tsx, explainerScenes.tsx) ----------
+   A (?) beside the panel's title; its window holds a browser with a page in it, the feature being used there. The page
+   is drawn at a real page's size (CANVAS) and scaled to the window, so Panki's components keep their own sizes. */
+.explain-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.explain {
+  position: relative;
+  display: inline-flex;
+  z-index: 20;
+}
+.btn.explain-q {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font: 800 12px/1 var(--font);
+  cursor: help;
+}
+.btn.explain-q:hover,
+.btn.explain-q[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.explain-window {
+  position: absolute;
+  left: -12px;
+  top: calc(100% + 10px);
+  width: min(760px, calc(100vw - 48px));
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--theater) 30%, transparent);
+  animation: explain-in 0.16s ease-out;
+}
+@keyframes explain-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.explain-stage {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.explain-chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--surface-2);
+}
+.explain-dots {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.explain-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.explain-dots i:nth-child(1) {
+  background: var(--mark-red);
+}
+.explain-dots i:nth-child(2) {
+  background: var(--mark-yellow);
+}
+.explain-dots i:nth-child(3) {
+  background: var(--mark-green);
+}
+.explain-tab {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 34%;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9px 9px 0 0;
+  background: var(--surface);
+  font: 600 12px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.explain-tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.explain-favicon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+}
+.explain-favicon.is-news {
+  background: var(--mark-red);
+}
+.explain-favicon.is-video {
+  background: var(--mark-red);
+  border-radius: 4px;
+}
+.explain-address {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 500 12px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.explain-lock {
+  flex: none;
+  width: 9px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.6;
+}
+.explain-view {
+  position: relative;
+  overflow: hidden;
+  background: var(--page);
+}
+/* The camera leaning in on the pointer, a little and slowly (the owner, 2026-10-28: "quite subtle and smooth"). */
+.explain-camera {
+  position: absolute;
+  inset: 0;
+  transition:
+    transform 1.6s cubic-bezier(0.4, 0.1, 0.2, 1),
+    transform-origin 1.6s cubic-bezier(0.4, 0.1, 0.2, 1);
+}
+.explain-page {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  font-family: var(--font);
+}
+.explain-pointer {
+  position: absolute;
+  z-index: 60;
+  width: 18px;
+  pointer-events: none;
+  transition:
+    left 0.75s cubic-bezier(0.45, 0.05, 0.25, 1),
+    top 0.75s cubic-bezier(0.45, 0.05, 0.25, 1),
+    transform 0.12s;
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--theater) 35%, transparent));
+}
+.explain-pointer svg {
+  display: block;
+  width: 100%;
+}
+.explain-pointer path {
+  fill: var(--theater-ink);
+  stroke: var(--theater);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+.explain-pointer.is-down {
+  transform: scale(0.86);
+}
+.explain-ripple {
+  position: absolute;
+  z-index: 59;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: explain-ripple 0.55s ease-out forwards;
+}
+@keyframes explain-ripple {
+  from {
+    transform: scale(0.2);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+/* The keys being held, at the window's corner, as the review draws keys (app.css → .key). */
+.explain-keys {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 70;
+  display: flex;
+  gap: 6px;
+}
+.explain-keys > span {
+  display: inline-flex;
+  animation: explain-in 0.16s ease-out;
+}
+.explain-keys .key {
+  min-width: 34px;
+  height: 30px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--theater) 25%, transparent);
+  transition:
+    transform 0.12s,
+    border-bottom-width 0.12s,
+    background 0.12s;
+}
+.explain-keys .is-down .key {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .explain-camera,
+  .explain-pointer {
+    transition: none;
+  }
+}
+
+/* A made-up picture where a real one would be: a thumbnail, a photo. */
+.ex-thumb,
+.ex-photo {
+  display: block;
+  background: linear-gradient(135deg, var(--mark-blue), var(--mark-violet));
+}
+.ex-thumb.is-1 {
+  background: linear-gradient(135deg, var(--mark-orange), var(--mark-pink));
+}
+.ex-thumb.is-2 {
+  background: linear-gradient(135deg, var(--mark-cyan), var(--mark-blue));
+}
+.ex-thumb.is-3 {
+  background: linear-gradient(135deg, var(--mark-yellow), var(--mark-orange));
+}
+.ex-thumb.is-4 {
+  background: linear-gradient(135deg, var(--mark-violet), var(--mark-pink));
+}
+.ex-thumb.is-5 {
+  background: linear-gradient(135deg, var(--mark-green), var(--mark-cyan));
+}
+.ex-thumb.is-6 {
+  background: linear-gradient(135deg, var(--mark-blue), var(--theater));
+}
+.ex-photo.is-cafe {
+  background:
+    radial-gradient(ellipse at 28% 76%, color-mix(in srgb, var(--mark-yellow) 30%, var(--page)) 0 9%, transparent 10%),
+    linear-gradient(to top, color-mix(in srgb, var(--mark-orange) 35%, var(--theater)) 0 26%, transparent 26%),
+    radial-gradient(circle at 74% 30%, color-mix(in srgb, var(--mark-yellow) 45%, var(--page)) 0 11%, transparent 12%),
+    linear-gradient(160deg, color-mix(in srgb, var(--mark-orange) 45%, var(--page)), color-mix(in srgb, var(--mark-orange) 60%, var(--theater)));
+}
+.ex-photo.is-city {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, color-mix(in srgb, var(--mark-violet) 25%, var(--theater)) 0 24%, transparent 24%),
+    linear-gradient(to top, transparent 22%, color-mix(in srgb, var(--mark-violet) 35%, var(--theater)) 22% 42%, transparent 42%) 8% 0 / 18% 100% no-repeat,
+    linear-gradient(to top, transparent 22%, color-mix(in srgb, var(--mark-violet) 30%, var(--theater)) 22% 54%, transparent 54%) 34% 0 / 14% 100% no-repeat,
+    linear-gradient(to top, transparent 22%, color-mix(in srgb, var(--mark-violet) 35%, var(--theater)) 22% 47%, transparent 47%) 80% 0 / 20% 100% no-repeat,
+    radial-gradient(circle at 62% 46%, color-mix(in srgb, var(--mark-yellow) 60%, var(--page)) 0 8%, transparent 9%),
+    linear-gradient(color-mix(in srgb, var(--mark-orange) 55%, var(--page)), color-mix(in srgb, var(--mark-pink) 70%, var(--theater)) 58%, color-mix(in srgb, var(--mark-violet) 55%, var(--theater)));
+}
+
+/* A news site, in its own colours */
+.ex-news {
+  position: absolute;
+  inset: 0;
+  background: var(--page);
+  color: var(--page-ink);
+}
+.ex-news-top {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 64px;
+  padding: 0 44px;
+  border-bottom: 1px solid var(--page-line);
+}
+.ex-news-logo {
+  font: 800 25px var(--font-ja, var(--font));
+  white-space: nowrap;
+}
+.ex-news-logo b {
+  color: var(--mark-red);
+}
+.ex-news-nav {
+  display: flex;
+  gap: 22px;
+  color: var(--page-muted);
+  font: 600 15px var(--font-ja, var(--font));
+  white-space: nowrap;
+}
+.ex-news-nav .is-on {
+  color: var(--page-ink);
+  box-shadow: inset 0 -3px 0 var(--mark-red);
+  padding-bottom: 6px;
+}
+.ex-news-search {
+  flex: none;
+  width: 160px;
+  height: 32px;
+  margin-left: auto;
+  border-radius: 16px;
+  background: var(--page-soft);
+}
+.ex-news-main {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 40px;
+  padding: 34px 44px;
+}
+.ex-news-kicker {
+  color: var(--mark-red);
+  font: 700 14px var(--font-ja, var(--font));
+}
+.ex-news-h {
+  margin: 8px 0;
+  font: 700 36px/1.35 var(--font-ja, var(--font));
+}
+.ex-news-by {
+  margin-bottom: 20px;
+  color: var(--page-muted);
+  font: 500 14px var(--font);
+}
+.ex-news-p {
+  margin: 0 0 14px;
+  font: 400 21px/1.95 var(--font-ja, var(--font));
+}
+.ex-word {
+  border-radius: 4px;
+  transition: background 0.35s;
+}
+.ex-news-fig {
+  margin: 0;
+}
+.ex-news-fig .ex-photo {
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+}
+.ex-news-fig figcaption {
+  margin-top: 8px;
+  color: var(--page-muted);
+  font: 400 13px var(--font-ja, var(--font));
+}
+
+/* A video site, dark, in its own colours: what Panki draws there reads them as it does on the site (--yt-spec-*). */
+.ex-yt {
+  position: absolute;
+  inset: 0;
+  background: var(--site-dark);
+  color: var(--site-dark-ink);
+  --yt-spec-text-primary: var(--site-dark-ink);
+  --yt-spec-text-secondary: var(--site-dark-muted);
+  --yt-spec-badge-chip-background: var(--site-dark-raised);
+  --yt-spec-10-percent-layer: var(--site-dark-line);
+  --yt-spec-base-background: var(--site-dark);
+}
+.ex-yt-top {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 56px;
+  padding: 0 24px;
+}
+.ex-yt-menu {
+  flex: none;
+  width: 22px;
+  height: 15px;
+  background: repeating-linear-gradient(var(--site-dark-ink) 0 2px, transparent 2px 6.5px);
+  opacity: 0.85;
+}
+.ex-yt-mark {
+  flex: none;
+  width: 90px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--site-dark-raised);
+}
+.ex-yt-search {
+  flex: 0 1 420px;
+  height: 38px;
+  margin-left: 80px;
+  border: 1px solid var(--site-dark-line);
+  border-radius: 19px;
+  background: var(--site-dark);
+}
+.ex-yt-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--mark-blue), var(--mark-violet));
+}
+.ex-pill {
+  margin-left: auto;
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
+}
+.ex-pill.is-on {
+  opacity: 1;
+  transform: none;
+}
+.ex-pill + .ex-yt-avatar {
+  margin-left: 14px;
+}
+.ex-yt-left {
+  position: absolute;
+  left: 24px;
+  top: 64px;
+  width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ex-video {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: var(--theater);
+}
+.ex-video.is-paused .ex-photo {
+  filter: brightness(0.75);
+}
+.ex-yt-title {
+  margin: 0;
+  font: 700 20px/1.35 var(--font-ja, var(--font));
+}
+.ex-yt-channel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ex-yt-face {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--mark-orange), var(--mark-pink));
+}
+.ex-yt-name {
+  display: grid;
+  font: 700 15px var(--font);
+}
+.ex-yt-name small {
+  color: var(--site-dark-muted);
+  font: 500 12px var(--font);
+}
+.ex-yt-sub {
+  margin-left: 16px;
+  padding: 9px 16px;
+  border-radius: 18px;
+  background: var(--site-dark-ink);
+  color: var(--site-dark);
+  font: 700 14px var(--font);
+}
+.ex-yt-side {
+  position: absolute;
+  right: 24px;
+  top: 64px;
+  width: 360px;
+  display: grid;
+  gap: 10px;
+}
+.ex-rec {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  gap: 10px;
+}
+.ex-rec .ex-thumb {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+}
+.ex-rec-words {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.ex-rec-words b {
+  font: 600 14px/1.35 var(--font-ja, var(--font));
+}
+.ex-rec-words small {
+  color: var(--site-dark-muted);
+  font: 500 12px var(--font);
+}
+/* The Panki panel on that page, as the video page puts it under the player; and its drawer beside, sliding in. */
+.ex-strip {
+  transition:
+    opacity 0.45s,
+    transform 0.45s;
+}
+.ex-strip.is-away {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.ex-drawer {
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  width: 380px;
+  transform: translateX(110%);
+  transition: transform 0.45s cubic-bezier(0.3, 0.1, 0.2, 1);
+}
+.ex-drawer.is-open {
+  transform: none;
+}
+.ex-over {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8%;
+  display: flex;
+  justify-content: center;
+}
+.ex-over .sub-band {
+  margin-left: 0;
+  transform: none;
+}
+/* The player's own controls, and the speed button and end time among them */
+.ex-player {
+  position: absolute;
+  inset: 0;
+  --theater-ink: var(--site-dark-ink);
+}
+.ex-progress {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--theater-ink) 30%, transparent);
+}
+.ex-progress i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--mark-red);
+}
+.ex-progress b {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin: -6.5px 0 0 -6.5px;
+  border-radius: 50%;
+  background: var(--mark-red);
+}
+.ex-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 44px;
+  padding: 0 16px;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--theater) 60%, transparent));
+  color: var(--theater-ink);
+  font: 400 13px "Roboto", "Arial", var(--font);
+}
+.ex-controls > .icon {
+  width: 20px;
+  height: 20px;
+}
+.ex-grow {
+  flex: 1;
+}
+.ex-skip {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theater) 55%, transparent);
+  color: var(--theater-ink);
+  font: 800 22px var(--font);
+}
+.ex-shorts {
+  display: grid;
+  gap: 10px;
+  transition:
+    opacity 0.5s,
+    transform 0.5s;
+  transform-origin: top;
+}
+.ex-shorts.is-gone {
+  opacity: 0;
+  transform: scaleY(0.5);
+}
+.ex-shorts > b {
+  font: 800 18px var(--font);
+}
+.ex-shorts > div {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.ex-shorts .ex-thumb {
+  aspect-ratio: 9 / 16;
+  border-radius: 10px;
+}
+/* YouTube's home: its rail, its chips, Panki's shelves over the feed, and the feed */
+.ex-rail {
+  position: absolute;
+  left: 0;
+  top: 64px;
+  width: 72px;
+  display: grid;
+  justify-items: center;
+  gap: 26px;
+}
+.ex-rail i {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--site-dark-raised);
+}
+.ex-feed {
+  position: absolute;
+  left: 88px;
+  right: 24px;
+  top: 56px;
+  bottom: 0;
+  overflow: hidden;
+}
+.ex-chips {
+  display: flex;
+  gap: 10px;
+  height: 48px;
+  align-items: center;
+  font: 600 14px var(--font-ja, var(--font));
+}
+.ex-chips span {
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--site-dark-raised);
+  white-space: nowrap;
+}
+.ex-chips .is-on {
+  background: var(--site-dark-ink);
+  color: var(--site-dark);
+}
+.ex-shelves {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.7s cubic-bezier(0.3, 0.1, 0.2, 1);
+}
+.ex-shelves.is-on {
+  max-height: 340px;
+}
+.ex-shelf {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition:
+    opacity 0.45s,
+    transform 0.45s;
+}
+.ex-shelf.is-on {
+  opacity: 1;
+  transform: none;
+}
+.yh-lead-pic .ex-thumb,
+.yc-thumb .ex-thumb {
+  position: absolute;
+  inset: 0;
+}
+.yc.ex-new {
+  animation: explain-in 0.3s ease-out;
+}
+.ex-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px 16px;
+  margin-top: 16px;
+}
+.ex-card {
+  display: grid;
+  gap: 8px;
+}
+.ex-card-pic {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+}
+.ex-card-pic .ex-thumb {
+  position: absolute;
+  inset: 0;
+}
+.ex-card-pic .yt-save.is-on-card {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+}
+.ex-card-words {
+  display: grid;
+  gap: 4px;
+}
+.ex-card-words b {
+  font: 600 15px/1.35 var(--font-ja, var(--font));
+}
+.ex-card-words small {
+  color: var(--site-dark-muted);
+  font: 500 12px var(--font);
+}

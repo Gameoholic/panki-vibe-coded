@@ -2580,6 +2580,7 @@ mark.sub-mark {
 .review-undo-end .key,
 .key-field .key,
 .door-label .key,
+.explain-keys .key,
 .media-key {
   display: inline-grid;
   place-items: center;

@@ -90,6 +90,18 @@
      2026-10-20): amber with dark ink, the same whatever the theme, as a sign is. */
   --flag: #f2c230;
   --flag-ink: #12131a;
+  /* The pages the extension's explainers play on (options/explainerScenes.tsx), other people's sites in their own
+     colours whatever the theme: a news site's white paper, and a video site's dark (its picture stays --theater). */
+  --page: #ffffff;
+  --page-ink: #1d2027;
+  --page-muted: #6d7383;
+  --page-line: #e6e8ee;
+  --page-soft: #f3f4f7;
+  --site-dark: #0f0f0f;
+  --site-dark-raised: #272727;
+  --site-dark-line: #303030;
+  --site-dark-ink: #f1f1f1;
+  --site-dark-muted: #aaaaaa;
   --radius: 12px;
   --radius-sm: 10px;
   --font: "Urbanist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

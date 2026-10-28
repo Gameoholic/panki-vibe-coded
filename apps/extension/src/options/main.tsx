@@ -24,6 +24,7 @@ import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWo
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
+import { ExplainedTitle } from "./explainerScenes";
 import { PopupLayoutPanel } from "./PopupLayout";
 import { PillParts } from "./PillPanel";
 import { SeekBarPanel } from "./SeekBar";
@@ -259,9 +260,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
   const off = !store.modulePanel;
   return (
     <section className="panel" aria-labelledby="transcribing-title">
-      <h2 id="transcribing-title" className="panel-title">
-        Panki panel
-      </h2>
+      <ExplainedTitle id="panel" titleId="transcribing-title" store={store} />
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
       <Setting
         id="transcribe-over-video"
@@ -389,9 +388,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
   return (
     <section className="panel" aria-labelledby="current-word-title">
       {/* The two places, named as everywhere else (2026-10-28): the Panki panel under the player, and Panki subtitles on the video. */}
-      <h2 id="current-word-title" className="panel-title">
-        Spoken word underline
-      </h2>
+      <ExplainedTitle id="underline" titleId="current-word-title" store={store} />
       <Setting id="mark-under" label="Panki panel" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
       <Setting
         id="mark-over"
@@ -422,9 +419,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
   );
   return (
     <section className="panel" aria-labelledby="home-title">
-      <h2 id="home-title" className="panel-title">
-        YouTube home add-ons
-      </h2>
+      <ExplainedTitle id="home" titleId="home-title" store={store} />
       <Setting id="module-home" label="YouTube home add-ons" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
@@ -445,9 +440,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
 function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="utilities-title">
-      <h2 id="utilities-title" className="panel-title">
-        YouTube utilities
-      </h2>
+      <ExplainedTitle id="utilities" titleId="utilities-title" store={store} />
       {/* Shown or hidden as its neighbours say it (2026-10-28; "Hide Shorts", On / Off, until then), Shown to begin with. */}
       <Setting id="shorts" label="Shorts" control={<Toggle id="shorts-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleShorts} onChange={(moduleShorts) => void writeStore({ moduleShorts }).then(onChanged)} />} />
       <Setting

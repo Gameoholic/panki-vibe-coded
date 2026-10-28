@@ -9,7 +9,7 @@ import { useUndoable } from "@web/hooks/useUndoable";
 import { SAVE_WORDS, type SaveState } from "@web/unsaved";
 import { listWords } from "@web/words";
 import { createLooker, listenOnPage, type Looker, type View } from "../capture/look";
-import type { CalledCard, DataKind } from "@panki/contracts";
+import type { DataKind } from "@panki/contracts";
 import { DATA_KINDS, kindsIn } from "../dataKinds";
 import { shownName, type DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
@@ -19,11 +19,12 @@ import type { LookKey } from "../lookSettings";
 import { FREQUENCY_OPTIONS, MEANINGS_ABOUT, MEANINGS_NAME, MEANINGS_OPTIONS, PART_ABOUT, PART_NAMES, READING_OPTIONS, SHOWN_OR_HIDDEN, SHOW_OPTIONS, TAG_OPTIONS, isNamedPart } from "../popupKinds";
 import { dictionaryOf, moveBodyPart, popupLayoutOf, withMeanings, type BodyPart, type PartShow, type PopupLayout } from "../popupLayout";
 import { writeStore } from "../storage";
-import { Lookup, LookupBody, type CardsSource } from "../ui/Lookup";
+import { Lookup, LookupBody } from "../ui/Lookup";
 import { tintOf } from "../capture/known";
 import { paintCss, type MarkPaint } from "../seekLook";
 import { KindChips } from "./DataKinds";
 import { pointWords } from "./Dictionary";
+import { EXAMPLE_CARDS, IN_DECKS } from "./examples";
 
 /** What this says when something's wrong. One home. */
 const MESSAGES = {
@@ -36,23 +37,7 @@ const MESSAGES = {
  * word read more than one way.
  */
 const TRY_TEXT = "昨日、駅の近くで新しい喫茶店を見つけました。友達と一緒に入ってみたら、ケーキがとても美味しかったです。";
-/**
- * The word of those sentences that stands for one already in the decks (the owner, 2026-10-28: "so that I can see it in
- * green… and the 'already in your deck' message"): tinted as Highlight globally tints a page while it's on, and on the
- * popup said to be a card of an example deck, whose Open in Panki opens nothing. Never one of the owner's own cards.
- */
-const IN_DECKS: CalledCard = {
-  cardId: "00000000-0000-4000-8000-000000000001",
-  deckId: "00000000-0000-4000-8000-000000000002",
-  deck: "Example deck",
-  words: "喫茶店",
-  apart: [],
-};
-const EXAMPLE_CARDS: CardsSource = {
-  ask: async (words) => (words.includes(IN_DECKS.words) ? [IN_DECKS] : []),
-  open: () => undefined,
-};
-/** The sentences either side of that word. */
+/** The sentences either side of the word that stands for one already in the decks (`examples.ts`), tinted as Highlight globally tints a page while it's on. */
 const [tryBefore, tryAfter] = ((at) => [TRY_TEXT.slice(0, at), TRY_TEXT.slice(at + IN_DECKS.words.length)])(TRY_TEXT.indexOf(IN_DECKS.words));
 /** On the popup being laid out until a word of those sentences is pointed at: one with endings on it first, so the endings have something to show. */
 const SAMPLES = ["見つけました", "入ってみたら", "喫茶店", "昨日"];
@@ -126,7 +111,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, known, on
         <Editor kept={kept} lookKey={lookKey} dictionaries={dictionaries} known={known} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
-          Pop-up layout
+          Pop-up dictionary layout
         </h2>
       )}
       {failure ? (
@@ -343,7 +328,7 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
     <>
       <div className="popup-head">
         <h2 id="popup-layout-title" className="panel-title">
-          Pop-up layout
+          Pop-up dictionary layout
         </h2>
         <span id="popup-layout-saved" className={`saved is-${state}`} data-state={state} role="status">
           <Icon name="check" />
