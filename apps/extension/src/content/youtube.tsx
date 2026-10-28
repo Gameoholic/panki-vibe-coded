@@ -135,7 +135,7 @@ const RIGHT_CONTROLS = "#movie_player .ytp-right-controls";
 const TIME_DISPLAY = "#movie_player .ytp-time-display";
 /** Where the speed button stands: one of the player's controls, as tall as they are, its row of speeds opening above it. The end time stands the same way. */
 const AMONG_CONTROLS = "display: inline-flex; align-items: center; height: 100%; vertical-align: top; position: relative;";
-/** How often the transcriber looks at the viewer's player, and the line at the video's time. */
+/** How often the transcriber looks at the viewer's player. The lines are looked at every frame (`followLines`). */
 const FOLLOW_MS = 250;
 
 /** One value a screen can follow. */
@@ -2152,7 +2152,17 @@ setInterval(look, 1000);
 // The worker asks Panki about a newer build every hour; a page left open in front learns what it found within minutes
 // (a question to the worker alone, nothing sent anywhere).
 setInterval(() => void readUpdate(), 5 * 60_000);
-// Transcribing follows the viewer's player, looked at a few times a second; the line follows the video's time the same way.
+// The lines follow the video's time every frame the page is drawn, so a line comes up the moment its first word is said
+// and gives way the moment the next one's is (the owner, 2026-10-28: looked at four times a second with the rest below,
+// a line came up to a quarter of a second late). Nothing is drawn again unless the line changes (`lineSource.ts` →
+// `refresh`).
+function followLines() {
+  lines.refresh();
+  requestAnimationFrame(followLines);
+}
+requestAnimationFrame(followLines);
+// Transcribing follows the viewer's player, looked at a few times a second; the lines again with it, for a page whose
+// frames aren't drawn (a tab behind another).
 setInterval(() => {
   transcriber.tick(video);
   lines.refresh();

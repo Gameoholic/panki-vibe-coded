@@ -92,7 +92,7 @@ export function createLineSource(captions: Captions, transcriber: Transcriber, n
   const same = (a: LinesView, b: LinesView) =>
     a.mode === b.mode && a.lines === b.lines && a.current?.id === b.current?.id && a.current === b.current && a.writing === b.writing && a.saying === b.saying && a.widest === b.widest;
 
-  /** Looks again, and tells whoever follows when anything changed. Called when either source changes, and a few times a second for the video's own time. */
+  /** Looks again, and tells whoever follows when anything changed. Called when either source changes, and every frame for the video's own time. */
   function refresh() {
     const next = compute();
     if (same(view, next)) return;
