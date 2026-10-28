@@ -41,6 +41,8 @@ export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; loc
 
 /** How far from its word the pointer may go before a popup opened by hover closes: the popup stands just under the word, and the pointer crosses the gap to it. */
 const HOVER_MARGIN = 24;
+/** The key that keeps a popup opened by hover open, as `KeyboardEvent.key` names it and the options page says it. */
+export const HOVER_KEEP = "Shift";
 
 /** Where the pointer is on the screen. */
 type At = { x: number; y: number };
@@ -301,6 +303,13 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   const onDown = (e: KeyboardEvent) => {
     if (inPanki(e)) return;
     if (e.key === "Escape") looker.close();
+    // A pop-up opened by hover is kept open by Shift, wherever it is: on Panki's line a click is a pick (the owner,
+    // 2026-10-28: "clicking it opens the add to deck thing… if I press Shift then it stays open").
+    const view = looker.view();
+    if (!e.repeat && e.key === HOVER_KEEP && view?.hovered && !view.locked) {
+      looker.lock();
+      return;
+    }
     const key = lastKey ?? look.key(null);
     // Where looking up is off, the pointer's last place is none (`onMove`); Panki's line sets its own only while it's on.
     if (!e.repeat && isKey(key, e.key) && last) looker.point(last(), { x, y });
