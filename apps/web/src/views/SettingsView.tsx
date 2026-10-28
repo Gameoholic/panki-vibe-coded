@@ -50,7 +50,7 @@ import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
-import { count, dateWords, dollarWords, durationWords } from "../words";
+import { VIDEO_TRACKING_WHY, count, dateWords, dollarWords, durationWords } from "../words";
 
 type Props = {
   settings: Settings;
@@ -125,30 +125,12 @@ function zoneOptions(saved: string): { id: string; label: string; note?: string 
 /**
  * Whether the account's videos are being recorded, said and not changed: Video tracking is the extension's to switch,
  * the extension being what records (the owner, 2026-10-28: "it's not changeable and it's synced to the extension
- * setting and it just displays the status"). Where it's switched is said under it.
+ * setting and it just displays the status"), where it's switched said under it. Then all that's kept of the videos
+ * watched, in one line, and a way to forget it, asked in place with words to type (a Watch history panel of its own,
+ * on the Account tab, until the owner had it in here, 2026-10-28). The rows are hidden on Panki with the time they
+ * went, never destroyed; the watch time and Continue watching start over.
  */
 function DataTrackingPanel({ on }: { on: boolean }) {
-  return (
-    <section className="panel" aria-labelledby="data-tracking-title">
-      <h2 id="data-tracking-title" className="panel-title">
-        Data tracking
-      </h2>
-      <Setting
-        id="videoTracking"
-        label="Video tracking"
-        control={<span className="setting-value">{on ? "On" : "Off"}</span>}
-        why="Set in the extension's settings, on its YouTube tab."
-      />
-    </section>
-  );
-}
-
-/**
- * All that's kept of the videos watched, in one line, and a way to forget it, asked in place first, with words to type
- * since 2026-10-28 (on the Account tab until then). The rows are hidden on Panki with the time they went, never
- * destroyed; the watch time and Continue watching start over.
- */
-function WatchHistoryPanel() {
   const [history, setHistory] = useState<WatchHistory | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -184,10 +166,16 @@ function WatchHistoryPanel() {
 
   const kept = history !== null && history.videos > 0;
   return (
-    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="watch-history-title">
-      <h2 id="watch-history-title" className="panel-title">
-        Watch history
+    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="data-tracking-title">
+      <h2 id="data-tracking-title" className="panel-title">
+        Data tracking
       </h2>
+      <Setting
+        id="videoTracking"
+        label="Video tracking"
+        control={<Toggle id="setting-video-tracking" icon="link" says={{ on: "On · Linked to the extension", off: "Off · Linked to the extension" }} on={on} disabled onChange={() => undefined} />}
+        why={VIDEO_TRACKING_WHY}
+      />
       {history ? (
         <p className="session-who">
           {kept ? `${count(history.videos, "video", "videos")} · ${durationWords(history.ms / 1000)}${history.since === null ? "" : ` since ${dateWords(history.since)}`}` : "Nothing kept."}
@@ -1142,7 +1130,6 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
         <DataTrackingPanel on={current.videoTracking} />
-        <WatchHistoryPanel />
       </div>
 
       {me.user.admin ? (

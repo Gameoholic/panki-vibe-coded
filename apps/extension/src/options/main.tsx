@@ -12,6 +12,7 @@ import { Form } from "@web/components/Form";
 import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Ask } from "@web/components/Ask";
+import { VIDEO_TRACKING_WHY } from "@web/words";
 import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
@@ -333,7 +334,7 @@ function VideoTracking({ door }: { door: Door }) {
             onChange={(next) => (next ? void change(true) : setAsking(true))}
           />
         }
-        why="Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats use it."
+        why={VIDEO_TRACKING_WHY}
       />
       {asking ? (
         <Ask
@@ -352,7 +353,7 @@ function VideoTracking({ door }: { door: Door }) {
               <div>
                 <h3>What stays</h3>
                 <ul>
-                  <li>Everything already recorded is kept. To forget it, use Watch history in Panki&apos;s Settings → Extension.</li>
+                  <li>Everything already recorded is kept. To forget it, use Forget my watch history in Panki&apos;s Settings → Extension.</li>
                   <li>Turning it on again carries on from there.</li>
                 </ul>
               </div>

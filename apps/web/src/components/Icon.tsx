@@ -37,15 +37,17 @@ const ICONS = {
   full: ["M4 9V4h5", "M20 9V4h-5", "M4 15v5h5", "M20 15v5h-5"],
   unfull: ["M9 4v5H4", "M15 4v5h5", "M9 20v-5H4", "M15 20v-5h5"],
   out: ["M14 4h6v6", "M20 4l-9 9", "M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"],
+  /** Two links of a chain: a setting set somewhere else and shown here as it stands there (Video tracking in Panki's Settings, the extension's). */
+  link: ["M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5", "M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"],
   /** A clock: where a video was stopped, on its seek bar and in Continue watching. */
   clock: ["M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z", "M12 7v5l3 2"],
   /** A screen: a video watched, the immersion tiles. */
   tv: ["M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M9 21h6", "M12 18v3"],
   /**
-   * Time spent, by what on: a clock at the foot of a screen (time watched) or of a card (time reviewing). The pill's
+   * Time spent, by what on: a clock at the foot of a video, its play sign on it (time watched), or of a card (time reviewing). The pill's
    * two times, told apart at a glance with the clock the same in both (the owner, 2026-10-28).
    */
-  watchTime: ["M3 3h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z", "M8 12v4", "M6 16h4", "M17.5 13a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9z", "M17.5 15.5v2l1.5 1"],
+  watchTime: ["M4 3h8a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M6.5 5.5v4l3.5-2z", "M17.5 13a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9z", "M17.5 15.5v2l1.5 1"],
   reviewTime: ["M3 2h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z", "M5 6h4", "M5 9h3", "M17.5 13a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9z", "M17.5 15.5v2l1.5 1"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],

@@ -1,3 +1,10 @@
+/**
+ * What Video tracking does, said under it in the extension, where it's switched, and in Panki's Settings, where it's
+ * shown: the same words in both (the owner, 2026-10-28: "read exactly like the extension setting one").
+ */
+export const VIDEO_TRACKING_WHY =
+  "Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats use it.";
+
 /** "1 card", "2 cards", "212,345 words": every count the owner reads is phrased here. */
 export function count(n: number, one: string, many: string) {
   return `${n.toLocaleString("en")} ${n === 1 ? one : many}`;

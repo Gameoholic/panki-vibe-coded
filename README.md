@@ -7,8 +7,7 @@ pm2 restart panki-api
 ```
 
 
-
-- big feature / epic: LLM support for sentence translation and/or correction "touch-up"
+- big feature / epic: LLM support for sentence translation and/or correction "touch-up". Or maybe we translate the videos at the same way as transcirption? as an admin toggle?
 
 - Netflix / Jellyfin Support
 - Fun games for memorization and learning including the video clips

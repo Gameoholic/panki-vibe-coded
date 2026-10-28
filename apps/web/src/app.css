@@ -2872,10 +2872,6 @@ mark.sub-mark {
 .setting-label + * {
   margin-left: auto;
 }
-/* A setting shown, not set here: its value in words where a control would stand (Data tracking's Video tracking). */
-.setting-value {
-  font-weight: 700;
-}
 .setting-why {
   margin: 0;
   font-size: 13px;
