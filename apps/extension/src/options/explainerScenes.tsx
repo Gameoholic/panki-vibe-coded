@@ -29,6 +29,14 @@ import thumbHiroyuki from "./thumbs/I6mScxP5UMA.jpg";
 import thumbOnePiece from "./thumbs/06PeLyzcnJk.jpg";
 import thumbHajime from "./thumbs/gzESogpdOfg.jpg";
 import thumbSplatoon from "./thumbs/pq5CscA1Anc.jpg";
+import faceHikakinGames from "./thumbs/channel-hikakingames.jpg";
+import faceGuardman from "./thumbs/channel-guardman.jpg";
+import faceJarujaru from "./thumbs/channel-jarujaru.jpg";
+import faceHikakinClip from "./thumbs/channel-hikakinclip.jpg";
+import faceViolinSamurai from "./thumbs/channel-violinsamurai.jpg";
+import faceHiroyuki from "./thumbs/channel-hiroyuki.jpg";
+import faceOnePiece from "./thumbs/channel-onepiece.jpg";
+import faceHajime from "./thumbs/channel-hajime.jpg";
 
 /**
  * What each explainer plays (`Explainer.tsx`): one entry per panel, the feature being used on a page as it really is.
@@ -275,21 +283,21 @@ const PICKED = { from: SENTENCE.indexOf(IN_DECKS.words), to: SENTENCE.indexOf(IN
 
 /**
  * Real videos for the video site, picked by the owner (2026-10-28): their thumbnails bundled with the extension, so
- * nothing is fetched from the options page; their titles and channels as YouTube gives them. The first is the one
- * being watched.
+ * nothing is fetched from the options page; their titles, channels and channels' icons as YouTube gives them. The
+ * first is the one being watched.
  */
-type Video = { picture: string; title: string; channel: string; length: string };
+type Video = { picture: string; title: string; channel: string; face: string; length: string };
 const VIDEOS: readonly Video[] = [
-  { picture: thumbMinecraft113, title: "【マインクラフト】未来のマイクラ!?やってみた！エイプリルフールアプデ！【ヒカキンのマイクラ実況 Part113】【ヒカクラ】", channel: "HikakinGames", length: "18:40" },
-  { picture: thumbMinecraft111, title: "【マインクラフト】めっちゃ遠出してみたらついにあれを発見!?!?【ヒカキンのマイクラ実況 Part111】【ヒカクラ】", channel: "HikakinGames", length: "21:07" },
-  { picture: thumbGuardman, title: "旅行中にがーどまんを雪山で下ろして置き去りにしてみたドッキリ【復讐の１週間】", channel: "Guardmanチャンネルがーどまん", length: "15:32" },
-  { picture: thumbJarujaru, title: "第一声で不採用確定させる就活生の奴", channel: "ジャルジャルアイランド JARUJARU ISLAND", length: "3:58" },
-  { picture: thumbHikakinClip, title: "やぎゅう先輩によってTikTokアカBANされるヒカキン【イナイレ・柳生先輩】", channel: "HikakinClipTV", length: "9:14" },
-  { picture: thumbViolinSamurai, title: "アメリカの警察にポケモンバトル仕掛けたら逮捕になるのか！？【バイオリニスト】", channel: "ViolinSamuraiバイオリン侍とポケモンマスターしずく社長", length: "12:26" },
-  { picture: thumbHiroyuki, title: "【ひろゆき】240円のスパチャした質問者にガチ説教するひろゆき。240円をバカにする人は成功しません【切り抜き/論破】", channel: "ひろゆきの部屋【ひろゆき, hiroyuki】切り抜き", length: "8:03" },
-  { picture: thumbOnePiece, title: "『ワンピース・オン・アイス』ナミ役 本田望結", channel: "ONE PIECE公式YouTubeチャンネル", length: "1:12" },
-  { picture: thumbHajime, title: "［戦慄］激辛ペヤングにデスソースをかけるドッキリ", channel: "はじめしゃちょー（hajime）", length: "10:48" },
-  { picture: thumbSplatoon, title: "8年前のおしり実況してみた【スプラトゥーン1】", channel: "HikakinGames", length: "16:55" },
+  { picture: thumbMinecraft113, title: "【マインクラフト】未来のマイクラ!?やってみた！エイプリルフールアプデ！【ヒカキンのマイクラ実況 Part113】【ヒカクラ】", channel: "HikakinGames", face: faceHikakinGames, length: "18:40" },
+  { picture: thumbMinecraft111, title: "【マインクラフト】めっちゃ遠出してみたらついにあれを発見!?!?【ヒカキンのマイクラ実況 Part111】【ヒカクラ】", channel: "HikakinGames", face: faceHikakinGames, length: "21:07" },
+  { picture: thumbGuardman, title: "旅行中にがーどまんを雪山で下ろして置き去りにしてみたドッキリ【復讐の１週間】", channel: "Guardmanチャンネルがーどまん", face: faceGuardman, length: "15:32" },
+  { picture: thumbJarujaru, title: "第一声で不採用確定させる就活生の奴", channel: "ジャルジャルアイランド JARUJARU ISLAND", face: faceJarujaru, length: "3:58" },
+  { picture: thumbHikakinClip, title: "やぎゅう先輩によってTikTokアカBANされるヒカキン【イナイレ・柳生先輩】", channel: "HikakinClipTV", face: faceHikakinClip, length: "9:14" },
+  { picture: thumbViolinSamurai, title: "アメリカの警察にポケモンバトル仕掛けたら逮捕になるのか！？【バイオリニスト】", channel: "ViolinSamuraiバイオリン侍とポケモンマスターしずく社長", face: faceViolinSamurai, length: "12:26" },
+  { picture: thumbHiroyuki, title: "【ひろゆき】240円のスパチャした質問者にガチ説教するひろゆき。240円をバカにする人は成功しません【切り抜き/論破】", channel: "ひろゆきの部屋【ひろゆき, hiroyuki】切り抜き", face: faceHiroyuki, length: "8:03" },
+  { picture: thumbOnePiece, title: "『ワンピース・オン・アイス』ナミ役 本田望結", channel: "ONE PIECE公式YouTubeチャンネル", face: faceOnePiece, length: "1:12" },
+  { picture: thumbHajime, title: "［戦慄］激辛ペヤングにデスソースをかけるドッキリ", channel: "はじめしゃちょー（hajime）", face: faceHajime, length: "10:48" },
+  { picture: thumbSplatoon, title: "8年前のおしり実況してみた【スプラトゥーン1】", channel: "HikakinGames", face: faceHikakinGames, length: "16:55" },
 ];
 const videoAt = (i: number): Video => VIDEOS[i % VIDEOS.length] ?? (VIDEOS[0] as Video);
 const WATCHED = videoAt(0);
@@ -322,8 +330,10 @@ function WatchPage({ video, under, side, paused = false, children }: { video?: R
           {WATCHED.title}
         </h1>
         <div className="ex-yt-channel">
-          <span className="ex-yt-face" />
-          <span className="ex-yt-name">{WATCHED.channel}</span>
+          <img className="ex-yt-face" src={WATCHED.face} alt="" />
+          <span className="ex-yt-name" lang="ja">
+            {WATCHED.channel}
+          </span>
           <span className="ex-yt-sub">Subscribe</span>
         </div>
       </div>
@@ -638,7 +648,7 @@ function HomeScene({ store }: { store: Stored }) {
             </div>
           </div>
           <div className="ex-grid">
-            {grid.map(({ picture, title, channel, length }, i) => (
+            {grid.map(({ picture, title, channel, face, length }, i) => (
               <div key={title} className="ex-card">
                 <span className="ex-card-pic">
                   <img className="ex-thumb" src={picture} alt="" />
@@ -649,11 +659,14 @@ function HomeScene({ store }: { store: Stored }) {
                     </Button>
                   ) : null}
                 </span>
-                <span className="ex-card-words">
-                  <b lang="ja">{title}</b>
-                  <small lang="ja">
-                    {channel} · {(i + 2) * 70}K views
-                  </small>
+                <span className="ex-card-info">
+                  <img className="ex-card-face" src={face} alt="" />
+                  <span className="ex-card-words">
+                    <b lang="ja">{title}</b>
+                    <small lang="ja">
+                      {channel} · {(i + 2) * 70}K views
+                    </small>
+                  </span>
                 </span>
               </div>
             ))}

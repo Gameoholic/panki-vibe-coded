@@ -3392,12 +3392,23 @@
   align-items: center;
   gap: 12px;
 }
-.ex-yt-face {
+.ex-yt-face,
+.ex-card-face {
   flex: none;
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--mark-orange), var(--mark-pink));
+  object-fit: cover;
+  background: var(--site-dark-raised);
+}
+.ex-card-face {
+  width: 34px;
+  height: 34px;
+}
+.ex-card-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 .ex-yt-name {
   display: grid;
