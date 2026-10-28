@@ -35,7 +35,7 @@ export type KeyBinds = {
   exampleNext: Bind;
   /** Starts the review from today's cards (the owner, 2026-10-27: its own key, not Show answer's; Space held 0.25 s to begin with). */
   start: Bind;
-  /** The home's Review door (2026-10-27, none to begin with). */
+  /** The home's Review door (2026-10-27; Space held 0.5 s to begin with since 2026-10-28, none before). */
   homeReview: Bind;
   /** How much longer an answer that asks for confirmation is held, on top of its own key's hold. */
   confirmMs: number;
@@ -61,7 +61,7 @@ export const DEFAULT_KEYS: KeyBinds = {
   examplePrev: { key: null, holdMs: 0 },
   exampleNext: { key: null, holdMs: 0 },
   start: { key: " ", holdMs: 250 },
-  homeReview: { key: null, holdMs: 0 },
+  homeReview: { key: " ", holdMs: 500 },
   confirmMs: 1000,
 };
 
