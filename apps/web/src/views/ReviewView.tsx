@@ -258,13 +258,18 @@ type Today = { picked: ReadonlySet<string>; more: boolean };
  * end is this too (the owner, 2026-10-28: "it should look similar… just have the selector for how many"): its new
  * cards past today's, under its name, with how many in the bar after Show cards.
  */
-function TodayCards({ id = "today", label, tools, type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
+function TodayCards({ id = "today", label, tools, available, type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
   /** What its ids and its Start's hold go by: `today` before a review, `extra` for extra study. */
   id?: string;
   /** Its name, at the head of the bar: "Extra study"; none before a review. */
   label?: string;
   /** What stands in the bar after Show cards: extra study's how many. */
   tools?: ReactNode;
+  /**
+   * What the bar says, always, in place of its counts and what's left for later: extra study's "19 new cards available"
+   * (the owner, 2026-10-28, its number saying how many are picked).
+   */
+  available?: string;
   type: CardType;
   srsType: SrsType;
   /** Today's due cards, in the line's order. */
@@ -316,7 +321,15 @@ function TodayCards({ id = "today", label, tools, type, srsType, reviews, fresh,
   return (
     <section className="review-today">
       {/* Folded to the counts to begin with; Show cards unfolds the tiles under it. */}
-      <TodayBar id={id} name={label} counts={todayWords(picked(reviews).length, picked(offered).length) ?? "None picked"} shown={open} onShow={() => setOpen(!open)} tools={tools} left={left ? `${left} for later` : null}>
+      <TodayBar
+        id={id}
+        name={label}
+        counts={available === undefined ? (todayWords(picked(reviews).length, picked(offered).length) ?? "None picked") : undefined}
+        shown={open}
+        onShow={() => setOpen(!open)}
+        tools={tools}
+        left={available ?? (left ? `${left} for later` : null)}
+      >
         <Button id={`${id}-start`} variant="primary" size="lg" data-hold={`${id}-start`} disabled={total === 0} onClick={onStart}>
           Start {count(total, "card", "cards")}
           <KeyCap bind={startKey} />
@@ -513,13 +526,15 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   const cardId = today ? undefined : line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
-  // How many extra study offers as the end comes up, remembered for the end's skeleton next time (`skeletonMemory.ts`);
-  // none without new cards to start.
+  // How many extra study offers as the end comes up, and how many new cards it has, remembered for the end's skeleton
+  // next time (`skeletonMemory.ts`); none without new cards to start.
   const atEnd = today === null && card === undefined;
   const extraFirst = Math.min(firstExtra, extraOrder.length);
   useEffect(() => {
-    if (atEnd) rememberShape(`extra:${deck.id}`, extraFirst);
-  }, [atEnd, extraFirst, deck.id]);
+    if (!atEnd) return;
+    rememberShape(`extra:${deck.id}`, extraFirst);
+    rememberShape(`extra-all:${deck.id}`, extraOrder.length);
+  }, [atEnd, extraFirst, extraOrder.length, deck.id]);
   /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
   const stage = useScreenStage(place, card !== undefined);
   /** Whether the card on screen has a clip to take the screen's room while it's filled: the first not under a spoiler, marked for the stage's styles. */
@@ -888,6 +903,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
             id="extra"
             label="Extra study"
             tools={<NumberField id="extra-count" label="How many more new cards" value={extraPicked.length} min={0} max={extraOrder.length} onChange={setExtraCount} />}
+            available={`${count(extraOrder.length, "new card", "new cards")} available`}
             type={type}
             srsType={srsType}
             reviews={[]}

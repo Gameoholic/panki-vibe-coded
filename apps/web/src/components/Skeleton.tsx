@@ -68,6 +68,8 @@ const TODAY_SHOW_PX = "136px";
 const TODAY_HIDE_PX = "128px";
 const TODAY_BUTTON_H = "42px";
 const TODAY_START_PX = 82;
+/** A character of the quieter words after the bar's controls (what's left for later, what extra study has), as measured. */
+const TODAY_LEFT_CHAR_PX = 6.6;
 /** A `NumberField` as measured: its − and +, the number between them, and the gaps. */
 const NUMBER_FIELD_PX = "160px";
 const NUMBER_FIELD_H = "46px";
@@ -82,9 +84,9 @@ const BUTTON_CHAR_PX = 9;
  * for `today`, how many tiles each of its panels holds (reviews, then new), and `firstReviews` whether the first is the
  * reviews one, whose head alone carries a stage's chip; `words` and `start`, for `today`, what its bar will say (the
  * counts, Start's label), known from the deck, so their blocks are as wide as the words will be; `words`, for `done`,
- * what the button at its foot says.
+ * what the button at its foot says, and `available` how many new cards extra study has.
  */
-export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false, words = "", start = "" }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean; words?: string; start?: string }) {
+export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false, words = "", start = "", available = 0 }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean; words?: string; start?: string; available?: number }) {
   switch (shape) {
     case "today": {
       // As `ReviewView` → `TodayCards` draws today's cards: the folded bar (`TodayBar`: the counts, Show cards, Start at
@@ -134,9 +136,10 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
     }
     case "done": {
       // As `ReviewView` draws its end with nothing to review: the title, extra study's bar when there are new cards for
-      // it (`TodayCards` under its name, how many beside Start), what's coming up, and the button at the foot.
+      // it (`TodayCards` under its name, how many after Show cards, how many it has, Start), what's coming up, and the
+      // button at the foot.
       const extra = count ?? 0;
-      const counts = `${extra} new`;
+      const has = `${Math.max(available, extra)} new ${Math.max(available, extra) === 1 ? "card" : "cards"} available`;
       const start = `Start ${extra} ${extra === 1 ? "card" : "cards"}`;
       return (
         <section className="skel-in summary review-done" {...status}>
@@ -149,12 +152,11 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
                 <span className="today-name">
                   <Bone w="5.25em" h="1em" />
                 </span>
-                <span className="today-counts">
-                  <Bone w={`${counts.length * TODAY_CHAR_PX}px`} h="1em" />
-                </span>
                 <Bone w={TODAY_SHOW_PX} h={TODAY_BUTTON_H} />
                 <Bone w={NUMBER_FIELD_PX} h={NUMBER_FIELD_H} />
-                <span className="today-left" />
+                <span className="today-left skel-line">
+                  <Bone w={`${has.length * TODAY_LEFT_CHAR_PX}px`} h="1em" className="is-faint" />
+                </span>
                 <Bone w={`${TODAY_START_PX + start.length * TODAY_CHAR_PX}px`} h="56px" />
               </div>
             </section>

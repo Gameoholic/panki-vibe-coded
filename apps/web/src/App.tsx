@@ -803,7 +803,9 @@ export function App() {
     // An arriving deck's settings aren't known yet: today first is how every deck begins.
     const todayFirst = begin === "cards" || (begin !== "start" && (deck ? deck.settings.todayFirst : true));
     // Nothing to review: its end, extra study's bar there as it was last time on this device.
-    if (due + fresh === 0) return <Skeleton shape="done" count={shapeOf(`extra:${deckId}`, 0)} words={deck && deck.cardCount === 0 ? "Add a card" : "Home"} />;
+    if (due + fresh === 0) {
+      return <Skeleton shape="done" count={shapeOf(`extra:${deckId}`, 0)} available={shapeOf(`extra-all:${deckId}`, 0)} words={deck && deck.cardCount === 0 ? "Add a card" : "Home"} />;
+    }
     // Today's cards open folded to their counts, but for Show cards on the deck picker, which opens them shown.
     const parts = begin === "cards" ? [due, fresh].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX)) : [];
     if (todayFirst) return <Skeleton shape="today" parts={parts} firstReviews={due > 0} words={todayWords(due, fresh) ?? ""} start={`Start ${count(due + fresh, "card", "cards")}`} />;
