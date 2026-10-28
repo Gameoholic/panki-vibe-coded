@@ -555,7 +555,7 @@ export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.
 export const pointWords = (key: LookKey) => (key === "hover" ? "Point at" : `Hold ${keyWordOf(key)} over`);
 /** How a key to hold is used, said under it. */
 const usageWords = (key: LookKey) =>
-  key === "hover" ? "Point at a word to look it up. Click it to keep the word lookup open." : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the word lookup open.`;
+  key === "hover" ? "Point at a word to look it up. Click it to keep the pop-up open." : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the pop-up open.`;
 
 /**
  * How looking a word up works: where on the web, and with which key held. Kept the moment
@@ -614,14 +614,14 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   }
 
   const listed = store.lookWhere === "only" || store.lookWhere === "except";
-  // Word lookup heads the panel (the owner, 2026-10-21); off, every row under it is greyed, as every panel's own switch greys its rows (2026-10-28).
+  // Pop-up dictionary heads the panel (the owner, 2026-10-21); off, every row under it is greyed, as every panel's own switch greys its rows (2026-10-28).
   const off = !store.moduleLookup;
   return (
     <section className="panel" aria-labelledby="looking-title">
       <h2 id="looking-title" className="panel-title">
-        Word lookup
+        Pop-up dictionary
       </h2>
-      <Setting id="module-lookup" label="Word lookup" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
+      <Setting id="module-lookup" label="Pop-up dictionary" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
       {/* Where and the key held there are one setting's two halves (the owner, 2026-10-28: "link these settings"); Panki
           subtitles are a group of their own, Where never reaching them. Named as Words that are in your decks names its
           two places, "globally" and "in Panki subtitles". */}

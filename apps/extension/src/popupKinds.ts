@@ -28,7 +28,7 @@ export const PART_NAMES: Record<NamedPart, string> = {
 /** What each part is for, said beside it when it's picked in the layout (the owner, 2026-10-16: "Words that start here, I don't get what that's for"). */
 export const PART_ABOUT: Record<NamedPart, string> = {
   split: "Every word found at the letter pointed at, when there's more than one: 喫茶店 and the shorter 喫茶, or 新 read しん and read あら. The one shown is lit; press another to see it. On Panki's line under a video, the line is split around it too.",
-  word: "The word as the dictionary lists it: what the word lookup is about, always shown.",
+  word: "The word as the dictionary lists it: what the pop-up is about, always shown.",
   reading: "How the word is read, over it or beside it.",
   pitch: "Where the voice falls in the word.",
   add: "Opens the drawer to add the word to a deck.",

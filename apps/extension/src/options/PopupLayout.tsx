@@ -102,7 +102,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, onSaved }
         <Editor kept={kept} lookKey={lookKey} dictionaries={dictionaries} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
-          Word lookup layout
+          Pop-up layout
         </h2>
       )}
       {failure ? (
@@ -319,7 +319,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
     <>
       <div className="popup-head">
         <h2 id="popup-layout-title" className="panel-title">
-          Word lookup layout
+          Pop-up layout
         </h2>
         <span id="popup-layout-saved" className={`saved is-${state}`} data-state={state} role="status">
           <Icon name="check" />
@@ -351,7 +351,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
           </div>
           <div className={`popup-stage ${editing ? "is-editing" : ""}`.trim()}>
             {shown && first ? (
-              <div className="look is-here" role="group" aria-label="Word lookup">
+              <div className="look is-here" role="group" aria-label="Pop-up dictionary">
                 <LookupBody
                   // Shown afresh, as a page would open it: nothing unfolded.
                   key={`${mode}:${shown.text}`}
@@ -362,7 +362,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
                 />
               </div>
             ) : (
-              <p className="empty">{pointAt} a word above to see the word lookup with it.</p>
+              <p className="empty">{pointAt} a word above to see the pop-up with it.</p>
             )}
           </div>
           {!editing ? (

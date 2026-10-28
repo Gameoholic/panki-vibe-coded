@@ -351,7 +351,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
 // Each of Panki's parts had a Modules tab of its own, first in the row (the owner, 2026-10-21: "the entire Panki panel
 // toggleable… the seek bar marks, ON by default"), until the same day they had it folded into the tabs of what each is
 // about ("most of this can just live under the YouTube settings"): the panel heads Video page, the marks head Seek bar,
-// the home heads YouTube home, Word lookup heads Looking up words on the Dictionary tab. Video tracking is the
+// the home heads YouTube home, Pop-up dictionary heads Looking up words on the Dictionary tab. Video tracking is the
 // account's, in Panki's Settings, beside what it keeps.
 
 /**
@@ -456,7 +456,8 @@ const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
 // A Modules tab stood first for a few hours on 2026-10-21; each of its switches now heads the panel of what it's about.
 type Tab = "dictionary" | "decks" | "youtube" | "account";
 const TABS: readonly { id: Tab; label: string }[] = [
-  { id: "dictionary", label: "Dictionary" },
+  // Named as its first panel since 2026-10-28 (Dictionary until then); its id stays `dictionary`, the address.
+  { id: "dictionary", label: "Pop-up dictionary" },
   { id: "decks", label: "Decks" },
   { id: "youtube", label: "YouTube" },
   // Called About since 2026-10-22, at the owner's pick, once the extension's version joined the profiles here; its id stays `account` (the address, the drawer's way to the sign-in).
@@ -619,11 +620,12 @@ function Options() {
           ) : null}
           {/* Every tab stays drawn, the ones not chosen hidden: nothing laid out and unsaved is lost by looking at another. */}
           <div className="options-tab" hidden={tab !== "dictionary"}>
+            {/* Pop-up dictionary and its layout side by side, then the dictionaries it reads, then the words in the decks marked (2026-10-28: what belongs together sits together). */}
             <Looking store={store} onChanged={refresh} />
-            <KnownWords store={store} onChanged={refresh} />
+            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} onSaved={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
-            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} onSaved={refresh} />
+            <KnownWords store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "decks"}>
             {door ? (

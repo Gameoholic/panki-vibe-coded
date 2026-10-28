@@ -455,7 +455,7 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null }: Props) {
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
       {/* Kept open or not, it looks the same (the owner had the border that marked it kept taken off, 2026-10-15). */}
-      <div className="look" role="dialog" aria-label="Dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
+      <div className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
         <LookupBody found={view.found} layout={layout} onAdd={onAdd} split={split} onShow={(word) => setLit(view.pointed.measure(word.source.length))} />
       </div>
     </>
