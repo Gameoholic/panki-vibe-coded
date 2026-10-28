@@ -62,6 +62,11 @@ export const PopupLayout = z.object({
   reading: ReadingAt.catch("over"),
   pitch: PartShow.catch("shown"),
   add: PartShow.catch("shown"),
+  /**
+   * The word's cards already in the decks, under its head: which deck, and Open in Panki. Always there until the owner
+   * had it a part of its own, 2026-10-28 ("make that message toggleable in the popup layout"); a layout kept before has it shown.
+   */
+  cards: PartShow.catch("shown"),
   /** What's under the word, top to bottom. */
   body: z.array(BodyPart).max(BODY_MAX).catch([]),
   /**
@@ -81,6 +86,7 @@ const DEFAULT: PopupLayout = {
   reading: "over",
   pitch: "shown",
   add: "shown",
+  cards: "shown",
   body: BODY_KINDS.map((id): BodyPart => ({ id, show: firstShow(id), meanings: 0 })),
   others: "hidden",
   tagWords: "codes",

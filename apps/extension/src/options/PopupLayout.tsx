@@ -9,7 +9,7 @@ import { useUndoable } from "@web/hooks/useUndoable";
 import { SAVE_WORDS, type SaveState } from "@web/unsaved";
 import { listWords } from "@web/words";
 import { createLooker, listenOnPage, type Looker, type View } from "../capture/look";
-import type { DataKind } from "@panki/contracts";
+import type { CalledCard, DataKind } from "@panki/contracts";
 import { DATA_KINDS, kindsIn } from "../dataKinds";
 import { shownName, type DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
@@ -19,7 +19,9 @@ import type { LookKey } from "../lookSettings";
 import { FREQUENCY_OPTIONS, MEANINGS_ABOUT, MEANINGS_NAME, MEANINGS_OPTIONS, PART_ABOUT, PART_NAMES, READING_OPTIONS, SHOWN_OR_HIDDEN, SHOW_OPTIONS, TAG_OPTIONS, isNamedPart } from "../popupKinds";
 import { dictionaryOf, moveBodyPart, popupLayoutOf, withMeanings, type BodyPart, type PartShow, type PopupLayout } from "../popupLayout";
 import { writeStore } from "../storage";
-import { Lookup, LookupBody } from "../ui/Lookup";
+import { Lookup, LookupBody, type CardsSource } from "../ui/Lookup";
+import { tintOf } from "../capture/known";
+import { paintCss, type MarkPaint } from "../seekLook";
 import { KindChips } from "./DataKinds";
 import { pointWords } from "./Dictionary";
 
@@ -34,6 +36,24 @@ const MESSAGES = {
  * word read more than one way.
  */
 const TRY_TEXT = "昨日、駅の近くで新しい喫茶店を見つけました。友達と一緒に入ってみたら、ケーキがとても美味しかったです。";
+/**
+ * The word of those sentences that stands for one already in the decks (the owner, 2026-10-28: "so that I can see it in
+ * green… and the 'already in your deck' message"): tinted as Highlight globally tints a page while it's on, and on the
+ * popup said to be a card of an example deck, whose Open in Panki opens nothing. Never one of the owner's own cards.
+ */
+const IN_DECKS: CalledCard = {
+  cardId: "00000000-0000-4000-8000-000000000001",
+  deckId: "00000000-0000-4000-8000-000000000002",
+  deck: "Example deck",
+  words: "喫茶店",
+  apart: [],
+};
+const EXAMPLE_CARDS: CardsSource = {
+  ask: async (words) => (words.includes(IN_DECKS.words) ? [IN_DECKS] : []),
+  open: () => undefined,
+};
+/** The sentences either side of that word. */
+const [tryBefore, tryAfter] = ((at) => [TRY_TEXT.slice(0, at), TRY_TEXT.slice(at + IN_DECKS.words.length)])(TRY_TEXT.indexOf(IN_DECKS.words));
 /** On the popup being laid out until a word of those sentences is pointed at: one with endings on it first, so the endings have something to show. */
 const SAMPLES = ["見つけました", "入ってみたら", "喫茶店", "昨日"];
 /** Laying the popup out, or using it as a page would. */
@@ -42,8 +62,8 @@ const MODES: readonly { id: "edit" | "preview"; label: string }[] = [
   { id: "preview", label: "Preview" },
 ];
 /** The parts that stand in places of their own, each shown or hidden by the layout's own key. */
-type Fixed = "split" | "pitch" | "add" | "others";
-const FIXED: readonly Fixed[] = ["split", "pitch", "add", "others"];
+type Fixed = "split" | "pitch" | "add" | "cards" | "others";
+const FIXED: readonly Fixed[] = ["split", "pitch", "add", "cards", "others"];
 
 function fixedPatch(part: Fixed, show: PartShow): Partial<PopupLayout> {
   switch (part) {
@@ -53,6 +73,8 @@ function fixedPatch(part: Fixed, show: PartShow): Partial<PopupLayout> {
       return { pitch: show };
     case "add":
       return { add: show };
+    case "cards":
+      return { cards: show };
     case "others":
       return { others: show };
   }
@@ -66,6 +88,8 @@ type Props = {
   lookKey: LookKey;
   /** Changes whenever a dictionary is imported, removed, switched or moved on this page: they're read again. */
   dictionariesChanged: number;
+  /** Words that are in your decks' Highlight globally and its colour, as set on this tab: the example word is tinted by them. */
+  known: { on: boolean; colour: MarkPaint };
   onSaved: () => void;
 };
 
@@ -78,7 +102,7 @@ type Props = {
  * Save, beside the words that say whether there's anything to save; leaving the page unsaved asks first, and Ctrl+Z
  * undoes.
  */
-export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, onSaved }: Props) {
+export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, known, onSaved }: Props) {
   const [dictionaries, setDictionaries] = useState<DictionaryRecord[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
@@ -99,7 +123,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, onSaved }
   return (
     <section className="panel popup-layout" aria-labelledby="popup-layout-title">
       {dictionaries ? (
-        <Editor kept={kept} lookKey={lookKey} dictionaries={dictionaries} onSaved={onSaved} />
+        <Editor kept={kept} lookKey={lookKey} dictionaries={dictionaries} known={known} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
           Pop-up layout
@@ -114,7 +138,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, onSaved }
   );
 }
 
-function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | null; lookKey: LookKey; dictionaries: readonly DictionaryRecord[]; onSaved: () => void }) {
+function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLayout | null; lookKey: LookKey; dictionaries: readonly DictionaryRecord[]; known: Props["known"]; onSaved: () => void }) {
   const parts = withMeanings(dictionaries);
   const history = useUndoable<PopupLayout>(popupLayoutOf(kept, parts));
   const { change, undo, redo } = history;
@@ -335,7 +359,11 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
           <div className="popup-try">
             <span className="layout-note">{pointAt} a word to try it</span>
             <p ref={tryText} className="popup-try-text" lang="ja">
-              {TRY_TEXT}
+              {tryBefore}
+              <span style={known.on ? { background: tintOf(paintCss(known.colour)) } : undefined}>
+                {IN_DECKS.words}
+              </span>
+              {tryAfter}
             </p>
           </div>
           <div className="layout-tools">
@@ -358,6 +386,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
                   found={shown.found}
                   layout={layout}
                   onAdd={() => undefined}
+                  cards={EXAMPLE_CARDS}
                   {...(editing ? { edit: { picked, onPick: setPicked, order, nameOf, unprovided } } : {})}
                 />
               </div>
@@ -381,7 +410,7 @@ function Editor({ kept, lookKey, dictionaries, onSaved }: { kept: PopupLayout | 
               place is taken away when it closes); only the popup itself takes presses. */}
           {live ? (
             <div ref={over} className="look-over">
-              <Lookup key={live.pointed.id} view={live} layout={layout} onKeep={() => looker.current?.lock()} onAdd={() => looker.current?.close()} />
+              <Lookup key={live.pointed.id} view={live} layout={layout} cards={EXAMPLE_CARDS} onKeep={() => looker.current?.lock()} onAdd={() => looker.current?.close()} />
             </div>
           ) : null}
           {saveFailed ? (

@@ -6,7 +6,7 @@ import type { BodyKind, FrequencyWords, PartShow, ReadingAt, TagWords } from "./
  * word. One home, as the card layout's are in the app's `layoutKinds.ts`.
  */
 
-export type FixedPart = "split" | "word" | "reading" | "pitch" | "add" | "others";
+export type FixedPart = "split" | "word" | "reading" | "pitch" | "add" | "cards" | "others";
 export type NamedPart = FixedPart | BodyKind;
 /**
  * A part that shows one kind of a dictionary's data is called by that kind's own name, taken from `dataKinds.ts` so
@@ -19,6 +19,7 @@ export const PART_NAMES: Record<NamedPart, string> = {
   reading: DATA_KINDS.reading.name,
   pitch: DATA_KINDS.pitch.name,
   add: "Add",
+  cards: "In your decks",
   others: "Other words in full",
   tags: DATA_KINDS.tags.name,
   frequency: DATA_KINDS.frequency.name,
@@ -32,6 +33,7 @@ export const PART_ABOUT: Record<NamedPart, string> = {
   reading: "How the word is read, over it or beside it.",
   pitch: "Where the voice falls in the word.",
   add: "Opens the drawer to add the word to a deck.",
+  cards: "When the word is already a card: which deck it's in, with Open in Panki.",
   others: "Every other word found at the same letter, each in full under the one shown, besides its chip at the top.",
   tags: "The dictionary's labels on the word. Press one to read what it means.",
   frequency: "How common the word is: a band from the best rank among your lists, and each list's own number.",

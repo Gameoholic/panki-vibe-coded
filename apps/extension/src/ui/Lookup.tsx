@@ -4,6 +4,7 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { PitchAccent } from "@web/components/PitchAccent";
 import { useCalled } from "@web/hooks/useCalled";
+import type { CalledCard } from "@panki/contracts";
 import type { useDragOrder } from "@web/hooks/useDragOrder";
 import { count } from "@web/words";
 import type { View } from "../capture/look";
@@ -270,17 +271,26 @@ function bodyOf(part: BodyPart, found: Found, layout: PopupLayout): ReactNode {
 }
 
 /**
+ * Where the popup learns which cards a word already is, and what Open in Panki does: Panki, through the worker; or, on
+ * the layout editor, its example of a word that's in the decks (`options/PopupLayout.tsx`), which opens nothing.
+ */
+export type CardsSource = { ask: (words: readonly string[]) => Promise<readonly CalledCard[]>; open: (card: CalledCard) => void };
+const PANKI_CARDS: CardsSource = { ask: askCalled, open: (card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId }) };
+
+/**
  * A word that's already a card, said under its head as the drawer says it (the owner, 2026-10-25: over any word, "in
  * case it's in a deck, it will show which deck it belongs to and I can click to see it in the deck"): which deck, and
  * Open in Panki, at that card in its deck's list. Asked by the word as the dictionary lists it; nothing while signed
- * out, and nothing at all for a word no card is called by. Not a part of the popup's layout: it's always there.
+ * out, and nothing at all for a word no card is called by. A part of the layout, In your decks, since 2026-10-28; on
+ * the editor, a word in no deck shows the part's name in its place.
  */
-function InCards({ found }: { found: Found }) {
-  const called = useCalled([found.term], askCalled);
-  return <AlreadyIn cards={called} compared={null} openWords="Open in Panki" onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })} />;
+function InCards({ found, cards, edit }: { found: Found; cards: CardsSource; edit: PopupEdit | undefined }) {
+  const called = useCalled([found.term], cards.ask);
+  if (called.length === 0) return edit ? <Blank id="cards" edit={edit} /> : null;
+  return <AlreadyIn cards={called} compared={null} openWords="Open in Panki" onOpen={cards.open} />;
 }
 
-function Word({ found, layout, onAdd, edit }: { found: Found; layout: PopupLayout; onAdd: (found: Found) => void; edit?: PopupEdit }) {
+function Word({ found, layout, onAdd, cards, edit }: { found: Found; layout: PopupLayout; onAdd: (found: Found) => void; cards: CardsSource; edit?: PopupEdit }) {
   const pitch = found.pitches[0];
   const shown = layout.body.filter((part) => part.show !== "hidden");
   // Meanings of a dictionary the layout doesn't know yet (imported since it was handed over) come last, as they are.
@@ -308,8 +318,11 @@ function Word({ found, layout, onAdd, edit }: { found: Found; layout: PopupLayou
           </InlinePart>
         ) : null}
       </header>
-      {/* The layout editor's made-up popup asks nothing. */}
-      {edit ? null : <InCards found={found} />}
+      {layout.cards !== "hidden" ? (
+        <BlockPart id="cards" edit={edit}>
+          <InCards found={found} cards={cards} edit={edit} />
+        </BlockPart>
+      ) : null}
       {shown.map((part, i) => {
         const drawn = bodyOf(part, found, layout);
         if (drawn === null && !edit) return null;
@@ -336,6 +349,8 @@ type BodyProps = {
   onShow?: (found: Found) => void;
   /** Given, the popup is the layout editor's: nothing in it does anything but get picked. */
   edit?: PopupEdit;
+  /** Where it learns which cards a word already is; Panki, unless the layout editor gives its example. */
+  cards?: CardsSource;
 };
 
 /**
@@ -346,7 +361,7 @@ type BodyProps = {
  * (the owner, 2026-10-16: "why do we have both the top and the bottom?"). The popup on a page and the options page's
  * editor both draw this.
  */
-export function LookupBody({ found, layout, onAdd, split = null, onShow, edit }: BodyProps) {
+export function LookupBody({ found, layout, onAdd, split = null, onShow, edit, cards = PANKI_CARDS }: BodyProps) {
   /** The word pressed among those found, by its place among them, once one is. */
   const [pressed, setPressed] = useState<number | null>(null);
   // Until one is pressed: on Panki's line, the word taken there; anywhere else, the best.
@@ -403,11 +418,11 @@ export function LookupBody({ found, layout, onAdd, split = null, onShow, edit }:
           {chips ?? (edit ? <Blank id="split" edit={edit} /> : null)}
         </BlockPart>
       ) : null}
-      <Word found={shown} layout={layout} onAdd={onAdd} edit={edit} />
+      <Word found={shown} layout={layout} onAdd={onAdd} cards={cards} edit={edit} />
       {rest.length > 0 && layout.others === "shown" ? (
         <BlockPart id="others" edit={edit}>
           {rest.map((word) => (
-            <Word key={wordKey(word)} found={word} layout={layout} onAdd={onAdd} />
+            <Word key={wordKey(word)} found={word} layout={layout} onAdd={onAdd} cards={cards} />
           ))}
         </BlockPart>
       ) : null}
@@ -432,6 +447,8 @@ type Props = {
    * place, which splits the line again around it.
    */
   split?: Split | null;
+  /** Where it learns which cards a word already is; Panki, unless the layout editor gives its example. */
+  cards?: CardsSource;
 };
 
 /**
@@ -439,7 +456,7 @@ type Props = {
  * (`LookupBody`). It stands under the word (over it, when there's more room there), inside the window, and the word
  * itself is lit. A press anywhere in it keeps it open.
  */
-export function Lookup({ view, layout, onKeep, onAdd, split = null }: Props) {
+export function Lookup({ view, layout, onKeep, onAdd, split = null, cards }: Props) {
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
   const [lit, setLit] = useState<DOMRect | null>(null);
   const anchor = view.word;
@@ -456,7 +473,7 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null }: Props) {
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
       {/* Kept open or not, it looks the same (the owner had the border that marked it kept taken off, 2026-10-15). */}
       <div className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
-        <LookupBody found={view.found} layout={layout} onAdd={onAdd} split={split} onShow={(word) => setLit(view.pointed.measure(word.source.length))} />
+        <LookupBody found={view.found} layout={layout} onAdd={onAdd} split={split} {...(cards ? { cards } : {})} onShow={(word) => setLit(view.pointed.measure(word.source.length))} />
       </div>
     </>
   );

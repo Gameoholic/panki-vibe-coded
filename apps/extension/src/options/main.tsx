@@ -620,12 +620,12 @@ function Options() {
           ) : null}
           {/* Every tab stays drawn, the ones not chosen hidden: nothing laid out and unsaved is lost by looking at another. */}
           <div className="options-tab" hidden={tab !== "dictionary"}>
-            {/* Pop-up dictionary and its layout side by side, then the dictionaries it reads, then the words in the decks marked (2026-10-28: what belongs together sits together). */}
+            {/* Pop-up dictionary, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads (the owner's order, 2026-10-28). */}
             <Looking store={store} onChanged={refresh} />
-            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} onSaved={refresh} />
+            <KnownWords store={store} onChanged={refresh} />
+            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, colour: store.knownColour }} onSaved={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
-            <KnownWords store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "decks"}>
             {door ? (
