@@ -4636,7 +4636,9 @@ mark.sub-mark {
   flex-wrap: wrap;
 }
 /* The one of them in use (the extension's profile signed in with): lit in the accent, said in its words too. */
+/* Its tint reaches out past the rows' edges rather than pushing its words in, so every row's words line up. */
 .kept-row.is-current {
+  margin-inline: -10px;
   padding-inline: 10px;
   border-radius: 10px;
   border-top-color: transparent;
