@@ -333,7 +333,7 @@ function VideoTracking({ door }: { door: Door }) {
             onChange={(next) => (next ? void change(true) : setAsking(true))}
           />
         }
-        why="Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats are built from it."
+        why="Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats use it."
       />
       {asking ? (
         <Ask
@@ -359,6 +359,7 @@ function VideoTracking({ door }: { door: Door }) {
             </>
           }
           go={{ words: "Turn off", busy: "Turning off…" }}
+          keep="Cancel"
           busy={busy}
           failure={failure}
           onKeep={() => {
@@ -703,8 +704,9 @@ function Options() {
             )}
           </div>
           <div className="options-tab" hidden={tab !== "youtube"}>
-            <Transcribing store={store} onChanged={refresh} />
+            {/* Data tracking first: what's recorded of the videos watched (the owner, 2026-10-28). */}
             {door ? <VideoTracking door={door} /> : null}
+            <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
             <HomePanel store={store} onChanged={refresh} />

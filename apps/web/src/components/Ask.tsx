@@ -11,6 +11,8 @@ type Props = {
   detail?: ReactNode;
   /** The button that does it, and what it says while it's being done: "Delete card", "Deleting…". */
   go: { words: string; busy: string };
+  /** What the button that leaves it as it is says: Keep, unless that reads wrong for what's asked (turning Video tracking off says Cancel; the owner, 2026-10-28). */
+  keep?: string;
   busy: boolean;
   /** Why it didn't go through, when it didn't. */
   failure: string | null;
@@ -30,7 +32,7 @@ type Props = {
  * tints what it stands in (`.panel-alarm`, a card's row `is-asking`) while it's asked. Deleting a card (its row, its
  * form), a deck, a card type and an SRS type are all this.
  */
-export function Ask({ idPrefix, question, detail, go, busy, failure, typed, onKeep, onGo }: Props) {
+export function Ask({ idPrefix, question, detail, go, keep = "Keep", busy, failure, typed, onKeep, onGo }: Props) {
   const [typing, setTyping] = useState("");
   const ready = typed === undefined || typing.trim() === typed;
   return (
@@ -47,7 +49,7 @@ export function Ask({ idPrefix, question, detail, go, busy, failure, typed, onKe
           </span>
         ) : null}
         <Button id={`${idPrefix}-keep`} onClick={onKeep} disabled={busy}>
-          Keep
+          {keep}
         </Button>
         <Button id={`${idPrefix}-go`} variant="danger" onClick={onGo} disabled={busy || !ready}>
           {busy ? go.busy : go.words}

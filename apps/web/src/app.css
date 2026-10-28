@@ -4642,7 +4642,6 @@ mark.sub-mark {
   border-radius: 10px;
   border-top-color: transparent;
   background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 .kept-row.is-current + .kept-row {
   border-top-color: transparent;
