@@ -361,7 +361,7 @@ function TodayCards({ id = "today", label, tools, type, srsType, reviews, fresh,
                 <span className="chips">
                   {others.length > 0 ? (
                     <Button id={`${id}-more`} variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
-                      Every new card · {fresh.length + others.length}
+                      Show every new card
                     </Button>
                   ) : null}
                   {offered.length > 0 ? allNone(offered, `${id}-new`) : null}
@@ -457,8 +457,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const binds = useKeyBinds();
   const hold = useHold();
   const place = useRef<HTMLElement | null>(null);
-  /** How many more new cards to start once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
-  const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
+  /** How many more new cards extra study offers once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
+  const firstExtra = deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START;
+  const [extra, setExtra] = useState(firstExtra);
   // The deck's new cards never started, in the order extra study takes them: oldest first, or shuffled once for a deck
   // that shuffles its new cards, so the tiles at the end hold still while they're looked over.
   const unseenIds = [...byId.values()].filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt).map((c) => c.id);
@@ -472,6 +473,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const [extraPick, setExtraPick] = useState<Today | null>(null);
   const extraOffered = extraOrder.slice(0, Math.min(extra, extraOrder.length));
   const extraToday: Today = extraPick ?? { picked: new Set(extraOffered), more: false };
+  /** What's picked, in the order extra study takes them: what its number says and what it starts on. */
+  const extraPicked = extraOrder.filter((id) => extraToday.picked.has(id));
   function pickExtra(ids: readonly string[], on: boolean) {
     const picked = new Set(extraToday.picked);
     for (const id of ids) on ? picked.add(id) : picked.delete(id);
@@ -481,17 +484,21 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     // The cards past the number go back out of the pick when they're no longer offered.
     setExtraPick({ more, picked: more ? extraToday.picked : new Set([...extraToday.picked].filter((id) => extraOffered.includes(id))) });
   }
-  /** How many more is changed: the pick is the first that many again. */
+  /**
+   * The number is how many are picked (the owner, 2026-10-28: None sets it to 0, All to every one shown); typed, the
+   * pick is the first that many again, as many offered when not every one is shown. 0 leaves the cards offered as
+   * they were, none of them picked.
+   */
   function setExtraCount(n: number) {
-    setExtra(n);
-    setExtraPick(null);
+    if (n > 0) setExtra(n);
+    setExtraPick(n > 0 && !extraToday.more ? null : { more: extraToday.more, picked: new Set(extraOrder.slice(0, n)) });
   }
   /**
    * Extra study begins on what's picked, in the order it takes them: a sitting of its own, so Undo goes back no further
    * than its start, and the day's ends as done. The pick is kept in the ledger as today's is, marked as extra study's.
    */
   function startExtra() {
-    const picked = extraOrder.filter((id) => extraToday.picked.has(id));
+    const picked = extraPicked;
     if (picked.length === 0) return;
     const left = extraOffered.filter((id) => !extraToday.picked.has(id));
     const added = picked.filter((id) => !extraOffered.includes(id));
@@ -506,12 +513,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   const cardId = today ? undefined : line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
-  // How many extra study offers at the end, remembered for the end's skeleton next time (`skeletonMemory.ts`); none
-  // without new cards to start.
+  // How many extra study offers as the end comes up, remembered for the end's skeleton next time (`skeletonMemory.ts`);
+  // none without new cards to start.
   const atEnd = today === null && card === undefined;
+  const extraFirst = Math.min(firstExtra, extraOrder.length);
   useEffect(() => {
-    if (atEnd) rememberShape(`extra:${deck.id}`, extraOffered.length);
-  }, [atEnd, extraOffered.length, deck.id]);
+    if (atEnd) rememberShape(`extra:${deck.id}`, extraFirst);
+  }, [atEnd, extraFirst, deck.id]);
   /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
   const stage = useScreenStage(place, card !== undefined);
   /** Whether the card on screen has a clip to take the screen's room while it's filled: the first not under a spoiler, marked for the stage's styles. */
@@ -879,7 +887,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           <TodayCards
             id="extra"
             label="Extra study"
-            tools={<NumberField id="extra-count" label="How many more new cards" value={extraOffered.length} min={1} max={extraOrder.length} onChange={setExtraCount} />}
+            tools={<NumberField id="extra-count" label="How many more new cards" value={extraPicked.length} min={0} max={extraOrder.length} onChange={setExtraCount} />}
             type={type}
             srsType={srsType}
             reviews={[]}
