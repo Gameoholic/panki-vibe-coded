@@ -12,8 +12,13 @@ import { useDismiss } from "@web/hooks/useDismiss";
 
 /** The page a picture is drawn on, at a real page's size: a scene lays itself out in these pixels, Panki's components at their own size, and the whole is scaled to the window. */
 export const CANVAS = { width: 1100, height: 620 };
-/** How far the camera moves in on what's being done: a little, so the page still reads whole (the owner, 2026-10-28: "quite subtle and smooth, not too much"). */
-const CAMERA_ZOOM = 1.08;
+/**
+ * How far the camera can move in on what's being done (the owner, 2026-10-28: "quite subtle and smooth", then "a bit
+ * more… just make sure it doesn't cut off"): it frames what a moment is about, whole, and never past the page's edges.
+ */
+const CAMERA_MAX = 1.45;
+/** Room left around what's framed, as a share of the page. */
+const CAMERA_MARGIN = 4;
 /** The rest between one round of a picture and the next. */
 const LOOP_REST_MS = 1800;
 /** How long the window waits, once the pointer has left the (?) and the window, before it closes: time to cross the gap between them. */
@@ -37,12 +42,34 @@ export type Tools = {
   letGo: (key: string) => void;
   /** Where something stands on the page, for placing what a scene draws by it (the pop-up under a word). */
   spot: (el: Element | null) => Spot | null;
+  /** The camera onto these, all of them whole, as close as it goes; with none, back out to the whole page. */
+  frame: (...els: (Element | null)[]) => void;
   /** Whether the picture holds still (the system's reduced motion): the script runs through once, to its last frame. */
   still: boolean;
 };
 
 const START: Point = [88, 88];
 const isPoint = (to: Element | null | Point): to is Point => Array.isArray(to);
+/** Where the camera is: how close, and the page's top left corner it shows from, as shares of the page. */
+type Camera = { scale: number; left: number; top: number };
+const WHOLE: Camera = { scale: 1, left: 0, top: 0 };
+const clamp = (v: number, low: number, high: number) => Math.min(high, Math.max(low, v));
+
+/** The camera that shows `spots` whole and as close as it goes, the page's edges never in view past it. */
+function cameraOn(spots: readonly Spot[]): Camera {
+  if (spots.length === 0) return WHOLE;
+  const left = Math.min(...spots.map((s) => s.left)) - CAMERA_MARGIN;
+  const right = Math.max(...spots.map((s) => s.right)) + CAMERA_MARGIN;
+  const top = Math.min(...spots.map((s) => s.top)) - CAMERA_MARGIN;
+  const bottom = Math.max(...spots.map((s) => s.bottom)) + CAMERA_MARGIN;
+  const scale = clamp(Math.min(100 / (right - left), 100 / (bottom - top)), 1, CAMERA_MAX);
+  const seen = 100 / scale;
+  return {
+    scale,
+    left: clamp((left + right) / 2 - seen / 2, 0, 100 - seen),
+    top: clamp((top + bottom) / 2 - seen / 2, 0, 100 - seen),
+  };
+}
 
 /**
  * A page in a browser window, with a pointer on it and the keys being held beside it, its script played round and
@@ -54,7 +81,7 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
   const page = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(0.6);
   const [pointer, setPointer] = useState<{ at: Point; down: boolean }>({ at: START, down: false });
-  const [camera, setCamera] = useState<Point | null>(null);
+  const [camera, setCamera] = useState<Camera>(WHOLE);
   const [keys, setKeys] = useState<readonly { name: string; down: boolean }[]>([]);
   const [ripple, setRipple] = useState<{ id: number; at: Point } | null>(null);
   /** Where the pointer is, for a click to ripple from. */
@@ -101,9 +128,11 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
           const point = at;
           where.current = point;
           setPointer((p) => ({ ...p, at: point }));
-          setCamera(point);
         }
         await wait(ms);
+      },
+      frame(...els) {
+        setCamera(cameraOn(els.flatMap((el) => spot(el) ?? [])));
       },
       async click() {
         if (still) return;
@@ -126,7 +155,7 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
         do {
           where.current = START;
           setPointer({ at: START, down: false });
-          setCamera(null);
+          setCamera(WHOLE);
           setKeys([]);
           setRipple(null);
           await wait(400);
@@ -161,10 +190,7 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
         </span>
       </div>
       <div ref={view} className="explain-view" style={{ height: CANVAS.height * fit }}>
-        <div
-          className="explain-camera"
-          style={{ transformOrigin: camera ? `${camera[0]}% ${camera[1]}%` : "50% 50%", transform: camera ? `scale(${CAMERA_ZOOM})` : "none" }}
-        >
+        <div className="explain-camera" style={{ transform: `scale(${camera.scale}) translate(${-camera.left}%, ${-camera.top}%)` }}>
           {/* The page is only to be looked at: nothing in it takes a press or the focus. */}
           <div ref={page} className="explain-page" inert style={{ width: CANVAS.width, height: CANVAS.height, transform: `scale(${fit})` }}>
             {children}
@@ -214,7 +240,7 @@ export function Explainer({ name, children }: { name: string; children: ReactNod
   };
   useEffect(() => () => window.clearTimeout(closing.current), []);
   return (
-    <span ref={root} className="explain" onMouseLeave={closeSoon}>
+    <span ref={root} className={`explain ${open ? "is-open" : ""}`.trim()} onMouseLeave={closeSoon}>
       <Button
         className="explain-q"
         aria-label={`What ${name} is`}

@@ -19,6 +19,16 @@ import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
 import { SpeedControl } from "../ui/SpeedControl";
 import { EXAMPLE_CARDS, IN_DECKS } from "./examples";
 import { Explainer, Stage, type Site, type Spot, type Tools } from "./Explainer";
+import thumbMinecraft113 from "./thumbs/o7Kj73TQ3CU.jpg";
+import thumbMinecraft111 from "./thumbs/1V029k8jaGY.jpg";
+import thumbGuardman from "./thumbs/ssm_RZv9PDc.jpg";
+import thumbJarujaru from "./thumbs/XrLtQqseSv8.jpg";
+import thumbHikakinClip from "./thumbs/78IdbiNak-M.jpg";
+import thumbViolinSamurai from "./thumbs/EjlG-dMzm3s.jpg";
+import thumbHiroyuki from "./thumbs/I6mScxP5UMA.jpg";
+import thumbOnePiece from "./thumbs/06PeLyzcnJk.jpg";
+import thumbHajime from "./thumbs/gzESogpdOfg.jpg";
+import thumbSplatoon from "./thumbs/pq5CscA1Anc.jpg";
 
 /**
  * What each explainer plays (`Explainer.tsx`): one entry per panel, the feature being used on a page as it really is.
@@ -32,7 +42,7 @@ import { Explainer, Stage, type Site, type Spot, type Tools } from "./Explainer"
 const nothing = () => undefined;
 
 const NEWS: Site = { tab: "駅前に新しい喫茶店がオープン｜日曜ニュース", url: "www.nichiyo-news.jp/articles/20261027/kurashi-cafe", icon: "news" };
-const WATCH: Site = { tab: "【Vlog】駅前の新しい喫茶店に行ってみた - YouTube", url: "www.youtube.com/watch?v=k7Hq2cafe", icon: "video" };
+const WATCH: Site = { tab: "【マインクラフト】未来のマイクラ!?やってみた！ - YouTube", url: "www.youtube.com/watch?v=o7Kj73TQ3CU", icon: "video" };
 const HOME: Site = { tab: "YouTube", url: "www.youtube.com", icon: "video" };
 
 /** The words of the news article that are pointed at, and what stands in for each when no dictionary is there to look them up in. */
@@ -164,9 +174,16 @@ function usePointing() {
       popup.current = el;
     },
     popup: () => popup.current,
-    point: (t: Tools, id: WordId) => {
-      const at = t.spot(els.current[id] ?? null);
-      if (at) setPointing({ id, at });
+    /** The article the words are in: what the camera frames while no pop-up is open. */
+    article: () => els.current.kissa?.closest("article") ?? null,
+    /** The pop-up opened on a word, and the camera onto the word and the pop-up together, once it's drawn. */
+    point: async (t: Tools, id: WordId) => {
+      const word = els.current[id] ?? null;
+      const at = t.spot(word);
+      if (!at) return;
+      setPointing({ id, at });
+      await t.wait(60);
+      t.frame(word, popup.current);
     },
     close: () => setPointing(null),
   };
@@ -178,14 +195,15 @@ function PopupScene({ store }: { store: Stored }) {
   const p = usePointing();
   const script = async (t: Tools) => {
     p.close();
+    t.frame(p.article());
     await t.move([34, 44], 600);
     await t.move(p.el("kissa"));
     t.hold("Shift");
     await t.wait(300);
-    p.point(t, "kissa");
+    await p.point(t, "kissa");
     await t.wait(1900);
     await t.move(p.el("mitsuke"), 650);
-    p.point(t, "mitsuke");
+    await p.point(t, "mitsuke");
     await t.wait(1900);
     t.letGo("Shift");
     await t.wait(500);
@@ -194,6 +212,7 @@ function PopupScene({ store }: { store: Stored }) {
     await t.move([22, 88]);
     await t.click();
     p.close();
+    t.frame(p.article());
     await t.wait(900);
   };
   return (
@@ -214,6 +233,7 @@ function KnownScene({ store }: { store: Stored }) {
   const script = async (t: Tools) => {
     p.close();
     setTinted(new Set());
+    t.frame(p.article());
     await t.wait(300);
     for (let i = 1; i <= known.length; i++) {
       setTinted(new Set(known.slice(0, i)));
@@ -223,18 +243,20 @@ function KnownScene({ store }: { store: Stored }) {
     await t.move(p.el("kissa"));
     t.hold("Shift");
     await t.wait(300);
-    p.point(t, "kissa");
+    await p.point(t, "kissa");
     await t.wait(2300);
     t.letGo("Shift");
     p.close();
+    t.frame(p.article());
     await t.wait(400);
     await t.move(p.el("mitsuke"));
     t.hold("Shift");
     await t.wait(300);
-    p.point(t, "mitsuke");
+    await p.point(t, "mitsuke");
     await t.wait(1900);
     t.letGo("Shift");
     p.close();
+    t.frame(p.article());
     await t.wait(600);
   };
   return (
@@ -250,13 +272,27 @@ function KnownScene({ store }: { store: Stored }) {
 
 const SENTENCE = "新しい喫茶店を見つけました";
 const PICKED = { from: SENTENCE.indexOf(IN_DECKS.words), to: SENTENCE.indexOf(IN_DECKS.words) + IN_DECKS.words.length };
-const RECOMMENDED = [
-  ["東京の朝ごはん5選", "Tokyo Days", "is-1"],
-  ["はじめての京都ひとり旅", "Tabi Note", "is-2"],
-  ["簡単！10分で作るカレー", "Kitchen Haru", "is-3"],
-  ["日本語の聞き取り練習 #12", "Nihongo Now", "is-4"],
-  ["雨の日のカフェで勉強", "Study With Mei", "is-5"],
-] as const;
+
+/**
+ * Real videos for the video site, picked by the owner (2026-10-28): their thumbnails bundled with the extension, so
+ * nothing is fetched from the options page; their titles and channels as YouTube gives them. The first is the one
+ * being watched.
+ */
+type Video = { picture: string; title: string; channel: string; length: string };
+const VIDEOS: readonly Video[] = [
+  { picture: thumbMinecraft113, title: "【マインクラフト】未来のマイクラ!?やってみた！エイプリルフールアプデ！【ヒカキンのマイクラ実況 Part113】【ヒカクラ】", channel: "HikakinGames", length: "18:40" },
+  { picture: thumbMinecraft111, title: "【マインクラフト】めっちゃ遠出してみたらついにあれを発見!?!?【ヒカキンのマイクラ実況 Part111】【ヒカクラ】", channel: "HikakinGames", length: "21:07" },
+  { picture: thumbGuardman, title: "旅行中にがーどまんを雪山で下ろして置き去りにしてみたドッキリ【復讐の１週間】", channel: "Guardmanチャンネルがーどまん", length: "15:32" },
+  { picture: thumbJarujaru, title: "第一声で不採用確定させる就活生の奴", channel: "ジャルジャルアイランド JARUJARU ISLAND", length: "3:58" },
+  { picture: thumbHikakinClip, title: "やぎゅう先輩によってTikTokアカBANされるヒカキン【イナイレ・柳生先輩】", channel: "HikakinClipTV", length: "9:14" },
+  { picture: thumbViolinSamurai, title: "アメリカの警察にポケモンバトル仕掛けたら逮捕になるのか！？【バイオリニスト】", channel: "ViolinSamuraiバイオリン侍とポケモンマスターしずく社長", length: "12:26" },
+  { picture: thumbHiroyuki, title: "【ひろゆき】240円のスパチャした質問者にガチ説教するひろゆき。240円をバカにする人は成功しません【切り抜き/論破】", channel: "ひろゆきの部屋【ひろゆき, hiroyuki】切り抜き", length: "8:03" },
+  { picture: thumbOnePiece, title: "『ワンピース・オン・アイス』ナミ役 本田望結", channel: "ONE PIECE公式YouTubeチャンネル", length: "1:12" },
+  { picture: thumbHajime, title: "［戦慄］激辛ペヤングにデスソースをかけるドッキリ", channel: "はじめしゃちょー（hajime）", length: "10:48" },
+  { picture: thumbSplatoon, title: "8年前のおしり実況してみた【スプラトゥーン1】", channel: "HikakinGames", length: "16:55" },
+];
+const videoAt = (i: number): Video => VIDEOS[i % VIDEOS.length] ?? (VIDEOS[0] as Video);
+const WATCHED = videoAt(0);
 
 /** The site's header bar: its menu, its mark, its search, and what's at its right (Panki's pill, on the home). */
 function SiteTop({ right }: { right?: ReactNode }) {
@@ -278,29 +314,30 @@ function WatchPage({ video, under, side, paused = false, children }: { video?: R
       <SiteTop />
       <div className="ex-yt-left">
         <div className={`ex-video ${paused ? "is-paused" : ""}`.trim()}>
-          <div className="ex-photo is-city" />
+          <img className="ex-frame" src={WATCHED.picture} alt="" />
           {video}
         </div>
         {under}
         <h1 className="ex-yt-title" lang="ja">
-          【Vlog】駅前の新しい喫茶店に行ってみた
+          {WATCHED.title}
         </h1>
         <div className="ex-yt-channel">
           <span className="ex-yt-face" />
-          <span className="ex-yt-name">
-            Tokyo Days<small>124K subscribers</small>
-          </span>
+          <span className="ex-yt-name">{WATCHED.channel}</span>
           <span className="ex-yt-sub">Subscribe</span>
         </div>
       </div>
       <div className="ex-yt-side">
         {side ??
-          RECOMMENDED.map(([title, channel, look]) => (
-            <div key={title} className="ex-rec">
-              <span className={`ex-thumb ${look}`} />
+          [1, 2, 3, 4, 5].map(videoAt).map((v) => (
+            <div key={v.title} className="ex-rec">
+              <span className="ex-rec-pic">
+                <img className="ex-thumb" src={v.picture} alt="" />
+                <span className="yc-time">{v.length}</span>
+              </span>
               <span className="ex-rec-words">
-                <b lang="ja">{title}</b>
-                <small>{channel}</small>
+                <b lang="ja">{v.title}</b>
+                <small lang="ja">{v.channel}</small>
               </span>
             </div>
           ))}
@@ -359,6 +396,7 @@ function PanelScene() {
     setAdded(false);
     await t.wait(300);
     setShown(true);
+    t.frame(line.current?.closest(".strip") ?? null);
     await t.wait(700);
     for (const i of wordsOf(tokens).slice(0, 4)) {
       setNow([i, i]);
@@ -369,6 +407,7 @@ function PanelScene() {
     await t.click();
     setPicked(target);
     setDrawer(true);
+    t.frame(card.current);
     await t.wait(1700);
     await t.move(card.current?.querySelector(".capture-add") ?? null);
     await t.click();
@@ -376,6 +415,7 @@ function PanelScene() {
     await t.wait(1300);
     setDrawer(false);
     setPicked(null);
+    t.frame();
     await t.wait(1300);
   };
   return (
@@ -445,6 +485,8 @@ function UnderlineScene() {
   const over = useRef<HTMLDivElement | null>(null);
   const script = async (t: Tools) => {
     setNow(null);
+    const video = over.current?.closest(".ex-video") ?? null;
+    t.frame(video, video?.parentElement?.querySelector(".strip") ?? null);
     await t.move([92, 92], 500);
     for (let round = 0; round < 2; round++) {
       for (const i of wordsOf(tokens)) {
@@ -483,32 +525,37 @@ function HomeScene({ store }: { store: Stored }) {
     setShelves(0);
     setHover(false);
     setSaved(false);
+    t.frame();
     await t.wait(300);
     setPill(true);
-    await t.move(feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null, 800);
-    await t.wait(900);
+    const pillEl = feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null;
+    t.frame(pillEl);
+    await t.move(pillEl, 800);
+    await t.wait(1100);
     await t.move([36, 34], 700);
     setShelves(1);
-    await t.wait(1200);
+    // Framed once the shelves have opened to their height.
+    await t.wait(750);
+    t.frame(feed.current?.querySelector(".ex-shelves") ?? null);
+    await t.wait(700);
     setShelves(2);
     await t.wait(1300);
     const card = feed.current?.querySelector(".ex-grid > :nth-child(2)") ?? null;
+    t.frame(card);
     await t.move(card, 700);
     setHover(true);
     await t.wait(400);
     await t.move(card?.querySelector(".yt-save") ?? null, 500);
     await t.click();
     setSaved(true);
-    await t.wait(1600);
+    await t.wait(1200);
+    t.frame();
+    await t.wait(800);
   };
-  const grid = [
-    ["東京の朝ごはん5選", "Tokyo Days", "is-1", "12:04"],
-    ["はじめての京都ひとり旅", "Tabi Note", "is-2", "18:40"],
-    ["簡単！10分で作るカレー", "Kitchen Haru", "is-3", "10:12"],
-    ["日本語の聞き取り練習 #12", "Nihongo Now", "is-4", "21:33"],
-    ["雨の日のカフェで勉強", "Study With Mei", "is-5", "1:02:10"],
-    ["週末キャンプVlog", "Outdoor Ken", "is-6", "15:27"],
-  ] as const;
+  const grid = [1, 2, 3, 4, 5, 6].map(videoAt);
+  const lead = videoAt(2);
+  const kept = videoAt(8);
+  const savedNow = grid[1] ?? lead;
   return (
     <Stage site={HOME} script={script}>
       <div className="ex-yt is-home">
@@ -544,7 +591,7 @@ function HomeScene({ store }: { store: Stored }) {
                 <div className="yh-lead">
                   <div className="yc yh-lead-pic-wrap">
                     <span className="yh-lead-pic">
-                      <span className="ex-thumb is-2" />
+                      <img className="ex-thumb" src={lead.picture} alt="" />
                       <span className="yc-bar">
                         <i style={{ width: "62%" }} />
                       </span>
@@ -552,10 +599,12 @@ function HomeScene({ store }: { store: Stored }) {
                   </div>
                   <div className="yh-lead-info">
                     <span className="yh-lead-title" lang="ja">
-                      はじめての京都ひとり旅
+                      {lead.title}
                     </span>
-                    <span className="yc-sub">Tabi Note · Stopped at 11:38 · Yesterday</span>
-                    <span className="yh-lead-left">7 min left · 62%</span>
+                    <span className="yc-sub">
+                      <span lang="ja">{lead.channel}</span> · Stopped at 9:38 · Yesterday
+                    </span>
+                    <span className="yh-lead-left">6 min left · 62%</span>
                     <span className="yh-resume">
                       <Icon name="play" />
                       Resume
@@ -568,41 +617,31 @@ function HomeScene({ store }: { store: Stored }) {
                   Saved for later <span className="yh-h-n">{saved ? 2 : 1}</span>
                 </h2>
                 <div className="yh-cards">
-                  <div className="yc">
-                    <span className="yc-link">
-                      <span className="yc-thumb">
-                        <span className="ex-thumb is-5" />
-                        <span className="yc-time">1:02:10</span>
-                      </span>
-                      <span className="yc-title" lang="ja">
-                        雨の日のカフェで勉強
-                      </span>
-                      <span className="yc-sub">Study With Mei</span>
-                    </span>
-                  </div>
-                  {saved ? (
-                    <div className="yc ex-new">
+                  {(saved ? [kept, savedNow] : [kept]).map((v) => (
+                    <div key={v.title} className={`yc ${v === savedNow ? "ex-new" : ""}`.trim()}>
                       <span className="yc-link">
                         <span className="yc-thumb">
-                          <span className="ex-thumb is-2" />
-                          <span className="yc-time">18:40</span>
+                          <img className="ex-thumb" src={v.picture} alt="" />
+                          <span className="yc-time">{v.length}</span>
                         </span>
                         <span className="yc-title" lang="ja">
-                          はじめての京都ひとり旅
+                          {v.title}
                         </span>
-                        <span className="yc-sub">Tabi Note</span>
+                        <span className="yc-sub" lang="ja">
+                          {v.channel}
+                        </span>
                       </span>
                     </div>
-                  ) : null}
+                  ))}
                 </div>
               </section>
             </div>
           </div>
           <div className="ex-grid">
-            {grid.map(([title, channel, look, length], i) => (
+            {grid.map(({ picture, title, channel, length }, i) => (
               <div key={title} className="ex-card">
                 <span className="ex-card-pic">
-                  <span className={`ex-thumb ${look}`} />
+                  <img className="ex-thumb" src={picture} alt="" />
                   <span className="yc-time">{length}</span>
                   {i === 1 && (hover || saved) ? (
                     <Button className={`btn-icon yt-save is-on-card ${saved ? "is-saved" : ""}`.trim()} aria-label="Save for later" aria-pressed={saved}>
@@ -612,8 +651,8 @@ function HomeScene({ store }: { store: Stored }) {
                 </span>
                 <span className="ex-card-words">
                   <b lang="ja">{title}</b>
-                  <small>
-                    {channel} · {(i + 2) * 7}K views
+                  <small lang="ja">
+                    {channel} · {(i + 2) * 70}K views
                   </small>
                 </span>
               </div>
@@ -648,6 +687,7 @@ function UtilitiesScene() {
     setAt(17.1);
     setShorts(true);
     const speedButton = () => player.current?.querySelector<HTMLButtonElement>(".yt-speed-button") ?? null;
+    t.frame(player.current);
     await t.move(speedButton());
     await t.click();
     speedButton()?.click();
@@ -678,9 +718,13 @@ function UtilitiesScene() {
     t.letGo("Shift");
     setSkip(null);
     await t.wait(500);
-    await t.move([84, 40], 700);
+    const side = player.current?.closest(".ex-yt")?.querySelector(".ex-shorts") ?? null;
+    t.frame(side);
+    await t.move(side, 700);
     setShorts(false);
-    await t.wait(1600);
+    await t.wait(1400);
+    t.frame();
+    await t.wait(600);
   };
   const played = (LENGTH * at) / 100;
   return (
@@ -709,8 +753,8 @@ function UtilitiesScene() {
           <div className={`ex-shorts ${shorts ? "" : "is-gone"}`.trim()}>
             <b>Shorts</b>
             <div>
-              {["is-4", "is-1", "is-6", "is-3", "is-5", "is-2"].map((look) => (
-                <span key={look} className={`ex-thumb ${look}`} />
+              {[3, 7, 5, 9, 6, 4].map(videoAt).map((v) => (
+                <img key={v.title} className="ex-thumb" src={v.picture} alt="" />
               ))}
             </div>
           </div>

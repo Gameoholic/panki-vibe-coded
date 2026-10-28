@@ -2949,15 +2949,24 @@
 /* ---------- What a panel's feature is, shown (options/Explainer.tsx, explainerScenes.tsx) ----------
    A (?) beside the panel's title; its window holds a browser with a page in it, the feature being used there. The page
    is drawn at a real page's size (CANVAS) and scaled to the window, so Panki's components keep their own sizes. */
+/* The title and its (?) on one line, centred on each other: the title's own space under it is the row's. */
 .explain-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 10px;
+}
+.explain-head .panel-title {
+  margin: 0;
 }
 .explain {
   position: relative;
   display: inline-flex;
   z-index: 20;
+}
+/* Open, over everything after it on the page, the other panels' (?) among them. */
+.explain.is-open {
+  z-index: 40;
 }
 .btn.explain-q {
   width: 22px;
@@ -3087,13 +3096,12 @@
   overflow: hidden;
   background: var(--page);
 }
-/* The camera leaning in on the pointer, a little and slowly (the owner, 2026-10-28: "quite subtle and smooth"). */
+/* The camera framing what a moment is about, slowly (the owner, 2026-10-28: "subtle and smooth… make sure it doesn't cut off"). */
 .explain-camera {
   position: absolute;
   inset: 0;
-  transition:
-    transform 1.6s cubic-bezier(0.4, 0.1, 0.2, 1),
-    transform-origin 1.6s cubic-bezier(0.4, 0.1, 0.2, 1);
+  transform-origin: 0 0;
+  transition: transform 1.4s cubic-bezier(0.4, 0.1, 0.2, 1);
 }
 .explain-page {
   position: absolute;
@@ -3186,47 +3194,27 @@
   }
 }
 
-/* A made-up picture where a real one would be: a thumbnail, a photo. */
+/* A video's thumbnail (the owner's picks, bundled: options/thumbs/), cropped to its box as the site crops it. */
 .ex-thumb,
-.ex-photo {
+.ex-frame {
   display: block;
-  background: linear-gradient(135deg, var(--mark-blue), var(--mark-violet));
+  width: 100%;
+  object-fit: cover;
+  background: var(--site-dark-raised);
 }
-.ex-thumb.is-1 {
-  background: linear-gradient(135deg, var(--mark-orange), var(--mark-pink));
+/* The picture of the video being watched, filling the player. */
+.ex-frame {
+  position: absolute;
+  inset: 0;
+  height: 100%;
 }
-.ex-thumb.is-2 {
-  background: linear-gradient(135deg, var(--mark-cyan), var(--mark-blue));
-}
-.ex-thumb.is-3 {
-  background: linear-gradient(135deg, var(--mark-yellow), var(--mark-orange));
-}
-.ex-thumb.is-4 {
-  background: linear-gradient(135deg, var(--mark-violet), var(--mark-pink));
-}
-.ex-thumb.is-5 {
-  background: linear-gradient(135deg, var(--mark-green), var(--mark-cyan));
-}
-.ex-thumb.is-6 {
-  background: linear-gradient(135deg, var(--mark-blue), var(--theater));
-}
+/* The news article's photo, made up. */
 .ex-photo.is-cafe {
   background:
     radial-gradient(ellipse at 28% 76%, color-mix(in srgb, var(--mark-yellow) 30%, var(--page)) 0 9%, transparent 10%),
     linear-gradient(to top, color-mix(in srgb, var(--mark-orange) 35%, var(--theater)) 0 26%, transparent 26%),
     radial-gradient(circle at 74% 30%, color-mix(in srgb, var(--mark-yellow) 45%, var(--page)) 0 11%, transparent 12%),
     linear-gradient(160deg, color-mix(in srgb, var(--mark-orange) 45%, var(--page)), color-mix(in srgb, var(--mark-orange) 60%, var(--theater)));
-}
-.ex-photo.is-city {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to top, color-mix(in srgb, var(--mark-violet) 25%, var(--theater)) 0 24%, transparent 24%),
-    linear-gradient(to top, transparent 22%, color-mix(in srgb, var(--mark-violet) 35%, var(--theater)) 22% 42%, transparent 42%) 8% 0 / 18% 100% no-repeat,
-    linear-gradient(to top, transparent 22%, color-mix(in srgb, var(--mark-violet) 30%, var(--theater)) 22% 54%, transparent 54%) 34% 0 / 14% 100% no-repeat,
-    linear-gradient(to top, transparent 22%, color-mix(in srgb, var(--mark-violet) 35%, var(--theater)) 22% 47%, transparent 47%) 80% 0 / 20% 100% no-repeat,
-    radial-gradient(circle at 62% 46%, color-mix(in srgb, var(--mark-yellow) 60%, var(--page)) 0 8%, transparent 9%),
-    linear-gradient(color-mix(in srgb, var(--mark-orange) 55%, var(--page)), color-mix(in srgb, var(--mark-pink) 70%, var(--theater)) 58%, color-mix(in srgb, var(--mark-violet) 55%, var(--theater)));
 }
 
 /* A news site, in its own colours */
@@ -3392,7 +3380,7 @@
   border-radius: 12px;
   background: var(--theater);
 }
-.ex-video.is-paused .ex-photo {
+.ex-video.is-paused .ex-frame {
   filter: brightness(0.75);
 }
 .ex-yt-title {
@@ -3440,9 +3428,14 @@
   grid-template-columns: 168px 1fr;
   gap: 10px;
 }
-.ex-rec .ex-thumb {
+.ex-rec-pic {
+  position: relative;
+  overflow: hidden;
   aspect-ratio: 16 / 9;
   border-radius: 8px;
+}
+.ex-rec-pic .ex-thumb {
+  height: 100%;
 }
 .ex-rec-words {
   display: grid;
@@ -3639,6 +3632,7 @@
 .yc-thumb .ex-thumb {
   position: absolute;
   inset: 0;
+  height: 100%;
 }
 .yc.ex-new {
   animation: explain-in 0.3s ease-out;
@@ -3662,6 +3656,7 @@
 .ex-card-pic .ex-thumb {
   position: absolute;
   inset: 0;
+  height: 100%;
 }
 .ex-card-pic .yt-save.is-on-card {
   position: absolute;
