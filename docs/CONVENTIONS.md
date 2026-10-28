@@ -134,6 +134,7 @@ Few and justified. Supply chain is the realistic security risk, so every depende
 - **A change that breaks an older extension raises `EXTENSION_PROTOCOL` in the same commit** (`packages/contracts/src/extension.ts`; the owner, 2026-10-22). Breaking: the server stops accepting, or changes the meaning of, something an older extension sends or reads (a route renamed or taken away, a field renamed or made required, a shape changed). Not breaking: anything an older extension can ignore (a new optional field, a new route) and any change to the extension alone. Since every push to `main` deploys, an extension built before such a change is then refused by the server and says "Update needed" until it's updated. Say in the report when a change raised it.
 - **A failing test is checked before it's blamed.** Run it on the untouched code first.
 - **The whole build passes before anything is called ready.**
+- **Work on main** (the owner, 2026-10-28: "from now on stay in main"). No branch or worktree of Claude's own, however risky a change looks: one the owner may want undone is kept to a single commit, so one revert takes it back. A branch only when the owner asks for one.
 - **Commit only when asked.** The owner commits and pushes themselves. When Claude is asked to, everything goes in, README.md with it, and the README is never mentioned (the owner, 2026-10-28: "readme should always be committed from now on, and never talk to me about it").
 
 ### Reporting

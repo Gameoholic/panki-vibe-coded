@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
@@ -14,6 +14,7 @@ import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
 import { keyOf, pressed, sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
+import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
 import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
@@ -253,9 +254,17 @@ type Today = { picked: ReadonlySet<string>; more: boolean };
  * Today's cards before the first one (the owner's pick, B of https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62,
  * 2026-10-26; a deck's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
  * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
- * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`).
+ * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`). Extra study at the
+ * end is this too (the owner, 2026-10-28: "it should look similar… just have the selector for how many"): its new
+ * cards past today's, under its name, with how many in the bar after Show cards.
  */
-function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
+function TodayCards({ id = "today", label, tools, type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
+  /** What its ids and its Start's hold go by: `today` before a review, `extra` for extra study. */
+  id?: string;
+  /** Its name, at the head of the bar: "Extra study"; none before a review. */
+  label?: string;
+  /** What stands in the bar after Show cards: extra study's how many. */
+  tools?: ReactNode;
   type: CardType;
   srsType: SrsType;
   /** Today's due cards, in the line's order. */
@@ -307,8 +316,8 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, op
   return (
     <section className="review-today">
       {/* Folded to the counts to begin with; Show cards unfolds the tiles under it. */}
-      <TodayBar id="today" counts={todayWords(picked(reviews).length, picked(offered).length) ?? "None picked"} shown={open} onShow={() => setOpen(!open)} left={left ? `${left} for later` : null}>
-        <Button id="today-start" variant="primary" size="lg" data-hold="today-start" disabled={total === 0} onClick={onStart}>
+      <TodayBar id={id} name={label} counts={todayWords(picked(reviews).length, picked(offered).length) ?? "None picked"} shown={open} onShow={() => setOpen(!open)} tools={tools} left={left ? `${left} for later` : null}>
+        <Button id={`${id}-start`} variant="primary" size="lg" data-hold={`${id}-start`} disabled={total === 0} onClick={onStart}>
           Start {count(total, "card", "cards")}
           <KeyCap bind={startKey} />
         </Button>
@@ -316,9 +325,9 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, op
       {open ? (
         <div className="review-today">
           {reviews.length > 0 ? (
-            <section className="panel today-panel" aria-labelledby="today-reviews-title">
+            <section className="panel today-panel" aria-labelledby={`${id}-reviews-title`}>
               <div className="today-head">
-                <h2 id="today-reviews-title" className="panel-title">
+                <h2 id={`${id}-reviews-title`} className="panel-title">
                   Reviews
                 </h2>
                 <span className="today-of">
@@ -334,16 +343,16 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, op
                       </Button>
                     );
                   })}
-                  {allNone(reviews, "today-reviews")}
+                  {allNone(reviews, `${id}-reviews`)}
                 </span>
               </div>
               <div className="today-cards">{reviews.map(tile)}</div>
             </section>
           ) : null}
           {fresh.length > 0 || others.length > 0 ? (
-            <section className="panel today-panel" aria-labelledby="today-new-title">
+            <section className="panel today-panel" aria-labelledby={`${id}-new-title`}>
               <div className="today-head">
-                <h2 id="today-new-title" className="panel-title">
+                <h2 id={`${id}-new-title`} className="panel-title">
                   {NEW_WORDS.name}
                 </h2>
                 <span className="today-of">
@@ -351,11 +360,11 @@ function TodayCards({ type, srsType, reviews, fresh, others, today, startKey, op
                 </span>
                 <span className="chips">
                   {others.length > 0 ? (
-                    <Button id="today-more" variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
+                    <Button id={`${id}-more`} variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
                       Every new card · {fresh.length + others.length}
                     </Button>
                   ) : null}
-                  {offered.length > 0 ? allNone(offered, "today-new") : null}
+                  {offered.length > 0 ? allNone(offered, `${id}-new`) : null}
                 </span>
               </div>
               {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : <p className="empty">No new cards today.</p>}
@@ -450,8 +459,59 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const place = useRef<HTMLElement | null>(null);
   /** How many more new cards to start once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
   const [extra, setExtra] = useState(deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START);
+  // The deck's new cards never started, in the order extra study takes them: oldest first, or shuffled once for a deck
+  // that shuffles its new cards, so the tiles at the end hold still while they're looked over.
+  const unseenIds = [...byId.values()].filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt).map((c) => c.id);
+  const unseenKey = unseenIds.join(" ");
+  const extraOrder = useMemo(
+    () => (deck.settings.newOrder === "shuffled" ? shuffle(unseenIds) : unseenIds),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the same cards keep the same order, however often they're read
+    [unseenKey, deck.settings.newOrder],
+  );
+  /** Extra study's pick at the end, as today's cards hold theirs; null while it's the first of them, as many as the number says. */
+  const [extraPick, setExtraPick] = useState<Today | null>(null);
+  const extraOffered = extraOrder.slice(0, Math.min(extra, extraOrder.length));
+  const extraToday: Today = extraPick ?? { picked: new Set(extraOffered), more: false };
+  function pickExtra(ids: readonly string[], on: boolean) {
+    const picked = new Set(extraToday.picked);
+    for (const id of ids) on ? picked.add(id) : picked.delete(id);
+    setExtraPick({ ...extraToday, picked });
+  }
+  function offerAllExtra(more: boolean) {
+    // The cards past the number go back out of the pick when they're no longer offered.
+    setExtraPick({ more, picked: more ? extraToday.picked : new Set([...extraToday.picked].filter((id) => extraOffered.includes(id))) });
+  }
+  /** How many more is changed: the pick is the first that many again. */
+  function setExtraCount(n: number) {
+    setExtra(n);
+    setExtraPick(null);
+  }
+  /**
+   * Extra study begins on what's picked, in the order it takes them: a sitting of its own, so Undo goes back no further
+   * than its start, and the day's ends as done. The pick is kept in the ledger as today's is, marked as extra study's.
+   */
+  function startExtra() {
+    const picked = extraOrder.filter((id) => extraToday.picked.has(id));
+    if (picked.length === 0) return;
+    const left = extraOffered.filter((id) => !extraToday.picked.has(id));
+    const added = picked.filter((id) => !extraOffered.includes(id));
+    endSitting({ how: "done" });
+    startSitting("extra");
+    ledger.record("pick", { data: { deckId: deck.id, sessionId: sitting.current?.id, extra: true, today: extraOffered, left, added } });
+    pickedByHand.current = left.length > 0 || added.length > 0;
+    setGiven([]);
+    setFailure(null);
+    setExtraPick(null);
+    setLine(startLine(picked, deck.settings.pool));
+  }
   const cardId = today ? undefined : line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
+  // How many extra study offers at the end, remembered for the end's skeleton next time (`skeletonMemory.ts`); none
+  // without new cards to start.
+  const atEnd = today === null && card === undefined;
+  useEffect(() => {
+    if (atEnd) rememberShape(`extra:${deck.id}`, extraOffered.length);
+  }, [atEnd, extraOffered.length, deck.id]);
   /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
   const stage = useScreenStage(place, card !== undefined);
   /** Whether the card on screen has a clip to take the screen's room while it's filled: the first not under a spoiler, marked for the stage's styles. */
@@ -704,6 +764,17 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         hold.begin(e.key, button, binds.undo.holdMs, () => void undo());
         return;
       }
+      // At the end, Start's key starts extra study, as it starts a review on today's cards; Enter does too, but on a button.
+      if (!card && extraOrder.length > 0) {
+        if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+          e.preventDefault();
+          startExtra();
+        } else if (sameKey(key, binds.start.key)) {
+          e.preventDefault();
+          if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='extra-start']"), binds.start.holdMs, startExtra);
+        }
+        return;
+      }
       if (!card) return;
       // Another of the card's examples, either way, with its key held as long as it's set to be.
       const step = exampleIds.length > 1 ? (sameKey(key, binds.examplePrev.key) ? -1 : sameKey(key, binds.exampleNext.key) ? 1 : 0) : 0;
@@ -763,7 +834,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
      */
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
-      if (pressed(e, today ? binds.start.key : binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      const starts = today !== null || (!card && extraOrder.length > 0);
+      if (pressed(e, starts ? binds.start.key : binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -789,18 +861,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     });
     const max = Math.max(1, ...rows.map((r) => r.n));
     const nothing = answered === 0;
-    // Past today's count there may be cards never started: the day's limit is a pace, not a wall, so more can be started now.
-    const unseen = [...byId.values()].filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt);
-    const more = Math.min(extra, unseen.length);
-    const startMore = () => {
-      const picked = (deck.settings.newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, more).map((c) => c.id);
-      // The day's sitting ends as done; extra study is a sitting of its own, and Undo goes back no further than its start.
-      endSitting({ how: "done" });
-      startSitting("extra");
-      setGiven([]);
-      setFailure(null);
-      setLine(startLine(picked, deck.settings.pool));
-    };
     return (
       <section className="summary review-done">
         <h2 className="summary-title">{nothing ? "Nothing to review right now." : "That’s the lot."}</h2>
@@ -813,19 +873,25 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
             ))}
           </div>
         )}
-        {unseen.length > 0 ? (
-          <section className="panel" aria-labelledby="more-new-title">
-            <h3 id="more-new-title" className="panel-title">
-              Extra study
-            </h3>
-            <p className="empty">{count(unseen.length, "new card", "new cards")} in this deck</p>
-            <div className="add-actions add-actions-start">
-              <NumberField id="more-new" label="How many more new cards" value={more} min={1} max={unseen.length} onChange={setExtra} />
-              <Button id="more-new-go" variant="primary" onClick={startMore}>
-                Start {more} more
-              </Button>
-            </div>
-          </section>
+        {/* Past today's count there may be cards never started: the day's limit is a pace, not a wall, so more can be
+            started now, looked over first as today's are. */}
+        {extraOrder.length > 0 ? (
+          <TodayCards
+            id="extra"
+            label="Extra study"
+            tools={<NumberField id="extra-count" label="How many more new cards" value={extraOffered.length} min={1} max={extraOrder.length} onChange={setExtraCount} />}
+            type={type}
+            srsType={srsType}
+            reviews={[]}
+            fresh={cardsOf(extraOffered)}
+            others={cardsOf(extraOrder.slice(extraOffered.length))}
+            today={extraToday}
+            startKey={binds.start}
+            opened={false}
+            onPick={pickExtra}
+            onMore={offerAllExtra}
+            onStart={startExtra}
+          />
         ) : null}
         <section className="panel" aria-labelledby="coming-up-title">
           <h3 id="coming-up-title" className="panel-title">

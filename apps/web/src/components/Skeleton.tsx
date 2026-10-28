@@ -23,7 +23,7 @@ export function Bone({ w = "100%", h = "0.9em", round = false, className = "" }:
  * editor beside its card, a few lines in a panel, and one tile's body. A new kind of screen takes the one it looks
  * like, or is one entry here built of its own classes.
  */
-export type SkeletonShape = "rows" | "picks" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "review" | "form" | "editor" | "lines" | "tile";
+export type SkeletonShape = "rows" | "picks" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "done" | "review" | "form" | "editor" | "lines" | "tile";
 
 /** Widths that vary a little from row to row, so a list of blocks reads as a list of things and not a grid. */
 const WIDTHS = ["46%", "62%", "38%", "54%", "70%", "42%"];
@@ -68,12 +68,21 @@ const TODAY_SHOW_PX = "136px";
 const TODAY_HIDE_PX = "128px";
 const TODAY_BUTTON_H = "42px";
 const TODAY_START_PX = 82;
+/** A `NumberField` as measured: its − and +, the number between them, and the gaps. */
+const NUMBER_FIELD_PX = "160px";
+const NUMBER_FIELD_H = "46px";
+/** "Coming up" at a review's end, as measured: how wide each of its days' words is ("Tomorrow", "In 2 days", "In 3 days", "This week": `ReviewView` → `COMING_UP`). */
+const COMING_UP_WORDS = ["4.6em", "3.85em", "3.85em", "4.45em"];
+/** A button's room besides its words, and a character of them, as measured: what sizes the button at a review's end. */
+const BUTTON_PAD_PX = 36;
+const BUTTON_CHAR_PX = 9;
 
 /**
- * `count` is how many rows, lines or tiles; `parts`, for `today`, how many tiles each of its panels holds (reviews,
- * then new), and `firstReviews` whether the first is the reviews one, whose head alone carries a stage's chip; `words`
- * and `start`, for `today`, what its bar will say (the counts, Start's label), known from the deck, so their blocks
- * are as wide as the words will be.
+ * `count` is how many rows, lines or tiles (for `done`, how many cards extra study offers, none for no bar); `parts`,
+ * for `today`, how many tiles each of its panels holds (reviews, then new), and `firstReviews` whether the first is the
+ * reviews one, whose head alone carries a stage's chip; `words` and `start`, for `today`, what its bar will say (the
+ * counts, Start's label), known from the deck, so their blocks are as wide as the words will be; `words`, for `done`,
+ * what the button at its foot says.
  */
 export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false, words = "", start = "" }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean; words?: string; start?: string }) {
   switch (shape) {
@@ -120,6 +129,57 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
               ))}
             </div>
           ) : null}
+        </section>
+      );
+    }
+    case "done": {
+      // As `ReviewView` draws its end with nothing to review: the title, extra study's bar when there are new cards for
+      // it (`TodayCards` under its name, how many beside Start), what's coming up, and the button at the foot.
+      const extra = count ?? 0;
+      const counts = `${extra} new`;
+      const start = `Start ${extra} ${extra === 1 ? "card" : "cards"}`;
+      return (
+        <section className="skel-in summary review-done" {...status}>
+          <h2 className="summary-title skel-line">
+            <Bone w="12.5em" h="1.2em" />
+          </h2>
+          {extra > 0 ? (
+            <section className="review-today">
+              <div className="panel today-bar">
+                <span className="today-name">
+                  <Bone w="5.25em" h="1em" />
+                </span>
+                <span className="today-counts">
+                  <Bone w={`${counts.length * TODAY_CHAR_PX}px`} h="1em" />
+                </span>
+                <Bone w={TODAY_SHOW_PX} h={TODAY_BUTTON_H} />
+                <Bone w={NUMBER_FIELD_PX} h={NUMBER_FIELD_H} />
+                <span className="today-left" />
+                <Bone w={`${TODAY_START_PX + start.length * TODAY_CHAR_PX}px`} h="56px" />
+              </div>
+            </section>
+          ) : null}
+          <section className="panel">
+            <h3 className="panel-title skel-line">
+              <Bone w="6.2em" h="0.9em" />
+            </h3>
+            <div className="next-days">
+              {COMING_UP_WORDS.map((w, i) => (
+                <div key={i} className="next-day">
+                  <span className="skel-line">
+                    <Bone w={w} h="1em" />
+                  </span>
+                  <span className="barwrap" />
+                  <span className="n skel-line">
+                    <Bone w="1.1em" h="1em" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <div className="add-actions add-actions-start">
+            <Bone w={`${BUTTON_PAD_PX + words.length * BUTTON_CHAR_PX}px`} h="42px" />
+          </div>
         </section>
       );
     }

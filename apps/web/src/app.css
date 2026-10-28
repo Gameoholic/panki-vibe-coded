@@ -1687,6 +1687,15 @@ canvas.media-frame {
   gap: 10px;
   padding-block: 4px;
 }
+/* A line of words while it loads, holding a block alone: as tall as the words' own line, the block in its middle. */
+.skel-line {
+  display: flex;
+  align-items: center;
+  min-height: 1.5em;
+}
+.next-day .n.skel-line {
+  justify-content: flex-end;
+}
 .skel-panels {
   display: grid;
   gap: 16px;
