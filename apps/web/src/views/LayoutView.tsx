@@ -93,8 +93,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const [side, setSide] = useState<CardSide>("front");
   const [trying, setTrying] = useState(false);
   const binds = useKeyBinds();
-  const mediaKeys = binds.media.map(shortcutOf);
-  const screenKey = shortcutOf(binds.fullScreen);
+  const mediaKeys = binds.media.map((bind) => shortcutOf(bind, binds));
+  const screenKey = shortcutOf(binds.fullScreen, binds);
   const [picked, setPicked] = useState<string | null>(type.layout[0]?.fieldId ?? null);
   const [samples, setSamples] = useState<{ card: Card; deck: Deck }[]>([]);
   const [sampleId, setSampleId] = useState<string>(NO_SAMPLE);

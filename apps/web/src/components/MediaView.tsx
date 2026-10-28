@@ -1,9 +1,9 @@
 import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
-import { useHold } from "../hooks/useHold";
+import { useHeardKeys } from "../hooks/useHeardKeys";
 import { usePlayback } from "../hooks/usePlayback";
 import { ScreenStageContext } from "../hooks/useScreenStage";
-import { heard, type Shortcut } from "../keys";
+import type { Shortcut } from "../keys";
 import type { Speed, Volume } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
@@ -285,27 +285,12 @@ function screenTarget(own: HTMLElement): HTMLElement | null {
  * (`screenTarget`).
  */
 function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut | null, toggle: () => void) {
-  const held = useHold();
-  const act = useRef(toggle);
-  act.current = toggle;
-  const key = screenKey?.key ?? null;
-  const holdMs = screenKey?.holdMs ?? 0;
-  useEffect(() => {
-    if (!key) return;
-    const onKey = (e: KeyboardEvent) => {
-      const own = frame.current;
-      if (!heard(e, key) || !own || screenTarget(own) !== own) return;
-      e.preventDefault();
-      held.begin(e.key, own.querySelector<HTMLElement>(".media-screen-key"), holdMs, () => act.current());
-    };
-    const onUp = (e: KeyboardEvent) => held.release(e.key);
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("keyup", onUp);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("keyup", onUp);
-    };
-  }, [key, holdMs]); // eslint-disable-line react-hooks/exhaustive-deps -- `frame`, `act` and `held` read through refs
+  useHeardKeys(
+    [screenKey, screenKey?.also ?? null],
+    () => frame.current?.querySelector<HTMLElement>(".media-screen-key") ?? null,
+    toggle,
+    () => frame.current !== null && screenTarget(frame.current) === frame.current,
+  );
 }
 
 /**

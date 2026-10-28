@@ -3,7 +3,7 @@ import { Dropdown } from "../components/Dropdown";
 import { KeyField } from "../components/KeyField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
-import { DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, useKeyBinds, withBind, withKey, type Bind, type KeyBinds, type Slot } from "../keys";
+import { DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, useKeyBinds, withKey, withPart, type Bind, type Key, type KeyBinds, type Part, type Slot } from "../keys";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
 /** A key's hold as its choice reads: "Press", "Hold 0.5 s". */
@@ -12,7 +12,27 @@ const HOLD_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: ms === 0 ?
 const EXTRA_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: `+${seconds(ms)}` }));
 const holdOf = (id: string, fallback: number) => HOLD_TIMES.find((ms) => String(ms) === id) ?? fallback;
 
-/** One key's row: what it does, its key, and how long it's held first. */
+/** One of an action's keys, and how long it's held first. */
+function KeyPair({ id, label, own, part, slot, binds }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds }) {
+  return (
+    <span className="key-pair">
+      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} />
+      <Dropdown
+        id={`key-${id}-hold`}
+        label={`${label}: press or hold`}
+        options={HOLD_OPTIONS}
+        value={String(own.holdMs)}
+        disabled={own.key === null}
+        onChange={(ms) => setKeyBinds(withPart(binds, slot, part, (k) => ({ ...k, holdMs: holdOf(ms, k.holdMs) })))}
+      />
+    </span>
+  );
+}
+
+/**
+ * One action's row: what it does, its key and a second key (the owner, 2026-10-28: "multiple keybinds to an action"),
+ * each pressed or held for a time of its own. A key is one thing on a screen, but for a press and a hold of it.
+ */
 function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; bind: Bind; slot: Slot; binds: KeyBinds }) {
   return (
     <Setting
@@ -20,15 +40,8 @@ function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; b
       label={label}
       control={
         <span className="key-controls">
-          <KeyField id={`key-${id}`} label={label} value={bind.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key))} />
-          <Dropdown
-            id={`key-${id}-hold`}
-            label={`${label}: press or hold`}
-            options={HOLD_OPTIONS}
-            value={String(bind.holdMs)}
-            disabled={bind.key === null}
-            onChange={(ms) => setKeyBinds(withBind(binds, slot, (b) => ({ ...b, holdMs: holdOf(ms, b.holdMs) })))}
-          />
+          <KeyPair id={id} label={label} own={bind} part="main" slot={slot} binds={binds} />
+          <KeyPair id={`${id}-also`} label={`${label}, second key`} own={bind.also} part="also" slot={slot} binds={binds} />
         </span>
       }
     />

@@ -3,7 +3,7 @@ import type { CardType, Deck, Settings, SrsType, Stats } from "@panki/contracts"
 import { Board, type DoorSpec } from "../components/Board";
 import { readLayout, writeLayout, type BoardLayout } from "../layout";
 import { useHold } from "../hooks/useHold";
-import { pressed, useKeyBinds } from "../keys";
+import { pressedIn, useKeyBinds } from "../keys";
 import type { WidgetContext } from "../widgets";
 import { count } from "../words";
 
@@ -59,16 +59,17 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const hold = useHold();
   useEffect(() => {
     const bind = binds.homeReview;
-    if (bind.key === null || arranging) return;
+    if ((bind.key === null && bind.also.key === null) || arranging) return;
     const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.closest("input, textarea, select") !== null);
     function onKey(e: KeyboardEvent) {
-      if (!pressed(e, bind.key) || typing(e)) return;
+      const hit = pressedIn(e, bind);
+      if (!hit || typing(e)) return;
       e.preventDefault();
-      if (!e.repeat) hold.begin(e.key, document.getElementById("door-review"), bind.holdMs, onReview);
+      if (!e.repeat) hold.begin(e.key, document.getElementById("door-review"), hit.holdMs, onReview);
     }
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
-      if (pressed(e, bind.key) && !typing(e)) e.preventDefault();
+      if (pressedIn(e, bind) && !typing(e)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);

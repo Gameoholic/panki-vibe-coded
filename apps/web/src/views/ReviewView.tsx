@@ -11,7 +11,7 @@ import { ReviewCard } from "../components/ReviewCard";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
-import { keyOf, pressed, sameKey, shortcutOf, useKeyBinds, type Bind } from "../keys";
+import { keyIn, keyOf, pressedIn, shortcutOf, tapped, useKeyBinds, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
@@ -776,19 +776,23 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           start();
-        } else if (sameKey(key, binds.start.key)) {
-          e.preventDefault();
-          if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='today-start']"), binds.start.holdMs, start);
+        } else {
+          const starting = keyIn(binds.start, key);
+          if (starting) {
+            e.preventDefault();
+            if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='today-start']"), starting.holdMs, start);
+          }
         }
         return;
       }
       // Undo's key works at the end too, where there's no card: the last answer is what it takes back.
-      if (pressed(e, binds.undo.key)) {
+      const undoing = pressedIn(e, binds.undo);
+      if (undoing) {
         e.preventDefault();
         if (e.repeat) return;
         // The Undo button on screen: the counts' row's or the one under the answers, whichever the CSS shows.
         const button = [...document.querySelectorAll<HTMLElement>("[data-hold='undo']")].find((el) => el.getClientRects().length > 0) ?? null;
-        hold.begin(e.key, button, binds.undo.holdMs, () => void undo());
+        hold.begin(e.key, button, undoing.holdMs, () => void undo());
         return;
       }
       // At the end, Start's key starts extra study, as it starts a review on today's cards; Enter does too, but on a button.
@@ -796,20 +800,24 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           startExtra();
-        } else if (sameKey(key, binds.start.key)) {
-          e.preventDefault();
-          if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='extra-start']"), binds.start.holdMs, startExtra);
+        } else {
+          const starting = keyIn(binds.start, key);
+          if (starting) {
+            e.preventDefault();
+            if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='extra-start']"), starting.holdMs, startExtra);
+          }
         }
         return;
       }
       if (!card) return;
       // Another of the card's examples, either way, with its key held as long as it's set to be.
-      const step = exampleIds.length > 1 ? (sameKey(key, binds.examplePrev.key) ? -1 : sameKey(key, binds.exampleNext.key) ? 1 : 0) : 0;
+      const back = exampleIds.length > 1 ? keyIn(binds.examplePrev, key) : null;
+      const on = exampleIds.length > 1 && !back ? keyIn(binds.exampleNext, key) : null;
+      const step = back ? -1 : on ? 1 : 0;
       if (step !== 0) {
         e.preventDefault();
         if (e.repeat) return;
-        const bind = step < 0 ? binds.examplePrev : binds.exampleNext;
-        hold.begin(e.key, place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, bind.holdMs, () => stepExample(step));
+        hold.begin(e.key, place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, (back ?? on)?.holdMs ?? 0, () => stepExample(step));
         return;
       }
       // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
@@ -819,18 +827,20 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         reveal();
         return;
       }
-      if (sameKey(key, binds.reveal.key)) {
+      const showing = keyIn(binds.reveal, key);
+      if (showing) {
         e.preventDefault();
         if (e.repeat) return;
-        // Turned back to its front at a tap (the owner, 2026-10-19 and 2026-10-21); shown with a hold when it's a key to hold.
+        // Turned back to its front at a tap (the owner, 2026-10-19 and 2026-10-21); shown with a hold when it's a key to
+        // hold. A key whose tap is something else's (Space tapped plays the clip, 2026-10-28) turns nothing back.
         if (revealed) {
-          if (!busy) {
+          if (!busy && !tapped(binds, key)) {
             setAsking(null);
             setRevealed(false);
           }
           return;
         }
-        hold.begin(e.key, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, binds.reveal.holdMs, reveal);
+        hold.begin(e.key, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, reveal);
         return;
       }
       if (key === "Escape" && asking) {
@@ -840,12 +850,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       // Held for its key's own time, and an answer that asks for confirmation that much plus `confirmMs`, the longer
       // hold being its yes. With no hold at all it's a press, and such an answer asks, the same key again its yes. A
       // key whose answer isn't offered here does nothing.
-      const slot = binds.answers.findIndex((bind) => sameKey(bind.key, key));
+      const slot = binds.answers.findIndex((bind) => keyIn(bind, key) !== null);
       const picked = slot >= 0 ? answers[slot] : undefined;
       if (revealed && picked && offered(srsType, card.place, picked.id)) {
         e.preventDefault();
         if (e.repeat) return;
-        const ms = holdFor(binds.answers[slot], picked.confirm ? binds.confirmMs : 0);
+        const ms = holdFor(keyIn(binds.answers[slot], key) ?? undefined, picked.confirm ? binds.confirmMs : 0);
         if (ms === 0) {
           press(picked.id);
           return;
@@ -862,7 +872,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
       const starts = today !== null || (!card && extraOrder.length > 0);
-      if (pressed(e, starts ? binds.start.key : binds.reveal.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      if (pressedIn(e, starts ? binds.start : binds.reveal) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -1031,8 +1041,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           picturesOf={api.videoPictures}
           // Another example looked at: it plays when it's pressed, not by itself.
           autoplay={browsed === null}
-          shortcuts={binds.media.map(shortcutOf)}
-          screenKey={shortcutOf(binds.fullScreen)}
+          shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
+          screenKey={shortcutOf(binds.fullScreen, binds)}
           hint={false}
           keys={false}
           examplePager={

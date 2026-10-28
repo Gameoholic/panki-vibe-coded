@@ -2627,6 +2627,12 @@ mark.sub-mark {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px 16px;
+}
+/* One of an action's keys with its press or hold, kept together when the row wraps (a phone: one under the other). */
+.key-pair {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 /* A key being held on a button until it does its thing (`useHold`, a key set to hold in Settings → Keybinds): its keycap
