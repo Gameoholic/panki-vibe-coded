@@ -37,6 +37,7 @@ import faceViolinSamurai from "./thumbs/channel-violinsamurai.jpg";
 import faceHiroyuki from "./thumbs/channel-hiroyuki.jpg";
 import faceOnePiece from "./thumbs/channel-onepiece.jpg";
 import faceHajime from "./thumbs/channel-hajime.jpg";
+import newsPicture from "./thumbs/news-picture.png";
 
 /**
  * What each explainer plays (`Explainer.tsx`): one entry per panel, the feature being used on a page as it really is.
@@ -144,8 +145,8 @@ function NewsPage({ words, tinted, tint, children }: { words: (id: WordId) => (e
           </p>
         </article>
         <figure className="ex-news-fig">
-          <div className="ex-photo is-cafe" />
-          <figcaption lang="ja">駅前の新しい喫茶店</figcaption>
+          <img className="ex-news-pic" src={newsPicture} alt="" />
+          <figcaption lang="ja">やさしいことばニュース</figcaption>
         </figure>
       </div>
       {children}
@@ -160,7 +161,8 @@ function PopupOn({ at, found, store, dictionaries, box }: { at: Spot; found: Fou
   return (
     <>
       <span className="look-lit" style={lit} />
-      <div ref={box} className="look" style={{ left: `${Math.min(at.left, 58)}%`, top: `calc(${at.bottom}% + 6px)`, width: 420 }}>
+      {/* Under the word, and no taller than the page leaves room for, as the real one is kept inside the window. */}
+      <div ref={box} className="look" style={{ left: `${Math.min(at.left, 58)}%`, top: `calc(${at.bottom}% + 6px)`, width: 420, maxHeight: `calc(${100 - at.bottom}% - 18px)` }}>
         <LookupBody found={found} layout={layout} onAdd={nothing} cards={EXAMPLE_CARDS} />
       </div>
     </>
@@ -204,24 +206,24 @@ function PopupScene({ store }: { store: Stored }) {
   const script = async (t: Tools) => {
     p.close();
     t.frame(p.article());
-    await t.move([34, 44], 600);
+    await t.move([34, 44], 400);
     await t.move(p.el("kissa"));
     t.hold("Shift");
-    await t.wait(300);
+    await t.wait(200);
     await p.point(t, "kissa");
-    await t.wait(1900);
-    await t.move(p.el("mitsuke"), 650);
-    await p.point(t, "mitsuke");
-    await t.wait(1900);
-    t.letGo("Shift");
-    await t.wait(500);
-    await t.move(p.popup(), 800);
     await t.wait(1300);
+    await t.move(p.el("mitsuke"), 450);
+    await p.point(t, "mitsuke");
+    await t.wait(1300);
+    t.letGo("Shift");
+    await t.wait(300);
+    await t.move(p.popup(), 550);
+    await t.wait(900);
     await t.move([22, 88]);
     await t.click();
     p.close();
     t.frame(p.article());
-    await t.wait(900);
+    await t.wait(600);
   };
   return (
     <Stage site={NEWS} script={script}>
@@ -242,30 +244,30 @@ function KnownScene({ store }: { store: Stored }) {
     p.close();
     setTinted(new Set());
     t.frame(p.article());
-    await t.wait(300);
+    await t.wait(200);
     for (let i = 1; i <= known.length; i++) {
       setTinted(new Set(known.slice(0, i)));
-      await t.wait(320);
+      await t.wait(220);
     }
-    await t.wait(1100);
+    await t.wait(700);
     await t.move(p.el("kissa"));
     t.hold("Shift");
-    await t.wait(300);
+    await t.wait(200);
     await p.point(t, "kissa");
-    await t.wait(2300);
+    await t.wait(1600);
+    t.letGo("Shift");
+    p.close();
+    t.frame(p.article());
+    await t.wait(250);
+    await t.move(p.el("mitsuke"));
+    t.hold("Shift");
+    await t.wait(200);
+    await p.point(t, "mitsuke");
+    await t.wait(1300);
     t.letGo("Shift");
     p.close();
     t.frame(p.article());
     await t.wait(400);
-    await t.move(p.el("mitsuke"));
-    t.hold("Shift");
-    await t.wait(300);
-    await p.point(t, "mitsuke");
-    await t.wait(1900);
-    t.letGo("Shift");
-    p.close();
-    t.frame(p.article());
-    await t.wait(600);
   };
   return (
     <Stage site={NEWS} script={script}>
@@ -404,13 +406,13 @@ function PanelScene() {
     setPicked(null);
     setDrawer(false);
     setAdded(false);
-    await t.wait(300);
+    await t.wait(200);
     setShown(true);
     t.frame(line.current?.closest(".strip") ?? null);
-    await t.wait(700);
+    await t.wait(450);
     for (const i of wordsOf(tokens).slice(0, 4)) {
       setNow([i, i]);
-      await t.wait(420);
+      await t.wait(320);
     }
     setNow(null);
     await t.move(target ? line.current?.querySelector(`[data-at="${target[0]}"]`) ?? null : null);
@@ -418,15 +420,15 @@ function PanelScene() {
     setPicked(target);
     setDrawer(true);
     t.frame(card.current);
-    await t.wait(1700);
+    await t.wait(1100);
     await t.move(card.current?.querySelector(".capture-add") ?? null);
     await t.click();
     setAdded(true);
-    await t.wait(1300);
+    await t.wait(900);
     setDrawer(false);
     setPicked(null);
     t.frame();
-    await t.wait(1300);
+    await t.wait(800);
   };
   return (
     <Stage site={WATCH} script={script}>
@@ -497,14 +499,14 @@ function UnderlineScene() {
     setNow(null);
     const video = over.current?.closest(".ex-video") ?? null;
     t.frame(video, video?.parentElement?.querySelector(".strip") ?? null);
-    await t.move([92, 92], 500);
+    await t.move([92, 92], 350);
     for (let round = 0; round < 2; round++) {
       for (const i of wordsOf(tokens)) {
         setNow([i, i]);
-        await t.wait(460);
+        await t.wait(340);
       }
       setNow(null);
-      await t.wait(700);
+      await t.wait(450);
     }
   };
   return (
@@ -536,31 +538,31 @@ function HomeScene({ store }: { store: Stored }) {
     setHover(false);
     setSaved(false);
     t.frame();
-    await t.wait(300);
+    await t.wait(200);
     setPill(true);
     const pillEl = feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null;
     t.frame(pillEl);
-    await t.move(pillEl, 800);
-    await t.wait(1100);
-    await t.move([36, 34], 700);
+    await t.move(pillEl, 550);
+    await t.wait(700);
+    await t.move([36, 34], 450);
     setShelves(1);
     // Framed once the shelves have opened to their height.
-    await t.wait(750);
+    await t.wait(650);
     t.frame(feed.current?.querySelector(".ex-shelves") ?? null);
-    await t.wait(700);
+    await t.wait(450);
     setShelves(2);
-    await t.wait(1300);
+    await t.wait(900);
     const card = feed.current?.querySelector(".ex-grid > :nth-child(2)") ?? null;
     t.frame(card);
-    await t.move(card, 700);
+    await t.move(card, 450);
     setHover(true);
-    await t.wait(400);
-    await t.move(card?.querySelector(".yt-save") ?? null, 500);
+    await t.wait(250);
+    await t.move(card?.querySelector(".yt-save") ?? null, 350);
     await t.click();
     setSaved(true);
-    await t.wait(1200);
-    t.frame();
     await t.wait(800);
+    t.frame();
+    await t.wait(500);
   };
   const grid = [1, 2, 3, 4, 5, 6].map(videoAt);
   const lead = videoAt(2);
@@ -704,40 +706,40 @@ function UtilitiesScene() {
     await t.move(speedButton());
     await t.click();
     speedButton()?.click();
-    await t.wait(500);
+    await t.wait(350);
     const chip = [...(player.current?.querySelectorAll<HTMLButtonElement>(".yt-speed-chip") ?? [])].find((b) => b.textContent === "1.5×") ?? null;
-    await t.move(chip, 500);
+    await t.move(chip, 350);
     await t.click();
     chip?.click();
-    await t.wait(900);
-    await t.move(player.current?.querySelector(".ex-time") ?? null, 600);
+    await t.wait(600);
+    await t.move(player.current?.querySelector(".ex-time") ?? null, 400);
     setEnds(true);
-    await t.wait(1500);
-    await t.move([30, 30], 600);
+    await t.wait(1000);
+    await t.move([30, 30], 400);
     t.hold("Shift");
-    await t.wait(350);
+    await t.wait(250);
     t.hold("←");
     setAt((a) => a - 0.09);
     setSkip("−1 s");
-    await t.wait(700);
+    await t.wait(500);
     t.letGo("←");
     setSkip(null);
-    await t.wait(300);
+    await t.wait(200);
     t.hold("→");
     setAt((a) => a + 0.09);
     setSkip("+1 s");
-    await t.wait(700);
+    await t.wait(500);
     t.letGo("→");
     t.letGo("Shift");
     setSkip(null);
-    await t.wait(500);
+    await t.wait(350);
     const side = player.current?.closest(".ex-yt")?.querySelector(".ex-shorts") ?? null;
     t.frame(side);
-    await t.move(side, 700);
+    await t.move(side, 450);
     setShorts(false);
-    await t.wait(1400);
+    await t.wait(950);
     t.frame();
-    await t.wait(600);
+    await t.wait(400);
   };
   const played = (LENGTH * at) / 100;
   return (

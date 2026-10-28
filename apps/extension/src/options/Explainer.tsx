@@ -20,7 +20,7 @@ const CAMERA_MAX = 1.45;
 /** Room left around what's framed, as a share of the page. */
 const CAMERA_MARGIN = 4;
 /** The rest between one round of a picture and the next. */
-const LOOP_REST_MS = 1800;
+const LOOP_REST_MS = 1100;
 /** How long the window waits, once the pointer has left the (?) and the window, before it closes: time to cross the gap between them. */
 const CLOSE_AFTER_MS = 180;
 
@@ -117,7 +117,7 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
       still,
       wait,
       spot,
-      async move(to, ms = 750) {
+      async move(to, ms = 500) {
         let at: Point | null = null;
         if (isPoint(to)) at = to;
         else {
@@ -158,7 +158,7 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
           setCamera(WHOLE);
           setKeys([]);
           setRipple(null);
-          await wait(400);
+          await wait(250);
           await latest.current(tools);
           if (still) return;
           await wait(LOOP_REST_MS);

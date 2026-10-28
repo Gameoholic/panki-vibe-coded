@@ -2132,6 +2132,8 @@
   padding: 12px 14px;
   font-size: 15px;
   line-height: 1.5;
+  /* Its own ink, whatever it stands on: inside a page of another colour (an explainer's news page) it read dark on dark. */
+  color: var(--fg);
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
@@ -3101,7 +3103,7 @@
   position: absolute;
   inset: 0;
   transform-origin: 0 0;
-  transition: transform 1.4s cubic-bezier(0.4, 0.1, 0.2, 1);
+  transition: transform 0.95s cubic-bezier(0.4, 0.1, 0.2, 1);
 }
 .explain-page {
   position: absolute;
@@ -3117,8 +3119,8 @@
   width: 18px;
   pointer-events: none;
   transition:
-    left 0.75s cubic-bezier(0.45, 0.05, 0.25, 1),
-    top 0.75s cubic-bezier(0.45, 0.05, 0.25, 1),
+    left 0.5s cubic-bezier(0.45, 0.05, 0.25, 1),
+    top 0.5s cubic-bezier(0.45, 0.05, 0.25, 1),
     transform 0.12s;
   filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--theater) 35%, transparent));
 }
@@ -3208,14 +3210,6 @@
   inset: 0;
   height: 100%;
 }
-/* The news article's photo, made up. */
-.ex-photo.is-cafe {
-  background:
-    radial-gradient(ellipse at 28% 76%, color-mix(in srgb, var(--mark-yellow) 30%, var(--page)) 0 9%, transparent 10%),
-    linear-gradient(to top, color-mix(in srgb, var(--mark-orange) 35%, var(--theater)) 0 26%, transparent 26%),
-    radial-gradient(circle at 74% 30%, color-mix(in srgb, var(--mark-yellow) 45%, var(--page)) 0 11%, transparent 12%),
-    linear-gradient(160deg, color-mix(in srgb, var(--mark-orange) 45%, var(--page)), color-mix(in srgb, var(--mark-orange) 60%, var(--theater)));
-}
 
 /* A news site, in its own colours */
 .ex-news {
@@ -3289,8 +3283,12 @@
 .ex-news-fig {
   margin: 0;
 }
-.ex-news-fig .ex-photo {
-  aspect-ratio: 4 / 3;
+/* The article's picture: the one the owner gave (2026-10-28), square, whole. */
+.ex-news-pic {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
   border-radius: 10px;
 }
 .ex-news-fig figcaption {
