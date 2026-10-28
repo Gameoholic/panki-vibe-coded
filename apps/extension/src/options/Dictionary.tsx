@@ -687,7 +687,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
               onChange={(lookKeySubtitles) => void writeStore({ lookKeySubtitles }).then(onChanged)}
             />
           }
-          why="Under and over a YouTube video, and on a card's clip in Panki. Not limited by Where."
+          why="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
         />
       </div>
     </section>

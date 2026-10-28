@@ -93,9 +93,11 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
     const on = dictionaries.filter((d) => d.on);
     // Pop-up dictionary switched off, the key does nothing anywhere; Where is the global key's alone, never Panki's subtitles'.
     const usable = store.pankiOn && store.moduleLookup && on.length > 0;
+    const url = sender.url ?? sender.tab?.url;
     return {
       ok: true,
-      on: usable && lookAllowed(store.lookWhere, store.lookSites, sender.url ?? sender.tab?.url),
+      // Panki's own pages always count, whatever Where says (the owner, 2026-10-28): Where decides every other site.
+      on: usable && (onPanki(url, store) || lookAllowed(store.lookWhere, store.lookSites, url)),
       key: store.lookKey,
       subtitleKey: store.lookKeySubtitles,
       subtitlesOn: usable,
@@ -169,7 +171,7 @@ function pankiPatterns(store: Stored): string[] {
 /**
  * Panki's script on every page, for pointing at a word: put there by the browser on each page it loads while the
  * setting and the browser's permission both allow it, and taken off when either stops; and always on Panki's own
- * pages, whose cards' clips carry Panki subtitles, looked up whatever Where says (the worker's `lookState` tells the
+ * pages, where both keys work whatever Where says, its words and its cards' clips' subtitles (the worker's `lookState` tells the
  * page which of its words it may look up). The video site is left out: its own script does the same there. Without
  * this, the script is only ever put into a tab when the owner acts (the menu, the button).
  */
