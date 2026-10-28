@@ -556,7 +556,7 @@ export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.
 export const pointWords = (key: LookKey) => (key === "hover" ? "Point at" : `Hold ${keyWordOf(key)} over`);
 /** How a key to hold is used, said under it. */
 const usageWords = (key: LookKey) =>
-  key === "hover" ? `Point at a word to look it up. Press ${HOVER_KEEP} to keep the pop-up open.` : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the pop-up open.`;
+  key === "hover" ? `Point at a word to look it up. Press ${HOVER_KEEP} or click the word to keep the pop-up open.` : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the pop-up open.`;
 
 /**
  * How looking a word up works: where on the web, and with which key held. Kept the moment
