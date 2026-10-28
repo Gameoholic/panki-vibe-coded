@@ -255,7 +255,9 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
       {shown.map((v) => (
         <div key={v.videoId} className="w-video">
           <LinkView
-            meta={{ link: { videoId: v.videoId, seconds: Math.floor(v.stoppedAtMs / 1000) }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
+            // No time in its address, as on YouTube's own home: the extension's Where you stopped last decides what
+            // happens as it opens (the owner, 2026-10-28: a time there read as the link's own and the button never came).
+            meta={{ link: { videoId: v.videoId, seconds: null }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
             label="Continue watching"
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
             progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) }}
