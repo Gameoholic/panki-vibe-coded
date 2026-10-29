@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type MouseEvent, type PointerEvent } from "react";
 import type { MediaKind } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
-import type { Heard, Shortcut } from "../keys";
+import { sameKey, type Heard, type Shortcut } from "../keys";
 import { AS_SAID, SPEEDS, type Speed } from "../playback";
 import { clock, keyWords } from "../words";
 import { Button } from "./Button";
@@ -28,14 +28,33 @@ export type Wave = (src: string, bars: number) => Promise<readonly number[] | nu
 /** What every look of a sound or a clip is handed. `shortcut` is the key that plays it (and its hold), drawn on it as a keycap; null for none. `restart`, the keys that play it again from its start. */
 export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: Shortcut | null; restart: readonly Heard[] };
 
-/** The key that plays it, drawn as the answers' keys are (`.key`, a keycap; a clock face as it's held, when it's held); nothing when it has none. */
-export function MediaKey({ shortcut, className = "" }: { shortcut: Shortcut | null; className?: string }) {
-  return shortcut ? (
-    <span className={`key media-key ${shortcut.holdMs > 0 ? "is-hold" : ""} ${className}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
-      {keyWords(shortcut.key)}
-    </span>
-  ) : null;
+/**
+ * The key that plays it, drawn as the answers' keys are (`.key`, a keycap; a clock face as it's held, when it's held),
+ * and the keys that play it again from its start (`restart`): one on the same key fills the same cap as it's held (1
+ * pressed plays it, 1 held restarts it: the owner, 2026-10-29, "why doesn't the hold animation show for 1"), and one on
+ * a key of its own has a cap of its own, the again sign in it. Nothing when it has none.
+ */
+export function MediaKey({ shortcut, restart = NO_RESTART, className = "" }: { shortcut: Shortcut | null; restart?: readonly Heard[]; className?: string }) {
+  const sameHeld = shortcut !== null && restart.some((key) => key.holdMs > 0 && sameKey(key.key, shortcut.key));
+  const own = restart.filter((key) => shortcut === null || !sameKey(key.key, shortcut.key));
+  if (!shortcut && own.length === 0) return null;
+  return (
+    <>
+      {shortcut ? (
+        <span className={`key media-key ${shortcut.holdMs > 0 || sameHeld ? "is-hold" : ""} ${className}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
+          {keyWords(shortcut.key)}
+        </span>
+      ) : null}
+      {own.map((key) => (
+        <span key={key.key} className={`key media-key media-restart-key ${key.holdMs > 0 ? "is-hold" : ""} ${className}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
+          <Icon name="again" />
+          {keyWords(key.key)}
+        </span>
+      ))}
+    </>
+  );
 }
+const NO_RESTART: readonly Heard[] = [];
 
 const SPEED_OPTIONS = SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
 
@@ -90,7 +109,7 @@ export function VoiceLook({ kind, src, label, named, cue, onCueEnd, shortcut, re
       <Button className="btn-icon media-voice-play" aria-label={pressWord(play.playing, label)} aria-keyshortcuts={shortcut?.key} disabled={play.failed} onClick={play.toggle}>
         <Icon name={play.playing ? "pause" : "play"} />
       </Button>
-      <MediaKey shortcut={shortcut} />
+      <MediaKey shortcut={shortcut} restart={restart} />
       <span className="media-wave" aria-hidden="true" onPointerDown={goTo}>
         {bars.map((height, i) => (
           <i key={i} className={i / bars.length < share ? "is-heard" : ""} style={{ height: `${Math.round(Math.max(0.12, height) * 100)}%` }} />
@@ -126,7 +145,7 @@ export function RoundLook({ kind, src, label, named, cue, onCueEnd, shortcut, re
         </span>
       </Button>
       {named ? <span className="media-round-name">{label}</span> : null}
-      <MediaKey shortcut={shortcut} />
+      <MediaKey shortcut={shortcut} restart={restart} />
     </span>
   );
 }
@@ -148,7 +167,7 @@ export function TileLook({ kind, src, label, named, cue, onCueEnd, shortcut, res
           <span className="media-tile-name">{named ? label : KIND_WORD[kind]}</span>
           <span className="media-time">{play.playing && length ? `${clock(play.at)} of ${length}` : length}</span>
         </span>
-        <MediaKey shortcut={shortcut} />
+        <MediaKey shortcut={shortcut} restart={restart} />
       </Button>
     </span>
   );
@@ -169,7 +188,7 @@ export function SpeakerLook({ kind, src, label, named, cue, onCueEnd, shortcut, 
       >
         <Icon name={MEDIA_ICON[kind]} />
         {named ? <span className="media-speaker-name">{label}</span> : null}
-        <MediaKey shortcut={shortcut} />
+        <MediaKey shortcut={shortcut} restart={restart} />
       </Button>
     </span>
   );

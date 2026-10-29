@@ -2760,6 +2760,17 @@ mark.sub-mark {
 .media-key.media-screen-key {
   --hold: 0;
 }
+/* A restart key on a key of its own: its cap carries the again sign before the key, small, on one line. */
+.media-key.media-restart-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.media-restart-key .icon {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2.4;
+}
 /* Over a clip the browser plays with its own controls: in a top corner, clear of them, readable on any picture. */
 .media-picture > .media-key {
   position: absolute;

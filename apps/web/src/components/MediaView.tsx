@@ -95,6 +95,8 @@ type BarProps = {
   speed?: { speed: Speed; onSpeed: (speed: Speed) => void } | null;
   /** The key that plays it, as a keycap beside the play button; none by default. */
   shortcut?: Shortcut | null;
+  /** The keys that play it again from its start, drawn with it (`MediaKey`); none by default. */
+  restart?: readonly Heard[];
   /** A clip's subtitles shown or hidden (`playback.ts`), beside how fast: only where the clip has some. */
   subtitles?: { shown: boolean; onToggle: () => void } | null;
 };
@@ -105,14 +107,14 @@ type BarProps = {
  * holds yet (the extension's clip before it's recorded), so that looks like the player by being the player's own bar.
  * Never a second bar.
  */
-export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, onSeek = null, sound = null, speed = null, shortcut = null, subtitles = null }: BarProps) {
+export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, onSeek = null, sound = null, speed = null, shortcut = null, restart = NO_RESTART, subtitles = null }: BarProps) {
   const share = length ? Math.min(1, at / length) : 0;
   return (
     <div className="media-bar">
       <Button className="btn-icon media-play" aria-label={`${playing ? "Pause" : "Play"} ${label}`} aria-keyshortcuts={shortcut?.key} onClick={onToggle}>
         <Icon name={playing ? "pause" : "play"} />
       </Button>
-      <MediaKey shortcut={shortcut} />
+      <MediaKey shortcut={shortcut} restart={restart} />
       {tag ? (
         <span className="media-tag">
           <Icon name={tag.icon} />
@@ -366,6 +368,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart,
           sound={{ volume: play.volume, onLevel: play.setLevel, onMute: play.toggleMute }}
           speed={{ speed: play.speed, onSpeed: play.setSpeed }}
           shortcut={shortcut}
+          restart={restart}
           subtitles={over ? { shown: subtitlesShown, onToggle: () => setSubtitlesShown(!subtitlesShown) } : null}
         />
       )}
@@ -392,12 +395,12 @@ function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart, 
           <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline controls aria-label={label} aria-keyshortcuts={shortcut?.key} {...play.events} />
           {over}
           {/* The browser's own controls are along its bottom: the key sits in a top corner, clear of them. */}
-          <MediaKey shortcut={shortcut} />
+          <MediaKey shortcut={shortcut} restart={restart} />
         </div>
       ) : (
         <span className="media-plain-row">
           <audio ref={play.hold} className="media-plain-audio" src={src} preload="metadata" controls aria-label={label} aria-keyshortcuts={shortcut?.key} {...play.events} />
-          <MediaKey shortcut={shortcut} />
+          <MediaKey shortcut={shortcut} restart={restart} />
         </span>
       )}
     </div>
@@ -420,7 +423,7 @@ function ChipLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart }:
       >
         <Icon name={play.playing ? "pause" : named ? "play" : MEDIA_ICON[kind]} />
         {named ? label : null}
-        <MediaKey shortcut={shortcut} />
+        <MediaKey shortcut={shortcut} restart={restart} />
       </Button>
     </span>
   );
