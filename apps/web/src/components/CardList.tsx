@@ -22,15 +22,15 @@ type Props = {
   title: string;
   /** What shows instead of rows when there are no cards. */
   empty?: ReactNode;
-  /** When given, each row carries an edit button that asks for its card to be opened. */
+  /** When given, each row carries an edit button that opens its card's form under it, or closes it again. */
   onEdit?: (card: Card) => void;
   /** When given, each row carries a delete button under the edit one, which asks in the row before the card goes. */
   onRemove?: (card: Card) => Promise<void>;
-  /** When given, a card put aside (buried or suspended) carries a button under its state that brings it back. */
+  /** When given, a card put aside (buried or suspended) carries a button among its tools that brings it back, where Suspend stands otherwise. */
   onLift?: (card: Card) => Promise<void>;
-  /** When given, each row not suspended carries a suspend button among its tools. */
+  /** When given, each row not put aside carries a suspend button among its tools. */
   onSuspend?: (card: Card) => Promise<void>;
-  /** The card that's open, and what stands in its row's place while it is (the form that changes it). */
+  /** The card that's open, and the form that changes it, drawn in its row under all of it. */
   editing?: { id: string; form: ReactNode } | null;
   /** When given, each row carries a Preview button that asks for its card to be shown as a review would show it. */
   onPreview?: (card: Card) => void;
@@ -83,9 +83,10 @@ function cell(card: Card, field: CardField, className: string) {
  * file where its field stands; at the top right the card's place and when it's next reviewed, then its tools one under
  * another, where cards can be changed: Preview, Edit, Suspend, Delete (the owner, 2026-10-29: "first preview then edit
  * then delete"; 2026-10-18: "the delete button should be directly below the pencil"; and everything at the right sat
- * halfway down the row). Delete asks in the row itself before the card goes; Suspend doesn't, as Unsuspend takes it
- * back at once. A card that's open is its form, in the row's own place in the list. A card put aside says so where its
- * next review would be, with Unsnooze or Unsuspend under it.
+ * halfway down the row). Delete asks in the row itself before the card goes; Suspend doesn't, as Unsuspend, standing
+ * in its place once it's done, takes it back at once. A card that's open has its form under it, as a preview is (the
+ * owner, 2026-10-30: Edit pressed again closes it, as Preview does). A card put aside says so where its next review
+ * would be, with Unsnooze or Unsuspend where Suspend stands; a suspended one is tinted red whole (the owner, 2026-10-30).
  */
 export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, onSuspend, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
   const titleId = useId();
@@ -150,14 +151,13 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
       ) : (
         <ul className="card-list">
           {cards.map((card) => {
-            if (editing?.id === card.id) return <li key={card.id}>{editing.form}</li>;
             const itsTwins = twins[card.id] ?? [];
             const twin = itsTwins.length > 0 ? twinWords(card, itsTwins) : null;
             const when = srsType ? dueWords(srsType, card, now) : null;
             return (
               <li
                 key={card.id}
-                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove || onPreview || onSuspend ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove || onPreview || onSuspend ? "has-tools" : ""} ${card.hold?.kind === "suspend" ? "is-suspended" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
@@ -171,12 +171,6 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                     ) : null}
                     {/* Its own example and each one added to it. */}
                     {card.examples.length > 0 ? <span className="card-example-count">{count(card.examples.length + 1, "example", "examples")}</span> : null}
-                    {card.hold && onLift ? (
-                      <Button variant="chip" className="card-lift" disabled={holding === card.id} onClick={() => void hold(card, onLift)}>
-                        <Icon name="wake" />
-                        {HOLD_KINDS[card.hold.kind].lift}
-                      </Button>
-                    ) : null}
                     {twin && onTwins ? (
                       <Button className="card-twin" onClick={() => onTwins(card)}>
                         <Icon name="alert" className="is-sign" />
@@ -200,13 +194,18 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                       </Button>
                     ) : null}
                     {onEdit ? (
-                      <Button className="card-tool" onClick={() => onEdit(card)}>
+                      <Button className="card-tool" aria-pressed={editing?.id === card.id} onClick={() => onEdit(card)}>
                         <Icon name="edit" />
                         Edit
                       </Button>
                     ) : null}
-                    {/* A suspended card has Unsuspend under its state instead. */}
-                    {onSuspend && card.hold?.kind !== "suspend" ? (
+                    {/* One place for both: Unsuspend (or Unsnooze) on a card put aside, Suspend on the rest. */}
+                    {card.hold && onLift ? (
+                      <Button className="card-tool" disabled={holding === card.id} onClick={() => void hold(card, onLift)}>
+                        <Icon name="wake" />
+                        {HOLD_KINDS[card.hold.kind].lift}
+                      </Button>
+                    ) : !card.hold && onSuspend ? (
                       <Button className="card-tool" disabled={holding === card.id} onClick={() => void hold(card, onSuspend)}>
                         <Icon name={HOLD_KINDS.suspend.icon} />
                         Suspend
@@ -221,6 +220,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                   </div>
                 ) : null}
                 {previewing?.id === card.id ? <div className="card-preview-row">{previewing.view}</div> : null}
+                {editing?.id === card.id ? <div className="card-preview-row card-edit-row">{editing.form}</div> : null}
                 {holdFailure?.cardId === card.id ? (
                   <p className="load-error card-lift-error" role="alert">
                     {holdFailure.message}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { wordsFieldOf, type CalledCard, type Card, type CardExampleUpdate, type CardType, type CardUpdate, type Deck, type NewCard, type NewCardExample, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
+import { ALL_CARDS, filterCards, filterOptions, type CardFilterId } from "../cardFilter";
 import { CARD_SORTS, CARD_SORT_IDS, readCardSort, sortCards, waysOf, writeCardSort, type CardSort } from "../cardSort";
 import { AlreadyIn } from "../components/AlreadyIn";
 import { Button } from "../components/Button";
@@ -113,8 +114,11 @@ export function CardsView({
   /** What's typed in the search over the list: the cards with all of it on them somewhere, best first (`cardSearch.ts`). */
   const [query, setQuery] = useState("");
   const twinsOnly = useMemo(() => (only === null || !lead ? sorted : sorted.filter((card) => (card.values[lead.id] ?? "").trim() === only)), [sorted, only, lead]);
-  const shown = useMemo(() => searchCards(twinsOnly, query, { type, srsType }), [twinsOnly, query, type, srsType]);
-  const searching = query.trim() !== "";
+  /** Which of the cards are shown (`cardFilter.ts`): all of them to begin with, for this visit. */
+  const [show, setShow] = useState<CardFilterId>(ALL_CARDS);
+  const narrowed = useMemo(() => filterCards(twinsOnly, show, { srsType, twins }), [twinsOnly, show, srsType, twins]);
+  const shown = useMemo(() => searchCards(narrowed, query, { type, srsType }), [narrowed, query, type, srsType]);
+  const searching = query.trim() !== "" || show !== ALL_CARDS;
   /** While one word's duplicates are shown, its cards in other decks: each said with a way to it. */
   const elsewhere =
     only === null ? [] : [...new Map(shown.flatMap((card) => twins[card.id] ?? []).filter((twin) => twin.deckId !== deckId).map((twin) => [twin.cardId, twin])).values()];
@@ -154,6 +158,8 @@ export function CardsView({
   const tools =
     cards.length > 1 ? (
       <div className="list-sort">
+        <span className="list-sort-label">Show</span>
+        <Dropdown id="card-show" label="Show" options={filterOptions({ srsType, twins })} value={show} onChange={setShow} />
         <span className="list-sort-label">Sort by</span>
         <Dropdown
           id="card-sort"
@@ -186,7 +192,8 @@ export function CardsView({
         twins={twins}
         onTwins={(card) => setOnly(wordsOf(card))}
         filter={filter}
-        onEdit={(card) => onOpen(card.id)}
+        // Pressed again, it closes the card, as Preview does (the owner, 2026-10-30).
+        onEdit={(card) => (open?.id === card.id ? onClose(card.id) : onOpen(card.id))}
         onRemove={(card) => onRemove(card.id)}
         onLift={(card) => onLift(card.id)}
         onSuspend={(card) => onSuspend(card.id)}

@@ -829,6 +829,10 @@ textarea.field-input {
   font-weight: 600;
   color: var(--muted);
 }
+/* Show and Sort by, each its words and its choice, a little apart from each other. */
+.list-sort > .list-sort-label:not(:first-child) {
+  margin-left: 10px;
+}
 /* Over the small `Segmented`'s own (later in this file, so this needs the extra class): the dropdown's chip's words. */
 .list-sort .segmented .btn-seg {
   padding: 3px 10px;
@@ -851,7 +855,6 @@ textarea.field-input {
 /* The small buttons' icons, as small as their words. */
 .already-pick .icon,
 .list-filter-clear .icon,
-.card-lift .icon,
 .own-line .btn-chip .icon,
 .key-hide .icon {
   width: 14px;
@@ -3258,6 +3261,14 @@ mark.sub-mark {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+/* A card opened to change it: its form under its details, as its preview is, part of the row rather than a card of its
+   own in it (while it asks to delete, it keeps its alarm's tint). */
+.card-edit-row > .panel:not(.panel-alarm) {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
 .card-preview {
   display: grid;
   gap: 10px;
@@ -3292,13 +3303,10 @@ mark.sub-mark {
 .due.is-now {
   color: var(--accent);
 }
-/* A card put aside (buried, suspended): its state where the due time stands, and under it the chip that brings it back. */
-.btn-chip.card-lift {
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
+/* A suspended card, tinted red whole (the owner, 2026-10-30), its Unsuspend where Suspend stands among its tools. */
+.card-row.is-suspended {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: var(--danger-soft);
 }
 .card-lift-error {
   grid-column: 1 / -1;
