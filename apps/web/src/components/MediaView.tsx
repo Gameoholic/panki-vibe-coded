@@ -3,7 +3,7 @@ import type { MediaKind, MediaLook } from "@panki/contracts";
 import { useHeardKeys } from "../hooks/useHeardKeys";
 import { usePlayback } from "../hooks/usePlayback";
 import { ScreenStageContext } from "../hooks/useScreenStage";
-import type { Shortcut } from "../keys";
+import type { Heard, Shortcut } from "../keys";
 import { setSubtitlesShown, useSubtitlesShown, type Speed, type Volume } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
@@ -40,9 +40,13 @@ type Props = {
   over?: ReactNode;
   /** The key that plays or stops it from anywhere on the page, and how long it's held first, drawn on it as a keycap (a review's); none by default. */
   shortcut?: Shortcut | null;
+  /** The keys that play it again from its start, anywhere on the page (a review's, `keys.ts` → `restart`); none by default. */
+  restart?: readonly Heard[];
   /** The key that fills the screen with a clip in Panki's own player, or leaves it (`useScreenKey`), drawn beside its button (a review's); none by default. */
   screenKey?: Shortcut | null;
 };
+/** No restart keys: one list for every player without any, so its listeners stand. */
+const NO_RESTART: readonly Heard[] = [];
 
 /**
  * A file on a card, shown as what it is: a picture drawn in a frame; a sound or a clip in the look it's given (the
@@ -50,10 +54,10 @@ type Props = {
  * its kind's colour. Every look plays through one hook (`usePlayback`). Never the browser's own controls, and nothing
  * plays until it's pressed or cued.
  */
-export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null, screenKey = null }: Props) {
+export function MediaView({ kind, src, label, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null, restart = NO_RESTART, screenKey = null }: Props) {
   if (kind === "image") return <img className={`media-frame ${size === "row" ? "media-thumb" : ""}`.trim()} src={src} alt={label} loading="lazy" draggable={false} />;
   const shown = size === "row" ? "button" : look;
-  const common = { kind, src, label, cue, onCueEnd, shortcut };
+  const common = { kind, src, label, cue, onCueEnd, shortcut, restart };
   switch (shown) {
     case "button":
       return <ChipLook {...common} named={named ?? true} />;
@@ -305,8 +309,8 @@ function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut 
  * bar's end (the owner, 2026-10-15, who liked this look better than the browser's own, and wanted full screen too);
  * the picture and the bar fill it together, so the controls stay Panki's.
  */
-function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, screenKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null }) {
-  const play = usePlayback(cue, onCueEnd, shortcut);
+function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart, over, screenKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null }) {
+  const play = usePlayback(cue, onCueEnd, shortcut, restart);
   const frame = useRef<HTMLDivElement>(null);
   // Inside a review, the screen is the review's to fill (`useScreenStage`): the clip takes it with its card beside it,
   // and it stays filled as the next card comes. Anywhere else, the clip fills it alone.
@@ -373,8 +377,8 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, sc
  * Plain: the browser's own player and its controls (full screen, going anywhere in it, the sound, the speed), for
  * whoever wants it (the owner, 2026-10-15, had it kept as a style beside Panki's own). Its name over it when shown.
  */
-function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: LookProps & { over: ReactNode }) {
-  const play = usePlayback(cue, onCueEnd, shortcut);
+function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart, over }: LookProps & { over: ReactNode }) {
+  const play = usePlayback(cue, onCueEnd, shortcut, restart);
   return (
     <div className={`media media-plain media-${kind}`} onClick={ownPress}>
       {named ? (
@@ -401,8 +405,8 @@ function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, over }: L
 }
 
 /** A chip that plays it: the sound alone. On a card's row, and the card's Button look. Nothing is fetched until it's pressed or cued. */
-function ChipLook({ kind, src, label, named, cue, onCueEnd, shortcut }: LookProps) {
-  const play = usePlayback(cue, onCueEnd, shortcut);
+function ChipLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart }: LookProps) {
+  const play = usePlayback(cue, onCueEnd, shortcut, restart);
   return (
     <span className={`media media-row media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="none" {...play.events} />

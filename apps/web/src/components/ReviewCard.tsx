@@ -24,7 +24,7 @@ import {
 } from "@panki/contracts";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
-import type { Shortcut } from "../keys";
+import type { Heard, Shortcut } from "../keys";
 import { langOf } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -166,6 +166,8 @@ type Props = {
    * place with no key leaves its sound without one. None by default.
    */
   shortcuts?: readonly (Shortcut | null)[];
+  /** The keys that play each sound and clip again from its start, in the same order as `shortcuts` (`keys.ts` → `restart`); none by default. */
+  restarts?: readonly (readonly Heard[])[];
   /** The key that fills the screen with a clip or leaves it (`keys.ts` → `fullScreen`), given where `shortcuts` are; none by default. */
   screenKey?: Shortcut | null;
   /**
@@ -223,6 +225,7 @@ export function ReviewCard({
   picturesOf,
   tag = type.tag,
   shortcuts = [],
+  restarts = [],
   screenKey = null,
   hint = true,
   keys = true,
@@ -350,15 +353,19 @@ export function ReviewCard({
     const kind = fileKindOf(field.kind, values[field.id] ?? "", files);
     return kind === "audio" || kind === "video";
   };
-  /** Each sound and clip's key, in the card's order across both sides, so turning the card changes none. */
+  /** Each sound and clip's key, and its restart keys, in the card's order across both sides, so turning the card changes none. */
   const keyOf = new Map<string, Shortcut>();
+  const restartOf = new Map<string, readonly Heard[]>();
   if (!edit) {
     let place = 0;
     for (const part of layout) {
       const field = fields.get(part.fieldId);
       if (!field || !playable(field)) continue;
-      const key = shortcuts[place++];
+      const key = shortcuts[place];
+      const again = restarts[place];
+      place++;
       if (key) keyOf.set(field.id, key);
+      if (again && again.length > 0) restartOf.set(field.id, again);
     }
   }
 
@@ -441,6 +448,7 @@ export function ReviewCard({
             over={file === "video" ? subtitlesOf(part, cues?.[value]) : null}
             // Only while it's there to play: not under a spoiler, nor held unseen for the back.
             shortcut={live ? (keyOf.get(field.id) ?? null) : null}
+            {...(live && restartOf.has(field.id) ? { restart: restartOf.get(field.id) } : {})}
             screenKey={live && !edit ? screenKey : null}
           />
         );

@@ -28,7 +28,7 @@ import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { useUndoable } from "../hooks/useUndoable";
-import { shortcutOf, useKeyBinds } from "../keys";
+import { restartOf, shortcutOf, useKeyBinds } from "../keys";
 import { LOOK_OPTIONS, PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import type { UnsavedGuard } from "../unsaved";
 import { waveOf } from "../waveform";
@@ -94,6 +94,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const [trying, setTrying] = useState(false);
   const binds = useKeyBinds();
   const mediaKeys = binds.media.map((bind) => shortcutOf(bind, binds));
+  const restartKeys = binds.restart.map((bind) => restartOf(bind, binds));
   const screenKey = shortcutOf(binds.fullScreen, binds);
   const [picked, setPicked] = useState<string | null>(type.layout[0]?.fieldId ?? null);
   const [samples, setSamples] = useState<{ card: Card; deck: Deck }[]>([]);
@@ -332,6 +333,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           autoplay={trying}
           // Tried as a review, its sounds and clips answer to their keys as a review's do.
           shortcuts={trying ? mediaKeys : undefined}
+          restarts={trying ? restartKeys : undefined}
           screenKey={trying ? screenKey : null}
           {...(trying
             ? {}

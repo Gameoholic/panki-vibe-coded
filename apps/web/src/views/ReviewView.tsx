@@ -11,7 +11,7 @@ import { ReviewCard } from "../components/ReviewCard";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
-import { keyIn, keyOf, pressedIn, shortcutOf, tapped, useKeyBinds, type Bind } from "../keys";
+import { keyIn, keyOf, pressedIn, restartOf, shortcutOf, tapped, useKeyBinds, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
@@ -1050,6 +1050,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           // Another example looked at: it plays when it's pressed, not by itself.
           autoplay={browsed === null}
           shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
+          restarts={binds.restart.map((bind) => restartOf(bind, binds))}
           screenKey={shortcutOf(binds.fullScreen, binds)}
           hint={false}
           keys={false}

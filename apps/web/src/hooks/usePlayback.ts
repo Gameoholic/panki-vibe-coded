@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import type { Shortcut } from "../keys";
+import type { Heard, Shortcut } from "../keys";
 import { setSpeed, setVolume, speedOf, useSpeed, useVolume, type Speed, type Volume } from "../playback";
 import { useHeardKeys } from "./useHeardKeys";
 
@@ -11,9 +11,13 @@ import { useHeardKeys } from "./useHeardKeys";
  * they all play, stop and cue alike, and all at the one volume and the one speed (`playback.ts`), set on the player's
  * bar, a voice note or the browser's own controls. `shortcut` is a key that plays or stops it from anywhere on the page,
  * at a press or after its hold (a review's: the card gives each of its sounds and clips one, `ReviewCard`'s
- * `shortcuts`, this device's keys from `keys.ts`). Never a second way of playing a file.
+ * `shortcuts`, this device's keys from `keys.ts`), and `restart` keys that play it again from its start (`ReviewCard`'s
+ * `restarts`). Never a second way of playing a file.
  */
-export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Shortcut | null = null) {
+/** No keys: one list for every player without restart keys, so its listeners stand. */
+const NO_KEYS: readonly Heard[] = [];
+
+export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Shortcut | null = null, restart: readonly Heard[] = NO_KEYS) {
   const media = useRef<HTMLMediaElement | null>(null);
   const volume = useVolume();
   const speed = useSpeed();
@@ -65,6 +69,14 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Short
   // own is held that long first, how far along drawn on its keycap (the player's `.media` carrying `--hold`), and let
   // go early does nothing. A tap of a key that's held for something else plays it as it's let go (`useHeardKeys`).
   useHeardKeys([shortcut, ...(shortcut?.also ?? [])], () => media.current?.closest<HTMLElement>(".media") ?? null, toggle);
+  // Its restart keys, heard the same way: from the start, playing, wherever it was and whether it was playing or not.
+  useHeardKeys(restart, () => media.current?.closest<HTMLElement>(".media") ?? null, () => {
+    const el = media.current;
+    if (!el) return;
+    el.currentTime = 0;
+    setAt(0);
+    el.play().catch(() => undefined);
+  });
   /** Moves to a share of the way through (0 to 1), playing or not. */
   function seek(share: number) {
     const el = media.current;

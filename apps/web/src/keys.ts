@@ -42,6 +42,8 @@ export type KeyBinds = {
   reveal: Bind;
   answers: readonly Bind[];
   media: readonly Bind[];
+  /** Plays each sound or clip again from its start, in the same order as `media` (the owner, 2026-10-29; the first held 1 for 0.5 s to begin with, the rest none). */
+  restart: readonly Bind[];
   /** Fills the screen with a card's clip, or leaves it (the owner, 2026-10-24: "keybind to toggle full screen for video player, f by default"). */
   fullScreen: Bind;
   /** Takes the review's last answer back, as its Undo button does (the owner, 2026-10-26: no key until one is set). */
@@ -63,17 +65,20 @@ export const HOLD_TIMES = [0, 250, 500, 1000, 1500, 2000] as const;
  * Bound to begin with (the owner, 2026-10-21): Space, 1 to 6 for the answers, A and S for the first two sounds and
  * clips; everything else has no key until given one. Space and the answers held half a second, an answer that asks
  * for confirmation a second more (1.5 s in all, the owner's figure), a sound or a clip at a press. Full screen is F,
- * at a press (2026-10-24). The first sound or clip has Space, tapped, added to it (2026-10-28).
+ * at a press (2026-10-24). The first sound or clip has Space, tapped, added to it (2026-10-28), and is played again
+ * from its start with 1 held half a second (2026-10-29: "only the first one has the default").
  */
 const ANSWER_START = ["1", "2", "3", "4", "5", "6"];
 const MEDIA_START = ["a", "s"];
 const HOLD_START = 500;
 const one = (key: string | null, holdMs: number): Bind => ({ key, holdMs, also: [] });
 const MEDIA_ALSO_START: Key = { key: " ", holdMs: 0 };
+const RESTART_START: Key = { key: "1", holdMs: HOLD_START };
 export const DEFAULT_KEYS: KeyBinds = {
   reveal: one(" ", HOLD_START),
   answers: Array.from({ length: SLOTS }, (_, i) => one(ANSWER_START[i] ?? null, HOLD_START)),
   media: Array.from({ length: SLOTS }, (_, i) => ({ ...one(MEDIA_START[i] ?? null, 0), also: i === 0 ? [MEDIA_ALSO_START] : [] })),
+  restart: Array.from({ length: SLOTS }, (_, i) => (i === 0 ? one(RESTART_START.key, RESTART_START.holdMs) : one(null, 0))),
   fullScreen: one("f", 0),
   undo: one(null, 0),
   examplePrev: one(null, 0),
@@ -115,7 +120,7 @@ export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKe
 
 /** Every review key but the home's and today's Start: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
-  return [binds.reveal, ...binds.answers, ...binds.media, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
+  return [binds.reveal, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
 }
 /** How long something else on the review takes a key held: a press of it then acts only when let go sooner (`Heard.tapUnder`). */
 function tapUnderOf(binds: KeyBinds | undefined, key: Key): number {
@@ -132,6 +137,14 @@ export function shortcutOf(bind: Bind | undefined, binds?: KeyBinds): Shortcut |
     .map((key) => heardOf(key, binds))
     .filter((heard): heard is Heard => heard !== null);
   return first ? { ...first, also: rest } : null;
+}
+
+/** A sound's or a clip's keys that play it again from its start, as its player hears them; none without a key. */
+export function restartOf(bind: Bind | undefined, binds?: KeyBinds): readonly Heard[] {
+  if (!bind) return [];
+  return keysOf(bind)
+    .map((key) => heardOf(key, binds))
+    .filter((heard): heard is Heard => heard !== null);
 }
 
 /** Whether a press of a key is a tap of it, something else on the review taking it held (Show answer's Space): a press elsewhere, held elsewhere. */
@@ -201,12 +214,20 @@ function read(): KeyBinds {
     // Kept before there were second keys: the first sound or clip gets Space tapped, unless a press of Space already does something here.
     const tapTaken = [reveal, ...answers, ...kept, fullScreen].some((bind) => sameKey(bind.key, MEDIA_ALSO_START.key) && bind.holdMs === 0);
     const media = kept.map((bind, i) => (i === 0 && !hasAlso(raw, "media") && !tapTaken ? { ...bind, also: [MEDIA_ALSO_START] } : bind));
+    // Kept before there were restart keys: the first gets 1 held, unless 1 held already does something else here.
+    const restartTaken = [reveal, ...answers, ...media, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, RESTART_START.key) && key.holdMs > 0);
+    const restart =
+      "restart" in raw
+        ? bindsOf(raw.restart, DEFAULT_KEYS.restart, undefined)
+        : restartTaken
+          ? DEFAULT_KEYS.restart.map(() => one(null, 0))
+          : DEFAULT_KEYS.restart;
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
     const examplePrev = "examplePrev" in raw ? bindOf(raw.examplePrev, DEFAULT_KEYS.examplePrev, undefined) : DEFAULT_KEYS.examplePrev;
     const exampleNext = "exampleNext" in raw ? bindOf(raw.exampleNext, DEFAULT_KEYS.exampleNext, undefined) : DEFAULT_KEYS.exampleNext;
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    return { reveal, answers, media, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    return { reveal, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -242,18 +263,18 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, answers: next.answers, media: next.media, fullScreen: next.fullScreen, undo: next.undo, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the answer, full screen's, Undo's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place. */
-export type Slot = { kind: "reveal" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media"; index: number };
+/** Where a key is bound: showing the answer, full screen's, Undo's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
 const NAMED = ["reveal", "fullScreen", "undo", "examplePrev", "exampleNext", "start", "homeReview"] as const;
 
 /** The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space starts the review, then shows the answer). */
 const screenOf = (kind: Slot["kind"]): "home" | "today" | "review" => (kind === "homeReview" ? "home" : kind === "start" ? "today" : "review");
 
 function slotsOf(binds: KeyBinds): Slot[] {
-  return [...NAMED.map((kind) => ({ kind })), ...binds.answers.map((_, index) => ({ kind: "answers" as const, index })), ...binds.media.map((_, index) => ({ kind: "media" as const, index }))];
+  return [...NAMED.map((kind) => ({ kind })), ...binds.answers.map((_, index) => ({ kind: "answers" as const, index })), ...binds.media.map((_, index) => ({ kind: "media" as const, index })), ...binds.restart.map((_, index) => ({ kind: "restart" as const, index }))];
 }
 const sameSlot = (a: Slot, b: Slot) => a.kind === b.kind && ("index" in a ? "index" in b && a.index === b.index : true);
 /** A slot's bind as it stands. */
