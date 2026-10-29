@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { MEDIA_ENDINGS, type MediaKind } from "@panki/contracts";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -19,6 +19,8 @@ type Props = {
   /** A file was chosen or dropped (whether it's one Panki takes is the form's to say), or the one showing was taken off. */
   onPick: (file: File | null) => void;
   error?: string | undefined;
+  /** Laid over the held clip's picture: its subtitles, as a review shows them (`MediaView`'s `over`); never over one just picked. */
+  subtitles?: ReactNode;
 };
 
 /**
@@ -26,7 +28,7 @@ type Props = {
  * with its name, and can be changed or taken off; a file the card already holds shows the same way. What's wrong is
  * said in the app's own bubble, as in `TextField`.
  */
-export function MediaField({ id, label, kinds, kind, file, held, onPick, error }: Props) {
+export function MediaField({ id, label, kinds, kind, file, held, onPick, error, subtitles = null }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   // The picked file's own address in the browser, for showing it before Panki holds it; given back when it's let go.
@@ -68,7 +70,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error }
       <span className="field-label">{label}</span>
       {showing ? (
         <div className="media-picked">
-          <MediaView key={showing.src} kind={showing.kind} src={showing.src} label={label} />
+          <MediaView key={showing.src} kind={showing.kind} src={showing.src} label={label} over={file ? null : subtitles} />
           <div className="media-picked-row">
             <span className="media-name">{showing.name}</span>
             <Button id={id} aria-describedby={error ? `${id}-error` : undefined} onClick={choose}>

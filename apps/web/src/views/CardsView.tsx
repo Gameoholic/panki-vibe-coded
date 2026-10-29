@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { wordsFieldOf, type CalledCard, type Card, type CardExampleUpdate, type CardType, type CardUpdate, type NewCard, type NewCardExample, type SrsType } from "@panki/contracts";
+import { wordsFieldOf, type CalledCard, type Card, type CardExampleUpdate, type CardType, type CardUpdate, type Deck, type NewCard, type NewCardExample, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { CARD_SORTS, CARD_SORT_IDS, readCardSort, sortCards, waysOf, writeCardSort, type CardSort } from "../cardSort";
 import { AlreadyIn } from "../components/AlreadyIn";
 import { Button } from "../components/Button";
 import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
+import { CardPreview } from "../components/CardPreview";
 import { Dropdown } from "../components/Dropdown";
 import { Segmented } from "../components/Segmented";
 import { TextField } from "../components/TextField";
@@ -39,6 +40,12 @@ type Props = {
   /** One of a card's other examples, changed or deleted from its form. */
   onSaveExample: (cardId: string, exampleId: string, update: CardExampleUpdate) => Promise<void>;
   onRemoveExample: (cardId: string, exampleId: string) => Promise<void>;
+  /** Every deck, card type and SRS type: a card previewed is seen as any deck would show it. */
+  decks: readonly Deck[];
+  types: readonly CardType[];
+  srsTypes: readonly SrsType[];
+  /** How a clip's subtitles look (`Settings.subtitleStyle`), in a card's form and its preview. */
+  subtitleStyle?: SubtitleStyle | undefined;
 };
 
 /**
@@ -48,7 +55,32 @@ type Props = {
  * show only the duplicate cards of this same word"), those in other decks named over them. A card's edit button opens it where it stands in the list: its fields to change, Save, and Delete, which asks
  * first; the delete button under it deletes it from the row, asking there first. A card put aside is brought back from its row.
  */
-export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen, onClose, onOpenCalled, onAdd, onCancelAdd, onSave, onRemove, onLift, onAddExample, onSaveExample, onRemoveExample }: Props) {
+export function CardsView({
+  deckId,
+  cards,
+  type,
+  srsType,
+  adding,
+  openId,
+  onOpen,
+  onClose,
+  onOpenCalled,
+  onAdd,
+  onCancelAdd,
+  onSave,
+  onRemove,
+  onLift,
+  onAddExample,
+  onSaveExample,
+  onRemoveExample,
+  decks,
+  types,
+  srsTypes,
+  subtitleStyle,
+}: Props) {
+  /** The card seen as a review would show it, in its row; null for none. */
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewed = cards.find((card) => card.id === previewId) ?? null;
   const [sort, setSort] = useState<CardSort>(readCardSort);
   const sorted = useMemo(() => sortCards(cards, sort, { type, srsType }), [cards, sort, type, srsType]);
   /** The words whose duplicates alone are shown, pressed on a card's mark; null for every card. */
@@ -151,6 +183,15 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
         onEdit={(card) => onOpen(card.id)}
         onRemove={(card) => onRemove(card.id)}
         onLift={(card) => onLift(card.id)}
+        onPreview={(card) => setPreviewId((was) => (was === card.id ? null : card.id))}
+        previewing={
+          previewed
+            ? {
+                id: previewed.id,
+                view: <CardPreview key={previewed.id} card={previewed} type={type} decks={decks} types={types} srsTypes={srsTypes} subtitleStyle={subtitleStyle} onClose={() => setPreviewId(null)} />,
+              }
+            : null
+        }
         editing={
           open
             ? {
@@ -160,6 +201,7 @@ export function CardsView({ deckId, cards, type, srsType, adding, openId, onOpen
                     key={open.id}
                     type={type}
                     card={open}
+                    {...(subtitleStyle ? { subtitleStyle } : {})}
                     autoFocus
                     onCancel={() => onClose(open.id)}
                     onSave={async (update) => {

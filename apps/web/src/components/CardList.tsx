@@ -30,6 +30,10 @@ type Props = {
   onLift?: (card: Card) => Promise<void>;
   /** The card that's open, and what stands in its row's place while it is (the form that changes it). */
   editing?: { id: string; form: ReactNode } | null;
+  /** When given, each row carries a Preview button that asks for its card to be shown as a review would show it. */
+  onPreview?: (card: Card) => void;
+  /** The card being previewed, and the preview, drawn in its row under all of it (`CardPreview`). */
+  previewing?: { id: string; view: ReactNode } | null;
   /** What sits at the right of the title: how the list is sorted, in a deck. */
   tools?: ReactNode;
   /** Each card's duplicates (`api.deckTwins`), by its id: a card that has some says so at its top right. */
@@ -80,7 +84,7 @@ function cell(card: Card, field: CardField, className: string) {
  * asks in the row itself before the card goes. A card that's open is its form, in the row's own place in the list. A
  * card put aside says so where its due time would be, with Unsnooze or Unsuspend under it.
  */
-export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, editing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
+export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
   const titleId = useId();
   /** The card whose row is asking whether to delete it, how that's going, and why it didn't. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -150,7 +154,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
             return (
               <li
                 key={card.id}
-                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove || onPreview ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
@@ -182,7 +186,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                     ) : null}
                   </div>
                 ) : null}
-                {onEdit || onRemove ? (
+                {onEdit || onRemove || onPreview ? (
                   <div className="card-tools">
                     {onEdit ? (
                       <Button className="btn-icon" aria-label="Edit card" onClick={() => onEdit(card)}>
@@ -194,8 +198,14 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                         <Icon name="trash" />
                       </Button>
                     ) : null}
+                    {onPreview ? (
+                      <Button className="btn-icon" aria-label="Preview card" aria-pressed={previewing?.id === card.id} onClick={() => onPreview(card)}>
+                        <Icon name="eye" />
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
+                {previewing?.id === card.id ? <div className="card-preview-row">{previewing.view}</div> : null}
                 {liftFailure?.cardId === card.id ? (
                   <p className="load-error card-lift-error" role="alert">
                     {liftFailure.message}

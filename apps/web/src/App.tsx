@@ -937,6 +937,10 @@ export function App() {
                     onAddExample={addExample}
                     onSaveExample={saveExample}
                     onRemoveExample={removeExample}
+                    decks={decks ?? [deck]}
+                    types={types}
+                    srsTypes={srsTypes}
+                    subtitleStyle={settings?.subtitleStyle}
                   />
                 )}
               </>

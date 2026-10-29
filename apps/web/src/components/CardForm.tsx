@@ -21,6 +21,8 @@ import {
   type CardProblem,
   type CardType,
   type MediaKind,
+  type SubtitleStyle,
+  DEFAULT_SUBTITLE_STYLE,
 } from "@panki/contracts";
 import { api } from "../api";
 import { FIELD_KINDS, fileKindOf } from "../fieldKinds";
@@ -29,6 +31,7 @@ import { dateWords, langOf, listWords } from "../words";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "./AlreadyIn";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
+import { ClipSubtitles } from "./ClipSubtitles";
 import { Form } from "./Form";
 import { MediaField } from "./MediaField";
 import { TextField } from "./TextField";
@@ -68,6 +71,8 @@ type Shared = {
   onCancel?: () => void;
   /** Anything that belongs above the fields, like the deck chooser on the Add screen. */
   children?: ReactNode;
+  /** How a clip's subtitles look (`Settings.subtitleStyle`): a clip the card holds shows them, as a review does. Left out, the default. */
+  subtitleStyle?: SubtitleStyle;
 };
 /**
  * Adding: the form starts empty and stays open after a card is added, for the next one. While what's typed in the field
@@ -104,7 +109,19 @@ const DELETE_EXAMPLE = { question: "Delete this example?", go: { words: "Delete 
  * A card's other examples, under its form: each its words (its first field of words that goes with an example) and
  * where it came from, with Edit, which opens it as a form of its own in its row's place, and Delete, asked in the row.
  */
-function OtherExamples({ type, card, onSave, onRemove }: { type: CardType; card: Card; onSave: (exampleId: string, update: CardExampleUpdate) => Promise<void>; onRemove: (exampleId: string) => Promise<void> }) {
+function OtherExamples({
+  type,
+  card,
+  onSave,
+  onRemove,
+  subtitleStyle,
+}: {
+  type: CardType;
+  card: Card;
+  onSave: (exampleId: string, update: CardExampleUpdate) => Promise<void>;
+  onRemove: (exampleId: string) => Promise<void>;
+  subtitleStyle: SubtitleStyle;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -137,6 +154,7 @@ function OtherExamples({ type, card, onSave, onRemove }: { type: CardType; card:
             card={{ ...card, values: example.values, examples: [] }}
             heading="Edit example"
             deleting={DELETE_EXAMPLE}
+            subtitleStyle={subtitleStyle}
             onSave={async (update) => {
               await onSave(example.id, update);
               setOpen(null);
@@ -209,7 +227,7 @@ function changedFrom(type: CardType, card: Card, values: Record<string, string>)
  * is the "Add a card" panel: Enter adds it. With one it changes that card, and deletes it after asking in place.
  */
 export function CardForm(props: Props) {
-  const { type, autoFocus = false, onCancel, children } = props;
+  const { type, autoFocus = false, onCancel, children, subtitleStyle = DEFAULT_SUBTITLE_STYLE } = props;
   const card = props.card;
   // Two of these can be on one screen (the add form above the list, a card open in it): each names its fields apart.
   const formId = useId();
@@ -361,8 +379,11 @@ export function CardForm(props: Props) {
           if (kinds.length > 0) {
             const held = kept[field.id];
             const picked = picks[field.id];
+            // What's said in the clip the card holds, over it as a review shows it (one just picked has no words kept yet).
+            const said = held && card?.files[held] === "video" ? card.cues[held] : undefined;
             shown = (
               <MediaField
+                subtitles={said && said.length > 0 ? <ClipSubtitles cues={said} style={subtitleStyle} /> : null}
                 id={inputId(field.id)}
                 label={label}
                 kinds={kinds}
@@ -459,7 +480,7 @@ export function CardForm(props: Props) {
         )}
       </Form>
       {"onSaveExample" in props && props.onSaveExample && props.onRemoveExample && props.card.examples.length > 0 ? (
-        <OtherExamples type={type} card={props.card} onSave={props.onSaveExample} onRemove={props.onRemoveExample} />
+        <OtherExamples type={type} card={props.card} onSave={props.onSaveExample} onRemove={props.onRemoveExample} subtitleStyle={subtitleStyle} />
       ) : null}
     </section>
   );

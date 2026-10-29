@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * How every player on the page plays: how loud, and how fast. One of each for the whole page, so a clip turned down or
- * slowed stays so for the next card. Kept on this device by the app (`keepPlayback`, called in `main.tsx`); held while
+ * How every player on the page plays: how loud, how fast, and whether a clip's subtitles show. One of each for the
+ * whole page, so a clip turned down, slowed or without subtitles stays so for the next card. Kept on this device by the app (`keepPlayback`, called in `main.tsx`); held while
  * the page is open in the extension, whose players stand on a site whose storage isn't Panki's.
  */
 
@@ -76,6 +76,9 @@ export const speedOf = (rate: unknown): Speed | null => SPEEDS.find((speed) => s
 
 const speed = shared<Speed>("panki.speed", AS_SAID, (raw) => speedOf(raw) ?? AS_SAID, (a, b) => a === b);
 
+/** Whether a clip's subtitles show over it (the owner, 2026-10-29: "make subtitles on card clip be toggleable"); shown to begin with. */
+const subtitles = shared<boolean>("panki.subtitles", true, (raw) => raw !== false, (a, b) => a === b);
+
 /**
  * Keeps how loud and how fast on this device from now on, starting from what was kept. Called by the app at its start;
  * the extension's players stand on someone else's page, whose storage isn't Panki's, so there they last while the page
@@ -85,6 +88,7 @@ export function keepPlayback() {
   kept = true;
   volume.load();
   speed.load();
+  subtitles.load();
 }
 
 /** Sets how loud for every player on the page. */
@@ -105,4 +109,14 @@ export function setSpeed(next: Speed) {
 /** How fast, as it stands, drawn again whenever it changes. */
 export function useSpeed(): Speed {
   return useSyncExternalStore(speed.subscribe, speed.get);
+}
+
+/** Shows or hides every clip's subtitles on the page. */
+export function setSubtitlesShown(next: boolean) {
+  subtitles.set(next);
+}
+
+/** Whether clips' subtitles show, drawn again whenever it changes. */
+export function useSubtitlesShown(): boolean {
+  return useSyncExternalStore(subtitles.subscribe, subtitles.get);
 }

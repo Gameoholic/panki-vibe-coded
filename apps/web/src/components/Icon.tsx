@@ -49,6 +49,10 @@ const ICONS = {
    */
   watchTime: ["M13 16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v6", "M8 7.5v5l4.5-2.5z", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
   reviewTime: ["M13 20H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8.5", "M7.5 7h5", "M7.5 10.5h5", "M7.5 14h2.5", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
+  /** A screen with lines of words along its foot: a clip's subtitles, shown or hidden from its player's bar. */
+  subtitles: ["M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "M7 12h4", "M13 12h4", "M7 15.5h7", "M16 15.5h1"],
+  /** An eye: a card seen as a review would show it (`CardPreview`). */
+  eye: ["M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z"],
   /** A magnifying glass: looking at something without changing it, a card already there opened (`AlreadyIn`). */
   search: ["M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13z", "M15.5 15.5L20 20"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */

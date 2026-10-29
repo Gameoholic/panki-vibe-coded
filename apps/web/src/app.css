@@ -1342,6 +1342,16 @@ canvas.media-frame {
   padding: 6px;
   margin-right: -8px;
 }
+/* A clip's subtitles shown or hidden: in the clip's colour while shown, faint while hidden. */
+.btn-icon.media-subs {
+  padding: 6px;
+  color: var(--muted);
+  opacity: 0.6;
+}
+.btn-icon.media-subs[aria-pressed="true"] {
+  color: var(--kind);
+  opacity: 1;
+}
 /* How loud: the speaker, and the short line beside it that's pressed or pulled (its box is taller than the line, to
    be easy to hit). */
 .media-sound {
@@ -3166,6 +3176,24 @@ mark.sub-mark {
   margin-top: 10px;
   padding-top: 12px;
   border-top: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+/* A card seen as a review would show it (`CardPreview`), in its row under all of it: the deck it's seen in, × at the
+   right, the card under them. */
+.card-preview-row {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.card-preview {
+  display: grid;
+  gap: 10px;
+}
+.card-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 /* In a card's form, Delete… keeps to the left, away from Save. */
 .add-actions .card-delete {

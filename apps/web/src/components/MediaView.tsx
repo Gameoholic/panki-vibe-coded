@@ -4,7 +4,7 @@ import { useHeardKeys } from "../hooks/useHeardKeys";
 import { usePlayback } from "../hooks/usePlayback";
 import { ScreenStageContext } from "../hooks/useScreenStage";
 import type { Shortcut } from "../keys";
-import type { Speed, Volume } from "../playback";
+import { setSubtitlesShown, useSubtitlesShown, type Speed, type Volume } from "../playback";
 import { clock } from "../words";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -91,6 +91,8 @@ type BarProps = {
   speed?: { speed: Speed; onSpeed: (speed: Speed) => void } | null;
   /** The key that plays it, as a keycap beside the play button; none by default. */
   shortcut?: Shortcut | null;
+  /** A clip's subtitles shown or hidden (`playback.ts`), beside how fast: only where the clip has some. */
+  subtitles?: { shown: boolean; onToggle: () => void } | null;
 };
 
 /**
@@ -99,7 +101,7 @@ type BarProps = {
  * holds yet (the extension's clip before it's recorded), so that looks like the player by being the player's own bar.
  * Never a second bar.
  */
-export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, onSeek = null, sound = null, speed = null, shortcut = null }: BarProps) {
+export function MediaBar({ playing, at, length, label, onToggle, tag = null, screen = null, onSeek = null, sound = null, speed = null, shortcut = null, subtitles = null }: BarProps) {
   const share = length ? Math.min(1, at / length) : 0;
   return (
     <div className="media-bar">
@@ -121,7 +123,12 @@ export function MediaBar({ playing, at, length, label, onToggle, tag = null, scr
         </span>
       )}
       <span className="media-time">{length === null ? clock(at) : `${clock(at)} / ${clock(length)}`}</span>
-      {speed ? <SpeedControl {...speed} label={label} /> : null}
+      {subtitles ? (
+        <Button className="btn-icon media-subs" aria-label="Subtitles" aria-pressed={subtitles.shown} onClick={subtitles.onToggle}>
+          <Icon name="subtitles" />
+        </Button>
+      ) : null}
+      {speed ?<SpeedControl {...speed} label={label} /> : null}
       {sound ? <SoundControl {...sound} label={label} /> : null}
       {screen ? (
         <>
@@ -326,13 +333,14 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, sc
   const canFill = kind === "video" && typeof document.documentElement.requestFullscreen === "function";
   const fillKey = canFill ? screenKey : null;
   useScreenKey(frame, fillKey, toggleFull);
+  const subtitlesShown = useSubtitlesShown();
   return (
     <div ref={frame} className={`media media-player media-${kind}`} onClick={ownPress} {...(fillKey ? { [SCREEN_KEYED]: "" } : {})}>
       {kind === "video" ? (
         // The picture and what's laid over it (its subtitles) in one box, so they fill the screen together.
         <div className="media-picture">
           <video ref={play.hold} className="media-frame" src={src} preload="metadata" playsInline onClick={play.toggle} onDoubleClick={canFill ? toggleFull : undefined} {...play.events} />
-          {over}
+          {subtitlesShown ? over : null}
         </div>
       ) : (
         <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
@@ -354,6 +362,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, over, sc
           sound={{ volume: play.volume, onLevel: play.setLevel, onMute: play.toggleMute }}
           speed={{ speed: play.speed, onSpeed: play.setSpeed }}
           shortcut={shortcut}
+          subtitles={over ? { shown: subtitlesShown, onToggle: () => setSubtitlesShown(!subtitlesShown) } : null}
         />
       )}
     </div>
