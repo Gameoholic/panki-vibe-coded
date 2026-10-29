@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { likenessOf, type ApartValue, type CalledCard } from "@panki/contracts";
 import { langOf, listWords } from "../words";
 import { Button } from "./Button";
@@ -22,10 +23,34 @@ type Props = {
    * row then carries Add as an additional example, pressed while the form adds an example instead of a card.
    */
   example?: { card: CalledCard; on: boolean; onToggle: () => void } | null;
+  /** Add anyway, beside it while one is the same: pressed, a second card is added after all (`useAddAnyway`). */
+  anyway?: { on: boolean; onToggle: () => void } | null;
 };
 
 /** The words for adding to a card that's already there, one home: the button, and what the form's own button says then. */
 export const EXAMPLE_WORDS = { add: "Add as an additional example", go: "Add example", busy: "Adding…" };
+
+/** What adds a second card called the same as one already there. */
+const ANYWAY_WORDS = "Add anyway";
+
+/**
+ * Whether a card being added may be added (the owner, 2026-10-29: "I can't add it as a card until I resolve this
+ * warning"): not while one already there is the same in every field compared, until that's resolved by Add as an
+ * additional example, by a compared field changed so it's no longer the same, or by Add anyway. Add anyway holds for
+ * those cards alone: once another card is the same, it's asked again.
+ */
+export function useAddAnyway(cards: readonly CalledCard[], mine: readonly ApartValue[], compared: readonly string[] | null) {
+  const same = cards.filter((card) => likenessOf(mine, card.apart, compared) === "same");
+  const key = same.map((card) => card.cardId).join(" ");
+  const [anywayFor, setAnywayFor] = useState<string | null>(null);
+  const on = key !== "" && anywayFor === key;
+  return {
+    /** One already there is the same: the warning stands until it's resolved. */
+    duplicate: key !== "",
+    on,
+    set: (next: boolean) => setAnywayFor(next ? key : null),
+  };
+}
 
 /**
  * Of the cards already called so, the one to add another example to: the newest of this card type (`CalledCard.typeId`)
@@ -43,11 +68,13 @@ const decksOf = (cards: readonly CalledCard[]) => listWords([...new Set(cards.ma
  * owner, 2026-10-25): a warning, in amber, when one of them is the same in every field its type compares (the same
  * word and meaning: "“生” is already in Mining, with the same Meaning."); otherwise a quieter notice that the word is in
  * the decks. Under it, every card called so, each with its deck and what it holds in the fields compared, and a way
- * to open it (the Duplicate and Different tags on each went at the owner's word, 2026-10-25). It stops nothing: Add still adds a second card, unless Add as an
- * additional example is pressed, which puts what's being added onto the card that's there. The app's form, the
- * extension's drawer and its popup are all this.
+ * to open it, at the row's right with a magnifying glass, apart from what resolves the warning: opening only looks (the
+ * Duplicate and Different tags on each went at the owner's word, 2026-10-25). A warning holds Add back until it's
+ * resolved (`useAddAnyway`); what resolves it is in a row of its own at its foot: Add as an additional example, which
+ * puts what's being added onto the card that's there, and Add anyway. The app's form, the extension's drawer and its
+ * popup are all this.
  */
-export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compared = [], example = null }: Props) {
+export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compared = [], example = null, anyway = null }: Props) {
   const first = cards[0];
   if (!first) return null;
   const rows = cards.map((card) => ({ card, like: likenessOf(mine, card.apart, compared) }));
@@ -56,6 +83,8 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
   const named = <>“<span lang={langOf(word)}>{word}</span>”</>;
   const what = compared && compared.length > 0 ? listWords(compared) : null;
   const allOther = rows.every((row) => row.like === "other");
+  const toExample = example && cards.some((card) => card.cardId === example.card.cardId) ? example : null;
+  const addAnyway = same.length > 0 ? anyway : null;
   return (
     <div className={`already ${same.length > 0 ? "" : "is-notice"}`.trim()} role="status">
       <p className="already-line">
@@ -88,24 +117,30 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
                   </span>
                 ))}
               </span>
-              {onOpen || example?.card.cardId === card.cardId ? (
-                <span className="already-card-actions">
-                  {onOpen ? (
-                    <Button className="already-open" onClick={() => onOpen(card)}>
-                      {openWords}
-                    </Button>
-                  ) : null}
-                  {example && example.card.cardId === card.cardId ? (
-                    <Button className="already-open already-example" aria-pressed={example.on} onClick={example.onToggle}>
-                      {EXAMPLE_WORDS.add}
-                    </Button>
-                  ) : null}
-                </span>
+              {onOpen ? (
+                <Button className="already-open" onClick={() => onOpen(card)}>
+                  <Icon name="search" />
+                  {openWords}
+                </Button>
               ) : null}
             </li>
           );
         })}
       </ul>
+      {toExample || addAnyway ? (
+        <div className="already-resolve">
+          {toExample ? (
+            <Button className="already-pick" aria-pressed={toExample.on} onClick={toExample.onToggle}>
+              {EXAMPLE_WORDS.add}
+            </Button>
+          ) : null}
+          {addAnyway ? (
+            <Button className="already-pick" aria-pressed={addAnyway.on} onClick={addAnyway.onToggle}>
+              {ANYWAY_WORDS}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

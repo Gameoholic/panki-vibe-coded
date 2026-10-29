@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { CaptureFacts, NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
-import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf } from "@web/components/AlreadyIn";
+import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
@@ -440,6 +440,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const target = type && exampleFieldsOf(type).length > 0 ? exampleTargetOf(called, type.id, mine, compared) : null;
   const [toExample, setToExample] = useState(false);
   const asExample = toExample && target !== null;
+  const anyway = useAddAnyway(called, mine, compared);
+  /** One already there is the same, and nothing has resolved it yet: Add waits. */
+  const unresolved = anyway.duplicate && !asExample && !anyway.on;
 
   // The word said on Forvo, when the deck takes it: asked for once the dictionaries have answered, as the dictionary
   // has it (探す, not 探していた, which no one records), or as it's typed when they don't know it. Panki's server asks
@@ -555,7 +558,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   async function add() {
-    if (!deck || !type || phase.at !== "idle") return;
+    if (!deck || !type || phase.at !== "idle" || unresolved) return;
     // An example is only the fields that go with one, and the recordings for them; the card's own are as they are on it.
     const fields = asExample ? exampleFieldsOf(type) : type.fields;
     const toSend: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, values[f.id] ?? ""])) : values;
@@ -980,7 +983,26 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           compared={compared}
           openWords="Open in Panki"
           onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })}
-          example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null}
+          // The two ways past the warning are one or the other: pressing one lets the other go.
+          example={
+            target
+              ? {
+                  card: target,
+                  on: asExample,
+                  onToggle: () => {
+                    setToExample((was) => !was);
+                    anyway.set(false);
+                  },
+                }
+              : null
+          }
+          anyway={{
+            on: anyway.on,
+            onToggle: () => {
+              anyway.set(!anyway.on);
+              setToExample(false);
+            },
+          }}
         />
       ) : null;
     /** One of the card's fields as the drawer shows it: the sentence, the word said on Forvo, or a box to type in; nothing for what's recorded or filled by itself. */
@@ -1106,7 +1128,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <Button size="lg" disabled={busy} onClick={() => setLeaving(true)}>
             Discard
           </Button>
-          <Button type="submit" variant="primary" size="lg" className="capture-add" disabled={busy}>
+          <Button type="submit" variant="primary" size="lg" className="capture-add" disabled={busy || unresolved}>
             {phase.at === "done" ? "Added" : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deck.name}`}
           </Button>
         </div>

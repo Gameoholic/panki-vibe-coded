@@ -49,6 +49,8 @@ const ICONS = {
    */
   watchTime: ["M13 16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v6", "M8 7.5v5l4.5-2.5z", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
   reviewTime: ["M13 20H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8.5", "M7.5 7h5", "M7.5 10.5h5", "M7.5 14h2.5", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
+  /** A magnifying glass: looking at something without changing it, a card already there opened (`AlreadyIn`). */
+  search: ["M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13z", "M15.5 15.5L20 20"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],
   /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`, picked by the owner, 2026-10-20): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live), the download with a chunk's head start (Hybrid). (Auto's bolt went with Auto.) */

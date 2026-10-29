@@ -814,19 +814,45 @@ textarea.field-input {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.btn.already-open {
+/* What resolves a warning (Add as an additional example, Add anyway), lit in the flag's amber while pressed. */
+.btn.already-pick {
   padding: 4px 10px;
   border-radius: 8px;
   font-size: 13px;
   background: var(--surface);
+}
+.btn.already-pick[aria-pressed="true"] {
+  border-color: var(--flag);
+  background: color-mix(in srgb, var(--flag) 30%, var(--surface));
+}
+/* Opening a card only looks at it: quiet, with a magnifying glass, at its row's right, apart from what resolves. */
+.btn.already-open {
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.already-open .icon {
+  width: 14px;
+  height: 14px;
+}
+@media (hover: hover) {
+  .btn.already-open:hover {
+    color: var(--fg);
+    background: color-mix(in srgb, var(--fg) 8%, transparent);
+  }
 }
 /* No duplicate among them, only the word in the decks: a quiet notice rather than the amber warning. */
 .already.is-notice {
   border-color: var(--line);
   background: var(--surface-2);
 }
-/* Every card called so, a row each: its words, its deck and what it holds in the fields compared across the whole
-   width, then its buttons on a line under them, so the buttons never squeeze the words. */
+/* Every card called so, a row each: its words, its deck and what it holds in the fields compared, and Open at its
+   right, held to the row's top. */
 .already-cards {
   margin: 0;
   padding: 0;
@@ -836,7 +862,9 @@ textarea.field-input {
 }
 .already-card {
   display: grid;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px 10px;
   font-size: 13px;
 }
 .already-card + .already-card {
@@ -850,20 +878,18 @@ textarea.field-input {
   gap: 2px 10px;
   overflow-wrap: break-word;
 }
-.already-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
 .already-card-deck,
 .already-card-value {
   color: var(--muted);
 }
-/* Add as an additional example, pressed: the form adds an example to that card instead of a card. */
-.btn.already-example[aria-pressed="true"] {
-  border-color: var(--flag);
-  background: color-mix(in srgb, var(--flag) 30%, var(--surface));
+/* What resolves the warning, a row of its own at its foot under a line. */
+.already-resolve {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--flag) 25%, var(--line));
 }
 /* A card's other examples under its form (components/CardForm.tsx → OtherExamples): a row each, its words and where it
    came from, Edit and Delete at its end; one opened is a form of its own in the row's place. */

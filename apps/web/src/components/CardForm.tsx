@@ -26,7 +26,7 @@ import { api } from "../api";
 import { FIELD_KINDS, fileKindOf } from "../fieldKinds";
 import { useCalled } from "../hooks/useCalled";
 import { dateWords, langOf, listWords } from "../words";
-import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf } from "./AlreadyIn";
+import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "./AlreadyIn";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Form } from "./Form";
@@ -237,6 +237,9 @@ export function CardForm(props: Props) {
   const [toExample, setToExample] = useState(false);
   /** Adding an example to that card instead of a card: only while there's still a card to add it to. */
   const asExample = toExample && target !== null;
+  const anyway = useAddAnyway(called, mine, compared);
+  /** One already there is the same, and nothing has resolved it yet: Add waits. */
+  const unresolved = anyway.duplicate && !asExample && !anyway.on;
 
   function focusField(fieldId: string) {
     document.getElementById(inputId(fieldId))?.focus();
@@ -268,8 +271,8 @@ export function CardForm(props: Props) {
   }
 
   async function submit() {
-    // While the question about deleting is up, Enter in a field answers nothing.
-    if (asking) return;
+    // While the question about deleting is up, Enter in a field answers nothing; nor while a duplicate is unresolved.
+    if (asking || unresolved) return;
     // An example sends only the fields that go with one; the card's own are left as they are on it.
     const fields = asExample ? exampleFields : type.fields;
     // A field of files holds its file's id; a file just picked goes to Panki first, below.
@@ -317,6 +320,7 @@ export function CardForm(props: Props) {
       setDraft({});
       setPicks({});
       setToExample(false);
+      anyway.set(false);
       if (first) focusField(first.id);
     } catch (e) {
       setFailure(e instanceof Error ? e.message : "Something went wrong.");
@@ -386,7 +390,32 @@ export function CardForm(props: Props) {
                   error={errors[field.id] || undefined}
                 />
                 {field.id === lead?.id ? (
-                  <AlreadyIn cards={called} onOpen={onOpenCalled} mine={mine} compared={compared} example={target ? { card: target, on: asExample, onToggle: () => setToExample((was) => !was) } : null} />
+                  <AlreadyIn
+                    cards={called}
+                    onOpen={onOpenCalled}
+                    mine={mine}
+                    compared={compared}
+                    // The two ways past the warning are one or the other: pressing one lets the other go.
+                    example={
+                      target
+                        ? {
+                            card: target,
+                            on: asExample,
+                            onToggle: () => {
+                              setToExample((was) => !was);
+                              anyway.set(false);
+                            },
+                          }
+                        : null
+                    }
+                    anyway={{
+                      on: anyway.on,
+                      onToggle: () => {
+                        anyway.set(!anyway.on);
+                        setToExample(false);
+                      },
+                    }}
+                  />
                 ) : null}
               </>
             );
@@ -423,7 +452,7 @@ export function CardForm(props: Props) {
                 Cancel
               </Button>
             ) : null}
-            <Button type="submit" variant="primary" disabled={busy}>
+            <Button type="submit" variant="primary" disabled={busy || unresolved}>
               {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
             </Button>
           </div>
