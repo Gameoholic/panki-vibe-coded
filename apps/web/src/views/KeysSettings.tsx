@@ -93,7 +93,7 @@ function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; b
 
 /**
  * Settings → Keybinds: the home's and the review's keys on this device (`keys.ts`), each set by pressing it and each pressed or held for
- * a time of its own, and how much longer an answer that asks for confirmation is held on top.
+ * a time of its own, and how much longer an answer that requires confirmation is held on top.
  */
 export function KeysPanels() {
   const binds = useKeyBinds();
@@ -117,8 +117,8 @@ export function KeysPanels() {
         ))}
         <Setting
           id="confirmMs"
-          label="Extra hold for answers that ask for confirmation"
-          control={<Segmented idPrefix="key-confirm" label="Extra hold for answers that ask for confirmation" options={EXTRA_OPTIONS} value={String(binds.confirmMs)} onChange={(id) => setKeyBinds({ ...binds, confirmMs: holdOf(id, binds.confirmMs) })} />}
+          label="Extra hold for answers that require confirmation"
+          control={<Segmented idPrefix="key-confirm" label="Extra hold for answers that require confirmation" options={EXTRA_OPTIONS} value={String(binds.confirmMs)} onChange={(id) => setKeyBinds({ ...binds, confirmMs: holdOf(id, binds.confirmMs) })} />}
         />
         <KeyRow id="undo" label="Undo" bind={binds.undo} slot={{ kind: "undo" }} binds={binds} />
         <KeyRow id="example-prev" label="Previous example" bind={binds.examplePrev} slot={{ kind: "examplePrev" }} binds={binds} />

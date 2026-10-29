@@ -53,7 +53,7 @@ export type KeyBinds = {
   start: Bind;
   /** The home's Review door (2026-10-27; Space held 0.5 s to begin with since 2026-10-28, none before). */
   homeReview: Bind;
-  /** How much longer an answer that asks for confirmation is held, on top of its own key's hold. */
+  /** How much longer an answer that requires confirmation is held, on top of its own key's hold. */
   confirmMs: number;
 };
 /** How long a hold can be, and how much longer for confirmation; none at all is a press. */

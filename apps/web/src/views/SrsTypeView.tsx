@@ -240,7 +240,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
           disabled={locked || (!answer.aside && draft.answers.filter((a) => !a.aside).length <= ANSWERS_MIN)}
           onChange={(aside) => change(patchAnswer(draft, answer.id, { aside }))}
         />
-        <Toggle id={`answer-confirm-${answer.id}`} says={{ on: "Ask to confirm", off: "No confirmation" }} on={answer.confirm === true} disabled={locked} onChange={(confirm) => change(patchAnswer(draft, answer.id, { confirm }))} />
+        <Toggle id={`answer-confirm-${answer.id}`} says={{ on: "Requires confirmation", off: "No confirmation" }} on={answer.confirm === true} disabled={locked} onChange={(confirm) => change(patchAnswer(draft, answer.id, { confirm }))} />
       </div>
     </div>
   );
