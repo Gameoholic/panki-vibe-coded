@@ -72,20 +72,6 @@ async function match<C extends Candidate>(candidates: readonly C[], on: Readonly
 
 const readingOf = (row: TermRecord) => (row.reading === "" ? row.term : row.reading);
 
-/**
- * How the words some cards are called by are read, by the dictionaries switched on, so a word written in kana alone
- * counts as theirs: あえて as 敢えて's (the owner, 2026-10-29: a word in the cards, said in kana in a subtitle, wasn't
- * marked). Only a word with a reading apart from how it's written gives one.
- */
-export async function readingsOf(words: readonly string[]): Promise<string[]> {
-  if (words.length === 0) return [];
-  const on = await dictionariesOn();
-  if (on.size === 0) return [];
-  const asked = new Set(words);
-  const readings = new Set<string>();
-  for (const row of await termsFor([...asked])) if (on.has(row.dict) && asked.has(row.term) && row.reading !== "" && row.reading !== row.term) readings.add(row.reading);
-  return [...readings];
-}
 const keyOf = (term: string, reading: string) => `${term}\u0000${reading}`;
 
 /** How common a word is by the frequency lists that count by rank: its best rank, or null when none of them knows it. */
@@ -98,6 +84,42 @@ function rankOf(meta: readonly MetaRecord[], term: string, reading: string, on: 
     best = best === null ? row.value : Math.min(best, row.value);
   }
   return best;
+}
+
+/** A word some candidates are: its written form and reading, the stretch it's best taken as, its rows of every dictionary, and how it ranks. */
+type Ranked<C extends Candidate> = { term: string; reading: string; best: C; rows: TermRecord[]; rank: number; order: number; score: number };
+
+/**
+ * The words some matches are, one per written form and reading across dictionaries, best first: the longest stretch,
+ * then the fewest endings undone, the most common, the dictionary first in the owner's order, the highest score. The
+ * one way a word is chosen: the pop-up's words (`lookUp`) and the word each stretch of a split line is taken as
+ * (`latticeOf`), which the marks of the words in the decks read, are both this, so the marks and the pop-up's
+ * "in your decks" can't come apart (the owner, 2026-10-29: "the same function, same shared logic").
+ */
+function wordsFound<C extends Candidate>(matches: readonly { candidate: C; row: TermRecord }[], meta: readonly MetaRecord[], on: ReadonlyMap<string, DictionaryRecord>): Ranked<C>[] {
+  const words = new Map<string, { term: string; reading: string; best: C; rows: Map<number, TermRecord> }>();
+  for (const { candidate, row } of matches) {
+    const key = keyOf(row.term, readingOf(row));
+    const word = words.get(key) ?? { term: row.term, reading: readingOf(row), best: candidate, rows: new Map() };
+    const better = candidate.source.length > word.best.source.length || (candidate.source.length === word.best.source.length && candidate.steps.length < word.best.steps.length);
+    if (better) word.best = candidate;
+    if (row.id !== undefined) word.rows.set(row.id, row);
+    words.set(key, word);
+  }
+  const orderOf = (dict: string) => on.get(dict)?.order ?? Infinity;
+  const ranked = [...words.values()].map((word) => {
+    const rows = [...word.rows.values()];
+    return {
+      term: word.term,
+      reading: word.reading,
+      best: word.best,
+      rows,
+      rank: rankOf(meta, word.term, word.reading, on) ?? Infinity,
+      order: Math.min(...rows.map((row) => orderOf(row.dict))),
+      score: Math.max(...rows.map((row) => row.score)),
+    };
+  });
+  return ranked.sort((a, b) => b.best.source.length - a.best.source.length || a.best.steps.length - b.best.steps.length || a.rank - b.rank || a.order - b.order || b.score - a.score);
 }
 
 /** Tags by dictionary, kept while the worker is awake: they're the same for every word of a dictionary. */
@@ -123,18 +145,7 @@ export async function lookUp(text: string): Promise<Found[]> {
   const on = await dictionariesOn();
   if (on.size === 0) return [];
   const matches = await match(candidatesOf(scan), on);
-
-  // One word per written form and reading, across dictionaries; the stretch it's taken as is its best one.
-  const words = new Map<string, { term: string; reading: string; best: Candidate; rows: Map<number, TermRecord> }>();
-  for (const { candidate, row } of matches) {
-    const key = keyOf(row.term, readingOf(row));
-    const word = words.get(key) ?? { term: row.term, reading: readingOf(row), best: candidate, rows: new Map() };
-    const better = candidate.source.length > word.best.source.length || (candidate.source.length === word.best.source.length && candidate.steps.length < word.best.steps.length);
-    if (better) word.best = candidate;
-    if (row.id !== undefined) word.rows.set(row.id, row);
-    words.set(key, word);
-  }
-  const meta = await metaFor([...new Set([...words.values()].map((word) => word.term))]);
+  const meta = await metaFor([...new Set(matches.map((m) => m.row.term))]);
   const tags = await tagsBy(new Set(matches.map((m) => m.row.dict)));
   const orderOf = (dict: string) => on.get(dict)?.order ?? Infinity;
   /** A dictionary as it's named where it's shown: the owner's name for it, or its own. */
@@ -143,8 +154,10 @@ export async function lookUp(text: string): Promise<Found[]> {
     return dictionary ? shownName(dictionary) : "";
   };
 
-  const ranked = [...words.values()].map((word) => {
-    const rows = [...word.rows.values()].sort((a, b) => orderOf(a.dict) - orderOf(b.dict) || a.sequence - b.sequence || b.score - a.score || (a.id ?? 0) - (b.id ?? 0));
+  return wordsFound(matches, meta, on)
+    .slice(0, FOUND_MAX)
+    .map((word) => {
+    const rows = [...word.rows].sort((a, b) => orderOf(a.dict) - orderOf(b.dict) || a.sequence - b.sequence || b.score - a.score || (a.id ?? 0) - (b.id ?? 0));
     const own = meta.filter((row) => row.term === word.term && (row.reading === null || row.reading === word.reading) && on.has(row.dict));
     const byOrder = (a: MetaRecord, b: MetaRecord) => orderOf(a.dict) - orderOf(b.dict);
     const termTags = new Map<string, Tag>();
@@ -173,15 +186,8 @@ export async function lookUp(text: string): Promise<Found[]> {
         .sort(byOrder)
         .map((row) => ({ dict: nameOf(row.dict), positions: row.positions })),
     };
-    return {
-      found,
-      rank: rankOf(meta, word.term, word.reading, on) ?? Infinity,
-      order: Math.min(...rows.map((row) => orderOf(row.dict))),
-      score: Math.max(...rows.map((row) => row.score)),
-    };
+    return found;
   });
-  ranked.sort((a, b) => b.found.source.length - a.found.source.length || a.found.steps.length - b.found.steps.length || a.rank - b.rank || a.order - b.order || b.score - a.score);
-  return ranked.slice(0, FOUND_MAX).map((r) => r.found);
 }
 
 /** What one word costs in a split: something for being a word at all, less the more common it is, a little more for every ending undone. */
@@ -190,7 +196,7 @@ function costOf(rank: number | null, steps: number): number {
 }
 
 /** The words starting at each place a word can start, as a stretch of text gives them. Kept while the worker is awake, so a line that grows is only looked at again near its end. */
-const options = new Map<string, { length: number; cost: number }[]>();
+const options = new Map<string, { length: number; cost: number; term: string }[]>();
 const OPTIONS_MAX = 5000;
 let optionsFor = "";
 
@@ -215,21 +221,25 @@ export async function latticeOf(text: string): Promise<Lattice> {
     const candidates = fresh.flatMap((scan) => candidatesOf(scan).map((candidate) => ({ ...candidate, scan })));
     const matches = await match(candidates, on);
     const meta = await metaFor([...new Set(matches.map((m) => m.row.term))]);
-    const best = new Map<string, Map<number, number>>();
-    for (const { candidate, row } of matches) {
-      const scan = candidate.scan;
-      const cost = costOf(rankOf(meta, row.term, readingOf(row), on), candidate.steps.length);
-      const lengths = best.get(scan) ?? new Map<number, number>();
-      const length = candidate.source.length;
-      lengths.set(length, Math.min(lengths.get(length) ?? Infinity, cost));
-      best.set(scan, lengths);
+    // Each stretch (a place's scan, a length) with the matches that take exactly it.
+    const stretches = new Map<string, Map<number, typeof matches>>();
+    for (const m of matches) {
+      const lengths = stretches.get(m.candidate.scan) ?? new Map<number, typeof matches>();
+      const length = m.candidate.source.length;
+      lengths.set(length, [...(lengths.get(length) ?? []), m]);
+      stretches.set(m.candidate.scan, lengths);
     }
     for (const scan of fresh) {
       if (options.size >= OPTIONS_MAX) options.clear();
-      options.set(
-        scan,
-        [...(best.get(scan) ?? new Map<number, number>()).entries()].map(([length, cost]) => ({ length, cost })),
-      );
+      const there: { length: number; cost: number; term: string }[] = [];
+      for (const [length, taking] of stretches.get(scan) ?? []) {
+        // The word the stretch is taken as is the pop-up's first word for it, by the one shared choice.
+        const term = wordsFound(taking, meta, on)[0]?.term;
+        if (term === undefined) continue;
+        const cost = Math.min(...taking.map(({ candidate, row }) => costOf(rankOf(meta, row.term, readingOf(row), on), candidate.steps.length)));
+        there.push({ length, cost, term });
+      }
+      options.set(scan, there);
     }
   }
   return scans.flatMap(({ at, scan }) => {

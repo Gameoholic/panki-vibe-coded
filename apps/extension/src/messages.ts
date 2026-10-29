@@ -220,9 +220,9 @@ const LookState = z.union([
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 export type LookState = z.infer<typeof LookState>;
-/** The words every card is called by and how they're read, and whether they're marked in a video's subtitles, on pages, and in what colour. */
+/** The words every card is called by, and whether they're marked in a video's subtitles, on pages, and in what colour. */
 const Known = z.union([
-  z.object({ ok: z.literal(true), words: z.array(z.string()), readings: z.array(z.string()), subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint }),
+  z.object({ ok: z.literal(true), words: z.array(z.string()), subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint }),
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 export type Known = z.infer<typeof Known>;

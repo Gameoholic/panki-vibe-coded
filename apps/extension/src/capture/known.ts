@@ -1,28 +1,28 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { isJapanese } from "@web/words";
-import { deinflect, isWordKind } from "../dictionary/deinflect";
 import type { Lattice } from "../dictionary/found";
 import { wordsOf } from "../dictionary/split";
 import { LATTICE_MAX, askKnown, askLattice } from "../messages";
 import { paintCss, type MarkPaint } from "../seekLook";
 import { literalOf } from "../ui/styles";
+import type { Token } from "./words";
 
 /**
  * Words already in the account's cards, marked where they stand (the owner, 2026-10-25: "highlights words that are
  * already in my cards… both subtitles and everywhere… so they can be separate… make colour customizable"). What's
  * known is the words every card is called by, from Panki through the worker (`askKnown`), with the two switches and
- * the colour (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`). A word in a line is one of them as it's
- * written, or once its endings are undone (`deinflect`: 食べました is 食べる's). Lines are split into words the one
- * way (`split.ts` → `wordsOf`): Panki's own lines under and over a video mark their word buttons (`ui/Line.tsx`'s
+ * the colour (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`). A word in a line is one of them by the
+ * pop-up's own check (the owner, 2026-10-29: "the same function, same shared logic so that they can't drift apart"):
+ * the word the dictionary takes it as, chosen by the pop-up's own choice (`lookup.ts` → `wordsFound`: 食べました is
+ * 食べる, あえて is 敢えて), is exactly a word a card is called by (the API's `wordsInCards`, what its `cardsCalled`
+ * matches against). Lines are split into words the one way (`split.ts` → `wordsOf`): Panki's own lines under and over a video mark their word buttons (`ui/Line.tsx`'s
  * `known`), by the subtitles switch (Highlight in Panki subtitles); any other text, the site's own captions among it,
  * is marked on the browser's own highlight layer (the CSS Custom Highlight API), which draws over the page's text
  * without changing a node of it, by the pages switch (Highlight globally).
  */
 
-/** `readings`: how the words with a reading apart from their writing are read, by the dictionaries (あえて for 敢えて). */
-export type KnownNow = { words: ReadonlySet<string>; readings: ReadonlySet<string>; subtitles: boolean; pages: boolean; colour: MarkPaint };
-const NOTHING: KnownNow = { words: new Set(), readings: new Set(), subtitles: false, pages: false, colour: "green" };
-const sameSet = (list: readonly string[], set: ReadonlySet<string>) => list.length === set.size && list.every((item) => set.has(item));
+export type KnownNow = { words: ReadonlySet<string>; subtitles: boolean; pages: boolean; colour: MarkPaint };
+const NOTHING: KnownNow = { words: new Set(), subtitles: false, pages: false, colour: "green" };
 
 let now: KnownNow = NOTHING;
 const followers = new Set<() => void>();
@@ -39,9 +39,9 @@ export async function refreshKnown(): Promise<void> {
   const answer = await askKnown();
   if (!answer.ok) return;
   // The same again (the usual answer when the page only got the focus back) changes nothing and reads nothing again.
-  const same = answer.subtitles === now.subtitles && answer.pages === now.pages && answer.colour === now.colour && sameSet(answer.words, now.words) && sameSet(answer.readings, now.readings);
+  const same = answer.subtitles === now.subtitles && answer.pages === now.pages && answer.colour === now.colour && answer.words.length === now.words.size && answer.words.every((word) => now.words.has(word));
   if (same) return;
-  now = { words: new Set(answer.words), readings: new Set(answer.readings), subtitles: answer.subtitles, pages: answer.pages, colour: answer.colour };
+  now = { words: new Set(answer.words), subtitles: answer.subtitles, pages: answer.pages, colour: answer.colour };
   for (const follower of followers) follower();
 }
 
@@ -63,15 +63,13 @@ export function useKnown(): KnownNow {
 }
 
 /**
- * Whether a word, as it stands in a line, is one a card is called by: as written, or a dictionary form its endings undo
- * to (a する verb's noun too); and either of those written in kana as one of the words is read (あえて, 敢えて's).
+ * Whether a word of a split line is one a card is called by, exactly as the pop-up asks it (`Lookup.tsx` → `InCards`,
+ * its word's `term`): the word the dictionary takes it as (`Token.term`). Nothing before the dictionary's answer is in,
+ * as the pop-up has nothing to say without one. The tint on Panki's lines, the page's highlight and the seek bar's
+ * marks are all this.
  */
-export function knownIn({ words, readings }: Pick<KnownNow, "words" | "readings">, text: string): boolean {
-  const said = text.trim();
-  if (said === "" || words.size === 0) return false;
-  const known = (form: string) => words.has(form) || readings.has(form);
-  if (known(said)) return true;
-  return deinflect(said).some(({ text: form, kind }) => isWordKind(kind) && (known(form) || (kind === "vs" && form.endsWith("する") && known(form.slice(0, -2)))));
+export function knownIn(words: ReadonlySet<string>, token: Pick<Token, "term">): boolean {
+  return token.term !== undefined && words.has(token.term);
 }
 
 /** The name the page's highlight layer knows Panki's marks by. */
@@ -167,7 +165,7 @@ export function useKnownMoments(lines: readonly TimedLine[] | null): KnownMoment
       const lineAt = line.marks[0]?.time;
       if (lineAt === undefined) continue;
       for (const token of wordsOf(line.text, latticeFor(line.text))) {
-        if (!token.word || !knownIn(known, token.text)) continue;
+        if (!token.word || !knownIn(known.words, token)) continue;
         const from = line.marks.filter((mark) => mark.at <= token.start).at(-1)?.time;
         if (from === undefined) continue;
         const to = line.marks.find((mark) => mark.at >= token.end)?.time ?? line.end ?? from;
@@ -176,7 +174,7 @@ export function useKnownMoments(lines: readonly TimedLine[] | null): KnownMoment
     }
     return moments;
     // `version` is what says more lines' words are in.
-  }, [lines, known, version]);
+  }, [lines, known.words, version]);
 }
 
 /**
@@ -218,7 +216,7 @@ export function markKnownOnPage(): void {
     const text = node.data;
     const ranges: Range[] = [];
     for (const token of wordsOf(text, latticeFor(text))) {
-      if (!token.word || !knownIn(now, token.text)) continue;
+      if (!token.word || !knownIn(now.words, token)) continue;
       const range = new Range();
       range.setStart(node, token.start);
       range.setEnd(node, token.end);

@@ -37,9 +37,10 @@ export type Found = z.infer<typeof Found>;
 
 /**
  * Every word that starts at each place of a line, with what taking it costs (common words cost less, and every word
- * costs something, so fewer words win when nothing says otherwise). How the line is then split is `split.ts`'s.
+ * costs something, so fewer words win when nothing says otherwise), and the word it is as the dictionary has it, the
+ * one the pop-up shows first (`term`: 敢えて for あえて). How the line is then split is `split.ts`'s.
  */
-export const Lattice = z.array(z.object({ at: z.number(), options: z.array(z.object({ length: z.number(), cost: z.number() })) }));
+export const Lattice = z.array(z.object({ at: z.number(), options: z.array(z.object({ length: z.number(), cost: z.number(), term: z.string() })) }));
 export type Lattice = z.infer<typeof Lattice>;
 
 /** How a dictionary's word is told from another: its written form and its reading. */

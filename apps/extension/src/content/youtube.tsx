@@ -1211,7 +1211,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
   const tokens = useWords(text, forced);
   // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`).
   const known = useKnown();
-  const knownHere = known.subtitles && known.words.size > 0 ? { at: (i: number) => knownIn(known, tokens[i]?.text ?? ""), colour: tintOf(paintCss(known.colour)) } : null;
+  const knownHere = known.subtitles && known.words.size > 0 ? { at: (i: number) => knownIn(known.words, tokens[i] ?? {}), colour: tintOf(paintCss(known.colour)) } : null;
   /** A word of the row as something pointed at: looked up from its first letter on, through the end of the row. */
   const pointedAt = (i: number, button: HTMLElement): Pointed | null => {
     const token = tokens[i];

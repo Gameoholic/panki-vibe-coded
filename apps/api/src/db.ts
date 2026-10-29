@@ -1926,16 +1926,20 @@ export function openDb(
         .slice(0, CALLED_CARDS_MAX)
         .map(({ createdAt: _at, ...card }) => card);
     },
-    /** The words every living card in a living deck is called by (its type's words field), each once, as they stand. */
+    /**
+     * The words every living card in a living deck is called by (its type's words field), each once, exactly as they
+     * stand: what `cardsCalled` matches a word against, so the extension's marks and its pop-up's "in your decks" say
+     * the same (the owner, 2026-10-29).
+     */
     wordsInCards(): string[] {
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
       const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
       if (fieldIds.length === 0) return [];
       const rows = db
         .prepare(
-          `SELECT DISTINCT trim(v.value) AS words
+          `SELECT DISTINCT v.value AS words
           FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
-          WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND trim(v.value) <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL`,
+          WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL`,
         )
         .all(...fieldIds) as { words: string }[];
       return rows.map((row) => row.words);

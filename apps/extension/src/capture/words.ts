@@ -1,7 +1,10 @@
 import { clock, isJapanese } from "@web/words";
 
-/** A piece of a line: a word that can be picked, or what stands between words (a comma, a space). Its place is in characters of the line. */
-export type Token = { text: string; word: boolean; start: number; end: number };
+/**
+ * A piece of a line: a word that can be picked, or what stands between words (a comma, a space). Its place is in
+ * characters of the line. `term` is the word the dictionary takes it as, when a dictionary split the line.
+ */
+export type Token = { text: string; word: boolean; start: number; end: number; term?: string };
 /** A run of tokens, first and last, both counted in. */
 export type Span = readonly [first: number, last: number];
 

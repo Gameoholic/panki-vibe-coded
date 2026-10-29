@@ -212,9 +212,6 @@ export function deinflect(source: string): Deinflected[] {
 
 const WORD_KINDS: readonly string[] = ["v1", "v5", "vs", "vk", "adj-i"] satisfies readonly WordKind[];
 
-/** Whether a form `deinflect` gave is a dictionary form (a verb or an adjective as a dictionary lists it), not a stage on the way (a て form, a stem). */
-export const isWordKind = (kind: Kind | null): kind is WordKind => kind !== null && WORD_KINDS.includes(kind);
-
 /**
  * Whether a dictionary's word can be what the endings say: of the kind they leave, as the dictionary names its kinds
  * ("v5" covers every godan ending, "vs" a noun that takes する). The word as it was found fits any.

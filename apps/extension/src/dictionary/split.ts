@@ -7,7 +7,7 @@ export type Forced = { from: number; to: number };
 /** What a piece costs where no word of the dictionary fits: the browser's own splitter's piece, or a single letter. Far more than any word, so a word always wins where there is one. */
 const UNKNOWN = 30;
 
-type Edge = { to: number; cost: number; word: boolean };
+type Edge = { to: number; cost: number; word: boolean; term?: string };
 
 /**
  * A line split into words. With a dictionary: the split whose words cost least in all (`Lattice`: every word starting
@@ -21,16 +21,20 @@ export function wordsOf(text: string, lattice: Lattice | null, forced: readonly 
   if ((lattice === null || lattice.length === 0) && fixed.length === 0) return browser;
 
   const n = text.length;
-  const words = new Map<number, { length: number; cost: number }[]>();
+  const words = new Map<number, { length: number; cost: number; term: string }[]>();
   for (const place of lattice ?? []) words.set(place.at, place.options);
   const pieces = new Map(browser.map((token) => [token.start, token]));
   const crosses = (from: number, to: number) => fixed.some((f) => from < f.to && to > f.from && !(from === f.from && to === f.to));
 
   function edgesFrom(i: number): Edge[] {
     const own = fixed.find((f) => f.from === i);
-    if (own) return [{ to: own.to, cost: 0, word: true }];
+    if (own) {
+      // A stretch taken by hand is still the dictionary's word when it's one.
+      const term = words.get(i)?.find((option) => option.length === own.to - i)?.term;
+      return [{ to: own.to, cost: 0, word: true, ...(term ? { term } : {}) }];
+    }
     const edges: Edge[] = [];
-    for (const option of words.get(i) ?? []) edges.push({ to: i + option.length, cost: option.cost, word: true });
+    for (const option of words.get(i) ?? []) edges.push({ to: i + option.length, cost: option.cost, word: true, term: option.term });
     const piece = pieces.get(i);
     if (piece) edges.push({ to: piece.end, cost: piece.word ? UNKNOWN : 0, word: piece.word });
     const char = text.charAt(i);
@@ -58,7 +62,7 @@ export function wordsOf(text: string, lattice: Lattice | null, forced: readonly 
   for (let at = n; at > 0; ) {
     const edge = back[at];
     if (!edge) return browser;
-    out.push({ text: text.slice(edge.from, at), word: edge.word, start: edge.from, end: at });
+    out.push({ text: text.slice(edge.from, at), word: edge.word, start: edge.from, end: at, ...(edge.term ? { term: edge.term } : {}) });
     at = edge.from;
   }
   return out.reverse();
