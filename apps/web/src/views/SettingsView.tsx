@@ -177,9 +177,10 @@ function DataTrackingPanel({ on }: { on: boolean }) {
         why={VIDEO_TRACKING_WHY}
       />
       {history ? (
-        <p className="session-who">
-          {kept ? `${count(history.videos, "video", "videos")} · ${durationWords(history.ms / 1000)}${history.since === null ? "" : ` since ${dateWords(history.since)}`}` : "Nothing kept."}
-        </p>
+        // Since the first video it kept (the owner, 2026-10-29: "just say On since…"; how many videos and how long stood here until then); nothing while it's off.
+        kept && !on ? null : (
+          <p className="session-who">{kept && history.since !== null ? `On since ${dateWords(history.since)}` : kept ? "On" : "Nothing kept."}</p>
+        )
       ) : failure ? null : (
         <Skeleton shape="lines" count={1} />
       )}
