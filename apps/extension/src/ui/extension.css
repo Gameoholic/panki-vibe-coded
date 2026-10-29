@@ -1949,8 +1949,10 @@
   border-radius: 1px;
   background: var(--known-colour);
 }
-/* A word only suspended cards are, in the Suspended cards mark's colour (seekLook.ts → `suspended`). */
+/* Where a word only suspended cards are is said: the Suspended cards mark's colour and thickness (seekLook.ts → `suspended`). */
 .seek-known.is-suspended {
+  bottom: calc(100% + 3.5px - var(--suspended-size) / 2);
+  height: var(--suspended-size);
   background: var(--suspended-colour);
 }
 /* Where a card was taken from (each card's clip), centred on the same line (the owner, 2026-10-18: "orange or some
@@ -1997,8 +1999,7 @@
 .seek-pins.is-known {
   --pin-colour: var(--known-colour);
 }
-.seek-pins.is-suspended,
-.seek-pin.is-suspended {
+.seek-pins.is-suspended {
   --pin-colour: var(--suspended-colour);
 }
 /* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words

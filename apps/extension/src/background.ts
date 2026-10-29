@@ -143,7 +143,7 @@ async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const off: Known = { ok: true, words: [], suspended: [], subtitles: false, pages: false, colour: store.knownColour, suspendedColour: store.knownSuspendedColour };
   if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
   // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
-  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown) || !store.address || !store.token) return off;
+  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown && !store.seekLook.suspended.shown) || !store.address || !store.token) return off;
   const door: Door = { address: store.address, token: store.token };
   const at = Date.now();
   const doorKey = `${door.address}\n${door.token}`;

@@ -87,12 +87,20 @@ const spanOf = (pinned: Pinned) => (pinned.of === "known" ? pinned.said : pinned
 const wordsOnPin = (pinned: Pinned) => (pinned.of === "known" ? pinned.said.words : pinned.card.words);
 
 /**
- * The pins, each in the lowest lane where it touches none before it; one with no room in any is left out. The
+ * Which mark's settings a pin goes by, and which layer it's drawn in: its own, but for where a word only suspended
+ * cards are is said, which is the Suspended cards mark's, red, its words up and pressed as that mark says (the owner,
+ * 2026-10-30: its tick was red and its word "not popping up", going by Words that are in your decks' Hidden).
+ */
+export const markOf = (pinned: Pinned): WordsMarkId => (pinned.of === "known" && pinned.said.suspended ? "suspended" : pinned.of);
+
+/**
+ * The pins, each in the lowest lane where it touches none already laid; one with no room in any is left out. The
  * suspended cards' come first, then the rest of the cards', so a word that's in the decks never takes a card's place;
- * all are laid together, so none touch.
+ * all are laid together, so none touch. A lane is every stretch taken in it, not only its last: the pins don't come
+ * in the video's order (the suspended first), and one laid far to the right mustn't shut the lane to those left of it.
  */
 function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
-  const ends: number[] = Array.from({ length: PIN.lanes }, () => -Infinity);
+  const taken: { left: number; right: number }[][] = Array.from({ length: PIN.lanes }, () => []);
   const pins: Pin[] = [];
   for (const pinned of all) {
     const { startMs, endMs } = spanOf(pinned);
@@ -100,9 +108,10 @@ function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
     const w = pinWidth(words);
     const x = (((startMs + endMs) / 2 / 1000) / length) * width;
     const left = Math.max(0, Math.min(width - w, x - w / 2));
-    const lane = ends.findIndex((end) => end + PIN.gap <= left);
+    const right = left + w;
+    const lane = taken.findIndex((spans) => spans.every((span) => right + PIN.gap <= span.left || left >= span.right + PIN.gap));
     if (lane < 0) continue;
-    ends[lane] = left + w;
+    taken[lane]?.push({ left, right });
     const key = pinned.of === "known" ? `known-${startMs}` : `${pinned.card.cardId}-${startMs}`;
     pins.push({ pinned, key, words, x, left, lane });
   }
@@ -150,14 +159,17 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
   }, [known]);
   /** When a mark's words stand: never while the mark itself is hidden. */
   const wordsOf = (id: WordsMarkId) => (look[id].shown ? look[id].words : "off");
-  // The suspended cards are their own mark while it's shown, and only then; hidden, they're cards like the rest.
+  // The suspended cards are their own mark while it's shown, and only then, where they were taken from and where their
+  // word is said alike; hidden, they're cards and words in the decks like the rest.
   const apart = look.suspended.shown;
   const suspended = apart ? cards.filter((card) => card.suspended) : [];
   const others = apart ? cards.filter((card) => !card.suspended) : cards;
+  const saidSuspended = apart ? inDecks.filter((said) => said.suspended) : [];
+  const saidOthers = apart ? inDecks.filter((said) => !said.suspended) : inDecks;
   const pinned: Pinned[] = [
-    ...(wordsOf("suspended") === "off" ? [] : suspended.map((card): Pinned => ({ of: "suspended", card }))),
+    ...(wordsOf("suspended") === "off" ? [] : [...suspended.map((card): Pinned => ({ of: "suspended", card })), ...saidSuspended.map((said): Pinned => ({ of: "known", said }))]),
     ...(wordsOf("cards") === "off" ? [] : others.map((card): Pinned => ({ of: "cards", card }))),
-    ...(wordsOf("known") === "off" ? [] : inDecks.map((said): Pinned => ({ of: "known", said }))),
+    ...(wordsOf("known") === "off" ? [] : saidOthers.map((said): Pinned => ({ of: "known", said }))),
   ];
   const pins = !known || pinned.length === 0 || width === 0 ? [] : layPins(pinned, length, width);
   const highest = pins.reduce((lane, pin) => Math.max(lane, pin.lane), -1);
@@ -212,13 +224,13 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
   const inertOf = (id: WordsMarkId) => look[id].click === "none";
   /** The pointer on a pin's words: kept from the bar, and the page told, so the player previews where a press goes. */
   const peek = (pin: Pinned) => (e: SyntheticEvent) => {
-    if (!onPeek || inertOf(pin.of)) return;
+    if (!onPeek || inertOf(markOf(pin))) return;
     e.stopPropagation();
     if (e.type !== "mousemove") onPeek(pin);
   };
   /** One mark's pins, in a layer of their own that brings them in as that mark's entrance says, edged in its colour. */
   function pinsOf(id: WordsMarkId) {
-    const mine = pins.filter((pin) => pin.pinned.of === id);
+    const mine = pins.filter((pin) => markOf(pin.pinned) === id);
     if (mine.length === 0) return null;
     const up = upOf(id);
     const inert = inertOf(id);
@@ -231,7 +243,7 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
               {/* The stem apart from its words, so each comes in its own way. */}
               <span className={`seek-stem ${up ? "is-up" : ""}`.trim()} style={place} aria-hidden="true" />
               <Button
-                className={`seek-pin ${up ? "is-up" : ""} ${pin.pinned.of === "known" && pin.pinned.said.suspended ? "is-suspended" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`seek-pin ${up ? "is-up" : ""}`.trim()}
                 lang="ja"
                 tabIndex={up && !inert ? 0 : -1}
                 disabled={inert}
@@ -258,10 +270,11 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         ? covered.map((stretch) => <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />)
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
-      {/* A word only suspended cards are, in the Suspended cards mark's colour (the owner, 2026-10-30). */}
-      {look.known.shown
-        ? inDecks.map((said) => <div key={said.startMs} className={`seek-known ${said.suspended ? "is-suspended" : ""}`.trim()} style={across(said.startMs / 1000, said.endMs / 1000)} />)
-        : null}
+      {look.known.shown ? saidOthers.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
+      {/* Where a word only suspended cards are is said: the Suspended cards mark's (the owner, 2026-10-30). */}
+      {saidSuspended.map((said) => (
+        <div key={said.startMs} className="seek-known is-suspended" style={across(said.startMs / 1000, said.endMs / 1000)} />
+      ))}
       {look.cards.shown
         ? others.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}

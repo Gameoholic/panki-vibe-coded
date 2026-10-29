@@ -40,7 +40,7 @@ import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffe
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
 import { SpeedControl } from "../ui/SpeedControl";
-import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
+import { SeekMark, markOf, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { Stamp } from "../ui/Stamp";
 import { TranscribeMenu, type Seconds } from "../ui/TranscribeMenu";
 import type { ClipEnd, MoveBy } from "../ui/Trim";
@@ -400,7 +400,8 @@ function wordMoment(card: VideoCard): number | null {
  * when pressing them does nothing.
  */
 function pinTarget(pinned: Pinned): number | null {
-  const click = transcriber.state().prefs.seek[pinned.of].click;
+  // As the mark it's drawn with says: a suspended word's pin goes by Suspended cards (`markOf`).
+  const click = transcriber.state().prefs.seek[markOf(pinned)].click;
   if (click === "none") return null;
   if (pinned.of === "known") return (click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000;
   return (click === "word" ? wordMoment(pinned.card) : null) ?? pinned.card.startMs / 1000;
@@ -1343,8 +1344,10 @@ function App() {
   const stop = stopMark();
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
-  // Where the words that are in the decks are said, for the seek bar: read off Panki's transcript, only while that mark is shown.
-  const spoken = useMemo(() => (tx.transcript && tx.prefs.seek.known.shown ? linesOf(tx.transcript.words) : null), [tx.transcript, tx.prefs.seek.known.shown]);
+  // Where the words that are in the decks are said, for the seek bar: read off Panki's transcript, only while a mark that
+  // shows them is (Words that are in your decks, or Suspended cards, which has where a suspended card's word is said).
+  const saidShown = tx.prefs.seek.known.shown || tx.prefs.seek.suspended.shown;
+  const spoken = useMemo(() => (tx.transcript && saidShown ? linesOf(tx.transcript.words) : null), [tx.transcript, saidShown]);
   const inDecks = useKnownMoments(spoken);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
   const [splits, setSplits] = useState<readonly Split[]>([]);
