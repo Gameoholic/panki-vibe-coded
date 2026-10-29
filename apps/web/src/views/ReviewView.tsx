@@ -1106,8 +1106,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
             {asked.name}? {askWords(srsType, card, asked.id)}
           </p>
           <div className="add-actions">
-            <Button id="review-keep" disabled={busy} onClick={() => setAsking(null)}>
-              Keep
+            <Button id="review-cancel" disabled={busy} onClick={() => setAsking(null)}>
+              Cancel
             </Button>
             <Button id="review-yes" variant="primary" disabled={busy} onClick={() => answer(asked.id)}>
               {asked.name}

@@ -399,7 +399,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const typedAny = (wordTyped && word.trim() !== "") || Object.values(typed).some((text) => text.trim() !== "") || Object.keys(dictTyped).length > 0 || (written !== null && written !== capture.sentence);
   /**
    * The drawer asked to go, by ×, Escape or Discard (the owner, 2026-10-29: taking something away asks first): with
-   * something typed it asks first, in place above the foot, and Keep there takes the focus so the question is in view
+   * something typed it asks first, in place above the foot, and Cancel there takes the focus so the question is in view
    * whichever end of the drawer was pressed; with nothing typed, or a card on its way or added, it goes at once.
    */
   function leave() {
@@ -408,7 +408,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       return;
     }
     setDiscarding(true);
-    requestAnimationFrame(() => frame.current?.querySelector<HTMLElement>("#panki-discard-keep")?.focus());
+    requestAnimationFrame(() => frame.current?.querySelector<HTMLElement>("#panki-discard-cancel")?.focus());
   }
 
   const loaded = state?.ok ? state : null;

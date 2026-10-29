@@ -367,7 +367,6 @@ function VideoTracking({ door }: { door: Door }) {
             </>
           }
           go={{ words: "Turn off", busy: "Turning off…", icon: "power" }}
-          keep="Cancel"
           busy={busy}
           failure={failure}
           onKeep={() => {

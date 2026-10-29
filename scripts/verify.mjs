@@ -243,7 +243,7 @@ try {
   await waitFor("the question", () => cdp.exists("#deck-delete-question"));
   assert((await cdp.text("#deck-delete-question")) === "Delete “Mined words” and its 3 cards?", "delete asks once, with the name and the card count");
   shotsTaken.push(await cdp.screenshot("desktop-deck-delete"));
-  await click("#deck-delete-keep");
+  await click("#deck-delete-cancel");
   await waitFor("the question to go", async () => !(await cdp.exists("#deck-delete-question")));
   assert(await cdp.exists("#deck-delete"), "Keep closes the question and nothing happened");
   await click("#deck-tab-cards");
@@ -483,7 +483,7 @@ try {
   await waitFor("the question", () => cdp.exists("#stage-move-question"));
   assert((await cdp.text("#stage-move-question")) === "Where do the 3 cards on Apprentice One go?" && (await cdp.text(".ask .btn-chip[aria-pressed='true']")) === "Lesson", "removing a stage with cards on it asks where they go, the stage below picked");
   shotsTaken.push(await cdp.screenshot("desktop-srs-move"));
-  await click("#stage-move-keep");
+  await click("#stage-move-cancel");
   await waitFor("the question to go", async () => !(await cdp.exists("#stage-move-question")));
   assert((await cdp.count(".stage-rows > .stage-row")) === 10, "Keep the stage keeps it");
   await click(".stage-rows > .stage-row:nth-child(2) .stage-remove");

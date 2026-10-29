@@ -453,8 +453,8 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
                 ))}
             </div>
             <div className="add-actions">
-              <Button id="stage-move-keep" onClick={() => setAsking(null)}>
-                Keep the stage
+              <Button id="stage-move-cancel" onClick={() => setAsking(null)}>
+                Cancel
               </Button>
               <Button id="stage-move-go" variant="danger" onClick={confirmRemove}>
                 <Icon name="trash" />

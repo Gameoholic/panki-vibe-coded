@@ -59,7 +59,7 @@ There is no login and no card editing yet, a deleted deck can't be brought back 
 
 ### Step 5 — a deck's settings
 
-**The Settings tab inside a deck** holds the deck's **name** (Save turns on once it differs, Enter saves, the title changes straight away) and, at the bottom, **Delete**. Delete asks once, inside the panel, with what it costs: "Delete 'Mined' and its 31 cards?", Keep or Delete deck. Nothing is destroyed: the deck and its cards disappear from Panki and stay in the database with the time they were removed. **Each row in the Decks list has a settings button** that opens that deck straight on its Settings tab. Chosen 2026-10-09 as "1 · Tabs" from four styles shown live (https://claude.ai/artifact/SB79am6JvmbT5banZbe5yp): the owner said "1 is best"; the row button, the hide-not-destroy delete and the kept rename history are the standing rules applied.
+**The Settings tab inside a deck** holds the deck's **name** (Save turns on once it differs, Enter saves, the title changes straight away) and, at the bottom, **Delete**. Delete asks once, inside the panel, with what it costs: "Delete 'Mined' and its 31 cards?", Cancel or Delete deck. Nothing is destroyed: the deck and its cards disappear from Panki and stay in the database with the time they were removed. **Each row in the Decks list has a settings button** that opens that deck straight on its Settings tab. Chosen 2026-10-09 as "1 · Tabs" from four styles shown live (https://claude.ai/artifact/SB79am6JvmbT5banZbe5yp): the owner said "1 is best"; the row button, the hide-not-destroy delete and the kept rename history are the standing rules applied.
 
 ### Step 6 — card types
 
@@ -168,7 +168,7 @@ Built 2026-10-11, the day the owner first mined a card and had no way to fix or 
 
 **Preview** (an eye, under delete; the owner, 2026-10-29) shows the card in its row as a review would, turned by a press, in the deck picked over it: its own deck to begin with, any other to see it as that deck shows it (a deck of another card type fills its fields from this card's fields of the same name). **Subtitles on a clip can be hidden** from the player's own bar, a button beside the time, for every clip on the device until they're shown again.
 
-**Delete is in that same form.** Delete… sits at the left, away from Save; pressing it asks, in place: "Delete “急ぐ”?" with what it costs under it ("It leaves this deck and its reviews. What you answered on it stays in your stats."), Keep beside Delete card. A deleted card is gone from the deck, its counts and its reviews at once. Nothing is destroyed: it stays in the database with the time it left, like a deleted deck, and there is no way to bring one back from inside Panki yet.
+**Delete is in that same form.** Delete… sits at the left, away from Save; pressing it asks, in place: "Delete “急ぐ”?" with what it costs under it ("It leaves this deck and its reviews. What you answered on it stays in your stats."), Cancel beside Delete card. A deleted card is gone from the deck, its counts and its reviews at once. Nothing is destroyed: it stays in the database with the time it left, like a deleted deck, and there is no way to bring one back from inside Panki yet.
 
 ### A card that's already there (2026-10-21, built, not yet seen)
 
