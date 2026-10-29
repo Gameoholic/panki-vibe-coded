@@ -1955,6 +1955,12 @@
   border-radius: 2px;
   background: var(--cards-colour);
 }
+/* A suspended card's, its own mark (seekLook.ts → `suspended`), over the rest. */
+.seek-card.is-suspended {
+  bottom: calc(100% + 3.5px - var(--suspended-size) / 2);
+  height: var(--suspended-size);
+  background: var(--suspended-colour);
+}
 /* A card's words on a pin over its mark (the owner, 2026-10-19: "show the actual word for the orange bits… something
    that looks cool and non-average"): a small glass tag on the picture, edged in the cards' colour, a hairline stem
    down to its mark, one lane over another where they'd touch (SeekMark → PIN). They come in as the viewer's entrance
@@ -1982,6 +1988,9 @@
 }
 .seek-pins.is-known {
   --pin-colour: var(--known-colour);
+}
+.seek-pins.is-suspended {
+  --pin-colour: var(--suspended-colour);
 }
 /* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words
    in its way, never across them (the owner, 2026-10-19: "it looks kind of messy"). */

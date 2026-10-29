@@ -163,9 +163,10 @@ export function valuesWithExample(type: Pick<CardType, "fields">, card: Pick<Car
 /**
  * A living card of the account's taken from a video: where in it, its clip as its source keeps it, in ms of the
  * video's own time (a clip kept without an end is its start alone), and the card in words (its first Front field that
- * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark.
+ * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark; `suspended`
+ * one apart, to be fixed from the video (the owner, 2026-10-29), false from a Panki from before it was told.
  */
-export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string() });
+export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string(), suspended: z.boolean().default(false) });
 export type VideoCard = z.infer<typeof VideoCard>;
 /** Every one of a video's, in the video's order. Read live from every card's source, so a card made before this was asked for is there too, and a deleted one is gone. */
 export const VideoCards = z.object({ cards: z.array(VideoCard) });

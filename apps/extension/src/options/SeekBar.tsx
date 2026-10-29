@@ -37,10 +37,11 @@ const WORDS_OPTIONS = [
   { id: "off", label: "Hidden" },
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
-/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the clip, then where the words that are in the decks are said. */
+/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the clip, then where the words that are in the decks are said. */
 const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
   { id: "cards", name: "Cards" },
+  { id: "suspended", name: "Suspended cards" },
   { id: "clip", name: "Clip" },
   { id: "known", name: "Words that are in your decks" },
 ];
@@ -68,10 +69,11 @@ const PREVIEW_LENGTH = 600;
 const PREVIEW_COVERED: readonly Stretch[] = [{ startMs: 0, endMs: 330_000 }];
 const PREVIEW_WORKING: Stretch = { startMs: 330_000, endMs: 346_000 };
 const PREVIEW_CARDS: readonly VideoCard[] = [
-  { cardId: "preview-1", startMs: 62_000, endMs: 66_000, words: "言葉" },
-  { cardId: "preview-2", startMs: 148_000, endMs: 153_000, words: "景色" },
-  { cardId: "preview-3", startMs: 166_000, endMs: 170_000, words: "例えば" },
-  { cardId: "preview-4", startMs: 432_000, endMs: 437_000, words: "大丈夫" },
+  { cardId: "preview-1", startMs: 62_000, endMs: 66_000, words: "言葉", suspended: false },
+  { cardId: "preview-2", startMs: 148_000, endMs: 153_000, words: "景色", suspended: false },
+  { cardId: "preview-3", startMs: 166_000, endMs: 170_000, words: "例えば", suspended: false },
+  { cardId: "preview-5", startMs: 372_000, endMs: 376_000, words: "敢えて", suspended: true },
+  { cardId: "preview-4", startMs: 432_000, endMs: 437_000, words: "大丈夫", suspended: false },
 ];
 const PREVIEW_PLAYED = 150;
 /** Where the made-up video was stopped the time before, for the Where you stopped preview. */
@@ -161,7 +163,7 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
           stop={marked ? PREVIEW_STOP : null}
           onStop={() => setAt(landing)}
           // The made-up cards have no transcript to find their words in: a press goes to the sentence, as it does on a video without one.
-          onGo={(pinned) => setAt((pinned.of === "cards" ? pinned.card.startMs : look.known.click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000)}
+          onGo={(pinned) => setAt((pinned.of !== "known" ? pinned.card.startMs : look.known.click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000)}
         />
       </div>
     </div>
@@ -235,7 +237,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
               label="Thickness"
               control={<Segmented idPrefix={`seek-${id}-size`} label={`${name} thickness`} options={SIZE_OPTIONS} value={mark.size} disabled={off || !mark.shown} onChange={(size) => change(id, { size })} />}
             />
-            {id === "cards" || id === "known" ? <WordsRows id={id} look={look[id]} off={off} onChange={(patch) => change(id, patch)} /> : null}
+            {id === "cards" || id === "suspended" || id === "known" ? <WordsRows id={id} look={look[id]} off={off} onChange={(patch) => change(id, patch)} /> : null}
           </div>
         );
       })}

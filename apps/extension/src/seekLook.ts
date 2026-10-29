@@ -91,26 +91,31 @@ export const SeekLook = z.object({
   // own settings for the words on pins over its ticks ("same settings as Cards… the default is the words hidden,
   // thickness thick and it's shown"); a look kept before either is given what it lacks.
   known: WordsLook.default({ shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
+  // The cards taken from the video that are suspended, apart from the rest, to be fixed from the video (the owner,
+  // 2026-10-29: "so I can fix them right away and provide a new video / better example"), with the cards' own settings:
+  // thick, their words always standing, red to begin with; a look kept before it is given it.
+  suspended: WordsLook.default({ shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
 });
 export type SeekLook = z.infer<typeof SeekLook>;
 /** Which mark is which, by its key in `SeekLook`. */
 export type SeekMarkId = keyof SeekLook;
-/** The marks with words that can stand on pins over them: one set of settings for both (`WordsLook`). */
-export type WordsMarkId = "cards" | "known";
-export const WORDS_MARK_IDS = ["cards", "known"] as const satisfies readonly WordsMarkId[];
+/** The marks with words that can stand on pins over them: one set of settings for each (`WordsLook`). */
+export type WordsMarkId = "cards" | "suspended" | "known";
+export const WORDS_MARK_IDS = ["cards", "suspended", "known"] as const satisfies readonly WordsMarkId[];
 
-/** As they were drawn before they could be set: the transcript's thin yellow line, the cards a little thicker in orange on it, the clip in Panki's blue; and the words in the decks thick and green, their words hidden. */
+/** As they were drawn before they could be set: the transcript's thin yellow line, the cards a little thicker in orange on it, the clip in Panki's blue; the words in the decks thick and green, their words hidden; and the suspended cards thick and red, their words always up. */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
   transcript: { shown: true, colour: "yellow", size: "thin" },
   cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
   known: { shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
+  suspended: { shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
 };
 
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */
 export function seekVars(look: SeekLook): Record<string, string> {
   const vars: Record<string, string> = {};
-  for (const id of ["transcript", "cards", "clip", "known"] as const satisfies readonly SeekMarkId[]) {
+  for (const id of ["transcript", "cards", "clip", "known", "suspended"] as const satisfies readonly SeekMarkId[]) {
     vars[`--${id}-colour`] = paintCss(look[id].colour);
     vars[`--${id}-size`] = `${MARK_SIZES[look[id].size].px}px`;
   }

@@ -1114,8 +1114,11 @@ export function openDb(
   // Where in a video the living cards were taken from. A source keeps the video's address, not its id: the id written
   // in it narrows the rows here, and the contracts' reader of an address says for certain which video it names.
   // A card's examples taken from a video mark it there too, each where its own clip was.
+  // Each card suspended or not by the same reading as a card's own hold (`cardColumns` → `suspendedAt`).
   const selectVideoSources = db.prepare(`
-    SELECT cardId, typeId, url, startMs, endMs FROM (
+    SELECT cardId, typeId, url, startMs, endMs,
+      EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = src.cardId AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspended
+    FROM (
       SELECT s.card_id AS cardId, d.type_id AS typeId, s.url, s.start_ms AS startMs, s.end_ms AS endMs
       FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
       WHERE c.removed_at IS NULL AND d.removed_at IS NULL AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
@@ -1123,7 +1126,7 @@ export function openDb(
       SELECT e.card_id AS cardId, d.type_id AS typeId, e.url, e.start_ms AS startMs, e.end_ms AS endMs
       FROM card_examples e JOIN cards c ON c.id = e.card_id JOIN decks d ON d.id = c.deck_id
       WHERE e.removed_at IS NULL AND c.removed_at IS NULL AND d.removed_at IS NULL AND e.start_ms IS NOT NULL AND instr(e.url, ?) > 0
-    ) ORDER BY startMs ASC`);
+    ) AS src ORDER BY startMs ASC`);
   // The living cards holding these words in some field, newest first; which of them are called by it (the field is
   // their type's words field) is the type's to say, read after.
   const selectCalled = db.prepare(`
@@ -1894,15 +1897,15 @@ export function openDb(
       if (!selectDeckCard.get(deckId, cardId)) return false;
       return removeExample.run(now, exampleId, cardId).changes > 0;
     },
-    /** The living cards taken from a video: each one's clip as its source keeps it, and the card in words, in the video's order. */
+    /** The living cards taken from a video: each one's clip as its source keeps it, the card in words, and whether it's suspended, in the video's order. */
     videoCards(videoId: string): VideoCard[] {
-      const rows = selectVideoSources.all(videoId, videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null }[];
+      const rows = selectVideoSources.all(videoId, videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null; suspended: number }[];
       const fieldOf = new Map<string | null, string | null>();
       return rows
         .filter((row) => youtubeLinkOf(row.url)?.videoId === videoId)
         .map((row) => {
           if (!fieldOf.has(row.typeId)) fieldOf.set(row.typeId, wordFieldOf(row.typeId));
-          return { cardId: row.cardId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: wordsOf(row.cardId, fieldOf.get(row.typeId) ?? null) };
+          return { cardId: row.cardId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: wordsOf(row.cardId, fieldOf.get(row.typeId) ?? null), suspended: row.suspended === 1 };
         });
     },
     /**

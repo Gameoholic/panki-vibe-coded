@@ -8,8 +8,8 @@ import { stamp } from "../capture/words";
 import { seekVars, type SeekLook, type WordsMarkId } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
 
-/** What a pin's words belong to: a card taken from the video, or a word that's in the decks, said in it. */
-export type Pinned = { of: "cards"; card: VideoCard } | { of: "known"; said: KnownMoment };
+/** What a pin's words belong to: a card taken from the video (one that's suspended apart), or a word that's in the decks, said in it. */
+export type Pinned = { of: "cards" | "suspended"; card: VideoCard } | { of: "known"; said: KnownMoment };
 
 /** The open clip as it's marked on the bar: its two ends, and what pulling one does. */
 export type ClipMark = {
@@ -83,12 +83,13 @@ function pinWidth(words: string): number {
 type Pin = { pinned: Pinned; key: string; words: string; x: number; left: number; lane: number };
 
 /** Where a pin's mark is, in ms, and its words. */
-const spanOf = (pinned: Pinned) => (pinned.of === "cards" ? pinned.card : pinned.said);
-const wordsOnPin = (pinned: Pinned) => (pinned.of === "cards" ? pinned.card.words : pinned.said.words);
+const spanOf = (pinned: Pinned) => (pinned.of === "known" ? pinned.said : pinned.card);
+const wordsOnPin = (pinned: Pinned) => (pinned.of === "known" ? pinned.said.words : pinned.card.words);
 
 /**
- * The pins, each in the lowest lane where it touches none before it; one with no room in any is left out. The cards'
- * come first, so a word that's in the decks never takes a card's place; both are laid together, so none touch.
+ * The pins, each in the lowest lane where it touches none before it; one with no room in any is left out. The
+ * suspended cards' come first, then the rest of the cards', so a word that's in the decks never takes a card's place;
+ * all are laid together, so none touch.
  */
 function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
   const ends: number[] = Array.from({ length: PIN.lanes }, () => -Infinity);
@@ -102,7 +103,7 @@ function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
     const lane = ends.findIndex((end) => end + PIN.gap <= left);
     if (lane < 0) continue;
     ends[lane] = left + w;
-    const key = pinned.of === "cards" ? `${pinned.card.cardId}-${startMs}` : `known-${startMs}`;
+    const key = pinned.of === "known" ? `known-${startMs}` : `${pinned.card.cardId}-${startMs}`;
     pins.push({ pinned, key, words, x, left, lane });
   }
   return pins;
@@ -122,7 +123,9 @@ function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
  * shows, or never); a pin is edged in the cards' colour only while the pointer is on it, and pressed it does what the
  * viewer set (`look.cards.click`: nothing, and then it isn't a thing to press at all, or the video to the card's
  * sentence or its word). The words that are in the decks have pins of their own the same way, with the same settings
- * of their own (`look.known`; the owner, 2026-10-25: "same settings as Cards"), laid in the same lanes after the cards'. Nothing changes as the video plays through a card: the owner had the card it was at lit and
+ * of their own (`look.known`; the owner, 2026-10-25: "same settings as Cards"), laid in the same lanes after the cards'.
+ * The suspended cards are a mark of their own while it's shown (`look.suspended`, its pins laid first; the owner,
+ * 2026-10-29, to fix them from the video), the rest of the cards without them; hidden, they're cards like any. Nothing changes as the video plays through a card: the owner had the card it was at lit and
  * rising by itself taken out, 2026-10-19 ("no flash at all when it's being played"); and snapping, a press on the bar
  * near a card's mark landing on the card, the same day, the words doing that job. Only the pins and the clip's two
  * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever. (Panki's own
@@ -147,8 +150,13 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
   }, [known]);
   /** When a mark's words stand: never while the mark itself is hidden. */
   const wordsOf = (id: WordsMarkId) => (look[id].shown ? look[id].words : "off");
+  // The suspended cards are their own mark while it's shown, and only then; hidden, they're cards like the rest.
+  const apart = look.suspended.shown;
+  const suspended = apart ? cards.filter((card) => card.suspended) : [];
+  const others = apart ? cards.filter((card) => !card.suspended) : cards;
   const pinned: Pinned[] = [
-    ...(wordsOf("cards") === "off" ? [] : cards.map((card): Pinned => ({ of: "cards", card }))),
+    ...(wordsOf("suspended") === "off" ? [] : suspended.map((card): Pinned => ({ of: "suspended", card }))),
+    ...(wordsOf("cards") === "off" ? [] : others.map((card): Pinned => ({ of: "cards", card }))),
     ...(wordsOf("known") === "off" ? [] : inDecks.map((said): Pinned => ({ of: "known", said }))),
   ];
   const pins = !known || pinned.length === 0 || width === 0 ? [] : layPins(pinned, length, width);
@@ -252,10 +260,14 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
       {look.known.shown ? inDecks.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
       {look.cards.shown
-        ? cards.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
+        ? others.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}
+      {suspended.map((card) => (
+        <div key={`${card.cardId}-${card.startMs}`} className="seek-card is-suspended" style={across(card.startMs / 1000, card.endMs / 1000)} />
+      ))}
       {pinsOf("known")}
       {pinsOf("cards")}
+      {pinsOf("suspended")}
       {/* Where it was stopped: a white tick across the bar and a tag over it with the time, under the cards' words when they rise. */}
       {stop !== null && stop > 0 && stop < length ? (
         <>
