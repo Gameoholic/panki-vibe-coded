@@ -689,7 +689,6 @@ export function App() {
           {SAVE_WORDS[state]}
         </span>
         <Button id={`${idPrefix}-save`} variant="primary" disabled={!editStatus?.canSave} onClick={() => void guard.current?.save()}>
-          <Icon name="save" />
           Save
         </Button>
       </>
@@ -1158,7 +1157,6 @@ export function App() {
               Discard changes
             </Button>
             <Button id="leave-save" variant="primary" disabled={leaveBusy} onClick={() => void saveAndLeave(leaving)}>
-              <Icon name="save" />
               {leaveBusy ? "Saving…" : "Save and leave"}
             </Button>
           </div>

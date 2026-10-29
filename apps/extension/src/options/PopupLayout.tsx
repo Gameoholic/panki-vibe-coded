@@ -335,7 +335,6 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
           {SAVE_WORDS[state]}
         </span>
         <Button id="popup-layout-save" variant="primary" disabled={!dirty || saving} onClick={() => void save()}>
-          <Icon name="save" />
           Save
         </Button>
       </div>

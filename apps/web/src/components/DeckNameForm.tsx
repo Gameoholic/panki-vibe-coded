@@ -17,8 +17,8 @@ type Props = {
   /** The submit button's words, and its words while waiting. */
   action: string;
   busyAction: string;
-  /** The submit button's icon: `add` making a deck, `save` renaming one. */
-  icon: IconName;
+  /** The submit button's icon: `add` making a deck; none renaming one, as Save never has one. */
+  icon?: IconName;
   autoFocus?: boolean;
   /** For renaming: the button stays off until the name differs from `initial`. */
   onlyWhenChanged?: boolean;
@@ -83,7 +83,7 @@ export function DeckNameForm({ id, initial, action, busyAction, icon, autoFocus 
           </Button>
         ) : null}
         <Button type="submit" variant="primary" disabled={busy || unchanged}>
-          <Icon name={icon} />
+          {icon ? <Icon name={icon} /> : null}
           {busy ? busyAction : action}
         </Button>
       </div>

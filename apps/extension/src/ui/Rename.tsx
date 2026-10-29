@@ -6,8 +6,9 @@ import { TextField } from "@web/components/TextField";
 
 /**
  * A name of the owner's own on a row, and renaming it there: the name with a pencil after it, which becomes the
- * app's field in its place, Save, Cancel, and Reset to default name while the name isn't the thing's own (saving it
- * empty does the same). A dictionary's name and a profile's are both this. `onKeep(null)` is the reset.
+ * app's field in its place, Save, Cancel, and Reset to default name while the name isn't the thing's own and the row
+ * offers it (a dictionary's does, a profile's doesn't); saving it empty does the same. A dictionary's name and a
+ * profile's are both this. `onKeep(null)` is the reset.
  */
 export function Rename({ id, shown, className, after, below, canReset, max, onKeep }: { id: string; shown: string; className: string; after?: ReactNode; below?: ReactNode; canReset: boolean; max: number; onKeep: (name: string | null) => Promise<void> }) {
   const [typing, setTyping] = useState<string | null>(null);
@@ -40,7 +41,6 @@ export function Rename({ id, shown, className, after, below, canReset, max, onKe
       <TextField id={`${id}-name`} label="Name" autoFocus value={typing} onChange={(typed) => setTyping(typed.slice(0, max))} />
       <div className="add-actions add-actions-start">
         <Button type="submit" variant="primary" disabled={busy}>
-          <Icon name="save" />
           Save
         </Button>
         <Button disabled={busy} onClick={() => setTyping(null)}>

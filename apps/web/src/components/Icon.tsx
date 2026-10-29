@@ -60,8 +60,6 @@ const ICONS = {
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],
   // Every action carries its icon (the owner, 2026-10-29; the audit page's section 4): what each of these is for.
-  /** A disk: Save, wherever something is kept (`check` is a thing already saved, or finished). */
-  save: ["M5 4h11l3 3v13H5z", "M8 4v5h7V4", "M8 20v-6h8v6"],
   signIn: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4", "M3 12h11", "M10 8l4 4-4 4"],
   signOut: ["M10 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4", "M9 12h11", "M16 8l4 4-4 4"],
   /** Panki on or off, and Video tracking turned off. */

@@ -169,7 +169,8 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
                     {inUse ? <span className="kept-in-use"> · In use</span> : null}
                   </span>
                 }
-                canReset={profile.name !== ""}
+                // No Reset to default name on a profile (the owner, 2026-10-29); saving it empty still goes back to the account's name.
+                canReset={false}
                 max={PROFILE_NAME_MAX}
                 onKeep={async (name) => {
                   await renameProfile(profile, name);

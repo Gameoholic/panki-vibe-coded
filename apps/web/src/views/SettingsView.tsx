@@ -313,7 +313,6 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
             </span>
           ) : null}
           <Button id={`${id}-save`} type="submit" variant="primary" disabled={busy || key.trim() === ""}>
-            <Icon name="save" />
             Save key
           </Button>
           {status === "settings" ? (

@@ -479,7 +479,7 @@ export function CardForm(props: Props) {
               </Button>
             ) : null}
             <Button type="submit" variant="primary" disabled={busy || unresolved}>
-              <Icon name={card ? "save" : "add"} />
+              {card ? null : <Icon name="add" />}
               {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
             </Button>
           </div>

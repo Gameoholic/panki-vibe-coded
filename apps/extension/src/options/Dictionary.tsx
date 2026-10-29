@@ -650,7 +650,6 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
             />
             <div className="add-actions add-actions-start">
               <Button variant="primary" disabled={off || sites.trim() === store.lookSites.join("\n").trim()} onClick={saveSites}>
-                <Icon name="save" />
                 Save sites
               </Button>
             </div>

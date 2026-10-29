@@ -2042,7 +2042,6 @@ function App() {
               <Stamp id="panki-edit-end" name="Where the line ends" at={editing.end} disabled={editBusy} onSet={(to) => moveRowEnd("end", to)} />
               <span className="strip-edit-actions">
                 <Button type="submit" variant="primary" disabled={editBusy}>
-                  <Icon name="save" />
                   {editBusy ? "Saving…" : "Save"}
                 </Button>
                 <Button disabled={editBusy} onClick={() => setEditing(null)}>
@@ -2094,7 +2093,6 @@ function App() {
             <Form onSubmit={() => void saveFix()} className="strip-fix">
               <TextField id="panki-fix-word" label="Word" lang="ja" autoFocus value={fixing.text} onChange={(text) => setFixing({ ...fixing, text })} error={fixFailure ?? undefined} />
               <Button type="submit" variant="primary" disabled={fixBusy}>
-                <Icon name="save" />
                 {fixBusy ? "Saving…" : "Save"}
               </Button>
               <Button disabled={fixBusy} onClick={() => setFixing(null)}>

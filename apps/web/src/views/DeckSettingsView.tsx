@@ -95,7 +95,7 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
         <h2 id="deck-about-title" className="panel-title">
           About
         </h2>
-        <DeckNameForm id="deck-rename" initial={deck.name} action="Save" busyAction="Saving…" icon="save" onlyWhenChanged onSubmit={onRename} />
+        <DeckNameForm id="deck-rename" initial={deck.name} action="Save" busyAction="Saving…" onlyWhenChanged onSubmit={onRename} />
         <Setting
           id="cardType"
           label="Card type"
