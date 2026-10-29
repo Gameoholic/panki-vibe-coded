@@ -98,6 +98,8 @@ function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; b
 export function KeysPanels() {
   const binds = useKeyBinds();
   const changed = JSON.stringify(binds) !== JSON.stringify(DEFAULT_KEYS);
+  /** Reset to default keys is asking first. */
+  const [resetting, setResetting] = useState(false);
   return (
     <>
       <section className="panel" aria-labelledby="keys-home-title">
@@ -136,9 +138,25 @@ export function KeysPanels() {
         ))}
         <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} />
       </section>
-      {changed ? (
+      {/* Every key set here goes at once, so it asks first, in place (the owner, 2026-10-29). */}
+      {changed && resetting ? (
+        <div className="ask-box">
+          <Ask
+            idPrefix="keys-reset"
+            question="Reset every key to its default?"
+            go={{ words: "Reset keys", busy: "Resetting…", icon: "reset" }}
+            busy={false}
+            failure={null}
+            onKeep={() => setResetting(false)}
+            onGo={() => {
+              setKeyBinds(DEFAULT_KEYS);
+              setResetting(false);
+            }}
+          />
+        </div>
+      ) : changed ? (
         <div className="add-actions add-actions-start">
-          <Button id="keys-reset" onClick={() => setKeyBinds(DEFAULT_KEYS)}>
+          <Button id="keys-reset" onClick={() => setResetting(true)}>
             <Icon name="reset" />
             Reset to default keys
           </Button>
