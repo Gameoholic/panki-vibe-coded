@@ -114,6 +114,7 @@ export function KeysPanels() {
         </h2>
         <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} />
         <KeyRow id="reveal" label="Show answer" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} />
+        <KeyRow id="hide" label="Hide answer" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} />
         {binds.answers.map((bind, index) => (
           <KeyRow key={index} id={`answer-${index + 1}`} label={`Answer ${index + 1}`} bind={bind} slot={{ kind: "answers", index }} binds={binds} />
         ))}

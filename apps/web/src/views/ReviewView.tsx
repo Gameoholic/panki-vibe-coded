@@ -11,7 +11,7 @@ import { ReviewCard } from "../components/ReviewCard";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
-import { keyIn, keyOf, pressedIn, restartOf, shortcutOf, tapped, useKeyBinds, type Bind } from "../keys";
+import { keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
@@ -638,6 +638,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     shown.current.revealedAt ??= performance.now();
     setRevealed(true);
   }
+  /** The card turned back to its front (Hide answer): a question asked about an answer goes with it. */
+  function hideAnswer() {
+    if (!revealed || busy) return;
+    setAsking(null);
+    setRevealed(false);
+  }
 
   // Today's cards, as the Today screen shows them: the day's line split into reviews and new, and every other new card.
   const queue = [...line.active, ...line.waiting];
@@ -831,20 +837,21 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         reveal();
         return;
       }
+      // Turned back to its front by Hide answer's own key (the owner, 2026-10-29: Show answer's tap did it until Space
+      // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide answer button showing.
+      const hiding = revealed ? keyIn(binds.hide, key) : null;
+      if (hiding) {
+        e.preventDefault();
+        if (e.repeat || busy) return;
+        const button = [...document.querySelectorAll<HTMLElement>("[data-hold='hide']")].find((el) => el.getClientRects().length > 0) ?? null;
+        hold.begin(e, button, hiding.holdMs, hideAnswer);
+        return;
+      }
       const showing = keyIn(binds.reveal, key);
       if (showing) {
         e.preventDefault();
-        if (e.repeat) return;
-        // Turned back to its front at a tap (the owner, 2026-10-19 and 2026-10-21); shown with a hold when it's a key to
-        // hold. A key whose tap is something else's (Space tapped plays the clip, 2026-10-28) turns nothing back.
-        if (revealed) {
-          if (!busy && !tapped(binds, key)) {
-            setAsking(null);
-            setRevealed(false);
-          }
-          return;
-        }
-        hold.begin(e,place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, reveal);
+        if (e.repeat || revealed) return;
+        hold.begin(e, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, reveal);
         return;
       }
       if (key === "Escape" && asking) {
@@ -987,6 +994,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   // 2026-10-18), the CSS showing one of the two. Pinned over the counts' row, they covered "in play · waiting".
   const tools = (
     <>
+      {/* While the answer shows: the card back to its front, its key's hold drawn on it. */}
+      {revealed ? (
+        <Button className="review-hide" data-hold="hide" disabled={busy} onClick={hideAnswer}>
+          <Icon name="eyeOff" />
+          Hide answer
+          <KeyCap bind={binds.hide} />
+        </Button>
+      ) : null}
       <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
         <Icon name="undo" />
         Undo
@@ -1016,6 +1031,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         {full ? (
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it (the owner, 2026-10-29: it didn't appear here). */}
+            {revealed ? (
+              <Button className="btn-icon review-stage-hide" aria-label="Hide answer" data-hold="hide" disabled={busy} onClick={hideAnswer}>
+                <Icon name="eyeOff" />
+                <KeyCap bind={binds.hide} />
+              </Button>
+            ) : null}
             <Button className="btn-icon review-stage-undo" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
               <Icon name="undo" />
               <KeyCap bind={binds.undo} />

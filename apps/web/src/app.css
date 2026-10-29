@@ -2459,6 +2459,7 @@ mark.sub-mark {
   margin-top: 12px;
 }
 .btn.review-chart-toggle,
+.btn.review-hide,
 .btn.review-undo {
   padding: 4px 10px;
   font-size: 13px;
@@ -3533,7 +3534,8 @@ mark.sub-mark {
   margin-left: auto;
 }
 /* Undo with its keycap after its icon, when it has a key: a little wider than the icons beside it. */
-.btn-icon.review-stage-undo {
+.btn-icon.review-stage-undo,
+.btn-icon.review-stage-hide {
   gap: 6px;
 }
 /* The clip, fixed over the screen's room under the rest of the review (`isolation` above keeps it on the review's own
