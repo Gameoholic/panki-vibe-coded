@@ -479,7 +479,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
                 {/* No to the entire video: under Hybrid the chunks go on, which is what saying no comes to there, said so anyone
                     gets it ("Chunks only" didn't, the owner, 2026-10-20), with Live's own icon, since that's what's left. */}
                 <Button variant="ghost" onClick={() => onAnswer(false)}>
-                  <Icon name={decided?.mode === "hybrid" ? "lead" : "cancel"} />
+                  {decided?.mode === "hybrid" ? <Icon name="lead" /> : null}
                   {decided?.mode === "hybrid" ? "Only what I watch" : "Cancel"}
                 </Button>
               </div>

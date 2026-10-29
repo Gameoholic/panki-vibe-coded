@@ -111,7 +111,6 @@ function SignIn({ known, onDone, onCancel }: { known: string; onDone: () => void
           ) : null}
           {onCancel ? (
             <Button variant="ghost" disabled={busy} onClick={onCancel}>
-              <Icon name="cancel" />
               Cancel
             </Button>
           ) : null}

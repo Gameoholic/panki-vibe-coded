@@ -2046,7 +2046,6 @@ function App() {
                   {editBusy ? "Saving…" : "Save"}
                 </Button>
                 <Button disabled={editBusy} onClick={() => setEditing(null)}>
-                  <Icon name="cancel" />
                   Cancel
                 </Button>
               </span>
@@ -2099,7 +2098,6 @@ function App() {
                 {fixBusy ? "Saving…" : "Save"}
               </Button>
               <Button disabled={fixBusy} onClick={() => setFixing(null)}>
-                <Icon name="cancel" />
                 Cancel
               </Button>
             </Form>

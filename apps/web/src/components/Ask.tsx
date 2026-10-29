@@ -27,8 +27,8 @@ type Props = {
 };
 
 /**
- * A question about something that hurts, asked in place, inside what owns the action: the question, Keep (`cancel`),
- * and the filled danger button that does it, with its icon (the trash to begin with) (a line under the question saying what a card's deleting leaves behind went at
+ * A question about something that hurts, asked in place, inside what owns the action: the question, Keep (no icon, as
+ * backing out never has one), and the filled danger button that does it, with its icon (the trash to begin with) (a line under the question saying what a card's deleting leaves behind went at
  * the owner's word, 2026-10-18). Never the browser's `confirm()`, never a pop-up. Whoever asks
  * tints what it stands in (`.panel-alarm`, a card's row `is-asking`) while it's asked. Deleting a card (its row, its
  * form), a deck, a card type and an SRS type are all this.
@@ -50,7 +50,6 @@ export function Ask({ idPrefix, question, detail, go, keep = "Keep", busy, failu
           </span>
         ) : null}
         <Button id={`${idPrefix}-keep`} onClick={onKeep} disabled={busy}>
-          <Icon name="cancel" />
           {keep}
         </Button>
         <Button id={`${idPrefix}-go`} variant="danger" onClick={onGo} disabled={busy || !ready}>

@@ -49,7 +49,7 @@ const ICONS = {
    */
   watchTime: ["M13 16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v6", "M8 7.5v5l4.5-2.5z", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
   reviewTime: ["M13 20H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8.5", "M7.5 7h5", "M7.5 10.5h5", "M7.5 14h2.5", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
-  /** Two arrows passing each other: one thing put in another's place, a card's file changed. */
+  /** Two arrows passing each other: one thing switched for another, the extension's profiles. */
   swap: ["M4 8h14", "M14 4l4 4-4 4", "M20 16H6", "M10 12l-4 4 4 4"],
   /** A screen with lines of words along its foot: a clip's subtitles, shown or hidden from its player's bar. */
   subtitles: ["M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "M7 12h4", "M13 12h4", "M7 15.5h7", "M16 15.5h1"],
@@ -62,8 +62,6 @@ const ICONS = {
   // Every action carries its icon (the owner, 2026-10-29; the audit page's section 4): what each of these is for.
   /** A disk: Save, wherever something is kept (`check` is a thing already saved, or finished). */
   save: ["M5 4h11l3 3v13H5z", "M8 4v5h7V4", "M8 20v-6h8v6"],
-  /** A circle struck through: backing out, Cancel and Keep (a × only closes). */
-  cancel: ["M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z", "M6 18L18 6"],
   signIn: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4", "M3 12h11", "M10 8l4 4-4 4"],
   signOut: ["M10 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4", "M9 12h11", "M16 8l4 4-4 4"],
   /** Panki on or off, and Video tracking turned off. */

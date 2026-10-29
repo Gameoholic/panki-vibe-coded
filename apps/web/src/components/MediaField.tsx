@@ -81,8 +81,8 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
           <div className="media-picked-row">
             <span className="media-name">{showing.name}</span>
             <Button id={id} aria-describedby={error ? `${id}-error` : undefined} disabled={asking} onClick={choose}>
-              <Icon name="swap" />
-              Change
+              <Icon name="upload" />
+              Replace
             </Button>
             <Button className="is-danger" aria-pressed={asking} onClick={() => setAsking((was) => !was)}>
               <Icon name="trash" />

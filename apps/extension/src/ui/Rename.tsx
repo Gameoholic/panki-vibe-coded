@@ -44,7 +44,6 @@ export function Rename({ id, shown, className, after, below, canReset, max, onKe
           Save
         </Button>
         <Button disabled={busy} onClick={() => setTyping(null)}>
-          <Icon name="cancel" />
           Cancel
         </Button>
         {canReset ? (

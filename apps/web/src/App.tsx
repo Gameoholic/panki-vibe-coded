@@ -1151,7 +1151,6 @@ export function App() {
           ) : null}
           <div className="add-actions">
             <Button id="leave-stay" disabled={leaveBusy} onClick={stay}>
-              <Icon name="cancel" />
               Stay
             </Button>
             <Button id="leave-discard" variant="danger" disabled={leaveBusy} onClick={() => go(leaving, true)}>

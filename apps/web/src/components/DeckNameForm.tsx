@@ -79,7 +79,6 @@ export function DeckNameForm({ id, initial, action, busyAction, icon, autoFocus 
         ) : null}
         {onCancel ? (
           <Button onClick={onCancel} disabled={busy}>
-            <Icon name="cancel" />
             Cancel
           </Button>
         ) : null}

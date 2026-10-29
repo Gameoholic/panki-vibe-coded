@@ -475,7 +475,6 @@ export function CardForm(props: Props) {
             {failed}
             {onCancel ? (
               <Button onClick={onCancel} disabled={busy}>
-                <Icon name="cancel" />
                 Cancel
               </Button>
             ) : null}
