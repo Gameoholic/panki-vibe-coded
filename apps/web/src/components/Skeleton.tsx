@@ -62,12 +62,12 @@ function TileBody() {
   );
 }
 
-/** `TodayBar`'s parts as measured: a character of its bold words, Show cards and Hide cards, a button's height, and Start's room besides its words (its padding, its play icon, the gaps and keycap: 82 px as measured, and the icon's 18 px and its 8 px gap since). */
+/** `TodayBar`'s parts as measured: a character of its bold words, Show cards and Hide cards, a button's height, and Start's room besides its words (its padding, its play icon, the gaps and keycap: 82 px as measured, and the icon's 16 px and its 8 px gap since; a button's icon was 18 px until 2026-10-29, Show and Hide narrower by those 2 px too). */
 const TODAY_CHAR_PX = 8.6;
-const TODAY_SHOW_PX = "136px";
-const TODAY_HIDE_PX = "128px";
+const TODAY_SHOW_PX = "134px";
+const TODAY_HIDE_PX = "126px";
 const TODAY_BUTTON_H = "42px";
-const TODAY_START_PX = 108;
+const TODAY_START_PX = 106;
 /** A character of the quieter words after the bar's controls (what's left for later, what extra study has), as measured. */
 const TODAY_LEFT_CHAR_PX = 6.6;
 /** A `NumberField` as measured: its − and +, the number between them, and the gaps. */
@@ -75,8 +75,8 @@ const NUMBER_FIELD_PX = "160px";
 const NUMBER_FIELD_H = "46px";
 /** "Coming up" at a review's end, as measured: how wide each of its days' words is ("Tomorrow", "In 2 days", "In 3 days", "This week": `ReviewView` → `COMING_UP`). */
 const COMING_UP_WORDS = ["4.6em", "3.85em", "3.85em", "4.45em"];
-/** A button's room besides its words (its padding, and its icon's 18 px and 8 px gap since it has one), and a character of them, as measured: what sizes the button at a review's end. */
-const BUTTON_PAD_PX = 62;
+/** A button's room besides its words (its padding, and its icon's 16 px and 8 px gap since it has one), and a character of them, as measured: what sizes the button at a review's end. */
+const BUTTON_PAD_PX = 60;
 const BUTTON_CHAR_PX = 9;
 
 /**
@@ -205,7 +205,7 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
                   <Bone w={TODAY_SHOW_PX} h={TODAY_BUTTON_H} />
                   <span className="today-left" />
                   {/* Start, its play icon before its word. */}
-                  <Bone w="92px" h={TODAY_BUTTON_H} />
+                  <Bone w="90px" h={TODAY_BUTTON_H} />
                 </div>
               </li>
             ))}

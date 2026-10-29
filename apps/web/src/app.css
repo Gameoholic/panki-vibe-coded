@@ -124,6 +124,16 @@ body {
   stroke-linejoin: round;
   flex-shrink: 0;
 }
+/* An icon beside a button's words is a little smaller and lighter than the words, so the words lead (the owner,
+   2026-10-29, of the icons every action gained: "seems out of place"). Kept as low as a bare `.icon`, so a button
+   that sizes its own icon (the strip's tools, a player's bar) still does; an icon-only button keeps the full size. */
+:where(.btn:not(.btn-icon)) > .icon {
+  width: 16px;
+  height: 16px;
+}
+:where(.btn) > .icon {
+  stroke-width: 1.75;
+}
 
 /* Buttons: one of these on every button, never a bare one. */
 .btn {
