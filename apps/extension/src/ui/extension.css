@@ -1014,6 +1014,20 @@
   font: 400 14px/1.4 var(--yh-font);
   color: var(--yh-muted);
 }
+/* An empty shelf holds the room its videos would (the owner, 2026-10-29): a row of cards is a thumbnail and, under it,
+   two lines of title and one of what's under them; Continue watching's picture is its own `.yh-lead-pic`, left blank. */
+.yh-empty.is-slot {
+  display: grid;
+  place-items: center;
+  min-height: calc(var(--yh-small) * 9 / 16 + 64px);
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--yh-chip);
+  text-align: center;
+}
+.yh-lead-pic.is-empty {
+  opacity: 0.6;
+}
 /* Resume, the site's own white pill. */
 .yh-resume {
   display: inline-flex;

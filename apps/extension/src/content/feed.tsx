@@ -317,8 +317,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     const [failure, setFailure] = useState<string | null>(null);
     const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, max);
     const [first, ...rest] = shown;
-    // Empty, it keeps its place and its half of the row (the owner, 2026-10-29: an empty shelf mustn't resize the others).
-    if (!first) return <EmptyShelf title="Continue watching" words={tracking ? "Nothing to continue." : `${VIDEO_TRACKING_OFF}.`} />;
+    if (!first) return <EmptyShelf title="Continue watching" words={tracking ? "Nothing to continue." : `${VIDEO_TRACKING_OFF}.`} lead />;
     async function putAway(videoId: string) {
       setFailure(null);
       setGone((was) => [...was, videoId]);
@@ -380,12 +379,23 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     );
   }
 
-  /** A shelf with nothing on it: its title and what's empty, standing where it would with videos. */
-  function EmptyShelf({ title, words }: { title: string; words: string }) {
+  /**
+   * A shelf with nothing on it, as big as it is with videos, so nothing around it moves (the owner, 2026-10-29: an empty
+   * shelf mustn't collapse and resize the others): `lead`, Continue watching's big picture and its words beside it as
+   * quiet room; otherwise a row of cards' room. What's empty is said in it.
+   */
+  function EmptyShelf({ title, words, lead = false }: { title: string; words: string; lead?: boolean }) {
     return (
       <section className="yh-shelf" aria-label={title}>
         <h2 className="yh-h">{title}</h2>
-        <p className="yh-empty">{words}</p>
+        {lead ? (
+          <div className="yh-lead">
+            <div className="yh-lead-pic is-empty" />
+            <p className="yh-empty">{words}</p>
+          </div>
+        ) : (
+          <p className="yh-empty is-slot">{words}</p>
+        )}
       </section>
     );
   }
@@ -404,7 +414,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         <h2 className="yh-h">
           {title} {items.length > 0 ? <span className="yh-h-n">{items.length}</span> : null}
         </h2>
-        {items.length === 0 && empty ? <p className="yh-empty">{empty}</p> : null}
+        {items.length === 0 && empty ? <p className="yh-empty is-slot">{empty}</p> : null}
         <div ref={setRow} className="yh-cards is-wrap">
           {shown.map(card)}
         </div>
