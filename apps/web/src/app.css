@@ -3519,6 +3519,10 @@ mark.sub-mark {
   gap: 2px;
   margin-left: auto;
 }
+/* Undo with its keycap after its icon, when it has a key: a little wider than the icons beside it. */
+.btn-icon.review-stage-undo {
+  gap: 6px;
+}
 /* The clip, fixed over the screen's room under the rest of the review (`isolation` above keeps it on the review's own
    ground); the part it stood in takes no room of its own. */
 .review.is-stage .media.media-player[data-staged] {

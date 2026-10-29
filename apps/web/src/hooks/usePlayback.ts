@@ -64,7 +64,7 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Short
   // Its keys, its own and its second, pressed anywhere on the page but in something typed into; one with a hold of its
   // own is held that long first, how far along drawn on its keycap (the player's `.media` carrying `--hold`), and let
   // go early does nothing. A tap of a key that's held for something else plays it as it's let go (`useHeardKeys`).
-  useHeardKeys([shortcut, shortcut?.also ?? null], () => media.current?.closest<HTMLElement>(".media") ?? null, toggle);
+  useHeardKeys([shortcut, ...(shortcut?.also ?? [])], () => media.current?.closest<HTMLElement>(".media") ?? null, toggle);
   /** Moves to a share of the way through (0 to 1), playing or not. */
   function seek(share: number) {
     const el = media.current;

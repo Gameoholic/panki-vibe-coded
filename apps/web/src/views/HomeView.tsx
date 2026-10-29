@@ -3,7 +3,7 @@ import type { CardType, Deck, Settings, SrsType, Stats } from "@panki/contracts"
 import { Board, type DoorSpec } from "../components/Board";
 import { readLayout, writeLayout, type BoardLayout } from "../layout";
 import { useHold } from "../hooks/useHold";
-import { pressedIn, useKeyBinds } from "../keys";
+import { keysOf, pressedIn, useKeyBinds } from "../keys";
 import type { WidgetContext } from "../widgets";
 import { count } from "../words";
 
@@ -39,8 +39,9 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   // Once today's limits are reached (the door no longer blue), what's still there past them, said small after the line.
   const newPast = decks?.reduce((sum, deck) => sum + deck.newAvailable - deck.newCount, 0) ?? 0;
   const duePast = decks?.reduce((sum, deck) => sum + deck.dueAvailable - deck.dueCount, 0) ?? 0;
-  const past = [newPast > 0 ? `${count(newPast, "new card", "new cards")} available` : null, duePast > 0 ? `${count(duePast, "extra review", "extra reviews")} available` : null];
-  const reviewNote = due + fresh > 0 ? null : past.filter((p) => p !== null).join(" · ") || null;
+  // Said as extra study, which is where they're had (the owner, 2026-10-29: "so it's clear it's a part of extra study").
+  const past = [newPast > 0 ? count(newPast, "new card", "new cards") : null, duePast > 0 ? count(duePast, "review", "reviews") : null].filter((p) => p !== null);
+  const reviewNote = due + fresh > 0 || past.length === 0 ? null : `${past.join(" and ")} available as extra study`;
   const decksDetail = decks === null ? null : none ? "None yet" : count(decks.length, "deck", "decks");
   const addDetail = none ? "Make a deck first" : "to any deck";
   const typesDetail = types === null ? null : types.length === 0 ? "None yet" : types.map((t) => t.name).join(", ");
@@ -59,13 +60,13 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const hold = useHold();
   useEffect(() => {
     const bind = binds.homeReview;
-    if ((bind.key === null && bind.also.key === null) || arranging) return;
+    if (keysOf(bind).every((own) => own.key === null) || arranging) return;
     const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.closest("input, textarea, select") !== null);
     function onKey(e: KeyboardEvent) {
       const hit = pressedIn(e, bind);
       if (!hit || typing(e)) return;
       e.preventDefault();
-      if (!e.repeat) hold.begin(e.key, document.getElementById("door-review"), hit.holdMs, onReview);
+      if (!e.repeat) hold.begin(e, document.getElementById("door-review"), hit.holdMs, onReview);
     }
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);

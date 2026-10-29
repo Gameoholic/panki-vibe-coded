@@ -158,7 +158,7 @@ type TabId = "home" | "settings" | "stats";
 const TABS: readonly { id: TabId; label: string; to: Screen }[] = [
   { id: "home", label: "Home", to: HOME },
   { id: "settings", label: "Settings", to: { kind: "settings" } },
-  { id: "stats", label: "All Stats", to: { kind: "stats" } },
+  { id: "stats", label: "Stats", to: { kind: "stats" } },
 ];
 /** The tab a screen lights: its own for the fixed places, Home for everything behind the hub. */
 function tabOf(screen: Screen): TabId {
@@ -771,7 +771,7 @@ export function App() {
       case "settings":
         return { title: "Settings" };
       case "stats":
-        return { title: "All Stats" };
+        return { title: "Stats" };
     }
   }
 

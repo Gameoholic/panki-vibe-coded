@@ -293,7 +293,7 @@ function screenTarget(own: HTMLElement): HTMLElement | null {
  */
 function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut | null, toggle: () => void) {
   useHeardKeys(
-    [screenKey, screenKey?.also ?? null],
+    [screenKey, ...(screenKey?.also ?? [])],
     () => frame.current?.querySelector<HTMLElement>(".media-screen-key") ?? null,
     toggle,
     () => frame.current !== null && screenTarget(frame.current) === frame.current,

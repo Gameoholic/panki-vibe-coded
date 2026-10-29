@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { KeyField } from "../components/KeyField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
-import { DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, useKeyBinds, withKey, withPart, type Bind, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { ALSO_MAX, DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, useKeyBinds, withAdded, withKey, withoutAdded, withPart, type Bind, type Key, type KeyBinds, type Part, type Slot } from "../keys";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
 /** A key's hold as its choice reads: "Press", "Hold 0.5 s". */
@@ -15,11 +15,11 @@ const HOLD_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: ms === 0 ?
 const EXTRA_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: `+${seconds(ms)}` }));
 const holdOf = (id: string, fallback: number) => HOLD_TIMES.find((ms) => String(ms) === id) ?? fallback;
 
-/** One of an action's keys, and how long it's held first. */
-function KeyPair({ id, label, own, part, slot, binds, asking, onAsk }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds; asking: boolean; onAsk: () => void }) {
+/** One of an action's keys, and how long it's held first. An added one can be taken off before it has a key, and one just added listens for it at once. */
+function KeyPair({ id, label, own, part, slot, binds, asking, onAsk, listen = false }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds; asking: boolean; onAsk: () => void; listen?: boolean }) {
   return (
     <span className="key-pair">
-      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} asking={asking} onAsk={onAsk} />
+      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} asking={asking} onAsk={onAsk} removable={part !== "main"} listen={listen} />
       <Dropdown
         id={`key-${id}-hold`}
         label={`${label}: press or hold`}
@@ -33,14 +33,19 @@ function KeyPair({ id, label, own, part, slot, binds, asking, onAsk }: { id: str
 }
 
 /**
- * One action's row: what it does, its key and a second key (the owner, 2026-10-28: "multiple keybinds to an action"),
- * each pressed or held for a time of its own. A key is one thing on a screen, but for a press and a hold of it.
+ * One action's row: what it does, its key, and as many more as are added with + (the owner, 2026-10-28: "multiple
+ * keybinds to an action"; 2026-10-29: "add however many I want via a plus button"), each pressed or held for a time of
+ * its own. A key is one thing on a screen, but for a press and a hold of it. The action's own key taken off leaves it
+ * with none; an added one taken off goes.
  */
 function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; bind: Bind; slot: Slot; binds: KeyBinds }) {
   /** Which of its keys is being asked about before it's taken off, if one is. */
   const [asking, setAsking] = useState<Part | null>(null);
-  const labelOf = (part: Part) => (part === "also" ? `${label}, second key` : label);
-  const ask = (part: Part) => () => setAsking((was) => (was === part ? null : part));
+  /** A key was just added with +: the last one listens for its key at once. */
+  const [added, setAdded] = useState(false);
+  const labelOf = (part: Part) => (part === "main" ? label : `${label}, key ${part + 2}`);
+  // An added key with none yet has nothing to lose: it goes at once.
+  const ask = (part: Part) => () => (part !== "main" && bind.also[part]?.key === null ? setKeyBinds(withoutAdded(binds, slot, part)) : setAsking((was) => (was === part ? null : part)));
   return (
     <Setting
       id={id}
@@ -48,11 +53,25 @@ function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; b
       control={
         <span className="key-controls">
           <KeyPair id={id} label={labelOf("main")} own={bind} part="main" slot={slot} binds={binds} asking={asking === "main"} onAsk={ask("main")} />
-          <KeyPair id={`${id}-also`} label={labelOf("also")} own={bind.also} part="also" slot={slot} binds={binds} asking={asking === "also"} onAsk={ask("also")} />
+          {bind.also.map((own, i) => (
+            <KeyPair key={i} id={`${id}-also-${i}`} label={labelOf(i)} own={own} part={i} slot={slot} binds={binds} asking={asking === i} onAsk={ask(i)} listen={added && i === bind.also.length - 1 && own.key === null} />
+          ))}
+          {bind.also.length < ALSO_MAX ? (
+            <Button
+              className="btn-icon key-add"
+              aria-label={`Add another key for ${label}`}
+              onClick={() => {
+                setAdded(true);
+                setKeyBinds(withAdded(binds, slot));
+              }}
+            >
+              <Icon name="add" />
+            </Button>
+          ) : null}
         </span>
       }
     >
-      {asking ? (
+      {asking !== null ? (
         <div className="ask-box">
           <Ask
             idPrefix={`key-${id}-${asking}-off`}
@@ -62,7 +81,7 @@ function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; b
             failure={null}
             onKeep={() => setAsking(null)}
             onGo={() => {
-              setKeyBinds(withKey(binds, slot, null, asking));
+              setKeyBinds(asking === "main" ? withKey(binds, slot, null) : withoutAdded(binds, slot, asking));
               setAsking(null);
             }}
           />

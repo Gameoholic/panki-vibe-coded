@@ -1,7 +1,29 @@
 import { useEffect, useRef } from "react";
+import { pressed } from "../keys";
 
 /** How long a hold let go early takes to go back to nothing. */
 const LET_GO_MS = 160;
+
+/**
+ * Keys a tap of which does something right now, as each listener has them (`useHeardKeys`: a player's Space tapped,
+ * while there's a clip to play), by how many: a hold of the same key on the same screen can't yet tell itself from
+ * that tap as it goes down, so it stays still for its first moment (`TAP_QUIET_MS`), and a tap shows no hold beginning
+ * (the owner, 2026-10-29: "when I press space and instantly release it also thinks I'm trying to hold it"). Any key,
+ * any hold: nothing here knows which.
+ */
+const liveTaps = new Map<string, number>();
+/** Notes a key whose tap does something right now; what it gives back lets go of it. */
+export function keepTap(key: string): () => void {
+  liveTaps.set(key, (liveTaps.get(key) ?? 0) + 1);
+  return () => {
+    const left = (liveTaps.get(key) ?? 1) - 1;
+    if (left > 0) liveTaps.set(key, left);
+    else liveTaps.delete(key);
+  };
+}
+const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed(e, key));
+/** How long a hold stays still while its key's tap does something: a tap is let go well within it. Never more than half the hold, which still takes as long as it's set to. */
+const TAP_QUIET_MS = 160;
 
 /**
  * A key held on a button until it does its thing (`keys.ts`, a bind to hold): how far along, 0 to 1, is written on the
@@ -24,8 +46,13 @@ export function useHold() {
     easing.current.set(el, requestAnimationFrame(step));
   }
 
-  /** Starts holding `key` on `el`; `done` once it's been held for `ms` (at once for none). Nothing while another hold is on. */
-  function begin(key: string, el: HTMLElement | null, ms: number, done: () => void) {
+  /**
+   * Starts holding the key going down (`e`) on `el`; `done` once it's been held for `ms` (at once for none). Nothing
+   * while another hold is on. While a tap of the key does something too, the fill waits its first moment, then fills
+   * over the rest, so it's still done when it's set to be.
+   */
+  function begin(e: KeyboardEvent, el: HTMLElement | null, ms: number, done: () => void) {
+    const key = e.key;
     if (current.current) return;
     // A hold of no time is a press.
     if (ms <= 0) {
@@ -39,10 +66,11 @@ export function useHold() {
       easing.current.delete(el);
     }
     const t0 = performance.now();
+    const quiet = tapLive(e) ? Math.min(TAP_QUIET_MS, ms / 2) : 0;
     const hold = { key, el, raf: 0 };
     current.current = hold;
     const tick = (t: number) => {
-      const share = Math.min(1, (t - t0) / ms);
+      const share = Math.min(1, Math.max(0, t - t0 - quiet) / (ms - quiet));
       set(el, share);
       if (share < 1) {
         hold.raf = requestAnimationFrame(tick);

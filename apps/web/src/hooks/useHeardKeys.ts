@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { heard, pressed, type Heard } from "../keys";
-import { useHold } from "./useHold";
+import { keepTap, useHold } from "./useHold";
 
 /**
  * An action's keys heard on the window (`keys.ts` → `Heard`: its own and its second): pressed, or held as long as each
@@ -20,6 +20,8 @@ export function useHeardKeys(keys: readonly (Heard | null)[], at: () => HTMLElem
     if (listened.length === 0) return;
     /** When a tap of a key began, by the key: it acts as it's let go, if that's soon enough. */
     const tapping = new Map<string, number>();
+    // A tap that does something here, said while it's heard: a hold of the same key elsewhere waits its first moment.
+    const kept = listened.filter((key) => key.tapUnder > 0).map((key) => keepTap(key.key));
     const onKey = (e: KeyboardEvent) => {
       const hit = listened.find((key) => heard(e, key.key));
       if (!hit || !now.current.wanted()) return;
@@ -28,7 +30,7 @@ export function useHeardKeys(keys: readonly (Heard | null)[], at: () => HTMLElem
         tapping.set(e.key, performance.now());
         return;
       }
-      held.begin(e.key, now.current.at(), hit.holdMs, () => now.current.act());
+      held.begin(e, now.current.at(), hit.holdMs, () => now.current.act());
     };
     const onUp = (e: KeyboardEvent) => {
       held.release(e.key);
@@ -43,6 +45,7 @@ export function useHeardKeys(keys: readonly (Heard | null)[], at: () => HTMLElem
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onUp);
+      for (const letGo of kept) letGo();
     };
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps -- the keys are what `signature` says; the rest is read through refs
 }

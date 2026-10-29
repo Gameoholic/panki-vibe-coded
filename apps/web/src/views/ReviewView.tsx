@@ -784,7 +784,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           const starting = keyIn(binds.start, key);
           if (starting) {
             e.preventDefault();
-            if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='today-start']"), starting.holdMs, start);
+            if (!e.repeat) hold.begin(e,document.querySelector<HTMLElement>("[data-hold='today-start']"), starting.holdMs, start);
           }
         }
         return;
@@ -796,7 +796,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         if (e.repeat) return;
         // The Undo button on screen: the counts' row's or the one under the answers, whichever the CSS shows.
         const button = [...document.querySelectorAll<HTMLElement>("[data-hold='undo']")].find((el) => el.getClientRects().length > 0) ?? null;
-        hold.begin(e.key, button, undoing.holdMs, () => void undo());
+        hold.begin(e,button, undoing.holdMs, () => void undo());
         return;
       }
       // At the end, Start's key starts extra study, as it starts a review on today's cards; Enter does too, but on a button.
@@ -808,7 +808,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           const starting = keyIn(binds.start, key);
           if (starting) {
             e.preventDefault();
-            if (!e.repeat) hold.begin(e.key, document.querySelector<HTMLElement>("[data-hold='extra-start']"), starting.holdMs, startExtra);
+            if (!e.repeat) hold.begin(e,document.querySelector<HTMLElement>("[data-hold='extra-start']"), starting.holdMs, startExtra);
           }
         }
         return;
@@ -821,7 +821,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       if (step !== 0) {
         e.preventDefault();
         if (e.repeat) return;
-        hold.begin(e.key, place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, (back ?? on)?.holdMs ?? 0, () => stepExample(step));
+        hold.begin(e,place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, (back ?? on)?.holdMs ?? 0, () => stepExample(step));
         return;
       }
       // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
@@ -844,7 +844,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           }
           return;
         }
-        hold.begin(e.key, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, reveal);
+        hold.begin(e,place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, reveal);
         return;
       }
       if (key === "Escape" && asking) {
@@ -865,7 +865,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           return;
         }
         const button = place.current?.querySelector<HTMLElement>(`[data-answer="${picked.id}"]`) ?? null;
-        hold.begin(e.key, button, ms, () => void answer(picked.id));
+        hold.begin(e,button, ms, () => void answer(picked.id));
       }
     }
     /**
@@ -1015,8 +1015,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         {!full ? <span className="review-tools">{tools}</span> : null}
         {full ? (
           <span className="review-stage-tools">
-            <Button className="btn-icon" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
+            {/* Its key beside it, as the Undo outside full screen has it (the owner, 2026-10-29: it didn't appear here). */}
+            <Button className="btn-icon review-stage-undo" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
               <Icon name="undo" />
+              <KeyCap bind={binds.undo} />
             </Button>
             {staged ? (
               <Button className="btn-icon" aria-label="Hide the card" onClick={stage.close}>
