@@ -186,7 +186,7 @@ export const DEFAULT_MODULES: Modules = {
  */
 export const switchInPill = (raw: Pick<Modules, "home" | "homePill">): boolean => raw.home && raw.homePill;
 
-/** How long the button offering to continue stays on the picture, in ms, before it goes by itself. */
-export const OFFER_MS = 12_000;
+/** How long the button offering to continue stays on the picture, in ms, before it goes by itself (12 s until the owner, 2026-10-29: "make it 6 seconds"). */
+export const OFFER_MS = 6_000;
 /** How long it takes to fade as it goes, in ms; the same as its CSS. */
 export const OFFER_AWAY_MS = 260;
