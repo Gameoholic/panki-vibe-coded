@@ -231,12 +231,17 @@ const VIDEOS_SHOWN = 4;
 
 /**
  * The videos left part-way, newest first, each the video's own card opening on YouTube where it was stopped, with a
- * box to put it away (it comes back when it's played again, so nothing is asked). One put away leaves at once; the stats are asked for again so the count catches up.
+ * trash that removes it from here, asking first in its row (the owner, 2026-10-29: the box it had "isn't clear that it
+ * deletes"; it comes back when it's played again, and what was watched is kept). One removed leaves at once; the stats
+ * are asked for again so the count catches up.
  */
 function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; onStale: () => void }) {
   const [gone, setGone] = useState<readonly string[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
+  /** The video whose trash is asking first, in its row. */
+  const [asking, setAsking] = useState<string | null>(null);
   async function putAway(videoId: string) {
+    setAsking(null);
     setFailure(null);
     setGone((was) => [...was, videoId]);
     try {
@@ -254,7 +259,7 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
   return (
     <div className="w-videos">
       {shown.map((v) => (
-        <div key={v.videoId} className="w-video">
+        <div key={v.videoId} className={`w-video ${asking === v.videoId ? "is-asking" : ""}`.trim()}>
           <LinkView
             // No time in its address, as on YouTube's own home: the extension's Where you stopped last decides what
             // happens as it opens (the owner, 2026-10-28: a time there read as the link's own and the button never came).
@@ -263,9 +268,20 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
             progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) }}
           />
-          <Button className="btn-icon w-video-x" aria-label="Put away" onClick={() => void putAway(v.videoId)}>
-            <Icon name="archive" />
+          <Button className="btn-icon is-danger w-video-x" aria-label="Remove from Continue watching" aria-pressed={asking === v.videoId} onClick={() => setAsking((was) => (was === v.videoId ? null : v.videoId))}>
+            <Icon name="trash" />
           </Button>
+          {asking === v.videoId ? (
+            <Ask
+              idPrefix={`continue-remove-${v.videoId}`}
+              question={REMOVE_CONTINUE.question}
+              go={REMOVE_CONTINUE.go}
+              busy={false}
+              failure={null}
+              onKeep={() => setAsking(null)}
+              onGo={() => void putAway(v.videoId)}
+            />
+          ) : null}
         </div>
       ))}
       {failure ? (
@@ -279,46 +295,28 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
 
 /**
  * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
- * watching"), each the video's own card opening it on YouTube from its start, with an undo that says it isn't finished: it
- * leaves here and goes back into Continue watching. The stats are asked for again so both catch up.
+ * watching"), each the video's own card opening it on YouTube from its start. Nothing takes one out: it's a history,
+ * like YouTube's (the owner, 2026-10-29: "I shouldn't be able to delete videos from recently watched"); the strip's
+ * Finished chip on the video's own page is where it's said to be unfinished.
  */
-function RecentRows({ videos, onStale }: { videos: readonly FinishedVideo[]; onStale: () => void }) {
-  const [gone, setGone] = useState<readonly string[]>([]);
-  const [failure, setFailure] = useState<string | null>(null);
-  async function unfinish(videoId: string) {
-    setFailure(null);
-    setGone((was) => [...was, videoId]);
-    try {
-      await api.markVideo(videoId, "unfinish");
-      onStale();
-    } catch (e) {
-      setGone((was) => was.filter((id) => id !== videoId));
-      setFailure(e instanceof Error ? e.message : "Something went wrong.");
-    }
-  }
-  const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, VIDEOS_SHOWN);
+function RecentRows({ videos }: { videos: readonly FinishedVideo[] }) {
   return (
     <div className="w-videos">
-      {shown.map((v) => (
+      {videos.slice(0, VIDEOS_SHOWN).map((v) => (
         <div key={v.videoId} className="w-video">
           <LinkView
             meta={{ link: { videoId: v.videoId, seconds: null }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
             label="Recently watched"
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
           />
-          <Button className="btn-icon w-video-x" aria-label="Mark as not finished" onClick={() => void unfinish(v.videoId)}>
-            <Icon name="undo" />
-          </Button>
         </div>
       ))}
-      {failure ? (
-        <p className="form-failure" role="alert">
-          {failure}
-        </p>
-      ) : null}
     </div>
   );
 }
+
+/** Removing a video from Continue watching, asked in its row (the tile here, the shelf on YouTube's home says the same). One home for the words. */
+const REMOVE_CONTINUE = { question: "Remove from Continue watching?", go: { words: "Remove", busy: "Removing…" } };
 
 /**
  * The videos saved for later (the owner, 2026-10-22: "similar to Continue watching"), newest first, each the video's
@@ -679,9 +677,9 @@ export const WIDGETS: readonly WidgetEntry[] = [
     wide: true,
     home: true,
     control: (stats) => (stats.watching.on && stats.watching.finished.length > 0 ? count(stats.watching.finished.length, "video", "videos") : ""),
-    render(stats, ctx) {
+    render(stats) {
       const { finished } = stats.watching;
-      return watchTile(stats, finished.length === 0, () => <RecentRows videos={finished} onStale={ctx.onStale} />);
+      return watchTile(stats, finished.length === 0, () => <RecentRows videos={finished} />);
     },
   },
   // Together and Together · this week (everyone on this Panki) stood here for a day, 2026-10-21, until the owner shelved

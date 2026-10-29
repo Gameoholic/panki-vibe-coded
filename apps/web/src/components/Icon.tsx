@@ -79,8 +79,6 @@ const ICONS = {
   eyeOff: ["M3 3l18 18", "M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.8", "M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6", "M9.9 9.9a3 3 0 0 0 4.2 4.2"],
   /** Saved for later, Panki's own, never YouTube's. */
   bookmark: ["M6 3h12v18l-6-4-6 4z"],
-  /** A box: a video put away from Continue watching, to come back when it's played again. */
-  archive: ["M3 4h18v4H3z", "M5 8v12h14V8", "M10 12h4"],
   user: ["M12 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M4 21a8 8 0 0 1 16 0"],
   userAdd: ["M10 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M2 21a8 8 0 0 1 13-6.2", "M19 14v6", "M16 17h6"],
   /** Back to what it was to begin with (`undo` takes back the last thing done). */

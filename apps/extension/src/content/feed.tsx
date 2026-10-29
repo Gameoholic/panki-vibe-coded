@@ -3,7 +3,7 @@ import { youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type Finished
 import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
-import { Icon, type IconName } from "@web/components/Icon";
+import { Icon } from "@web/components/Icon";
 import { agoWords, clock, langOf, leftWords, sinceWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
@@ -38,6 +38,14 @@ import { tokensOn } from "../ui/styles";
  *
  * The site's names relied on are together here; when the site changes them, this is where to look.
  */
+
+/** Taking a video off a shelf of the home's, asked first: the words for each shelf, as Panki's own tiles say them too (`widgets.tsx`). One home. */
+const REMOVE_FROM = {
+  continue: { label: "Remove from Continue watching", question: "Remove from Continue watching?" },
+  saved: { label: "Remove from Saved for later", question: "Remove from Saved for later?" },
+};
+type RemoveFrom = keyof typeof REMOVE_FROM;
+
 /** YouTube's home, while it's the page shown (the site keeps every page it has shown, hidden), and its grid of videos. */
 const HOME_GRID = 'ytd-browse[page-subtype="home"]:not([hidden]) ytd-rich-grid-renderer';
 /** Where the grid's videos begin: Panki's top goes just before. */
@@ -175,11 +183,11 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   /**
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
    * it was begun, or its length, as the site's own cards have it), its name, its channel, a line of Panki's; the whole
-   * card a link, a button at its corner to take it off the shelf, its icon saying how (the owner, 2026-10-29: every
-   * action its icon). One that deletes asks first, under the card's words (`Ask`), as everything that takes something
-   * away does.
+   * card a link, and, on a shelf a video can be taken off, a trash at its corner that asks first, under the card's
+   * words (`Ask`), as everything that takes something away does (the owner, 2026-10-29: Continue watching's box "isn't
+   * clear that it deletes"). Recently watched's have none: it's a history.
    */
-  function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, removeLabel, removeIcon, removeAsks = null, onRemove, save }: {
+  function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, remove = null, save }: {
     videoId: string;
     title: string;
     channel: string;
@@ -188,18 +196,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     progress: { share: number; left: string } | null;
     /** The video's length, in its picture's corner where `progress` has none: Saved for later's cards have it. */
     lengthMs?: number | null;
-    removeLabel: string;
-    /** What taking it off does: put away (`archive`), deleted (`trash`), said not to be finished (`undo`). */
-    removeIcon: IconName;
-    /** The question asked before it's taken off, for one that deletes; null takes it off at a press. */
-    removeAsks?: { question: string; go: string; busy: string } | null;
-    onRemove: () => void;
+    /** Taking it off its shelf (`REMOVE_FROM`), asked first; none on a shelf nothing is taken off. */
+    remove?: { shelf: RemoveFrom; onRemove: () => void } | null;
     /** The save button at its picture's top left (`CardSave`), saving the video as this: Continue watching's cards have it. */
     save?: SaveVideo;
   }) {
-    const [asking, setAsking] = useState(false);
     return (
-      <div className={`yc ${asking ? "is-asking" : ""}`.trim()}>
+      <div className="yc">
         <a className="yc-link" href={href}>
           <span className="yc-thumb">
             <img src={thumbnailAt(videoId)} alt="" loading="lazy" />
@@ -225,20 +228,29 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           {sub ? <span className="yc-sub">{sub}</span> : null}
         </a>
         {save ? <CardSave videoId={videoId} about={save} /> : null}
-        <Button
-          className="btn-icon yc-x"
-          aria-label={removeLabel}
-          aria-pressed={removeAsks ? asking : undefined}
-          onClick={() => (removeAsks ? setAsking((was) => !was) : onRemove())}
-        >
-          <Icon name={removeIcon} />
+        {remove ? <RemoveVideo videoId={videoId} shelf={remove.shelf} onRemove={remove.onRemove} /> : null}
+      </div>
+    );
+  }
+
+  /**
+   * A video's trash at its card's corner, and the question it asks first under the card's words; the card it stands in
+   * (`.yc`, Continue watching's lead too) is tinted while it asks.
+   */
+  function RemoveVideo({ videoId, shelf, onRemove }: { videoId: string; shelf: RemoveFrom; onRemove: () => void }) {
+    const [asking, setAsking] = useState(false);
+    const words = REMOVE_FROM[shelf];
+    return (
+      <>
+        <Button className="btn-icon is-danger yc-x" aria-label={words.label} aria-pressed={asking} onClick={() => setAsking((was) => !was)}>
+          <Icon name="trash" />
         </Button>
-        {removeAsks && asking ? (
+        {asking ? (
           <div className="yc-ask panel-alarm">
             <Ask
               idPrefix={`yc-${videoId}-remove`}
-              question={removeAsks.question}
-              go={{ words: removeAsks.go, busy: removeAsks.busy }}
+              question={words.question}
+              go={{ words: "Remove", busy: "Removing…" }}
               busy={false}
               failure={null}
               onKeep={() => setAsking(false)}
@@ -249,7 +261,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             />
           </div>
         ) : null}
-      </div>
+      </>
     );
   }
 
@@ -334,9 +346,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
               </span>
             </a>
             <CardSave videoId={first.videoId} about={aboutContinue(first)} />
-            <Button className="btn-icon yc-x" aria-label="Put away" onClick={() => void putAway(first.videoId)}>
-              <Icon name="archive" />
-            </Button>
+            <RemoveVideo videoId={first.videoId} shelf="continue" onRemove={() => void putAway(first.videoId)} />
           </div>
           <div className="yh-lead-info">
             <span className="yh-lead-title" lang={langOf(first.title)}>
@@ -356,7 +366,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {rest.length > 0 ? (
           <div className="yh-cards">
             {rest.map((v) => (
-              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" removeIcon="archive" onRemove={() => void putAway(v.videoId)} save={aboutContinue(v)} />
+              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} remove={{ shelf: "continue", onRemove: () => void putAway(v.videoId) }} save={aboutContinue(v)} />
             ))}
           </div>
         ) : null}
@@ -429,12 +439,12 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             sub={`Saved · ${agoWords(v.savedAt, now)}`}
             progress={null}
             lengthMs={v.lengthMs}
-            removeLabel="Take out of Saved"
-            removeIcon="trash"
-            removeAsks={{ question: "Take out of Saved for later?", go: "Take it out", busy: "Taking it out…" }}
-            onRemove={() => {
-              setFailure(null);
-              void setSaved(v.videoId, null).then((message) => setFailure(message));
+            remove={{
+              shelf: "saved",
+              onRemove: () => {
+                setFailure(null);
+                void setSaved(v.videoId, null).then((message) => setFailure(message));
+              },
             }}
           />
         )}
@@ -445,29 +455,17 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   /**
    * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
    * watching", beside Continue watching and Saved for later): each the site's own kind of card opening the video from
-   * its start, its length in its picture's corner and when it was finished under it. × says it isn't finished, which
-   * takes it out of here and back into Continue watching, as the chip under a video does.
+   * its start, its length in its picture's corner and when it was finished under it. Nothing takes one out: it's a
+   * history, like the site's own (the owner, 2026-10-29); the Finished chip under a video says it isn't finished.
    */
-  function RecentShelf({ videos, onStale }: { videos: readonly FinishedVideo[]; onStale: () => void }) {
-    const [gone, setGone] = useState<readonly string[]>([]);
-    const [failure, setFailure] = useState<string | null>(null);
-    async function unfinish(videoId: string) {
-      setFailure(null);
-      setGone((was) => [...was, videoId]);
-      const answer = await askWatchMark(videoId, "unfinish");
-      if (answer.ok) onStale();
-      else {
-        setGone((was) => was.filter((id) => id !== videoId));
-        setFailure(answer.message);
-      }
-    }
+  function RecentShelf({ videos }: { videos: readonly FinishedVideo[] }) {
     const now = Date.now();
     return (
       <RowShelf
         title="Recently watched"
-        items={videos.filter((v) => !gone.includes(v.videoId))}
+        items={videos}
         empty={null}
-        failure={failure}
+        failure={null}
         card={(v) => (
           <VideoCard
             key={v.videoId}
@@ -478,9 +476,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             sub={`Finished ${sinceWords(v.finishedAt, now)}`}
             progress={null}
             lengthMs={v.lengthMs > 0 ? v.lengthMs : null}
-            removeLabel="Mark as not finished"
-            removeIcon="undo"
-            onRemove={() => void unfinish(v.videoId)}
           />
         )}
       />
@@ -524,7 +519,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
               {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
             </div>
             {/* Under them, the row of its own: the videos finished, there once there's one. */}
-            {on.homeRecent && now.home.stats.watching.on && now.home.stats.watching.finished.length > 0 ? <RecentShelf videos={now.home.stats.watching.finished} onStale={() => void load()} /> : null}
+            {on.homeRecent && now.home.stats.watching.on && now.home.stats.watching.finished.length > 0 ? <RecentShelf videos={now.home.stats.watching.finished} /> : null}
           </>
         )}
       </div>

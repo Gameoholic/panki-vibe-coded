@@ -1127,7 +1127,7 @@
 }
 .yc:hover .btn.yc-x,
 .btn.yc-x:focus-visible,
-.yc.is-asking .btn.yc-x {
+.btn.yc-x[aria-pressed="true"] {
   opacity: 1;
 }
 @media (hover: none) {
@@ -1135,12 +1135,12 @@
     opacity: 1;
   }
 }
-/* Its icon says how it's taken off (put away, deleted, not finished), small enough to sit in the round. */
+/* The trash that takes it off its shelf, small enough to sit in the round. */
 .btn.yc-x .icon {
   width: 15px;
   height: 15px;
 }
-/* Taking a save back asks first, under the card's words: the app's `Ask` made small for a card of the site's size,
+/* Taking a video off its shelf asks first, under the card's words: the app's `Ask` made small for a card of the site's size,
    tinted as every question about something that hurts is (`.panel-alarm` gives the colours). */
 .yc-ask {
   margin-top: 8px;
