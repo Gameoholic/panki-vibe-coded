@@ -122,7 +122,7 @@ export const panki = {
       CardResponse.parse(b);
     }),
   /** The words every card is called by, each once: marked in subtitles and on pages. */
-  wordsInCards: ({ address, token }: Door): Promise<string[]> => call(address, token, "/api/cards/words", {}, (b) => WordsInCards.parse(b).words),
+  wordsInCards: ({ address, token }: Door): Promise<WordsInCards> => call(address, token, "/api/cards/words", {}, (b) => WordsInCards.parse(b)),
   /** Another example for a card that's already there (`NewCardExample`); the id is the sender's, so a retry is harmless. */
   addExample: ({ address, token }: Door, deckId: string, cardId: string, example: NewCardExample): Promise<void> =>
     call(address, token, `/api/decks/${id(deckId)}/cards/${id(cardId)}/examples`, json("POST", example), (b) => {

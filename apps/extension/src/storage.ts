@@ -82,6 +82,8 @@ const Stored = z.object({
   knownSubtitles: z.boolean().catch(false),
   knownPages: z.boolean().catch(false),
   knownColour: MarkPaint.catch("green"),
+  /** The words only suspended cards are, in a colour of their own (the owner, 2026-10-30); red to begin with, as their mark on the seek bar is. */
+  knownSuspendedColour: MarkPaint.catch("red"),
   /**
    * Where pointing at a word works. Every site, to begin with: on the video site at once (the extension is there
    * already), anywhere else once the browser has been asked and has allowed it, on the options page.

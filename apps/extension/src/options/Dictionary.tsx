@@ -548,6 +548,19 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
         label="Colour"
         control={<Swatches id="known-colour" value={store.knownColour} disabled={!store.knownSubtitles && !store.knownPages} onChange={(knownColour) => void writeStore({ knownColour }).then(onChanged)} />}
       />
+      {/* A word whose every card is suspended, marked apart (the owner, 2026-10-30). */}
+      <Setting
+        id="known-suspended-colour"
+        label="Suspended cards' colour"
+        control={
+          <Swatches
+            id="known-suspended-colour"
+            value={store.knownSuspendedColour}
+            disabled={!store.knownSubtitles && !store.knownPages}
+            onChange={(knownSuspendedColour) => void writeStore({ knownSuspendedColour }).then(onChanged)}
+          />
+        }
+      />
     </section>
   );
 }

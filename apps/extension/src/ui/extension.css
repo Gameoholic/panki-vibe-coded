@@ -136,6 +136,10 @@
 .btn.tok.is-known:not([aria-pressed="true"]) {
   background: var(--known);
 }
+/* One only suspended cards are, in their own tint (the owner, 2026-10-30). */
+.btn.tok.is-known.is-suspended:not([aria-pressed="true"]) {
+  background: var(--known-suspended);
+}
 /* At the far end of the line's head: Transcribe or Stop, and a clip taken off the video itself, for when there are no
    words to press. */
 .strip-tools {
@@ -1945,6 +1949,10 @@
   border-radius: 1px;
   background: var(--known-colour);
 }
+/* A word only suspended cards are, in the Suspended cards mark's colour (seekLook.ts → `suspended`). */
+.seek-known.is-suspended {
+  background: var(--suspended-colour);
+}
 /* Where a card was taken from (each card's clip), centred on the same line (the owner, 2026-10-18: "orange or some
    other color, parts of the video that have had cards built for them"); the one the video is at, glowing. */
 .seek-card {
@@ -1989,7 +1997,8 @@
 .seek-pins.is-known {
   --pin-colour: var(--known-colour);
 }
-.seek-pins.is-suspended {
+.seek-pins.is-suspended,
+.seek-pin.is-suspended {
   --pin-colour: var(--suspended-colour);
 }
 /* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words

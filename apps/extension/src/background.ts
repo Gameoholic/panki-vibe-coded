@@ -114,8 +114,8 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
 
 /** How long the words in the cards are kept here before Panki is asked again: every page asks as it opens and gets the focus. */
 const WORDS_KEPT_MS = 60_000;
-/** The words in the cards of the sign-in in use, as last asked for, and when; let go when a card is added here. */
-let wordsKept: { door: string; at: number; words: string[] } | null = null;
+/** The words in the cards of the sign-in in use (and those only suspended cards are), as last asked for, and when; let go when a card is added here. */
+let wordsKept: { door: string; at: number; words: string[]; suspended: string[] } | null = null;
 
 /** Whether a page is one of Panki's own: at the address of the sign-in in use or of any profile kept to switch to. */
 function onPanki(url: string | undefined, store: Stored): boolean {
@@ -132,14 +132,15 @@ function onPanki(url: string | undefined, store: Stored): boolean {
 }
 
 /**
- * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`):
- * the words every card is called by, kept a minute (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is; nor
+ * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`,
+ * `knownSuspendedColour`): the words every card is called by, those only suspended cards are among them, kept a minute
+ * (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is; nor
  * on Panki's own pages, where every word is the cards' own (the owner, 2026-10-25: "it should only be used for
  * external" pages).
  */
 async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
-  const off: Known = { ok: true, words: [], subtitles: false, pages: false, colour: store.knownColour };
+  const off: Known = { ok: true, words: [], suspended: [], subtitles: false, pages: false, colour: store.knownColour, suspendedColour: store.knownSuspendedColour };
   if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
   // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
   if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown) || !store.address || !store.token) return off;
@@ -148,13 +149,21 @@ async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const doorKey = `${door.address}\n${door.token}`;
   if (wordsKept?.door !== doorKey || at - wordsKept.at > WORDS_KEPT_MS) {
     try {
-      wordsKept = { door: doorKey, at, words: await panki.wordsInCards(door) };
+      wordsKept = { door: doorKey, at, ...(await panki.wordsInCards(door)) };
     } catch (e) {
       console.error("Panki:", e);
       return off;
     }
   }
-  return { ok: true, words: wordsKept.words, subtitles: store.knownSubtitles, pages: store.knownPages, colour: store.knownColour };
+  return {
+    ok: true,
+    words: wordsKept.words,
+    suspended: wordsKept.suspended,
+    subtitles: store.knownSubtitles,
+    pages: store.knownPages,
+    colour: store.knownColour,
+    suspendedColour: store.knownSuspendedColour,
+  };
 }
 
 /** Panki's own addresses, as the browser matches them: the sign-in in use and every profile kept, each allowed as it was signed in to. */

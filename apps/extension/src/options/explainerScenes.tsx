@@ -852,7 +852,7 @@ const SEEK_IN_DECKS: readonly KnownMoment[] = (
     [690, "電車"],
     [910, "勉強"],
   ] as const
-).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000 }));
+).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false }));
 /** Where it was stopped the time before, in seconds. */
 const SEEK_STOP = 640;
 

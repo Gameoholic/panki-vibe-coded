@@ -246,9 +246,10 @@ export type CalledCard = z.infer<typeof CalledCard>;
 /**
  * The words every living card of the account is called by (its type's `wordsFieldOf`), each once: the extension marks
  * them where they stand in a video's subtitles and on pages (the owner, 2026-10-25: "highlights words that are already
- * in my cards").
+ * in my cards"). `suspended`: those of them whose every card is suspended, marked in a colour of their own (the owner,
+ * 2026-10-30: a suspended card's word "appears green!! … why is that?!"); none from a Panki from before.
  */
-export const WordsInCards = z.object({ words: z.array(z.string()) });
+export const WordsInCards = z.object({ words: z.array(z.string()), suspended: z.array(z.string()).default([]) });
 export type WordsInCards = z.infer<typeof WordsInCards>;
 
 /** The newest of them first. */

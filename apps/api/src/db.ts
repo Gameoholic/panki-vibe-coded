@@ -1934,20 +1934,23 @@ export function openDb(
     /**
      * The words every living card in a living deck is called by (its type's words field), each once, exactly as they
      * stand: what `cardsCalled` matches a word against, so the extension's marks and its pop-up's "in your decks" say
-     * the same (the owner, 2026-10-29).
+     * the same (the owner, 2026-10-29); and those whose every card is suspended, by the same reading as a card's own
+     * hold (`cardColumns` → `suspendedAt`), marked apart (the owner, 2026-10-30).
      */
-    wordsInCards(): string[] {
+    wordsInCards(): { words: string[]; suspended: string[] } {
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
       const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
-      if (fieldIds.length === 0) return [];
+      if (fieldIds.length === 0) return { words: [], suspended: [] };
       const rows = db
         .prepare(
-          `SELECT DISTINCT v.value AS words
+          `SELECT v.value AS words,
+            MIN(EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL)) AS allSuspended
           FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
-          WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL`,
+          WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL
+          GROUP BY v.value`,
         )
-        .all(...fieldIds) as { words: string }[];
-      return rows.map((row) => row.words);
+        .all(...fieldIds) as { words: string; allSuspended: number }[];
+      return { words: rows.map((row) => row.words), suspended: rows.filter((row) => row.allSuspended === 1).map((row) => row.words) };
     },
     /**
      * A deck's duplicates: each of its living cards called the same as another living card in any living deck, and not

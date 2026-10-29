@@ -19,9 +19,9 @@ export function cardsRouter(dbOf: DbOf) {
     res.json(answer);
   });
 
-  // The words every card is called by, each once: the extension marks them in subtitles and on pages.
+  // The words every card is called by, each once, and those only suspended cards are: the extension marks them in subtitles and on pages.
   router.get("/words", (_req, res) => {
-    const answer: WordsInCards = { words: dbOf(res).wordsInCards() };
+    const answer: WordsInCards = dbOf(res).wordsInCards();
     res.json(answer);
   });
 

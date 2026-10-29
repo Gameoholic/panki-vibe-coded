@@ -59,7 +59,7 @@ const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
     [271, "大丈夫"],
     [298, "例えば"],
   ] as const
-).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000 }));
+).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false }));
 
 /**
  * A made-up video for the preview, ten minutes long, never the owner's: most of it transcribed and a little more on

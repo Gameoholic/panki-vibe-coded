@@ -231,7 +231,7 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
               {/* The stem apart from its words, so each comes in its own way. */}
               <span className={`seek-stem ${up ? "is-up" : ""}`.trim()} style={place} aria-hidden="true" />
               <Button
-                className={`seek-pin ${up ? "is-up" : ""}`.trim()}
+                className={`seek-pin ${up ? "is-up" : ""} ${pin.pinned.of === "known" && pin.pinned.said.suspended ? "is-suspended" : ""}`.replace(/\s+/g, " ").trim()}
                 lang="ja"
                 tabIndex={up && !inert ? 0 : -1}
                 disabled={inert}
@@ -258,7 +258,10 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         ? covered.map((stretch) => <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />)
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
-      {look.known.shown ? inDecks.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
+      {/* A word only suspended cards are, in the Suspended cards mark's colour (the owner, 2026-10-30). */}
+      {look.known.shown
+        ? inDecks.map((said) => <div key={said.startMs} className={`seek-known ${said.suspended ? "is-suspended" : ""}`.trim()} style={across(said.startMs / 1000, said.endMs / 1000)} />)
+        : null}
       {look.cards.shown
         ? others.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}

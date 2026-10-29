@@ -1,6 +1,7 @@
 import type { CSSProperties, PointerEvent } from "react";
 import { Button } from "@web/components/Button";
 import { langOf } from "@web/words";
+import type { KnownAs } from "../capture/known";
 import { pick, type Span, type Token } from "../capture/words";
 
 /** Pointing at the line's words to look them up: the line says which word the pointer is on, and asks before a press picks. */
@@ -23,8 +24,8 @@ type Props = {
   look?: LineLook | null;
   /** A double-click on word `at`: the word is to be fixed (a transcript's word heard wrong). None where words can't be. */
   onFix?: ((at: number) => void) | null;
-  /** Which words are already in the cards, and the tint they get (`capture/known.ts` → `tintOf`); none, and nothing is. */
-  known?: { at: (at: number) => boolean; colour: string } | null;
+  /** Which words are already in the cards and how (`capture/known.ts` → `knownAs`), and the tints they get (`tintOf`): any card's, or only suspended cards'; none, and nothing is. */
+  known?: { at: (at: number) => KnownAs | null; colour: string; suspendedColour: string } | null;
 };
 
 /** A line as words to press: one press picks a word, a press on the word beside it widens the pick to both. */
@@ -40,7 +41,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
     <div
       className={`line ${small ? "is-small" : ""}`.trim()}
       lang={langOf(text)}
-      style={known ? ({ "--known": known.colour } as CSSProperties) : undefined}
+      style={known ? ({ "--known": known.colour, "--known-suspended": known.suspendedColour } as CSSProperties) : undefined}
       onPointerMove={onMove}
       onPointerLeave={(e) => look?.move(null, null, e)}
     >
@@ -49,7 +50,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
           <Button
             key={token.start}
             data-at={i}
-            className={`tok ${within(now, i) ? "is-now" : ""} ${known?.at(i) ? "is-known" : ""}`.replace(/\s+/g, " ").trim()}
+            className={`tok ${within(now, i) ? "is-now" : ""} ${known?.at(i) === "known" ? "is-known" : known?.at(i) === "suspended" ? "is-known is-suspended" : ""}`.replace(/\s+/g, " ").trim()}
             aria-pressed={within(picked, i)}
             onClick={() => {
               if (look?.press(i)) return;
