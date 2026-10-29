@@ -71,6 +71,21 @@ async function match<C extends Candidate>(candidates: readonly C[], on: Readonly
 }
 
 const readingOf = (row: TermRecord) => (row.reading === "" ? row.term : row.reading);
+
+/**
+ * How the words some cards are called by are read, by the dictionaries switched on, so a word written in kana alone
+ * counts as theirs: あえて as 敢えて's (the owner, 2026-10-29: a word in the cards, said in kana in a subtitle, wasn't
+ * marked). Only a word with a reading apart from how it's written gives one.
+ */
+export async function readingsOf(words: readonly string[]): Promise<string[]> {
+  if (words.length === 0) return [];
+  const on = await dictionariesOn();
+  if (on.size === 0) return [];
+  const asked = new Set(words);
+  const readings = new Set<string>();
+  for (const row of await termsFor([...asked])) if (on.has(row.dict) && asked.has(row.term) && row.reading !== "" && row.reading !== row.term) readings.add(row.reading);
+  return [...readings];
+}
 const keyOf = (term: string, reading: string) => `${term}\u0000${reading}`;
 
 /** How common a word is by the frequency lists that count by rank: its best rank, or null when none of them knows it. */
