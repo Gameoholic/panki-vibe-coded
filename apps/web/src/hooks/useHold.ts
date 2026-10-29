@@ -26,9 +26,9 @@ const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed
  * The one line between a tap and a hold of a key that's both (the owner, 2026-10-29): let go sooner, it's the tap;
  * held past it, the hold's ring begins to fill, and letting go then is a hold let go early, which does nothing. So the
  * ring showing always means a hold. The hold itself still takes as long as it's set to (every hold is longer than this).
- * 0.15 s at first; the owner wanted it shorter the same day.
+ * 0.15 s, the owner's pick (2026-10-29, after trying 0.1 s).
  */
-export const TAP_MS = 100;
+export const TAP_MS = 150;
 
 /**
  * A key held on a button until it does its thing (`keys.ts`, a bind to hold): how far along, 0 to 1, is written on the
