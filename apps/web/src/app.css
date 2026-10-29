@@ -998,6 +998,11 @@ textarea.field-input {
 .field-invalid .media-picked {
   border-color: var(--danger);
 }
+/* Deleting the file asks first, in the field, tinted as a card's row is while it asks. */
+.media-field.is-asking .media-picked {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: var(--danger-soft);
+}
 
 /* The list */
 .card-list {

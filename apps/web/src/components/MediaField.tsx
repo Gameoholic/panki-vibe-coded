@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { MEDIA_ENDINGS, type MediaKind } from "@panki/contracts";
+import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { MediaView } from "./MediaView";
+
+/** A file of each kind, as a question about deleting it names it. */
+const KIND_WORDS: Record<MediaKind, string> = { audio: "sound", video: "clip", image: "picture" };
 
 type Props = {
   /** The id of the button that opens the chooser, so a form can point at this field when it's wrong. */
@@ -25,8 +29,9 @@ type Props = {
 
 /**
  * A field that holds a file: press to choose one, or drop one on it. Once picked it shows as it will on the card,
- * with its name, and can be changed or taken off; a file the card already holds shows the same way. What's wrong is
- * said in the app's own bubble, as in `TextField`.
+ * with its name, and can be changed or deleted, Delete asking first in the field (`Ask`); a file the card already
+ * holds shows the same way. Deleting takes it off the form: the card itself changes only once it's saved. What's wrong
+ * is said in the app's own bubble, as in `TextField`.
  */
 export function MediaField({ id, label, kinds, kind, file, held, onPick, error, subtitles = null }: Props) {
   const input = useRef<HTMLInputElement>(null);
@@ -43,6 +48,8 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
     return () => URL.revokeObjectURL(made);
   }, [file]);
 
+  /** Whether Delete is asking first (the owner, 2026-10-29: anything that takes something off a card is confirmed). */
+  const [asking, setAsking] = useState(false);
   const choose = () => input.current?.click();
   // What's in the field right now: the file just picked, or else the one the card already holds.
   const there = file && url ? { src: url, name: file.name } : !file && held ? { src: held, name: "On this card" } : null;
@@ -56,7 +63,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
 
   return (
     <div
-      className={`field media-field ${error ? "field-invalid" : ""} ${over ? "is-over" : ""}`.trim()}
+      className={`field media-field ${error ? "field-invalid" : ""} ${over ? "is-over" : ""} ${asking && showing ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
       onDragOver={(e) => {
         e.preventDefault();
         setOver(true);
@@ -73,13 +80,29 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
           <MediaView key={showing.src} kind={showing.kind} src={showing.src} label={label} over={file ? null : subtitles} />
           <div className="media-picked-row">
             <span className="media-name">{showing.name}</span>
-            <Button id={id} aria-describedby={error ? `${id}-error` : undefined} onClick={choose}>
+            <Button id={id} aria-describedby={error ? `${id}-error` : undefined} disabled={asking} onClick={choose}>
+              <Icon name="swap" />
               Change
             </Button>
-            <Button className="btn-icon" aria-label={`Take the file off ${label}`} onClick={() => onPick(null)}>
-              <Icon name="close" />
+            <Button className="is-danger" aria-pressed={asking} onClick={() => setAsking((was) => !was)}>
+              <Icon name="trash" />
+              Delete
             </Button>
           </div>
+          {asking ? (
+            <Ask
+              idPrefix={`${id}-delete`}
+              question={`Delete this ${KIND_WORDS[showing.kind]}?`}
+              go={{ words: `Delete ${KIND_WORDS[showing.kind]}`, busy: "Deleting…" }}
+              busy={false}
+              failure={null}
+              onKeep={() => setAsking(false)}
+              onGo={() => {
+                setAsking(false);
+                onPick(null);
+              }}
+            />
+          ) : null}
         </div>
       ) : (
         <Button id={id} className="media-drop" aria-label={`${label}: choose a file`} aria-describedby={error ? `${id}-error` : undefined} onClick={choose}>
