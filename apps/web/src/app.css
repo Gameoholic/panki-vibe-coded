@@ -1712,7 +1712,7 @@ canvas.media-frame {
   margin: 0;
 }
 /* Loading, as the shape of what's coming (components/Skeleton.tsx): blocks in the theme's second surface, a soft sweep
-   passing over them, there the instant the screen is (the owner, 2026-10-27: no fade; a half-second wait before had
+   of the accent passing over them, there the instant the screen is (the owner, 2026-10-27: no fade; a half-second wait before had
    left every load looking blank, and a fade after showed on every real load). Each shape is the real screen's own
    classes, so it stands where the real thing will. One look for every loading place. */
 .skel {
@@ -1735,7 +1735,9 @@ canvas.media-frame {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 7%, transparent), transparent);
+  /* In the theme's accent (the owner's pick, E at medium, of https://claude.ai/artifact/FQ7LEpBWo5BsMUJ62mc4XZ,
+     2026-10-29); the words' colour at 7% before was too faint to see. */
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
   animation: skel-sweep 1.4s ease-in-out infinite;
 }
 @keyframes skel-sweep {
