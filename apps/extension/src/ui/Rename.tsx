@@ -40,13 +40,16 @@ export function Rename({ id, shown, className, after, below, canReset, max, onKe
       <TextField id={`${id}-name`} label="Name" autoFocus value={typing} onChange={(typed) => setTyping(typed.slice(0, max))} />
       <div className="add-actions add-actions-start">
         <Button type="submit" variant="primary" disabled={busy}>
+          <Icon name="save" />
           Save
         </Button>
         <Button disabled={busy} onClick={() => setTyping(null)}>
+          <Icon name="cancel" />
           Cancel
         </Button>
         {canReset ? (
           <Button disabled={busy} onClick={() => void keep(null)}>
+            <Icon name="reset" />
             Reset to default name
           </Button>
         ) : null}

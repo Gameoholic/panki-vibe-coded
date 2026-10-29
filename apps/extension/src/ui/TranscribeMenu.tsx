@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, type TranscribeMode, type WholeJob } from "@panki/contracts";
+import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
@@ -335,6 +336,7 @@ function Log({ state }: { state: TranscribeState }) {
       <div className="strip-menu-log-foot">
         {copied ? <span role="status">{copied}</span> : null}
         <Button className="strip-menu-more" disabled={entries.length === 0} onClick={() => void copy()}>
+          <Icon name="copy" />
           Copy
         </Button>
       </div>
@@ -471,11 +473,13 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
               </p>
               <div className="strip-menu-question-actions">
                 <Button variant="primary" onClick={() => done(() => onAnswer(true))}>
+                  <Icon name="subtitles" />
                   Transcribe
                 </Button>
                 {/* No to the entire video: under Hybrid the chunks go on, which is what saying no comes to there, said so anyone
-                    gets it ("Chunks only" didn't, the owner, 2026-10-20). */}
+                    gets it ("Chunks only" didn't, the owner, 2026-10-20), with Live's own icon, since that's what's left. */}
                 <Button variant="ghost" onClick={() => onAnswer(false)}>
+                  <Icon name={decided?.mode === "hybrid" ? "lead" : "cancel"} />
                   {decided?.mode === "hybrid" ? "Only what I watch" : "Cancel"}
                 </Button>
               </div>
@@ -503,11 +507,13 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
             <div className="strip-menu-items">
               {transcribing ? (
                 <Button variant="item" onClick={() => done(onStop)}>
+                  <Icon name="stop" />
                   Stop
                 </Button>
               ) : (
                 // Over the limit, the menu stays open: the question the press asks comes up in it.
                 <Button variant="item" disabled={refusedHere} onClick={() => (state.limitPending ? onStart() : done(onStart))}>
+                  <Icon name="subtitles" />
                   {startWords(state.status, way)}
                   {refusedHere ? <span className="strip-menu-why">not allowed over the limit</span> : null}
                 </Button>
@@ -543,10 +549,12 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
             <div className="strip-menu-items">
               {canStart ? (
                 <Button variant="item" aria-pressed={asking === "redo"} onClick={() => ask("redo")}>
+                  <Icon name="again" />
                   Re-transcribe a part…
                 </Button>
               ) : null}
               <Button variant="item" className="is-danger" aria-pressed={asking === "forgetAll"} onClick={() => ask("forgetAll")}>
+                <Icon name="trash" />
                 Forget the transcript…
               </Button>
             </div>
@@ -556,13 +564,15 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
           ) : null}
           {asking === "forgetAll" ? (
             <div className="strip-menu-ask">
-              <p>{MESSAGES.forgetAll}</p>
-              <div className="strip-menu-actions">
-                <Button onClick={() => setAsking(null)}>Keep</Button>
-                <Button variant="danger" onClick={() => done(onForget)}>
-                  Forget
-                </Button>
-              </div>
+              <Ask
+                idPrefix="panki-transcript-forget"
+                question={MESSAGES.forgetAll}
+                go={{ words: "Forget", busy: "Forgetting…" }}
+                busy={false}
+                failure={null}
+                onKeep={() => setAsking(null)}
+                onGo={() => done(onForget)}
+              />
             </div>
           ) : null}
         </div>
@@ -635,6 +645,7 @@ function StretchForm({ id, at, duration, action, widen, onDone }: StretchProps) 
       <TextField id={`${id}-from`} label="From" value={from} onChange={setFrom} error={errors.from ?? undefined} />
       <TextField id={`${id}-to`} label="To" value={to} onChange={setTo} error={errors.to ?? undefined} />
       <Button type="submit" variant="primary">
+        <Icon name="again" />
         {exact ? `${action} ${clock(exact.start)}–${clock(exact.end)}` : action}
       </Button>
     </Form>

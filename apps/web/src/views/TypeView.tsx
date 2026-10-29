@@ -68,6 +68,8 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [busy, setBusy] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  /** The field whose Delete is asking first (the owner, 2026-10-29: taking something away is confirmed), if one is. */
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     if (!focusId) return;
@@ -250,7 +252,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
           ) : null}
           <div className={`field-rows ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
             {fields.map((field, i) => (
-              <div key={field.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`field-row ${order.dragging === i ? "is-dragging" : ""}`.trim()}>
+              <div key={field.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`field-row ${order.dragging === i ? "is-dragging" : ""} ${deleting === field.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}>
                 <TextField
                   id={nameInputId(field.id)}
                   label={`Field ${i + 1}`}
@@ -264,10 +266,26 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                   <Button className="btn-icon field-grip" aria-label="Move" disabled={fields.length === 1} {...order.handleProps(i)}>
                     <Icon name="grip" />
                   </Button>
-                  <Button className="btn-icon field-hide" aria-label="Hide field" disabled={fields.length === 1} onClick={() => hide(field.id)}>
-                    <Icon name="close" />
+                  <Button className="is-danger" aria-pressed={deleting === field.id} disabled={fields.length === 1} onClick={() => setDeleting((was) => (was === field.id ? null : field.id))}>
+                    <Icon name="trash" />
+                    Delete
                   </Button>
                 </div>
+                {/* Deleting only hides the field in what's on screen, as it always did: the type changes at Save. */}
+                {deleting === field.id ? (
+                  <Ask
+                    idPrefix={`field-delete-${field.id}`}
+                    question={`Delete the “${fieldLabel(field)}” field?`}
+                    go={{ words: "Delete field", busy: "Deleting…" }}
+                    busy={false}
+                    failure={null}
+                    onKeep={() => setDeleting(null)}
+                    onGo={() => {
+                      setDeleting(null);
+                      hide(field.id);
+                    }}
+                  />
+                ) : null}
                 <div className="field-row-options">
                   <Dropdown id={`field-kind-${field.id}`} label="Kind" options={FIELD_KIND_OPTIONS} value={field.kind} onChange={(kind) => edit(field.id, { kind })} />
                   <Toggle id={`field-required-${field.id}`} says={{ on: "Required", off: "Optional" }} on={field.required} onChange={(required) => edit(field.id, { required })} />
@@ -316,7 +334,8 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
               <p className="empty">No deck uses it.</p>
               <div className="add-actions add-actions-start">
                 <Button id="type-delete" className="is-danger" onClick={() => setAsking(true)}>
-                  Delete…
+                  <Icon name="trash" />
+                  Delete type…
                 </Button>
               </div>
             </>

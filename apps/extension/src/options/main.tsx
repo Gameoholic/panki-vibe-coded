@@ -9,6 +9,7 @@ import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
+import { Icon } from "@web/components/Icon";
 import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Ask } from "@web/components/Ask";
@@ -110,10 +111,12 @@ function SignIn({ known, onDone, onCancel }: { known: string; onDone: () => void
           ) : null}
           {onCancel ? (
             <Button variant="ghost" disabled={busy} onClick={onCancel}>
+              <Icon name="cancel" />
               Cancel
             </Button>
           ) : null}
           <Button type="submit" variant="primary" disabled={busy}>
+            <Icon name="signIn" />
             {busy ? "Signing in…" : "Sign in"}
           </Button>
         </div>
@@ -177,10 +180,12 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
               <span className="add-actions">
                 {inUse ? null : (
                   <Button disabled={busy} onClick={() => void run(() => useProfile(profile))}>
+                    <Icon name="swap" />
                     Switch
                   </Button>
                 )}
                 <Button className="is-danger" disabled={busy} onClick={() => void run(() => signOut(profile))}>
+                  <Icon name="signOut" />
                   Sign out
                 </Button>
               </span>
@@ -208,7 +213,10 @@ function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void
         <SignIn known={store.address ?? ""} onDone={done} onCancel={() => setAdding(false)} />
       ) : (
         <div className="add-actions add-actions-start">
-          <Button onClick={() => setAdding(true)}>Add another profile</Button>
+          <Button onClick={() => setAdding(true)}>
+            <Icon name="userAdd" />
+            Add another profile
+          </Button>
         </div>
       )}
     </>
@@ -358,7 +366,7 @@ function VideoTracking({ door }: { door: Door }) {
               </div>
             </>
           }
-          go={{ words: "Turn off", busy: "Turning off…" }}
+          go={{ words: "Turn off", busy: "Turning off…", icon: "power" }}
           keep="Cancel"
           busy={busy}
           failure={failure}
@@ -655,7 +663,7 @@ function Options() {
         {/* Panki altogether, on or off in this browser, the same switch the strip's head has (the owner, 2026-10-21); here too, since the strip is the only other place and a page may not be open. */}
         {store ? (
           <span className="brand-switch">
-            <Toggle id="panki-on" says={{ on: "On", off: "Off" }} on={store.pankiOn} onChange={(pankiOn) => void writeStore({ pankiOn }).then(refresh)} />
+            <Toggle id="panki-on" icon="power" says={{ on: "On", off: "Off" }} on={store.pankiOn} onChange={(pankiOn) => void writeStore({ pankiOn }).then(refresh)} />
           </span>
         ) : null}
       </header>
@@ -691,6 +699,7 @@ function Options() {
                 <p className="empty">Not signed in.</p>
                 <div className="add-actions add-actions-start">
                   <Button variant="primary" onClick={() => choose("account")}>
+                    <Icon name="signIn" />
                     Sign in
                   </Button>
                 </div>

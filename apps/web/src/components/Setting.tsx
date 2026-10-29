@@ -9,10 +9,12 @@ type Props = {
   control: ReactNode;
   /** One line on what it does or when it matters, when the label alone doesn't say: words, or words with a mode's chip in them. */
   why?: ReactNode;
+  /** Under the row, the whole of its width: a question its control asks before it changes something (a key taken off). */
+  children?: ReactNode;
 };
 
 /** One setting as a row: what it is, the control that sets it, and a line of why under them. The Settings tab and a deck's settings are both made of these. */
-export function Setting({ id, label, control, why }: Props) {
+export function Setting({ id, label, control, why, children }: Props) {
   return (
     <div className="setting" data-setting={id}>
       <div className="setting-head">
@@ -20,6 +22,7 @@ export function Setting({ id, label, control, why }: Props) {
         {control}
       </div>
       {why ? <p className="setting-why">{why}</p> : null}
+      {children}
     </div>
   );
 }

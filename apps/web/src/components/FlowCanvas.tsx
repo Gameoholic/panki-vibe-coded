@@ -2,6 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSPropert
 import { LESSON_IDX, MOVE_MAX, WAIT_MAX, isNew, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
 import { AGAIN_OPTIONS, FAR_MOVE, NEW_WORDS, farOf, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
 import { BURNED_SCOPE, LESSON_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setMove, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
+import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { NumberField } from "./NumberField";
@@ -220,6 +221,8 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   const [drag, setDrag] = useState<({ id: string } & Pos) | null>(null);
   const [panning, setPanning] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  /** The box whose Delete step is asking first; kept by its id, so picking another box lets the question go. */
+  const [deletingStep, setDeletingStep] = useState<string | null>(null);
   /** The stage dot under the pointer or the focus, so the card can say its name. */
   const [peek, setPeek] = useState<number | null>(null);
   /** The stage the default rules are worked out for on the chart, once one is chosen on their box. */
@@ -514,7 +517,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                 </span>
                 {!plus || readOnly || b?.kind === "again" ? null : (
                   <Button
-                    className="edge-plus"
+                    className="btn-icon edge-plus"
                     data-plus={link.to}
                     aria-label="Ask again before this"
                     style={{ left: plus.x, top: plus.y }}
@@ -660,6 +663,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             <span>{stageName(type, ex)} has its own rules.</span>
             {readOnly ? null : (
               <Button id="flow-sync" variant="chip" onClick={() => onChange(syncToDefault(type, scope))}>
+                <Icon name="sync" />
                 Sync to default
               </Button>
             )}
@@ -678,6 +682,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             </>
           )}
           <Button id="flow-tidy" onClick={tidy}>
+            <Icon name="tidy" />
             Tidy up
           </Button>
         </div>
@@ -699,13 +704,14 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             <Icon name="add" />
           </Button>
           <Button id="flow-fit" onClick={fit}>
+            <Icon name="full" />
             Fit
           </Button>
         </div>
       </div>
 
       {selBox && menuStyle && (selPath || (choosingShown && scope === "all")) ? (
-        <div ref={menuRef} className="menu" role="group" aria-label={selPath ? "What the card does" : "Shown for"} style={menuStyle}>
+        <div ref={menuRef} className={`menu ${selected !== null && deletingStep === selected ? "is-asking" : ""}`.trim()} role="group" aria-label={selPath ? "What the card does" : "Shown for"} style={menuStyle}>
           {!selPath ? (
             <>
               <div className="menu-title">Show these rules for a card at</div>
@@ -748,17 +754,26 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               {readOnly ? null : (
                 <>
                   <div className="menu-sep" />
-                  <Button
-                    variant="item"
-                    className="is-danger"
-                    onClick={() => {
-                      onChange(flattenAgain(type, scope, selPath));
-                      setSelected(null);
-                    }}
-                  >
-                    <Icon name="close" />
-                    Remove this step
-                  </Button>
+                  {selected !== null && deletingStep === selected ? (
+                    <Ask
+                      idPrefix="again-delete"
+                      question="Delete this step?"
+                      go={{ words: "Delete step", busy: "Deleting…" }}
+                      busy={false}
+                      failure={null}
+                      onKeep={() => setDeletingStep(null)}
+                      onGo={() => {
+                        onChange(flattenAgain(type, scope, selPath));
+                        setDeletingStep(null);
+                        setSelected(null);
+                      }}
+                    />
+                  ) : (
+                    <Button variant="item" className="is-danger" onClick={() => setDeletingStep(selected)}>
+                      <Icon name="trash" />
+                      Delete step
+                    </Button>
+                  )}
                 </>
               )}
             </>

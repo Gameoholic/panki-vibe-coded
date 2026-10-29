@@ -74,6 +74,7 @@ export function UpdateBody({ update, onReloading, reopen = false }: { update: Up
             <span className="update-step-words">
               <b>Double-click Update Panki</b> in Panki's folder.
               <Button className="update-find" onClick={() => void askShowFolder()}>
+                <Icon name="folder" />
                 Find the folder
               </Button>
             </span>
@@ -85,6 +86,7 @@ export function UpdateBody({ update, onReloading, reopen = false }: { update: Up
           </span>
           <span className="update-step-words">
             <Button variant="primary" disabled={!ready} onClick={reload}>
+              <Icon name="refresh" />
               Reload Panki
             </Button>
           </span>
@@ -93,6 +95,7 @@ export function UpdateBody({ update, onReloading, reopen = false }: { update: Up
       <p className="update-by-hand">
         Or extract the zip over Panki's folder yourself:
         <Button className="update-find" onClick={() => void download()}>
+          <Icon name={downloaded ? "check" : "download"} />
           {downloaded ? "Downloaded" : "Manual download"}
         </Button>
       </p>

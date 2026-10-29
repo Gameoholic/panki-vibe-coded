@@ -170,6 +170,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                     {card.examples.length > 0 ? <span className="card-example-count">{count(card.examples.length + 1, "example", "examples")}</span> : null}
                     {card.hold && onLift ? (
                       <Button variant="chip" className="card-lift" disabled={lifting === card.id} onClick={() => void lift(card)}>
+                        <Icon name="wake" />
                         {HOLD_KINDS[card.hold.kind].lift}
                       </Button>
                     ) : null}

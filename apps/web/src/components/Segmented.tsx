@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Button } from "./Button";
+import { Icon, type IconName } from "./Icon";
 
 type Option<T extends string> = {
   id: T;
@@ -10,6 +11,8 @@ type Option<T extends string> = {
    * control can't sit in one; it's pressed to be picked like any other until it's on.
    */
   lit?: ReactNode;
+  /** Drawn before its label: tabs carry their icon, as every action does (the owner, 2026-10-29). */
+  icon?: IconName;
 };
 
 type Props<T extends string> = {
@@ -37,6 +40,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, i
           </span>
         ) : (
           <Button key={option.id} id={`${idPrefix}-${option.id}`} variant="seg" aria-pressed={option.id === value} disabled={disabled} onClick={() => onChange(option.id)}>
+            {option.icon ? <Icon name={option.icon} /> : null}
             {option.label}
           </Button>
         ),

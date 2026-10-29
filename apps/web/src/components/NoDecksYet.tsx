@@ -1,4 +1,5 @@
 import { Button } from "./Button";
+import { Icon } from "./Icon";
 
 type Props = {
   onMakeDeck: () => void;
@@ -10,6 +11,7 @@ export function NoDecksYet({ onMakeDeck }: Props) {
     <section className="empty-state">
       <p className="empty">No decks yet.</p>
       <Button variant="primary" onClick={onMakeDeck}>
+        <Icon name="add" />
         Make a deck
       </Button>
     </section>

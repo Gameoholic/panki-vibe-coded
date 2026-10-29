@@ -314,9 +314,11 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
   const allNone = (list: readonly Card[], prefix: string) => (
     <>
       <Button id={`${prefix}-all`} variant="chip" onClick={() => onPick(list.map((c) => c.id), true)}>
+        <Icon name="check" />
         All
       </Button>
       <Button id={`${prefix}-none`} variant="chip" onClick={() => onPick(list.map((c) => c.id), false)}>
+        <Icon name="minus" />
         None
       </Button>
     </>
@@ -334,6 +336,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
         left={available ?? (left ? `${left} for later` : null)}
       >
         <Button id={`${id}-start`} variant="primary" size="lg" data-hold={`${id}-start`} disabled={total === 0} onClick={onStart}>
+          <Icon name="play" />
           Start {count(total, "card", "cards")}
           <KeyCap bind={startKey} />
         </Button>
@@ -377,6 +380,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
                 <span className="chips">
                   {others.length > 0 && !locked ? (
                     <Button id={`${id}-more`} variant="chip" aria-pressed={today.more} onClick={() => onMore(!today.more)}>
+                      <Icon name="add" />
                       Show every new card
                     </Button>
                   ) : null}
@@ -955,10 +959,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         <div className="add-actions add-actions-start">
           {nothing && cards.length === 0 ? (
             <Button id="review-add" variant="primary" onClick={onGoAdd}>
+              <Icon name="add" />
               Add a card
             </Button>
           ) : (
             <Button id="review-home" variant="primary" onClick={onHome}>
+              <Icon name="home" />
               Home
             </Button>
           )}
@@ -1048,14 +1054,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           examplePager={
             exampleIds.length > 1 ? (
               <>
-                <Button className="review-example-step" data-hold="example-prev" aria-label="Previous example" onClick={() => stepExample(-1)}>
+                <Button className="btn-icon review-example-step" data-hold="example-prev" aria-label="Previous example" onClick={() => stepExample(-1)}>
                   <Icon name="back" />
                   <KeyCap bind={binds.examplePrev} />
                 </Button>
                 <span className="review-examples-at">
                   {Math.max(0, exampleIds.indexOf(onScreen)) + 1} / {exampleIds.length}
                 </span>
-                <Button className="review-example-step" data-hold="example-next" aria-label="Next example" onClick={() => stepExample(1)}>
+                <Button className="btn-icon review-example-step" data-hold="example-next" aria-label="Next example" onClick={() => stepExample(1)}>
                   <KeyCap bind={binds.exampleNext} />
                   <Icon name="forward" />
                 </Button>
@@ -1077,6 +1083,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           </p>
           <div className="add-actions">
             <Button id="review-keep" disabled={busy} onClick={() => setAsking(null)}>
+              <Icon name="cancel" />
               Keep
             </Button>
             <Button id="review-yes" variant="primary" disabled={busy} onClick={() => answer(asked.id)}>
@@ -1109,6 +1116,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
               )
             ) : (
               <Button variant="primary" size="lg" data-hold="reveal" onClick={reveal}>
+                <Icon name="eye" />
                 Show answer
                 <KeyCap bind={binds.reveal} />
               </Button>

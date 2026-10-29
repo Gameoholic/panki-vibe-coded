@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { NewDeck } from "@panki/contracts";
 import { Button } from "./Button";
 import { Form } from "./Form";
+import { Icon, type IconName } from "./Icon";
 import { TextField } from "./TextField";
 
 /** What the name field says when it's wrong. One home: making a deck and renaming one both say this. */
@@ -16,6 +17,8 @@ type Props = {
   /** The submit button's words, and its words while waiting. */
   action: string;
   busyAction: string;
+  /** The submit button's icon: `add` making a deck, `save` renaming one. */
+  icon: IconName;
   autoFocus?: boolean;
   /** For renaming: the button stays off until the name differs from `initial`. */
   onlyWhenChanged?: boolean;
@@ -26,7 +29,7 @@ type Props = {
 };
 
 /** A deck's name, validated by the contracts' rule, with the app's own words when it's wrong. */
-export function DeckNameForm({ id, initial, action, busyAction, autoFocus = false, onlyWhenChanged = false, onSubmit, onCancel, children }: Props) {
+export function DeckNameForm({ id, initial, action, busyAction, icon, autoFocus = false, onlyWhenChanged = false, onSubmit, onCancel, children }: Props) {
   const [name, setName] = useState(initial);
   const [error, setError] = useState<string | undefined>(undefined);
   const [failure, setFailure] = useState<string | null>(null);
@@ -76,10 +79,12 @@ export function DeckNameForm({ id, initial, action, busyAction, autoFocus = fals
         ) : null}
         {onCancel ? (
           <Button onClick={onCancel} disabled={busy}>
+            <Icon name="cancel" />
             Cancel
           </Button>
         ) : null}
         <Button type="submit" variant="primary" disabled={busy || unchanged}>
+          <Icon name={icon} />
           {busy ? busyAction : action}
         </Button>
       </div>

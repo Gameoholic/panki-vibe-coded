@@ -148,6 +148,7 @@ export function ModeCompare({ mode, modesOff, estimate, onDefault, onOn }: Props
               <Toggle id={`mode-${id}-on`} says={{ on: "On", off: "Off" }} on={on} disabled={isDefault} onChange={(next) => onOn(id, next)} />
               {isDefault ? null : (
                 <Button id={`mode-${id}-default`} disabled={!on} onClick={() => onDefault(id)}>
+                  <Icon name="star" />
                   Make default
                 </Button>
               )}

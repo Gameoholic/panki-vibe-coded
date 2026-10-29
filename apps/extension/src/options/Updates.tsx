@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@web/components/Button";
+import { Icon } from "@web/components/Icon";
 import { Setting } from "@web/components/Setting";
 import { NO_UPDATE, askCheckUpdate, askUpdate, type UpdateState } from "../messages";
 import { UPDATE_WORDS, UpdateBody, buildDayWords, updateShown } from "../ui/UpdateNotice";
@@ -71,6 +72,7 @@ export function VersionPanel({ update, check, checking }: { update: UpdateState;
           <span className="update-check">
             <span className="update-version">{STATE_WORDS[update.state]}</span>
             <Button disabled={checking} onClick={() => void check().then(setFailure)}>
+              <Icon name="refresh" />
               {checking ? "Checking…" : "Check now"}
             </Button>
           </span>

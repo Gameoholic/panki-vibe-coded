@@ -1936,7 +1936,7 @@ function App() {
           <div className="strip-head">
             <span className="strip-name">Panki</span>
             <div className="strip-tools">
-              <Toggle id="panki-on" className="capture-tool strip-switch" says={{ on: "Panki on", off: "Panki off" }} on={false} onChange={setPankiOn} />
+              <Toggle id="panki-on" className="capture-tool strip-switch" icon="power" says={{ on: "Panki on", off: "Panki off" }} on={false} onChange={setPankiOn} />
             </div>
           </div>
         </div>
@@ -1973,7 +1973,7 @@ function App() {
               {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
               {/* Panki altogether, on or off (the owner, 2026-10-21: "make the button toggle whether Panki is even enabled"), here while it isn't the header bar pill's. */}
-              {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
+              {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" icon="power" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
               {/* Finished or not (`finishHere`): how far along until it's played into its end, then Finished; a press says the other. */}
               {finishNow && finishNow.videoId === videoId() && (finishNow.finished || finishNow.percent !== null) ? (
                 <Button className={`capture-tool strip-finish ${finishNow.finished ? "is-finished" : ""}`.trim()} aria-pressed={finishNow.finished} onClick={() => void sayFinished(!finishNow.finished, "viewer")}>
@@ -1983,14 +1983,17 @@ function App() {
                       Finished
                     </>
                   ) : (
-                    `Watching · ${finishNow.percent}%`
+                    <>
+                      <Icon name="clock" />
+                      Watching · {finishNow.percent}%
+                    </>
                   )}
                 </Button>
               ) : null}
               {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home (the owner, 2026-10-21). */}
               {savedNow && savedNow.videoId === videoId() ? (
                 <Button className={`capture-tool strip-save ${savedNow.saved ? "is-saved" : ""}`.trim()} aria-pressed={savedNow.saved} onClick={() => void toggleSaved()}>
-                  <Icon name={savedNow.saved ? "check" : "add"} />
+                  <Icon name="bookmark" />
                   {savedNow.saved ? "Saved" : "Save for later"}
                 </Button>
               ) : null}
@@ -2039,9 +2042,11 @@ function App() {
               <Stamp id="panki-edit-end" name="Where the line ends" at={editing.end} disabled={editBusy} onSet={(to) => moveRowEnd("end", to)} />
               <span className="strip-edit-actions">
                 <Button type="submit" variant="primary" disabled={editBusy}>
+                  <Icon name="save" />
                   {editBusy ? "Saving…" : "Save"}
                 </Button>
                 <Button disabled={editBusy} onClick={() => setEditing(null)}>
+                  <Icon name="cancel" />
                   Cancel
                 </Button>
               </span>
@@ -2079,6 +2084,7 @@ function App() {
               <p className="empty strip-empty">
                 Subtitles are off.
                 <Button className="capture-tool" onClick={() => pickSource(DEFAULT_SOURCE)}>
+                  <Icon name="subtitles" />
                   Turn on subtitles
                 </Button>
               </p>
@@ -2089,9 +2095,11 @@ function App() {
             <Form onSubmit={() => void saveFix()} className="strip-fix">
               <TextField id="panki-fix-word" label="Word" lang="ja" autoFocus value={fixing.text} onChange={(text) => setFixing({ ...fixing, text })} error={fixFailure ?? undefined} />
               <Button type="submit" variant="primary" disabled={fixBusy}>
+                <Icon name="save" />
                 {fixBusy ? "Saving…" : "Save"}
               </Button>
               <Button disabled={fixBusy} onClick={() => setFixing(null)}>
+                <Icon name="cancel" />
                 Cancel
               </Button>
             </Form>

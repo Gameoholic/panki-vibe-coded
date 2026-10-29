@@ -202,6 +202,7 @@ function DataTrackingPanel({ on }: { on: boolean }) {
             </span>
           ) : null}
           <Button id="watch-forget" className="is-danger" disabled={!kept} onClick={() => setAsking(true)}>
+            <Icon name="trash" />
             Forget my watch history…
           </Button>
         </div>
@@ -235,7 +236,7 @@ type KeyPanelProps = {
  * A service's key: typed in plain sight, saved, and then kept under a spoiler like a card's, pressed to see it and
  * pressed again to cover it (the owner, 2026-10-17: "you don't have to hide it… otherwise it's a spoiler like the
  * spoiler words in the card types"; it was typed as a password and never shown again). Saving another replaces it;
- * Forget takes it off. Forvo's and a transcribing engine's are both this, inside the Admin panel.
+ * Forget takes it off, asking first. Forvo's and a transcribing engine's are both this, inside the Admin panel.
  */
 function KeyPanel({ id, title, from, label, status, saved, schema, onSave, children }: KeyPanelProps) {
   const [key, setKey] = useState("");
@@ -262,6 +263,8 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
   /** The saved key uncovered; covered again whenever another is saved. */
   const [shown, setShown] = useState(false);
   useEffect(() => setShown(false), [saved]);
+  /** Forget key asking first. */
+  const [forgetting, setForgetting] = useState(false);
 
   async function keep(next: string | null) {
     setBusy(true);
@@ -269,6 +272,7 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
     try {
       await onSave(next);
       setKey("");
+      setForgetting(false);
     } catch (e) {
       setFailure(said(e));
     } finally {
@@ -309,15 +313,30 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
             </span>
           ) : null}
           <Button id={`${id}-save`} type="submit" variant="primary" disabled={busy || key.trim() === ""}>
+            <Icon name="save" />
             Save key
           </Button>
           {status === "settings" ? (
-            <Button id={`${id}-forget`} disabled={busy} onClick={() => void keep(null)}>
+            <Button id={`${id}-forget`} className="is-danger" aria-pressed={forgetting} disabled={busy} onClick={() => setForgetting((was) => !was)}>
+              <Icon name="trash" />
               Forget key
             </Button>
           ) : null}
         </div>
       </Form>
+      {forgetting && status === "settings" ? (
+        <div className="ask-box">
+          <Ask
+            idPrefix={`${id}-forget`}
+            question="Forget this key?"
+            go={{ words: "Forget key", busy: "Forgetting…" }}
+            busy={busy}
+            failure={null}
+            onKeep={() => setForgetting(false)}
+            onGo={() => void keep(null)}
+          />
+        </div>
+      ) : null}
       {status !== undefined ? (
         <p className="setting-why">
           {KEY_SAID[status ?? "none"]}
@@ -343,6 +362,7 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
               ) : null}
               {shown ? (
                 <Button variant="ghost" className="key-hide" onClick={() => setShown(false)}>
+                  <Icon name="eyeOff" />
                   Hide
                 </Button>
               ) : null}
@@ -777,6 +797,7 @@ function ExtensionPanel() {
               </span>
               {/* The zip comes as a download: the page stays where it is. */}
               <Button variant="primary" onClick={() => window.location.assign(api.extensionZip)}>
+                <Icon name="download" />
                 Download
               </Button>
             </div>
@@ -882,7 +903,7 @@ function DictionariesPanel() {
   const [uploading, setUploading] = useState<string | null>(null);
   /** What went wrong, one line each: every file that didn't go up says why. */
   const [failures, setFailures] = useState<readonly string[]>([]);
-  /** The dictionary whose Remove was pressed: the question stands in its row. */
+  /** The dictionary whose Delete was pressed: the question stands in its row. */
   const [asking, setAsking] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -950,18 +971,20 @@ function DictionariesPanel() {
                 <span className="row-sub">{[dictionary.revision, sizeWords(dictionary.bytes), `uploaded ${dateWords(dictionary.uploadedAt)}`].filter((part) => part !== "").join(" · ")}</span>
               </span>
               {asking === dictionary.id ? (
-                <div className="add-actions">
-                  <span className="question">Remove it from Panki? Its file is deleted here; where it&apos;s been added to the extension, it stays.</span>
-                  <Button disabled={removing} onClick={() => setAsking(null)}>
-                    Keep
-                  </Button>
-                  <Button variant="danger" disabled={removing} onClick={() => void remove(dictionary.id)}>
-                    {removing ? "Removing…" : "Remove"}
-                  </Button>
-                </div>
+                <Ask
+                  idPrefix={`dictionary-delete-${dictionary.id}`}
+                  question={`Delete “${dictionary.title}”?`}
+                  detail="Its file is deleted here; where it's been added to the extension, it stays."
+                  go={{ words: "Delete dictionary", busy: "Deleting…" }}
+                  busy={removing}
+                  failure={null}
+                  onKeep={() => setAsking(null)}
+                  onGo={() => void remove(dictionary.id)}
+                />
               ) : (
                 <Button className="is-danger" disabled={uploading !== null || removing} onClick={() => setAsking(dictionary.id)}>
-                  Remove…
+                  <Icon name="trash" />
+                  Delete…
                 </Button>
               )}
             </div>
@@ -983,7 +1006,7 @@ function DictionariesPanel() {
         </div>
       ) : null}
       <Button className="media-drop" disabled={uploading !== null} onClick={() => input.current?.click()}>
-        <Icon name="add" />
+        <Icon name="upload" />
         Upload a dictionary
       </Button>
       {/* The system's own file chooser is opened by the button above; this input is never seen. */}
@@ -1150,30 +1173,22 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
                   <span className="row-sub">{session.current ? "This device" : `since ${dateWords(session.createdAt)}`}</span>
                 </span>
                 <Button className="is-danger" disabled={busy} onClick={() => run(() => onSignOut(session.id))}>
+                  <Icon name="signOut" />
                   Sign out
                 </Button>
               </div>
             ))}
           </div>
           {askingAll ? (
-            <>
-              <p id="sign-out-all-question" className="question">
-                Sign out of every device? Each one, this one too, will ask for the password again.
-              </p>
-              <div className="add-actions">
-                {signOutFailure ? (
-                  <span className="form-failure" role="alert">
-                    {signOutFailure}
-                  </span>
-                ) : null}
-                <Button id="sign-out-all-keep" disabled={busy} onClick={() => setAskingAll(false)}>
-                  Keep
-                </Button>
-                <Button id="sign-out-all-go" variant="danger" disabled={busy} onClick={() => run(onSignOutAll)}>
-                  {busy ? "Signing out…" : "Sign out everywhere"}
-                </Button>
-              </div>
-            </>
+            <Ask
+              idPrefix="sign-out-all"
+              question="Sign out of every device? Each one, this one too, will ask for the password again."
+              go={{ words: "Sign out everywhere", busy: "Signing out…", icon: "signOut" }}
+              busy={busy}
+              failure={signOutFailure}
+              onKeep={() => setAskingAll(false)}
+              onGo={() => run(onSignOutAll)}
+            />
           ) : (
             <div className="add-actions add-actions-start">
               {signOutFailure ? (
@@ -1182,6 +1197,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
                 </span>
               ) : null}
               <Button id="sign-out-all" className="is-danger" disabled={busy} onClick={() => setAskingAll(true)}>
+                <Icon name="signOut" />
                 Sign out everywhere…
               </Button>
             </div>

@@ -21,6 +21,7 @@ export function ResumeOffer({ at, jumped = false, away, onTake, onClose }: { at:
         </span>
       ) : (
         <Button className="skip-resume-go" onClick={onTake}>
+          <Icon name="play" />
           Continue from {clock(at)}?
         </Button>
       )}

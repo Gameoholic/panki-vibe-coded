@@ -3,6 +3,7 @@ import { Login } from "@panki/contracts";
 import { api, type Me } from "../api";
 import { Button } from "../components/Button";
 import { Form } from "../components/Form";
+import { Icon } from "../components/Icon";
 import { TextField } from "../components/TextField";
 
 /** What a field says when it's wrong. One home. */
@@ -89,6 +90,7 @@ export function LoginView({ onSignedIn }: Props) {
             </span>
           ) : null}
           <Button id="login-go" type="submit" variant="primary" disabled={busy}>
+            <Icon name="signIn" />
             {busy ? "Signing in…" : "Sign in"}
           </Button>
         </div>

@@ -131,11 +131,13 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
         <div className="already-resolve">
           {toExample ? (
             <Button className="already-pick" aria-pressed={toExample.on} onClick={toExample.onToggle}>
+              <Icon name="add" />
               {EXAMPLE_WORDS.add}
             </Button>
           ) : null}
           {addAnyway ? (
             <Button className="already-pick" aria-pressed={addAnyway.on} onClick={addAnyway.onToggle}>
+              <Icon name="add" />
               {ANYWAY_WORDS}
             </Button>
           ) : null}

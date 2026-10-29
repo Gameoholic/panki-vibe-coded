@@ -100,7 +100,7 @@ export function PankiPill({
           </span>
         ))}
       </Button>
-      {power ? <Toggle id="ym-power" className="ym-power" says={{ on: "On", off: "Off" }} on={power.on} onChange={power.onChange} /> : null}
+      {power ? <Toggle id="ym-power" className="ym-power" icon="power" says={{ on: "On", off: "Off" }} on={power.on} onChange={power.onChange} /> : null}
     </span>
   );
 }

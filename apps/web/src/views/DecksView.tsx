@@ -35,6 +35,7 @@ export function DecksView({ decks, types, srsTypes, creating, onOpen, onSettings
             initial=""
             action="Create deck"
             busyAction="Creating…"
+            icon="add"
             autoFocus
             onSubmit={async (name) => {
               if (!typeId) throw new Error("Pick a card type.");

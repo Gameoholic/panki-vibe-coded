@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
 import type { ContinueVideo, Day, Deck, FinishedVideo, SavedVideo, Settings, SrsType, Stats } from "@panki/contracts";
 import { api } from "./api";
+import { Ask } from "./components/Ask";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
 import { LinkView } from "./components/LinkView";
@@ -229,8 +230,8 @@ function watchTile(stats: Stats, empty: boolean, draw: () => ReactNode): ReactNo
 const VIDEOS_SHOWN = 4;
 
 /**
- * The videos left part-way, newest first, each the video's own card opening on YouTube where it was stopped, with a ×
- * to put it away. One put away leaves at once; the stats are asked for again so the count catches up.
+ * The videos left part-way, newest first, each the video's own card opening on YouTube where it was stopped, with a
+ * box to put it away (it comes back when it's played again, so nothing is asked). One put away leaves at once; the stats are asked for again so the count catches up.
  */
 function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; onStale: () => void }) {
   const [gone, setGone] = useState<readonly string[]>([]);
@@ -263,7 +264,7 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
             progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) }}
           />
           <Button className="btn-icon w-video-x" aria-label="Put away" onClick={() => void putAway(v.videoId)}>
-            <Icon name="close" />
+            <Icon name="archive" />
           </Button>
         </div>
       ))}
@@ -278,7 +279,7 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
 
 /**
  * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
- * watching"), each the video's own card opening it on YouTube from its start, with a × that says it isn't finished: it
+ * watching"), each the video's own card opening it on YouTube from its start, with an undo that says it isn't finished: it
  * leaves here and goes back into Continue watching. The stats are asked for again so both catch up.
  */
 function RecentRows({ videos, onStale }: { videos: readonly FinishedVideo[]; onStale: () => void }) {
@@ -306,7 +307,7 @@ function RecentRows({ videos, onStale }: { videos: readonly FinishedVideo[]; onS
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
           />
           <Button className="btn-icon w-video-x" aria-label="Mark as not finished" onClick={() => void unfinish(v.videoId)}>
-            <Icon name="close" />
+            <Icon name="undo" />
           </Button>
         </div>
       ))}
@@ -321,13 +322,16 @@ function RecentRows({ videos, onStale }: { videos: readonly FinishedVideo[]; onS
 
 /**
  * The videos saved for later (the owner, 2026-10-22: "similar to Continue watching"), newest first, each the video's
- * own card opening it on YouTube from its start (where it was stopped is the extension's to offer), with a × that takes
- * the save back. One taken back leaves at once; the stats are asked for again so the count catches up.
+ * own card opening it on YouTube from its start (where it was stopped is the extension's to offer), with a trash that
+ * takes the save back, asking first in its row. One taken back leaves at once; the stats are asked for again so the count catches up.
  */
 function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale: () => void }) {
   const [gone, setGone] = useState<readonly string[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
+  /** The video whose trash is asking first, in its row. */
+  const [asking, setAsking] = useState<string | null>(null);
   async function unsave(videoId: string) {
+    setAsking(null);
     setFailure(null);
     setGone((was) => [...was, videoId]);
     try {
@@ -342,15 +346,26 @@ function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale
   return (
     <div className="w-videos">
       {shown.map((v) => (
-        <div key={v.videoId} className="w-video">
+        <div key={v.videoId} className={`w-video ${asking === v.videoId ? "is-asking" : ""}`.trim()}>
           <LinkView
             meta={{ link: { videoId: v.videoId, seconds: null }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
             label="Saved for later"
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
           />
-          <Button className="btn-icon w-video-x" aria-label="Remove from Saved for later" onClick={() => void unsave(v.videoId)}>
-            <Icon name="close" />
+          <Button className="btn-icon is-danger w-video-x" aria-label="Remove from Saved for later" aria-pressed={asking === v.videoId} onClick={() => setAsking((was) => (was === v.videoId ? null : v.videoId))}>
+            <Icon name="trash" />
           </Button>
+          {asking === v.videoId ? (
+            <Ask
+              idPrefix={`saved-remove-${v.videoId}`}
+              question="Remove from Saved for later?"
+              go={{ words: "Remove", busy: "Removing…" }}
+              busy={false}
+              failure={null}
+              onKeep={() => setAsking(null)}
+              onGo={() => void unsave(v.videoId)}
+            />
+          ) : null}
         </div>
       ))}
       {failure ? (
@@ -381,6 +396,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
           {/* Blue only with something to do, the same rule as the Review door. */}
           <div className="add-actions add-actions-start">
             <Button variant={due + fresh > 0 ? "primary" : "ghost"} onClick={ctx.onReview}>
+              <Icon name="review" />
               Review
             </Button>
           </div>

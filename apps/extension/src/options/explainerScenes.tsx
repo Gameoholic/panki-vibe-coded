@@ -505,8 +505,12 @@ function PanelScene({ store }: { store: Stored }) {
                     <TextField id={`${id}-sentence`} label="Sentence" lang="ja" multiline value={SENTENCE} mark={PICKED} onChange={nothing} />
                   </div>
                   <div className="capture-live capture-ends">
-                    <Button size="lg">Discard</Button>
+                    <Button size="lg" className="is-danger">
+                      <Icon name="trash" />
+                      Discard
+                    </Button>
                     <Button variant="primary" size="lg" className="capture-add">
+                      <Icon name="add" />
                       Add to {IN_DECKS.deck}
                     </Button>
                   </div>
@@ -694,7 +698,7 @@ function HomeScene({ store }: { store: Stored }) {
                   <span className="yc-time">{length}</span>
                   {i === 1 && (hover || saved) ? (
                     <Button className={`btn-icon yt-save is-on-card ${saved ? "is-saved" : ""}`.trim()} aria-label="Save for later" aria-pressed={saved}>
-                      <Icon name={saved ? "check" : "add"} />
+                      <Icon name="bookmark" />
                     </Button>
                   ) : null}
                 </span>

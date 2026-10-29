@@ -640,6 +640,17 @@ textarea.field-input {
 .field-row-tools .btn-icon {
   padding: 13px 10px; /* as tall as the name beside them */
 }
+/* Delete asks first under the field's row, the row tinted while it does; the tint reaches past the row's edges rather
+   than pushing its controls in. */
+.field-row > .ask {
+  grid-column: 1 / -1;
+}
+.field-row.is-asking {
+  margin: -10px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
 .field-row-options {
   grid-column: 1 / -1;
   display: flex;
@@ -773,6 +784,7 @@ textarea.field-input {
   font-weight: 600;
 }
 .btn.list-filter-clear {
+  gap: 5px;
   padding: 4px 10px;
   border-radius: 8px;
   font-size: 13px;
@@ -816,10 +828,20 @@ textarea.field-input {
 }
 /* What resolves a warning (Add as an additional example, Add anyway), lit in the flag's amber while pressed. */
 .btn.already-pick {
+  gap: 5px;
   padding: 4px 10px;
   border-radius: 8px;
   font-size: 13px;
   background: var(--surface);
+}
+/* The small buttons' icons, as small as their words. */
+.already-pick .icon,
+.list-filter-clear .icon,
+.card-lift .icon,
+.own-line .btn-chip .icon,
+.key-hide .icon {
+  width: 14px;
+  height: 14px;
 }
 .btn.already-pick[aria-pressed="true"] {
   border-color: var(--flag);
@@ -2662,6 +2684,15 @@ mark.sub-mark {
   padding: 6px;
   color: var(--muted);
 }
+/* Its trash, as a card's row has it: quiet until it's pointed at or asking. */
+@media (hover: hover) {
+  .btn-icon.key-field-clear:hover {
+    color: var(--danger);
+  }
+}
+.btn-icon.key-field-clear[aria-pressed="true"] {
+  color: var(--danger);
+}
 /* The rows of Settings → Keybinds: the key, then whether it's pressed or held. */
 .key-controls {
   display: inline-flex;
@@ -2901,6 +2932,7 @@ mark.sub-mark {
   color: var(--good);
 }
 .btn.key-hide {
+  gap: 4px;
   margin-left: 6px;
   padding: 0 6px;
   font-size: 12px;
@@ -3226,6 +3258,7 @@ mark.sub-mark {
 }
 /* A card put aside (buried, suspended): its state where the due time stands, and under it the chip that brings it back. */
 .btn-chip.card-lift {
+  gap: 4px;
   padding: 2px 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -3927,9 +3960,23 @@ mark.sub-mark {
   font-weight: 700;
   color: var(--ans, var(--fg));
 }
-.answer-name .btn-icon {
+/* Delete beside the name, as tall as it. */
+.answer-name .answer-delete {
   grid-row: 2;
-  padding: 13px 8px;
+  align-self: stretch;
+  margin-left: 4px;
+}
+/* Its question under the name, as wide as the answer and never widening it (`inline-size` containment: the question
+   wraps inside the answer's width instead of stretching it to its own). The answer is tinted while it asks. */
+.answer-name > .ask {
+  grid-column: 1 / -1;
+  contain: inline-size;
+}
+.answer-name.is-asking {
+  margin: -8px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
 }
 /* An answer of a type that comes with the app: its name shown as a field would hold it, quieter, for reading only. */
 .answer-name.is-locked .field-input {
@@ -3989,6 +4036,9 @@ mark.sub-mark {
 .stage-row .btn-icon {
   padding: 13px 10px; /* as tall as the name beside them */
 }
+.stage-row .stage-delete {
+  align-self: stretch;
+}
 .stage-row.is-dragging {
   transition: none;
   position: relative;
@@ -4037,6 +4087,16 @@ mark.sub-mark {
   --field-col: 2;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
+/* On a phone the name, its line and Delete don't fit side by side: the line goes under the name. */
+@media (max-width: 640px) {
+  .burned-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .burned-row > .field-hint {
+    grid-row: 4;
+    grid-column: 2 / -1;
+  }
+}
 .after-line {
   display: flex;
   flex-wrap: wrap;
@@ -4055,6 +4115,13 @@ mark.sub-mark {
 .ask {
   display: grid;
   gap: 10px;
+}
+/* A question asked inside something with no box of its own to tint (a setting's row, a key in Admin): it brings one. */
+.ask-box {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
 }
 /* What doing it changes and what it leaves, under the question (`Ask`'s `detail`): a heading and a list for each. */
 .ask-detail {
@@ -4538,6 +4605,7 @@ mark.sub-mark {
   color: var(--muted);
 }
 .own-line .btn-chip {
+  gap: 5px;
   padding: 3px 9px;
   border-radius: 6px;
   font-size: 12px;
@@ -4601,6 +4669,14 @@ mark.sub-mark {
     width: 34px;
     height: 34px;
   }
+}
+/* The chart's menu while Delete step asks in it. */
+.menu.is-asking {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: var(--danger-soft);
+}
+.menu .ask .question {
+  font-size: 14px;
 }
 .menu-sep {
   height: 1px;
@@ -4726,7 +4802,8 @@ mark.sub-mark {
   color: var(--accent);
   font-weight: 700;
 }
-.kept-row.is-asking .add-actions {
+.kept-row.is-asking .add-actions,
+.kept-row.is-asking > .ask {
   width: 100%;
 }
 .kept-name {
@@ -5103,6 +5180,29 @@ mark.sub-mark {
   flex: 1;
   width: auto;
   min-width: 0;
+}
+/* A saved video's trash, quiet until it's pointed at or asking, as a card's row has it; its question under the video,
+   the row tinted while it asks (reaching past the row's edges, so nothing in it moves). */
+.w-video .btn-icon.is-danger {
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .w-video .btn-icon.is-danger:hover {
+    color: var(--danger);
+  }
+}
+.w-video .btn-icon.is-danger[aria-pressed="true"] {
+  color: var(--danger);
+}
+.w-video.is-asking {
+  flex-wrap: wrap;
+  margin: -6px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+.w-video > .ask {
+  flex: 1 1 100%;
 }
 /* ---------- Arranging the home's board ---------- */
 

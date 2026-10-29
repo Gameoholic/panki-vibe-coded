@@ -33,6 +33,7 @@ import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { ClipSubtitles } from "./ClipSubtitles";
 import { Form } from "./Form";
+import { Icon } from "./Icon";
 import { MediaField } from "./MediaField";
 import { TextField } from "./TextField";
 
@@ -173,10 +174,12 @@ function OtherExamples({
             </div>
             <div className="card-example-tools">
               <Button disabled={busy} onClick={() => setOpen(example.id)}>
+                <Icon name="edit" />
                 Edit
               </Button>
               <Button className="is-danger" disabled={busy} onClick={() => setAsking(example.id)}>
-                Delete…
+                <Icon name="trash" />
+                Delete
               </Button>
             </div>
             {asking === example.id ? (
@@ -464,16 +467,20 @@ export function CardForm(props: Props) {
           <div className="add-actions">
             {card ? (
               <Button className="is-danger card-delete" onClick={() => setAsking(true)} disabled={busy}>
-                Delete…
+                <Icon name="trash" />
+                {/* "Delete card…", or what this form deletes when it's an example's ("Delete example…"). */}
+                {("deleting" in props && props.deleting ? props.deleting.go : DELETE_CARD.go).words}…
               </Button>
             ) : null}
             {failed}
             {onCancel ? (
               <Button onClick={onCancel} disabled={busy}>
+                <Icon name="cancel" />
                 Cancel
               </Button>
             ) : null}
             <Button type="submit" variant="primary" disabled={busy || unresolved}>
+              <Icon name={card ? "save" : "add"} />
               {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
             </Button>
           </div>

@@ -32,7 +32,7 @@ function Resettable<K extends keyof SubtitleStyle>({ which, label, style, onChan
       {children}
       {off ? (
         <Button className="btn-icon" aria-label={`Reset ${label}`} onClick={() => onChange({ [which]: DEFAULT_SUBTITLE_STYLE[which] })}>
-          <Icon name="undo" />
+          <Icon name="reset" />
         </Button>
       ) : null}
     </span>

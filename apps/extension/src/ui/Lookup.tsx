@@ -249,6 +249,7 @@ function Meanings({ senses, folded, limit, tagWords, tagsOn }: { senses: readonl
       {left > 0 ? (
         <Button className="look-more" onClick={() => setWhole(true)}>
           {count(left, "more meaning", "more meanings")}
+          <Icon name="down" />
         </Button>
       ) : null}
     </section>

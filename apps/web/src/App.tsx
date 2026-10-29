@@ -26,7 +26,7 @@ import {
 } from "@panki/contracts";
 import { ApiError, api, type Me } from "./api";
 import { Button } from "./components/Button";
-import { Icon } from "./components/Icon";
+import { Icon, type IconName } from "./components/Icon";
 import { Modal } from "./components/Modal";
 import { Board } from "./components/Board";
 import { Segmented } from "./components/Segmented";
@@ -57,14 +57,14 @@ import { TypesView } from "./views/TypesView";
 import { TypeView } from "./views/TypeView";
 
 /** Inside a deck: its cards, or its settings. */
-const DECK_TABS: readonly { id: DeckTab; label: string }[] = [
-  { id: "cards", label: "Cards" },
-  { id: "settings", label: "Settings" },
+const DECK_TABS: readonly { id: DeckTab; label: string; icon: IconName }[] = [
+  { id: "cards", label: "Cards", icon: "decks" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 /** Inside a card type: its fields, or how its cards look. */
-const TYPE_TABS: readonly { id: TypeTab; label: string }[] = [
-  { id: "fields", label: "Fields" },
-  { id: "layout", label: "Layout" },
+const TYPE_TABS: readonly { id: TypeTab; label: string; icon: IconName }[] = [
+  { id: "fields", label: "Fields", icon: "type" },
+  { id: "layout", label: "Layout", icon: "edit" },
 ];
 
 /** Where you are. Home is the hub; everything but Settings and Stats is reached through it. */
@@ -689,6 +689,7 @@ export function App() {
           {SAVE_WORDS[state]}
         </span>
         <Button id={`${idPrefix}-save`} variant="primary" disabled={!editStatus?.canSave} onClick={() => void guard.current?.save()}>
+          <Icon name="save" />
           Save
         </Button>
       </>
@@ -908,7 +909,8 @@ export function App() {
                   </Button>
                   {/* The accent one only while there's something to do in this deck. */}
                   <Button id="nav-review" variant={deck.dueCount + deck.newCount > 0 ? "primary" : "ghost"} onClick={() => go({ kind: "review", deck, from: "deck" })}>
-                    Review · {deck.dueCount + deck.newCount}
+                    <Icon name="review" />
+                    Review ·{deck.dueCount + deck.newCount}
                   </Button>
                 </div>
                 {cards === null || types === null || srsTypes === null ? (
@@ -1149,12 +1151,15 @@ export function App() {
           ) : null}
           <div className="add-actions">
             <Button id="leave-stay" disabled={leaveBusy} onClick={stay}>
+              <Icon name="cancel" />
               Stay
             </Button>
             <Button id="leave-discard" variant="danger" disabled={leaveBusy} onClick={() => go(leaving, true)}>
+              <Icon name="trash" />
               Discard changes
             </Button>
             <Button id="leave-save" variant="primary" disabled={leaveBusy} onClick={() => void saveAndLeave(leaving)}>
+              <Icon name="save" />
               {leaveBusy ? "Saving…" : "Save and leave"}
             </Button>
           </div>

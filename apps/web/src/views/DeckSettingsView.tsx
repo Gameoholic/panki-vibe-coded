@@ -3,6 +3,7 @@ import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings } from "@panki/con
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { DeckNameForm } from "../components/DeckNameForm";
+import { Icon } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
@@ -94,13 +95,14 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
         <h2 id="deck-about-title" className="panel-title">
           About
         </h2>
-        <DeckNameForm id="deck-rename" initial={deck.name} action="Save" busyAction="Saving…" onlyWhenChanged onSubmit={onRename} />
+        <DeckNameForm id="deck-rename" initial={deck.name} action="Save" busyAction="Saving…" icon="save" onlyWhenChanged onSubmit={onRename} />
         <Setting
           id="cardType"
           label="Card type"
           control={
             <Button id="deck-card-type" variant="chip" disabled={!onOpenCardType} onClick={onOpenCardType}>
               {cardTypeName}
+              <Icon name="forward" />
             </Button>
           }
         />
@@ -110,6 +112,7 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
           control={
             <Button id="deck-srs-type" variant="chip" disabled={!onOpenSrsType} onClick={onOpenSrsType}>
               {srsTypeName}
+              <Icon name="forward" />
             </Button>
           }
         />
@@ -219,7 +222,8 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
         ) : (
           <div className="add-actions add-actions-start">
             <Button id="deck-delete" className="is-danger" onClick={() => setAsking(true)}>
-              Delete…
+              <Icon name="trash" />
+              Delete deck…
             </Button>
           </div>
         )}

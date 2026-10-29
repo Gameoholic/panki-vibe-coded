@@ -167,7 +167,7 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
       style={{ ...(entry.wide ? ({ "--w": 2 } as CSSProperties) : undefined), ...drag.tileStyle(entry.id), ...(stats && ctx ? undefined : tileHeight(entry.id)) }}
       overlay={
         arranging ? (
-          <Button className="tile-x" aria-label={`Hide ${entry.name}`} data-no-drag onClick={() => hide(entry.id)}>
+          <Button className="btn-icon tile-x" aria-label={`Hide ${entry.name}`} data-no-drag onClick={() => hide(entry.id)}>
             <Icon name="close" />
           </Button>
         ) : undefined

@@ -40,7 +40,7 @@ export function DeckList({ decks, title, empty, onOpen, onSettings, subOf, count
                 <span className="deck-count">{countOf(deck)}</span>
               </Button>
               {onSettings ? (
-                <Button className="deck-settings" aria-label={`Settings for ${deck.name}`} onClick={() => onSettings(deck)}>
+                <Button className="btn-icon deck-settings" aria-label={`Settings for ${deck.name}`} onClick={() => onSettings(deck)}>
                   <Icon name="settings" />
                 </Button>
               ) : null}

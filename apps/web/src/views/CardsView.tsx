@@ -8,6 +8,7 @@ import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
 import { CardPreview } from "../components/CardPreview";
 import { Dropdown } from "../components/Dropdown";
+import { Icon } from "../components/Icon";
 import { Segmented } from "../components/Segmented";
 import { TextField } from "../components/TextField";
 import { searchCards } from "../cardSearch";
@@ -121,6 +122,7 @@ export function CardsView({
             Duplicates of “<span lang={langOf(only)}>{only}</span>”
           </span>
           <Button className="list-filter-clear" onClick={() => setOnly(null)}>
+            <Icon name="close" />
             Show all
           </Button>
         </p>

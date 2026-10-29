@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { CaptureFacts, NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
+import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Form } from "@web/components/Form";
@@ -277,6 +278,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [deckId, setDeckId] = useState<string | null>(null);
   /** The word: picked, then typed over. It's kept apart from the fields because it's the word whichever deck is chosen. */
   const [word, setWord] = useState("");
+  /** The word has been typed into by hand since it was last picked: what a pick wrote isn't anything typed. */
+  const [wordTyped, setWordTyped] = useState(false);
   /** What's typed into the fields nothing fills, by field id. */
   const [typed, setTyped] = useState<Record<string, string>>({});
   /** The sentence locked, as it was then or as typed over since: the clip's ends pulled leave it as it is. Null while it follows the clip. */
@@ -328,7 +331,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   // pulled away from (so it's no longer in the sentence) leaves it as it is.
   const pickedText = picked ? capture.sentence.slice(picked.from, picked.to) : "";
   useEffect(() => {
-    if (pickedText !== "") setWord(pickedText);
+    if (pickedText === "") return;
+    setWord(pickedText);
+    setWordTyped(false);
   }, [pickedText]);
   // Where it was picked is kept up by itself: the sentence gains and loses words at its front as the clip's start is
   // pulled, and that must not write the picked word over one that was typed since.
@@ -383,6 +388,28 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const working = busy && phase.at !== "done";
   /** There's something to show: Panki's answer, or, when that's slow in coming, the wait for it. */
   const shown = state !== null || slow;
+
+  /** Discard is asking first, above the foot. */
+  const [discarding, setDiscarding] = useState(false);
+  /**
+   * Something here was typed by hand (the word, a field nothing fills, a dictionary's value typed over, the sentence
+   * written over): the one thing in the drawer that can't be had again by taking the same words, so it's what makes
+   * leaving ask first. A deck chosen, a meaning ticked or the sentence locked as it stands are had again in a press.
+   */
+  const typedAny = (wordTyped && word.trim() !== "") || Object.values(typed).some((text) => text.trim() !== "") || Object.keys(dictTyped).length > 0 || (written !== null && written !== capture.sentence);
+  /**
+   * The drawer asked to go, by ×, Escape or Discard (the owner, 2026-10-29: taking something away asks first): with
+   * something typed it asks first, in place above the foot, and Keep there takes the focus so the question is in view
+   * whichever end of the drawer was pressed; with nothing typed, or a card on its way or added, it goes at once.
+   */
+  function leave() {
+    if (busy || !typedAny) {
+      setLeaving(true);
+      return;
+    }
+    setDiscarding(true);
+    requestAnimationFrame(() => frame.current?.querySelector<HTMLElement>("#panki-discard-keep")?.focus());
+  }
 
   const loaded = state?.ok ? state : null;
   // Never the first deck there is: one chosen here, or the one chosen before, or none.
@@ -689,6 +716,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const span = pick(lit ? spanOver(all, lit.from, lit.to) : null, at);
     const from = all[span[0]]?.start ?? 0;
     setWord(textOf(all, span));
+    setWordTyped(false);
     setNear(from);
     if (sentence === capture.sentence) onPick({ from, to: all[span[1]]?.end ?? from });
   }
@@ -810,7 +838,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         />
         <div className="capture-times">
           <Button className="capture-play" disabled={off} onClick={offer.toggle}>
-            <Icon name={offer.playing ? "pause" : "play"} />
+            <Icon name={offer.playing ? "stop" : "play"} />
             {offer.playing ? "Stop" : "Play"}
           </Button>
           {offer.end === null ? (
@@ -903,7 +931,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               {phase.note}
             </p>
             <div className="add-actions">
-              <Button onClick={() => setLeaving(true)}>Close</Button>
+              <Button onClick={() => setLeaving(true)}>
+                <Icon name="close" />
+                Close
+              </Button>
             </div>
           </>
         ) : null}
@@ -922,6 +953,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           {state.signedOut ? (
             <div className="add-actions">
               <Button variant="primary" onClick={() => void askOptions("account")}>
+                <Icon name="signIn" />
                 Sign in
               </Button>
             </div>
@@ -963,6 +995,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <p className="empty">Field mapping is off for {deck.name}. Switch it on to add cards to it.</p>
           <div className="add-actions">
             <Button variant="primary" onClick={() => void askOptions("decks")}>
+              <Icon name="settings" />
               Field mapping
             </Button>
           </div>
@@ -1034,8 +1067,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             readOnly={busy}
             value={value}
             onChange={(text) => {
-              if (isWord) setWord(text);
-              else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
+              if (isWord) {
+                setWord(text);
+                setWordTyped(true);
+              } else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
               else setTyped((t) => ({ ...t, [field.id]: text }));
               if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
             }}
@@ -1123,12 +1158,28 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             {failure}
           </p>
         ) : null}
+        {/* Leaving with something typed asks here, by the foot, whichever way out was taken; a card on its way puts the question away. */}
+        <Fold open={discarding && !busy} className="capture-live capture-ask-fold">
+          <div className="capture-ask panel-alarm">
+            <Ask
+              idPrefix="panki-discard"
+              question="Discard this card?"
+              go={{ words: "Discard", busy: "Discarding…" }}
+              busy={false}
+              failure={null}
+              onKeep={() => setDiscarding(false)}
+              onGo={() => setLeaving(true)}
+            />
+          </div>
+        </Fold>
         {/* The way out is down here too, beside the way on: the × is a drawer's height up, and out of sight once the page has been scrolled. */}
         <div className="capture-live capture-ends">
-          <Button size="lg" disabled={busy} onClick={() => setLeaving(true)}>
+          <Button size="lg" className="is-danger" aria-pressed={discarding} disabled={busy} onClick={() => (discarding ? setDiscarding(false) : leave())}>
+            <Icon name="trash" />
             Discard
           </Button>
           <Button type="submit" variant="primary" size="lg" className="capture-add" disabled={busy || unresolved}>
+            {phase.at === "done" ? <Icon name="check" /> : busy ? null : <Icon name="add" />}
             {phase.at === "done" ? "Added" : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deck.name}`}
           </Button>
         </div>
@@ -1138,7 +1189,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   const over = phase.at === "done";
   return (
-    <Frame open={shown && !leaving} arrives={arrives} locked={working} onLeave={() => setLeaving(true)} onGone={onClose} frame={frame}>
+    <Frame open={shown && !leaving} arrives={arrives} locked={working} onLeave={leave} onGone={onClose} frame={frame}>
       {/* Added: the form folds away as the word that it's added unfolds, and the drawer is as tall as what's in it all the way. */}
       <div className="capture-body">
         <Fold open={!over} arrives={false}>

@@ -1,8 +1,9 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type FinishedVideo, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
+import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
-import { Icon } from "@web/components/Icon";
+import { Icon, type IconName } from "@web/components/Icon";
 import { agoWords, clock, langOf, leftWords, sinceWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
@@ -124,7 +125,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   const mast = mount(deps.theme());
   mast.host.style.cssText = "display: flex; align-items: center; margin-right: 8px;";
   const known = cell<Known>({ kind: "loading" });
-  /** Bumped whenever a save changes, so a save button shows a tick or a plus afresh. */
+  /** Bumped whenever a save changes, so a save button shows itself saved or not afresh. */
   const savedTick = cell(0);
   let asking = false;
   let asked = false;
@@ -174,9 +175,11 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   /**
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
    * it was begun, or its length, as the site's own cards have it), its name, its channel, a line of Panki's; the whole
-   * card a link, × at its corner to take it off.
+   * card a link, a button at its corner to take it off the shelf, its icon saying how (the owner, 2026-10-29: every
+   * action its icon). One that deletes asks first, under the card's words (`Ask`), as everything that takes something
+   * away does.
    */
-  function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, removeLabel, onRemove, save }: {
+  function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, removeLabel, removeIcon, removeAsks = null, onRemove, save }: {
     videoId: string;
     title: string;
     channel: string;
@@ -186,12 +189,17 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     /** The video's length, in its picture's corner where `progress` has none: Saved for later's cards have it. */
     lengthMs?: number | null;
     removeLabel: string;
+    /** What taking it off does: put away (`archive`), deleted (`trash`), said not to be finished (`undo`). */
+    removeIcon: IconName;
+    /** The question asked before it's taken off, for one that deletes; null takes it off at a press. */
+    removeAsks?: { question: string; go: string; busy: string } | null;
     onRemove: () => void;
     /** The save button at its picture's top left (`CardSave`), saving the video as this: Continue watching's cards have it. */
     save?: SaveVideo;
   }) {
+    const [asking, setAsking] = useState(false);
     return (
-      <div className="yc">
+      <div className={`yc ${asking ? "is-asking" : ""}`.trim()}>
         <a className="yc-link" href={href}>
           <span className="yc-thumb">
             <img src={thumbnailAt(videoId)} alt="" loading="lazy" />
@@ -217,9 +225,30 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           {sub ? <span className="yc-sub">{sub}</span> : null}
         </a>
         {save ? <CardSave videoId={videoId} about={save} /> : null}
-        <Button className="btn-icon yc-x" aria-label={removeLabel} onClick={onRemove}>
-          <Icon name="close" />
+        <Button
+          className="btn-icon yc-x"
+          aria-label={removeLabel}
+          aria-pressed={removeAsks ? asking : undefined}
+          onClick={() => (removeAsks ? setAsking((was) => !was) : onRemove())}
+        >
+          <Icon name={removeIcon} />
         </Button>
+        {removeAsks && asking ? (
+          <div className="yc-ask panel-alarm">
+            <Ask
+              idPrefix={`yc-${videoId}-remove`}
+              question={removeAsks.question}
+              go={{ words: removeAsks.go, busy: removeAsks.busy }}
+              busy={false}
+              failure={null}
+              onKeep={() => setAsking(false)}
+              onGo={() => {
+                setAsking(false);
+                onRemove();
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -249,7 +278,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         aria-pressed={saved}
         onClick={() => void setSaved(videoId, saved ? null : about)}
       >
-        <Icon name={saved ? "check" : "add"} />
+        <Icon name="bookmark" />
       </Button>
     );
   }
@@ -306,7 +335,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             </a>
             <CardSave videoId={first.videoId} about={aboutContinue(first)} />
             <Button className="btn-icon yc-x" aria-label="Put away" onClick={() => void putAway(first.videoId)}>
-              <Icon name="close" />
+              <Icon name="archive" />
             </Button>
           </div>
           <div className="yh-lead-info">
@@ -327,7 +356,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {rest.length > 0 ? (
           <div className="yh-cards">
             {rest.map((v) => (
-              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" onRemove={() => void putAway(v.videoId)} save={aboutContinue(v)} />
+              <VideoCard key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} href={resumeAt(v)} sub="" progress={progressOf(v)} removeLabel="Put away" removeIcon="archive" onRemove={() => void putAway(v.videoId)} save={aboutContinue(v)} />
             ))}
           </div>
         ) : null}
@@ -388,7 +417,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         title="Saved for later"
         items={videos}
         // Empty, it says where saving is (the owner, 2026-10-21, before saving anything: "where can I see the videos I've marked to watch later? and how can I mark videos like that").
-        empty="Nothing saved yet. Point at any video and press + at its top left."
+        empty="Nothing saved yet. Point at any video and press the bookmark at its top left."
         failure={failure}
         card={(v) => (
           <VideoCard
@@ -401,6 +430,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             progress={null}
             lengthMs={v.lengthMs}
             removeLabel="Take out of Saved"
+            removeIcon="trash"
+            removeAsks={{ question: "Take out of Saved for later?", go: "Take it out", busy: "Taking it out…" }}
             onRemove={() => {
               setFailure(null);
               void setSaved(v.videoId, null).then((message) => setFailure(message));
@@ -448,6 +479,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             progress={null}
             lengthMs={v.lengthMs > 0 ? v.lengthMs : null}
             removeLabel="Mark as not finished"
+            removeIcon="undo"
             onRemove={() => void unfinish(v.videoId)}
           />
         )}
@@ -472,10 +504,12 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
               <div className="yh-actions">
                 {now.signedOut ? (
                   <Button variant="primary" className="yh-review" onClick={() => void askOptions("account")}>
+                    <Icon name="signIn" />
                     Sign in
                   </Button>
                 ) : (
                   <Button className="yh-review" onClick={() => void load()}>
+                    <Icon name="refresh" />
                     Try again
                   </Button>
                 )}
@@ -655,7 +689,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         aria-pressed={saved}
         onClick={() => void setSaved(at.videoId, saved ? null : at.about)}
       >
-        <Icon name={saved ? "check" : "add"} />
+        <Icon name="bookmark" />
       </Button>
     );
   }

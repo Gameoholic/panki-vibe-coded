@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { DATA_KIND_IDS, sizeWords, type DataKind, type Provides, type ServerDictionary } from "@panki/contracts";
+import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Icon } from "@web/components/Icon";
@@ -42,7 +43,7 @@ const MESSAGES = {
   failed: (name: string) => `${name} couldn't be imported.`,
   site: (typed: string) => `“${typed}” isn't a site.`,
   refused: "The browser didn't allow it, so it works on YouTube only.",
-  uncounted: "What it provides couldn't be counted. Remove it and import it again to count it.",
+  uncounted: "What it provides couldn't be counted. Delete it and import it again to count it.",
   onPanki: "The dictionaries on Panki couldn't be read.",
 };
 
@@ -219,7 +220,7 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
   const [importing, setImporting] = useState<{ name: string; phase: "fetch" | "import"; progress: Progress | null } | null>(null);
   /** What went wrong, one line each: every file of an import that didn't go in says why, not only the last. */
   const [failures, setFailures] = useState<readonly string[]>([]);
-  /** The dictionary whose Remove was pressed: the question stands in its row. */
+  /** The dictionary whose Delete was pressed: the question stands in its row. */
   const [asking, setAsking] = useState<string | null>(null);
   /** The dictionary being cleared away, gone from the list already. */
   const [clearing, setClearing] = useState<string | null>(null);
@@ -387,7 +388,12 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
       {list && list.length > 0 ? (
         <div className="dict-list">
           {list.map((dictionary, i) => (
-            <div key={dictionary.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`dict-row ${dictionary.on ? "" : "is-off"}`.trim()}>
+            <div
+              key={dictionary.id}
+              ref={order.rowRef(i)}
+              style={order.rowStyle(i)}
+              className={`dict-row ${dictionary.on ? "" : "is-off"} ${asking === dictionary.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+            >
               <Button className="btn-icon field-grip" aria-label={`Move ${shownName(dictionary)}`} disabled={list.length === 1} {...order.handleProps(i)}>
                 <Icon name="grip" />
               </Button>
@@ -412,19 +418,27 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
                     void setDictionaryOn(dictionary.id, on).then(onChanged);
                   }}
                 />
-                <Button className="is-danger" disabled={importing !== null || clearing !== null} onClick={() => setAsking(dictionary.id)}>
-                  Remove…
+                <Button
+                  className="is-danger"
+                  aria-pressed={asking === dictionary.id}
+                  disabled={importing !== null || clearing !== null}
+                  onClick={() => setAsking(asking === dictionary.id ? null : dictionary.id)}
+                >
+                  <Icon name="trash" />
+                  Delete…
                 </Button>
               </div>
               {asking === dictionary.id ? (
                 <div className="dict-ask">
-                  <span className="question">Remove {shownName(dictionary)} from this browser?</span>
-                  <Button disabled={clearing !== null} onClick={() => setAsking(null)}>
-                    Keep
-                  </Button>
-                  <Button variant="danger" disabled={clearing !== null} onClick={() => void remove(dictionary)}>
-                    {clearing !== null ? "Removing…" : "Remove"}
-                  </Button>
+                  <Ask
+                    idPrefix={`dict-${dictionary.id}-delete`}
+                    question={`Delete “${shownName(dictionary)}” from this browser?`}
+                    go={{ words: "Delete dictionary", busy: "Deleting…" }}
+                    busy={clearing !== null}
+                    failure={null}
+                    onKeep={() => setAsking(null)}
+                    onGo={() => void remove(dictionary)}
+                  />
                 </div>
               ) : null}
             </div>
@@ -480,13 +494,14 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
           ))}
           {available.length > 1 ? (
             <Button className="dict-add-all" disabled={importing !== null} onClick={() => void addFromPanki(available)}>
+              <Icon name="add" />
               Add all {available.length}
             </Button>
           ) : null}
         </div>
       ) : null}
       <Button className="media-drop" disabled={importing !== null} onClick={() => input.current?.click()}>
-        <Icon name="add" />
+        <Icon name="upload" />
         Import a dictionary
       </Button>
       {/* The system's own file chooser is opened by the button above; this input is never seen. */}
@@ -635,6 +650,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
             />
             <div className="add-actions add-actions-start">
               <Button variant="primary" disabled={off || sites.trim() === store.lookSites.join("\n").trim()} onClick={saveSites}>
+                <Icon name="save" />
                 Save sites
               </Button>
             </div>
@@ -644,6 +660,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           <div className="add-actions add-actions-start">
             <span className="empty">The browser hasn't allowed it on other sites yet. YouTube works already.</span>
             <Button variant="primary" disabled={off} onClick={() => keep(store.lookWhere, store.lookSites)}>
+              <Icon name="check" />
               Allow
             </Button>
           </div>

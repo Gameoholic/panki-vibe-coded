@@ -267,8 +267,13 @@
   font-size: 13px;
 }
 .btn.update-find {
+  gap: 6px;
   padding: 4px 10px;
   font-size: 13px;
+}
+.btn.update-find .icon {
+  width: 14px;
+  height: 14px;
 }
 .panel.update-panel {
   border-color: transparent;
@@ -528,14 +533,29 @@
   gap: 8px;
   align-items: end;
 }
-.strip-menu-ask {
-  display: grid;
+/* Forgetting the transcript asks first (the app's `Ask`): its question in the menu's own words' size, its two buttons
+   the size of the question's before transcribing a long video whole. */
+.strip-menu-ask .question {
+  font-size: inherit;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.strip-menu-ask .add-actions {
   gap: 8px;
 }
-.strip-menu-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.strip-menu-ask .btn,
+.strip-menu-question-actions .btn {
+  gap: 6px;
+}
+.strip-menu-ask .btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.strip-menu-ask .icon,
+.strip-menu-question-actions .icon,
+.strip-menu-form .btn .icon {
+  width: 14px;
+  height: 14px;
 }
 /* Beside the name: the source of the words, picked from the app's own dropdown, small enough for the head. */
 .strip-pick .btn-chip {
@@ -1106,13 +1126,53 @@
   transition: opacity 0.15s ease;
 }
 .yc:hover .btn.yc-x,
-.btn.yc-x:focus-visible {
+.btn.yc-x:focus-visible,
+.yc.is-asking .btn.yc-x {
   opacity: 1;
 }
 @media (hover: none) {
   .btn.yc-x {
     opacity: 1;
   }
+}
+/* Its icon says how it's taken off (put away, deleted, not finished), small enough to sit in the round. */
+.btn.yc-x .icon {
+  width: 15px;
+  height: 15px;
+}
+/* Taking a save back asks first, under the card's words: the app's `Ask` made small for a card of the site's size,
+   tinted as every question about something that hurts is (`.panel-alarm` gives the colours). */
+.yc-ask {
+  margin-top: 8px;
+  padding: 8px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 8px;
+}
+.yc-ask .ask {
+  gap: 8px;
+}
+.yc-ask .question {
+  font: 500 13px/1.3 var(--yh-font);
+}
+.yc-ask .add-actions {
+  justify-content: flex-start;
+  gap: 6px;
+}
+.yc-ask .btn {
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.yc-ask .icon {
+  width: 14px;
+  height: 14px;
+}
+/* Sign in and Try again over the home's shelves: their icons as big as Resume's. */
+.yh-actions .btn .icon {
+  width: 16px;
+  height: 16px;
 }
 /* Panki in the site's header bar, first among its own buttons (ui/PankiPill.tsx): the mark, then each part picked, its
    icon and value, a little apart from the next. */
@@ -1187,6 +1247,10 @@
 }
 .btn-switch.ym-power[aria-checked="true"] .switch-knob {
   transform: translateX(12px);
+}
+.ym-power .icon {
+  width: 14px;
+  height: 14px;
 }
 .ym-words,
 .ym-part {
@@ -1309,6 +1373,11 @@
 .skip-resume .btn.btn-icon.skip-resume-x .icon {
   width: 16px;
   height: 16px;
+}
+/* Its play sign before the words, as tall as they are. */
+.skip-resume .btn.skip-resume-go .icon {
+  width: var(--skip-font);
+  height: var(--skip-font);
 }
 @media (hover: hover) {
   .skip-resume .btn.btn-ghost.skip-resume-go:hover,
@@ -1488,6 +1557,19 @@
 }
 .capture-progress-fold .capture-progress {
   padding-top: 12px;
+}
+/* Discard asking first, above the foot, with something typed (`Panel.tsx` → `leave`): the app's `Ask` in a box tinted
+   as every question about something that hurts is (`.panel-alarm` gives the colours). It folds over the gap above it
+   as the line under it does. */
+.capture-ask-fold {
+  margin-top: -12px;
+}
+.capture-ask {
+  margin-top: 12px;
+  padding: 12px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--radius-sm);
 }
 .capture-head {
   display: flex;
@@ -2379,11 +2461,17 @@
 }
 .btn.look-more {
   justify-self: start;
+  gap: 4px;
   padding: 0 0 0 20px;
   border: 0;
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
+}
+/* The fold's own chevron after its words, as the folds above it have. */
+.btn.look-more .icon {
+  width: 14px;
+  height: 14px;
 }
 @media (prefers-reduced-motion: reduce) {
   .btn.look-fold .icon {
@@ -2731,13 +2819,14 @@
   gap: 8px;
   justify-content: flex-end;
 }
+/* Delete asking first, under all of its row (the app's `Ask`), the row tinted while it asks as a card's row is. */
 .dict-ask {
   grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  padding-top: 6px;
+}
+.dict-row.is-asking {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: var(--danger-soft);
 }
 .dict-importing {
   display: grid;

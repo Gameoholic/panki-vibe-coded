@@ -1,5 +1,8 @@
+import { useState } from "react";
+import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
+import { Icon } from "../components/Icon";
 import { KeyField } from "../components/KeyField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
@@ -13,10 +16,10 @@ const EXTRA_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: `+${secon
 const holdOf = (id: string, fallback: number) => HOLD_TIMES.find((ms) => String(ms) === id) ?? fallback;
 
 /** One of an action's keys, and how long it's held first. */
-function KeyPair({ id, label, own, part, slot, binds }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds }) {
+function KeyPair({ id, label, own, part, slot, binds, asking, onAsk }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds; asking: boolean; onAsk: () => void }) {
   return (
     <span className="key-pair">
-      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} />
+      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} asking={asking} onAsk={onAsk} />
       <Dropdown
         id={`key-${id}-hold`}
         label={`${label}: press or hold`}
@@ -34,17 +37,38 @@ function KeyPair({ id, label, own, part, slot, binds }: { id: string; label: str
  * each pressed or held for a time of its own. A key is one thing on a screen, but for a press and a hold of it.
  */
 function KeyRow({ id, label, bind, slot, binds }: { id: string; label: string; bind: Bind; slot: Slot; binds: KeyBinds }) {
+  /** Which of its keys is being asked about before it's taken off, if one is. */
+  const [asking, setAsking] = useState<Part | null>(null);
+  const labelOf = (part: Part) => (part === "also" ? `${label}, second key` : label);
+  const ask = (part: Part) => () => setAsking((was) => (was === part ? null : part));
   return (
     <Setting
       id={id}
       label={label}
       control={
         <span className="key-controls">
-          <KeyPair id={id} label={label} own={bind} part="main" slot={slot} binds={binds} />
-          <KeyPair id={`${id}-also`} label={`${label}, second key`} own={bind.also} part="also" slot={slot} binds={binds} />
+          <KeyPair id={id} label={labelOf("main")} own={bind} part="main" slot={slot} binds={binds} asking={asking === "main"} onAsk={ask("main")} />
+          <KeyPair id={`${id}-also`} label={labelOf("also")} own={bind.also} part="also" slot={slot} binds={binds} asking={asking === "also"} onAsk={ask("also")} />
         </span>
       }
-    />
+    >
+      {asking ? (
+        <div className="ask-box">
+          <Ask
+            idPrefix={`key-${id}-${asking}-off`}
+            question={`Take the key off ${labelOf(asking)}?`}
+            go={{ words: "Take it off", busy: "Taking it off…" }}
+            busy={false}
+            failure={null}
+            onKeep={() => setAsking(null)}
+            onGo={() => {
+              setKeyBinds(withKey(binds, slot, null, asking));
+              setAsking(null);
+            }}
+          />
+        </div>
+      ) : null}
+    </Setting>
   );
 }
 
@@ -93,6 +117,7 @@ export function KeysPanels() {
       {changed ? (
         <div className="add-actions add-actions-start">
           <Button id="keys-reset" onClick={() => setKeyBinds(DEFAULT_KEYS)}>
+            <Icon name="reset" />
             Reset to default keys
           </Button>
         </div>

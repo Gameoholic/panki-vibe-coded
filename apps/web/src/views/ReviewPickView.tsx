@@ -1,6 +1,7 @@
 import { useId } from "react";
 import type { Deck } from "@panki/contracts";
 import { Button } from "../components/Button";
+import { Icon } from "../components/Icon";
 import { NoDecksYet } from "../components/NoDecksYet";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import type { ReviewBegin } from "./ReviewView";
@@ -35,10 +36,12 @@ export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
                 <TodayBar id={`pick-${deck.id}`} name={deck.name} counts={words ?? "Nothing due right now"} onShow={words ? () => onPick(deck, "cards") : undefined}>
                   {words ? (
                     <Button id={`pick-${deck.id}-start`} variant="primary" onClick={() => onPick(deck, "start")}>
+                      <Icon name="play" />
                       Start
                     </Button>
                   ) : (
                     <Button id={`pick-${deck.id}-open`} onClick={() => onPick(deck)}>
+                      <Icon name="forward" />
                       Open
                     </Button>
                   )}
