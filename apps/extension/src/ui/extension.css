@@ -1556,7 +1556,7 @@
 .strip-finish.is-finished .icon {
   animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
-/* A switch among the strip's tools (Panki on / off), the tools' own shape and size, its track scaled to them (the owner, 2026-10-21: "doesn't match the rest of the UI and buttons"). */
+/* A switch among the strip's tools (Panki on / off) or the sentence's in the drawer (Locked / Unlocked), the tools' own shape and size, its track scaled to them (the owner, 2026-10-21: "doesn't match the rest of the UI and buttons"). */
 .btn.btn-switch.capture-tool.strip-switch {
   padding: 4px 7px 4px 9px;
   border-color: var(--line);

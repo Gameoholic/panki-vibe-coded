@@ -9,6 +9,7 @@ import type { VideoPictures } from "@web/components/LinkView";
 import { MediaView } from "@web/components/MediaView";
 import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
+import { Toggle } from "@web/components/Toggle";
 import { FIELD_KINDS } from "@web/fieldKinds";
 import { useCalled } from "@web/hooks/useCalled";
 import { count, langOf } from "@web/words";
@@ -280,6 +281,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [typed, setTyped] = useState<Record<string, string>>({});
   /** The sentence as typed over; null while it's the words that were taken. */
   const [written, setWritten] = useState<string | null>(null);
+  /** The taken words as they stood when the sentence was locked: the clip's ends pulled after that leave it as it is. Null while it follows the clip. */
+  const [locked, setLocked] = useState<string | null>(null);
   /** About where in the sentence the word was picked, for a sentence that has it twice. */
   const [near, setNear] = useState(0);
   /** What's wrong with what's typed, by field id. */
@@ -363,9 +366,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     };
   }, [looked, preferKey]);
 
-  // Other words were taken: a sentence typed over the old ones would be the wrong sentence now.
+  // Other words were taken: a sentence typed over or locked on the old ones would be the wrong sentence now.
   useEffect(() => {
     setWritten(null);
+    setLocked(null);
   }, [capture.moved]);
 
   // Added with nothing left to say: after a moment the drawer takes itself away.
@@ -392,7 +396,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const fieldOf = (role: RoleId) => type?.fields.find((f) => f.id === map[role]) ?? null;
   const wordField = fieldOf("word");
   const sentenceField = fieldOf("sentence");
-  const sentence = written ?? capture.sentence;
+  /** The taken words the sentence stands on: as they were when it was locked, or as the clip has them now. */
+  const takenSentence = locked ?? capture.sentence;
+  const sentence = written ?? takenSentence;
   /** The dictionary's word this is: the one chosen, or the first found. */
   const chosen = found?.find((f) => wordKey(f) === entry) ?? found?.[0] ?? null;
   const meaningField = fieldOf("dictMeaning");
@@ -673,8 +679,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /**
    * A double-click on a word of the sentence makes it the word, and one on the word beside the word widens it to both:
    * the same as a press in the line under a player. (The browser picks the word out too, as it does on any
-   * double-click; that's left alone.) While the sentence is still the words that were taken, where the capture was
-   * made is told as well, so the line under the player lights the same word.
+   * double-click; that's left alone.) While the sentence is still the words the clip has, where the capture was made
+   * is told as well, so the line under the player lights the same word.
    */
   function pickInSentence(e: MouseEvent<HTMLDivElement>) {
     const box = e.target;
@@ -686,7 +692,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const from = all[span[0]]?.start ?? 0;
     setWord(textOf(all, span));
     setNear(from);
-    if (written === null) onPick({ from, to: all[span[1]]?.end ?? from });
+    if (sentence === capture.sentence) onPick({ from, to: all[span[1]]?.end ?? from });
   }
 
   /**
@@ -742,8 +748,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     );
   }
 
-  /** The sentence: a box to type in, with the word lit in it. On a deck that keeps no sentence it's only for looking at and picking from. */
+  /**
+   * The sentence: a box to type in, with the word lit in it. On a deck that keeps no sentence it's only for looking at
+   * and picking from. On a video it can be locked: the clip's ends pulled after that leave the sentence as it is, and
+   * unlocked it's the clip's words again.
+   */
   function sentenceBlock() {
+    const lockable = clip !== null && sentenceField !== null;
     return (
       <div className="capture-sentence" onDoubleClick={pickInSentence}>
         <TextField
@@ -754,16 +765,29 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           lang={langOf(sentence)}
           autoComplete="off"
           value={sentence}
-          // Typed back to what it was, it's the taken words again, and follows the clip as before.
-          onChange={(text) => setWritten(text === capture.sentence ? null : text)}
+          // Typed back to what it was, it's the taken words again, and follows the clip as before (unless it's locked).
+          onChange={(text) => setWritten(text === takenSentence ? null : text)}
           mark={lit}
         />
-        {written !== null ? (
+        {written !== null || lockable ? (
           <div className="capture-tools">
-            <Button className="capture-tool" disabled={busy} onClick={() => setWritten(null)}>
-              <Icon name="undo" />
-              Undo changes
-            </Button>
+            {lockable ? (
+              <Toggle
+                id="panki-sentence-lock"
+                className="capture-tool strip-switch"
+                icon="lock"
+                says={{ on: "Locked", off: "Unlocked" }}
+                on={locked !== null}
+                disabled={busy}
+                onChange={(on) => setLocked(on ? capture.sentence : null)}
+              />
+            ) : null}
+            {written !== null ? (
+              <Button className="capture-tool" disabled={busy} onClick={() => setWritten(null)}>
+                <Icon name="undo" />
+                Undo changes
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
