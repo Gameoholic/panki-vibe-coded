@@ -283,12 +283,12 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
                   <Bone w="3.5em" h="1.35em" round />
                   <Bone w="2.5em" h="0.8em" className="is-faint" />
                 </div>
-                {/* Preview, Edit, Suspend, Delete. */}
+                {/* Preview, Edit, Suspend, Delete: each its icon and word. */}
                 <div className="card-tools">
-                  <Bone w="28px" h="28px" />
-                  <Bone w="28px" h="28px" />
-                  <Bone w="28px" h="28px" />
-                  <Bone w="28px" h="28px" />
+                  <Bone w="96px" h="32px" />
+                  <Bone w="96px" h="32px" />
+                  <Bone w="96px" h="32px" />
+                  <Bone w="96px" h="32px" />
                 </div>
               </li>
             ))}

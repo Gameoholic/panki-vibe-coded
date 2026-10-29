@@ -192,25 +192,30 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                 ) : null}
                 {onEdit || onRemove || onPreview || onSuspend ? (
                   <div className="card-tools">
+                    {/* Each with its word beside its icon (the owner, 2026-10-29: "better to add text to them"). */}
                     {onPreview ? (
-                      <Button className="btn-icon" aria-label="Preview card" aria-pressed={previewing?.id === card.id} onClick={() => onPreview(card)}>
+                      <Button className="card-tool" aria-pressed={previewing?.id === card.id} onClick={() => onPreview(card)}>
                         <Icon name="eye" />
+                        Preview
                       </Button>
                     ) : null}
                     {onEdit ? (
-                      <Button className="btn-icon" aria-label="Edit card" onClick={() => onEdit(card)}>
+                      <Button className="card-tool" onClick={() => onEdit(card)}>
                         <Icon name="edit" />
+                        Edit
                       </Button>
                     ) : null}
                     {/* A suspended card has Unsuspend under its state instead. */}
                     {onSuspend && card.hold?.kind !== "suspend" ? (
-                      <Button className="btn-icon" aria-label="Suspend card" disabled={holding === card.id} onClick={() => void hold(card, onSuspend)}>
+                      <Button className="card-tool" disabled={holding === card.id} onClick={() => void hold(card, onSuspend)}>
                         <Icon name={HOLD_KINDS.suspend.icon} />
+                        Suspend
                       </Button>
                     ) : null}
                     {onRemove ? (
-                      <Button className="btn-icon is-danger" aria-label="Delete card" aria-pressed={asking === card.id} disabled={busy} onClick={() => ask(asking === card.id ? null : card.id)}>
+                      <Button className="card-tool is-danger" aria-pressed={asking === card.id} disabled={busy} onClick={() => ask(asking === card.id ? null : card.id)}>
                         <Icon name="trash" />
+                        Delete
                       </Button>
                     ) : null}
                   </div>

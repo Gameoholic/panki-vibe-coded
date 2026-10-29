@@ -3220,19 +3220,27 @@ mark.sub-mark {
   grid-column: -2;
   grid-row: 1 / span 2;
   display: grid;
-  gap: 2px;
-  margin: -4px -4px 0 0;
+  gap: 4px;
+  margin: -2px -2px 0 0;
+}
+/* Each tool its icon and its word, one under another, all as wide as the widest, the words lined up (the owner,
+   2026-10-29: "better to add text to them"). */
+.card-tools .btn.card-tool {
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
 }
 /* Delete is quiet until it's meant: in the danger colour under a pointer, and while its question is asked. */
-.card-tools .btn-icon.is-danger {
+.card-tools .btn.card-tool.is-danger {
   color: var(--muted);
 }
 @media (hover: hover) {
-  .card-tools .btn-icon.is-danger:hover {
+  .card-tools .btn.card-tool.is-danger:hover {
     color: var(--danger);
   }
 }
-.card-tools .btn-icon.is-danger[aria-pressed="true"] {
+.card-tools .btn.card-tool.is-danger[aria-pressed="true"] {
   color: var(--danger);
 }
 /* The question that deletes a card, asked in its row, under all of it. */
