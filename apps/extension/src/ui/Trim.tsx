@@ -10,6 +10,9 @@ export type MoveBy = "word" | "exact";
 const ROOM = 5;
 /** The least that's kept showing either side of the clip, so an end always has somewhere to go. */
 const ROOM_MIN = 0.5;
+/** How close an end of the clip comes to an edge of the bar, as it's moved, before that edge makes room by itself; and how much room it then makes. */
+const NEAR = 1;
+const MAKE_ROOM = 2.5;
 /** How many times faster than the pointer an edge of the bar takes in the video: at the side of a window there's little room to pull into. */
 const PULL = 3;
 /** What an arrow key moves an end of the clip by, and an edge of the bar by, in seconds. */
@@ -57,8 +60,10 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
  * A clip as a bar of time with an end to pull at each side. The bar shows the clip with a few seconds either side and
  * **stays as it is**: pulling an end never changes what the bar shows. (It was first made to close in around the clip
  * each time an end was let go; the owner: "I don't like how it resizes the clip edges every time I drag".) For more
- * room, or less, the bar's own two edges are pulled: outwards takes in more of the video on that side, inwards less.
- * An end goes exactly where the pointer is, or stops at the edges of words while Alt is held (a setting once made
+ * room, or less, the bar's own two edges are pulled: outwards takes in more of the video on that side, inwards less;
+ * and an end moved to within `NEAR` of an edge pushes that edge out by itself (the owner, 2026-10-29: the grey handles
+ * move "when the white handles approach"), so pulling an end on keeps taking in more. An edge pulled in close is left
+ * there until an end is moved up to it. An end goes exactly where the pointer is, or stops at the edges of words while Alt is held (a setting once made
  * stopping at words the rule and Alt the exception; the owner had it taken out on 2026-10-19, never using it); the
  * arrow keys on it move it a tenth of a second. The thin line is where the video stands; a press on the clip between
  * its ends plays it from there (the owner, 2026-10-27).
@@ -72,14 +77,22 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
   /** What a bar that's free to show what it likes shows: kept here, and pulled about by its edges. */
   const [free, setView] = useState(() => around(start, last, limit));
   const [anchored, setAnchored] = useState(anchor);
+  /** Where the ends stood when last looked at: an edge makes room only for an end that's moved. */
+  const [ends, setEnds] = useState({ start, last });
   if (anchored !== anchor) {
     setAnchored(anchor);
+    setEnds({ start, last });
     setView(around(start, last, limit));
-  } else if (!within && (start < free.from || last > free.to)) {
+  } else if (!within) {
+    let { from, to } = free;
     // The clip never leaves the bar: an end put outside it (a time typed in, a sentence that went on being said)
     // takes that edge of the bar with it, and the other edge stays.
-    const there = around(start, last, limit);
-    setView({ from: start < free.from ? there.from : free.from, to: last > free.to ? there.to : free.to });
+    if (start < from) from = around(start, last, limit).from;
+    else if (start !== ends.start && start - from < NEAR) from = Math.max(limit.from, Math.min(from, start - MAKE_ROOM));
+    if (last > to) to = around(start, last, limit).to;
+    else if (last !== ends.last && to - last < NEAR) to = Math.min(limit.to, Math.max(to, last + MAKE_ROOM));
+    if (start !== ends.start || last !== ends.last) setEnds({ start, last });
+    if (from !== free.from || to !== free.to) setView({ from, to });
   }
   /** What the bar shows: the stretch it's been told to be, or else its own. */
   const view = within ?? free;
