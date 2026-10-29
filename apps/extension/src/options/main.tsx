@@ -235,6 +235,8 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
       <Setting
         id="default-deck"
         label="Default deck"
+        // The owner's words, 2026-10-29.
+        why="Where cards you add from a video or a page go to by default."
         control={
           <Dropdown
             id="default-deck-choice"

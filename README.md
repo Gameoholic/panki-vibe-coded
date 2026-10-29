@@ -15,6 +15,7 @@ pm2 restart panki-api
 - Import / export button for all thigns (card types, decks, etc), and make sure all have default presets like srs types does
 
 
+"Communities" (per language?) or "friends" or "parties"
 I want to plan a "multiplayer" feature for Panki. Don't write code yet: read CLAUDE.md and docs/ first, then plan with me and show me options I can play with (an artifact is fine).
 
 Where it comes from: my notes from the immersion epic (branch `immersion`, now merged), in my words:
@@ -29,7 +30,7 @@ What was tried and taken out: for one day the branch had a "Together" tile (ever
 
 Things to think about: friends vs groups vs everyone on the app; what others can see and whether I choose; streaks with friends without a personal goal; nudges ("Rena watched today"); privacy; that Rena and I learn different languages and live in different time zones; that I'm not always on PC (phone has no extension).
 
-
+- Private/public playlists? Track your progress in each playlist? Maybe reuse native youtube playlists?
 
 
 - Shadowing practice?
