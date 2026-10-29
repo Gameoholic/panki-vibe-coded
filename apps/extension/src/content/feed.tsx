@@ -381,8 +381,10 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
   /**
    * A shelf with nothing on it, as big as it is with videos, so nothing around it moves (the owner, 2026-10-29: an empty
-   * shelf mustn't collapse and resize the others): `lead`, Continue watching's big picture and its words beside it as
-   * quiet room; otherwise a row of cards' room. What's empty is said in it.
+   * shelf mustn't collapse and resize the others): `lead`, Continue watching's, a small fanned stack of empty
+   * thumbnails in its big picture's place, its progress line at nothing, and beside it the words and Resume greyed out
+   * (C of https://claude.ai/artifact/9D8n5tbVayg1wuctkcutb8, the owner's pick); otherwise a row of cards' room. What's
+   * empty is said in it.
    */
   function EmptyShelf({ title, words, lead = false }: { title: string; words: string; lead?: boolean }) {
     return (
@@ -390,8 +392,18 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         <h2 className="yh-h">{title}</h2>
         {lead ? (
           <div className="yh-lead">
-            <div className="yh-lead-pic is-empty" />
-            <p className="yh-empty">{words}</p>
+            <div className="yh-rest" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </div>
+            <div className="yh-lead-info">
+              <p className="yh-empty">{words}</p>
+              <span className="yh-resume is-off" aria-hidden="true">
+                <Icon name="play" />
+                Resume
+              </span>
+            </div>
           </div>
         ) : (
           <p className="yh-empty is-slot">{words}</p>
