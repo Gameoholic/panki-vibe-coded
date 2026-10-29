@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 import { heard, pressed, type Heard } from "../keys";
-import { keepTap, useHold } from "./useHold";
+import { TAP_MS, keepTap, useHold } from "./useHold";
 
 /**
  * An action's keys heard on the window (`keys.ts` → `Heard`: its own and its second): pressed, or held as long as each
  * says (`useHold`, how far along drawn on `at`'s element), anywhere on the page but in something typed into. A press
  * of a key that something else on the screen takes held (Space tapped plays the clip, Space held shows the answer) acts
- * as it's let go, and only when let go sooner than that (`tapUnder`). `wanted` says whether this one is the one to act
+ * as it's let go, and only when let go quickly (`TAP_MS`, when the other's ring begins: held any longer, it's that hold). `wanted` says whether this one is the one to act
  * (every clip hears the full screen key; only the one it's for acts). A player's keys and the full screen's are this.
  */
 export function useHeardKeys(keys: readonly (Heard | null)[], at: () => HTMLElement | null, act: () => void, wanted: () => boolean = () => true) {
@@ -38,7 +38,8 @@ export function useHeardKeys(keys: readonly (Heard | null)[], at: () => HTMLElem
       if (began === undefined) return;
       tapping.delete(e.key);
       const hit = listened.find((key) => pressed(e, key.key));
-      if (hit && performance.now() - began < hit.tapUnder) now.current.act();
+      // A tap only when let go before the other action's ring would begin (`TAP_MS`): later, it was a hold let go early.
+      if (hit && performance.now() - began < Math.min(TAP_MS, hit.tapUnder)) now.current.act();
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);

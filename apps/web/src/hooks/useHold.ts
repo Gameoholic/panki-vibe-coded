@@ -7,7 +7,7 @@ const LET_GO_MS = 160;
 /**
  * Keys a tap of which does something right now, as each listener has them (`useHeardKeys`: a player's Space tapped,
  * while there's a clip to play), by how many: a hold of the same key on the same screen can't yet tell itself from
- * that tap as it goes down, so it stays still for its first moment (`TAP_QUIET_MS`), and a tap shows no hold beginning
+ * that tap as it goes down, so it stays still for its first moment (`TAP_MS`), and a tap shows no hold beginning
  * (the owner, 2026-10-29: "when I press space and instantly release it also thinks I'm trying to hold it"). Any key,
  * any hold: nothing here knows which.
  */
@@ -22,8 +22,12 @@ export function keepTap(key: string): () => void {
   };
 }
 const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed(e, key));
-/** How long a hold stays still while its key's tap does something: a tap is let go well within it. Never more than half the hold, which still takes as long as it's set to. */
-const TAP_QUIET_MS = 160;
+/**
+ * The one line between a tap and a hold of a key that's both (the owner, 2026-10-29): let go sooner, it's the tap;
+ * held past it, the hold's ring begins to fill, and letting go then is a hold let go early, which does nothing. So the
+ * ring showing always means a hold. The hold itself still takes as long as it's set to (every hold is longer than this).
+ */
+export const TAP_MS = 150;
 
 /**
  * A key held on a button until it does its thing (`keys.ts`, a bind to hold): how far along, 0 to 1, is written on the
@@ -48,8 +52,8 @@ export function useHold() {
 
   /**
    * Starts holding the key going down (`e`) on `el`; `done` once it's been held for `ms` (at once for none). Nothing
-   * while another hold is on. While a tap of the key does something too, the fill waits its first moment, then fills
-   * over the rest, so it's still done when it's set to be.
+   * while another hold is on. While a tap of the key does something too, the fill waits out the tap (`TAP_MS`), then
+   * fills over the rest, so it's still done when it's set to be.
    */
   function begin(e: KeyboardEvent, el: HTMLElement | null, ms: number, done: () => void) {
     const key = e.key;
@@ -66,7 +70,7 @@ export function useHold() {
       easing.current.delete(el);
     }
     const t0 = performance.now();
-    const quiet = tapLive(e) ? Math.min(TAP_QUIET_MS, ms / 2) : 0;
+    const quiet = tapLive(e) ? Math.min(TAP_MS, ms) : 0;
     const hold = { key, el, raf: 0 };
     current.current = hold;
     const tick = (t: number) => {
