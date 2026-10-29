@@ -1,10 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Icon } from "@web/components/Icon";
 import { TextField } from "@web/components/TextField";
 import { hourWords } from "@web/words";
-import { tintOf } from "../capture/known";
+import { tintOf, type KnownMoment } from "../capture/known";
 import { HOVER_KEEP } from "../capture/look";
 import { keyWordOf, type LookKey } from "../lookSettings";
 import { spanOver, tokensOf, type Span, type Token } from "../capture/words";
@@ -12,12 +13,14 @@ import type { DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
 import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
+import { resumeTo } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
 import { paintCss } from "../seekLook";
 import type { Stored } from "../storage";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
 import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
+import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { SpeedControl } from "../ui/SpeedControl";
 import { EXAMPLE_CARDS, IN_DECKS } from "./examples";
 import { Explainer, Stage, type Site, type Spot, type Tools } from "./Explainer";
@@ -831,12 +834,139 @@ function UtilitiesScene({ store }: { store: Stored }) {
   );
 }
 
+/** How long the video being watched is, in seconds (`WATCHED.length`, 18:40): what the seek bar's marks are laid along. */
+const SEEK_LENGTH = 18 * 60 + 40;
+/** The cards taken from the video: one of them the example deck's own word, one suspended. */
+const SEEK_CARDS: readonly VideoCard[] = [
+  { cardId: "explain-1", startMs: 95_000, endMs: 99_000, words: "言葉", suspended: false },
+  { cardId: "explain-2", startMs: 262_000, endMs: 267_000, words: IN_DECKS.words, suspended: false },
+  { cardId: "explain-3", startMs: 541_000, endMs: 545_000, words: "敢えて", suspended: true },
+  { cardId: "explain-4", startMs: 803_000, endMs: 808_000, words: "大丈夫", suspended: false },
+];
+/** Where it says words that are in the decks. */
+const SEEK_IN_DECKS: readonly KnownMoment[] = (
+  [
+    [150, "今日"],
+    [330, "友達"],
+    [470, "景色"],
+    [690, "電車"],
+    [910, "勉強"],
+  ] as const
+).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000 }));
+/** Where it was stopped the time before, in seconds. */
+const SEEK_STOP = 640;
+
+/**
+ * Seek bar marks, each as it's set (the real `SeekMark` on the video's bar): the transcript reaching further along it,
+ * the cards' words rising as the pointer comes onto the bar and one pressed, the video going to its sentence; where it
+ * was stopped pressed; then a clip opened on the bar and its end pulled. Off, the bar is the site's alone.
+ */
+function SeekScene({ store }: { store: Stored }) {
+  const look = store.seekLook;
+  const on = store.moduleSeek;
+  const [reach, setReach] = useState(0.3);
+  const [hover, setHover] = useState(false);
+  const [at, setAt] = useState(70);
+  const [clip, setClip] = useState<{ start: number; end: number } | null>(null);
+  const player = useRef<HTMLDivElement | null>(null);
+  const find = (selector: string) => player.current?.querySelector(selector) ?? null;
+  const goTo = (pinned: Pinned) => setAt((pinned.of === "known" ? (look.known.click === "word" ? pinned.said.startMs : pinned.said.lineMs) : pinned.card.startMs) / 1000);
+  const script = async (t: Tools) => {
+    setReach(0.3);
+    setHover(false);
+    setAt(70);
+    setClip(null);
+    t.frame(player.current);
+    await t.wait(450);
+    if (on && look.transcript.shown) {
+      for (let step = 1; step <= 8; step++) {
+        setReach(0.3 + step * 0.05);
+        await t.wait(170);
+      }
+    }
+    await t.move(find(".ex-progress"), 450);
+    setHover(true);
+    await t.wait(800);
+    // The example deck's word pressed: the video goes to its sentence.
+    const pin = [...(player.current?.querySelectorAll(".seek-pins.is-cards .seek-pin") ?? [])].find((el) => el.textContent === IN_DECKS.words) ?? null;
+    if (on && pin && look.cards.click !== "none") {
+      await t.move(pin, 450);
+      await t.click();
+      setAt(262);
+      await t.wait(700);
+    }
+    await t.move([50, 38], 400);
+    setHover(false);
+    await t.wait(450);
+    if (on && store.markStop) {
+      await t.move(find(".seek-stop"), 450);
+      await t.click();
+      setAt(resumeTo(SEEK_STOP, store.resumeBack));
+      await t.wait(700);
+    }
+    if (on && look.clip.shown) {
+      setClip({ start: 860, end: 872 });
+      await t.wait(500);
+      await t.move(find(".seek-end.is-end"), 400);
+      for (let step = 1; step <= 6; step++) {
+        setClip({ start: 860, end: 872 + step * 4 });
+        await t.wait(40);
+        await t.move(find(".seek-end.is-end"), 110);
+      }
+      await t.wait(600);
+      setClip(null);
+    }
+    t.frame();
+    await t.wait(500);
+  };
+  const share = (seconds: number) => `${(seconds / SEEK_LENGTH) * 100}%`;
+  const mark: ClipMark | null = clip ? { ...clip, onMove: nothing, onSettle: nothing } : null;
+  return (
+    <Stage site={WATCH} script={script}>
+      <WatchPage
+        video={
+          <div ref={player} className="ex-player">
+            <span className="ex-progress">
+              <i style={{ width: share(at) }} />
+              <b style={{ left: share(at) }} />
+              {on ? (
+                <SeekMark
+                  length={SEEK_LENGTH}
+                  covered={[{ startMs: 0, endMs: Math.round(SEEK_LENGTH * reach * 1000) }]}
+                  working={reach < 0.7 ? { startMs: Math.round(SEEK_LENGTH * reach * 1000), endMs: Math.round(SEEK_LENGTH * (reach + 0.025) * 1000) } : null}
+                  cards={SEEK_CARDS}
+                  clip={mark}
+                  inDecks={SEEK_IN_DECKS}
+                  look={look}
+                  hover={hover}
+                  stop={store.markStop ? resumeTo(SEEK_STOP, store.resumeBack) : null}
+                  onStop={() => setAt(resumeTo(SEEK_STOP, store.resumeBack))}
+                  onGo={goTo}
+                />
+              ) : null}
+            </span>
+            <span className="ex-controls">
+              <Icon name="pause" />
+              <span className="ex-time">
+                {Math.floor(at / 60)}:{String(Math.floor(at % 60)).padStart(2, "0")} / {WATCHED.length}
+              </span>
+              <span className="ex-grow" />
+              <Icon name="settings" />
+            </span>
+          </div>
+        }
+      />
+    </Stage>
+  );
+}
+
 /** The panels with a (?), each by what the panel is called. A new one is an entry here and a case in `ExplainerScene`. */
 export const EXPLAINER_NAMES = {
   popup: "Pop-up dictionary",
   known: "Highlight words that are in your decks",
   panel: "Panki panel",
   underline: "Spoken word underline",
+  seek: "Seek bar marks",
   home: "YouTube home add-ons",
   utilities: "YouTube utilities",
 } as const;
@@ -867,6 +997,8 @@ function ExplainerScene({ id, store }: { id: ExplainerId; store: Stored }) {
       return <PanelScene store={store} />;
     case "underline":
       return <UnderlineScene store={store} />;
+    case "seek":
+      return <SeekScene store={store} />;
     case "home":
       return <HomeScene store={store} />;
     case "utilities":

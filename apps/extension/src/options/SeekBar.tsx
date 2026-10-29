@@ -24,6 +24,7 @@ import {
 import type { KnownMoment } from "../capture/known";
 import { writeStore, type Stored } from "../storage";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
+import { ExplainedTitle } from "./explainerScenes";
 import { Swatches } from "./Swatches";
 
 const SIZE_OPTIONS = MARK_SIZE_IDS.map((id) => ({ id, label: MARK_SIZES[id].name }));
@@ -212,9 +213,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
   }
   return (
     <section className="panel" aria-labelledby="seek-bar-title">
-      <h2 id="seek-bar-title" className="panel-title">
-        Seek bar marks
-      </h2>
+      <ExplainedTitle id="seek" titleId="seek-bar-title" store={store} />
       <SeekPreview look={look} how={store.resumeHow} back={store.resumeBack} marked={store.moduleSeek && store.markStop} />
       <Setting id="module-seek" label="Seek bar marks" control={<Toggle id="module-seek-on" says={{ on: "On", off: "Off" }} on={store.moduleSeek} onChange={(moduleSeek) => void writeStore({ moduleSeek }).then(onChanged)} />} />
       {MARKS.map(({ id, name }) => {
