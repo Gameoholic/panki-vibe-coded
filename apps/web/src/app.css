@@ -204,6 +204,10 @@ body {
   background: var(--accent-soft);
   color: var(--accent);
 }
+/* Admin, an admin's alone, at the bar's far right on a computer (the owner, 2026-10-29); on a phone one more cell of the bar. */
+.btn-tab.is-end {
+  margin-left: auto;
+}
 @media (hover: hover) {
   .btn-tab:hover {
     background: var(--surface-2);
@@ -5351,6 +5355,9 @@ mark.sub-mark {
   /* The keyboard takes the room; the bar comes back when typing ends. */
   .app:has(.main :is(input, textarea):focus) .tabs {
     display: none;
+  }
+  .btn-tab.is-end {
+    margin-left: 0;
   }
   .btn-tab {
     display: grid;

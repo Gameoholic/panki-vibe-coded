@@ -20,6 +20,8 @@ export type Route =
   | { kind: "srsNew" }
   | { kind: "srsEdit"; id: string }
   | { kind: "settings" }
+  /** What everyone shares and an admin alone changes: its own screen, at the bar's far end (the owner, 2026-10-29). */
+  | { kind: "admin" }
   | { kind: "stats" };
 
 const NEW = "new";
@@ -51,6 +53,8 @@ export function routePath(route: Route): string {
       return `/srs/${route.id}`;
     case "settings":
       return "/settings";
+    case "admin":
+      return "/admin";
     case "stats":
       return "/stats";
   }
@@ -77,6 +81,8 @@ export function parsePath(path: string): Route {
       return id === NEW ? { kind: "srsNew" } : { kind: "srsEdit", id };
     case "settings":
       return { kind: "settings" };
+    case "admin":
+      return { kind: "admin" };
     case "stats":
       return { kind: "stats" };
     default:

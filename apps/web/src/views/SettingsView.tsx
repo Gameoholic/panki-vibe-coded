@@ -67,16 +67,16 @@ const clock = (hour: number) => `${hour}:00`;
 
 /**
  * The page's tabs, as the extension's own page has them (the owner, 2026-10-17: "more organized, similar to the
- * extension settings page"): the look and what every deck shares, the dictionaries kept on Panki, what an admin alone
- * changes, and the account. The tab is in the address, so a reload stays on it; every tab is drawn and the others
- * hidden, so a key half typed on one survives a look at another.
+ * extension settings page"): the look and what every deck shares, the keys, the extension, and the account. The tab
+ * is in the address, so a reload stays on it; every tab is drawn and the others hidden, so a key half typed on one
+ * survives a look at another. What an admin alone changes was a tab here until the owner gave it a screen of its own,
+ * at the bar's far end (2026-10-29; `AdminView`).
  */
-type SettingsTab = "general" | "keys" | "extension" | "admin" | "account";
-const TABS: readonly { id: SettingsTab; label: string; admin?: true }[] = [
+type SettingsTab = "general" | "keys" | "extension" | "account";
+const TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "keys", label: "Keybinds" },
   { id: "extension", label: "Extension" },
-  { id: "admin", label: "Admin", admin: true },
   { id: "account", label: "Account" },
 ];
 const tabOfAddress = (): SettingsTab | null => TABS.find((t) => `#${t.id}` === window.location.hash)?.id ?? null;
@@ -879,6 +879,20 @@ function AdminPanel() {
   );
 }
 
+/**
+ * The Admin screen (the owner, 2026-10-29: "in the most top right of the website"; a tab of Settings until then): what
+ * everyone shares, then the dictionaries kept on Panki. In a `.settings-tab`, so it stands as wide as Settings does and
+ * its panels sit as they did there. Its pieces are Settings' own (`Setting`, `KeyPanel`), so it stays in this file.
+ */
+export function AdminView() {
+  return (
+    <div className="settings-tab is-admin">
+      <AdminPanel />
+      <DictionariesPanel />
+    </div>
+  );
+}
+
 /** An admin's panel while what's in it loads: its title, already known, over the shape of its rows. */
 function LoadingPanel({ id, title, rows }: { id: string; title: string; rows: number }) {
   return (
@@ -1031,8 +1045,8 @@ function DictionariesPanel() {
  * The theme first, kept on this device; then General: when the day turns over and in which
  * time zone, and the language videos are transcribed in. How a review runs is in each deck's own settings. Then
  * Immersion: whether watching is kept. Each change is saved a moment after
- * it's made. Then for an admin alone, the Admin tab with what every account shares (how transcribing runs, the keys, the
- * dictionaries kept on Panki). Last, the devices signed in and the watch history.
+ * it's made. Last, the devices signed in and the watch history. (What every account shares is an admin's own screen,
+ * `AdminView`.)
  */
 export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }: Props) {
   const [current, patch, failure] = useSavedSoon<Settings>(settings, onChange);
@@ -1041,10 +1055,8 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
   const [askingAll, setAskingAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [signOutFailure, setSignOutFailure] = useState<string | null>(null);
-  const tabs = TABS.filter((t) => !t.admin || me.user.admin);
   const [tab, setTab] = useState<SettingsTab>(() => tabOfAddress() ?? "general");
-  // An address naming a tab this account doesn't have (Admin) lands on the first.
-  const shown = tabs.some((t) => t.id === tab) ? tab : "general";
+  const shown = tab;
   function choose(next: SettingsTab) {
     setTab(next);
     window.history.replaceState(window.history.state, "", `#${next}`);
@@ -1071,7 +1083,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
 
   return (
     <>
-      <Segmented idPrefix="settings-tab" label="Settings" options={tabs} value={shown} onChange={choose} />
+      <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} onChange={choose} />
       <div className="settings-tab" hidden={shown !== "general"}>
         {failure ? (
           <p className="load-error" role="alert">
@@ -1148,13 +1160,6 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
         <ExtensionPanel />
         <DataTrackingPanel on={current.videoTracking} />
       </div>
-
-      {me.user.admin ? (
-        <div className="settings-tab is-admin" hidden={shown !== "admin"}>
-          <AdminPanel />
-          <DictionariesPanel />
-        </div>
-      ) : null}
 
       <div className="settings-tab" hidden={shown !== "account"}>
         <section className={`panel ${askingAll ? "panel-alarm" : ""}`.trim()} aria-labelledby="signed-in-title">

@@ -48,7 +48,7 @@ import { LayoutView } from "./views/LayoutView";
 import { LoginView } from "./views/LoginView";
 import { ReviewPickView } from "./views/ReviewPickView";
 import { ReviewView, type ReviewBegin } from "./views/ReviewView";
-import { DEVICE_ZONE, SettingsView } from "./views/SettingsView";
+import { AdminView, DEVICE_ZONE, SettingsView } from "./views/SettingsView";
 import { SrsNewView } from "./views/SrsNewView";
 import { SrsTypeView, type SaveStatus } from "./views/SrsTypeView";
 import { SrsTypesView } from "./views/SrsTypesView";
@@ -83,6 +83,7 @@ type Screen =
   | { kind: "srsNew" }
   | { kind: "srsEdit"; type: SrsType; isNew: boolean }
   | { kind: "settings" }
+  | { kind: "admin" }
   | { kind: "stats" };
 
 const HOME: Screen = { kind: "home" };
@@ -101,6 +102,7 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   srsNew: "rows",
   srsEdit: "editor",
   settings: "panels",
+  admin: "panels",
   stats: "board",
 };
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
@@ -153,16 +155,21 @@ function screenOf(route: Route, { decks, types, srsTypes }: Lists): Screen | nul
   }
 }
 
-/** The fixed places in the bar. A new one is a row here, nowhere else. */
-type TabId = "home" | "settings" | "stats";
-const TABS: readonly { id: TabId; label: string; to: Screen }[] = [
+/**
+ * The fixed places in the bar. A new one is a row here, nowhere else. `admin`: there for an admin alone, at the bar's
+ * far end on a computer (the owner, 2026-10-29: the admin settings "in the most top right of the website"; they were a
+ * tab of Settings until then).
+ */
+type TabId = "home" | "settings" | "stats" | "admin";
+const TABS: readonly { id: TabId; label: string; to: Screen; admin?: true }[] = [
   { id: "home", label: "Home", to: HOME },
   { id: "settings", label: "Settings", to: { kind: "settings" } },
   { id: "stats", label: "Stats", to: { kind: "stats" } },
+  { id: "admin", label: "Admin", to: { kind: "admin" }, admin: true },
 ];
 /** The tab a screen lights: its own for the fixed places, Home for everything behind the hub. */
 function tabOf(screen: Screen): TabId {
-  return screen.kind === "settings" || screen.kind === "stats" ? screen.kind : "home";
+  return screen.kind === "settings" || screen.kind === "stats" || screen.kind === "admin" ? screen.kind : "home";
 }
 
 /** The screen's own header: where back goes, what it's called, what you can do here. The home has no title: only its action, when it has one. */
@@ -769,6 +776,8 @@ export function App() {
         };
       case "settings":
         return { title: "Settings" };
+      case "admin":
+        return { title: "Admin" };
       case "stats":
         return { title: "Stats" };
     }
@@ -1061,6 +1070,18 @@ export function App() {
             <SettingsView settings={settings} onChange={updateSettings} me={me} onSignOut={signOut} onSignOutAll={signOutAll} />
           );
         break;
+      case "admin":
+        body =
+          me === null ? (
+            loading
+          ) : me.user.admin ? (
+            <AdminView />
+          ) : (
+            <p className="load-error" role="alert">
+              Only an admin can open this page.
+            </p>
+          );
+        break;
       case "stats":
         body = decks === null || srsTypes === null || settings === null ? loading : <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onReview={reviewFromStats} />;
         break;
@@ -1088,10 +1109,18 @@ export function App() {
       <header className="brand">Panki</header>
       {bare && !checking ? null : (
         <nav className="tabs" aria-label="Sections">
+          {/* Admin isn't known to be there until the sign-in is: no shape is held for it. */}
           {checking
-            ? TABS.map((t) => <Bone key={t.id} w="5.5em" h="2.4em" />)
-            : TABS.map((t) => (
-                <Button key={t.id} id={`tab-${t.id}`} variant="tab" aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.to)}>
+            ? TABS.filter((t) => !t.admin).map((t) => <Bone key={t.id} w="5.5em" h="2.4em" />)
+            : TABS.filter((t) => !t.admin || me?.user.admin).map((t) => (
+                <Button
+                  key={t.id}
+                  id={`tab-${t.id}`}
+                  variant="tab"
+                  className={t.admin ? "is-end" : undefined}
+                  aria-current={tab === t.id ? "page" : undefined}
+                  onClick={() => go(t.to)}
+                >
                   <Icon name={t.id} />
                   <span>{t.label}</span>
                 </Button>
