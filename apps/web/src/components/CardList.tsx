@@ -28,6 +28,8 @@ type Props = {
   onRemove?: (card: Card) => Promise<void>;
   /** When given, a card put aside (buried or suspended) carries a button under its state that brings it back. */
   onLift?: (card: Card) => Promise<void>;
+  /** When given, each row not suspended carries a suspend button among its tools. */
+  onSuspend?: (card: Card) => Promise<void>;
   /** The card that's open, and what stands in its row's place while it is (the form that changes it). */
   editing?: { id: string; form: ReactNode } | null;
   /** When given, each row carries a Preview button that asks for its card to be shown as a review would show it. */
@@ -78,13 +80,14 @@ function cell(card: Card, field: CardField, className: string) {
 
 /**
  * Cards as rows: the front fields on the first line, the first one that holds words big; the back fields under them; a
- * file where its field stands; at the top right the card's place and due time, then edit with delete under it, where
- * cards can be changed (the owner, 2026-10-18: deleting was only inside the opened card, "make deleting easier… the
- * delete button should be directly below the pencil"; and everything at the right sat halfway down the row). Delete
- * asks in the row itself before the card goes. A card that's open is its form, in the row's own place in the list. A
- * card put aside says so where its due time would be, with Unsnooze or Unsuspend under it.
+ * file where its field stands; at the top right the card's place and when it's next reviewed, then its tools one under
+ * another, where cards can be changed: Preview, Edit, Suspend, Delete (the owner, 2026-10-29: "first preview then edit
+ * then delete"; 2026-10-18: "the delete button should be directly below the pencil"; and everything at the right sat
+ * halfway down the row). Delete asks in the row itself before the card goes; Suspend doesn't, as Unsuspend takes it
+ * back at once. A card that's open is its form, in the row's own place in the list. A card put aside says so where its
+ * next review would be, with Unsnooze or Unsuspend under it.
  */
-export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
+export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, onSuspend, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
   const titleId = useId();
   /** The card whose row is asking whether to delete it, how that's going, and why it didn't. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -107,19 +110,19 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
       setBusy(false);
     }
   }
-  /** The card being brought back, and why the last one wasn't. */
-  const [lifting, setLifting] = useState<string | null>(null);
-  const [liftFailure, setLiftFailure] = useState<{ cardId: string; message: string } | null>(null);
-  async function lift(card: Card) {
-    if (!onLift) return;
-    setLifting(card.id);
-    setLiftFailure(null);
+  /** The card being suspended or brought back, and why the last one wasn't. */
+  const [holding, setHolding] = useState<string | null>(null);
+  const [holdFailure, setHoldFailure] = useState<{ cardId: string; message: string } | null>(null);
+  async function hold(card: Card, change: ((card: Card) => Promise<void>) | undefined) {
+    if (!change) return;
+    setHolding(card.id);
+    setHoldFailure(null);
     try {
-      await onLift(card);
+      await change(card);
     } catch (e) {
-      setLiftFailure({ cardId: card.id, message: e instanceof Error ? e.message : "Something went wrong." });
+      setHoldFailure({ cardId: card.id, message: e instanceof Error ? e.message : "Something went wrong." });
     } finally {
-      setLifting(null);
+      setHolding(null);
     }
   }
   const front = type.fields.filter((f) => f.side === "front");
@@ -154,7 +157,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
             return (
               <li
                 key={card.id}
-                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove || onPreview ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove || onPreview || onSuspend ? "has-tools" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
@@ -169,7 +172,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                     {/* Its own example and each one added to it. */}
                     {card.examples.length > 0 ? <span className="card-example-count">{count(card.examples.length + 1, "example", "examples")}</span> : null}
                     {card.hold && onLift ? (
-                      <Button variant="chip" className="card-lift" disabled={lifting === card.id} onClick={() => void lift(card)}>
+                      <Button variant="chip" className="card-lift" disabled={holding === card.id} onClick={() => void hold(card, onLift)}>
                         <Icon name="wake" />
                         {HOLD_KINDS[card.hold.kind].lift}
                       </Button>
@@ -187,11 +190,22 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                     ) : null}
                   </div>
                 ) : null}
-                {onEdit || onRemove || onPreview ? (
+                {onEdit || onRemove || onPreview || onSuspend ? (
                   <div className="card-tools">
+                    {onPreview ? (
+                      <Button className="btn-icon" aria-label="Preview card" aria-pressed={previewing?.id === card.id} onClick={() => onPreview(card)}>
+                        <Icon name="eye" />
+                      </Button>
+                    ) : null}
                     {onEdit ? (
                       <Button className="btn-icon" aria-label="Edit card" onClick={() => onEdit(card)}>
                         <Icon name="edit" />
+                      </Button>
+                    ) : null}
+                    {/* A suspended card has Unsuspend under its state instead. */}
+                    {onSuspend && card.hold?.kind !== "suspend" ? (
+                      <Button className="btn-icon" aria-label="Suspend card" disabled={holding === card.id} onClick={() => void hold(card, onSuspend)}>
+                        <Icon name={HOLD_KINDS.suspend.icon} />
                       </Button>
                     ) : null}
                     {onRemove ? (
@@ -199,17 +213,12 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                         <Icon name="trash" />
                       </Button>
                     ) : null}
-                    {onPreview ? (
-                      <Button className="btn-icon" aria-label="Preview card" aria-pressed={previewing?.id === card.id} onClick={() => onPreview(card)}>
-                        <Icon name="eye" />
-                      </Button>
-                    ) : null}
                   </div>
                 ) : null}
                 {previewing?.id === card.id ? <div className="card-preview-row">{previewing.view}</div> : null}
-                {liftFailure?.cardId === card.id ? (
+                {holdFailure?.cardId === card.id ? (
                   <p className="load-error card-lift-error" role="alert">
-                    {liftFailure.message}
+                    {holdFailure.message}
                   </p>
                 ) : null}
                 {asking === card.id ? (

@@ -94,6 +94,12 @@ export type CardExampleUpdate = z.infer<typeof CardExampleUpdate>;
 /** A card put aside (`HoldKind`), while that lasts: buried or suspended, and when a bury ends (null for a suspend, which lasts until it's brought back). */
 export const CardHold = z.object({ kind: HoldKind, until: z.number().int().nonnegative().nullable() });
 export type CardHold = z.infer<typeof CardHold>;
+/**
+ * A card put aside by hand, from its row in its deck (the owner, 2026-10-29): suspended, until it's brought back. A
+ * bury comes from a review's answer alone, its wait being that answer's.
+ */
+export const NewHold = z.object({ kind: z.literal("suspend") });
+export type NewHold = z.infer<typeof NewHold>;
 
 export const Card = NewCard.omit({ source: true }).extend({
   deckId: DeckId,

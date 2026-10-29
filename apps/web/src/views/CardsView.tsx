@@ -36,6 +36,8 @@ type Props = {
   onRemove: (cardId: string) => Promise<void>;
   /** Brings a card put aside (buried or suspended) back into reviews. */
   onLift: (cardId: string) => Promise<void>;
+  /** Suspends a card, from its row, until it's brought back. */
+  onSuspend: (cardId: string) => Promise<void>;
   /** What's typed in the add form, given as another example to a card that's already there (in this deck or another). */
   onAddExample: (to: CalledCard, example: NewCardExample) => Promise<Card>;
   /** One of a card's other examples, changed or deleted from its form. */
@@ -54,7 +56,8 @@ type Props = {
  * add form above them when asked for. A card called the same as another, in this deck or any other, says so on its
  * row, and pressed, the list shows that word's cards alone (the owner, 2026-10-21: "when I click duplicate it should
  * show only the duplicate cards of this same word"), those in other decks named over them. A card's edit button opens it where it stands in the list: its fields to change, Save, and Delete, which asks
- * first; the delete button under it deletes it from the row, asking there first. A card put aside is brought back from its row.
+ * first; the delete button under it deletes it from the row, asking there first. A card is suspended from its row, and
+ * one put aside is brought back from it.
  */
 export function CardsView({
   deckId,
@@ -71,6 +74,7 @@ export function CardsView({
   onSave,
   onRemove,
   onLift,
+  onSuspend,
   onAddExample,
   onSaveExample,
   onRemoveExample,
@@ -185,6 +189,7 @@ export function CardsView({
         onEdit={(card) => onOpen(card.id)}
         onRemove={(card) => onRemove(card.id)}
         onLift={(card) => onLift(card.id)}
+        onSuspend={(card) => onSuspend(card.id)}
         onPreview={(card) => setPreviewId((was) => (was === card.id ? null : card.id))}
         previewing={
           previewed

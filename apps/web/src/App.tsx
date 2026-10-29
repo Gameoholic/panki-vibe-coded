@@ -637,6 +637,14 @@ export function App() {
     setCards((prev) => prev?.map((c) => (c.id === cardId ? { ...c, examples: c.examples.filter((e) => e.id !== exampleId) } : c)) ?? null);
   }
 
+  async function suspendCard(cardId: string) {
+    if (screen.kind !== "deck") return;
+    const saved = await api.suspendCard(screen.deck.id, cardId);
+    setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
+    // A card out of reviews changes what a review would show.
+    loadLists();
+  }
+
   async function liftHold(cardId: string) {
     if (screen.kind !== "deck") return;
     const saved = await api.liftHold(screen.deck.id, cardId);
@@ -944,6 +952,7 @@ export function App() {
                     onSave={saveCard}
                     onRemove={removeCard}
                     onLift={liftHold}
+                    onSuspend={suspendCard}
                     onAddExample={addExample}
                     onSaveExample={saveExample}
                     onRemoveExample={removeExample}

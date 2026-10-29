@@ -4,6 +4,7 @@ import {
   CardExampleId,
   CardExampleUpdate,
   CardId,
+  NewHold,
   CardUpdate,
   DeckId,
   DeckUpdate,
@@ -388,6 +389,27 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
       return;
     }
     res.status(204).end();
+  });
+
+  // A card suspended from its row in the deck, by hand. A card already suspended stays as it is.
+  router.put("/:deckId/cards/:cardId/hold", (req, res) => {
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const cardId = CardId.safeParse(req.params.cardId);
+    if (!cardId.success) {
+      res.status(400).json({ error: { message: "That card id isn't valid." } });
+      return;
+    }
+    if (!NewHold.safeParse(req.body).success) {
+      res.status(400).json({ error: { message: "A card can be suspended here, nothing else." } });
+      return;
+    }
+    const card = dbOf(res).suspendCard(deckId, cardId.data, now());
+    if (!card) {
+      res.status(404).json({ error: { message: "That card isn't in this deck." } });
+      return;
+    }
+    res.json({ card });
   });
 
   // A card put aside (buried or suspended) brought back into reviews. The hold's row stays, with the time it was lifted;

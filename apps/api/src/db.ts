@@ -1140,6 +1140,8 @@ export function openDb(
     INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss, example_id, given_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms, given_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  // Whether a card is suspended now: the same reading as a card's own (`cardColumns` → `suspendedAt`).
+  const selectStandingSuspend = db.prepare("SELECT 1 FROM card_holds WHERE card_id = ? AND kind = 'suspend' AND lifted_at IS NULL AND undone_at IS NULL LIMIT 1");
   // Only what still stands is lifted: a bury whose wait is over had already ended by itself, an undone one never stood.
   const liftHolds = db.prepare("UPDATE card_holds SET lifted_at = ? WHERE card_id = ? AND lifted_at IS NULL AND undone_at IS NULL AND (kind = 'suspend' OR until > ?)");
   // An answer by the id it was given, wherever it was kept, and what has happened to its card since.
@@ -2068,6 +2070,16 @@ export function openDb(
      * and schedule were never touched, so it's due again at once if it fell due meanwhile. Bringing back a card that
      * isn't put aside changes nothing. Null when the card isn't in that deck.
      */
+    /** Suspends a card from its deck's list (the owner, 2026-10-29): kept as a hold, its place and schedule untouched. Null when the card isn't in that deck. */
+    suspendCard(deckId: string, cardId: string, now: number): Card | null {
+      return transaction(() => {
+        if (!selectDeckCard.get(deckId, cardId)) return null;
+        // Put aside by hand, with no answer or sitting behind it; doing it again to a card already suspended changes nothing.
+        if (!selectStandingSuspend.get(cardId)) insertHold.run(cardId, "suspend", now, null, null, null, null, null, null);
+        const row = selectDeckCard.get(deckId, cardId) as CardRow;
+        return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
+      });
+    },
     liftHold(deckId: string, cardId: string, now: number): Card | null {
       return transaction(() => {
         if (!selectDeckCard.get(deckId, cardId)) return null;

@@ -47,6 +47,7 @@ import {
   type Media,
   type NewCard,
   type NewCardExample,
+  type NewHold,
   type NewCardType,
   type NewDeck,
   type NewReviewSession,
@@ -239,6 +240,9 @@ export const api = {
   /** The account's cards, in any deck, already called by one of these words: what a card about to be added says is there. */
   cardsCalled: (words: readonly string[]): Promise<CalledCard[]> =>
     request(`/api/cards/called?${words.map((word) => `word=${encodeURIComponent(word)}`).join("&")}`, undefined, (b) => CalledCards.parse(b).cards),
+  /** Suspends a card from its row in the deck, until it's brought back; its schedule stands as it was. */
+  suspendCard: (deckId: string, cardId: string): Promise<Card> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/hold`, send("PUT", { kind: "suspend" } satisfies NewHold), (b) => CardResponse.parse(b).card),
   /** Brings a card put aside (buried or suspended) back into reviews; its schedule stands as it was. */
   liftHold: (deckId: string, cardId: string): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/hold`, send("DELETE"), (b) => CardResponse.parse(b).card),

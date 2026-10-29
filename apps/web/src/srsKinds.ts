@@ -211,9 +211,9 @@ export function minutesAsWait(minutes: number): Wait {
   return { n: Math.max(1, Math.round(minutes)), unit: "min" };
 }
 /**
- * When a card comes back, beside it in a list: "due now", "in 3 h", "in 2 d", "in 3 w", the end, or put aside
- * ("snoozed"). Nothing for a new card, whose place already says it (it said "new" under "Lesson" until the owner
- * asked what that meant, 2026-10-21).
+ * When a card comes back, beside it in a list: "due now", "next review in 3 h" (the owner, 2026-10-29: "in 1 h" alone
+ * didn't say what), "next review in 2 d", "next review in 3 w", the end, or put aside ("snoozed"). Nothing for a new
+ * card, whose place already says it (it said "new" under "Lesson" until the owner asked what that meant, 2026-10-21).
  */
 export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt" | "hold">, now: number): string | null {
   if (card.hold) return HOLD_KINDS[card.hold.kind].state;
@@ -221,10 +221,10 @@ export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt" | "hold
   if (card.dueAt === null) return null;
   const days = (card.dueAt - now) / 86_400_000;
   if (days <= 0) return "due now";
-  if (days < 1) return `in ${Math.max(1, Math.round(days * 24))} h`;
-  if (days < 14) return `in ${Math.round(days)} d`;
-  if (days < 60) return `in ${Math.round(days / 7)} w`;
-  return `in ${Math.round(days / 30)} mo`;
+  if (days < 1) return `next review in ${Math.max(1, Math.round(days * 24))} h`;
+  if (days < 14) return `next review in ${Math.round(days)} d`;
+  if (days < 60) return `next review in ${Math.round(days / 7)} w`;
+  return `next review in ${Math.round(days / 30)} mo`;
 }
 
 /** Among the main answers the first is the one that hurts, the last the one that helps, the ones between are mid; one set apart is quiet. */
