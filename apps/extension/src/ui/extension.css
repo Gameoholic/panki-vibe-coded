@@ -701,8 +701,9 @@
   background: var(--theater-mark);
   color: var(--theater-ink);
 }
-/* The player's speed among its own controls (ui/SpeedControl.tsx, a YouTube utility): a button of the player's own kind,
-   white on the picture, saying the speed; pressed, a dark row of the site's speeds above it, the one playing lit. */
+/* The player's speed among its own controls (ui/SpeedControl.tsx, a YouTube utility): − and + of the player's own kind,
+   white on the picture, round the speed; the speed pressed, a dark panel above it of the speed, its slider and the
+   common speeds, the one playing lit. */
 .yt-speed {
   position: relative;
   display: inline-flex;
@@ -711,8 +712,8 @@
 }
 .btn.btn-ghost.yt-speed-button {
   height: 100%;
-  min-width: 48px;
-  padding: 0 6px;
+  min-width: 44px;
+  padding: 0 2px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -728,30 +729,122 @@
     opacity: 1;
   }
 }
-.btn.btn-ghost.yt-speed-button:focus-visible {
+.btn.btn-ghost.yt-speed-button:focus-visible,
+.btn.btn-ghost.yt-speed-step:focus-visible {
   outline: 2px solid var(--theater-ink);
   outline-offset: -2px;
+}
+.btn.btn-ghost.yt-speed-step {
+  height: 100%;
+  min-width: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--theater-ink);
+  font: 400 18px/1 "Roboto", "Arial", var(--font);
+  opacity: 0.75;
+}
+@media (hover: hover) {
+  .btn.btn-ghost.yt-speed-step:hover:not(:disabled) {
+    background: transparent;
+    color: var(--theater-ink);
+    opacity: 1;
+  }
+}
+.btn.btn-ghost.yt-speed-step:disabled {
+  opacity: 0.3;
 }
 /* Well above the controls, so it clears the seek bar that runs just over them (the owner's screenshot, 2026-10-21). */
 .yt-speed-pop {
   position: absolute;
   right: 0;
   bottom: calc(100% + 40px);
-  display: flex;
-  flex: none;
-  gap: 4px;
-  padding: 6px;
-  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  width: 300px;
+  padding: 12px 14px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--theater) 90%, transparent);
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 16px color-mix(in srgb, var(--theater) 45%, transparent);
+  color: var(--theater-ink);
   white-space: nowrap;
 }
+.yt-speed-read {
+  justify-self: center;
+  font: 500 15px/1 "Roboto", "Arial", var(--font);
+  font-variant-numeric: tabular-nums;
+}
+/* The slider: a line taller to press than it looks, its knob, and the marks under it at their speeds (0.1× and 10×
+   held inside its ends). */
+.yt-speed-slider {
+  display: grid;
+  gap: 4px;
+}
+.yt-speed-line {
+  display: block;
+  padding: 9px 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.yt-speed-line:focus-visible {
+  outline: 2px solid var(--theater-ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.yt-speed-track {
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--theater-ink) 25%, transparent);
+}
+.yt-speed-track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--theater-ink);
+}
+.yt-speed-track b {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--theater-ink);
+  transform: translate(-50%, -50%);
+  transition: transform 0.1s;
+}
+.yt-speed-line.is-pulling .yt-speed-track b {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+.yt-speed-marks {
+  position: relative;
+  height: 12px;
+  color: color-mix(in srgb, var(--theater-ink) 60%, transparent);
+  font: 400 11px/12px "Roboto", "Arial", var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.yt-speed-marks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.yt-speed-marks span:first-child {
+  transform: none;
+}
+.yt-speed-marks span:last-child {
+  transform: translateX(-100%);
+}
+.yt-speed-presets {
+  display: flex;
+  gap: 4px;
+}
 .yt-speed-pop .btn.btn-chip.yt-speed-chip {
-  flex: none;
-  height: 32px;
-  min-width: 52px;
-  padding: 0 10px;
+  flex: 1;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
   border: 0;
   border-radius: 7px;
   background: color-mix(in srgb, var(--theater-ink) 10%, transparent);

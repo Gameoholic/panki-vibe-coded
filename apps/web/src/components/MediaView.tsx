@@ -162,9 +162,9 @@ const VOLUME_KEYS: Readonly<Partial<Record<string, number>>> = { ArrowLeft: -VOL
 /**
  * A line pressed or pulled along, a pointer that strays off it still pulling: `onShare` is told how far along it is, 0
  * to 1. Spread `handlers` on its box (taller than the line, to be easy to hit) and give the line `line`. How loud and
- * where in the clip are both this.
+ * where in the clip are both this, and the extension's speed slider.
  */
-function usePull(onShare: (share: number) => void) {
+export function usePull(onShare: (share: number) => void) {
   const line = useRef<HTMLSpanElement>(null);
   const [pulling, setPulling] = useState(false);
   function pull(x: number) {

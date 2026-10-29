@@ -752,6 +752,11 @@ function UtilitiesScene({ store }: { store: Stored }) {
       await t.click();
       chip?.click();
       await t.wait(600);
+      // A common speed pressed leaves the panel open, as the slider does; the speed pressed again closes it.
+      await t.move(speedButton(), 350);
+      await t.click();
+      speedButton()?.click();
+      await t.wait(300);
     }
     if (store.endTime) {
       await t.move(player.current?.querySelector(".ex-time") ?? null, 400);
