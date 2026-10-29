@@ -7,7 +7,7 @@ import { Icon } from "./components/Icon";
 import { LinkView } from "./components/LinkView";
 import { Tip } from "./components/Tip";
 import { NEW_WORDS, tintStyle } from "./srsKinds";
-import { count, dateWords, durationWords, langOf, leftWords } from "./words";
+import { VIDEO_TRACKING_OFF, count, dateWords, durationWords, langOf, leftWords } from "./words";
 
 /**
  * The widgets, one registry: every tile the Stats tab shows (all of them, in this order) and the home can carry
@@ -221,7 +221,7 @@ const spent = (ms: number) => durationWords(ms / 1000);
  * for it yet, drawn otherwise.
  */
 function watchTile(stats: Stats, empty: boolean, draw: () => ReactNode): ReactNode {
-  if (!stats.watching.on) return <Quiet>Video tracking is off</Quiet>;
+  if (!stats.watching.on) return <Quiet>{VIDEO_TRACKING_OFF}</Quiet>;
   if (empty) return <Quiet />;
   return draw();
 }

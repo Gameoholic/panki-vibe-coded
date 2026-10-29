@@ -4,7 +4,7 @@ import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { agoWords, clock, langOf, leftWords, sinceWords } from "@web/words";
+import { VIDEO_TRACKING_OFF, agoWords, clock, langOf, leftWords, sinceWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
@@ -312,12 +312,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * where it was stopped, what's left and Resume, the next ones under it as the site's own kind of card, each opening
    * where it was stopped; × puts one away until it's watched again.
    */
-  function Shelf({ videos, max, onStale }: { videos: readonly ContinueVideo[]; max: number; onStale: () => void }) {
+  function Shelf({ videos, max, tracking, onStale }: { videos: readonly ContinueVideo[]; max: number; tracking: boolean; onStale: () => void }) {
     const [gone, setGone] = useState<readonly string[]>([]);
     const [failure, setFailure] = useState<string | null>(null);
     const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, max);
     const [first, ...rest] = shown;
-    if (!first) return null;
+    // Empty, it keeps its place and its half of the row (the owner, 2026-10-29: an empty shelf mustn't resize the others).
+    if (!first) return <EmptyShelf title="Continue watching" words={tracking ? "Nothing to continue." : `${VIDEO_TRACKING_OFF}.`} />;
     async function putAway(videoId: string) {
       setFailure(null);
       setGone((was) => [...was, videoId]);
@@ -375,6 +376,16 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             {failure}
           </p>
         ) : null}
+      </section>
+    );
+  }
+
+  /** A shelf with nothing on it: its title and what's empty, standing where it would with videos. */
+  function EmptyShelf({ title, words }: { title: string; words: string }) {
+    return (
+      <section className="yh-shelf" aria-label={title}>
+        <h2 className="yh-h">{title}</h2>
+        <p className="yh-empty">{words}</p>
       </section>
     );
   }
@@ -458,13 +469,14 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * its start, its length in its picture's corner and when it was finished under it. Nothing takes one out: it's a
    * history, like the site's own (the owner, 2026-10-29); the Finished chip under a video says it isn't finished.
    */
-  function RecentShelf({ videos }: { videos: readonly FinishedVideo[] }) {
+  function RecentShelf({ videos, tracking }: { videos: readonly FinishedVideo[]; tracking: boolean }) {
     const now = Date.now();
+    if (!tracking) return <EmptyShelf title="Recently watched" words={`${VIDEO_TRACKING_OFF}.`} />;
     return (
       <RowShelf
         title="Recently watched"
         items={videos}
-        empty={null}
+        empty="Nothing finished yet."
         failure={null}
         card={(v) => (
           <VideoCard
@@ -513,13 +525,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null
         ) : (
           <>
-            {/* Continue watching and Saved for later side by side, half the row each (the owner, 2026-10-21: "it can appear in the same row… 50% 50%"); one alone takes the row. */}
+            {/* Continue watching and Saved for later side by side, half the row each (the owner, 2026-10-21: "it can appear in the same row… 50% 50%"); one switched off leaves the other the row. Empty, each still stands (2026-10-29). */}
             <div className="yh-shelves">
-              {on.homeShelf && now.home.stats.watching.on ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
+              {on.homeShelf ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} tracking={now.home.stats.watching.on} onStale={() => void load()} /> : null}
               {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
             </div>
-            {/* Under them, the row of its own: the videos finished, there once there's one. */}
-            {on.homeRecent && now.home.stats.watching.on && now.home.stats.watching.finished.length > 0 ? <RecentShelf videos={now.home.stats.watching.finished} /> : null}
+            {/* Under them, the row of its own: the videos finished. */}
+            {on.homeRecent ? <RecentShelf videos={now.home.stats.watching.finished} tracking={now.home.stats.watching.on} /> : null}
           </>
         )}
       </div>

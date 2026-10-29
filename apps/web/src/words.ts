@@ -5,6 +5,9 @@
 export const VIDEO_TRACKING_WHY =
   "Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats use it.";
 
+/** What a watching tile or shelf says while the account's Video tracking is off: Panki's tiles and YouTube's home alike. */
+export const VIDEO_TRACKING_OFF = "Video tracking is off";
+
 /** "1 card", "2 cards", "212,345 words": every count the owner reads is phrased here. */
 export function count(n: number, one: string, many: string) {
   return `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
