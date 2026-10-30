@@ -1602,61 +1602,6 @@
   }
 }
 
-/* Something that opens and closes by its height, fading as it goes (ui/Fold.tsx), so what's around it is moved aside
-   and let back instead of jumping. One row of a grid, taken from nothing to the height of what's in it; how long that
-   takes is handed in by the component, its one home. While it moves, what's in it is cut off at its edge; at rest
-   nothing is, so a shadow or a focus ring can reach out of it. The easing is the app's own (the opening moment's). */
-.fold {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 1fr;
-}
-.fold > .fold-body {
-  min-height: 0;
-  overflow: hidden;
-}
-.fold.is-still > .fold-body {
-  overflow: visible;
-}
-.fold.is-away {
-  grid-template-rows: 0fr;
-  visibility: hidden;
-}
-.fold.is-in {
-  animation: fold-in var(--fold-in) cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.fold.is-out {
-  animation: fold-out var(--fold-out) cubic-bezier(0.4, 0, 0.7, 1) both;
-}
-@keyframes fold-in {
-  from {
-    grid-template-rows: 0fr;
-    opacity: 0;
-  }
-  to {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-}
-@keyframes fold-out {
-  from {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-  to {
-    grid-template-rows: 0fr;
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-/* Asked for less motion: it's simply there, and simply gone. (Not `none`: whoever waits for it to end still hears so.) */
-@media (prefers-reduced-motion: reduce) {
-  .fold.is-in,
-  .fold.is-out {
-    animation-duration: 1ms;
-  }
-}
-
 /* A small dot that breathes: something is going on by itself, and will stop by itself. */
 .live-dot {
   flex: none;
@@ -1664,12 +1609,8 @@
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
+  /* The keyframes are the app's (app.css), which the AI's status breathes by too. */
   animation: live-dot 1.2s ease-in-out infinite;
-}
-@keyframes live-dot {
-  50% {
-    opacity: 0.3;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .live-dot {
@@ -2633,6 +2574,99 @@
 .btn.look-more .icon {
   width: 14px;
   height: 14px;
+}
+/* Explain (ui/Explain.tsx): Panki AI under the word shown. Before it runs, its button with the most it can cost (or why
+   it can't run) beside it; then the spark's head, each answer as plain paragraphs rising in as it lands (the app's
+   `intro-rise`), each follow-up a quiet bubble at the right, Panki's own note under an answer cut short, and the
+   follow-up asked under the last. It scrolls with the pop-up; nothing in it moves the pop-up. The head is the web's
+   `AiStatus`. Its classes are `ai-explain-*`: `explain-*` are the options page's explainers (`options/Explainer.tsx`). */
+.ai-explain-start,
+.ai-explain-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.btn.ai-explain-button {
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.btn.ai-explain-button > .ai-spark {
+  color: var(--accent);
+}
+.btn.ai-explain-button:disabled > .ai-spark {
+  color: inherit;
+}
+.ai-explain-beside {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ai-explain {
+  display: grid;
+  gap: 10px;
+}
+.ai-explain-turn {
+  display: grid;
+  gap: 8px;
+}
+.ai-explain-answer {
+  display: grid;
+  gap: 8px;
+  animation: intro-rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+/* The model's words as it wrote them: its single line breaks kept, nothing of it read as markup. */
+.ai-explain-answer > p {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.ai-explain-question {
+  justify-self: end;
+  max-width: 85%;
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 14px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* Panki's own word on an answer, never the AI's: the app's muted look on its second surface, the info sign, no spark. */
+.ai-explain-cut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ai-explain-cut > .icon {
+  width: 14px;
+  height: 14px;
+}
+.ai-explain-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.ai-explain-failure > .form-failure {
+  margin: 0;
+}
+.ai-explain-ask {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-explain-answer {
+    animation: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .btn.look-fold .icon {

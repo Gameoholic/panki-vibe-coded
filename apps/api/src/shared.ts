@@ -4,11 +4,16 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
+  DEFAULT_PANKI_AI,
   DEFAULT_TRANSCRIPTION,
-  DEFAULT_WATCHING_SETTINGS,
+  ENGINES,
+  PankiAi,
+  soundCostMicros,
+  type AiProviderId,
+  type PankiAiUpdate,
+  type UsageKind,
+  type UsageTotals,
   DEFAULT_WORD_AUDIO,
-  WatchingSettings,
-  type WatchingSettingsUpdate,
   ForvoVoice,
   Provides,
   ServerDictionary,
@@ -44,8 +49,25 @@ export type Shared = ReturnType<typeof openShared>;
 /** A Forvo recording as everyone's copy of it is kept: who said which word, from where, and its bytes (an mp3). */
 export type SharedRecording = { word: string; by: string; country: string; mime: string; bytes: Buffer };
 
-/** What a key is for: a source of word audio (Forvo), or one of the transcription engines. */
-export type Service = WordAudioSourceId | EngineId;
+/** What a key is for: a source of word audio (Forvo), one of the transcription engines, or a Panki AI provider. */
+export type Service = WordAudioSourceId | EngineId | AiProviderId;
+
+/** A row of the usage ledger as it's written: one paid call. Only the amounts that fit it are given; `costMicros` is null for a flat plan. */
+export type NewUsage = {
+  kind: UsageKind;
+  service: Service;
+  model?: string | null;
+  what: string;
+  ref?: string | null;
+  userId: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  soundMs?: number;
+  requests?: number;
+  costMicros: number | null;
+};
+/** One account's usage added up, as the ledger is read; `userId` null for calls from before they were counted per account. */
+export type UsageRow = { userId: string | null } & Omit<UsageTotals, "costMicros"> & { costMicros: number | null };
 
 /**
  * A piece as the route hands it in: where its sound is in the video, the language the engine was told and what it
@@ -112,7 +134,7 @@ type Checked = { success: true; data: unknown } | { success: false };
 type Group<T extends Record<string, unknown>> = { shape: Record<string, { safeParse(value: unknown): Checked }>; parse(value: unknown): T; defaults: T };
 const TRANSCRIPTION: Group<Transcription> = { shape: Transcription.shape, parse: (value) => Transcription.parse(value), defaults: DEFAULT_TRANSCRIPTION };
 const WORD_AUDIO: Group<WordAudio> = { shape: WordAudio.shape, parse: (value) => WordAudio.parse(value), defaults: DEFAULT_WORD_AUDIO };
-const WATCHING: Group<WatchingSettings> = { shape: WatchingSettings.shape, parse: (value) => WatchingSettings.parse(value), defaults: DEFAULT_WATCHING_SETTINGS };
+const PANKI_AI: Group<PankiAi> = { shape: PankiAi.shape, parse: (value) => PankiAi.parse(value), defaults: DEFAULT_PANKI_AI };
 /** A living word: the engine's own, and its latest fix's text and times, when it has one (a fix to "" took it out of the line). */
 type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null; fixedStart: number | null; fixedEnd: number | null };
 type StretchRow = { startMs: number; endMs: number };
@@ -417,6 +439,52 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     // counted: at upload, or at startup for one kept before (`countDictionaries`).
     db.exec("ALTER TABLE dictionary_files ADD COLUMN provides TEXT");
   },
+  (db) => {
+    // The usage ledger (2026-10-30, Panki AI's first step): one row for every paid call Panki makes, so what each account
+    // used and what it cost can be shown now and billed later. `kind` is the panel it's shown in (the contracts'
+    // UsageKind), `service` a provider's, an engine's or a source's id, `what` what was done (a chunk, a whole video, a
+    // word's list, a recording; an AI action), `ref` what it was done to. How much is whichever fits: tokens in and out,
+    // ms of sound, requests. The cost is whole micro-dollars at the listed price as the row was written, never rewritten;
+    // null for a flat plan. `user_id` null is a call from before calls were counted per account.
+    db.exec(`
+      CREATE TABLE usage (
+        id INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('ai', 'transcription', 'wordAudio')),
+        service TEXT NOT NULL,
+        model TEXT,
+        what TEXT NOT NULL,
+        ref TEXT,
+        user_id TEXT,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        sound_ms INTEGER,
+        requests INTEGER,
+        cost_micros INTEGER,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX usage_kind_at ON usage (kind, at)");
+    db.exec("CREATE INDEX usage_service_at ON usage (service, at)");
+    // What was paid for before, copied in once. ElevenLabs is the only engine there has been, and 22 cents an hour its
+    // listed price (220,000 micro-dollars): every chunk sent with sound, whether or not its words stood or still stand,
+    // and every whole video done (one that failed may or may not have been charged, so none is counted).
+    db.exec(`
+      INSERT INTO usage (kind, service, what, ref, user_id, sound_ms, cost_micros, at)
+      SELECT 'transcription', engine, 'chunk', id, user_id, end_ms - start_ms, CAST(ROUND((end_ms - start_ms) * 220000.0 / 3600000) AS INTEGER), created_at
+      FROM transcript_pieces WHERE job_id IS NULL AND engine = 'elevenlabs' AND end_ms > start_ms ORDER BY created_at, rowid
+    `);
+    db.exec(`
+      INSERT INTO usage (kind, service, what, ref, user_id, sound_ms, cost_micros, at)
+      SELECT 'transcription', engine, 'whole', id, user_id, length_ms, CAST(ROUND(length_ms * 220000.0 / 3600000) AS INTEGER), COALESCE(ended_at, asked_at)
+      FROM transcript_jobs WHERE state = 'done' AND engine = 'elevenlabs' ORDER BY asked_at, rowid
+    `);
+    // Forvo's requests, counted until now with no account: a flat plan, so no cost. `service_calls` stays as it is and
+    // isn't written from here on; the day's count against Forvo's 500 reads this ledger.
+    db.exec(`
+      INSERT INTO usage (kind, service, what, requests, at)
+      SELECT 'wordAudio', service, 'request', 1, at FROM service_calls ORDER BY at, id
+    `);
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -528,8 +596,14 @@ export function openShared(dataDir: string) {
   const upsertKey = db.prepare("INSERT INTO service_keys (service, key, set_at) VALUES (?, ?, ?) ON CONFLICT (service) DO UPDATE SET key = excluded.key, set_at = excluded.set_at");
   const deleteKey = db.prepare("DELETE FROM service_keys WHERE service = ?");
   const insertKeyChange = db.prepare("INSERT INTO service_key_changes (service, what, at, user_id) VALUES (?, ?, ?, ?)");
-  const insertCall = db.prepare("INSERT INTO service_calls (service, at) VALUES (?, ?)");
-  const countCalls = db.prepare("SELECT COUNT(*) AS n FROM service_calls WHERE service = ? AND at >= ?");
+  const insertUsage = db.prepare(
+    "INSERT INTO usage (kind, service, model, what, ref, user_id, input_tokens, output_tokens, sound_ms, requests, cost_micros, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const sumRequests = db.prepare("SELECT COALESCE(SUM(requests), 0) AS n FROM usage WHERE service = ? AND at >= ?");
+  const selectUsage = db.prepare(`
+    SELECT user_id AS userId, COUNT(*) AS calls, COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
+      COALESCE(SUM(sound_ms), 0) AS soundMs, COALESCE(SUM(requests), 0) AS requests, SUM(cost_micros) AS costMicros
+    FROM usage WHERE kind = ? AND at >= ? GROUP BY user_id`);
 
   const dictionaryColumns = "id, title, revision, description, bytes, provides, uploaded_at AS uploadedAt";
   const selectDictionaryFiles = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE removed_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
@@ -650,7 +724,6 @@ export function openShared(dataDir: string) {
     }
   }
   const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  const sumPieces = db.prepare("SELECT COALESCE(SUM(end_ms - start_ms), 0) AS ms FROM transcript_pieces");
   const selectPicture = db.prepare("SELECT mime, bytes FROM video_pictures WHERE video_id = ? AND picture = ?");
   const selectHasWords = db.prepare(`
     SELECT 1 FROM transcript_words w JOIN transcript_pieces p ON p.id = w.piece_id
@@ -694,6 +767,23 @@ export function openShared(dataDir: string) {
     });
   }
   const transcriptionFrom = (rows: SettingRow[]): Transcription => groupFrom(TRANSCRIPTION, rows);
+  /** One paid call, a row of the usage ledger: who it was for, what was done, how much and what it cost. */
+  function meter(row: NewUsage, now: number): void {
+    insertUsage.run(
+      row.kind,
+      row.service,
+      row.model ?? null,
+      row.what,
+      row.ref ?? null,
+      row.userId,
+      row.inputTokens ?? null,
+      row.outputTokens ?? null,
+      row.soundMs ?? null,
+      row.requests ?? null,
+      row.costMicros,
+      now,
+    );
+  }
 
   return {
     /** The key kept for a service, typed in Settings; null when there's none. Read only to call that service, never sent back. */
@@ -709,13 +799,22 @@ export function openShared(dataDir: string) {
         insertKeyChange.run(service, key === null ? "forgotten" : "set", now, userId);
       });
     },
-    /** One request made to a service that counts them. */
-    recordCall(service: Service, now: number): void {
-      insertCall.run(service, now);
+    meter,
+    /** Sound an engine heard, at its listed price per hour: a chunk, or a whole video. */
+    meterSound(engine: EngineId, what: "chunk" | "whole", ref: string, userId: string, soundMs: number, now: number): void {
+      meter({ kind: "transcription", service: engine, what, ref, userId, soundMs, costMicros: soundCostMicros(ENGINES[engine].centsPerHour, soundMs) }, now);
     },
-    /** How many requests went to a service since a moment. */
-    callsSince(service: Service, since: number): number {
-      return (countCalls.get(service, since) as { n: number }).n;
+    /** One request to a source of word audio: a flat plan, so it's counted and not priced. */
+    meterRequest(source: WordAudioSourceId, what: "list" | "recording", ref: string, userId: string, now: number): void {
+      meter({ kind: "wordAudio", service: source, what, ref, userId, requests: 1, costMicros: null }, now);
+    },
+    /** How many requests went to a service since a moment (Forvo's against its day's allowance). */
+    requestsSince(service: Service, since: number): number {
+      return (sumRequests.get(service, since) as { n: number }).n;
+    },
+    /** One kind's usage from a moment on, added up per account (null: from before calls were counted per account). */
+    usageOf(kind: UsageKind, since: number): UsageRow[] {
+      return selectUsage.all(kind, since) as UsageRow[];
     },
 
     /** Which of these videos Panki has subtitles for: a word heard in it that still stands, from a piece kept and standing. */
@@ -803,12 +902,14 @@ export function openShared(dataDir: string) {
     updateWordAudio(patch: WordAudioUpdate, now: number, userId: string): WordAudio {
       return updateGroup(WORD_AUDIO, patch, now, userId);
     },
-    /** How watching is told, for everyone (`WatchingSettings`): when a video counts as watched to its end. */
-    getWatching(): WatchingSettings {
-      return groupFrom(WATCHING, selectSettings.all() as SettingRow[]);
+    // How watching was told for everyone (`WatchingSettings`, when a video counts as finished) stood here from 2026-10-25
+    // until it became each account's own, 2026-10-30 (`Settings.finishedWithinSec`). A row an admin kept stays, unread.
+    /** Panki AI, for everyone: whether it's on, the provider and its model (`PankiAi`). */
+    getAi(): PankiAi {
+      return groupFrom(PANKI_AI, selectSettings.all() as SettingRow[]);
     },
-    updateWatching(patch: WatchingSettingsUpdate, now: number, userId: string): WatchingSettings {
-      return updateGroup(WATCHING, patch, now, userId);
+    updateAi(patch: PankiAiUpdate, now: number, userId: string): PankiAi {
+      return updateGroup(PANKI_AI, patch, now, userId);
     },
 
     /**
@@ -916,7 +1017,7 @@ export function openShared(dataDir: string) {
      * A transcript forgotten, a stretch of it or the whole (null): every piece and every quiet reaching into the stretch
      * stands aside with its words (`removed_at`, never deleted), so the stretch is uncovered and transcribed afresh when
      * a run passes it; the whole video forgotten forgets what language it was heard as too, to start from scratch. What
-     * was paid for stays counted (`secondsTranscribed`). The ask itself is kept (`transcript_forgets`), with who made it.
+     * was paid for stays counted (the usage ledger, `meterSound`). The ask itself is kept (`transcript_forgets`), with who made it.
      */
     forget(videoId: string, stretch: Stretch | null, now: number, userId: string): void {
       transaction(() => {
@@ -1104,12 +1205,6 @@ export function openShared(dataDir: string) {
         firstWordsMs: first === null ? null : Math.round(first),
       };
     },
-    /** How much sound has been sent to engines so far, every video and everyone counted, in whole seconds. */
-    secondsTranscribed(): number {
-      const { ms } = sumPieces.get() as { ms: number };
-      return Math.floor(ms / 1000);
-    },
-
     close() {
       db.close();
     },

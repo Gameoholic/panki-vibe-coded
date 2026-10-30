@@ -93,6 +93,11 @@ const Stored = z.object({
   lookSites: z.array(z.string()).catch([]),
   /** How the popup is laid out, as the options page's editor saved it; none until it's saved once (`popupLayoutOf` fills it out). */
   popupLayout: PopupLayout.nullable().catch(null),
+  /**
+   * Whether Explain runs by itself as the pop-up opens: only once it's kept open, never on a passing hover, once a
+   * pop-up (AI step 2, 2026-10-30). Off to begin with: on a press, it says what it can cost first.
+   */
+  explainOnOpen: z.boolean().catch(false),
   /** The tab the options page is to open on, when the drawer sent the owner there to sign in or to switch a deck's field mapping on; the page takes it and clears it. */
   optionsTab: OptionsTab.nullable().catch(null),
   /**

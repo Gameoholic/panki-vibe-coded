@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { EngineId, WordAudioSourceId } from "@panki/contracts";
+import type { AiProviderId, EngineId, WordAudioSourceId } from "@panki/contracts";
 
 const dataDir = process.env.PANKI_DATA_DIR ?? path.resolve(import.meta.dirname, "../data");
 
@@ -27,6 +27,13 @@ export const env = {
   // A key per transcription engine, used when none was typed in Settings → Admin. None unless it's set; never logged,
   // never sent anywhere but that engine's own host.
   engineKeys: { elevenlabs: process.env.PANKI_ELEVENLABS_KEY?.trim() || null } satisfies Record<EngineId, string | null>,
+  // A key per Panki AI provider, used when none was typed in Settings → Admin. None unless it's set; never logged,
+  // never sent anywhere but that provider's own host.
+  aiKeys: {
+    anthropic: process.env.PANKI_ANTHROPIC_KEY?.trim() || null,
+    openai: process.env.PANKI_OPENAI_KEY?.trim() || null,
+    google: process.env.PANKI_GOOGLE_KEY?.trim() || null,
+  } satisfies Record<AiProviderId, string | null>,
 };
 
 /** A whole number of at least one from the environment; the fallback when it's missing or isn't one. */

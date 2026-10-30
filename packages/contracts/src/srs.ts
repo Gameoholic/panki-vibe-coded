@@ -395,6 +395,15 @@ export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number
  * What differs from deck to deck (how many new cards, where they go, how a review is paced) is the deck's own
  * `DeckSettings`.
  */
+/**
+ * The languages Panki can speak to an account in, one registry (the owner, 2026-10-30): English alone for now, so its
+ * setting stays greyed until there's a second. A new language is one entry, its id the same three letters as
+ * `TranscribeLanguage`'s.
+ */
+export const AppLanguage = z.enum(["eng"]);
+export type AppLanguage = z.infer<typeof AppLanguage>;
+export const APP_LANGUAGES: Record<AppLanguage, string> = { eng: "English" };
+
 export const Settings = z.object({
   // `fuzz` (each wait spread ±10 %) went at the owner's word, 2026-10-28. A row kept of it is read by nothing.
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
@@ -413,17 +422,32 @@ export const Settings = z.object({
    */
   timeZone: z.string().max(64).refine((zone) => zone === "" || isTimeZone(zone), { message: "That isn't a time zone." }),
   /**
-   * The language this account's videos are transcribed in, told to the engine. Each account's own, nothing Panki-wide
-   * (the owner, 2026-10-21: "transcription language is also per user and not per the entire app"); English to begin
-   * with. An account from before keeps Japanese, the language every video was transcribed in until then (migration 29).
+   * **Learning language** on screen (Transcription language until 2026-10-30, then Language for an hour): the language
+   * this account learns, its videos transcribed in it and a Panki AI prompt's {Learning language}. Each account's own,
+   * nothing Panki-wide (the owner, 2026-10-21: "transcription language is also per user and not per the entire app");
+   * English to begin with. An account from before keeps Japanese, the language every video was transcribed in until
+   * then (migration 29). The key is still `language`, where it was born, as `downloadLimit` and `lesson` are.
    */
   language: TranscribeLanguage,
+  /**
+   * **Language** on screen (the owner, 2026-10-30): the language Panki speaks to this account in, the AI's answers now
+   * (a prompt's {Language}) and the whole app later. English, the one choice there is yet. A new key, so an account
+   * without it reads the default: no migration.
+   */
+  appLanguage: AppLanguage,
   /**
    * Whether the account's watching is kept at all (`watching.ts`): its own alone, shown to nobody else. Off to begin
    * with (the owner, 2026-10-21; it was on that morning); an account that had already kept some watching keeps it on
    * (migration 30).
    */
   videoTracking: z.boolean(),
+  /**
+   * How close to its end, in seconds, a video played counts as finished (`watching.ts` → `inEndZone`): a flag kept on it
+   * until it's taken off by hand, so it leaves Continue watching and isn't offered to continue. Each account's own since
+   * 2026-10-30, set on the extension's YouTube tab beside Video tracking (the owner: "we can move it into per-user
+   * settings… extension right?"); an admin's for everyone from 2026-10-25 until then. 20 to begin with.
+   */
+  finishedWithinSec: z.number().int().min(0).max(600),
   // `dailyGoal` (minutes a day that kept the watch streak) went with the streak, 2026-10-21. A row kept of it is read by nothing.
   // `shareWatching` (Off, Minutes and streak, Also what I watch) went the same day: "either we share all or nothing". A row kept of it is read by nothing.
 });
@@ -433,7 +457,9 @@ export const DEFAULT_SETTINGS: Settings = {
   subtitleStyle: DEFAULT_SUBTITLE_STYLE,
   timeZone: "",
   language: "eng",
+  appLanguage: "eng",
   videoTracking: false,
+  finishedWithinSec: 20,
 };
 export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;

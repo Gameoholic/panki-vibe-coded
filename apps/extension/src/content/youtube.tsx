@@ -13,7 +13,7 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { inEndZone, momentWanted, youtubeMetaValue, youtubeUrl, type CaptureFacts, type WatchMarkSource } from "@panki/contracts";
+import { inEndZone, momentWanted, youtubeMetaValue, youtubeUrl, type CaptureFacts, type PromptPieces, type WatchMarkSource } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
@@ -39,6 +39,7 @@ import { inPanki, makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
+import type { PieceLimits } from "../ui/Explain";
 import { SpeedControl } from "../ui/SpeedControl";
 import { SeekMark, markOf, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { Stamp } from "../ui/Stamp";
@@ -71,6 +72,11 @@ const SEEK_BAR = "#movie_player .ytp-progress-bar";
 const CHANNEL_NAME = "ytd-watch-flexy #owner ytd-channel-name a[href], ytd-watch-flexy ytd-video-owner-renderer a[href]";
 /** The channel's picture beside its name, under the player: Panki keeps it with the card's video (`askPictures`). */
 const CHANNEL_PICTURE = "ytd-watch-flexy #owner #avatar img, ytd-watch-flexy ytd-video-owner-renderer #avatar img";
+/**
+ * The video's description under the player, for Panki AI's Explain (`videoPieces`): the whole of it as it unfolds, then
+ * the box it's in (folded, it may hold less), then the older layout's. Tried in this order; the first with words is it.
+ */
+const DESCRIPTION = ["ytd-watch-metadata #description-inline-expander #expanded", "ytd-watch-metadata #description-inline-expander", "ytd-watch-metadata #description"] as const;
 
 /**
  * A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a
@@ -281,6 +287,44 @@ function aboutVideo() {
   const link = owner instanceof HTMLAnchorElement && /^https?:\/\//i.test(owner.href) ? owner.href.slice(0, 2000) : "";
   return { title, channel: name && link ? { name, url: link } : null };
 }
+/** The video's description as the page has it, its spacing tidied; empty when it isn't found. */
+function descriptionText(): string {
+  for (const selector of DESCRIPTION) {
+    const text = (document.querySelector(selector)?.textContent ?? "")
+      .replace(/[ \t ]+/g, " ")
+      .replace(/ ?\n ?/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (text !== "") return text;
+  }
+  return "";
+}
+
+/**
+ * What Explain sends of a video besides the word and its sentence (AI step 2): the video's title, channel and link at
+ * the moment it stands at, as text; the lines the strip is reading (Panki's transcript or YouTube's subtitles, as
+ * shown) within `aiSurroundingSeconds` either side of that moment, one a line; and its description, cut to
+ * `aiMaxDescriptionChars`. Nothing off a video's own page.
+ */
+function videoPieces(_pointed: Pointed, limits: PieceLimits): PromptPieces {
+  const id = videoId();
+  if (!id || !video || location.pathname !== "/watch") return {};
+  const at = video.currentTime;
+  const { title, channel } = aboutVideo();
+  const source = [title, channel ? `on ${channel.name}` : "", youtubeUrl({ videoId: id, seconds: Math.floor(at) })].filter((part) => part !== "").join(", ");
+  const reach = limits.aiSurroundingSeconds;
+  const surrounding =
+    reach > 0
+      ? lines
+          .snapshot()
+          .filter((line) => line.start <= at + reach && (line.end ?? line.start) >= at - reach)
+          .map((line) => line.text)
+          .join("\n")
+      : "";
+  const description = descriptionText().slice(0, limits.aiMaxDescriptionChars);
+  return { source, surrounding, description };
+}
+
 /** Panki on YouTube's pages beyond a video's: the shelf over its home's videos, the marks on every thumbnail (`feed.tsx`). */
 const feed = createFeed({
   modules: () => active(),
@@ -472,6 +516,7 @@ const listening = createListening({
   },
   theme: () => siteTheme(),
   parent: () => document.fullscreenElement ?? document.documentElement,
+  aiContext: videoPieces,
 });
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
 const inPlace = cell(false);

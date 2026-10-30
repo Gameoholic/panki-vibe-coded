@@ -25,6 +25,7 @@ export const PART_NAMES: Record<NamedPart, string> = {
   frequency: DATA_KINDS.frequency.name,
   wordType: DATA_KINDS.wordType.name,
   endings: "Endings",
+  explain: "Explain",
 };
 /** What each part is for, said beside it when it's picked in the layout (the owner, 2026-10-16: "Words that start here, I don't get what that's for"). */
 export const PART_ABOUT: Record<NamedPart, string> = {
@@ -39,6 +40,7 @@ export const PART_ABOUT: Record<NamedPart, string> = {
   frequency: "How common the word is: a band from the best rank among your lists, and each list's own number.",
   wordType: "Which kind of verb or adjective the word is, as the dictionary names it, written the way Tags are.",
   endings: "Panki's own: the endings it took off the word on the page to find it in the dictionary, one after another, using the word's type.",
+  explain: "Asks Panki AI what the word means in the sentence it's in, for at most the cost shown beside it, and lets you ask more.",
 };
 /** What a dictionary's own part is for. */
 export const MEANINGS_ABOUT = "What this dictionary says the word means, under its name.";

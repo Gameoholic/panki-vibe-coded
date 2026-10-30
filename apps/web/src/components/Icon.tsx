@@ -60,6 +60,10 @@ const ICONS = {
   search: ["M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13z", "M15.5 15.5L20 20"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],
+  /** An i in a circle: a note of Panki's own, beside what someone or something else said (under an AI answer, "Cut short at the answer limit."). */
+  info: ["M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z", "M12 11v5.5", "M12 7.5h.01"],
+  /** The AI: a four-point spark, filled (`className="is-solid"`; the owner's pick, 2026-10-30, "Spark, solid"). Every button the assistant or a touch-up offers carries it, and anything the AI wrote on a card is marked with it (CONVENTIONS: generated content is marked and kept apart from the true data). */
+  ai: ["M12 3.5Q13.28 10.73 20.5 12Q13.28 13.28 12 20.5Q10.73 13.28 3.5 12Q10.73 10.73 12 3.5Z"],
   // Every action carries its icon (the owner, 2026-10-29; the audit page's section 4): what each of these is for.
   signIn: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4", "M3 12h11", "M10 8l4 4-4 4"],
   signOut: ["M10 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4", "M9 12h11", "M16 8l4 4-4 4"],

@@ -4,6 +4,7 @@ import type { Found } from "../dictionary/found";
 import type { LookKey } from "../lookSettings";
 import { askLookState } from "../messages";
 import { popupLayoutOf, type PopupLayout } from "../popupLayout";
+import type { MorePieces } from "../ui/Explain";
 import { Lookup } from "../ui/Lookup";
 import { makePlace } from "../ui/mount";
 import { createLooker, listenOnPage, type Pointed, type View, type Where } from "./look";
@@ -21,6 +22,8 @@ type Options = {
   parent?: () => Element;
   /** Whether a point on the page is on Panki subtitles drawn by the page itself (a card's clip in Panki), where the key to hold is theirs. */
   subtitlesAt?: (target: EventTarget | null) => boolean;
+  /** What the page adds to what Explain sends of a word pointed at (a video's metadata, the subtitles around it, its description); none anywhere else. */
+  aiContext?: MorePieces;
 };
 
 export type Listening = ReturnType<typeof createListening>;
@@ -35,12 +38,13 @@ const OVER_ALL = "position: fixed; inset: 0; z-index: 2147483647; pointer-events
  * The video page and any other page both start one; the video page also points at its own line's words through it.
  */
 export function createListening(options: Options) {
-  let settings: { on: boolean; key: LookKey; subtitlesOn: boolean; subtitleKey: LookKey; layout: PopupLayout } = {
+  let settings: { on: boolean; key: LookKey; subtitlesOn: boolean; subtitleKey: LookKey; layout: PopupLayout; explainOnOpen: boolean } = {
     on: false,
     key: "shift",
     subtitlesOn: false,
     subtitleKey: "shift",
     layout: popupLayoutOf(null, []),
+    explainOnOpen: false,
   };
   const place = makePlace(options.theme?.() ?? "light");
   place.host.style.cssText = OVER_ALL;
@@ -63,6 +67,7 @@ export function createListening(options: Options) {
         view={view}
         layout={settings.layout}
         split={split}
+        explain={{ kind: "panki", more: options.aiContext ?? null, auto: settings.explainOnOpen }}
         onKeep={looker.lock}
         onAdd={(found) => {
           looker.close();
@@ -82,7 +87,7 @@ export function createListening(options: Options) {
   async function refresh() {
     const state = await askLookState();
     if (!state.ok) return;
-    settings = { on: state.on, key: state.key, subtitlesOn: state.subtitlesOn, subtitleKey: state.subtitleKey, layout: state.layout };
+    settings = { on: state.on, key: state.key, subtitlesOn: state.subtitlesOn, subtitleKey: state.subtitleKey, layout: state.layout, explainOnOpen: state.explainOnOpen };
     dictionariesAre(state.signature);
     if (!settings.on && !settings.subtitlesOn) looker.close();
   }

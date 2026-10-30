@@ -843,6 +843,7 @@ export function App() {
         // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
         return <Board stats={null} ctx={null} />;
       case "settings":
+      case "admin":
         return <Skeleton shape="panels" tabs />;
       default:
         return <Skeleton shape={SKELETON_OF[kind]} />;
@@ -1084,7 +1085,7 @@ export function App() {
           me === null ? (
             loading
           ) : me.user.admin ? (
-            <AdminView />
+            <AdminView onGuard={setGuard} />
           ) : (
             <p className="load-error" role="alert">
               Only an admin can open this page.

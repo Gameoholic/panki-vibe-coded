@@ -8,6 +8,10 @@ import {
   CardsCalled,
   Deck,
   DeckId,
+  ExplainAsk,
+  ExplainProblem,
+  Explained,
+  PankiAiStatus,
   ExtensionBuild,
   ExtensionBuildFile,
   FORVO_WORD_MAX,
@@ -197,8 +201,19 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("showFolder") }),
   /** The extension reloaded from its folder, where Update Panki has put the new files; `reopen`, its own page opened again once it's back (asked from that page, which the reload closes). */
   z.object({ kind: z.literal("reloadPanki"), reopen: z.boolean().optional() }),
+  /** Panki AI as it stands for everyone, as the worker keeps it: what the pop-up's Explain says it can cost, or why it can't run. */
+  z.object({ kind: z.literal("aiState") }),
+  /** A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation so far. */
+  z.object({ kind: z.literal("explain"), ask: ExplainAsk }),
 ]);
 export type Ask = z.infer<typeof Ask>;
+
+/** Panki AI as a page is told it: its settings and whose key it has, never the key itself (`saved`, an admin's). */
+export const AiShown = PankiAiStatus.omit({ saved: true });
+export type AiShown = z.infer<typeof AiShown>;
+/** Panki AI as it stands; null signed out. */
+const AiState = z.union([z.object({ ok: z.literal(true), ai: AiShown.nullable() }), z.object({ ok: z.literal(false), message: z.string() })]);
+export type AiState = z.infer<typeof AiState>;
 
 const LookState = z.union([
   z.object({
@@ -216,6 +231,8 @@ const LookState = z.union([
     signature: z.string(),
     /** How the popup is laid out, filled out against the dictionaries there are. */
     layout: PopupLayout,
+    /** Explain runs by itself once the pop-up is kept open (`storage.ts` → `explainOnOpen`). */
+    explainOnOpen: z.boolean().catch(false),
   }),
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
@@ -302,6 +319,11 @@ export type Redone = z.infer<typeof Redone>;
 /** What a part typed would widen to. */
 const Stretched = z.union([z.object({ ok: z.literal(true), stretch: Stretch }), Failed]);
 export type Stretched = z.infer<typeof Stretched>;
+/** Explain answered, refused by Panki with its reason (`problem`), or failed as any ask can (signed out, Panki not reached). */
+const ExplainAnswer = z.union([z.object({ ok: z.literal(true), explain: Explained }), z.object({ ok: z.literal(false), message: z.string(), problem: ExplainProblem }), Failed]);
+export type ExplainAnswer = z.infer<typeof ExplainAnswer>;
+/** Explain as the pop-up reads it: the answer, or why there's none, signed out among the reasons; null for a failure with no reason of Panki's. */
+export type Explanation = { ok: true; explain: Explained } | { ok: false; message: string; problem: ExplainProblem | "signedOut" | null };
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */
 export const Trigger = z.object({ kind: z.literal("capture") });
@@ -519,6 +541,20 @@ export async function askShowFolder(): Promise<void> {
 /** The extension reloaded from its folder, and with `reopen` its own page opened again after. Nothing comes back: everything of this extension's on the page stops with it. */
 export async function askReloadPanki(reopen = false): Promise<void> {
   await ask({ kind: "reloadPanki", reopen });
+}
+/** Panki AI as the worker keeps it (null signed out), for the pop-up's Explain. */
+export async function askAiState(): Promise<AiState> {
+  const answer = AiState.safeParse(await ask({ kind: "aiState" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A word explained by Panki AI, or a follow-up asked: its answer, or why there's none. */
+export async function askExplain(explain: ExplainAsk): Promise<Explanation> {
+  const answer = ExplainAnswer.safeParse(await ask({ kind: "explain", ask: explain }));
+  if (!answer.success) return { ...failed(answer.error), problem: null };
+  const got = answer.data;
+  if (got.ok) return got;
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null };
 }
 /** A video left out of the count, counted again, put away, finished or not (by the viewer unless said); the video as it stands then comes back. */
 export async function askWatchMark(videoId: string, mark: WatchMarkKind, source: WatchMarkSource = "viewer"): Promise<Watched> {

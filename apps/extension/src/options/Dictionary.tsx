@@ -709,6 +709,12 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           why="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
         />
       </div>
+      {/* Explain in the pop-up runs by itself once the pop-up is kept open, never on a passing hover (AI step 2). */}
+      <Setting
+        id="explain-on-open"
+        label="Explain as the pop-up opens"
+        control={<Toggle id="explain-on-open-on" says={{ on: "On", off: "Off" }} on={store.explainOnOpen} disabled={off} onChange={(explainOnOpen) => void writeStore({ explainOnOpen }).then(onChanged)} />}
+      />
     </section>
   );
 }

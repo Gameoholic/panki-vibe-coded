@@ -1,3 +1,4 @@
+import { createAiClient } from "./ai";
 import { createApp } from "./app";
 import { openAuthDb } from "./authDb";
 import { createDbs } from "./dbs";
@@ -15,8 +16,7 @@ import { createJobs } from "./transcribe/jobs";
 checkTimeZone(env.timeZone);
 const auth = openAuthDb(env.dataDir);
 const shared = openShared(env.dataDir);
-// When a video counts as watched to its end is an admin's setting for everyone, kept in the shared store.
-const dbs = createDbs(env.dataDir, Date.now, env.timeZone, () => shared.getWatching().finishedWithinSec * 1000);
+const dbs = createDbs(env.dataDir, Date.now, env.timeZone);
 // What accounts held before the shared store existed (a Forvo key, dictionaries) moves over, once, before anyone's served.
 gatherShared(shared, env.dataDir, auth, dbs.dbFor, Date.now);
 // What a kept dictionary not counted yet provides is counted while the API serves.
@@ -35,9 +35,11 @@ const server = createApp({
   extensionDir: env.extensionDir,
   space,
   storage: () => storageReport(env.dataDir, env.backupDir, env.backupSlots, auth, env.lowSpaceBytes),
-  // Every request to Forvo is counted, for the day's allowance an admin sees in Settings.
-  forvo: createForvo(fetch, () => shared.recordCall("forvo", Date.now())),
+  // Every request to Forvo is a row of the usage ledger, which the day's allowance an admin sees in Settings reads too.
+  forvo: createForvo(fetch, ({ what, ref, userId }) => shared.meterRequest("forvo", what, ref, userId, Date.now())),
   wordAudioKeys: env.wordAudioKeys,
+  ai: createAiClient(),
+  aiKeys: env.aiKeys,
   engines,
   engineKeys: env.engineKeys,
   jobs,

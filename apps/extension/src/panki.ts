@@ -1,6 +1,13 @@
+import type { z } from "zod";
 import {
   ApiErrorBody,
   BearerLogin,
+  ExplainError,
+  ExplainResponse,
+  PankiAiResponse,
+  type ExplainAsk,
+  type ExplainProblem,
+  type PankiAiStatus,
   CalledCards,
   CardResponse,
   WordsInCards,
@@ -65,8 +72,22 @@ export class PankiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** What Panki answered with its refusal, as it came, for a call whose refusal says more than its words (Explain's). */
+    readonly body: unknown = null,
   ) {
     super(message);
+  }
+}
+
+/** Explain refused by Panki: why, for the pop-up to say, and Panki AI as it stood then (an admin may have changed it). */
+export class ExplainRefused extends PankiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly problem: ExplainProblem,
+    readonly ai: PankiAiStatus,
+  ) {
+    super(message, status);
   }
 }
 
@@ -98,7 +119,7 @@ async function call<T>(address: string, token: string | null, path: string, init
   const body: unknown = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
     const known = ApiErrorBody.safeParse(body);
-    throw new PankiError(known.success ? known.data.error.message : "Something went wrong.", res.status);
+    throw new PankiError(known.success ? known.data.error.message : "Something went wrong.", res.status, body);
   }
   return parse(body);
 }
@@ -245,6 +266,22 @@ export const panki = {
   /** The account's cards, in any deck, already called by one of these words: the drawer says so before a card is added. */
   cardsCalled: ({ address, token }: Door, words: readonly string[]): Promise<CalledCard[]> =>
     call(address, token, `/api/cards/called?${words.map((word) => `word=${id(word)}`).join("&")}`, {}, (b) => CalledCards.parse(b).cards),
+  /** Panki AI as it stands for everyone, and whose key it has: what the pop-up's Explain is worked out from. */
+  ai: ({ address, token }: Door): Promise<PankiAiStatus> => call(address, token, "/api/ai", {}, (b) => PankiAiResponse.parse(b).ai),
+  /**
+   * A word explained by Panki AI, or a follow-up to its answer: Panki's server fills the prompt and calls the provider.
+   * A refusal Panki explains (off, no key, too long, the provider's failure) is an `ExplainRefused`, with Panki AI as
+   * it stands; anything else is a `PankiError` as ever.
+   */
+  explain: async ({ address, token }: Door, ask: ExplainAsk): Promise<z.infer<typeof ExplainResponse>> => {
+    try {
+      return await call(address, token, "/api/ai/explain", json("POST", ask), (b) => ExplainResponse.parse(b));
+    } catch (e) {
+      const refused = e instanceof PankiError ? ExplainError.safeParse(e.body) : null;
+      if (e instanceof PankiError && refused?.success) throw new ExplainRefused(refused.data.error.message, e.status, refused.data.error.problem, refused.data.ai);
+      throw e;
+    }
+  },
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */

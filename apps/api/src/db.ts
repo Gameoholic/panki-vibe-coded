@@ -12,7 +12,6 @@ import {
   DEFAULT_DECK_SETTINGS,
   DEFAULT_SETTINGS,
   DEFAULT_STARTER,
-  DEFAULT_WATCHING_SETTINGS,
   Deck,
   DeckSettings,
   Flow,
@@ -764,7 +763,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       FROM watch_stretches s JOIN watch_videos v ON v.video_id = s.video_id
       WHERE s.forgotten_at IS NULL AND s.to_ms >= v.length_ms - ?
       GROUP BY s.video_id
-    `).run(DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000);
+    `).run(20_000);
   },
   (db) => {
     // 37. An answer taken back in a review with Undo (the owner, 2026-10-26) is never deleted: its row keeps everything
@@ -940,17 +939,8 @@ function syncList<T extends { id: string }>(
   for (const [id, removedAt] of known) if (!kept.has(id) && removedAt === null) write.hide(id);
 }
 
-/**
- * An account's own Panki. `finishedWithinMs` is how close to its end a video played counts as finished: an admin's
- * setting for everyone, read afresh each time it's wanted (`WatchingSettings`, kept in the shared store), and told to the
- * extension with each video, which sees it played there and says so (a finish mark).
- */
-export function openDb(
-  dataDir: string,
-  now: () => number = Date.now,
-  timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
-  finishedWithinMs: () => number = () => DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000,
-) {
+/** An account's own Panki. */
+export function openDb(dataDir: string, now: () => number = Date.now, timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone) {
   checkTimeZone(timeZone);
   mkdirSync(dataDir, { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, "panki.sqlite"));
@@ -2206,10 +2196,11 @@ export function openDb(
     },
     /**
      * One video as the extension asks of it when it opens: whether watching is kept at all, where it was stopped (nothing
-     * is offered while it isn't kept), whether it counts, whether it's finished, and how close to its end that is.
+     * is offered while it isn't kept), whether it counts, whether it's finished, and how close to its end that is (the
+     * account's own `finishedWithinSec`), which the extension sees it played into and says so with a finish mark.
      */
     watchedVideo(videoId: string): WatchedVideo {
-      const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
+      const { videoTracking, finishedWithinSec } = settingsFrom(selectSettings.all() as SettingRow[]);
       const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
       const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
       const finished = said?.finished ?? false;
@@ -2218,7 +2209,7 @@ export function openDb(
         stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs, finished) : null,
         counted: said?.counted ?? true,
         finished,
-        finishedWithinMs: finishedWithinMs(),
+        finishedWithinMs: finishedWithinSec * 1000,
       };
     },
     /**

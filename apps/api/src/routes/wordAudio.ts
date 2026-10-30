@@ -22,7 +22,7 @@ export function wordAudioRouter(shared: Shared, serverKeys: Record<WordAudioSour
       settings,
       key: saved !== null ? "settings" : serverKeys[settings.source] !== null ? "server" : null,
       ...(saved !== null && admin ? { saved } : {}),
-      ...(admin && WORD_AUDIO_SOURCES[settings.source].dailyLimit !== null ? { calls: shared.callsSince(settings.source, midnight) } : {}),
+      ...(admin && WORD_AUDIO_SOURCES[settings.source].dailyLimit !== null ? { calls: shared.requestsSince(settings.source, midnight) } : {}),
     };
   };
 

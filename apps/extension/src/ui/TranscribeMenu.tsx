@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, type TranscribeMode, type WholeJob } from "@panki/contracts";
+import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, soundCostMicros, type TranscribeMode, type WholeJob } from "@panki/contracts";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
+import { Fold } from "@web/components/Fold";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { MODE_ICONS, ModeChip } from "@web/components/ModeChip";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
-import { aboutWords, clock, dollarWords, hmsWords, tookWords } from "@web/words";
+import { aboutWords, clock, estimateWords, hmsWords, tookWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { engineWanted, SUBTITLE_SOURCES } from "../subtitles";
 import type { SilentPage, SilentReport, SilentStage } from "../transcribe/silent";
 import { logText, timeOfDay, wholeSeconds, type LogPart, type TranscribeDetail, type TranscribeState, type TranscribeStatus } from "../transcribe/transcriber";
-import { Fold } from "./Fold";
 
 /**
  * The strip's menu: everything about transcribing this video, in one place at the right of the head (the owner,
@@ -367,8 +367,7 @@ function costWords(state: TranscribeState, seconds: number): string {
   if (!state.settings) return "";
   const engine = ENGINES[state.settings.engine];
   const minutes = seconds / 60;
-  const cents = Math.round((minutes / 60) * engine.centsPerHour);
-  return `${Math.round(engine.creditsPerMinute * minutes).toLocaleString("en")} credits · ${dollarWords(cents)}`;
+  return `${Math.round(engine.creditsPerMinute * minutes).toLocaleString("en")} credits · ${estimateWords(soundCostMicros(engine.centsPerHour, seconds * 1000))}`;
 }
 
 /** Which question is open under the items, if any. */

@@ -12,6 +12,7 @@ import { wordKey, type Found, type Sense, type Tag } from "../dictionary/found";
 import { askCalled, askOpenPanki } from "../messages";
 import { PART_NAMES, bandOf } from "../popupKinds";
 import { dictionaryOf, dictionaryPart, type BodyPart, type FrequencyWords, type PopupLayout, type ReadingAt, type TagWords } from "../popupLayout";
+import { Explain, type ExplainExamples, type ExplainSource, type MorePieces } from "./Explain";
 import { Glossary } from "./Glossary";
 
 /** How wide the popup is, at most, and how far it keeps from the word and the window's edges. */
@@ -256,8 +257,9 @@ function Meanings({ senses, folded, limit, tagWords, tagsOn }: { senses: readonl
   );
 }
 
-/** What one part under the word draws for it; null when there's nothing. */
-function bodyOf(part: BodyPart, found: Found, layout: PopupLayout): ReactNode {
+/** What one part under the word draws for it; null when there's nothing. Explain is only the word shown's, which is handed `explain`. */
+function bodyOf(part: BodyPart, found: Found, layout: PopupLayout, explain: ExplainSource | undefined): ReactNode {
+  if (part.id === "explain") return explain ? <Explain key={wordKey(found)} found={found} source={explain} /> : null;
   if (part.id === "tags") return found.tags.length > 0 ? <Tags tags={found.tags} words={layout.tagWords} /> : null;
   if (part.id === "frequency") return found.frequencies.length > 0 ? <Frequency found={found} words={layout.frequencyWords} /> : null;
   if (part.id === "endings") return found.steps.length > 0 ? <Endings found={found} /> : null;
@@ -291,7 +293,7 @@ function InCards({ found, cards, edit }: { found: Found; cards: CardsSource; edi
   return <AlreadyIn cards={called} compared={null} openWords="Open in Panki" onOpen={cards.open} />;
 }
 
-function Word({ found, layout, onAdd, cards, edit }: { found: Found; layout: PopupLayout; onAdd: (found: Found) => void; cards: CardsSource; edit?: PopupEdit }) {
+function Word({ found, layout, onAdd, cards, edit, explain }: { found: Found; layout: PopupLayout; onAdd: (found: Found) => void; cards: CardsSource; edit?: PopupEdit; explain?: ExplainSource }) {
   const pitch = found.pitches[0];
   const shown = layout.body.filter((part) => part.show !== "hidden");
   // Meanings of a dictionary the layout doesn't know yet (imported since it was handed over) come last, as they are.
@@ -325,7 +327,7 @@ function Word({ found, layout, onAdd, cards, edit }: { found: Found; layout: Pop
         </BlockPart>
       ) : null}
       {shown.map((part, i) => {
-        const drawn = bodyOf(part, found, layout);
+        const drawn = bodyOf(part, found, layout, explain);
         if (drawn === null && !edit) return null;
         return (
           <BlockPart key={part.id} id={part.id} edit={edit} index={i}>
@@ -352,6 +354,8 @@ type BodyProps = {
   edit?: PopupEdit;
   /** Where it learns which cards a word already is; Panki, unless the layout editor gives its example. */
   cards?: CardsSource;
+  /** What the word shown's Explain asks, Panki AI on a page or the options page's made-up answers; none, and it isn't drawn. */
+  explain?: ExplainSource;
 };
 
 /**
@@ -362,7 +366,7 @@ type BodyProps = {
  * (the owner, 2026-10-16: "why do we have both the top and the bottom?"). The popup on a page and the options page's
  * editor both draw this.
  */
-export function LookupBody({ found, layout, onAdd, split = null, onShow, edit, cards = PANKI_CARDS }: BodyProps) {
+export function LookupBody({ found, layout, onAdd, split = null, onShow, edit, cards = PANKI_CARDS, explain }: BodyProps) {
   /** The word pressed among those found, by its place among them, once one is. */
   const [pressed, setPressed] = useState<number | null>(null);
   // Until one is pressed: on Panki's line, the word taken there; anywhere else, the best.
@@ -419,7 +423,8 @@ export function LookupBody({ found, layout, onAdd, split = null, onShow, edit, c
           {chips ?? (edit ? <Blank id="split" edit={edit} /> : null)}
         </BlockPart>
       ) : null}
-      <Word found={shown} layout={layout} onAdd={onAdd} cards={cards} edit={edit} />
+      {/* Only the word shown has Explain: never "Other words in full". */}
+      <Word found={shown} layout={layout} onAdd={onAdd} cards={cards} {...(edit ? { edit } : {})} {...(explain ? { explain } : {})} />
       {rest.length > 0 && layout.others === "shown" ? (
         <BlockPart id="others" edit={edit}>
           {rest.map((word) => (
@@ -450,6 +455,11 @@ type Props = {
   split?: Split | null;
   /** Where it learns which cards a word already is; Panki, unless the layout editor gives its example. */
   cards?: CardsSource;
+  /**
+   * What Explain asks: Panki AI, with what the page adds and whether it runs by itself once the pop-up is kept open
+   * (Explain as the pop-up opens); or the options page's made-up answers.
+   */
+  explain?: ExplainExamples | { kind: "panki"; more: MorePieces | null; auto: boolean };
 };
 
 /**
@@ -457,11 +467,17 @@ type Props = {
  * (`LookupBody`). It stands under the word (over it, when there's more room there), inside the window, and the word
  * itself is lit. A press anywhere in it keeps it open.
  */
-export function Lookup({ view, layout, onKeep, onAdd, split = null, cards }: Props) {
+export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, explain }: Props) {
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
   const [lit, setLit] = useState<DOMRect | null>(null);
+  /** Explain has run by itself in this pop-up: another word shown in it doesn't run it again. */
+  const [explained, setExplained] = useState(false);
   const anchor = view.word;
   if (!anchor) return null;
+  const asks: ExplainSource | undefined =
+    explain?.kind === "panki"
+      ? { kind: "panki", pointed: view.pointed, more: explain.more, auto: explain.auto && view.locked && !explained, onAuto: () => setExplained(true) }
+      : explain;
   const mark = lit ?? anchor;
   const width = Math.min(WIDTH, window.innerWidth - EDGE * 2);
   const left = Math.max(EDGE, Math.min(anchor.left, window.innerWidth - width - EDGE));
@@ -474,7 +490,15 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null, cards }: Pro
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
       {/* Kept open or not, it looks the same (the owner had the border that marked it kept taken off, 2026-10-15). */}
       <div className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
-        <LookupBody found={view.found} layout={layout} onAdd={onAdd} split={split} {...(cards ? { cards } : {})} onShow={(word) => setLit(view.pointed.measure(word.source.length))} />
+        <LookupBody
+          found={view.found}
+          layout={layout}
+          onAdd={onAdd}
+          split={split}
+          {...(cards ? { cards } : {})}
+          {...(asks ? { explain: asks } : {})}
+          onShow={(word) => setLit(view.pointed.measure(word.source.length))}
+        />
       </div>
     </>
   );

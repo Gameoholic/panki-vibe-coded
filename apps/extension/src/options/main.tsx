@@ -4,7 +4,8 @@ import "@web/app.css";
 import "../ui/extension.css";
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Login, type CardType, type Deck } from "@panki/contracts";
+import { APP_LANGUAGES, Login, type AppLanguage, type CardType, type Deck } from "@panki/contracts";
+import { Skeleton } from "@web/components/Skeleton";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
@@ -17,6 +18,7 @@ import { VIDEO_TRACKING_WHY } from "@web/words";
 import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
+import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
 import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
@@ -197,6 +199,53 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
   );
 }
 
+/**
+ * The Account panel, under Profiles (the owner, 2026-10-30): the settings of the profile in use's account that are for
+ * all of Panki, set in Panki and shown here. Signed out, there's no account, and no panel.
+ */
+function AccountPanel({ door }: { door: Door }) {
+  return (
+    <section className="panel" aria-labelledby="account-title">
+      <h2 id="account-title" className="panel-title">
+        Account
+      </h2>
+      <LinkedLanguage door={door} />
+    </section>
+  );
+}
+
+/**
+ * The account's Language, the one Panki speaks to it in (Panki's Settings → General → Display), greyed with the link
+ * sign: set in Panki alone (the owner, 2026-10-30), as Video tracking is set here alone and shown in Panki.
+ */
+function LinkedLanguage({ door }: { door: Door }) {
+  /** As Panki says it; null while it's asked; or why it couldn't be. */
+  const [language, setLanguage] = useState<AppLanguage | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const { address, token } = door;
+  useEffect(() => {
+    let alive = true;
+    setFailure(null);
+    panki
+      .settings({ address, token })
+      .then((settings) => alive && setLanguage(settings.appLanguage))
+      .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
+    return () => {
+      alive = false;
+    };
+  }, [address, token]);
+  if (failure) {
+    return (
+      <p className="load-error" role="alert">
+        {failure}
+      </p>
+    );
+  }
+  if (language === null) return <Skeleton shape="settings" count={1} />;
+  const option = { id: language, label: `${APP_LANGUAGES[language]} · Set in Panki`, icon: "link" as const };
+  return <Setting id="account-language" label="Language" control={<Dropdown id="account-language-in" label="Language" options={[option]} value={language} disabled onChange={() => undefined} />} />;
+}
+
 /** The Account tab: the profiles kept, and the sign-in form, by itself while there's none, or opened under them to add another. */
 function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const [adding, setAdding] = useState(false);
@@ -219,6 +268,7 @@ function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void
           </Button>
         </div>
       )}
+      {store.address && store.token ? <AccountPanel door={{ address: store.address, token: store.token }} /> : null}
     </>
   );
 }
@@ -296,6 +346,8 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
  */
 function VideoTracking({ door }: { door: Door }) {
   const [on, setOn] = useState<boolean | null>(null);
+  /** How close to its end a video counts as finished, as Panki has it; null until it's said. */
+  const [finished, setFinished] = useState<number | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -305,7 +357,11 @@ function VideoTracking({ door }: { door: Door }) {
     setFailure(null);
     panki
       .settings({ address, token })
-      .then((settings) => alive && setOn(settings.videoTracking))
+      .then((settings) => {
+        if (!alive) return;
+        setOn(settings.videoTracking);
+        setFinished(settings.finishedWithinSec);
+      })
       .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
     return () => {
       alive = false;
@@ -382,7 +438,43 @@ function VideoTracking({ door }: { door: Door }) {
           {failure}
         </p>
       ) : null}
+      {finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
     </section>
+  );
+}
+
+/**
+ * How close to its end a video played counts as finished: the account's own, kept on Panki (`Settings.finishedWithinSec`;
+ * the owner, 2026-10-30: "move it into per-user settings… extension right?", it was an admin's in Settings → Admin →
+ * Watching), saved a moment after it's changed. Greyed while Video tracking is off, when nothing is marked finished.
+ */
+function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: boolean }) {
+  const [current, patch, failure] = useSavedSoon<{ finishedWithinSec: number }>({ finishedWithinSec: saved }, async (change) => ({
+    finishedWithinSec: (await panki.updateSettings(door, change)).finishedWithinSec,
+  }));
+  return (
+    <Setting
+      id="finished-within"
+      label="Video counts as finished in its last"
+      control={
+        <NumberField
+          id="finished-within-sec"
+          label="Video counts as finished in its last, in seconds"
+          value={current.finishedWithinSec}
+          min={0}
+          max={600}
+          suffix="s"
+          disabled={off}
+          onChange={(finishedWithinSec) => patch({ finishedWithinSec })}
+        />
+      }
+    >
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
+    </Setting>
   );
 }
 

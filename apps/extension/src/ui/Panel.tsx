@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { CaptureFacts, NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import { CaptureFacts, NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
+import { Fold } from "@web/components/Fold";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import type { VideoPictures } from "@web/components/LinkView";
@@ -17,14 +18,13 @@ import { count, langOf } from "@web/words";
 import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
 import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
-import { wordKey, type Found, type Tag } from "../dictionary/found";
+import { wordKey, type Found } from "../dictionary/found";
+import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
 import { wordsNow } from "../dictionary/useWords";
 import { askAdd, askAddExample, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type RecordingAsk, type State } from "../messages";
-import { bandOf } from "../popupKinds";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { uuid } from "../uuid";
 import { ClipPlayer } from "./ClipPlayer";
-import { Fold } from "./Fold";
 import { glossaryText } from "./Glossary";
 import { Stamp } from "./Stamp";
 import { Trim, type ClipEnd, type MoveBy } from "./Trim";
@@ -50,25 +50,6 @@ export type Chars = { from: number; to: number };
 const LOOKUP_SETTLE_MS = 200;
 
 const isDictRole = (role: RoleId | null): role is DictionaryRoleId => role !== null && ROLES[role].dictionary !== undefined;
-
-/** Names once each, in the order first met, joined. */
-const listed = (names: readonly string[]) => [...new Set(names)].join(", ");
-
-/** A tag as a card says it: what the dictionary says it means, or its code when it says nothing. */
-const tagWords = (tag: Tag) => tag.notes || tag.name;
-
-/** How common the word is, as a card says it: the band from the best rank, then each list's number. */
-function frequencyText(found: Found): string {
-  const ranks = found.frequencies.flatMap((f) => (f.rank === null ? [] : [f.rank]));
-  const lists = found.frequencies.map((f) => `${f.dict} ${f.display}`).join(", ");
-  return [ranks.length > 0 ? bandOf(Math.min(...ranks)) : "", lists].filter((part) => part !== "").join(" · ");
-}
-
-/** The meanings that go on a card, as one value: one line each in a box of several lines, numbered when there's more than one; or one after another on a single line. */
-function meaningOf(texts: readonly string[], lines: boolean): string {
-  if (!lines) return texts.join("; ");
-  return texts.length === 1 ? (texts[0] ?? "") : texts.map((text, i) => `${i + 1}. ${text}`).join("\n");
-}
 
 /** What the meanings' dropdown says: how many of the word's meanings are ticked. */
 const meaningsSaid = (ticked: number, of: number) => `${ticked} of ${of} meanings`;
@@ -426,20 +407,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const meaningField = fieldOf("dictMeaning");
   // The meanings ticked, in the dictionary's order whatever order they were ticked in.
   const tickedSenses = chosen ? [...ticked].sort((a, b) => a - b).flatMap((i) => chosen.senses[i] ?? []) : [];
-  const meaningTexts = tickedSenses.map((sense) => glossaryText(sense.glossary));
-  const reading = chosen ? chosen.reading || chosen.term : "";
-  /** What the dictionary fills each of its pieces with, before anything is typed over it: every kind of its data. */
-  const fromDictionary: Record<DictionaryRoleId, string> = {
-    dictForm: chosen?.term ?? "",
-    dictReading: reading,
-    dictMeaning: meaningOf(meaningTexts, meaningField !== null && FIELD_KINDS[meaningField.kind].multiline),
-    // The word's own tags, then those of the meanings ticked.
-    dictTags: chosen ? listed([...chosen.tags, ...tickedSenses.flatMap((sense) => sense.tags)].map(tagWords)) : "",
-    dictWordType: chosen ? listed(chosen.wordTypes.map(tagWords)) : "",
-    dictFrequency: chosen ? frequencyText(chosen) : "",
-    // As a Pitch accent field keeps it ("たべる 2"), which the card draws as the line over the reading.
-    dictPitch: chosen ? pitchValue(chosen.pitches.flatMap((pitch) => pitch.positions.map((position) => ({ reading, position })))) : "",
-  };
+  /** What the dictionary fills each of its pieces with, before anything is typed over it: every kind of its data, its meanings the ones ticked. */
+  const fromDictionary: Record<DictionaryRoleId, string> = chosen ? dictionaryPieces(chosen, tickedSenses, meaningField !== null && FIELD_KINDS[meaningField.kind].multiline) : NO_PIECES;
   /** The first of the card's fields the dictionary fills: what it found stands above it. */
   const firstDictField = type?.fields.find((f) => isDictRole(roleOf(map, f.id))) ?? null;
   /** A dictionary's piece as it stands in its field: typed over, or as the dictionary has it. */

@@ -218,15 +218,14 @@ export type TranscribeEstimate = z.infer<typeof TranscribeEstimate>;
 
 /**
  * The settings as they stand, whose key the chosen engine has (typed in Settings, the server's own from its
- * environment, or none), that key as it is when it was typed in Settings and an admin is asking (`saved`; left out for
- * anyone else, and the server's own is never shown), and how many seconds of sound have been sent to engines so far,
- * every video and everyone counted.
+ * environment, or none), and that key as it is when it was typed in Settings and an admin is asking (`saved`; left out
+ * for anyone else, and the server's own is never shown). How much sound has gone to engines is the usage ledger's since
+ * 2026-10-30 (`UsageReport`); a tally of seconds stood here until then.
  */
 export const TranscriptionStatus = z.object({
   settings: Transcription,
   key: z.enum(["settings", "server"]).nullable(),
   saved: z.string().optional(),
-  seconds: z.number().int().nonnegative(),
   estimate: TranscribeEstimate,
   /** The language the one asking has their videos transcribed in: their account's own (`Settings.language`). */
   own: TranscribeLanguage,

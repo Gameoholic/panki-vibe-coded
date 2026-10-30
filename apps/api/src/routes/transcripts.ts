@@ -187,6 +187,8 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
         return;
       }
       const engineMs = Math.round(performance.now() - askedAt);
+      // Paid for once the engine has answered: the sound sent, a row of the usage ledger.
+      shared.meterSound(engine, "chunk", ids.pieceId, userId, meta.end - meta.sound, now());
       shared.insertPiece(
         { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language, engineMs, runMs: meta.since ?? null, redoId },
         heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs })),

@@ -20,6 +20,7 @@ A flashcard app for Japanese vocabulary, for the owner alone, on a Windows PC an
 | **[docs/CONVENTIONS.md](docs/CONVENTIONS.md)** | How we write code & work together | Code style, prime directives, reuse rules, security coding rules, the working process | System structure, product rationale |
 | **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | How it's built + why it's shaped that way | Structure, data model, API, state flow, security architecture, dev traps | Code style, unbuilt features |
 | **[docs/COMPONENTS.md](docs/COMPONENTS.md)** | What exists to build the UI with — **imported below, loaded every session** | One line per shared component, hook and "one home" file | How a piece works inside |
+| **[docs/AI.md](docs/AI.md)** | The AI epic's plan (started 2026-10-30, from scratch): why, what's settled, the order of small steps, what's open | Decisions, the order ticked as steps land, open questions | How a built step works, what it does once built |
 | **[docs/PRODUCT.md](docs/PRODUCT.md)** | Why it exists, who it's for, how it must feel | Owner goals, principles, current features from the user's view, design language, deliberate scope decisions | Implementation, unbuilt ideas |
 
 The backlog lives in `docs/BACKLOG.md` (it was the README's until the owner made the README the deploy block alone, 2026-10-17). Nothing there is approved to build.

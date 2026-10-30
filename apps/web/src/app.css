@@ -607,6 +607,131 @@ textarea.field-input {
   background: var(--accent-soft);
   border-radius: 4px;
 }
+/* A prompt template (components/PromptField.tsx): its text drawn under the box with every variable lit, the box's own
+   text see-through over it and its caret showing. The two must break their lines at the same letters, so they share
+   every measure that moves a letter (type, line height, padding, border, wrapping), and a lit variable is never bolder
+   nor padded: its tint reaches past it as a shadow, which takes no room. The copy under it sits in the flow and gives
+   the field its height, so it grows with its text in every browser; the box lies over it, as tall, never scrolling. */
+.prompt-box {
+  position: relative;
+}
+.prompt-drawn,
+textarea.field-input.prompt-input {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.prompt-drawn {
+  min-height: 94px; /* three lines, as a box of several lines starts */
+}
+textarea.field-input.prompt-input {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  field-sizing: fixed;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
+}
+.prompt-input::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.prompt-field.is-disabled .prompt-drawn {
+  opacity: 0.55;
+}
+.prompt-var {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.prompt-var.is-unknown {
+  color: var(--danger);
+  background: var(--danger-soft);
+  box-shadow: 0 0 0 1px var(--danger-soft);
+}
+/* Prompt context (Admin → Panki AI): what a prompt can use, one row a piece, its columns Variable, Description, Source
+   lined up through every row; on a phone each row stacks, the heads left out. */
+.prompt-context {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  column-gap: 16px;
+}
+.prompt-context-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.prompt-context-row.is-head {
+  padding-top: 0;
+  border-top: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.prompt-context-var {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* A variable pressed to go in at the prompt's caret: lit as it is in the prompt. */
+.btn-chip.prompt-var-chip {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.prompt-context-source {
+  color: var(--muted);
+}
+/* A variable's Copy: small and quiet beside its chip (the owner, 2026-10-30, of the full-size one: "HUGE… I don't need that"). */
+.btn.prompt-context-copy {
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  min-height: 0;
+}
+/* Copy and Copied stacked in one cell, so the button is as wide in both states. */
+.copy-words {
+  display: inline-grid;
+}
+.copy-words > * {
+  grid-area: 1 / 1;
+}
+.copy-words > [aria-hidden="true"] {
+  visibility: hidden;
+}
+@media (max-width: 640px) {
+  .prompt-context {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .prompt-context-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 4px;
+  }
+  .prompt-context-row.is-head {
+    display: none;
+  }
+  .prompt-context-row:nth-child(2) {
+    border-top: 0;
+  }
+}
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -745,6 +870,10 @@ textarea.field-input {
 .icon.is-sign path:not(:first-child) {
   stroke: var(--flag-ink);
   stroke-width: 2.4;
+}
+/* A solid icon (the `ai` spark): filled in the current colour, its stroke kept so the arms stay rounded. */
+.icon.is-solid path {
+  fill: currentColor;
 }
 /* A card called the same as another (a deck's duplicates), said at its row's top right, under where it stands. */
 .card-twin {
@@ -1737,15 +1866,21 @@ canvas.media-frame {
 .skel.is-faint {
   opacity: 0.6;
 }
-.skel::after {
+/* How long one sweep takes: the skeleton's, and the beat Panki AI's spark keeps (`.ai-spark`). */
+:root {
+  --sweep: 1.4s;
+}
+.skel::after,
+.ai-waiting.is-over::after {
   content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
+  pointer-events: none;
   /* In the theme's accent (the owner's pick, E at medium, of https://claude.ai/artifact/FQ7LEpBWo5BsMUJ62mc4XZ,
      2026-10-29); the words' colour at 7% before was too faint to see. */
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
-  animation: skel-sweep 1.4s ease-in-out infinite;
+  animation: skel-sweep var(--sweep) ease-in-out infinite;
 }
 @keyframes skel-sweep {
   to {
@@ -1756,9 +1891,416 @@ canvas.media-frame {
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .skel::after {
+  .skel::after,
+  .ai-waiting.is-over::after {
     animation: none;
   }
+}
+/* Panki AI at work (components/AiWaiting.tsx): the skeleton's own lines and sweep in an answer's room, or words being
+   reworked kept where they are, dimmed, the same sweep passing over them. */
+.ai-waiting.is-over {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+.ai-waiting-words {
+  opacity: 0.5;
+}
+/* The spark (`AiSpark`): sized as an icon where it stands (a button's 16 px, an icon button's 18), its parts filling it.
+   While it works, two small sparks blink at its corners one after the other, as every other sweep sets off (the owner's
+   pick, Sparkles every other sweep, 2026-10-30: https://claude.ai/artifact/66E2s4QyNZhuuAVvZddbsW); the spark itself
+   never moves. The beat is two sweeps, 2.8 s, starting with one; each blink is a fraction of it, in one place:
+     the first small spark, top right: out at 0%, whole at 8.13%, out again at 16.25%, then still until the next beat;
+     the second, bottom left: out until 6.96%, whole at 15.09%, out again at 23.21%, then still.
+   (8.13% of 2.8 s is about 0.23 s; the second ends about 0.65 s in.) Each step eases in by the same curve. */
+.ai-spark {
+  --spark-beat: calc(var(--sweep) * 2);
+  --spark-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: inline-block;
+}
+.ai-spark > .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ai-spark > .ai-spark-mini {
+  position: absolute;
+  width: 45%;
+  height: 45%;
+  opacity: 0;
+  transform: scale(0.2);
+  transform-origin: center;
+  animation: var(--spark-beat) var(--spark-ease) infinite;
+}
+.ai-spark-mini.is-one {
+  top: -30%;
+  right: -35%;
+  animation-name: ai-spark-one;
+}
+.ai-spark-mini.is-two {
+  bottom: -25%;
+  left: -35%;
+  animation-name: ai-spark-two;
+}
+@keyframes ai-spark-one {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  8.13% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  16.25%,
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+@keyframes ai-spark-two {
+  0%,
+  6.96% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  15.09% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  23.21%,
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+/* Still under reduced motion: the small sparks never show, the spark alone stays. */
+@media (prefers-reduced-motion: reduce) {
+  .ai-spark > .ai-spark-mini {
+    animation: none;
+  }
+}
+
+/* Something that opens and closes by its height, fading as it goes (components/Fold.tsx), so what's around it is moved
+   aside and let back instead of jumping. One row of a grid, taken from nothing to the height of what's in it; how long
+   that takes is handed in by the component, its one home. While it moves, what's in it is cut off at its edge; at rest
+   nothing is, so a shadow or a focus ring can reach out of it. The easing is the app's own (the opening moment's). It
+   was the extension's alone until the AI's status needed it here (2026-10-30). */
+.fold {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+}
+.fold > .fold-body {
+  min-height: 0;
+  overflow: hidden;
+}
+.fold.is-still > .fold-body {
+  overflow: visible;
+}
+.fold.is-away {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+.fold.is-in {
+  animation: fold-in var(--fold-in) cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.fold.is-out {
+  animation: fold-out var(--fold-out) cubic-bezier(0.4, 0, 0.7, 1) both;
+}
+@keyframes fold-in {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+@keyframes fold-out {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+/* Asked for less motion: it's simply there, and simply gone. (Not `none`: whoever waits for it to end still hears so.) */
+@media (prefers-reduced-motion: reduce) {
+  .fold.is-in,
+  .fold.is-out {
+    animation-duration: 1ms;
+  }
+}
+/* A dot breathing: something is going on by itself, and will stop by itself (the extension's `.live-dot` and its
+   strip menu's button, the AI's status while it thinks). */
+@keyframes live-dot {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* The AI's status (components/AiStatus.tsx): the head over what Panki AI answered, the spark and "Panki AI" at its left,
+   the status at its right as a button, a dot and a word lightly tinted as the strip menu's button is, smaller (the
+   owner, 2026-10-30: the transcribing status "is great"), the cost beside it; pressed, Details unfold under it in the
+   strip menu's own box. It wraps under the name on a narrow screen rather than squeezing. */
+.ai-status {
+  display: grid;
+}
+.ai-status-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.ai-status-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ai-status-name > .ai-spark {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.ai-status-end {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  margin-left: auto;
+}
+.btn.ai-status-button {
+  gap: 6px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.btn.ai-status-button .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s ease;
+}
+.btn.ai-status-button[aria-expanded="true"] .icon {
+  transform: rotate(180deg);
+}
+.ai-status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.btn.ai-status-button.is-going {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.btn.ai-status-button.is-going .ai-status-dot {
+  background: var(--accent);
+  animation: live-dot 1.2s ease-in-out infinite;
+}
+.btn.ai-status-button.is-ready {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.btn.ai-status-button.is-ready .ai-status-dot {
+  background: var(--good);
+}
+.btn.ai-status-button.is-trouble {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.btn.ai-status-button.is-trouble .ai-status-dot {
+  background: var(--danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.ai-status-button .ai-status-dot {
+    animation: none;
+  }
+}
+.ai-status-cost {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Details: the strip menu's box (.strip-menu-details), rows of a name and what it is, then every piece of Prompt
+   context, the prompt as sent, and Copy. */
+.ai-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 12px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.ai-details p {
+  margin: 0;
+}
+.ai-details-calls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ai-details-calls .btn-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.ai-details-rows {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+.ai-details-rows > div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 8px;
+}
+.ai-details-rows dt {
+  color: var(--muted);
+}
+.ai-details-rows dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ai-details-title {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* Each piece: its name as the template writes it, on the accent's tint (outlined and plain when it went empty), what it
+   held on one line (pressed, the whole of it) or why it held nothing, and its Source under that. */
+.ai-pieces {
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.ai-piece {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 1px 8px;
+}
+.ai-piece-name {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.ai-piece-name.is-empty {
+  background: none;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.btn.ai-piece-value {
+  display: block;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg);
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btn.ai-piece-value[aria-expanded="true"] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ai-piece-gap {
+  color: var(--muted);
+  font-style: italic;
+}
+.ai-piece-source {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ai-details-prompt {
+  max-height: 220px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* The messages a call sent, one box each under who said it: the prompt, then the answers and follow-ups. */
+.ai-details-sent {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ai-details-sent > li {
+  display: grid;
+  gap: 4px;
+}
+.ai-details-by {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ai-details-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  color: var(--muted);
+}
+.btn.ai-details-more {
+  gap: 4px;
+  padding: 2px 6px;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.btn.ai-details-more .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s ease;
+}
+.btn.ai-details-more.is-open .icon {
+  transform: rotate(180deg);
 }
 /* The blocks in a real row's pill keep to it: the pill's own colour, as a quiet stand-in for its words. */
 .deck-count > .skel {
@@ -2928,6 +3470,11 @@ mark.sub-mark {
   .main > .segmented > .btn-seg {
     padding-inline: 4px;
     font-size: 13px;
+  }
+  /* Admin's five tabs don't fit a phone in one row: rows of three. */
+  .segmented.is-wrapping {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -4869,6 +5416,31 @@ mark.sub-mark {
 }
 .kept-row.is-low .kept-size {
   color: var(--danger);
+}
+/* The row that adds up those above it (Usage's Everyone), set off by a heavier line, its total in the words' colour. */
+.kept-row.is-all {
+  border-top: 2px solid var(--line-strong);
+}
+.kept-row.is-all .kept-size {
+  color: var(--fg);
+}
+/* A Usage section's head (Settings → Admin): its title, and the stretch it's read over at the right. */
+.usage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+/* A panel's title with its sign before it (Panki AI's spark), as small as the title's capitals. */
+.panel-title.has-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-title.has-icon .icon {
+  width: 14px;
+  height: 14px;
 }
 /* Setting the extension up on a computer (Settings → Extension): the steps, numbered, as they're done. */
 .setup-steps {
