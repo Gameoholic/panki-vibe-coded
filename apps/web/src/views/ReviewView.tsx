@@ -820,9 +820,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         return;
       }
       if (!card) return;
-      // Another of the card's examples, either way, with its key held as long as it's set to be.
-      const back = exampleIds.length > 1 ? keyIn(binds.examplePrev, key) : null;
-      const on = exampleIds.length > 1 && !back ? keyIn(binds.exampleNext, key) : null;
+      // Another of the card's examples, either way, with its key held as long as it's set to be; a player's line with the
+      // focus keeps its own arrows (← and → are the examples' to begin with).
+      const onLine = e.target instanceof HTMLElement && e.target.closest("[role='slider']") !== null;
+      const back = exampleIds.length > 1 && !onLine ? keyIn(binds.examplePrev, key) : null;
+      const on = exampleIds.length > 1 && !onLine && !back ? keyIn(binds.exampleNext, key) : null;
       const step = back ? -1 : on ? 1 : 0;
       if (step !== 0) {
         e.preventDefault();

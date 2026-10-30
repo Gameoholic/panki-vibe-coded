@@ -3,6 +3,7 @@ import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings } from "@panki/con
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { DeckNameForm } from "../components/DeckNameForm";
+import { Dropdown } from "../components/Dropdown";
 import { Icon } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
@@ -68,6 +69,30 @@ const EXAMPLE_SHOWN_OPTIONS = [
   { id: "random", label: "Random" },
 ] as const;
 
+/**
+ * A type the deck is made of: its name as a choice that can't be changed here (greyed, as a disabled `Dropdown`), and
+ * Open beside it to see or edit the type itself. One button that both showed the name and opened the type read as a
+ * way to change it (the owner, 2026-10-30).
+ */
+function MadeOf({ id, label, name, onOpen }: { id: string; label: string; name: string; onOpen: (() => void) | undefined }) {
+  return (
+    <Setting
+      id={id}
+      label={label}
+      control={
+        <span className="setting-pair">
+          <Dropdown id={id} label={label} options={[{ id: name, label: name }]} value={name} disabled onChange={() => undefined} />
+          {/* A chip, so it stands as tall as the dropdown beside it. */}
+          <Button id={`${id}-open`} variant="chip" disabled={!onOpen} onClick={onOpen}>
+            Open
+            <Icon name="forward" />
+          </Button>
+        </span>
+      }
+    />
+  );
+}
+
 /** A deck's settings: "About" (its name, and the card type and SRS type it's made of, shown and not changed), how its reviews run (saved a moment after each change), and at the bottom, delete, which asks once, here, with what it costs. */
 export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples, srsTypeName, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
   const [asking, setAsking] = useState(false);
@@ -96,26 +121,8 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
           About
         </h2>
         <DeckNameForm id="deck-rename" initial={deck.name} action="Save" busyAction="Saving…" onlyWhenChanged onSubmit={onRename} />
-        <Setting
-          id="cardType"
-          label="Card type"
-          control={
-            <Button id="deck-card-type" variant="chip" disabled={!onOpenCardType} onClick={onOpenCardType}>
-              {cardTypeName}
-              <Icon name="forward" />
-            </Button>
-          }
-        />
-        <Setting
-          id="srsType"
-          label="SRS type"
-          control={
-            <Button id="deck-srs-type" variant="chip" disabled={!onOpenSrsType} onClick={onOpenSrsType}>
-              {srsTypeName}
-              <Icon name="forward" />
-            </Button>
-          }
-        />
+        <MadeOf id="deck-card-type" label="Card type" name={cardTypeName} onOpen={onOpenCardType} />
+        <MadeOf id="deck-srs-type" label="SRS type" name={srsTypeName} onOpen={onOpenSrsType} />
       </section>
 
       <section className="panel" aria-labelledby="deck-new-title">

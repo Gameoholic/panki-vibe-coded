@@ -72,7 +72,8 @@ export const HOLD_TIMES = [0, 250, 500, 1000, 1500, 2000] as const;
  * clips; everything else has no key until given one. Space and the answers held half a second, an answer that asks
  * for confirmation a second more (1.5 s in all, the owner's figure), a sound or a clip at a press. Full screen is F,
  * at a press (2026-10-24). The first sound or clip has Space, tapped, added to it (2026-10-28), and is played again
- * from its start with 1 held half a second (2026-10-29: "only the first one has the default").
+ * from its start with 1 held half a second (2026-10-29: "only the first one has the default"). A card's examples are
+ * ← and →, at a press (2026-10-31).
  */
 const ANSWER_START = ["1", "2", "3", "4", "5", "6"];
 const MEDIA_START = ["a", "s"];
@@ -88,8 +89,9 @@ export const DEFAULT_KEYS: KeyBinds = {
   restart: Array.from({ length: SLOTS }, (_, i) => (i === 0 ? one(RESTART_START.key, RESTART_START.holdMs) : one(null, 0))),
   fullScreen: one("f", 0),
   undo: one(null, 0),
-  examplePrev: one(null, 0),
-  exampleNext: one(null, 0),
+  // ← and → step through a card's examples, at a press (the owner, 2026-10-31; none before).
+  examplePrev: one("ArrowLeft", 0),
+  exampleNext: one("ArrowRight", 0),
   start: one(" ", 250),
   homeReview: one(" ", 500),
   confirmMs: 1000,
@@ -197,6 +199,11 @@ function bindsOf(raw: unknown, fallback: readonly Bind[], oldHold: number | unde
 }
 
 const KEY = "panki.keys";
+/**
+ * What's written beside the keys as `kept`: kept since the examples had ← and → to begin with. Kept without it, an
+ * example's key left with none was never chosen, so it takes its arrow; kept with it, none is the owner's own.
+ */
+const ARROWS_KEPT = 1;
 function read(): KeyBinds {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
@@ -226,8 +233,18 @@ function read(): KeyBinds {
     const hideTaken = [...answers, ...media, ...restart, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, DEFAULT_KEYS.hide.key) && key.holdMs > 0);
     const hide = "hide" in raw ? bindOf(raw.hide, DEFAULT_KEYS.hide, undefined) : hideTaken ? one(null, 0) : DEFAULT_KEYS.hide;
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
-    const examplePrev = "examplePrev" in raw ? bindOf(raw.examplePrev, DEFAULT_KEYS.examplePrev, undefined) : DEFAULT_KEYS.examplePrev;
-    const exampleNext = "exampleNext" in raw ? bindOf(raw.exampleNext, DEFAULT_KEYS.exampleNext, undefined) : DEFAULT_KEYS.exampleNext;
+    // Kept before the examples had keys to begin with (`ARROWS_KEPT`): one left with none gets its arrow, unless that
+    // arrow already does something else on the review here.
+    const arrowed = "kept" in raw && typeof raw.kept === "number" && raw.kept >= ARROWS_KEPT;
+    const rest = [reveal, hide, ...answers, ...media, ...restart, fullScreen, undo].flatMap(keysOf);
+    const exampleOf = (name: "examplePrev" | "exampleNext"): Bind => {
+      const fallback = DEFAULT_KEYS[name];
+      const kept = name in raw ? bindOf((raw as Record<string, unknown>)[name], fallback, undefined) : fallback;
+      if (arrowed || kept.key !== null || kept.also.length > 0) return kept;
+      return rest.some((key) => sameKey(key.key, fallback.key)) ? kept : fallback;
+    };
+    const examplePrev = exampleOf("examplePrev");
+    const exampleNext = exampleOf("exampleNext");
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
     return { reveal, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
@@ -261,7 +278,7 @@ export function useKeyBinds(): KeyBinds {
 export function setKeyBinds(next: KeyBinds) {
   now = next;
   try {
-    localStorage.setItem(KEY, JSON.stringify(next));
+    localStorage.setItem(KEY, JSON.stringify({ ...next, kept: ARROWS_KEPT }));
   } catch {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
