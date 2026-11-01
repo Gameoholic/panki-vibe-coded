@@ -23,7 +23,7 @@ import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
 import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { SpeedControl } from "../ui/SpeedControl";
 import { EXAMPLE_CARDS, IN_DECKS } from "./examples";
-import { Explainer, Stage, type Site, type Spot, type Tools } from "./Explainer";
+import { Explainer, Stage, type Site, type Spot, type Tools } from "@web/components/Explainer";
 import thumbMinecraft113 from "./thumbs/o7Kj73TQ3CU.jpg";
 import thumbMinecraft111 from "./thumbs/1V029k8jaGY.jpg";
 import thumbGuardman from "./thumbs/ssm_RZv9PDc.jpg";

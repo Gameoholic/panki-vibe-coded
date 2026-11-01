@@ -82,13 +82,14 @@ export type KeyBinds = {
   holdChain: HoldChain;
 };
 /**
- * The Hold button's own: on or off (off to begin with), and its stages' holds. `firstMs` is the first stage of a card,
- * whichever it is (Done listening on a card that listens first, else Show back of card); `thenMs` the back of a card
- * after its Listen phase; `answerMs` the answer the deck's Hold button answers with (`DeckSettings.holdAnswer`), an
- * answer that requires confirmation `confirmMs` more. A hold let go stays at the stage it reached; a new one goes on
- * with the next stage's own time.
+ * The Hold button's own: on or off (off to begin with), and each stage's own hold, counted from where the stage before
+ * it landed, or from the press when it's the first that applies (the owner, 2026-11-02): `listenMs` Done listening's,
+ * a stage only a card that listens first has (its time unused otherwise); `backMs` Show back of card's; `answerMs` Pick
+ * the answer's, the answer the deck's Hold button answers with (`DeckSettings.holdAnswer`), an answer that requires
+ * confirmation `confirmMs` more. A hold let go stays at the stage it reached; a new one goes on with the next stage's
+ * own time.
  */
-export type HoldChain = { on: boolean; firstMs: number; thenMs: number; answerMs: number };
+export type HoldChain = { on: boolean; listenMs: number; backMs: number; answerMs: number };
 /** How long a hold can be, and how much longer for confirmation; none at all is a press. */
 export const HOLD_TIMES = [0, 250, 500, 1000, 1500, 2000] as const;
 
@@ -121,7 +122,7 @@ export const DEFAULT_KEYS: KeyBinds = {
   confirmMs: 1000,
   // Space, Show back of card's own to begin with: the two never act together (`FACE_KEYS`).
   holdButton: one(" ", 0),
-  holdChain: { on: false, firstMs: 500, thenMs: 1000, answerMs: 2000 },
+  holdChain: { on: false, listenMs: 500, backMs: 1000, answerMs: 2000 },
 };
 
 /** Keys that are never bound: the modifiers, and the ones the page keeps for itself (Escape cancels, Tab moves on). */
@@ -224,12 +225,21 @@ function bindOf(raw: unknown, fallback: Bind, oldHold: number | undefined): Bind
 function bindsOf(raw: unknown, fallback: readonly Bind[], oldHold: number | undefined): Bind[] {
   return fallback.map((bind, i) => bindOf(Array.isArray(raw) ? raw[i] : undefined, bind, oldHold));
 }
-/** The Hold button's own as kept: each value that reads, the rest the default's. */
+/**
+ * The Hold button's own as kept: each value that reads, the rest the default's. Kept on its first day as a first hold
+ * and the back after listening (`firstMs`, `thenMs`), those read as Done listening's and Show back of card's.
+ */
 function holdChainOf(raw: unknown): HoldChain {
   const fallback = DEFAULT_KEYS.holdChain;
   if (typeof raw !== "object" || raw === null) return fallback;
-  const time = (name: "firstMs" | "thenMs" | "answerMs") => (name in raw ? holdOf((raw as Record<string, unknown>)[name]) : undefined) ?? fallback[name];
-  return { on: "on" in raw && typeof raw.on === "boolean" ? raw.on : fallback.on, firstMs: time("firstMs"), thenMs: time("thenMs"), answerMs: time("answerMs") };
+  const kept = raw as Record<string, unknown>;
+  const time = (name: string, was: string, own: number) => holdOf(kept[name]) ?? holdOf(kept[was]) ?? own;
+  return {
+    on: typeof kept.on === "boolean" ? kept.on : fallback.on,
+    listenMs: time("listenMs", "firstMs", fallback.listenMs),
+    backMs: time("backMs", "thenMs", fallback.backMs),
+    answerMs: time("answerMs", "answerMs", fallback.answerMs),
+  };
 }
 
 const KEY = "panki.keys";

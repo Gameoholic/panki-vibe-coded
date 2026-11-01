@@ -197,8 +197,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   /** The Hold button, while it's on (Settings → Keybinds): previewed, it goes as far as the back, a preview giving no answer. */
   const chainOn = binds.holdChain.on;
   const previewStages: HoldStage[] = [
-    ...(opening === "listen" ? [{ label: "Done listening", icon: "check" as const, ms: binds.holdChain.firstMs, done: () => setFace("front") }] : []),
-    { label: "Show back of card", icon: "eye", ms: opening === "listen" ? binds.holdChain.thenMs : binds.holdChain.firstMs, done: () => setFace("back") },
+    ...(opening === "listen" ? [{ label: "Done listening", icon: "check" as const, ms: binds.holdChain.listenMs, done: () => setFace("front") }] : []),
+    { label: "Show back of card", icon: "eye", ms: binds.holdChain.backMs, done: () => setFace("back") },
   ];
   const chain = useHoldButton({
     stages: previewStages,

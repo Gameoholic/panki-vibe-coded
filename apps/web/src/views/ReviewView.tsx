@@ -605,8 +605,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const listensHere = card !== undefined && undoneTurn !== turn && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
   const lead = listensHere ? 1 : 0;
   const chainStages: HoldStage[] = [
-    ...(listensHere ? [{ label: "Done listening", icon: "check" as const, ms: binds.holdChain.firstMs, done: showCard }] : []),
-    { label: "Show back of card", icon: "eye", ms: listensHere ? binds.holdChain.thenMs : binds.holdChain.firstMs, done: reveal },
+    ...(listensHere ? [{ label: "Done listening", icon: "check" as const, ms: binds.holdChain.listenMs, done: showCard }] : []),
+    { label: "Show back of card", icon: "eye", ms: binds.holdChain.backMs, done: reveal },
     ...(holdAnswer ? [{ label: holdAnswer.name, ms: binds.holdChain.answerMs + (holdAnswer.confirm ? binds.confirmMs : 0), done: () => void answer(holdAnswer.id) }] : []),
   ];
   /** Back to start: the card on its start again (its Listen phase, where this showing began in it), nothing answered. */

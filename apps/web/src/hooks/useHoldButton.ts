@@ -38,17 +38,12 @@ type Options = {
   where: () => HTMLElement | null;
 };
 
-/** Where in a turn each stage ends, by how long each is held, and what's done and being held there. */
-function shares(stages: readonly HoldStage[], at: number) {
-  const total = stages.reduce((n, s) => n + s.ms, 0);
-  if (total === 0) return { from: at >= stages.length ? 1 : 0, span: 0, cuts: [] };
-  let done = 0;
-  const cuts: number[] = [];
-  stages.forEach((s, i) => {
-    if (i < at) done += s.ms;
-    if (i > 0) cuts.push(stages.slice(0, i).reduce((n, x) => n + x.ms, 0) / total);
-  });
-  return { from: done / total, span: (stages[at]?.ms ?? 0) / total, cuts };
+/** Where in a turn each stage ends, by how long each is held (`ms`, in order), and what's done and being held at stage `at`. The Hold button's explainer draws its clock by this too. */
+export function holdShares(ms: readonly number[], at: number): { from: number; span: number; cuts: number[] } {
+  const total = ms.reduce((n, s) => n + s, 0);
+  if (total === 0) return { from: at >= ms.length ? 1 : 0, span: 0, cuts: [] };
+  const upTo = (i: number) => ms.slice(0, i).reduce((n, s) => n + s, 0);
+  return { from: upTo(at) / total, span: (ms[at] ?? 0) / total, cuts: ms.slice(1).map((_, i) => upTo(i + 1) / total) };
 }
 
 /**
@@ -144,7 +139,10 @@ export function useHoldButton({ stages, at, rest, back, showing, bind, where }: 
     label: stages[at]?.label ?? rest.label,
     icon: stages[at] ? stages[at].icon : rest.icon,
     bind,
-    ...shares(stages, at),
+    ...holdShares(
+      stages.map((s) => s.ms),
+      at,
+    ),
     onPointerDown: (e) => {
       if (e.button !== 0) return;
       e.preventDefault();

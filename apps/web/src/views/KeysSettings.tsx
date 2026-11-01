@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
+import { Explainer } from "../components/Explainer";
 import { Icon } from "../components/Icon";
 import { KeyField } from "../components/KeyField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
 import { ALSO_MAX, DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, setKeycapsOnPhone, useKeyBinds, useKeycapsOnPhone, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { HoldButtonScene } from "./HoldButtonScene";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
 /** A key's hold as its choice reads: "Press", "Hold 0.5 s". */
@@ -16,15 +18,15 @@ const HOLD_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: ms === 0 ?
 const EXTRA_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: `+${seconds(ms)}` }));
 const holdOf = (id: string, fallback: number) => HOLD_TIMES.find((ms) => String(ms) === id) ?? fallback;
 /**
- * The Hold button's stages as rows, in the order a hold goes through them: the first (a card's Listen phase ended, or
- * its back shown when it has none), the back after Done listening, and the answer; each after the first held on top of
- * the one before it, so it reads "+1 s".
+ * The Hold button's stages as rows, the review's own names, in the order a hold goes through them, each its own hold
+ * (the owner, 2026-11-02). Done listening's is unused on a card with no Listen phase; the row stays, the panel being
+ * the device's and knowing no deck.
  */
 const HOLD_STAGES = [
-  { id: "firstMs", label: "First hold", extra: false },
-  { id: "thenMs", label: "Then the back of card", extra: true },
-  { id: "answerMs", label: "Then the answer", extra: true },
-] as const satisfies readonly { id: keyof Omit<HoldChain, "on">; label: string; extra: boolean }[];
+  { id: "listenMs", label: "Done listening" },
+  { id: "backMs", label: "Show back of card" },
+  { id: "answerMs", label: "Pick the answer" },
+] as const satisfies readonly { id: keyof Omit<HoldChain, "on">; label: string }[];
 
 /** One of an action's keys, and how long it's held first. An added one can be taken off before it has a key, and one just added listens for it at once. */
 function KeyPair({ id, label, own, part, slot, binds, asking, onAsk, listen = false, disabled = false, keyOnly = false }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds; asking: boolean; onAsk: () => void; listen?: boolean; disabled?: boolean; keyOnly?: boolean }) {
@@ -122,7 +124,7 @@ export function KeysPanels() {
       {/* Whether a phone draws the keys on its buttons (the owner, 2026-11-01): hidden to begin with, there being no keyboard. */}
       <section className="panel" aria-labelledby="keys-phone-title">
         <h2 id="keys-phone-title" className="panel-title">
-          Phone
+          Mobile
         </h2>
         <Setting id="keycapsOnPhone" label="Keys on buttons" control={<Toggle id="keycaps-on-phone" says={{ on: "Shown", off: "Hidden" }} on={keycapsOnPhone} onChange={setKeycapsOnPhone} />} />
       </section>
@@ -138,9 +140,14 @@ export function KeysPanels() {
         the start. Off to begin with; its rows greyed while it's off.
       */}
       <section className="panel" aria-labelledby="keys-hold-title">
-        <h2 id="keys-hold-title" className="panel-title">
-          Hold button
-        </h2>
+        <div className="explain-head">
+          <h2 id="keys-hold-title" className="panel-title">
+            Hold button
+          </h2>
+          <Explainer name="Hold button">
+            <HoldButtonScene binds={binds} />
+          </Explainer>
+        </div>
         <Setting id="holdChain" label="Hold button" control={<Toggle id="hold-chain" says={{ on: "On", off: "Off" }} on={chain.on} onChange={(on) => setKeyBinds(withHoldChain(binds, on))} />} />
         <KeyRow id="hold-button" label="Key" bind={binds.holdButton} slot={{ kind: "holdButton" }} binds={binds} disabled={!chain.on} keyOnly />
         {HOLD_STAGES.map((stage) => (
@@ -152,7 +159,7 @@ export function KeysPanels() {
               <Dropdown
                 id={`key-hold-${stage.id}`}
                 label={stage.label}
-                options={stage.extra ? EXTRA_OPTIONS : HOLD_OPTIONS}
+                options={HOLD_OPTIONS}
                 value={String(chain[stage.id])}
                 disabled={!chain.on}
                 onChange={(ms) => setKeyBinds({ ...binds, holdChain: { ...chain, [stage.id]: holdOf(ms, chain[stage.id]) } })}
