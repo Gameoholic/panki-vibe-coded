@@ -6,7 +6,8 @@ import { Icon } from "../components/Icon";
 import { KeyField } from "../components/KeyField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
-import { ALSO_MAX, DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, useKeyBinds, withAdded, withKey, withoutAdded, withPart, type Bind, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { Toggle } from "../components/Toggle";
+import { ALSO_MAX, DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, setKeycapsOnPhone, useKeyBinds, useKeycapsOnPhone, withAdded, withKey, withoutAdded, withPart, type Bind, type Key, type KeyBinds, type Part, type Slot } from "../keys";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
 /** A key's hold as its choice reads: "Press", "Hold 0.5 s". */
@@ -100,8 +101,16 @@ export function KeysPanels() {
   const changed = JSON.stringify(binds) !== JSON.stringify(DEFAULT_KEYS);
   /** Reset to default keys is asking first. */
   const [resetting, setResetting] = useState(false);
+  const keycapsOnPhone = useKeycapsOnPhone();
   return (
     <>
+      {/* Whether a phone draws the keys on its buttons (the owner, 2026-11-01): hidden to begin with, there being no keyboard. */}
+      <section className="panel" aria-labelledby="keys-phone-title">
+        <h2 id="keys-phone-title" className="panel-title">
+          Phone
+        </h2>
+        <Setting id="keycapsOnPhone" label="Keys on buttons" control={<Toggle id="keycaps-on-phone" says={{ on: "Shown", off: "Hidden" }} on={keycapsOnPhone} onChange={setKeycapsOnPhone} />} />
+      </section>
       <section className="panel" aria-labelledby="keys-home-title">
         <h2 id="keys-home-title" className="panel-title">
           Home

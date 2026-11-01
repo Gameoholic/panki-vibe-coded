@@ -364,3 +364,47 @@ export function withoutAdded(binds: KeyBinds, slot: Slot, index: number): KeyBin
   const bind = bindAt(binds, slot);
   return setAt(binds, slot, { ...bind, also: bind.also.filter((_, i) => i !== index) });
 }
+
+/**
+ * Whether the keycaps on buttons show on a phone (the owner, 2026-11-01: "make it so keybinds don't appear on mobile…
+ * some people might connect a keyboard, so make that a setting whether to show on mobile, default false"). A phone is a
+ * screen with no hover, as `app.css` judges a touch screen (`@media (hover: none)`); there a keycap is drawn only while
+ * this is on, and a key pressed still works either way. This device's own, beside its keys.
+ */
+const KEYCAPS_KEY = "panki.keycapsOnPhone";
+const PHONE_QUERY = "(hover: none)";
+function readKeycapsOnPhone(): boolean {
+  try {
+    return localStorage.getItem(KEYCAPS_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+let keycapsOnPhone: boolean | null = null;
+const getKeycapsOnPhone = () => (keycapsOnPhone ??= readKeycapsOnPhone());
+/** Whether keycaps show on a phone, set in Settings → Keybinds; a `keys` row in the ledger each change. */
+export function useKeycapsOnPhone(): boolean {
+  return useSyncExternalStore(subscribe, getKeycapsOnPhone);
+}
+export function setKeycapsOnPhone(on: boolean) {
+  keycapsOnPhone = on;
+  try {
+    localStorage.setItem(KEYCAPS_KEY, String(on));
+  } catch {
+    // Storage refused (a private window): it holds while the page is open.
+  }
+  for (const listener of listeners) listener();
+  ledger.record("keys", { data: { keycapsOnPhone: on } });
+}
+function subscribePhone(listener: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+const onPhone = () => window.matchMedia(PHONE_QUERY).matches;
+/** Whether a keycap is drawn on this device now: not on a phone, unless keycaps are set to show there. The keycaps' one rule (`KeyCap`, `MediaKey`). */
+export function useKeycapsShown(): boolean {
+  const phone = useSyncExternalStore(subscribePhone, onPhone);
+  const onPhoneToo = useKeycapsOnPhone();
+  return !phone || onPhoneToo;
+}
