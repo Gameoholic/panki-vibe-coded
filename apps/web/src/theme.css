@@ -92,7 +92,7 @@
   --flag-ink: #12131a;
   /* A meaning Panki AI judged close (`.ai-accuracy.is-close`, Touch up's meh): a golden orange, between the flag's
      amber and the marks' red-orange, the same whatever the theme (the owner, 2026-11-01: "just orange", not yellow). */
-  --close: #f5a01e;
+  --close: #fb8c00;
   --close-ink: #12131a;
   /* The pages the extension's explainers play on (options/explainerScenes.tsx), other people's sites in their own
      colours whatever the theme: a news site's white paper, and a video site's dark (its picture stays --theater). */
