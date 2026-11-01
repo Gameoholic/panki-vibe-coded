@@ -129,8 +129,8 @@ export const LISTEN_HEARD_MAX = 5;
  */
 export const ListenFirst = z.object({ on: z.boolean(), heard: z.number().int().min(1).max(LISTEN_HEARD_MAX).nullable() });
 export type ListenFirst = z.infer<typeof ListenFirst>;
-/** As every type has it until it's switched on: off, and twice heard once it is. */
-export const DEFAULT_LISTEN_FIRST: ListenFirst = { on: false, heard: 2 };
+/** As every type has it until it's switched on: off, and a single hearing shows the card (twice until the owner, 2026-11-01). */
+export const DEFAULT_LISTEN_FIRST: ListenFirst = { on: false, heard: 1 };
 
 /** The card's two sides. */
 export type CardSide = "front" | "back";
