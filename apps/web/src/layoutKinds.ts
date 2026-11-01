@@ -42,7 +42,7 @@ export const LISTEN_SUBTITLE_OPTIONS: readonly { id: ListenSubtitles; label: str
   { id: "hide", label: "Hide" },
 ];
 /**
- * A sound's or clip's Show card by itself, as a choice: Never (Show card alone, 0 here, null as it's kept), or the play
+ * A sound's or clip's Ends listening, as a choice: Never (Done listening alone, 0 here, null as it's kept), or the play
  * whose start shows the card, from the second (the owner, 2026-11-01: "On second watch", a sound's too, so "play").
  */
 export const NEVER_BY_ITSELF = 0;

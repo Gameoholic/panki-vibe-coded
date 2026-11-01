@@ -42,7 +42,7 @@ export type KeyBinds = {
   /** Shows the card's back (Show back of card; Show answer until the owner, 2026-11-01). */
   reveal: Bind;
   /**
-   * Shows a card's front out of its Listen phase, as Show card does (the owner, 2026-11-01: a key of its own, the same as
+   * Shows a card's front out of its Listen phase, as Done listening does (the owner, 2026-11-01: a key of its own, the same as
    * Show back of card's to begin with). It, Show back of card and Hide back of card are each on a different face of the
    * card, so they may share a key and a hold.
    */
@@ -241,7 +241,7 @@ function read(): KeyBinds {
     // else on the review here (Show answer's doesn't count: they're never on the card's same side).
     const hideTaken = [...answers, ...media, ...restart, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, DEFAULT_KEYS.hide.key) && key.holdMs > 0);
     const hide = "hide" in raw ? bindOf(raw.hide, DEFAULT_KEYS.hide, undefined) : hideTaken ? one(null, 0) : DEFAULT_KEYS.hide;
-    // Kept before Show card had a key of its own: Show back of card's, which was its until then.
+    // Kept before Done listening had a key of its own: Show back of card's, which was its until then.
     const showCard = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.showCard, undefined) : reveal;
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
     // Kept before the examples had keys to begin with (`ARROWS_KEPT`): one left with none gets its arrow, unless that
@@ -300,7 +300,7 @@ export function setKeyBinds(next: KeyBinds) {
 /** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
 export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
 const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "examplePrev", "exampleNext", "start", "homeReview"] as const;
-/** Show card, Show back of card and Hide back of card are each heard on a face of its own (Listen, front, back): none takes another's key. */
+/** Done listening, Show back of card and Hide back of card are each heard on a face of its own (Listen, front, back): none takes another's key. */
 const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide"];
 const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
 

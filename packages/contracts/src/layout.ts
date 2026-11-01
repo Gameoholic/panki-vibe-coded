@@ -96,7 +96,7 @@ export const LayoutPart = z.object({
   listenSubtitles: ListenSubtitles.default("show"),
   /**
    * The play of a sound or clip in the Listen phase, by its number (2, its second), that shows the card's front the
-   * moment it begins, as Show card does (its "Show card by itself", On second play…); null, only Show card does (the
+   * moment it begins, as Done listening does (its "Ends listening", On second play…); null, only Done listening does (the
    * owner, 2026-11-01: a part's own, where hearings to the end were the type's the day before; "it only reveals
    * itself once it PLAYS for the second time, not when the first time finishes"; none to begin with). One part of a
    * layout at most.
@@ -135,7 +135,7 @@ export const DEFAULT_STAGE_TAG: StageTag = { shown: true, size: "normal", corner
 /**
  * Listen first (the owner, 2026-11-01: "I recognise words just by their spelling and the video context, not by hearing
  * the word… understanding by hearing matters more"): a type's cards open in a review on a Listen phase before the
- * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Show card, or the
+ * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Done listening, or the
  * one sound or clip that shows it by itself beginning the play its `showOnPlay` says, shows the front.
  * Like the stage tag, the type's own, apart from its fields. A card with nothing to hear opens on its front. (How many
  * hearings, `heard`, was the type's own for its first day, for every sound and clip alike; what's kept of it is let go.)

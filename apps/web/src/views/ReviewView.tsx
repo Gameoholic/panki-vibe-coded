@@ -458,7 +458,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /** What Undo can take back, newest last (the owner, 2026-10-26): every answer of this sitting, until it's left. */
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
-  /** The showing (its `turn`) whose Listen phase is over: Show card pressed, or its sound or clip begun the play that shows it. Undo puts a card back on its front, never in it. */
+  /** The showing (its `turn`) whose Listen phase is over: Done listening pressed, or its sound or clip begun the play that shows it. Undo puts a card back on its front, never in it. */
   const [listenedTurn, setListenedTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
@@ -644,7 +644,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     shown.current = { cardId: cardId ?? null, at: performance.now(), listen: listening, frontAt: null, revealedAt: null, givenId: crypto.randomUUID() };
   }, [cardId, turn]); // eslint-disable-line react-hooks/exhaustive-deps -- whether it opens listening is read as it comes on
 
-  /** Show card: from the Listen phase to the front, by its button, its key, or its sound or clip beginning the play that shows it. */
+  /** Done listening: from the Listen phase to the front, by its button, its key, or its sound or clip beginning the play that shows it. */
   function showCard() {
     if (!listening) return;
     shown.current.frontAt ??= performance.now();
@@ -873,7 +873,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         hold.begin(e, button, hiding.holdMs, hideAnswer);
         return;
       }
-      // Show card's own key while the card is listened to (the owner, 2026-11-01), Show back of card's on its front.
+      // Done listening's own key while the card is listened to (the owner, 2026-11-01), Show back of card's on its front.
       const showing = keyIn(listening ? binds.showCard : binds.reveal, key);
       if (showing) {
         e.preventDefault();
@@ -1167,7 +1167,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
                 ),
               )
             ) : (
-              // Listened to, Show card stands in Show answer's place, with its key: the card's front, out of its Listen phase.
+              // Listened to, Done listening stands in Show answer's place, with its key: the card's front, out of its Listen phase.
               <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={listening ? showCard : reveal} />
             )}
           </div>

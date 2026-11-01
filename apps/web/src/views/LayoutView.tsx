@@ -258,12 +258,12 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         {media ? (
           <Setting
             id="part-show-on-play"
-            label="Show card by itself"
-            why={shower && shower.fieldId !== id ? `${fields.get(shower.fieldId)?.name ?? "Another field"} already shows the card by itself.` : undefined}
+            label="Ends listening"
+            why={shower && shower.fieldId !== id ? `${fields.get(shower.fieldId)?.name ?? "Another field"} already ends listening.` : undefined}
             control={
               <Dropdown
                 id="part-show-on-play-choice"
-                label="Show card by itself"
+                label="Ends listening"
                 options={SHOW_ON_PLAY_OPTIONS}
                 value={part.showOnPlay ?? NEVER_BY_ITSELF}
                 disabled={!listen.on || part.listen === "hide" || (shower !== undefined && shower.fieldId !== id)}
