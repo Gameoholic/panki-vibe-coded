@@ -426,9 +426,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             <ShowButton listening={face === "listen"} bind={binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
           </div>
         ) : null}
-        {trying ? (
-          <p className="layout-note">Press the card to turn it, a spoiler to open it.</p>
-        ) : away.length > 0 ? (
+        {!trying && away.length > 0 ? (
           <div className="layout-away" aria-label={`Not on the ${side}`}>
             <span className="layout-note">Not on the {side}:</span>
             {away.map((p) => (
