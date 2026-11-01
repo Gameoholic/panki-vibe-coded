@@ -10,8 +10,9 @@ import { ledger } from "./ledger";
  * confirmation is held for `confirmMs` more on top of its own, that longer hold being its yes ("the extra ones for
  * confirmation is additive"). Every action takes as many more keys as are added to it (`also`, the owner, 2026-10-28:
  * "add functionality to add multiple keybinds to an action"; one second key until 2026-10-29: "it's weird it has
- * exactly 2"), each with a press or a hold of its own: Space tapped is the first sound or clip's to begin with, so it
- * plays, pauses and replays the clip, while Space held shows the answer. Kept in
+ * exactly 2"), each with a press or a hold of its own, so Space tapped can play the clip while Space held shows the
+ * back of the card (Space tapped was the first sound or clip's to begin with from 2026-10-28 until the owner,
+ * 2026-11-01: "remove it, I can just add it manually"). Kept in
  * `localStorage`, as the theme and a deck's order are: a keyboard is the device's, and the phone has none. One home:
  * the review, its card and Settings → Keybinds all read it here.
  */
@@ -79,22 +80,20 @@ export const HOLD_TIMES = [0, 250, 500, 1000, 1500, 2000] as const;
  * Bound to begin with (the owner, 2026-10-21): Space, 1 to 6 for the answers, A and S for the first two sounds and
  * clips; everything else has no key until given one. Space and the answers held half a second, an answer that asks
  * for confirmation a second more (1.5 s in all, the owner's figure), a sound or a clip at a press. Full screen is F,
- * at a press (2026-10-24). The first sound or clip has Space, tapped, added to it (2026-10-28), and is played again
- * from its start with 1 held half a second (2026-10-29: "only the first one has the default"). A card's examples are
+ * at a press (2026-10-24). The first sound or clip is played again from its start with 1 held half a second (2026-10-29: "only the first one has the default"). A card's examples are
  * ← and →, at a press (2026-10-31).
  */
 const ANSWER_START = ["1", "2", "3", "4", "5", "6"];
 const MEDIA_START = ["a", "s"];
 const HOLD_START = 500;
 const one = (key: string | null, holdMs: number): Bind => ({ key, holdMs, also: [] });
-const MEDIA_ALSO_START: Key = { key: " ", holdMs: 0 };
 const RESTART_START: Key = { key: "1", holdMs: HOLD_START };
 export const DEFAULT_KEYS: KeyBinds = {
   reveal: one(" ", HOLD_START),
   showCard: one(" ", HOLD_START),
   hide: one(" ", 250),
   answers: Array.from({ length: SLOTS }, (_, i) => one(ANSWER_START[i] ?? null, HOLD_START)),
-  media: Array.from({ length: SLOTS }, (_, i) => ({ ...one(MEDIA_START[i] ?? null, 0), also: i === 0 ? [MEDIA_ALSO_START] : [] })),
+  media: Array.from({ length: SLOTS }, (_, i) => one(MEDIA_START[i] ?? null, 0)),
   restart: Array.from({ length: SLOTS }, (_, i) => (i === 0 ? one(RESTART_START.key, RESTART_START.holdMs) : one(null, 0))),
   fullScreen: one("f", 0),
   undo: one(null, 0),
@@ -222,13 +221,10 @@ function read(): KeyBinds {
     const confirmMs = ("confirmMs" in raw ? holdOf(raw.confirmMs) : undefined) ?? (oldAsk !== undefined ? Math.max(0, oldAsk - (oldHold ?? HOLD_START)) : undefined);
     const reveal = bindOf("reveal" in raw ? raw.reveal : undefined, DEFAULT_KEYS.reveal, oldHold);
     const answers = bindsOf("answers" in raw ? raw.answers : undefined, DEFAULT_KEYS.answers, oldHold);
-    const kept = bindsOf("media" in raw ? raw.media : undefined, DEFAULT_KEYS.media, oldHold);
+    const media = bindsOf("media" in raw ? raw.media : undefined, DEFAULT_KEYS.media, oldHold);
     // Kept before there was a full screen key: it starts on F, unless F already does something else here.
-    const taken = [reveal, ...answers, ...kept].some((bind) => sameKey(bind.key, DEFAULT_KEYS.fullScreen.key));
+    const taken = [reveal, ...answers, ...media].some((bind) => sameKey(bind.key, DEFAULT_KEYS.fullScreen.key));
     const fullScreen = "fullScreen" in raw ? bindOf(raw.fullScreen, DEFAULT_KEYS.fullScreen, undefined) : taken ? { ...DEFAULT_KEYS.fullScreen, key: null } : DEFAULT_KEYS.fullScreen;
-    // Kept before there were second keys: the first sound or clip gets Space tapped, unless a press of Space already does something here.
-    const tapTaken = [reveal, ...answers, ...kept, fullScreen].some((bind) => sameKey(bind.key, MEDIA_ALSO_START.key) && bind.holdMs === 0);
-    const media = kept.map((bind, i) => (i === 0 && !hasAlso(raw, "media") && !tapTaken ? { ...bind, also: [MEDIA_ALSO_START] } : bind));
     // Kept before there were restart keys: the first gets 1 held, unless 1 held already does something else here.
     const restartTaken = [reveal, ...answers, ...media, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, RESTART_START.key) && key.holdMs > 0);
     const restart =
@@ -262,12 +258,6 @@ function read(): KeyBinds {
   } catch {
     return DEFAULT_KEYS;
   }
-}
-/** Whether what was kept of the first of a list already had a second key: kept since there were. */
-function hasAlso(raw: object, name: "media"): boolean {
-  const list: unknown = name in raw ? (raw as Record<string, unknown>)[name] : undefined;
-  const first: unknown = Array.isArray(list) ? list[0] : undefined;
-  return typeof first === "object" && first !== null && "also" in first;
 }
 
 let now: KeyBinds | null = null;
