@@ -2470,12 +2470,12 @@ mark.sub-blur {
   font-size: 13px;
   padding: 3px 10px;
 }
-/* What's the type's own (Listen first), above the picked part's choices and apart from them. */
-.layout-type-rows {
+/* Beside the card: the type's own panel (Listen first), then the picked part's, each a panel of its own. */
+.layout-side {
   display: grid;
-  gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
 }
 .layout-part-title {
   margin: 0;
@@ -3848,7 +3848,7 @@ mark.sub-blur {
     grid-template-columns: minmax(0, 1fr) 340px;
     align-items: start;
   }
-  .app.is-wide .layout-editor > .layout-panel {
+  .app.is-wide .layout-editor > .layout-side {
     position: sticky;
     top: 16px;
   }

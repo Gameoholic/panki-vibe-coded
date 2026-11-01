@@ -322,11 +322,16 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
 
   const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? null);
   /**
-   * Listen first, the type's own (the owner, 2026-11-01): above whatever's picked, since it's about the whole card. Off,
-   * how many hearings it waits for stays as it was, greyed.
+   * Listen first, the type's own (the owner, 2026-11-01): a panel of its own above whatever's picked, headed by the type's
+   * name, so it never reads as the picked field's (the owner: "it looks like it's part of the field"). Off, how many
+   * hearings it waits for stays as it was, greyed.
    */
-  const listenRows = (
-    <div className="layout-type-rows">
+  const typePanel = (
+    <section className="panel layout-panel" aria-labelledby="layout-type-title">
+      <h2 id="layout-type-title" className="layout-part-title">
+        {type.name}
+        <small>Card type</small>
+      </h2>
       <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
       <Setting
         id="listen-heard"
@@ -342,7 +347,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           />
         }
       />
-    </div>
+    </section>
   );
   return (
     <div className="layout-editor">
@@ -435,26 +440,27 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         ) : null}
       </section>
 
-      {tagPicked ? (
-        // The stage tag isn't a field: its few choices are its own, the same on both sides, and its corner is where it's dragged.
-        <aside className="panel layout-panel" aria-labelledby="layout-part-title">
-          {listenRows}
-          <h2 id="layout-part-title" className="layout-part-title">
-            Stage tag
-          </h2>
-          <Setting id="tag-shown" label="Shown" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
-          <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
-        </aside>
-      ) : part && field ? (
-        <aside className="panel layout-panel" aria-labelledby="layout-part-title">
-          {listenRows}
-          <h2 id="layout-part-title" className="layout-part-title">
-            {field.name}
-            <small>{FIELD_KINDS[field.kind].name}</small>
-          </h2>
-          {choices(part, field)}
-        </aside>
-      ) : null}
+      <div className="layout-side">
+        {typePanel}
+        {tagPicked ? (
+          // The stage tag isn't a field: its few choices are its own, the same on both sides, and its corner is where it's dragged.
+          <aside className="panel layout-panel" aria-labelledby="layout-part-title">
+            <h2 id="layout-part-title" className="layout-part-title">
+              Stage tag
+            </h2>
+            <Setting id="tag-shown" label="Shown" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
+            <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
+          </aside>
+        ) : part && field ? (
+          <aside className="panel layout-panel" aria-labelledby="layout-part-title">
+            <h2 id="layout-part-title" className="layout-part-title">
+              {field.name}
+              <small>{FIELD_KINDS[field.kind].name}</small>
+            </h2>
+            {choices(part, field)}
+          </aside>
+        ) : null}
+      </div>
     </div>
   );
 }
