@@ -29,6 +29,7 @@ import { ShowButton } from "../components/ShowButton";
 import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
+import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { useUndoable } from "../hooks/useUndoable";
 import { restartOf, shortcutOf, useKeyBinds } from "../keys";
 import { LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
@@ -193,6 +194,22 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const sample = samples.find((s) => s.card.id === sampleId) ?? null;
   /** Where the card opens in a review, as laid out now: its Listen phase when there's something on it to hear, else its front. */
   const opening: Face = sample && listensFirst(type, sample.card.values, sample.card.files, listen, draft) ? "listen" : "front";
+  /** The Hold button, while it's on (Settings → Keybinds): previewed, it goes as far as the back, a preview giving no answer. */
+  const chainOn = binds.holdChain.on;
+  const previewStages: HoldStage[] = [
+    ...(opening === "listen" ? [{ label: "Done listening", icon: "check" as const, ms: binds.holdChain.firstMs, done: () => setFace("front") }] : []),
+    { label: "Show back of card", icon: "eye", ms: opening === "listen" ? binds.holdChain.thenMs : binds.holdChain.firstMs, done: () => setFace("back") },
+  ];
+  const chain = useHoldButton({
+    stages: previewStages,
+    at: face === "listen" ? 0 : face === "front" ? previewStages.length - 1 : previewStages.length,
+    rest: { label: "Hide back of card", icon: "eyeOff" },
+    back: () => setFace(opening),
+    showing: `${sampleId}:${trying ? "try" : "edit"}`,
+    bind: binds.holdButton,
+    where: () => previewActions.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null,
+  });
+  const previewActions = useRef<HTMLDivElement | null>(null);
   const ladder = (sample && srsTypes.find((t) => t.id === sample.deck.srsTypeId)) ?? srsTypes[0] ?? NO_LADDER;
   /** What a card is called in the list of cards to show: its first words. */
   const nameField = type.fields.find((f) => holdsWords(f.kind));
@@ -429,9 +446,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
                 },
               })}
         />
-        {trying && face !== "back" ? (
-          <div className="review-actions">
-            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
+        {/* With the Hold button on, it stands on the back too, a tap of it back to the card's start, as in a review. */}
+        {trying && (face !== "back" || chainOn) ? (
+          <div ref={previewActions} className="review-actions">
+            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} chain={chainOn ? chain.view : null} />
           </div>
         ) : null}
         {!trying && away.length > 0 ? (

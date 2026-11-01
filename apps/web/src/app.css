@@ -2818,6 +2818,38 @@ mark.sub-blur {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
 }
+/* The Hold button's key (`ShowButton.tsx` → `HoldButton`): one clock face for every stage of the card, what's done
+   (`--hold-from`) filled and the stage being held (`--hold`, `useHold`'s) filling its share (`--hold-span`) on from
+   there; a mark on its edge where each stage ends (`--chain-cuts`). Held by a finger it's a hold, never a scroll, a
+   selection or the phone's menu. */
+.hold-button {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.key.is-chain {
+  --chain-at: calc((var(--hold-from, 0) + var(--hold, 0) * var(--hold-span, 0)) * 1turn);
+  --chain-cut: color-mix(in srgb, var(--hold-ink) 55%, transparent);
+  background: conic-gradient(color-mix(in srgb, var(--hold-ink) 24%, transparent) var(--chain-at), transparent 0);
+}
+.key.is-chain::after {
+  background: conic-gradient(var(--hold-ink) var(--chain-at), transparent 0);
+}
+.key.is-chain::before {
+  content: "";
+  position: absolute;
+  inset: -1px -1px -3px;
+  padding: 2px;
+  border-radius: 6px;
+  pointer-events: none;
+  background: var(--chain-cuts);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
 /* Show answer carries its key too, the one to hold. */
 .review-actions > .btn-primary {
   gap: 10px;

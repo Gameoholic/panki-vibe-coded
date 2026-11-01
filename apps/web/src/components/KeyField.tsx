@@ -21,6 +21,8 @@ type Props = {
   removable?: boolean;
   /** It listens for its key from the start: one just added with +. */
   listen?: boolean;
+  /** Shown and not changed: a key that does nothing just now (Show back of card's while the Hold button stands for it). */
+  disabled?: boolean;
 };
 
 /**
@@ -30,7 +32,7 @@ type Props = {
  * row has asked: the question stands under the whole row, so the keys beside it stay where they are. Settings →
  * Keybinds is made of these.
  */
-export function KeyField({ id, label, value, onChange, asking, onAsk, removable = false, listen = false }: Props) {
+export function KeyField({ id, label, value, onChange, asking, onAsk, removable = false, listen = false, disabled = false }: Props) {
   const [listening, setListening] = useState(listen);
   const box = useRef<HTMLSpanElement>(null);
   const latest = useRef(onChange);
@@ -58,11 +60,11 @@ export function KeyField({ id, label, value, onChange, asking, onAsk, removable 
 
   return (
     <span ref={box} className="key-field">
-      <Button id={id} variant="chip" className="key-field-button" aria-pressed={listening} aria-label={`${label}: ${listening ? "press a key" : value ? keyWords(value) : "no key"}`} onClick={() => setListening((now) => !now)}>
+      <Button id={id} variant="chip" className="key-field-button" aria-pressed={listening} aria-label={`${label}: ${listening ? "press a key" : value ? keyWords(value) : "no key"}`} disabled={disabled} onClick={() => setListening((now) => !now)}>
         {listening ? "Press a key" : value ? <span className="key">{keyWords(value)}</span> : "None"}
       </Button>
       {(value || removable) && !listening ? (
-        <Button className="btn-icon is-danger key-field-clear" aria-label={`Take the key off ${label}`} aria-pressed={asking} onClick={onAsk}>
+        <Button className="btn-icon is-danger key-field-clear" aria-label={`Take the key off ${label}`} aria-pressed={asking} disabled={disabled} onClick={onAsk}>
           <Icon name="trash" />
         </Button>
       ) : null}

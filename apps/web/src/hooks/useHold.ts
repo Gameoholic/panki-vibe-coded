@@ -29,6 +29,8 @@ const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed
  * 0.2 s, the owner's pick (2026-11-01; 0.15 s from 2026-10-29, after trying 0.1 s).
  */
 export const TAP_MS = 200;
+/** A second press of a key this soon after a tap of it is a double press (the Hold button's Back to start, 2026-11-02). */
+export const DOUBLE_MS = 350;
 
 /**
  * A key held on a button until it does its thing (`keys.ts`, a bind to hold): how far along, 0 to 1, is written on the
@@ -54,10 +56,12 @@ export function useHold() {
   /**
    * Starts holding the key going down (`e`) on `el`; `done` once it's been held for `ms` (at once for none). Nothing
    * while another hold is on. While a tap of the key does something too, the fill waits out the tap (`TAP_MS`), then
-   * fills over the rest, so it's still done when it's set to be.
+   * fills over the rest, so it's still done when it's set to be. `e` can be a name instead of a key (a pointer held on a
+   * button, the Hold button's "pointer"), let go by that name; `quiet` says whether the fill waits out a tap whatever
+   * the keys say (the Hold button's first stage does, a tap of it being Back to start; its later stages don't).
    */
-  function begin(e: KeyboardEvent, el: HTMLElement | null, ms: number, done: () => void) {
-    const key = e.key;
+  function begin(e: KeyboardEvent | string, el: HTMLElement | null, ms: number, done: () => void, quiet?: boolean) {
+    const key = typeof e === "string" ? e : e.key;
     if (current.current) return;
     // A hold of no time is a press.
     if (ms <= 0) {
@@ -71,11 +75,11 @@ export function useHold() {
       easing.current.delete(el);
     }
     const t0 = performance.now();
-    const quiet = tapLive(e) ? Math.min(TAP_MS, ms) : 0;
+    const still = (quiet ?? (typeof e !== "string" && tapLive(e))) ? Math.min(TAP_MS, ms) : 0;
     const hold = { key, el, raf: 0 };
     current.current = hold;
     const tick = (t: number) => {
-      const share = Math.min(1, Math.max(0, t - t0 - quiet) / (ms - quiet));
+      const share = ms === still ? (t - t0 >= ms ? 1 : 0) : Math.min(1, Math.max(0, t - t0 - still) / (ms - still));
       set(el, share);
       if (share < 1) {
         hold.raf = requestAnimationFrame(tick);
@@ -107,5 +111,8 @@ export function useHold() {
     // Once: `release` reads only refs.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { begin, release };
+  /** Whether a hold is on just now. */
+  const holding = () => current.current !== null;
+
+  return { begin, release, holding };
 }

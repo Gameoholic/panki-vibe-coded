@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings } from "@panki/contracts";
+import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings, type SrsAnswer } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { DeckNameForm } from "../components/DeckNameForm";
@@ -20,6 +20,8 @@ type Props = {
   /** Whether its card type has a field that goes with an example (`exampleFieldsOf`): its cards can have more than one. */
   takesExamples: boolean;
   srsTypeName: string;
+  /** Its SRS type's answers, one of which the Hold button can answer with; none when the type is missing. */
+  srsAnswers: readonly SrsAnswer[];
   /** Opens each one's own screen; absent when the type is missing. */
   onOpenCardType?: (() => void) | undefined;
   onOpenSrsType?: (() => void) | undefined;
@@ -63,6 +65,8 @@ const AGAIN_PLACE_OPTIONS = [
   { id: "end", label: "At the end" },
   { id: "random", label: "Anywhere" },
 ] as const;
+/** The Hold button's answer when it gives none: the hold stops at the back of the card. */
+const NO_HOLD_ANSWER = "none";
 const EXAMPLE_SHOWN_OPTIONS = [
   { id: "rotate", label: "Rotate" },
   { id: "newest", label: "Newest" },
@@ -94,12 +98,15 @@ function MadeOf({ id, label, name, onOpen }: { id: string; label: string; name: 
 }
 
 /** A deck's settings: "About" (its name, and the card type and SRS type it's made of, shown and not changed), how its reviews run (saved a moment after each change), and at the bottom, delete, which asks once, here, with what it costs. */
-export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples, srsTypeName, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
+export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples, srsTypeName, srsAnswers, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [own, patch, ownFailure] = useSavedSoon<DeckSettings>(deck.settings, onChangeSettings);
   const cards = count(cardCount, "card", "cards");
+  // The main answers first, then those set apart, as the review lays them out; an answer its SRS type no longer has reads as None.
+  const holdAnswers = [...srsAnswers.filter((a) => !a.aside), ...srsAnswers.filter((a) => a.aside)];
+  const holdAnswer = holdAnswers.some((a) => a.id === own.holdAnswer) ? (own.holdAnswer ?? NO_HOLD_ANSWER) : NO_HOLD_ANSWER;
 
   async function run(work: () => Promise<void>) {
     setBusy(true);
@@ -178,6 +185,20 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
           id="todayFirst"
           label="Today's cards before a review"
           control={<Toggle id="deck-today-first" says={{ on: "Shown", off: "Skipped" }} on={own.todayFirst} onChange={(todayFirst) => patch({ todayFirst })} />}
+        />
+        {/* The answer a hold of the Hold button (Settings → Keybinds) gives once it's past the back of a card (the owner, 2026-11-02). */}
+        <Setting
+          id="holdAnswer"
+          label="Hold button answers with"
+          control={
+            <Dropdown
+              id="deck-hold-answer"
+              label="Hold button answers with"
+              options={[{ id: NO_HOLD_ANSWER, label: "None" }, ...holdAnswers.map((a) => ({ id: a.id, label: a.name }))]}
+              value={holdAnswer}
+              onChange={(id) => patch({ holdAnswer: id === NO_HOLD_ANSWER ? null : id })}
+            />
+          }
         />
         <Setting
           id="againPlace"

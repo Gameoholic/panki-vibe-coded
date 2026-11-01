@@ -973,6 +973,7 @@ export function App() {
                 cardTypeName={type?.name ?? "Missing"}
                 takesExamples={type ? exampleFieldsOf(type).length > 0 : false}
                 srsTypeName={srsType?.name ?? "Missing"}
+                srsAnswers={srsType?.answers ?? []}
                 onOpenCardType={type ? () => go({ kind: "type", type, tab: "fields" }) : undefined}
                 onOpenSrsType={srsType ? () => go({ kind: "srsEdit", type: srsType, isNew: false }) : undefined}
                 key={deck.id}

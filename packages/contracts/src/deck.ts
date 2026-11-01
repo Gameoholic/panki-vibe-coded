@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SrsTypeId } from "./srs";
+import { SrsAnswerId, SrsTypeId } from "./srs";
 import { CardTypeId } from "./type";
 
 /** Minted by the browser, so a retried POST returns the deck that already exists instead of a second one. */
@@ -50,10 +50,17 @@ export const DeckSettings = z.object({
    * https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62, 2026-10-26); off, it starts straight in, as it always did.
    */
   todayFirst: z.boolean(),
+  /**
+   * The answer the Hold button gives in this deck once it's held past the back of a card (the owner, 2026-11-02): one of
+   * the deck's SRS type's answers, by its id; none, the hold stops at the back. The deck's, since a device's keys know
+   * answers only by their place and a built-in SRS type can't be changed. An id its SRS type doesn't have (the type
+   * changed since) is none.
+   */
+  holdAnswer: SrsAnswerId.nullable(),
 });
 export type DeckSettings = z.infer<typeof DeckSettings>;
 export type ExampleShown = DeckSettings["exampleShown"];
-export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", todayFirst: true };
+export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", todayFirst: true, holdAnswer: null };
 /** Where a card asked again really goes back in: with only so many cards in play, anywhere among them. */
 export const againPlaceOf = (settings: Pick<DeckSettings, "againPlace" | "pool">): DeckSettings["againPlace"] => (settings.pool === null ? settings.againPlace : "random");
 
