@@ -113,8 +113,10 @@ export function KeysPanels() {
           Review
         </h2>
         <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} />
-        <KeyRow id="reveal" label="Show answer" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} />
-        <KeyRow id="hide" label="Hide answer" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} />
+        {/* In the order a card goes: out of its Listen phase, to its back, and back to its front. */}
+        <KeyRow id="show-card" label="Show card" bind={binds.showCard} slot={{ kind: "showCard" }} binds={binds} />
+        <KeyRow id="reveal" label="Show back of card" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} />
+        <KeyRow id="hide" label="Hide back of card" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} />
         {binds.answers.map((bind, index) => (
           <KeyRow key={index} id={`answer-${index + 1}`} label={`Answer ${index + 1}`} bind={bind} slot={{ kind: "answers", index }} binds={binds} />
         ))}

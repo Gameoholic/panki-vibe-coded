@@ -39,11 +39,19 @@ export type Shortcut = Heard & { also: readonly Heard[] };
 /** How many answers and how many sounds and clips can each have a key. */
 export const SLOTS = 9;
 export type KeyBinds = {
+  /** Shows the card's back (Show back of card; Show answer until the owner, 2026-11-01). */
   reveal: Bind;
   /**
-   * Turns the card back to its front once it's shown (the owner, 2026-10-29: Show answer's own key used to do it at a
-   * tap, until Space tapped became the clip's and it did nothing; "make it its own keybind", Space held 0.25 s to begin
-   * with). It and Show answer never stand together, one on each side of the card, so they may share a key and a hold.
+   * Shows a card's front out of its Listen phase, as Show card does (the owner, 2026-11-01: a key of its own, the same as
+   * Show back of card's to begin with). It, Show back of card and Hide back of card are each on a different face of the
+   * card, so they may share a key and a hold.
+   */
+  showCard: Bind;
+  /**
+   * Turns the card back to its front once it's shown, Hide back of card (Hide answer until 2026-11-01; the owner,
+   * 2026-10-29: Show answer's own key used to do it at a tap, until Space tapped became the clip's and it did nothing;
+   * "make it its own keybind", Space held 0.25 s to begin with). It and Show back of card never stand together, one on
+   * each side of the card, so they may share a key and a hold.
    */
   hide: Bind;
   answers: readonly Bind[];
@@ -83,6 +91,7 @@ const MEDIA_ALSO_START: Key = { key: " ", holdMs: 0 };
 const RESTART_START: Key = { key: "1", holdMs: HOLD_START };
 export const DEFAULT_KEYS: KeyBinds = {
   reveal: one(" ", HOLD_START),
+  showCard: one(" ", HOLD_START),
   hide: one(" ", 250),
   answers: Array.from({ length: SLOTS }, (_, i) => one(ANSWER_START[i] ?? null, HOLD_START)),
   media: Array.from({ length: SLOTS }, (_, i) => ({ ...one(MEDIA_START[i] ?? null, 0), also: i === 0 ? [MEDIA_ALSO_START] : [] })),
@@ -129,7 +138,7 @@ export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKe
 
 /** Every review key but the home's and today's Start: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
-  return [binds.reveal, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
+  return [binds.reveal, binds.showCard, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
 }
 /** How long something else on the review takes a key held: a press of it then acts only when let go sooner (`Heard.tapUnder`). */
 function tapUnderOf(binds: KeyBinds | undefined, key: Key): number {
@@ -232,6 +241,8 @@ function read(): KeyBinds {
     // else on the review here (Show answer's doesn't count: they're never on the card's same side).
     const hideTaken = [...answers, ...media, ...restart, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, DEFAULT_KEYS.hide.key) && key.holdMs > 0);
     const hide = "hide" in raw ? bindOf(raw.hide, DEFAULT_KEYS.hide, undefined) : hideTaken ? one(null, 0) : DEFAULT_KEYS.hide;
+    // Kept before Show card had a key of its own: Show back of card's, which was its until then.
+    const showCard = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.showCard, undefined) : reveal;
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
     // Kept before the examples had keys to begin with (`ARROWS_KEPT`): one left with none gets its arrow, unless that
     // arrow already does something else on the review here.
@@ -247,7 +258,7 @@ function read(): KeyBinds {
     const exampleNext = exampleOf("exampleNext");
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    return { reveal, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -283,14 +294,15 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, showCard: next.showCard, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the answer, hiding it, full screen's, Undo's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
-export type Slot = { kind: "reveal" | "hide" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
-const NAMED = ["reveal", "hide", "fullScreen", "undo", "examplePrev", "exampleNext", "start", "homeReview"] as const;
-/** Show answer and Hide answer never stand together (one on each side of the card): neither takes the other's key. */
-const apart = (a: Slot, b: Slot) => (a.kind === "reveal" && b.kind === "hide") || (a.kind === "hide" && b.kind === "reveal");
+/** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
+const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "examplePrev", "exampleNext", "start", "homeReview"] as const;
+/** Show card, Show back of card and Hide back of card are each heard on a face of its own (Listen, front, back): none takes another's key. */
+const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide"];
+const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
 
 /** The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space starts the review, then shows the answer). */
 const screenOf = (kind: Slot["kind"]): "home" | "today" | "review" => (kind === "homeReview" ? "home" : kind === "start" ? "today" : "review");

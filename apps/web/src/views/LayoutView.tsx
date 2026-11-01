@@ -31,7 +31,7 @@ import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { useUndoable } from "../hooks/useUndoable";
 import { restartOf, shortcutOf, useKeyBinds } from "../keys";
-import { HEARD_OPTIONS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, ONLY_BY_BUTTON, PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import type { UnsavedGuard } from "../unsaved";
 import { waveOf } from "../waveform";
 import type { SaveStatus } from "./SrsTypeView";
@@ -205,6 +205,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const tagPicked = picked === TAG_PICKED;
   const part = tagPicked ? undefined : (draft.find((p) => p.fieldId === picked) ?? draft[0]);
   const field = part ? fields.get(part.fieldId) : undefined;
+  /** The one sound or clip that shows the card by itself, if one does. */
+  const shower = draft.find((p) => p.showOnPlay !== null);
 
   /** The picked part's choices: its two sides, then what its kind can change, then its place. */
   function choices(part: LayoutPart, field: CardField) {
@@ -249,6 +251,27 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           label="While listening"
           control={<Segmented idPrefix="part-listen" label="While listening" options={LISTEN_OPTIONS} value={part.listen} disabled={!listen.on} onChange={(listening) => update(id, { listen: listening })} />}
         />
+        {/*
+          Which play of this sound or clip shows the card (the owner, 2026-11-01), one of them on a card at most: while
+          another does, it's greyed here and says which. Greyed too while it's hidden in the Listen phase, which never plays it.
+        */}
+        {media ? (
+          <Setting
+            id="part-show-on-play"
+            label="Show card by itself"
+            why={shower && shower.fieldId !== id ? `${fields.get(shower.fieldId)?.name ?? "Another field"} already shows the card by itself.` : undefined}
+            control={
+              <Dropdown
+                id="part-show-on-play-choice"
+                label="Show card by itself"
+                options={SHOW_ON_PLAY_OPTIONS}
+                value={part.showOnPlay ?? NEVER_BY_ITSELF}
+                disabled={!listen.on || part.listen === "hide" || (shower !== undefined && shower.fieldId !== id)}
+                onChange={(play) => update(id, { showOnPlay: play === NEVER_BY_ITSELF ? null : play })}
+              />
+            }
+          />
+        ) : null}
         {media ? (
           <Setting
             id="part-look"
@@ -325,8 +348,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? null);
   /**
    * Listen first, the type's own (the owner, 2026-11-01): a panel of its own above whatever's picked, headed by the type's
-   * name, so it never reads as the picked field's (the owner: "it looks like it's part of the field"). Off, how many
-   * hearings it waits for stays as it was, greyed.
+   * name, so it never reads as the picked field's (the owner: "it looks like it's part of the field"). When the card
+   * shows by itself is a sound's or clip's own, in its part's choices.
    */
   const typePanel = (
     <section className="panel layout-panel" aria-labelledby="layout-type-title">
@@ -335,20 +358,6 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         <small>Card type</small>
       </h2>
       <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
-      <Setting
-        id="listen-heard"
-        label="Show card by itself"
-        control={
-          <Dropdown
-            id="listen-heard-choice"
-            label="Show card by itself"
-            options={HEARD_OPTIONS}
-            value={listen.heard ?? ONLY_BY_BUTTON}
-            disabled={!listen.on}
-            onChange={(heard) => changeListen({ heard: heard === ONLY_BY_BUTTON ? null : heard })}
-          />
-        }
-      />
     </section>
   );
   return (
@@ -388,8 +397,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           place={sample?.card.place ?? NEW_PLACE}
           revealed={face === "back"}
           listening={face === "listen"}
-          listen={listen}
-          // Previewed, it goes on to its front once it's heard enough, as in a review.
+          // Previewed, it goes on to its front as its sound or clip begins the play set to show it, as in a review.
           onListened={() => {
             if (trying) setFace("front");
           }}
@@ -423,7 +431,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         />
         {trying && face !== "back" ? (
           <div className="review-actions">
-            <ShowButton listening={face === "listen"} bind={binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
+            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
           </div>
         ) : null}
         {!trying && away.length > 0 ? (

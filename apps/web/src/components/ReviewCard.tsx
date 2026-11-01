@@ -55,6 +55,8 @@ export type CardEdit = {
 
 /** How far a press must move before it's a drag of the stage tag rather than a press that picks it. */
 const TAG_DRAG_PX = 4;
+/** A play begun this close to a sound's or clip's start, in seconds, is from its start: one played again, not one played on. */
+const AT_START_S = 0.25;
 
 /** A corner from which half of the card it's in, up or down and left or right. */
 const cornerOf = (top: boolean, left: boolean): TagCorner => (top ? (left ? "top-left" : "top-right") : left ? "bottom-left" : "bottom-right");
@@ -144,9 +146,7 @@ type Props = {
    * hidden one. What plays by itself when the card comes up plays now. Off by default.
    */
   listening?: boolean;
-  /** Listen first to go by in place of the type's own: one being laid out. */
-  listen?: ListenFirst;
-  /** While listening, one sound or clip heard to its end as many times as Listen first waits for (`heard`): the card is to show its front. */
+  /** While listening, the sound or clip that shows the card by itself has begun its play of that number (`LayoutPart.showOnPlay`): the card is to show its front. */
   onListened?: () => void;
   /**
    * A press anywhere on the card but on a file's own player or a spoiler, or Enter or Space while the card has the focus.
@@ -257,7 +257,6 @@ export function ReviewCard({
   place,
   revealed,
   listening = false,
-  listen = type.listen,
   onListened,
   onPress,
   srcOf,
@@ -300,27 +299,49 @@ export function ReviewCard({
   const inListen = listening && !revealed;
   /** What the Listen phase does with a part: nothing outside it. */
   const veilOf = (part: LayoutPart): ListenShow => (inListen ? part.listen : "show");
-  // A hearing is a sound or clip played to its end: paused and played on is one, played again after its end another.
-  // Any one of them heard as many times as Listen first waits for shows the front. Heard on the card itself, in the
-  // capture phase, since a media element's end doesn't bubble: every look of every player is heard alike.
-  const heard = useRef(new Map<string, number>());
+  // The one sound or clip that shows the card by itself (its `showOnPlay`) does so the moment its play of that number
+  // begins (the owner, 2026-11-01: "it only reveals itself once it PLAYS for the second time, not when the first time
+  // finishes"). A play begins at its first start, and again from its start: after its end, or played again from it;
+  // paused and played on is still the one. Heard on the card itself, in the capture phase, since a media element's
+  // events don't bubble: every look of every player is heard alike.
+  const plays = useRef({ count: 0, ended: false });
   const listened = useRef(onListened);
   listened.current = onListened;
-  const heardTimes = listen.heard;
+  const shower = layout.find((p) => p.showOnPlay !== null);
+  const showerId = shower?.fieldId ?? null;
+  const showsOn = shower?.showOnPlay ?? null;
   useEffect(() => {
-    heard.current = new Map();
+    plays.current = { count: 0, ended: false };
     const el = card.current;
-    if (!el || !inListen || heardTimes === null) return;
-    const onEnded = (e: Event) => {
-      const fieldId = e.target instanceof Element ? e.target.closest("[data-part]")?.getAttribute("data-part") : null;
-      if (!fieldId) return;
-      const times = (heard.current.get(fieldId) ?? 0) + 1;
-      heard.current.set(fieldId, times);
-      if (times >= heardTimes) listened.current?.();
+    if (!el || !inListen || showerId === null || showsOn === null) return;
+    const ours = (e: Event): HTMLMediaElement | null =>
+      e.target instanceof HTMLMediaElement && e.target.closest("[data-part]")?.getAttribute("data-part") === showerId ? e.target : null;
+    /** A play begun: counted, and the card shown once it's the one it waits for. */
+    const begun = () => {
+      plays.current = { count: plays.current.count + 1, ended: false };
+      if (plays.current.count >= showsOn) listened.current?.();
     };
+    const onPlay = (e: Event) => {
+      const media = ours(e);
+      if (media && (plays.current.count === 0 || plays.current.ended || media.currentTime < AT_START_S)) begun();
+    };
+    // Sent back to its start while it plays (its restart key): another play.
+    const onSeeked = (e: Event) => {
+      const media = ours(e);
+      if (media && !media.paused && plays.current.count > 0 && media.currentTime < AT_START_S) begun();
+    };
+    const onEnded = (e: Event) => {
+      if (ours(e)) plays.current = { ...plays.current, ended: true };
+    };
+    el.addEventListener("play", onPlay, true);
+    el.addEventListener("seeked", onSeeked, true);
     el.addEventListener("ended", onEnded, true);
-    return () => el.removeEventListener("ended", onEnded, true);
-  }, [inListen, heardTimes]);
+    return () => {
+      el.removeEventListener("play", onPlay, true);
+      el.removeEventListener("seeked", onSeeked, true);
+      el.removeEventListener("ended", onEnded, true);
+    };
+  }, [inListen, showerId, showsOn]);
 
   const drawn: Drawn[] = layout.flatMap((part) => {
     const field = fields.get(part.fieldId);

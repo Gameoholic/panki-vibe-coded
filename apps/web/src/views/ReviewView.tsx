@@ -458,7 +458,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /** What Undo can take back, newest last (the owner, 2026-10-26): every answer of this sitting, until it's left. */
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
-  /** The showing (its `turn`) whose Listen phase is over: Show card pressed, or heard enough. Undo puts a card back on its front, never in it. */
+  /** The showing (its `turn`) whose Listen phase is over: Show card pressed, or its sound or clip begun the play that shows it. Undo puts a card back on its front, never in it. */
   const [listenedTurn, setListenedTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
@@ -644,7 +644,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     shown.current = { cardId: cardId ?? null, at: performance.now(), listen: listening, frontAt: null, revealedAt: null, givenId: crypto.randomUUID() };
   }, [cardId, turn]); // eslint-disable-line react-hooks/exhaustive-deps -- whether it opens listening is read as it comes on
 
-  /** Show card: from the Listen phase to the front, by its button, its key, or the card heard enough. */
+  /** Show card: from the Listen phase to the front, by its button, its key, or its sound or clip beginning the play that shows it. */
   function showCard() {
     if (!listening) return;
     shown.current.frontAt ??= performance.now();
@@ -655,7 +655,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     shown.current.revealedAt ??= performance.now();
     setRevealed(true);
   }
-  /** The card turned back to its front (Hide answer): a question asked about an answer goes with it. */
+  /** The card turned back to its front (Hide back of card): a question asked about an answer goes with it. */
   function hideAnswer() {
     if (!revealed || busy) return;
     setAsking(null);
@@ -863,8 +863,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         else reveal();
         return;
       }
-      // Turned back to its front by Hide answer's own key (the owner, 2026-10-29: Show answer's tap did it until Space
-      // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide answer button showing.
+      // Turned back to its front by Hide back of card's own key (the owner, 2026-10-29: Show answer's tap did it until Space
+      // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide back of card button showing.
       const hiding = revealed ? keyIn(binds.hide, key) : null;
       if (hiding) {
         e.preventDefault();
@@ -873,8 +873,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         hold.begin(e, button, hiding.holdMs, hideAnswer);
         return;
       }
-      // Show answer's key is Show card's while the card is listened to, held as long.
-      const showing = keyIn(binds.reveal, key);
+      // Show card's own key while the card is listened to (the owner, 2026-11-01), Show back of card's on its front.
+      const showing = keyIn(listening ? binds.showCard : binds.reveal, key);
       if (showing) {
         e.preventDefault();
         if (e.repeat || revealed) return;
@@ -910,7 +910,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
       const starts = today !== null || (!card && extraOrder.length > 0);
-      if (pressedIn(e, starts ? binds.start : binds.reveal) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      if (pressedIn(e, starts ? binds.start : listening ? binds.showCard : binds.reveal) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -1025,7 +1025,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       {revealed ? (
         <Button className="review-hide" data-hold="hide" disabled={busy} onClick={hideAnswer}>
           <Icon name="eyeOff" />
-          Hide answer
+          Hide back of card
           <KeyCap bind={binds.hide} />
         </Button>
       ) : null}
@@ -1059,7 +1059,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it (the owner, 2026-10-29: it didn't appear here). */}
             {revealed ? (
-              <Button className="btn-icon review-stage-hide" aria-label="Hide answer" data-hold="hide" disabled={busy} onClick={hideAnswer}>
+              <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={hideAnswer}>
                 <Icon name="eyeOff" />
                 <KeyCap bind={binds.hide} />
               </Button>
@@ -1168,7 +1168,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
               )
             ) : (
               // Listened to, Show card stands in Show answer's place, with its key: the card's front, out of its Listen phase.
-              <ShowButton listening={listening} bind={binds.reveal} onPress={listening ? showCard : reveal} />
+              <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={listening ? showCard : reveal} />
             )}
           </div>
           {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}

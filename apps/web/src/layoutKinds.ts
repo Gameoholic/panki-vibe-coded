@@ -1,4 +1,4 @@
-import { LISTEN_HEARD_MAX, type AutoPlay, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
+import { SHOW_ON_PLAY_MAX, type AutoPlay, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -41,12 +41,15 @@ export const LISTEN_SUBTITLE_OPTIONS: readonly { id: ListenSubtitles; label: str
   { id: "blur", label: "Blur" },
   { id: "hide", label: "Hide" },
 ];
-/** Listen first's hearings before the card shows itself, as a choice: a sound or clip heard to its end; 0 is only by Show card. */
-export const ONLY_BY_BUTTON = 0;
-const HEARD_WORDS = ["once", "twice"];
-export const HEARD_OPTIONS: readonly { id: number; label: string }[] = [
-  ...Array.from({ length: LISTEN_HEARD_MAX }, (_, i) => ({ id: i + 1, label: `Heard ${HEARD_WORDS[i] ?? `${i + 1} times`}` })),
-  { id: ONLY_BY_BUTTON, label: "Only by the button" },
+/**
+ * A sound's or clip's Show card by itself, as a choice: Never (Show card alone, 0 here, null as it's kept), or the play
+ * whose start shows the card, from the second (the owner, 2026-11-01: "On second watch", a sound's too, so "play").
+ */
+export const NEVER_BY_ITSELF = 0;
+const PLAY_WORDS = ["second", "third", "fourth", "fifth", "sixth"];
+export const SHOW_ON_PLAY_OPTIONS: readonly { id: number; label: string }[] = [
+  { id: NEVER_BY_ITSELF, label: "Never" },
+  ...Array.from({ length: SHOW_ON_PLAY_MAX - 1 }, (_, i) => ({ id: i + 2, label: `On ${PLAY_WORDS[i] ?? `play ${i + 2}`} play` })),
 ];
 /** A sound's or a clip's player style: every one the owner chose to keep (2026-10-15), by name alone (the words beside each were taken out at their word). */
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [

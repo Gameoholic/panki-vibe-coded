@@ -44,7 +44,7 @@ function carried(from: CardType, to: CardType, values: Readonly<Record<string, s
  * deck, I get to choose which deck"): its own deck to begin with. In a deck of its own card type it's exactly that
  * deck's card, the example its Example shown picks; in another, the card type's fields take the values of this card's
  * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. A card type with
- * Listen first opens it on its Listen phase, as a review does, and it shows its front once heard enough. Turned by a
+ * Listen first opens it on its Listen phase, as a review does, and it shows its front as its sound or clip begins the play set to show it. Turned by a
  * press, round from its Listen phase to its back; nothing plays by itself.
  */
 export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle, onClose }: Props) {
