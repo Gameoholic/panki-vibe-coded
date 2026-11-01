@@ -1,5 +1,5 @@
-import { useEffect, useId, useState } from "react";
-import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, type AiCall, type AiRunWhy, type PieceUse } from "@panki/contracts";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, verdictLine, type AiCall, type AiRunWhy, type AiVerdict, type PieceUse } from "@panki/contracts";
 import { count, estimateWords, langOf } from "../words";
 import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
@@ -12,11 +12,11 @@ import { Icon } from "./Icon";
  * information"). The spark and "Panki AI", and at the right the status as a button, a dot and a word lightly tinted
  * (the strip menu's look, smaller), with the cost beside it; pressed, it unfolds Details under it (the owner: "remove
  * the details, make the answered… button the dropdown"): how the call stands, why it ran, the model, the tokens and the
- * cost, every piece of Prompt context the template asked for with what it held or why it held nothing (the one place
- * the owner sees what a piece really was), and the prompt exactly as sent, with Copy. Never open by itself; closed again
- * whenever what holds it is drawn afresh (a pop-up opened on another word). Drawn once a call exists; before that the
- * action's own button, and what it says beside it, is the status. No Log: one press is one call, and Details say all
- * of it; a Log comes with calls made without a press (AI.md, step 7).
+ * cost always open, then two alike folds, closed to begin with (the owner, 2026-10-31): Prompt context, every piece the
+ * template asked for with what it held or why it held nothing (the one place the owner sees what a piece really was),
+ * and the Log, every message as sent and every answer as it came, one that couldn't be used among them; and Copy. Never
+ * open by itself; closed again whenever what holds it is drawn afresh (a pop-up opened on another word). Drawn once a
+ * call exists; before that the action's own button, and what it says beside it, is the status.
  */
 
 /** How a call stands on the button: its word, and the look that tints it (the strip menu's `LOOKS`, by name). */
@@ -69,19 +69,135 @@ function sentWords(call: AiCall): string {
 }
 
 /**
- * The full prompt as it went: the messages the provider is sent, in order, each in a box of its own under who said it
- * (Panki's prompt, Panki AI's answer, Your follow-up), since a call is a list of messages, not one text. The owner had
- * it one raw text for an hour, 2026-10-30, then back to this once they knew it's sent as messages.
+ * The Log, the whole exchange of a call: every message in order, each in a box of its own under who said it (Panki's
+ * prompt, Panki AI's answer, Your follow-up), ending with this call's own answer once it's in, or, for one that came
+ * back and couldn't be used, that answer as it came (the owner, 2026-10-31: "it shows what Panki AI answered even when
+ * the answer failed"). Every answer that read is drawn the same way, its own call's or an earlier one sent back with
+ * it, whichever shape it answered in: the list, Raw folded under it (`AnswerView`; the owner, 2026-10-31). A failure is
+ * never a turn: it's Panki's own note after them (`failureOf`, `LogFailure`). Full prompt until the owner, 2026-10-30,
+ * asked for all of it; Conversation until 2026-10-31. A call is a list of messages, not one text.
  */
 const SAID_BY = { prompt: "Panki's prompt", assistant: "Panki AI's answer", user: "Your follow-up" } as const;
-const sentParts = (call: AiCall): { by: string; text: string }[] => [
-  { by: SAID_BY.prompt, text: call.prompt },
-  ...call.said.map((m) => ({ by: SAID_BY[m.role], text: m.text })),
-];
-const sentText = (call: AiCall): string => sentParts(call).map((part) => `${part.by}:\n${part.text}`).join("\n\n");
+/**
+ * A message of the Log: who said it, its text exactly as it went or came, and, for an answer that read, its parts as
+ * the list draws them (null for what isn't one: the prompt, a question, an answer that couldn't be used, as it came).
+ */
+/** `json`: an answer that couldn't be used, drawn indented as Raw is when it parses (`pretty`; the owner, 2026-10-31), as it came when it doesn't. */
+type Said = { by: string; text: string; verdicts: readonly AiVerdict[] | null; json?: boolean };
+/**
+ * An earlier answer's parts: the call it was the answer of tells them, found by its text (a follow-up sends each answer
+ * back as it came); one no call of these holds is read off its JSON, a row a key.
+ */
+function verdictsOf(text: string, calls: readonly AiCall[]): readonly AiVerdict[] {
+  for (const each of calls) if (each.outcome.kind === "answered" && each.outcome.raw === text) return each.outcome.verdicts;
+  try {
+    const value: unknown = JSON.parse(text);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
+    return Object.entries(value).map(([name, part]) => ({ name, tag: null, value: typeof part === "string" ? part : JSON.stringify(part, null, 2), reason: "" }));
+  } catch {
+    return [];
+  }
+}
+function logOf(call: AiCall, calls: readonly AiCall[]): Said[] {
+  const { outcome } = call;
+  return [
+    { by: SAID_BY.prompt, text: call.prompt, verdicts: null },
+    ...call.said.map((m) => ({ by: SAID_BY[m.role], text: m.text, verdicts: m.role === "assistant" ? verdictsOf(m.text, calls) : null })),
+    ...(outcome.kind === "answered" && outcome.raw !== "" ? [{ by: SAID_BY.assistant, text: outcome.raw, verdicts: outcome.verdicts }] : []),
+    ...(outcome.kind === "failed" && outcome.unread ? [{ by: SAID_BY.assistant, text: outcome.unread.raw, verdicts: null, json: true }] : []),
+  ];
+}
 
-/** Details' rows for a call, as name and words: the same on screen and in what Copy takes. */
-function rowsOf(call: AiCall, now: number): [string, string][] {
+/**
+ * A failed call's failure as the Log ends with it, whether an answer came back or none did (the key refused, too long
+ * to answer): the plain message and, when there is one, the technical reason. One shape for every failure.
+ */
+function failureOf(call: AiCall): { message: string; detail: string } | null {
+  const { outcome } = call;
+  return outcome.kind === "failed" ? { message: outcome.message, detail: outcome.unread?.detail ?? "" } : null;
+}
+const LOG_ERROR = "Error";
+/**
+ * The failure in the Log (the owner, 2026-10-31: it "reads like a part of the conversation when it isn't"): Panki's own
+ * note set apart from the turns, in the danger colours as the status's Failed, the `alert` sign and "Error" in place of
+ * a speaker, the plain message and the technical reason under it in small type.
+ */
+function LogFailure({ message, detail }: { message: string; detail: string }) {
+  return (
+    <div className="ai-details-failure" role="note">
+      <span className="ai-details-failure-tag">
+        <Icon name="alert" />
+        {LOG_ERROR}
+      </span>
+      <p>{message}</p>
+      {detail !== "" ? <small className="ai-details-note">{detail}</small> : null}
+    </div>
+  );
+}
+/** An answer's JSON indented to be read (the owner, 2026-10-31); as it came when it isn't JSON. Copy keeps it as it came. */
+function pretty(text: string): string {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * This call's own answer in the Log, the owner's pick (4 of https://claude.ai/artifact/1wEsGSSpJ24sAFmPgSgWck,
+ * 2026-10-31): a row a part of its fixed shape, its name, Panki's verdict as a small tag, the value and the why under it,
+ * then Raw, folded, the JSON as it came, indented. A dictionary meaning judged is drawn in its accuracy's look, as the
+ * pop-up draws it (`.ai-accuracy`, the one home).
+ */
+function AnswerView({ verdicts, raw }: { verdicts: readonly AiVerdict[]; raw: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ai-answer-view">
+      {verdicts.length > 0 ? (
+        <ul className="ai-answer-parts">
+          {verdicts.map((v) => (
+            <li key={v.name} className={v.accuracy ? `ai-answer-part ai-accuracy is-${v.accuracy}` : "ai-answer-part"}>
+              <span className="ai-answer-name">{v.name}</span>
+              <span className="ai-answer-value" lang={langOf(v.value)}>
+                {v.tag ? <span className={v.accuracy ? "ai-answer-tag ai-accuracy-tag" : `ai-answer-tag is-${v.tag.look}`}>{v.tag.words}</span> : null}
+                {v.accuracy ? <span className="ai-accuracy-words">{v.value}</span> : v.value}
+              </span>
+              {v.reason.trim() !== "" ? <span className="ai-answer-reason">{v.reason}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <Button className={`ai-details-more ai-answer-raw${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        Raw
+        <Icon name="down" />
+      </Button>
+      <Fold open={open} arrives={false}>
+        <pre className="ai-details-prompt">{pretty(raw)}</pre>
+      </Fold>
+    </div>
+  );
+}
+function logText(call: AiCall): string {
+  const failure = failureOf(call);
+  return [
+    // Copy keeps every message as it went or came: the parts are for the eye.
+    ...logOf(call, []).map((part) => `${part.by}:\n${part.text}`),
+    ...(failure ? [`${LOG_ERROR}:\n${[failure.message, failure.detail].filter((line) => line !== "").join("\n")}`] : []),
+  ].join("\n\n");
+}
+
+/** What a call was metered for: an answer's, or one that came back and couldn't be used (paid for all the same); null for none. */
+function meteredOf(call: AiCall): { inputTokens: number; outputTokens: number; costMicros: number } | null {
+  const { outcome } = call;
+  if (outcome.kind === "answered") return outcome;
+  if (outcome.kind === "failed" && outcome.unread) return outcome.unread;
+  return null;
+}
+
+/** One of Details' rows: its name, its words, and a technical note in small type under them (a failure's reason). */
+type Row = { name: string; words: string; note?: string };
+/** Details' rows for a call: the same on screen and in what Copy takes. */
+function rowsOf(call: AiCall, now: number): Row[] {
   const provider = AI_PROVIDERS[call.provider].name;
   const { outcome } = call;
   const status =
@@ -90,24 +206,23 @@ function rowsOf(call: AiCall, now: number): [string, string][] {
       : outcome.kind === "answered"
         ? `Answered in ${seconds(outcome.ms)}${outcome.cut ? `, ${WORDS.cut}` : ""}`
         : `Failed after ${seconds(outcome.ms)}: ${outcome.message}`;
-  // In and out a row each (the owner, 2026-10-30), as the provider counted them; out against Max answer length.
-  const tokensIn = outcome.kind === "answered" ? n(outcome.inputTokens) : outcome.kind === "thinking" ? WORDS.counting : WORDS.noTokens;
-  const tokensOut = outcome.kind === "answered" ? `${n(outcome.outputTokens)} of ${n(call.maxAnswerTokens)}` : outcome.kind === "thinking" ? `At most ${n(call.maxAnswerTokens)}` : WORDS.noTokens;
+  // In and out a row each (the owner, 2026-10-30), as the provider counted them; out against Max answer length. An
+  // answer that couldn't be used was metered too, and says so.
+  const metered = meteredOf(call);
+  const tokensIn = metered ? n(metered.inputTokens) : outcome.kind === "thinking" ? WORDS.counting : WORDS.noTokens;
+  const tokensOut = metered ? `${n(metered.outputTokens)} of ${n(call.maxAnswerTokens)}` : outcome.kind === "thinking" ? `At most ${n(call.maxAnswerTokens)}` : WORDS.noTokens;
   const cost =
     // Once it's run, what it came to alone: the ceiling was the button's, before it ran (the owner, 2026-10-30).
-    outcome.kind === "answered"
-      ? estimateWords(outcome.costMicros)
-      : outcome.kind === "thinking"
-        ? `Up to ${estimateWords(call.ceilingMicros)}`
-        : WORDS.nothingMetered;
+    metered ? estimateWords(metered.costMicros) : outcome.kind === "thinking" ? `Up to ${estimateWords(call.ceilingMicros)}` : WORDS.nothingMetered;
+  const note = outcome.kind === "failed" && outcome.unread && outcome.unread.detail !== "" ? outcome.unread.detail : undefined;
   return [
-    ["Status", status],
-    ["Ran because", whyWords(call.why)],
-    ["Model", modelWords(call)],
-    ["Sent", sentWords(call)],
-    ["Tokens in", tokensIn],
-    ["Tokens out", tokensOut],
-    ["Cost", cost],
+    { name: "Status", words: status, ...(note !== undefined ? { note } : {}) },
+    { name: "Ran because", words: whyWords(call.why) },
+    { name: "Model", words: modelWords(call) },
+    { name: "Sent", words: sentWords(call) },
+    { name: "Tokens in", words: tokensIn },
+    { name: "Tokens out", words: tokensOut },
+    { name: "Cost", words: cost },
   ];
 }
 
@@ -122,13 +237,14 @@ function pieceText(use: PieceUse): string {
 function callText(call: AiCall, now: number): string {
   return [
     `Panki AI · ${call.label}`,
-    ...rowsOf(call, now).map(([name, words]) => `${name}: ${words}`),
+    ...rowsOf(call, now).map((row) => `${row.name}: ${row.words}${row.note ? ` (${row.note})` : ""}`),
+    ...(call.outcome.kind === "answered" && call.outcome.verdicts.length > 0 ? ["", "Answer:", ...call.outcome.verdicts.map(verdictLine)] : []),
     "",
     "Prompt context:",
     ...call.pieces.map(pieceText),
     "",
-    "Full prompt:",
-    sentText(call),
+    "Log:",
+    logText(call),
   ].join("\n");
 }
 
@@ -150,11 +266,30 @@ function Piece({ use, open, onToggle }: { use: PieceUse; open: boolean; onToggle
   );
 }
 
+/**
+ * One of Details' folds, closed to begin with: its name (and a quiet count) on a row with the chevron at its end, what
+ * it holds unfolding under it. Prompt context and the Log are these, so Details read as a set of alike sections.
+ */
+function Section({ title, count, children }: { title: string; count?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="ai-details-section">
+      <Button className={`ai-details-fold${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="ai-details-fold-name">{title}</span>
+        {count ? <span className="ai-details-fold-count">{count}</span> : null}
+        <Icon name="down" />
+      </Button>
+      <Fold open={open} arrives={false}>
+        {children}
+      </Fold>
+    </section>
+  );
+}
+
 /** Everything about one call of a conversation, picked among them by its chip when there's more than one. */
 function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
   const [picked, setPicked] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [prompt, setPrompt] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now);
   // A new call is the one shown: the latest is what the button says.
@@ -169,6 +304,7 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
   }, [thinking]);
   if (!call) return null;
 
+  const failure = failureOf(call);
   const sent = call.pieces.filter((use) => use.piece !== null && use.value !== null).length;
   const asked = call.pieces.filter((use) => use.piece !== null).length;
   const toggle = (name: string) => {
@@ -197,43 +333,45 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
         </div>
       ) : null}
       <dl className="ai-details-rows">
-        {rowsOf(call, now).map(([name, words]) => (
-          <div key={name}>
-            <dt>{name}</dt>
-            <dd>{words}</dd>
+        {rowsOf(call, now).map((row) => (
+          <div key={row.name}>
+            <dt>{row.name}</dt>
+            <dd>
+              {row.words}
+              {row.note ? <small className="ai-details-note">{row.note}</small> : null}
+            </dd>
           </div>
         ))}
       </dl>
       {call.pieces.length > 0 ? (
-        <>
-          <p className="ai-details-title">
-            Prompt context · {sent} of {asked} sent
-          </p>
+        <Section title="Prompt context" count={`${sent} of ${asked} sent`}>
           <ul className="ai-pieces">
             {call.pieces.map((use) => (
               <Piece key={use.name} use={use} open={expanded.has(use.name)} onToggle={() => toggle(use.name)} />
             ))}
           </ul>
-        </>
+        </Section>
       ) : null}
-      <Fold open={prompt} arrives={false}>
+      <Section title="Log">
         <ol className="ai-details-sent">
-          {sentParts(call).map((part, i) => (
+          {logOf(call, calls).map((part, i) => (
             <li key={i}>
               <span className="ai-details-by">{part.by}</span>
-              <pre className="ai-details-prompt" lang={langOf(part.text)}>
-                {part.text}
-              </pre>
+              {/* Every answer that read as its parts, the JSON under Raw; anything else as it went or came. */}
+              {part.verdicts ? (
+                <AnswerView verdicts={part.verdicts} raw={part.text} />
+              ) : (
+                <pre className="ai-details-prompt" lang={langOf(part.text)}>
+                  {part.json ? pretty(part.text) : part.text}
+                </pre>
+              )}
             </li>
           ))}
         </ol>
-      </Fold>
+        {failure ? <LogFailure message={failure.message} detail={failure.detail} /> : null}
+      </Section>
       <div className="ai-details-foot">
         {copied ? <span role="status">{copied}</span> : null}
-        <Button className={`ai-details-more${prompt ? " is-open" : ""}`} aria-expanded={prompt} onClick={() => setPrompt(!prompt)}>
-          Full prompt
-          <Icon name="down" />
-        </Button>
         <Button className="ai-details-more" onClick={() => void copy(callText(call, now))}>
           <Icon name="copy" />
           Copy
@@ -243,21 +381,25 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
   );
 }
 
-/** The head over an AI action's answers, the status at its right; `calls` is this action's, oldest first, and it draws nothing before the first. */
-export function AiStatus({ calls }: { calls: readonly AiCall[] }) {
+/**
+ * The head over an AI action's answers, the status at its right; `calls` is this action's, oldest first, and it draws
+ * nothing before the first. `burst` is the count of presses that made a call, for an action whose button gives way to
+ * this head as it's pressed (Explain, a follow-up): its spark blinks once for each, where the button was (`AiSpark`).
+ */
+export function AiStatus({ calls, burst = 0 }: { calls: readonly AiCall[]; burst?: number }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const last = calls[calls.length - 1];
   if (!last) return null;
   const status = STATUS[last.outcome.kind];
   // Beside it: the most it can cost while it's on its way; then what the answers so far came to.
-  const spent = calls.reduce((sum, call) => sum + (call.outcome.kind === "answered" ? call.outcome.costMicros : 0), 0);
+  const spent = calls.reduce((sum, call) => sum + (meteredOf(call)?.costMicros ?? 0), 0);
   const cost = last.outcome.kind === "thinking" ? `Up to ${estimateWords(last.ceilingMicros)}` : spent > 0 ? estimateWords(spent) : null;
   return (
     <div className="ai-status">
       <header className="ai-status-head">
         <span className="ai-status-name">
-          <AiSpark working={last.outcome.kind === "thinking"} />
+          <AiSpark working={last.outcome.kind === "thinking"} burst={burst} />
           Panki AI
         </span>
         <span className="ai-status-end">

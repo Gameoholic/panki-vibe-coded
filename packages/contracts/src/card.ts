@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AiActionId, AiProviderId } from "./ai";
 import { ClientName } from "./auth";
 import { DeckId, type ExampleShown } from "./deck";
 import { ExtensionFingerprint } from "./extension";
@@ -56,10 +57,51 @@ export const CardSource = z.object({
 });
 export type CardSource = z.infer<typeof CardSource>;
 
+/**
+ * Where a value came from (AI step 3; the owner, 2026-10-30: "separate the AI generated stuff from the true data"): the
+ * owner (typed, picked or uploaded by hand), the subtitles or the page (which subtitles, on a video), the dictionaries
+ * (which), the video (recorded off it, or its link), Forvo, or Panki AI (which action, on which model), the spark drawn
+ * wherever it's shown. The names are Prompt context's sources (`pieces.ts` → `PieceSource`), plus the owner. A whole
+ * value has one: the field is one string, so the spark says "the AI wrote this field", never which part of it.
+ */
+export const ValueSource = z.discriminatedUnion("by", [
+  z.object({ by: z.literal("owner") }),
+  z.object({ by: z.literal("text"), subtitles: z.enum(["panki", "youtube"]).optional() }),
+  z.object({ by: z.literal("dictionary"), dictionaries: z.array(z.string().max(200)).max(50).default([]) }),
+  z.object({ by: z.literal("video") }),
+  z.object({ by: z.literal("forvo") }),
+  z.object({ by: z.literal("ai"), action: AiActionId, provider: AiProviderId, model: z.string().min(1).max(80) }),
+]);
+export type ValueSource = z.infer<typeof ValueSource>;
+/** Each value's source, by field id; a field left out is the owner's. */
+export const ValueSources = z.record(CardFieldId, ValueSource);
+export type ValueSources = z.infer<typeof ValueSources>;
+export const OWNER: ValueSource = { by: "owner" };
+/** Whether Panki AI wrote a field's value: what draws the spark beside it. */
+export const byAi = (sources: Readonly<Record<string, ValueSource>> | undefined, fieldId: string): boolean => sources?.[fieldId]?.by === "ai";
+
+/**
+ * A value kept before sources were (migration 39): the owner's, or, on a card the extension made, what its capture
+ * says filled the field (`CaptureFacts.fields`, the role by its id): the dictionary's (its dictionaries then), the words
+ * pointed at (which subtitles), Forvo, or the video for the link and every recording. Worked out on every read, never
+ * written, so nothing kept is rewritten. A value typed over a dictionary's in the drawer reads as the dictionary's: the
+ * capture didn't say, and this is the nearest it knew.
+ */
+export function legacySourceOf(capture: CaptureFacts | null | undefined, fieldId: string): ValueSource {
+  const role = capture?.fields?.[fieldId];
+  if (!role) return OWNER;
+  if (role.startsWith("dict")) return { by: "dictionary", dictionaries: capture?.dictionary?.dictionaries ?? [] };
+  if (role === "word" || role === "sentence") return { by: "text", ...(capture?.subtitles ? { subtitles: capture.subtitles } : {}) };
+  if (role === "forvoAudio") return { by: "forvo" };
+  return { by: "video" };
+}
+
 /** What the browser sends. The deck comes from the URL, the time from the API. */
 export const NewCard = z.object({
   id: CardId,
   values: CardValues,
+  /** Where each value came from; a field left out is the owner's (and every value from an extension from before). */
+  sources: ValueSources.optional(),
   source: CardSource.optional(),
 });
 
@@ -75,11 +117,14 @@ export const CardExampleId = z.uuid();
 export const NewCardExample = z.object({
   id: CardExampleId,
   values: CardValues,
+  sources: ValueSources.optional(),
   source: CardSource.optional(),
 });
 export type NewCardExample = z.infer<typeof NewCardExample>;
 
-export const CardExample = NewCardExample.omit({ source: true }).extend({
+export const CardExample = NewCardExample.omit({ source: true, sources: true }).extend({
+  /** Each of its values' source, as kept or as worked out for one kept before (`legacySourceOf`). */
+  sources: ValueSources.default({}),
   /** Where it came from, as far as a list names it: the page or the video, and what it was called; null for one typed. */
   source: CardSource.pick({ url: true, title: true }).nullable(),
   /** Stamped by the API, ms since epoch. */
@@ -87,8 +132,8 @@ export const CardExample = NewCardExample.omit({ source: true }).extend({
 });
 export type CardExample = z.infer<typeof CardExample>;
 
-/** Changing an example: any of its values, by field id; a field left out keeps what it has. */
-export const CardExampleUpdate = z.object({ values: CardValues });
+/** Changing an example: any of its values, by field id, and their sources; a field left out keeps what it has, a value sent with no source is the owner's. */
+export const CardExampleUpdate = z.object({ values: CardValues, sources: ValueSources.optional() });
 export type CardExampleUpdate = z.infer<typeof CardExampleUpdate>;
 
 /** A card put aside (`HoldKind`), while that lasts: buried or suspended, and when a bury ends (null for a suspend, which lasts until it's brought back). */
@@ -101,8 +146,10 @@ export type CardHold = z.infer<typeof CardHold>;
 export const NewHold = z.object({ kind: z.literal("suspend") });
 export type NewHold = z.infer<typeof NewHold>;
 
-export const Card = NewCard.omit({ source: true }).extend({
+export const Card = NewCard.omit({ source: true, sources: true }).extend({
   deckId: DeckId,
+  /** Each value's source, as kept or as worked out for one kept before (`legacySourceOf`); none from a Panki from before. */
+  sources: ValueSources.default({}),
   /**
    * Derived by the API on every read: what each file named in the card's values is, by the file's id. A field of
    * media takes a clip or a sound, so the value alone (an id) doesn't say which to draw; this does.
@@ -132,10 +179,11 @@ export const Card = NewCard.omit({ source: true }).extend({
 });
 
 /**
- * What changing a card can change: any of its values, by field id. A field left out keeps what it has. The rules are
- * the type's (`cardProblems`), weighed over the card as it would then stand.
+ * What changing a card can change: any of its values, by field id, with where each came from. A field left out keeps
+ * what it has; a value sent with no source is the owner's. The rules are the type's (`cardProblems`), weighed over the
+ * card as it would then stand.
  */
-export const CardUpdate = z.object({ values: CardValues });
+export const CardUpdate = z.object({ values: CardValues, sources: ValueSources.optional() });
 
 export type CardValues = z.infer<typeof CardValues>;
 export type NewCard = z.infer<typeof NewCard>;
@@ -164,6 +212,18 @@ export function valuesWithExample(type: Pick<CardType, "fields">, card: Pick<Car
   const values = { ...card.values };
   for (const field of exampleFieldsOf(type)) values[field.id] = example.values[field.id] ?? "";
   return values;
+}
+/** The sources of a card's values as one of its examples shows them: the example's in the fields that are One per example. */
+export function sourcesWithExample(type: Pick<CardType, "fields">, card: Pick<Card, "sources" | "examples">, exampleId: string | null): ValueSources {
+  const example = exampleId === null ? undefined : card.examples.find((e) => e.id === exampleId);
+  if (!example) return card.sources;
+  const sources = { ...card.sources };
+  for (const field of exampleFieldsOf(type)) {
+    const source = example.sources[field.id];
+    if (source) sources[field.id] = source;
+    else delete sources[field.id];
+  }
+  return sources;
 }
 
 /**
@@ -194,12 +254,16 @@ export type CardsCalled = z.infer<typeof CardsCalled>;
  */
 export const ApartValue = z.object({ name: z.string(), value: z.string() });
 export type ApartValue = z.infer<typeof ApartValue>;
-/** A card's values in its type's fields that tell cards apart, those filled in (never the field it's called by). */
-export function apartOf(type: Pick<CardType, "fields" | "mainField">, values: Readonly<Record<string, string>>): ApartValue[] {
+/**
+ * A card's values in its type's fields that tell cards apart, those filled in (never the field it's called by). Only
+ * the true ones: a value Panki AI wrote (`sources`) is left out, so two cards are never told apart, nor called the same,
+ * by what a model said (AI.md, "compared values are the true ones").
+ */
+export function apartOf(type: Pick<CardType, "fields" | "mainField">, values: Readonly<Record<string, string>>, sources?: Readonly<Record<string, ValueSource>>): ApartValue[] {
   const called = wordsFieldOf(type)?.id;
   return type.fields.flatMap((f) => {
     const value = (values[f.id] ?? "").trim();
-    return f.tellsApart && holdsWords(f.kind) && f.id !== called && value !== "" ? [{ name: f.name, value }] : [];
+    return f.tellsApart && holdsWords(f.kind) && f.id !== called && value !== "" && !byAi(sources, f.id) ? [{ name: f.name, value }] : [];
   });
 }
 /** Words as they're compared: spaces and capitals aside. */

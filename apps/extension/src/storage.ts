@@ -59,6 +59,8 @@ const Stored = z.object({
    * owner, 2026-10-11: "we have to consciously select it"); from then on it's that one until another is chosen.
    */
   defaultDeckId: DeckId.nullable().catch(null),
+  // `drawerLayout` was a key here for a day (2026-10-31): the drawer laid out six ways while the owner tried them, until
+  // they kept the one it always had. A browser that still has it keeps it unread.
   // `clipToWords` was a key here (2026-10-11): whether a clip's end snapped to the edges of words as it was pulled.
   // The owner had the setting taken out on 2026-10-19, never using it: an end goes where it's put, Alt held snaps it.
   // A browser that still has it keeps it unread.

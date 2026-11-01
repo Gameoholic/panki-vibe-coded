@@ -7,7 +7,7 @@ import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { AiShown, Ask, type AiState, type ExplainAnswer, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { AiShown, Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
@@ -311,7 +311,7 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -348,8 +348,7 @@ async function answer(
   if (ask.kind === "deck") {
     await writeStore({ defaultDeckId: ask.deckId });
     return { ok: true };
-  }
-  if (ask.kind === "subtitles") {
+  }  if (ask.kind === "subtitles") {
     await writeStore({ subtitleSource: sourceOf(ask.source) });
     return { ok: true };
   }
@@ -443,7 +442,18 @@ async function answer(
       } catch (e) {
         if (!(e instanceof ExplainRefused)) throw e;
         await keepAi(store, e.ai);
-        return { ok: false, message: e.message, problem: e.problem };
+        return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
+      }
+    }
+    if (ask.kind === "touchUp") {
+      try {
+        const answered = await panki.touchUp(door, ask.ask);
+        await keepAi(store, answered.ai);
+        return { ok: true, touchUp: answered.touchUp };
+      } catch (e) {
+        if (!(e instanceof ExplainRefused)) throw e;
+        await keepAi(store, e.ai);
+        return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
       }
     }
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by

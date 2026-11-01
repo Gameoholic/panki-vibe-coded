@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import {
+  AI_ACTIONS,
+  AI_ACTION_IDS,
   AI_LIMITS,
+  ANSWER_FIXED,
   APP_LANGUAGES,
   AppLanguage,
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
   AiKeyUpdate,
   DEFAULT_EXPLAIN_PROMPT,
+  DEFAULT_TOUCH_UP_PROMPT,
   PIECE_NAMES,
   PIECE_SOURCES,
   PROMPT_MAX,
@@ -14,8 +18,12 @@ import {
   PankiAi,
   SOURCE_WORDS,
   aiModelOf,
+  answerShapesOf,
+  answerWordsUnsent,
   pieceAbout,
+  type AiActionId,
   type AiModel,
+  type AnswerPart,
   type PankiAiStatus,
   type PromptPieceId,
   type UsageKind,
@@ -52,6 +60,7 @@ import {
   type WordAudioStatus,
 } from "@panki/contracts";
 import { ApiError, api, type Me } from "../api";
+import { AiSpark } from "../components/AiWaiting";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -60,6 +69,7 @@ import { Icon } from "../components/Icon";
 import { ModeChip } from "../components/ModeChip";
 import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
+import { Fold } from "../components/Fold";
 import { PromptField, type PromptFieldHandle } from "../components/PromptField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
@@ -753,6 +763,7 @@ type PankiAiProps = {
 const LIMIT_ROWS: readonly { key: keyof typeof AI_LIMITS; label: string; suffix?: string; step: number }[] = [
   { key: "aiMaxRequestChars", label: "Max request length", suffix: "characters", step: 1_000 },
   { key: "aiMaxAnswerTokens", label: "Max answer length", suffix: "tokens", step: 100 },
+  { key: "aiMaxTouchUpTokens", label: "Max Touch up answer length", suffix: "tokens", step: 100 },
   { key: "aiMaxFollowUps", label: "Max follow-ups", step: 1 },
   { key: "aiMaxQuestionChars", label: "Max follow-up length", suffix: "characters", step: 100 },
   { key: "aiMaxDescriptionChars", label: "Max video description length", suffix: "characters", step: 100 },
@@ -762,34 +773,39 @@ const LIMIT_ROWS: readonly { key: keyof typeof AI_LIMITS; label: string; suffix?
 /** A variable as a prompt names it: its piece's name in braces, "{Reading}". */
 const variableOf = (id: PromptPieceId) => `{${PIECE_NAMES[id]}}`;
 
-/**
- * Explain's prompt, saved on purpose (Save, off while nothing's changed; Reset to default puts Panki's own back in the
- * box, still to be saved), and under it Prompt context: what a prompt can use, one row a piece of the one registry,
- * each variable pressed to go in at the caret or copied. Greyed while Panki AI is off, as its other rows are.
- */
-type ExplainPromptProps = {
+/** Each action's prompt, one registry: the setting it's kept in, its box's label and Panki's own default. A new action's prompt is one entry. */
+const ACTION_PROMPTS = {
+  explain: { setting: "aiExplainPrompt", label: `${AI_ACTIONS.explain.name} prompt`, fallback: DEFAULT_EXPLAIN_PROMPT },
+  touchUp: { setting: "aiTouchUpPrompt", label: `${AI_ACTIONS.touchUp.name} prompt`, fallback: DEFAULT_TOUCH_UP_PROMPT },
+} as const satisfies Record<AiActionId, { setting: keyof PankiAi; label: string; fallback: string }>;
+type PromptSetting = (typeof ACTION_PROMPTS)[AiActionId]["setting"];
+
+type ActionPromptProps = {
+  action: AiActionId;
+  /** The provider the prompt goes to, by name: what What Panki AI answers says is never shown its descriptions. */
+  provider: string;
   /** The prompt as Panki keeps it. */
   saved: string;
   /** Panki AI on: off, every row of this greyed. */
   on: boolean;
-  /** The limits as they're set, which Prompt context's descriptions say. */
-  limits: PieceLimits;
+  field: Ref<PromptFieldHandle>;
   /** Keeps the prompt, answering it as Panki now keeps it. */
-  onSave: (prompt: string) => Promise<string>;
-  onGuard: (guard: UnsavedGuard | null) => void;
+  onSave: (setting: PromptSetting, prompt: string) => Promise<string>;
+  /** Whether it holds changes not saved, and how to save them, for the one question on leaving Admin. */
+  onDirty: (action: AiActionId, save: (() => Promise<boolean>) | null) => void;
 };
-type PieceLimits = Pick<PankiAi, "aiMaxDescriptionChars" | "aiSurroundingSeconds">;
 
-function ExplainPrompt({ saved, on, limits, onSave, onGuard }: ExplainPromptProps) {
+/** One action's prompt, saved on purpose: Save, off while nothing's changed; Reset to default puts Panki's own back in the box, still to be saved. */
+function ActionPrompt({ action, provider, saved, on, field, onSave, onDirty }: ActionPromptProps) {
+  const { setting, label, fallback } = ACTION_PROMPTS[action];
   const [prompt, setPrompt] = useState(saved);
   const [error, setError] = useState<string | undefined>(undefined);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const field = useRef<PromptFieldHandle>(null);
 
   /** Saves what's in the box; whether it went in (the app's question on leaving needs to know). */
   async function save(): Promise<boolean> {
-    if (!PankiAi.shape.aiExplainPrompt.safeParse(prompt).success) {
+    if (!PankiAi.shape[setting].safeParse(prompt).success) {
       setError(prompt.trim() === "" ? "Write the prompt." : `At most ${PROMPT_MAX.toLocaleString("en")} characters.`);
       return false;
     }
@@ -797,7 +813,7 @@ function ExplainPrompt({ saved, on, limits, onSave, onGuard }: ExplainPromptProp
     setFailure(null);
     try {
       // As Panki keeps it (trimmed), so Save is off again once it's in.
-      setPrompt(await onSave(prompt));
+      setPrompt(await onSave(setting, prompt));
       return true;
     } catch (e) {
       setFailure(said(e));
@@ -806,68 +822,173 @@ function ExplainPrompt({ saved, on, limits, onSave, onGuard }: ExplainPromptProp
       setBusy(false);
     }
   }
-
-  // A prompt changed and not saved stops leaving Admin with the app's question (the owner, 2026-10-30: "yes"), as a
-  // long editor's work does; its Save stays here under the box, where the owner put it.
   const dirty = prompt !== saved;
   const saveRef = useRef(save);
   saveRef.current = save;
   useEffect(() => {
-    onGuard(dirty ? { name: "Explain prompt", save: () => saveRef.current() } : null);
-  }, [dirty, onGuard]);
+    onDirty(action, dirty ? () => saveRef.current() : null);
+  }, [action, dirty, onDirty]);
+
+  return (
+    <Form onSubmit={() => void save()} className="add-form">
+      <PromptField
+        id={`ai-${action}-prompt`}
+        label={label}
+        ref={field}
+        value={prompt}
+        disabled={!on}
+        error={error}
+        onChange={(typed) => {
+          setPrompt(typed);
+          setError(undefined);
+        }}
+      />
+      <div className="add-actions add-actions-start">
+        {failure ? (
+          <span className="form-failure" role="alert">
+            {failure}
+          </span>
+        ) : null}
+        <Button
+          id={`ai-${action}-prompt-reset`}
+          disabled={!on || busy || prompt === fallback}
+          onClick={() => {
+            setPrompt(fallback);
+            setError(undefined);
+          }}
+        >
+          <Icon name="reset" />
+          Reset to default
+        </Button>
+        <Button id={`ai-${action}-prompt-save`} type="submit" variant="primary" disabled={!on || busy || prompt === saved}>
+          Save
+        </Button>
+      </div>
+      <AnswerParts action={action} provider={provider} />
+    </Form>
+  );
+}
+
+/** An answer's parts as a list, each key's own parts indented under it. */
+function PartsList({ parts }: { parts: readonly AnswerPart[] }) {
+  return (
+    <ul className="answer-parts-list">
+      {parts.map((part) => (
+        <li key={part.key}>
+          <code>{part.key}</code>: {part.words}
+          {part.parts.length > 0 ? <PartsList parts={part.parts} /> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * What an action's answers hold, folded under its prompt and read-only (the owner, 2026-10-31, who feared that editing a
+ * prompt could break the app): a line a key, read off each fixed shape it answers in (`answerShapesOf`), headed by which
+ * call answers in it where there's more than one (Explain's first answer and a follow-up), and that the shape is
+ * Panki's whatever the prompt says.
+ */
+function AnswerParts({ action, provider }: { action: AiActionId; provider: string }) {
+  const [open, setOpen] = useState(false);
+  const id = `ai-${action}-answer`;
+  return (
+    <div className="answer-parts">
+      <Button className={`ai-details-more${open ? " is-open" : ""}`} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+        What Panki AI answers
+        <Icon name="down" />
+      </Button>
+      <Fold open={open} arrives={false}>
+        <div id={id} className="answer-parts-body">
+          {answerShapesOf(action).map((shape) => (
+            <div key={shape.title ?? "answer"} className="answer-parts-shape">
+              {shape.title ? <p className="answer-parts-title">{shape.title}</p> : null}
+              <PartsList parts={shape.parts} />
+            </div>
+          ))}
+          {[ANSWER_FIXED, answerWordsUnsent(provider)].map((note) => (
+            <p key={note} className="answer-parts-fixed">
+              <Icon name="info" />
+              {note}
+            </p>
+          ))}
+        </div>
+      </Fold>
+    </div>
+  );
+}
+
+/**
+ * Every action's prompt (Explain's, Touch up's), each in its own box with its own Save, and under them Prompt context:
+ * what a prompt can use, one row a piece of the one registry, each variable pressed to go in at the caret of the box
+ * last in use, or copied. Greyed while Panki AI is off, as its other rows are. A prompt changed and not saved stops
+ * leaving Admin with the app's one question (the owner, 2026-10-30: "yes"), whichever box it's in.
+ */
+type ActionPromptsProps = {
+  saved: Pick<PankiAi, PromptSetting>;
+  provider: string;
+  on: boolean;
+  /** The limits as they're set, which Prompt context's descriptions say. */
+  limits: PieceLimits;
+  onSave: (setting: PromptSetting, prompt: string) => Promise<string>;
+  onGuard: (guard: UnsavedGuard | null) => void;
+};
+type PieceLimits = Pick<PankiAi, "aiMaxDescriptionChars" | "aiSurroundingSeconds">;
+
+function ActionPrompts({ saved, provider, on, limits, onSave, onGuard }: ActionPromptsProps) {
+  const fields = { explain: useRef<PromptFieldHandle>(null), touchUp: useRef<PromptFieldHandle>(null) };
+  /** The box a variable pressed goes into: the one last in use, Explain's to begin with. */
+  const [last, setLast] = useState<AiActionId>("explain");
+  /** Each box's save while it holds changes. */
+  const [dirty, setDirty] = useState<Partial<Record<AiActionId, () => Promise<boolean>>>>({});
+  const onDirty = useCallback((action: AiActionId, save: (() => Promise<boolean>) | null) => {
+    setDirty((was) => {
+      const next = { ...was };
+      if (save) next[action] = save;
+      else delete next[action];
+      return next;
+    });
+  }, []);
+  const saves = Object.values(dirty);
+  const any = saves.length > 0;
+  const savesRef = useRef(saves);
+  savesRef.current = saves;
+  useEffect(() => {
+    onGuard(
+      any
+        ? {
+            name: "Panki AI prompts",
+            save: async () => {
+              for (const save of savesRef.current) if (!(await save())) return false;
+              return true;
+            },
+          }
+        : null,
+    );
+  }, [any, onGuard]);
   useEffect(() => () => onGuard(null), [onGuard]);
   // A reload or a closed tab gets the browser's own question, the one place a page can't draw its own.
   useEffect(() => {
-    if (!dirty) return;
+    if (!any) return;
     const onUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
-  }, [dirty]);
+  }, [any]);
 
   return (
     <section className="panel-section" aria-labelledby="ai-context-title">
-      <Form onSubmit={() => void save()} className="add-form">
-        <PromptField
-          id="ai-explain-prompt"
-          label="Explain prompt"
-          ref={field}
-          value={prompt}
-          disabled={!on}
-          error={error}
-          onChange={(typed) => {
-            setPrompt(typed);
-            setError(undefined);
-          }}
-        />
-        <div className="add-actions add-actions-start">
-          {failure ? (
-            <span className="form-failure" role="alert">
-              {failure}
-            </span>
-          ) : null}
-          <Button
-            id="ai-explain-prompt-reset"
-            disabled={!on || busy || prompt === DEFAULT_EXPLAIN_PROMPT}
-            onClick={() => {
-              setPrompt(DEFAULT_EXPLAIN_PROMPT);
-              setError(undefined);
-            }}
-          >
-            <Icon name="reset" />
-            Reset to default
-          </Button>
-          <Button id="ai-explain-prompt-save" type="submit" variant="primary" disabled={!on || busy || prompt === saved}>
-            Save
-          </Button>
+      {AI_ACTION_IDS.map((action) => (
+        <div key={action} onFocus={() => setLast(action)}>
+          <ActionPrompt action={action} provider={provider} saved={saved[ACTION_PROMPTS[action].setting]} on={on} field={fields[action]} onSave={onSave} onDirty={onDirty} />
         </div>
-      </Form>
+      ))}
       <h3 id="ai-context-title" className="panel-subtitle">
         Prompt context
       </h3>
-      <PromptContext on={on} limits={limits} onInsert={(text) => field.current?.insert(text)} />
+      <PromptContext on={on} limits={limits} onInsert={(text) => fields[last].current?.insert(text)} />
     </section>
   );
 }
@@ -1005,7 +1126,7 @@ function PankiAiSection({ status, onStatus, onGuard }: PankiAiProps) {
   return (
     <section className="panel" aria-labelledby="ai-title">
       <h2 id="ai-title" className="panel-title has-icon">
-        <Icon name="ai" className="is-solid" />
+        <AiSpark />
         Panki AI
       </h2>
       {failure ? (
@@ -1036,14 +1157,15 @@ function PankiAiSection({ status, onStatus, onGuard }: PankiAiProps) {
         why={`${priceWords(model)}, per million tokens.`}
       />
       <KeyPanel id="ai-key" title={provider.name} from={provider.vendor} label="API key" status={status.key} saved={status.saved} schema={AiKeyUpdate} onSave={async (key) => onStatus(await api.setAiKey(current.aiProvider, key))} />
-      <ExplainPrompt
-        saved={status.settings.aiExplainPrompt}
+      <ActionPrompts
+        saved={status.settings}
+        provider={provider.name}
         on={current.aiOn}
         limits={current}
-        onSave={async (aiExplainPrompt) => {
-          const next = await api.updateAi({ aiExplainPrompt });
+        onSave={async (setting, prompt) => {
+          const next = await api.updateAi({ [setting]: prompt });
           onStatus(next);
-          return next.settings.aiExplainPrompt;
+          return next.settings[setting];
         }}
         onGuard={onGuard}
       />
@@ -1289,7 +1411,7 @@ function AdminPanel({ tab, onGuard }: { tab: AdminTab; onGuard: (guard: UnsavedG
       </div>
       <div className="settings-tab" hidden={tab !== "ai"}>
         {/* The rows its height comes to with Explain's prompt, Prompt context and Limits under the key, worked out from a setting row's height, not measured. */}
-        {ai ? <PankiAiSection status={ai} onStatus={setAi} onGuard={onGuard} /> : failure ? null : <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={34} />}
+        {ai ? <PankiAiSection status={ai} onStatus={setAi} onGuard={onGuard} /> : failure ? null : <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={47} />}
       </div>
       <div className="settings-tab" hidden={tab !== "dictionaries"}>
         <DictionariesPanel />

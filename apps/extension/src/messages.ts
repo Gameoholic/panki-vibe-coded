@@ -11,6 +11,7 @@ import {
   ExplainAsk,
   ExplainProblem,
   Explained,
+  AiUnread,
   PankiAiStatus,
   ExtensionBuild,
   ExtensionBuildFile,
@@ -29,6 +30,8 @@ import {
   SrsType,
   Stretch,
   SubtitleStyle,
+  TouchUpAsk,
+  TouchedUp,
   TranscribeEstimate,
   TranscribeLanguage,
   Transcript,
@@ -105,8 +108,7 @@ export const Ask = z.discriminatedUnion("kind", [
   /** What the panel needs to open: the decks, their card types and SRS types (to show the card as a review will), what fills each deck's fields, the deck it opens on. */
   z.object({ kind: z.literal("state") }),
   /** A deck was chosen in the drawer: it's the one the drawer opens on from now. */
-  z.object({ kind: z.literal("deck"), deckId: DeckId }),
-  z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
+  z.object({ kind: z.literal("deck"), deckId: DeckId }),  z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
   /** What the drawer holds, given as another example to a card that's already there, in its deck. */
   z.object({ kind: z.literal("addExample"), deckId: DeckId, cardId: CardId, example: NewCardExample }),
   /** A recorded clip, kept as a file on Panki before the card that names it is made, with what's said in it and how it was recorded. */
@@ -205,6 +207,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("aiState") }),
   /** A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation so far. */
   z.object({ kind: z.literal("explain"), ask: ExplainAsk }),
+  /** The card being added in the drawer touched up by Panki AI: its pieces, the dictionary's meanings and the keys it has fields for. */
+  z.object({ kind: z.literal("touchUp"), ask: TouchUpAsk }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -319,11 +323,23 @@ export type Redone = z.infer<typeof Redone>;
 /** What a part typed would widen to. */
 const Stretched = z.union([z.object({ ok: z.literal(true), stretch: Stretch }), Failed]);
 export type Stretched = z.infer<typeof Stretched>;
-/** Explain answered, refused by Panki with its reason (`problem`), or failed as any ask can (signed out, Panki not reached). */
-const ExplainAnswer = z.union([z.object({ ok: z.literal(true), explain: Explained }), z.object({ ok: z.literal(false), message: z.string(), problem: ExplainProblem }), Failed]);
-export type ExplainAnswer = z.infer<typeof ExplainAnswer>;
-/** Explain as the pop-up reads it: the answer, or why there's none, signed out among the reasons; null for a failure with no reason of Panki's. */
-export type Explanation = { ok: true; explain: Explained } | { ok: false; message: string; problem: ExplainProblem | "signedOut" | null };
+/**
+ * A Panki AI action refused by Panki with its reason (`problem`), and an answer that came back unusable, for Details'
+ * Log (`unread`). Explain's and Touch up's alike: one family.
+ */
+const AiRefusal = z.object({ ok: z.literal(false), message: z.string(), problem: ExplainProblem, unread: AiUnread.nullable().default(null) });
+/** Explain answered, refused by Panki, or failed as any ask can (signed out, Panki not reached). */
+const ExplainAnswer = z.union([z.object({ ok: z.literal(true), explain: Explained }), AiRefusal, Failed]);
+export type ExplainAnswer = z.input<typeof ExplainAnswer>;
+/** A Panki AI action that didn't answer, as the page reads it: why, signed out among the reasons; null for a failure with no reason of Panki's. */
+type AiFailed = { ok: false; message: string; problem: ExplainProblem | "signedOut" | null; unread: AiUnread | null };
+/** Explain as the pop-up reads it: the answer, or why there's none. */
+export type Explanation = { ok: true; explain: Explained } | AiFailed;
+/** Touch up answered, refused by Panki, or failed as any ask can. */
+const TouchUpAnswered = z.union([z.object({ ok: z.literal(true), touchUp: TouchedUp }), AiRefusal, Failed]);
+export type TouchUpAnswered = z.input<typeof TouchUpAnswered>;
+/** Touch up as the drawer reads it: the answer, or why there's none. */
+export type TouchUpResult = { ok: true; touchUp: TouchedUp } | AiFailed;
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */
 export const Trigger = z.object({ kind: z.literal("capture") });
@@ -361,8 +377,7 @@ export async function askState(): Promise<State> {
 }
 export async function askDeck(deckId: string): Promise<void> {
   await ask({ kind: "deck", deckId });
-}
-export async function askAdd(add: Omit<Extract<Ask, { kind: "add" }>, "kind">): Promise<Done> {
+}export async function askAdd(add: Omit<Extract<Ask, { kind: "add" }>, "kind">): Promise<Done> {
   const answer = Done.safeParse(await ask({ kind: "add", ...add }));
   return answer.success ? answer.data : failed(answer.error);
 }
@@ -550,11 +565,20 @@ export async function askAiState(): Promise<AiState> {
 /** A word explained by Panki AI, or a follow-up asked: its answer, or why there's none. */
 export async function askExplain(explain: ExplainAsk): Promise<Explanation> {
   const answer = ExplainAnswer.safeParse(await ask({ kind: "explain", ask: explain }));
-  if (!answer.success) return { ...failed(answer.error), problem: null };
+  if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
   const got = answer.data;
   if (got.ok) return got;
-  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem };
-  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null };
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** The drawer's card touched up by Panki AI: its proposals, or why there are none. */
+export async function askTouchUp(touchUp: TouchUpAsk): Promise<TouchUpResult> {
+  const answer = TouchUpAnswered.safeParse(await ask({ kind: "touchUp", ask: touchUp }));
+  if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
+  const got = answer.data;
+  if (got.ok) return got;
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
 }
 /** A video left out of the count, counted again, put away, finished or not (by the viewer unless said); the video as it stands then comes back. */
 export async function askWatchMark(videoId: string, mark: WatchMarkKind, source: WatchMarkSource = "viewer"): Promise<Watched> {

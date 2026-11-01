@@ -9,18 +9,23 @@ import {
   answeredCall,
   ceilingMicros,
   explainSent,
+  ACCURACY_NAMES,
   failedCall,
+  meaningsPiece,
   startCall,
   type AiCall,
   type AiRunWhy,
+  type AiVerdict,
   type ExplainMessage,
+  type MeaningAccuracy,
   type PankiAi,
+  type ProposedMeaning,
   type PromptGaps,
   type PromptPieceId,
   type PromptPieces,
 } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
-import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
+import { AiSpark } from "@web/components/AiWaiting";
 import { Button } from "@web/components/Button";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
@@ -31,6 +36,7 @@ import { sentenceAround } from "../capture/selection";
 import type { Found } from "../dictionary/found";
 import { dictionaryPieces } from "../dictionary/pieces";
 import { askAiState, askExplain, type AiShown } from "../messages";
+import { glossaryText } from "./Glossary";
 
 /**
  * Explain, a part of the pop-up's layout (AI step 2, the owner's preview of 2026-10-30): Panki AI saying what the word
@@ -53,7 +59,47 @@ const MESSAGES = {
   nothing: "Panki AI gave no answer.",
   /** Nothing in it and cut at Max answer length: the model's thinking took all of it (it did, on the owner's first try). */
   used: "Panki AI reached the answer limit before it wrote anything. Max answer length is in Admin → Panki AI → Limits.",
+  /**
+   * Panki's own note when the answer judges none of the dictionary's meanings to fit and proposes none (one from a
+   * Panki from before): outside the answer, never the AI's words.
+   */
+  noneFits: "None of the dictionary's meanings fits here.",
 };
+/**
+ * What Details say an answer came to: its explanation, then every meaning as it judged it, in the list's order (its
+ * number, its accuracy, the dictionary's words and name, the reason), drawn in the accuracy's look as the pop-up draws
+ * it, and the meaning it proposed when it proposed one, numbered after them as the pop-up numbers it. A follow-up's
+ * answer is its one key, `answer` (`FollowUpShape`).
+ */
+const explainVerdicts = (found: Found, { text, meanings, proposedMeaning }: Pick<Answered, "text" | "meanings" | "proposedMeaning">, followUp: boolean): AiVerdict[] => [
+  { name: followUp ? "Answer" : "Explanation", tag: null, value: text, reason: "" },
+  ...meanings.map((row): AiVerdict => {
+    const sense = found.senses[row.meaning - 1];
+    return {
+      name: `Meaning ${row.meaning}`,
+      tag: { words: ACCURACY_NAMES[row.accuracy], look: row.accuracy === "fits" ? "good" : row.accuracy === "close" ? "flag" : "muted" },
+      value: sense ? `${glossaryText(sense.glossary)} · ${sense.dict}` : "",
+      reason: row.reason,
+      accuracy: row.accuracy,
+    };
+  }),
+  ...(proposedMeaning !== null
+    ? [
+        {
+          name: `Proposed meaning ${found.senses.length + 1}`,
+          tag: { words: ACCURACY_NAMES.fits, look: "good" as const },
+          value: proposedMeaning.meaning,
+          reason: proposedMeaning.reason,
+          accuracy: "fits" as const,
+        },
+      ]
+    : []),
+];
+/** Whether two answers judged every meaning the same and proposed the same meaning: a follow-up's note that none fits is said again only when it changed. */
+const sameJudging = (a: Pick<Answered, "meanings" | "proposedMeaning">, b: Pick<Answered, "meanings" | "proposedMeaning">) =>
+  a.proposedMeaning?.meaning === b.proposedMeaning?.meaning &&
+  a.meanings.length === b.meanings.length &&
+  a.meanings.every((row, i) => row.meaning === b.meanings[i]?.meaning && row.accuracy === b.meanings[i]?.accuracy);
 const upTo = (micros: number) => `Up to ${estimateWords(micros)}`;
 
 /** The limits that shape what's read off a video for a prompt (Admin → Panki AI → Limits). */
@@ -61,8 +107,8 @@ export type PieceLimits = Pick<PankiAi, "aiSurroundingSeconds" | "aiMaxDescripti
 /** What the page knows besides the pop-up: on a video, its metadata, the subtitles around the moment and its description. */
 export type MorePieces = (pointed: Pointed, limits: PieceLimits) => PromptPieces;
 
-/** A made-up answer for the options page, by the dictionary form of the word it's about (`options/examples.ts`). */
-export type ExampleAnswer = { term: string; text: string };
+/** A made-up answer for the options page, by the dictionary form of the word it's about (`options/examples.ts`), with how it judges each meaning. */
+export type ExampleAnswer = { term: string; text: string; meanings: readonly MeaningAccuracy[]; proposedMeaning: ProposedMeaning | null };
 /** Explain on the options page: made-up answers, drawn as an answer is, answering no press, never asking anyone. */
 export type ExplainExamples = { kind: "example"; answers: readonly ExampleAnswer[] };
 /**
@@ -72,7 +118,14 @@ export type ExplainExamples = { kind: "example"; answers: readonly ExampleAnswer
 export type ExplainLive = { kind: "panki"; pointed: Pointed; more: MorePieces | null; auto: boolean; onAuto: () => void };
 export type ExplainSource = ExplainExamples | ExplainLive;
 
-type Answered = { text: string; cut: boolean };
+/**
+ * An answer: its words, how it judged each meaning (one row for each, in the list's order; none from a Panki from
+ * before), the meaning it proposes when none fits, whether it was cut short, and the answer exactly as it came back
+ * (its JSON), which is what goes back with a follow-up: the model reads its own turn as it wrote it.
+ */
+type Answered = { text: string; meanings: readonly MeaningAccuracy[]; proposedMeaning: ProposedMeaning | null; cut: boolean; raw: string };
+/** What's sent, read once: the pieces, why each empty one is empty, and every meaning in the order `{Meaning}` indexes them. */
+type Read = { pieces: PromptPieces; gaps: PromptGaps; meanings: string[] };
 /** One exchange: the question (none for the first, the word itself), then its answer, or why there's none. */
 type Turn = { question: string | null; answer: Answered | null; failure: { message: string; retry: boolean } | null };
 
@@ -81,20 +134,22 @@ type Turn = { question: string | null; answer: Answered | null; failure: { messa
  * dictionaries that are on, numbered), the sentence it was pointed at in, and what the page adds. Each cut to the most
  * a piece can be as it's sent; the server cuts each to its own limit.
  */
-function piecesOf(found: Found, pointed: Pointed, more: MorePieces | null, limits: PieceLimits, languages: Pick<PromptPieces, "learningLanguage" | "language">): { pieces: PromptPieces; gaps: PromptGaps } {
+function piecesOf(found: Found, pointed: Pointed, more: MorePieces | null, limits: PieceLimits, languages: Pick<PromptPieces, "learningLanguage" | "language">): Read {
   const context = pointed.context;
   const sentence = context ? sentenceAround(context.text, context.at, context.at + found.source.length).sentence : "";
   const video = more?.(pointed, limits) ?? {};
+  // Every meaning as the server lists them (`meaningsPiece`), so the index an answer names is this list's.
+  const meanings = found.senses.map((sense) => glossaryText(sense.glossary));
   // The account's two languages, as Panki says them (the server puts its own in, the same, whatever this sends).
-  const all: PromptPieces = { word: found.source, ...dictionaryPieces(found, found.senses, true), sentence, ...video, ...languages };
+  const all: PromptPieces = { word: found.source, ...dictionaryPieces(found, found.senses, true), dictMeaning: meaningsPiece(meanings), sentence, ...video, ...languages };
   const pieces: PromptPieces = Object.fromEntries(Object.entries(all).flatMap(([id, text]) => (text?.trim() ? [[id, text.slice(0, PIECE_MAX)]] : [])));
-  return { pieces, gaps: gapsOf(pieces, video.source !== undefined) };
+  return { pieces, gaps: gapsOf(pieces, video.source !== undefined), meanings };
 }
 
 const VIDEO_PIECES: readonly PromptPieceId[] = ["source", "surrounding", "description"];
 const DICTIONARY_PIECES: readonly PromptPieceId[] = ["dictForm", "dictReading", "dictMeaning", "dictTags", "dictWordType", "dictFrequency", "dictPitch"];
-/** Why each piece went empty, for Details: off a video a video's piece isn't there to have; the rest, when they're empty, say why as far as the page knows. */
-function gapsOf(pieces: PromptPieces, onVideo: boolean): PromptGaps {
+/** Why each piece went empty, for Details: off a video a video's piece isn't there to have; the rest, when they're empty, say why as far as the page knows. Touch up's too. */
+export function gapsOf(pieces: PromptPieces, onVideo: boolean): PromptGaps {
   const gaps: PromptGaps = {};
   for (const id of VIDEO_PIECES) if (!pieces[id]) gaps[id] = !onVideo ? "notVideo" : id === "surrounding" ? "noSubtitles" : "empty";
   for (const id of DICTIONARY_PIECES) if (!pieces[id]) gaps[id] = "notInDictionaries";
@@ -110,21 +165,25 @@ function saidOf(turns: readonly Turn[], asked: string | null): ExplainMessage[] 
   for (const turn of turns) {
     if (!turn.answer) continue;
     if (turn.question !== null) said.push({ role: "user", text: turn.question });
-    said.push({ role: "assistant", text: turn.answer.text });
+    said.push({ role: "assistant", text: turn.answer.raw || turn.answer.text });
   }
   if (asked !== null) said.push({ role: "user", text: asked });
   return said;
 }
 
 /**
- * An answer, as plain paragraphs (nothing the model writes reaches the page as markup), rising in as it lands; and, cut
- * short at Max answer length, Panki's own note under it, outside it.
+ * An answer, as plain paragraphs (nothing the model writes reaches the page as markup), rising in as it lands. How it
+ * judged each meaning, and the meaning it proposes when none fits, are drawn on the pop-up's own meanings, where they
+ * stand (`Judged`); under the answer, only Panki's own notes: that none fits, from a Panki from before that proposed
+ * none (said again for a follow-up only when it judged them differently, `before`), and that it was cut short at Max
+ * answer length.
  */
-function Answer({ answer }: { answer: Answered }) {
+function Answer({ answer, before }: { answer: Answered; before: Answered | null }) {
   const paragraphs = answer.text
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== "");
+  const judged = (before === null || !sameJudging(answer, before)) && answer.meanings.length > 0;
   return (
     <>
       <div className="ai-explain-answer">
@@ -132,6 +191,12 @@ function Answer({ answer }: { answer: Answered }) {
           <p key={i}>{paragraph}</p>
         ))}
       </div>
+      {judged && answer.proposedMeaning === null && !answer.meanings.some((row) => row.accuracy === "fits") ? (
+        <p className="ai-explain-cut">
+          <Icon name="info" />
+          {MESSAGES.noneFits}
+        </p>
+      ) : null}
       {answer.cut ? (
         <p className="ai-explain-cut">
           <Icon name="info" />
@@ -161,12 +226,12 @@ function FollowUp({ id, value, error, disabled, beside, onChange, onAsk }: Follo
 }
 
 /** Explain as a page has it: Panki AI asked through the worker. */
-function LiveExplain({ found, source }: { found: Found; source: ExplainLive }) {
+function LiveExplain({ found, source, onJudged }: { found: Found; source: ExplainLive; onJudged: Judged }) {
   const id = useId();
   /** Panki AI as the worker keeps it: unknown until it answers; null signed out; or why it couldn't be told. */
   const [ai, setAi] = useState<{ known: false } | { known: true; ai: AiShown | null; failure: string | null }>({ known: false });
   /** What's sent, read once as Panki AI is first told: the word as it was pointed at, whatever the video does since. */
-  const [read, setRead] = useState<{ pieces: PromptPieces; gaps: PromptGaps } | null>(null);
+  const [read, setRead] = useState<Read | null>(null);
   const pieces = read?.pieces ?? null;
   const [turns, setTurns] = useState<readonly Turn[]>([]);
   /** Every call this Explain made, oldest first, as the AI's status tells of them: never sent, gone with the pop-up. */
@@ -174,12 +239,21 @@ function LiveExplain({ found, source }: { found: Found; source: ExplainLive }) {
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState("");
   const [questionError, setQuestionError] = useState<string | undefined>(undefined);
+  /** The presses that made a call (Explain, Ask, Try again): the head's spark blinks once for each, where the button was. Never one run by itself. */
+  const [burst, setBurst] = useState(0);
   /** A call on its way: a second press (the auto run and the press that kept the pop-up open, together) waits for it. */
   const running = useRef(false);
   /** It has run, by a press or by itself: Explain as the pop-up opens runs it once at most. */
   const started = useRef(false);
   const alive = useRef(true);
   const latest = useRef<HTMLDivElement>(null);
+
+  // The meanings lit as the latest answer that judged them did; none until one has.
+  useEffect(() => {
+    const latest = turns.filter((turn) => turn.answer && (turn.answer.meanings.length > 0 || turn.answer.proposedMeaning !== null)).at(-1)?.answer;
+    onJudged({ meanings: latest?.meanings ?? [], proposed: latest?.proposedMeaning ?? null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turns]);
 
   const readAi = async () => {
     const answer = await askAiState();
@@ -211,6 +285,7 @@ function LiveExplain({ found, source }: { found: Found; source: ExplainLive }) {
     if (!read || !settings || running.current) return;
     running.current = true;
     started.current = true;
+    if (why.kind !== "auto") setBurst((was) => was + 1);
     // What failed before a new question is let go: only answers go back with it.
     const kept = before.filter((turn) => turn.answer !== null);
     const pending: Turn = { question: asked, answer: null, failure: null };
@@ -221,17 +296,21 @@ function LiveExplain({ found, source }: { found: Found; source: ExplainLive }) {
     setTurns([...kept, pending]);
     setCalls((was) => [...was, call]);
     setBusy(true);
-    const answer = await askExplain({ pieces: read.pieces, said });
+    const answer = await askExplain({ pieces: read.pieces, meanings: read.meanings, said });
     running.current = false;
     if (!alive.current) return;
     const empty = answer.ok && answer.explain.text.trim() === "" ? (answer.explain.cut ? MESSAGES.used : MESSAGES.nothing) : null;
     const done: Turn = answer.ok
       ? empty !== null
         ? { ...pending, failure: { message: empty, retry: true } }
-        : { ...pending, answer: { text: answer.explain.text, cut: answer.explain.cut } }
+        : { ...pending, answer: { text: answer.explain.text, meanings: answer.explain.meanings, proposedMeaning: answer.explain.proposedMeaning, cut: answer.explain.cut, raw: answer.explain.raw } }
       : { ...pending, failure: { message: answer.message, retry: answer.problem === "provider" } };
     // An empty answer was still a call the provider billed: Details say what it took, and why there's nothing.
-    const finished = answer.ok ? (empty === null ? answeredCall(call, answer.explain, Date.now()) : failedCall(call, empty, Date.now())) : failedCall(call, answer.message, Date.now());
+    const finished = answer.ok
+      ? empty === null
+        ? answeredCall(call, answer.explain, Date.now(), explainVerdicts(found, answer.explain, asked !== null))
+        : failedCall(call, empty, Date.now())
+      : failedCall(call, answer.message, Date.now(), answer.unread);
     setTurns([...kept, done]);
     setCalls((was) => was.map((each) => (each === call ? finished : each)));
     setBusy(false);
@@ -290,12 +369,14 @@ function LiveExplain({ found, source }: { found: Found; source: ExplainLive }) {
   const left = settings ? settings.aiMaxFollowUps - Math.max(0, answered - 1) : 0;
   return (
     <section className="ai-explain" aria-label="Panki AI" aria-busy={busy}>
-      <AiStatus calls={calls} />
-      {turns.map((turn, i) => (
+      <AiStatus calls={calls} burst={burst} />
+      {/* A turn on its way is its question alone, or nothing: the head's turning spark and Thinking are the wait (the owner, 2026-10-31). */}
+      {turns.map((turn, i) =>
+        turn.question === null && !turn.answer && !turn.failure ? null : (
         <div key={i} ref={i === turns.length - 1 ? latest : undefined} className="ai-explain-turn">
           {turn.question !== null ? <p className="ai-explain-question">{turn.question}</p> : null}
           {turn.answer ? (
-            <Answer answer={turn.answer} />
+            <Answer answer={turn.answer} before={turns.slice(0, i).filter((each) => each.answer !== null).at(-1)?.answer ?? null} />
           ) : turn.failure ? (
             <div className="ai-explain-failure">
               <p className="form-failure" role="alert">
@@ -308,11 +389,10 @@ function LiveExplain({ found, source }: { found: Found; source: ExplainLive }) {
                 </Button>
               ) : null}
             </div>
-          ) : (
-            <AiWaiting lines={turn.question === null ? 4 : 2} />
-          )}
+          ) : null}
         </div>
-      ))}
+        ),
+      )}
       {!busy && answered > 0 && left > 0 ? (
         <FollowUp
           id={id}
@@ -337,9 +417,15 @@ const nothing = () => undefined;
  * Explain on the options page: the made-up answer for the word shown, drawn as an answer is, with its follow-up under
  * it; for a word with none, the button. Nothing in it answers a press, and nothing is ever asked.
  */
-function ExampleExplain({ found, answers }: { found: Found; answers: readonly ExampleAnswer[] }) {
+function ExampleExplain({ found, answers, onJudged }: { found: Found; answers: readonly ExampleAnswer[]; onJudged: Judged }) {
   const id = useId();
   const answer = answers.find((example) => example.term === found.term);
+  // Only the meanings this browser's dictionaries have for the word.
+  const meanings = answer?.meanings.filter((row) => found.senses[row.meaning - 1] !== undefined) ?? [];
+  useEffect(() => {
+    onJudged({ meanings, proposed: answer?.proposedMeaning ?? null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answer]);
   if (!answer) {
     return (
       <div className="ai-explain-start" inert>
@@ -360,14 +446,22 @@ function ExampleExplain({ found, answers }: { found: Found; answers: readonly Ex
     <section className="ai-explain" aria-label="Panki AI" inert>
       <AiStatus calls={[call]} />
       <div className="ai-explain-turn">
-        <Answer answer={{ text: answer.text, cut: false }} />
+        <Answer answer={{ text: answer.text, meanings, proposedMeaning: answer.proposedMeaning, cut: false, raw: "" }} before={null} />
       </div>
       <FollowUp id={id} value="" disabled={false} beside={null} onChange={nothing} onAsk={nothing} />
     </section>
   );
 }
 
+/**
+ * How Explain's latest answer judged the meanings, and the meaning it proposed when none fits (none of either before it
+ * has answered, or once it's begun afresh): the pop-up lights its own meaning rows by it and draws the proposed one as
+ * one more row after them (`Lookup.tsx` → `SenseRow`, `ProposedRow`).
+ */
+export type Judgement = { meanings: readonly MeaningAccuracy[]; proposed: ProposedMeaning | null };
+export type Judged = (judgement: Judgement) => void;
+
 /** Explain for the word shown in the pop-up: asking Panki AI on a page, the made-up answers on the options page. */
-export function Explain({ found, source }: { found: Found; source: ExplainSource }) {
-  return source.kind === "example" ? <ExampleExplain found={found} answers={source.answers} /> : <LiveExplain found={found} source={source} />;
+export function Explain({ found, source, onJudged }: { found: Found; source: ExplainSource; onJudged: Judged }) {
+  return source.kind === "example" ? <ExampleExplain found={found} answers={source.answers} onJudged={onJudged} /> : <LiveExplain found={found} source={source} onJudged={onJudged} />;
 }

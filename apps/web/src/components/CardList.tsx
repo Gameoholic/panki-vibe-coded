@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from "react";
-import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
+import { MediaId, byAi, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
+import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import { HOLD_KINDS, dueWords } from "../srsKinds";
 import { count, langOf } from "../words";
@@ -73,6 +74,8 @@ function cell(card: Card, field: CardField, className: string) {
   }
   return (
     <span key={field.id} className={`${className} ${kindClass(field.kind)}`.trim()} lang={langOf(value)}>
+      {/* What Panki AI wrote carries its spark wherever it's shown (AI.md). */}
+      {byAi(card.sources, field.id) ? <AiSpark className="card-ai" /> : null}
       {value}
     </span>
   );

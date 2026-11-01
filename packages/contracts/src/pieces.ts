@@ -25,14 +25,27 @@ export const PROMPT_PIECE_IDS = [
   "description",
   "learningLanguage",
   "language",
+  "card",
 ] as const;
 export const PromptPieceId = z.enum(PROMPT_PIECE_IDS);
 export type PromptPieceId = z.infer<typeof PromptPieceId>;
 
-/** Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video, Forvo, or the account's own settings. */
-export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings";
+/**
+ * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video, Forvo,
+ * the account's own settings, the card being added as it stands, or Panki AI (the field mapping's Explanation and
+ * Example sentences, which only Touch up fills).
+ */
+export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings" | "card" | "ai";
 /** How a source is said, beside every piece: the field mapping's Source column and Prompt context's alike. */
-export const SOURCE_WORDS: Record<PieceSource, string> = { text: "Subtitles or page", dictionary: "Dictionary", video: "YouTube", forvo: "Forvo", settings: "Your settings" };
+export const SOURCE_WORDS: Record<PieceSource, string> = {
+  text: "Subtitles or page",
+  dictionary: "Dictionary",
+  video: "YouTube",
+  forvo: "Forvo",
+  settings: "Your settings",
+  card: "The card",
+  ai: "Panki AI",
+};
 
 /** What each piece is called, the one name for it: the field mapping's, Prompt context's and a template's. */
 export const PIECE_NAMES: Record<PromptPieceId, string> = {
@@ -53,6 +66,9 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   // Panki speaks to the account in, which the AI answers in.
   learningLanguage: "Learning language",
   language: "Language",
+  // The card being added, each of its fields by its own name (Touch up's): the owner's field names are their content,
+  // so the card is one piece rather than a piece per field.
+  card: "Card",
 };
 export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   word: "text",
@@ -69,6 +85,7 @@ export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   description: "video",
   learningLanguage: "settings",
   language: "settings",
+  card: "card",
 };
 
 /** A piece's name as a template's tag: lower case, spaces as underscores ("Dictionary form" → `dictionary_form`). The one way a tag is named. */

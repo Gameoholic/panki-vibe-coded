@@ -1618,8 +1618,8 @@
   }
 }
 
-/* The capture drawer: the app's panel, lifted off a page that isn't the app's. Top to bottom: the card as a review
-   will show it, what's typed about the word, the sentence, the clip, Add. */
+/* The capture drawer: the app's panel, lifted off a page that isn't the app's. Top to bottom: Discard, Touch up and
+   Add, the clip, the deck, the card's fields, the card as a review will show it. */
 .capture {
   box-shadow: var(--shadow);
 }
@@ -2209,14 +2209,35 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-/* The drawer's last row: Discard, and Add taking the rest of it. One height, so the two stand as a pair. */
+/* The drawer's first row, right under its head (its last until 2026-10-31; Discard went the same day, the × being the
+   way out): Touch up, then Add, the primary, taking the rest. Both the drawer's own button size. Add takes a row of its
+   own only where the two can't share one. */
 .capture-ends {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 8px;
 }
 .btn.capture-add {
-  flex: 1;
+  flex: 1 1 auto;
+}
+/* Touch up with what it can cost, or why it can't run, right under it, as a setting's line stands under its row. */
+.capture-touch {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
   min-width: 0;
+}
+.capture-touch > .btn.touch-up-go {
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: inherit;
+}
+.touch-up-cost {
+  max-width: 16em;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
 }
 .capture-progress {
   display: grid;
@@ -2480,6 +2501,21 @@
   margin-right: 6px;
   vertical-align: 1px;
 }
+/* A meaning Explain judged (Lookup.tsx → `SenseRow`, the web's `JudgedRow`, `app.css` → `.judged`): its number in
+   its accuracy's colour. */
+.look-senses > li.ai-accuracy::marker {
+  color: var(--accuracy);
+}
+/* The meaning Explain proposes (Lookup.tsx → `ProposedRow`): one more row after the dictionaries', the spark where a
+   meaning's tags sit. */
+.look-proposed {
+  margin-top: 3px;
+}
+.look-proposed-spark {
+  margin-right: 6px;
+  vertical-align: -2px;
+  color: var(--accent);
+}
 /* A formatted definition, drawn from the few pieces it's allowed. */
 .gloss-structured ul,
 .gloss-structured ol {
@@ -2647,6 +2683,112 @@
 .ai-explain-cut > .icon {
   width: 14px;
   height: 14px;
+}
+
+/* Touch up in the drawer (AI step 3): its head over the card's fields, a proposal under each field it's for. */
+.touch-up.ai-explain {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.touch-up-all {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* A field and what Touch up says about it, one shape (the owner, 2026-10-31: a proposal must be plainly its field's;
+   TouchUp.tsx → `Tied`), in Panki's verdict's colour: `--accuracy`, the meanings' own (`.ai-accuracy.is-…`: good green,
+   meh orange, bad red), or the accent where nothing is wrong but something is offered. The field's box in it, its foot
+   squared, and the note hanging straight from it, the box's sides carried on down round the note to one rounded end. */
+.touch-up-tied {
+  display: grid;
+}
+.touch-up-tied.is-accent {
+  --accuracy: var(--accent);
+}
+.touch-up-tied .field-input:not(.field-behind) {
+  border-color: var(--accuracy);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* While a proposal waits, the field's box is the diff in its place (`.touch-up-diff`): the box itself hidden, its label
+   kept, and it's back as the proposal's decided. */
+.touch-up-tied.is-diffing .field :is(.field-input, .field-marked, .field-lead) {
+  display: none;
+}
+.touch-up-diff {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--accuracy);
+  border-radius: 10px 10px 0 0;
+  background: var(--surface);
+  font-size: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.touch-up-foot {
+  padding: 9px 12px;
+  border: 1px solid var(--accuracy);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
+  animation: intro-rise 0.32s ease-out both;
+}
+.touch-up-note {
+  display: grid;
+  gap: 6px;
+}
+/* A note's line, the spark and its words in the verdict's colour, with the chevron at its end that folds its why
+   (TouchUp.tsx → `WithReason`, the meaning rows' `WhyButton`, whose colour is `--accuracy` too). */
+.touch-up-why-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.touch-up-why-row > .btn.judged-why {
+  margin-left: auto;
+}
+.touch-up-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accuracy);
+}
+.touch-up-reason {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.touch-up-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* The diff, git's way (TouchUp.tsx → `Mark`): what goes struck in its verdict's colour, what comes in green, each on
+   its colour's faint tint (`.ai-accuracy-lit`); only the tint's shape and the strike are set here. */
+.touch-up-d {
+  padding: 0 3px;
+  border-radius: 4px;
+  color: var(--accuracy);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.touch-up-d.is-out {
+  text-decoration: line-through;
+  text-decoration-color: var(--accuracy);
+}
+.touch-up-d.is-block {
+  display: block;
+  width: fit-content;
+  margin-top: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .touch-up-foot {
+    animation: none;
+  }
 }
 .ai-explain-failure {
   display: flex;

@@ -5,9 +5,12 @@ import {
   ExplainError,
   ExplainResponse,
   PankiAiResponse,
+  TouchUpResponse,
+  type TouchUpAsk,
   type ExplainAsk,
   type ExplainProblem,
   type PankiAiStatus,
+  type AiUnread,
   CalledCards,
   CardResponse,
   WordsInCards,
@@ -79,16 +82,28 @@ export class PankiError extends Error {
   }
 }
 
-/** Explain refused by Panki: why, for the pop-up to say, and Panki AI as it stood then (an admin may have changed it). */
+/**
+ * Explain (or Touch up) refused by Panki: why, for the page to say, Panki AI as it stood then (an admin may have changed
+ * it), and an answer that came back unusable, for Details' Log (`unread`).
+ */
 export class ExplainRefused extends PankiError {
   constructor(
     message: string,
     status: number,
     readonly problem: ExplainProblem,
     readonly ai: PankiAiStatus,
+    readonly unread: AiUnread | null,
   ) {
     super(message, status);
   }
+}
+
+/** A Panki AI action's failure as an `ExplainRefused` when Panki gave its reason; anything else as it was. */
+function refusedOf(e: unknown): unknown {
+  const refused = e instanceof PankiError ? ExplainError.safeParse(e.body) : null;
+  if (!(e instanceof PankiError) || !refused?.success) return e;
+  const { message, problem, unread } = refused.data.error;
+  return new ExplainRefused(message, e.status, problem, refused.data.ai, unread ?? null);
 }
 
 /** Where Panki is and the sign-in to it. */
@@ -277,9 +292,15 @@ export const panki = {
     try {
       return await call(address, token, "/api/ai/explain", json("POST", ask), (b) => ExplainResponse.parse(b));
     } catch (e) {
-      const refused = e instanceof PankiError ? ExplainError.safeParse(e.body) : null;
-      if (e instanceof PankiError && refused?.success) throw new ExplainRefused(refused.data.error.message, e.status, refused.data.error.problem, refused.data.ai);
-      throw e;
+      throw refusedOf(e);
+    }
+  },
+  /** The drawer's card touched up by Panki AI, through Panki's server: refused as Explain is, its refusals the same family. */
+  touchUp: async ({ address, token }: Door, ask: TouchUpAsk): Promise<z.infer<typeof TouchUpResponse>> => {
+    try {
+      return await call(address, token, "/api/ai/touch-up", json("POST", ask), (b) => TouchUpResponse.parse(b));
+    } catch (e) {
+      throw refusedOf(e);
     }
   },
 };

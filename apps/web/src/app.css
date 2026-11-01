@@ -607,6 +607,26 @@ textarea.field-input {
   background: var(--accent-soft);
   border-radius: 4px;
 }
+/* A mark inside a field's box, before its text (TextField's `lead`: Panki AI's spark on what it wrote): it stands over
+   the box's own padding, which widens to make room for it while it's there, the lit copy behind a box of several lines
+   widening alike, so the two still line up. Level with the first line. */
+.field-leads {
+  position: relative;
+}
+.field-lead {
+  position: absolute;
+  left: 13px;
+  top: 11px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 1.4em;
+  font-size: 16px;
+  pointer-events: none;
+}
+.has-lead .field-input {
+  padding-left: 34px;
+}
 /* A prompt template (components/PromptField.tsx): its text drawn under the box with every variable lit, the box's own
    text see-through over it and its caret showing. The two must break their lines at the same letters, so they share
    every measure that moves a letter (type, line height, padding, border, wrapping), and a lit variable is never bolder
@@ -1871,7 +1891,7 @@ canvas.media-frame {
   --sweep: 1.4s;
 }
 .skel::after,
-.ai-waiting.is-over::after {
+.ai-waiting::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1892,13 +1912,13 @@ canvas.media-frame {
 }
 @media (prefers-reduced-motion: reduce) {
   .skel::after,
-  .ai-waiting.is-over::after {
+  .ai-waiting::after {
     animation: none;
   }
 }
-/* Panki AI at work (components/AiWaiting.tsx): the skeleton's own lines and sweep in an answer's room, or words being
-   reworked kept where they are, dimmed, the same sweep passing over them. */
-.ai-waiting.is-over {
+/* Panki AI at work (components/AiWaiting.tsx): words being reworked kept where they are, dimmed, the skeleton's sweep
+   passing over them. An answer on its way holds no room: the spark turning is the wait. */
+.ai-waiting {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -1907,15 +1927,15 @@ canvas.media-frame {
   opacity: 0.5;
 }
 /* The spark (`AiSpark`): sized as an icon where it stands (a button's 16 px, an icon button's 18), its parts filling it.
-   While it works, two small sparks blink at its corners one after the other, as every other sweep sets off (the owner's
-   pick, Sparkles every other sweep, 2026-10-30: https://claude.ai/artifact/66E2s4QyNZhuuAVvZddbsW); the spark itself
-   never moves. The beat is two sweeps, 2.8 s, starting with one; each blink is a fraction of it, in one place:
-     the first small spark, top right: out at 0%, whole at 8.13%, out again at 16.25%, then still until the next beat;
-     the second, bottom left: out until 6.96%, whole at 15.09%, out again at 23.21%, then still.
-   (8.13% of 2.8 s is about 0.23 s; the second ends about 0.65 s in.) Each step eases in by the same curve. */
+   While it works, it turns (the owner, 2026-10-31: the star "should spin every second or so", then "slower, more ease in
+   and ease out, like it takes time to accelerate and decelerate"; two small sparks blinking at its corners every other
+   sweep stood here from 2026-10-30, and read as nothing). Each beat, `--spark-turn` (2 s, its one home), is a half turn
+   in its first 85%, starting slow, fast through the middle, slowing to a stop (an ease-in-out cubic), then a short rest
+   before the next. A half and not a full one: the spark has four points, so it looks the same every quarter turn, and a
+   full turn read as two spins (the owner, 2026-10-31: "ONE 360 spin, not 720"); 180° ends on the pose it began in, so
+   nothing snaps as the next beat starts from 0°. */
 .ai-spark {
-  --spark-beat: calc(var(--sweep) * 2);
-  --spark-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --spark-turn: 2s;
   position: relative;
   display: inline-block;
 }
@@ -1924,60 +1944,67 @@ canvas.media-frame {
   width: 100%;
   height: 100%;
 }
-.ai-spark > .ai-spark-mini {
+.ai-spark.is-working > .icon {
+  animation: ai-spark-turn var(--spark-turn) infinite;
+}
+@keyframes ai-spark-turn {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  85%,
+  100% {
+    transform: rotate(180deg);
+  }
+}
+/* The burst as a button is pressed (`AiSpark`'s `burst`): two small sparks at its corners blink once, one after the
+   other, and are gone (the owner, 2026-10-31: "plays once, at the moment the button is clicked"; they blinked on the
+   thinking beat from 2026-10-30, where they read as nothing). The spark itself doesn't move for it. */
+.ai-spark-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ai-spark-burst > .ai-spark-mini {
   position: absolute;
   width: 45%;
   height: 45%;
   opacity: 0;
   transform: scale(0.2);
-  transform-origin: center;
-  animation: var(--spark-beat) var(--spark-ease) infinite;
+  animation: 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 .ai-spark-mini.is-one {
   top: -30%;
   right: -35%;
-  animation-name: ai-spark-one;
+  animation-name: ai-spark-burst;
 }
 .ai-spark-mini.is-two {
   bottom: -25%;
   left: -35%;
-  animation-name: ai-spark-two;
+  animation-name: ai-spark-burst;
+  animation-delay: 0.15s;
 }
-@keyframes ai-spark-one {
+@keyframes ai-spark-burst {
   0% {
     opacity: 0;
     transform: scale(0.2);
   }
-  8.13% {
+  45% {
     opacity: 1;
     transform: scale(1);
   }
-  16.25%,
   100% {
     opacity: 0;
     transform: scale(0.2);
   }
 }
-@keyframes ai-spark-two {
-  0%,
-  6.96% {
-    opacity: 0;
-    transform: scale(0.2);
-  }
-  15.09% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  23.21%,
-  100% {
-    opacity: 0;
-    transform: scale(0.2);
-  }
-}
-/* Still under reduced motion: the small sparks never show, the spark alone stays. */
+/* Still under reduced motion: the spark stays as it is, and the burst never shows. */
 @media (prefers-reduced-motion: reduce) {
-  .ai-spark > .ai-spark-mini {
+  .ai-spark.is-working > .icon {
     animation: none;
+  }
+  .ai-spark-burst {
+    display: none;
   }
 }
 
@@ -2180,14 +2207,46 @@ canvas.media-frame {
   margin: 0;
   overflow-wrap: anywhere;
 }
-.ai-details-title {
+/* A failure's technical reason under its Status, in small type: what the Log's account of it says too. */
+.ai-details-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* Details' folds (AiStatus → `Section`): Prompt context and the Log, alike, a line over each, its name and a quiet
+   count at its left, the chevron at its right; closed to begin with. */
+.ai-details-section {
+  display: grid;
+  gap: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--line);
+}
+.btn.ai-details-fold {
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted);
+}
+.ai-details-fold-count {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.btn.ai-details-fold .icon {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.btn.ai-details-fold.is-open .icon {
+  transform: rotate(180deg);
 }
 /* Each piece: its name as the template writes it, on the accent's tint (outlined and plain when it went empty), what it
    held on one line (pressed, the whole of it) or why it held nothing, and its Source under that. */
@@ -2278,6 +2337,31 @@ canvas.media-frame {
   font-weight: 600;
   color: var(--muted);
 }
+/* A failure at the Log's end (AiStatus → `LogFailure`): Panki's own note, never a turn, in the Failed status's danger
+   colours, a rule at its left, "Error" with the alert sign where a speaker's name would be, the reason in small type. */
+.ai-details-failure {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--danger);
+  border-radius: 0 8px 8px 0;
+  background: var(--danger-soft);
+}
+.ai-details-failure-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+.ai-details-failure-tag .icon {
+  width: 12px;
+  height: 12px;
+}
 .ai-details-foot {
   display: flex;
   flex-wrap: wrap;
@@ -2301,6 +2385,225 @@ canvas.media-frame {
 }
 .btn.ai-details-more.is-open .icon {
   transform: rotate(180deg);
+}
+/* What an action's answer holds, folded under its prompt in Admin → Panki AI: a line a key, then that the shape is Panki's. */
+.answer-parts {
+  display: grid;
+  justify-items: start;
+}
+.answer-parts-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}
+.answer-parts-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+.answer-parts-list code {
+  font-weight: 600;
+}
+.answer-parts-list .answer-parts-list {
+  margin-top: 4px;
+}
+/* Each shape an action answers in, headed by which call it's for where there's more than one (Explain's first answer, a follow-up). */
+.answer-parts-shape {
+  display: grid;
+  gap: 4px;
+}
+.answer-parts-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.answer-parts-fixed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+}
+.answer-parts-fixed > .icon {
+  flex: none;
+}
+/* A call's own answer in the Log: a row a part, its verdict tag, value and why; Raw, folded, under them. */
+.ai-answer-view {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.ai-answer-parts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ai-answer-part {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 2px 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ai-answer-part:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.ai-answer-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.ai-answer-value {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ai-answer-reason {
+  grid-column: 2;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ai-answer-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+.ai-answer-tag.is-good {
+  color: var(--good);
+  background: var(--good-soft);
+}
+.ai-answer-tag.is-accent {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.ai-answer-tag.is-flag {
+  color: var(--flag-ink);
+  background: var(--flag);
+}
+.ai-answer-tag.is-danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.ai-answer-tag.is-muted {
+  color: var(--muted);
+  background: var(--surface-2);
+}
+/* How a dictionary meaning stands in the sentence as Panki AI judged it (`ACCURACY_IDS`: fits, close, wrong), the one
+   home of its looks: its colour (`--accuracy`, with a soft fill and ink for its tag) and, wrong, its words struck. The
+   pop-up's list under Explain's answer and Details' answer rows both draw it. */
+.ai-accuracy.is-fits {
+  --accuracy: var(--good);
+  --accuracy-soft: var(--good-soft);
+  --accuracy-ink: var(--good);
+}
+.ai-accuracy.is-close {
+  --accuracy: var(--close);
+  --accuracy-soft: var(--close);
+  --accuracy-ink: var(--close-ink);
+}
+.ai-accuracy.is-wrong {
+  --accuracy: var(--danger);
+  --accuracy-soft: var(--danger-soft);
+  --accuracy-ink: var(--danger);
+}
+.ai-accuracy-tag {
+  color: var(--accuracy-ink);
+  background: var(--accuracy-soft);
+}
+/* A meaning lit where it stands (`JudgedRow`): its accuracy's colour, faint, behind it. */
+.ai-accuracy-lit {
+  background: color-mix(in srgb, var(--accuracy) 14%, transparent);
+}
+.ai-accuracy.is-wrong .ai-accuracy-words {
+  text-decoration: line-through;
+  text-decoration-color: var(--accuracy);
+}
+/* A judged meaning's row (components/JudgedRow.tsx), the pop-up's and the drawer's Meaning list's alike: the meaning,
+   a chevron at its end in its accuracy's colour, the reason unfolding under it. */
+.judged {
+  padding: 2px 4px 2px 6px;
+  border-radius: 6px;
+}
+.judged-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.judged-words {
+  flex: 1;
+  min-width: 0;
+}
+.btn.judged-why {
+  flex: none;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  color: var(--accuracy, currentColor);
+  background: transparent;
+}
+.btn.judged-why .icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+.btn.judged-why.is-open .icon {
+  transform: rotate(180deg);
+}
+.judged-reason {
+  margin: 2px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+/* In a `Dropdown`'s list the choice is the row: its own size, the lit row its only mark (ticked or not, the tick in
+   the accuracy's colour), the chevron level with its words, the reason under them. */
+.dropdown-menu .judged {
+  padding: 0;
+  border-radius: 8px;
+}
+.dropdown-menu .judged .btn-item[aria-pressed="true"] {
+  background: transparent;
+  color: inherit;
+}
+.dropdown-menu .judged .dropdown-tick {
+  color: var(--accuracy);
+}
+.dropdown-menu .btn.judged-why {
+  height: 34px;
+}
+.dropdown-menu .judged-reason {
+  margin: 0;
+  padding: 0 10px 6px 32px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.judged-why .icon {
+    transition: none;
+  }
+}
+.btn.ai-answer-raw {
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .ai-answer-part {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-answer-reason {
+    grid-column: 1;
+  }
 }
 /* The blocks in a real row's pill keep to it: the pill's own colour, as a quiet stand-in for its words. */
 .deck-count > .skel {
@@ -2609,6 +2912,16 @@ mark.review-mark {
   border-radius: 4px;
   color: inherit;
   background: var(--accent-soft);
+}
+/* What Panki AI wrote, on a review card and a card's row: its spark before the words, sized by them (AI.md). */
+.ai-spark.review-ai,
+.ai-spark.card-ai,
+.ai-spark.field-ai {
+  width: 0.7em;
+  height: 0.7em;
+  margin-right: 0.3em;
+  vertical-align: 0.05em;
+  color: var(--accent);
 }
 
 /* Subtitles over a picture (components/ClipSubtitles.tsx on a card's clip; the extension's transcript over a YouTube

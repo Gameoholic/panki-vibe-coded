@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
+import { AiRanOn, PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
 import { PIECE_NAMES, PROMPT_PIECE_IDS, PromptPieceId } from "./pieces";
+import { expectedGot } from "./unread";
 
 /**
  * Filling a Panki AI prompt from Prompt context's pieces (`pieces.ts`, the registry), what Explain sends and answers,
@@ -19,7 +20,8 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
     case "dictReading":
       return "How it's read";
     case "dictMeaning":
-      return "Every meaning of the dictionaries that are on, numbered";
+      // The one meanings list, every action's (`meaningsPiece`).
+      return 'Every meaning of the dictionaries that are on, as a JSON list, one entry each: "meaning" its words, "index" its number from 1';
     case "dictTags":
       return "The dictionary's labels on the word, as it explains them";
     case "dictWordType":
@@ -40,7 +42,75 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
       return "The language you're learning, as your Settings → General → Learning language says";
     case "language":
       return "The language Panki speaks to you in, as your Settings → General → Language says";
+    case "card":
+      return "The card being added: each of its fields by name, with what it holds now";
   }
+}
+
+/**
+ * Every meaning of the dictionaries as a prompt is sent them (`{Meaning}`, the owner, 2026-10-31: one format for every
+ * action, Explain's and Touch up's): a JSON list, one entry each in the list's order, its words and its index from 1,
+ * nothing more. What's ticked on the card is never in it (the owner, 2026-10-31): the model judges each meaning against
+ * the sentence alone, and Panki holds its verdicts against the ticks on its own side (`meaningVerdictOf`). One home for
+ * the shape: the page building the piece and the server checking each index agree by construction.
+ */
+export function meaningsPiece(meanings: readonly string[]): string {
+  return JSON.stringify(meanings.map((meaning, i) => ({ meaning, index: i + 1 })));
+}
+
+/** How a meaning stands in the sentence, one registry: its name on screen. The colours and the strike are `app.css`'s, by `.ai-accuracy.is-…`. */
+export const ACCURACY_IDS = ["fits", "close", "wrong"] as const;
+export const MeaningAccuracyId = z.enum(ACCURACY_IDS);
+export type MeaningAccuracyId = z.infer<typeof MeaningAccuracyId>;
+export const ACCURACY_NAMES: Record<MeaningAccuracyId, string> = { fits: "Fits", close: "Close", wrong: "Doesn't fit" };
+/** One dictionary meaning as an answer judges it: by its index, how well it fits this sentence, and why. */
+export const MeaningAccuracy = z.object({
+  meaning: z.number().int().describe("the meaning's index in <meaning>"),
+  accuracy: MeaningAccuracyId.describe("fits, close (near, but not quite) or wrong; Panki marks the meaning green, orange or red"),
+  reason: z.string().max(2_000).describe("why, in a few words; shown under the meaning"),
+});
+export type MeaningAccuracy = z.infer<typeof MeaningAccuracy>;
+/** Whether an answer's rows are exactly one for each meaning sent, each index once: what the server holds Explain's and Touch up's answers to. */
+export const meaningsWhole = (rows: readonly { meaning: number }[], count: number): boolean =>
+  rows.length === count && new Set(rows.map((row) => row.meaning)).size === count && rows.every((row) => row.meaning >= 1 && row.meaning <= count);
+/**
+ * The meaning Explain proposes when none of the dictionary's fits, in its own words, and why it fits. Shown as one more
+ * meaning under the dictionary's, numbered after them, with the spark; never a dictionary meaning (never in `{Meaning}`).
+ */
+export const ProposedMeaning = z.object({
+  meaning: z
+    .string()
+    .max(2_000)
+    .describe("written as a dictionary entry in your Language, terse glosses separated by semicolons, no sentence or commentary; Panki shows it as one more meaning, after the dictionary's, with the spark"),
+  reason: z.string().max(2_000).describe("why it fits this sentence, and any commentary; shown under it"),
+});
+export type ProposedMeaning = z.infer<typeof ProposedMeaning>;
+/**
+ * Which of Panki's rules an Explain answer that read as its shape breaks, said as expected against got for Details' Log
+ * (`unread.ts` → `expectedGot`), or null: an explanation with nothing in it; rows that aren't exactly one for each
+ * meaning sent, each index once (`meaningsWhole`); a proposed meaning beside a fitting row, or none when nothing fits.
+ * What no schema can say.
+ */
+export function explainRuleBroken(answer: Pick<ExplainShape, "explanation" | "meanings" | "proposedMeaning">, count: number): string | null {
+  if (answer.explanation.trim() === "") return expectedGot("an explanation", "an empty one");
+  return meaningsRuleBroken(answer.meanings, answer.proposedMeaning, count);
+}
+/**
+ * The meanings' rules, every action's that judges them (Explain's, Touch up's Meaning), said as expected against got:
+ * exactly one row for each meaning sent, each index once (`meaningsWhole`); a proposed meaning beside a fitting row, or
+ * none when nothing fits. Null when they hold.
+ */
+export function meaningsRuleBroken(rows: readonly MeaningAccuracy[], proposed: ProposedMeaning | null, count: number): string | null {
+  if (!meaningsWhole(rows, count)) {
+    return rows.length !== count
+      ? expectedGot(`one row per meaning (${count})`, `${rows.length}`)
+      : expectedGot(`one row per meaning (${count}), each index once from 1 to ${count}`, `indexes ${rows.map((row) => row.meaning).join(", ")}`);
+  }
+  const fits = rows.some((row) => row.accuracy === "fits");
+  if (fits && proposed !== null) return expectedGot("no proposed meaning beside a fitting row", "one");
+  if (!fits && proposed === null) return expectedGot("a proposed meaning when no row fits", "null");
+  if (!fits && proposed?.meaning.trim() === "") return expectedGot("a proposed meaning when no row fits", "an empty one");
+  return null;
 }
 
 /** The most any one piece can be as it's sent: far past every limit, so a broken value is refused, never kept whole. */
@@ -92,6 +162,8 @@ export type ExplainMessage = z.infer<typeof ExplainMessage>;
  */
 export const ExplainAsk = z.object({
   pieces: PromptPieces,
+  /** Every meaning of the dictionaries, in `{Meaning}`'s order (`meaningsPiece`): the answer's rows are checked against it, one for each. None from an extension from before. */
+  meanings: z.array(z.string().max(PIECE_MAX)).max(200).default([]),
   said: z
     .array(ExplainMessage)
     .max(200)
@@ -104,19 +176,73 @@ export type ExplainAsk = z.infer<typeof ExplainAsk>;
 /** Why Explain didn't answer, for the pop-up to say: Panki AI off, no key, too long, too many follow-ups, the provider's own failure. */
 export const ExplainProblem = z.enum(["off", "noKey", "tooLong", "followUps", "provider"]);
 export type ExplainProblem = z.infer<typeof ExplainProblem>;
-export const ExplainError = z.object({ error: z.object({ message: z.string(), problem: ExplainProblem }), ai: PankiAiStatus });
+/**
+ * An answer the provider gave that couldn't be used, as Details' Log tells of it (the owner, 2026-10-31: "it shows what
+ * Panki AI answered even when the answer failed"): the text exactly as it came, the technical reason (not JSON; not
+ * the shape, with Zod's path and message; which of Panki's rules; cut short; declined), and what was metered for it.
+ * Never on screen but in the Log: the failure's message stays plain.
+ */
+export const AiUnread = z.object({
+  raw: z.string(),
+  detail: z.string(),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  costMicros: z.number().int().nonnegative(),
+  /** The provider and model the call ran on (`AiRanOn`): Details name it, never the page's own copy. */
+  ranOn: AiRanOn.optional(),
+});
+export type AiUnread = z.infer<typeof AiUnread>;
+/** Why an action didn't answer: its reason, and for an answer that came back unusable, what it was (`unread`). Explain's and Touch up's alike. */
+export const ExplainError = z.object({ error: z.object({ message: z.string(), problem: ExplainProblem, unread: AiUnread.optional() }), ai: PankiAiStatus });
 
 /**
- * An answer: its words, whether it was cut short at Max answer length (the provider's own word), the tokens in and
- * out as the provider counted them and what that came to at the listed price; and Panki AI as it stood for this call,
- * so the extension's kept copy follows any change an admin made.
+ * Explain's fixed shape (the owner, 2026-10-30: every call answers in one; 2026-10-31: a verdict on every meaning): the
+ * explanation, a row for each dictionary meaning sent, by its index, how well it fits this sentence and why, and, when
+ * none fits, the meaning it proposes in its own words, with why. Read by the API's one reader; rows that aren't exactly
+ * one for each meaning sent (`meaningsWhole`), or a proposed meaning beside a fitting row or missing without one
+ * (`explainRuleBroken`), fail the answer whole.
+ */
+export const ExplainShape = z.object({
+  // What each key holds and what Panki does with it, in the owner's words, said in Admin under the prompt
+  // (`answerPartsOf`); never sent to the provider (`schemaFor` leaves descriptions out: the prompt is the template's alone).
+  explanation: z.string().max(AI_TEXT_MAX).describe("what the word means in this sentence; Panki shows it as the answer"),
+  meanings: z.array(MeaningAccuracy).max(200).describe("one row for every meaning in <meaning>, each index once; Panki marks each meaning in the pop-up by its accuracy"),
+  proposedMeaning: ProposedMeaning.nullable().describe("when no row fits, the meaning it proposes; null when one does"),
+});
+export type ExplainShape = z.infer<typeof ExplainShape>;
+
+/**
+ * A follow-up's fixed shape (the owner, 2026-10-31): the answer to the question and nothing else. The verdicts on the
+ * meanings and the proposed meaning stand from the first answer for the whole conversation (judging again is pressing
+ * Explain again), so a follow-up can't fail on them; read by the same one reader, a cut, a refusal or broken JSON are
+ * caught as any answer's are.
+ */
+export const FollowUpShape = z.object({
+  answer: z.string().max(AI_TEXT_MAX).describe("the answer to the follow-up question; Panki shows it under the question"),
+});
+export type FollowUpShape = z.infer<typeof FollowUpShape>;
+/** Whether a follow-up's answer holds anything, said as expected against got for the Log, or null. */
+export const followUpRuleBroken = (answer: FollowUpShape): string | null => (answer.answer.trim() === "" ? expectedGot("an answer", "an empty one") : null);
+
+/**
+ * An answer: its words, a verdict on each meaning sent (none from a Panki from before), whether it was cut short (always
+ * false since every answer is read whole: one cut is a failure), the tokens in and out as the provider counted them and
+ * what that came to at the listed price; and Panki AI as it stood for this call, so the extension's kept copy follows
+ * any change an admin made.
  */
 export const Explained = z.object({
   text: z.string(),
+  /** The answer exactly as it came back, the JSON of its fixed shape: what Details' Conversation shows, and what a follow-up sends back. Empty from a Panki from before. */
+  raw: z.string().default(""),
+  meanings: z.array(MeaningAccuracy).default([]),
+  /** The meaning Panki AI proposes, in its own words with why, when no row fits; null when one does (and from a Panki from before). */
+  proposedMeaning: ProposedMeaning.nullable().default(null),
   cut: z.boolean(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   costMicros: z.number().int().nonnegative(),
+  /** The provider and model the call ran on (`AiRanOn`): Details name it, never the page's own copy. */
+  ranOn: AiRanOn.optional(),
 });
 export type Explained = z.infer<typeof Explained>;
 export const ExplainResponse = z.object({ explain: Explained, ai: PankiAiStatus });
@@ -140,7 +266,7 @@ export function ceilingMicros(model: Pick<AiModel, "inCentsPerMTok" | "outCentsP
 }
 
 /** The whole of what a call sends: the filled prompt, then the conversation so far; how long it is is what Max request length holds. */
-export function explainSent(template: string, ask: ExplainAsk): string[] {
+export function explainSent(template: string, ask: Pick<ExplainAsk, "pieces" | "said">): string[] {
   return [fillTemplate(template, ask.pieces), ...ask.said.map((m) => m.text)];
 }
 export const sentLength = (sent: readonly string[]): number => sent.reduce((sum, text) => sum + text.length, 0);

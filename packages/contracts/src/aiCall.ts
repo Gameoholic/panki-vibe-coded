@@ -1,6 +1,6 @@
-import { AI_PROVIDERS, aiModelOf, type AiProviderId, type PankiAi } from "./ai";
+import { AI_PROVIDERS, aiModelOf, type AiProviderId, type AiRanOn, type PankiAi } from "./ai";
 import type { PromptPieceId } from "./pieces";
-import { ceilingMicros, fillTemplate, variablesIn, type ExplainMessage, type PromptPieces } from "./prompt";
+import { ceilingMicros, fillTemplate, variablesIn, type AiUnread, type ExplainMessage, type MeaningAccuracyId, type PromptPieces } from "./prompt";
 
 /**
  * One call to Panki AI as the page that made it tells of it (the AI's status, the owner, 2026-10-30: "kind of a black
@@ -67,18 +67,33 @@ export function piecesUsed(template: string, pieces: PromptPieces, gaps: PromptG
  */
 export type AiRunWhy = { kind: "pressed"; action: string } | { kind: "followUp" } | { kind: "retry" } | { kind: "auto"; setting: string };
 
+/**
+ * One part of what an answer said, as Details' Conversation shows Panki AI's answer (the owner's pick, 2026-10-31: a
+ * list, the JSON folded under Raw): a key of the action's fixed shape by its name, its verdict as a small tag (Fits,
+ * Proposed, Close, Set aside…, in a look), the value, and the reason. What the page shows anyway (Explain's paragraph, a
+ * field's proposal) is there too, so Details say all the answer said, the parts that change nothing among them.
+ */
+export type AiVerdictLook = "good" | "accent" | "flag" | "danger" | "muted";
+/**
+ * `accuracy`, for a dictionary meaning judged (Explain's rows): the row drawn in that accuracy's look, the one home of
+ * which is `app.css` → `.ai-accuracy.is-…`, in place of the tag's own.
+ */
+export type AiVerdict = { name: string; tag: { words: string; look: AiVerdictLook } | null; value: string; reason: string; accuracy?: MeaningAccuracyId };
+/** A verdict as one line of text, for Copy. */
+export const verdictLine = (v: AiVerdict): string => [v.name + ":", v.tag?.words ?? "", v.value, v.reason].filter((part) => part.trim() !== "").join(" · ");
+
 /** How a call stands: on its way, answered (the provider's own counts, and what they came to), or failed (and why). */
 export type AiOutcome =
   | { kind: "thinking" }
-  | { kind: "answered"; inputTokens: number; outputTokens: number; costMicros: number; cut: boolean; ms: number }
-  | { kind: "failed"; message: string; ms: number };
+  | { kind: "answered"; inputTokens: number; outputTokens: number; costMicros: number; cut: boolean; ms: number; verdicts: readonly AiVerdict[]; raw: string }
+  | { kind: "failed"; message: string; ms: number; unread: AiUnread | null };
 
 export type AiCall = {
   /** What it is, as Details name it among a conversation's calls: "Explain", "Follow-up 1". */
   label: string;
   why: AiRunWhy;
   provider: AiProviderId;
-  /** The model's id, as the settings had it for this call. */
+  /** The model's id: as the settings this page knew had it while the call was on its way, then the one the server says it ran on (`AiRanOn`, `answeredCall`, `failedCall`). */
   model: string;
   /** When it was sent, ms since the epoch (the page's clock: it's only ever the page's own count of how long). */
   sentAt: number;
@@ -106,10 +121,12 @@ type Start = {
   /** The conversation going with it, after the prompt. */
   said: readonly ExplainMessage[];
   now: number;
+  /** The action's own Max answer length, when it isn't Explain's (Touch up's). */
+  maxAnswerTokens?: number;
 };
 
 /** A call as it's sent: everything said of it before an answer, thinking. */
-export function startCall({ label, why, settings, template, pieces, gaps, said, now }: Start): AiCall {
+export function startCall({ label, why, settings, template, pieces, gaps, said, now, maxAnswerTokens = settings.aiMaxAnswerTokens }: Start): AiCall {
   const sent = piecesAsSent(pieces, settings);
   const prompt = fillTemplate(template, sent);
   const model = aiModelOf(settings);
@@ -119,8 +136,8 @@ export function startCall({ label, why, settings, template, pieces, gaps, said, 
     provider: settings.aiProvider,
     model: model.id,
     sentAt: now,
-    ceilingMicros: ceilingMicros(model, [prompt, ...said.map((m) => m.text)], settings.aiMaxAnswerTokens),
-    maxAnswerTokens: settings.aiMaxAnswerTokens,
+    ceilingMicros: ceilingMicros(model, [prompt, ...said.map((m) => m.text)], maxAnswerTokens),
+    maxAnswerTokens,
     pieces: piecesUsed(template, sent, gaps),
     prompt,
     said,
@@ -128,12 +145,20 @@ export function startCall({ label, why, settings, template, pieces, gaps, said, 
   };
 }
 /** The call once its answer is in, with the provider's counts and what they came to at the listed price. */
-export const answeredCall = (call: AiCall, answer: { inputTokens: number; outputTokens: number; costMicros: number; cut: boolean }, now: number): AiCall => ({
+export const answeredCall = (call: AiCall, answer: { inputTokens: number; outputTokens: number; costMicros: number; cut: boolean; raw?: string; ranOn?: AiRanOn }, now: number, verdicts: readonly AiVerdict[] = []): AiCall => ({
   ...call,
-  outcome: { kind: "answered", inputTokens: answer.inputTokens, outputTokens: answer.outputTokens, costMicros: answer.costMicros, cut: answer.cut, ms: now - call.sentAt },
+  ...(answer.ranOn ?? {}),
+  outcome: { kind: "answered", inputTokens: answer.inputTokens, outputTokens: answer.outputTokens, costMicros: answer.costMicros, cut: answer.cut, ms: now - call.sentAt, verdicts, raw: answer.raw ?? "" },
 });
-/** The call once it failed, with why in Panki's words (the server's, or the worker's). */
-export const failedCall = (call: AiCall, message: string, now: number): AiCall => ({ ...call, outcome: { kind: "failed", message, ms: now - call.sentAt } });
+/**
+ * The call once it failed, with why in Panki's words (the server's, or the worker's), and, when the provider did answer
+ * but its answer couldn't be used, that answer as it came, the technical reason and what was metered (`unread`).
+ */
+export const failedCall = (call: AiCall, message: string, now: number, unread: AiUnread | null = null): AiCall => ({
+  ...call,
+  ...(unread?.ranOn ?? {}),
+  outcome: { kind: "failed", message, ms: now - call.sentAt, unread },
+});
 
 /** The model a call ran on, by name, and its provider's: "Claude Haiku 5.5 · Anthropic". A model since taken out of the registry is said by its id. */
 export function modelWords(call: Pick<AiCall, "provider" | "model">): string {

@@ -6,13 +6,14 @@ import { postTo, Tokens, unreadable, type ProviderClient } from "./call";
  * conversation as `messages`, the answer's cap as `max_tokens`. The 5.5 models think unless told otherwise, and their
  * thinking counts against `max_tokens`, so each is asked for the least it takes (`AiModel.least`): thinking off,
  * thinking only between tools (Sonnet 5.5's way of off), or the lowest effort (Opus 5.5, which always thinks). The
- * answer is a list of blocks; its words are the text blocks' (a thinking block is passed over), its tokens `usage`'s,
- * and it was cut short when it stopped at `max_tokens`.
+ * answer's shape is asked for as structured output, `output_config.format` with its JSON Schema: not a forced tool
+ * call, which Sonnet 5.5 and Opus 5.5 refuse (`tool_choice` `tool` / `any` is a 400 on both, read 2026-10-30). The
+ * answer is a list of blocks; its words are the text blocks' (a thinking block is passed over), its tokens `usage`'s;
+ * it was cut short when it stopped at `max_tokens`, and declined when it stopped at `refusal`.
  */
-const LEAST = {
+const THINKING = {
   off: { thinking: { type: "disabled" } },
   betweenTools: { thinking: { type: "between_tools" } },
-  low: { output_config: { effort: "low" } },
 } as const;
 
 const API = "https://api.anthropic.com/v1/messages";
@@ -26,12 +27,14 @@ const Answer = z.object({
 const TextBlock = z.object({ type: z.literal("text"), text: z.string() });
 
 export function createAnthropic(fetcher: typeof fetch): ProviderClient {
-  return async ({ key, model, messages, maxTokens, safetyId }) => {
+  return async ({ key, model, messages, maxTokens, safetyId, format }) => {
     const body = await postTo(fetcher, "anthropic", API, { "x-api-key": key, "anthropic-version": VERSION }, {
       model: model.id,
       max_tokens: maxTokens,
       metadata: { user_id: safetyId },
-      ...(model.least ? LEAST[model.least] : {}),
+      ...(model.least === "off" || model.least === "betweenTools" ? THINKING[model.least] : {}),
+      // Effort and the answer's shape are both `output_config`'s.
+      output_config: { format: { type: "json_schema", schema: format.schema }, ...(model.least === "low" ? { effort: "low" } : {}) },
       messages: messages.map((m) => ({ role: m.role, content: m.text })),
     });
     const answer = Answer.safeParse(body);
@@ -44,6 +47,7 @@ export function createAnthropic(fetcher: typeof fetch): ProviderClient {
     return {
       text: text.join(""),
       cut: stop_reason === "max_tokens",
+      refused: stop_reason === "refusal",
       tokens: usage ? { input: usage.input_tokens, output: usage.output_tokens } : null,
     };
   };

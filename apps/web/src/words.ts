@@ -10,7 +10,11 @@ export const VIDEO_TRACKING_OFF = "Video tracking is off";
 
 /** "1 card", "2 cards", "212,345 words": every count the owner reads is phrased here. */
 export function count(n: number, one: string, many: string) {
-  return `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
+  return `${n.toLocaleString("en")} ${wordFor(n, one, many)}`;
+}
+/** The word alone for a count, with no number: "meaning" for one, "meanings" for any other. The one plural rule, `count`'s. */
+export function wordFor(n: number, one: string, many: string) {
+  return n === 1 ? one : many;
 }
 
 const LIST_WORDS = new Intl.ListFormat("en", { style: "long", type: "conjunction" });

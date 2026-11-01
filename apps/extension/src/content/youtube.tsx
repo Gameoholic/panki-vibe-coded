@@ -304,9 +304,9 @@ function descriptionText(): string {
  * What Explain sends of a video besides the word and its sentence (AI step 2): the video's title, channel and link at
  * the moment it stands at, as text; the lines the strip is reading (Panki's transcript or YouTube's subtitles, as
  * shown) within `aiSurroundingSeconds` either side of that moment, one a line; and its description, cut to
- * `aiMaxDescriptionChars`. Nothing off a video's own page.
+ * `aiMaxDescriptionChars`. Nothing off a video's own page. The drawer's Touch up asks the same, as its card is made.
  */
-function videoPieces(_pointed: Pointed, limits: PieceLimits): PromptPieces {
+function videoPieces(limits: PieceLimits): PromptPieces {
   const id = videoId();
   if (!id || !video || location.pathname !== "/watch") return {};
   const at = video.currentTime;
@@ -516,7 +516,7 @@ const listening = createListening({
   },
   theme: () => siteTheme(),
   parent: () => document.fullscreenElement ?? document.documentElement,
-  aiContext: videoPieces,
+  aiContext: (_pointed, limits) => videoPieces(limits),
 });
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
 const inPlace = cell(false);
@@ -1845,7 +1845,7 @@ function App() {
       taking.of === "caption"
         ? takenFacts("caption", taking.trim.start !== null, wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null)
         : takenFacts("stretch", null, null);
-    const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts };
+    const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts, more: videoPieces };
     const player = video;
     /** A cut as the drawer is handed it: where it stands, and what can be asked of it. */
     const offerOf = (cut: Cut, now: Ends, anchor: number): ClipOffer | null =>

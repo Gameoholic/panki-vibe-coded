@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { NEW_PLACE, exampleShownOf, valuesWithExample, type Card, type CardField, type CardType, type Deck, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { NEW_PLACE, exampleShownOf, sourcesWithExample, valuesWithExample, type Card, type CardField, type CardType, type Deck, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { waveOf } from "../waveform";
 import { Button } from "./Button";
@@ -75,6 +75,8 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
           key={deckId}
           type={shownType}
           values={values}
+          // The spark on what Panki AI wrote: in its own card type's deck, by field; carried into another, it's left out.
+          sources={shownType.id === type.id ? sourcesWithExample(type, card, exampleId) : {}}
           files={card.files}
           srsType={srsType}
           place={deckId === card.deckId ? card.place : NEW_PLACE}

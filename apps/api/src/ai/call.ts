@@ -17,6 +17,13 @@ export type AiMessage = { role: "user" | "assistant"; text: string };
  * for abuse rather than holding the owner's whole key to it.
  */
 export type AiAsk = { key: string; model: AiModel; messages: readonly AiMessage[]; maxTokens: number; safetyId: string };
+/**
+ * The fixed shape an answer is asked in (AI.md: every call answers in one): a name for it and its JSON Schema, as every
+ * provider takes one (`schemaFor`). Each client asks for it in its provider's own way.
+ */
+export type AnswerFormat = { name: string; schema: Record<string, unknown> };
+/** One call as a provider's client is handed it: the ask and the shape its answer must have. */
+export type ShapedAsk = AiAsk & { format: AnswerFormat };
 
 /**
  * An account as a provider is told of it (the owner, 2026-10-30, on Anthropic's own advice to developers whose users
@@ -26,18 +33,32 @@ export type AiAsk = { key: string; model: AiModel; messages: readonly AiMessage[
  * address" recommended). Google's generateContent has no such field, and is told nothing.
  */
 export const safetyIdOf = (userId: string): string => createHash("sha256").update(`panki-account:${userId}`).digest("hex");
-/** What a provider answered: its words, whether it stopped at `maxTokens`, and its own count of the tokens, when it gave one. */
-export type ProviderAnswer = { text: string; cut: boolean; tokens: { input: number; output: number } | null };
+/**
+ * What a provider answered: its words (the JSON of the shape asked for), whether it stopped at `maxTokens`, whether it
+ * declined (OpenAI's `refusal`, Anthropic's `stop_reason: "refusal"`: what it wrote then needn't be the shape), and its
+ * own count of the tokens, when it gave one.
+ */
+export type ProviderAnswer = { text: string; cut: boolean; refused: boolean; tokens: { input: number; output: number } | null };
 /** One provider: a call, in its own shape, and its answer read back into Panki's. */
-export type ProviderClient = (ask: AiAsk) => Promise<ProviderAnswer>;
+export type ProviderClient = (ask: ShapedAsk) => Promise<ProviderAnswer>;
 
-/** What went wrong with a provider, in the owner's words; always the provider's fault as the API answers it (502). */
+/**
+ * What went wrong with a provider, in the owner's words; always the provider's fault as the API answers it (502).
+ * For an answer it did give that couldn't be used (cut short, declined, not JSON, not the shape, against one of Panki's
+ * rules): `tokens`, what the provider billed, metered all the same since it was paid for; `raw`, the text exactly as it
+ * came; and `detail`, the technical reason, for Details' Log alone (the message stays plain).
+ */
 export class AiError extends Error {
-  constructor(
-    message: string,
-    readonly status = 502,
-  ) {
+  readonly tokens: { input: number; output: number } | null;
+  readonly raw: string | null;
+  readonly detail: string | null;
+  readonly status: number;
+  constructor(message: string, said: { tokens?: { input: number; output: number }; raw?: string; detail?: string; status?: number } = {}) {
     super(message);
+    this.tokens = said.tokens ?? null;
+    this.raw = said.raw ?? null;
+    this.detail = said.detail ?? null;
+    this.status = said.status ?? 502;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
 type Props = {
   id: string;
@@ -26,12 +26,17 @@ type Props = {
    */
   mark?: { from: number; to: number } | null;
   className?: string;
+  /**
+   * Drawn inside the box, before the text (the first line's, in a box of several): a mark on what the field holds, Panki
+   * AI's spark on what it wrote (the owner, 2026-10-31: in the box before the value, in the accent, not after the label).
+   */
+  lead?: ReactNode;
   /** Names the field for the checks that drive the real UI. */
   "data-field"?: string;
 };
 
 /** A labelled text input, one line or several, with the app's own error bubble under it; never Chrome's "Please fill out this field." */
-export function TextField({ id, label, value, onChange, error, multiline = false, onEnter, type = "text", lang, autoFocus, autoComplete, readOnly = false, disabled = false, mark, className = "", "data-field": dataField }: Props) {
+export function TextField({ id, label, value, onChange, error, multiline = false, onEnter, type = "text", lang, autoFocus, autoComplete, readOnly = false, disabled = false, mark, className = "", lead, "data-field": dataField }: Props) {
   const behind = useRef<HTMLDivElement>(null);
   const shared = {
     id,
@@ -63,36 +68,46 @@ export function TextField({ id, label, value, onChange, error, multiline = false
       }}
     />
   );
+  const input = !multiline ? (
+    <input {...shared} type={type} onChange={(e) => onChange(e.target.value)} onKeyDown={onEnter ? handleKeyDown : undefined} />
+  ) : mark === undefined ? (
+    box
+  ) : (
+    // A box can't light part of its own text, so the text is drawn once more behind it, in the same type and the
+    // same room, with only the lit stretch showing; the box is see-through. It's there whether or not anything is
+    // lit, so the box is never made anew (and the cursor lost) as the lit stretch comes and goes.
+    <div className="field-marked">
+      <div ref={behind} className="field-input field-behind" lang={lang} aria-hidden="true">
+        {mark ? (
+          <>
+            {value.slice(0, mark.from)}
+            <mark>{value.slice(mark.from, mark.to)}</mark>
+            {value.slice(mark.to)}
+          </>
+        ) : (
+          value
+        )}
+        {/* A box keeps a last empty line open; so does this. */}
+        {"\n"}
+      </div>
+      {box}
+    </div>
+  );
   return (
-    <div className={`field ${error ? "field-invalid" : ""} ${className}`.trim()}>
+    <div className={`field ${error ? "field-invalid" : ""} ${lead ? "has-lead" : ""} ${className}`.trim()}>
       <label className="field-label" htmlFor={id}>
         {label}
       </label>
-      {!multiline ? (
-        <input {...shared} type={type} onChange={(e) => onChange(e.target.value)} onKeyDown={onEnter ? handleKeyDown : undefined} />
-      ) : mark === undefined ? (
-        box
-      ) : (
-        // A box can't light part of its own text, so the text is drawn once more behind it, in the same type and the
-        // same room, with only the lit stretch showing; the box is see-through. It's there whether or not anything is
-        // lit, so the box is never made anew (and the cursor lost) as the lit stretch comes and goes.
-        <div className="field-marked">
-          <div ref={behind} className="field-input field-behind" lang={lang} aria-hidden="true">
-            {mark ? (
-              <>
-                {value.slice(0, mark.from)}
-                <mark>{value.slice(mark.from, mark.to)}</mark>
-                {value.slice(mark.to)}
-              </>
-            ) : (
-              value
-            )}
-            {/* A box keeps a last empty line open; so does this. */}
-            {"\n"}
-          </div>
-          {box}
-        </div>
-      )}
+      {/* A mark inside the box stands over its padding, which makes room for it while it's there (`.has-lead`): the box
+          stays one box, always in this holder, so a mark coming or going never makes it anew (and the cursor lost). */}
+      <div className="field-leads">
+        {lead ? (
+          <span className="field-lead" aria-hidden="true">
+            {lead}
+          </span>
+        ) : null}
+        {input}
+      </div>
       {error ? (
         <div id={`${id}-error`} className="field-error" role="alert">
           {error}

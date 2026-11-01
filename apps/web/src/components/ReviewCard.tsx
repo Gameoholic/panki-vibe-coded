@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type R
 import {
   DEFAULT_SUBTITLE_STYLE,
   MediaId,
+  byAi,
   holdsFile,
   holdsLink,
   holdsPitch,
@@ -21,7 +22,9 @@ import {
   type StageTag,
   type SubtitleStyle,
   type TagCorner,
+  type ValueSource,
 } from "@panki/contracts";
+import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
 import type { Heard, Shortcut } from "../keys";
@@ -188,6 +191,8 @@ type Props = {
    * whatever the layout; at the card's end when none is drawn. None by default.
    */
   examplePager?: ReactNode;
+  /** Where each value came from (`Card.sources`): a value Panki AI wrote carries the spark before its words. None by default. */
+  sources?: Readonly<Record<string, ValueSource>>;
 };
 
 /**
@@ -230,6 +235,7 @@ export function ReviewCard({
   hint = true,
   keys = true,
   examplePager = null,
+  sources,
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
@@ -394,11 +400,16 @@ export function ReviewCard({
   /** Words as their part has them: their name over them when it's to be shown, and a reading over them when one is set to be. */
   function words(part: LayoutPart, field: CardField, value: ReactNode, blank = false, text = String(value)) {
     const reading = readingOver(field.id);
+    // What Panki AI wrote carries its spark wherever it's shown (AI.md): before the words, never in them.
+    const ai = !blank && byAi(sources, field.id) ? <AiSpark className="review-ai" /> : null;
     return (
       <div className={`review-words ${kindClass(field.kind)} ${blank ? "review-blank" : ""}`.trim()} lang={blank ? undefined : langOf(text)}>
         {part.label ? <span className="review-label">{field.name}</span> : null}
         {reading === null ? (
-          value
+          <>
+            {ai}
+            {value}
+          </>
         ) : (
           // On a line of its own with room above it for the reading, clear of the field name over it; in the reading's own colour.
           <span className="review-ruby-line">

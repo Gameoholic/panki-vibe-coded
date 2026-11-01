@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -820,9 +820,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         return;
       }
       if (!card) return;
-      // Another of the card's examples, either way, with its key held as long as it's set to be.
-      const back = exampleIds.length > 1 ? keyIn(binds.examplePrev, key) : null;
-      const on = exampleIds.length > 1 && !back ? keyIn(binds.exampleNext, key) : null;
+      // Another of the card's examples, either way, with its key held as long as it's set to be; a player's line with the
+      // focus keeps its own arrows (← and → are the examples' to begin with).
+      const onLine = e.target instanceof HTMLElement && e.target.closest("[role='slider']") !== null;
+      const back = exampleIds.length > 1 && !onLine ? keyIn(binds.examplePrev, key) : null;
+      const on = exampleIds.length > 1 && !onLine && !back ? keyIn(binds.exampleNext, key) : null;
       const step = back ? -1 : on ? 1 : 0;
       if (step !== 0) {
         e.preventDefault();
@@ -1058,6 +1060,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           key={`${card.id}-${exampleId ?? ""}`}
           type={type}
           values={valuesWithExample(type, card, onScreen)}
+          sources={sourcesWithExample(type, card, onScreen)}
           files={card.files}
           srsType={srsType}
           place={card.place}
