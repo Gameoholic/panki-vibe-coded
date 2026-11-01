@@ -268,24 +268,25 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         {pictured ? (
           <Setting id="part-subtitles" label="Subtitles" control={<Toggle id="part-subtitles-on" says={{ on: "Shown", off: "Hidden" }} on={part.subtitles} onChange={(subtitles) => update(id, { subtitles })} />} />
         ) : null}
-        {pictured && part.subtitles ? highlight : null}
-        {/* Under the Highlight, whose words are the ones Blur word blurs. */}
-        {pictured && part.subtitles ? (
+        {/* The subtitles' own While listening, right under their switch so it reads as theirs, greyed while they're hidden or Listen first is off. */}
+        {pictured ? (
           <Setting
             id="part-listen-subtitles"
-            label="Subtitles while listening"
+            label="While listening"
             control={
               <Segmented
                 idPrefix="part-listen-subtitles"
                 label="Subtitles while listening"
                 options={LISTEN_SUBTITLE_OPTIONS}
                 value={part.listenSubtitles}
-                disabled={!listen.on}
+                disabled={!listen.on || !part.subtitles}
+                wrap
                 onChange={(listenSubtitles) => update(id, { listenSubtitles })}
               />
             }
           />
         ) : null}
+        {pictured && part.subtitles ? highlight : null}
         {media ? (
           <Setting
             id="part-auto"

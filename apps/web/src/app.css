@@ -324,6 +324,17 @@ body {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+/* Segmented's `wrap`: the row's full width under its label, each cell's words on one line, the cells going onto a
+   second row (stretched to fill it) when they don't fit. */
+.segmented-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+}
+.segmented-wrap > .btn-seg {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
 .btn-seg {
   padding: 8px 10px;
   border-radius: 8px;

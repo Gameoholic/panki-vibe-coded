@@ -34,10 +34,10 @@ export const LISTEN_OPTIONS: readonly { id: ListenShow; label: string }[] = [
   { id: "blur", label: "Blur" },
   { id: "hide", label: "Hide" },
 ];
-/** What the Listen phase does with a clip's subtitles: the card's word blurred in them is its Highlight (else the type's main field). */
+/** What the Listen phase does with a clip's subtitles: what's blurred in them is its Highlight (else the type's main field), named so (the owner, 2026-11-01). */
 export const LISTEN_SUBTITLE_OPTIONS: readonly { id: ListenSubtitles; label: string }[] = [
   { id: "show", label: "Show" },
-  { id: "word", label: "Blur word" },
+  { id: "word", label: "Blur highlight" },
   { id: "blur", label: "Blur" },
   { id: "hide", label: "Hide" },
 ];
