@@ -25,6 +25,7 @@ import { Icon } from "../components/Icon";
 import { ReviewCard, listensFirst } from "../components/ReviewCard";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
+import { ShowButton } from "../components/ShowButton";
 import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
@@ -405,6 +406,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           shortcuts={trying ? mediaKeys : undefined}
           restarts={trying ? restartKeys : undefined}
           screenKey={trying ? screenKey : null}
+          // Previewed, the review's own button under it shows what's next, as a review's does, so there's no "Tap to reveal".
+          hint={!trying}
           {...(trying
             ? {}
             : {
@@ -418,6 +421,11 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
                 },
               })}
         />
+        {trying && face !== "back" ? (
+          <div className="review-actions">
+            <ShowButton listening={face === "listen"} bind={binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
+          </div>
+        ) : null}
         {trying ? (
           <p className="layout-note">Press the card to turn it, a spoiler to open it.</p>
         ) : away.length > 0 ? (

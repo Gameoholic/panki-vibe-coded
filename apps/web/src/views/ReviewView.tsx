@@ -8,6 +8,7 @@ import { KeyCap, holdFor } from "../components/KeyCap";
 import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
 import { ReviewCard, listensFirst } from "../components/ReviewCard";
+import { ShowButton } from "../components/ShowButton";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { useHold } from "../hooks/useHold";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
@@ -1165,19 +1166,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
                   </Button>
                 ),
               )
-            ) : listening ? (
-              // In Show answer's place, with its key: the card's front, out of its Listen phase.
-              <Button variant="primary" size="lg" data-hold="reveal" onClick={showCard}>
-                <Icon name="eye" />
-                Show card
-                <KeyCap bind={binds.reveal} />
-              </Button>
             ) : (
-              <Button variant="primary" size="lg" data-hold="reveal" onClick={reveal}>
-                <Icon name="eye" />
-                Show answer
-                <KeyCap bind={binds.reveal} />
-              </Button>
+              // Listened to, Show card stands in Show answer's place, with its key: the card's front, out of its Listen phase.
+              <ShowButton listening={listening} bind={binds.reveal} onPress={listening ? showCard : reveal} />
             )}
           </div>
           {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}
