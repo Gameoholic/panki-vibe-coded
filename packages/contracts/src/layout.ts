@@ -36,6 +36,17 @@ export type AutoPlay = z.infer<typeof AutoPlay>;
 /** Whether a part plays by itself on this side. */
 export const playsOn = (plays: AutoPlay, side: "front" | "back") => plays === "both" || plays === (side === "front" ? "shown" : "turned");
 
+/**
+ * What the Listen phase does with a part on the front (`ListenFirst`): shows it, blurs it, or leaves it unseen, its
+ * room kept either way so nothing moves as the front shows. A blurred sound or clip still plays, its picture blurred;
+ * a hidden one doesn't.
+ */
+export const ListenShow = z.enum(["show", "blur", "hide"]);
+export type ListenShow = z.infer<typeof ListenShow>;
+/** What the Listen phase does with a clip's subtitles: shows them, blurs the card's word in them alone (the part's Highlight), blurs them, or leaves them off. */
+export const ListenSubtitles = z.enum(["show", "word", "blur", "hide"]);
+export type ListenSubtitles = z.infer<typeof ListenSubtitles>;
+
 /** One field's part on the card. What doesn't apply to its kind (a size for a link, a look for words) is kept and unused. */
 export const LayoutPart = z.object({
   fieldId: z.uuid(),
@@ -77,6 +88,10 @@ export const LayoutPart = z.object({
    * video".
    */
   subtitles: z.boolean(),
+  /** What the Listen phase does with it, while its type has Listen first on (`ListenFirst`); shown to begin with, and for a layout sent from before. */
+  listen: ListenShow.default("show"),
+  /** What the Listen phase does with its clip's subtitles, where they're on; shown to begin with. */
+  listenSubtitles: ListenSubtitles.default("show"),
 });
 export type LayoutPart = z.infer<typeof LayoutPart>;
 
@@ -102,6 +117,20 @@ export const StageTag = z.object({ shown: z.boolean(), size: PartSize, corner: T
 export type StageTag = z.infer<typeof StageTag>;
 /** As every card had it before it could be laid out: shown, at its size, top left. */
 export const DEFAULT_STAGE_TAG: StageTag = { shown: true, size: "normal", corner: "top-left" };
+
+/** The most hearings Listen first can wait for before the card shows itself. */
+export const LISTEN_HEARD_MAX = 5;
+/**
+ * Listen first (the owner, 2026-11-01: "I recognise words just by their spelling and the video context, not by hearing
+ * the word… understanding by hearing matters more"): a type's cards open in a review on a Listen phase before the
+ * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Show card, or
+ * any one of them heard to its end `heard` times (null: only by the button), shows the front. Like the stage tag, the
+ * type's own, apart from its fields. A card with nothing to hear opens on its front.
+ */
+export const ListenFirst = z.object({ on: z.boolean(), heard: z.number().int().min(1).max(LISTEN_HEARD_MAX).nullable() });
+export type ListenFirst = z.infer<typeof ListenFirst>;
+/** As every type has it until it's switched on: off, and twice heard once it is. */
+export const DEFAULT_LISTEN_FIRST: ListenFirst = { on: false, heard: 2 };
 
 /** The card's two sides. */
 export type CardSide = "front" | "back";

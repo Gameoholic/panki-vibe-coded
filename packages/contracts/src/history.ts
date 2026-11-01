@@ -36,6 +36,8 @@ export const ReviewSessionEnd = z.object({
   cardId: CardId.optional(),
   shownMs: Ms.optional(),
   revealed: z.boolean().optional(),
+  /** Where that card stood, when it opened on a Listen phase (its type's Listen first): still listened to, on its front, or turned. Left out otherwise. */
+  phase: z.enum(["listen", "front", "back"]).optional(),
 });
 export type ReviewSessionEnd = z.infer<typeof ReviewSessionEnd>;
 export const ReviewSessionResponse = z.object({ session: ReviewSession });

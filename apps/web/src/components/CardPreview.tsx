@@ -5,7 +5,10 @@ import { waveOf } from "../waveform";
 import { Button } from "./Button";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icon";
-import { ReviewCard } from "./ReviewCard";
+import { ReviewCard, listensFirst } from "./ReviewCard";
+
+/** What's showing of the card: its Listen phase (its type's Listen first), its front, or its back. */
+type Face = "listen" | "front" | "back";
 
 type Props = {
   card: Card;
@@ -40,18 +43,24 @@ function carried(from: CardType, to: CardType, values: Readonly<Record<string, s
  * One card as a review would show it in the deck picked (the owner, 2026-10-29: "see how they'd look like in a specific
  * deck, I get to choose which deck"): its own deck to begin with. In a deck of its own card type it's exactly that
  * deck's card, the example its Example shown picks; in another, the card type's fields take the values of this card's
- * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. Turned by a press;
- * nothing plays by itself.
+ * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. A card type with
+ * Listen first opens it on its Listen phase, as a review does, and it shows its front once heard enough. Turned by a
+ * press, round from its Listen phase to its back; nothing plays by itself.
  */
 export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle, onClose }: Props) {
   const [deckId, setDeckId] = useState(card.deckId);
-  const [revealed, setRevealed] = useState(false);
   const deck = decks.find((d) => d.id === deckId) ?? null;
   const shownType = deck ? (deck.typeId === type.id ? type : (types.find((t) => t.id === deck.typeId) ?? null)) : null;
   const srsType = deck ? (srsTypes.find((s) => s.id === deck.srsTypeId) ?? null) : null;
   // The example the deck shows, picked once for each deck looked at, as a review picks it once each time the card comes up.
   const exampleId = useMemo(() => (deck && deck.typeId === type.id ? exampleShownOf(type, card, deck.settings.exampleShown, Math.random) : null), [deck, type, card]);
   const values = shownType === null ? {} : shownType.id === type.id ? valuesWithExample(type, card, exampleId) : carried(type, shownType, card.values);
+  /** Where it opens: its Listen phase in a deck whose card type listens first and with something to hear, else its front. */
+  const opening: Face = shownType && listensFirst(shownType, values, card.files) ? "listen" : "front";
+  // Held as the face chosen and the deck it was chosen in: another deck picked opens the card afresh.
+  const [chosen, setFace] = useState<{ deckId: string; face: Face } | null>(null);
+  const face = chosen && chosen.deckId === deckId ? chosen.face : opening;
+  const turn = () => setFace({ deckId, face: face === "listen" ? "front" : face === "front" ? "back" : opening });
 
   return (
     <div className="card-preview">
@@ -61,10 +70,7 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
           label="Deck"
           options={decks.map((d) => ({ id: d.id, label: d.name }))}
           value={deckId}
-          onChange={(id) => {
-            setDeckId(id);
-            setRevealed(false);
-          }}
+          onChange={setDeckId}
         />
         <Button className="btn-icon" aria-label="Close the preview" onClick={onClose}>
           <Icon name="close" />
@@ -78,8 +84,10 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
           files={card.files}
           srsType={srsType}
           place={deckId === card.deckId ? card.place : NEW_PLACE}
-          revealed={revealed}
-          onPress={() => setRevealed((was) => !was)}
+          revealed={face === "back"}
+          listening={face === "listen"}
+          onListened={() => setFace({ deckId, face: "front" })}
+          onPress={turn}
           srcOf={api.mediaUrl}
           waveOf={waveOf}
           cues={card.cues}

@@ -2385,6 +2385,52 @@ mark.sub-mark {
   font-weight: 600;
 }
 
+/* Listen first (components/ReviewCard.tsx, a type's `ListenFirst`): the card's Listen phase, before its front. A part
+   blurred or hidden keeps exactly its room, so nothing moves as the front shows. Blurred words, a picture or a link
+   are out of reach (`inert` in the review) and can't be selected; a blurred sound or clip still plays, its picture
+   blurred. The blur is a share of the words' own size, so big words are as unreadable as small ones; a picture's is
+   fixed. On the card being laid out, a hidden part stays faintly there, to be picked. */
+.review-part.listen-blur {
+  --listen-blur: 0.4em;
+}
+.review-part.listen-blur:has(img.media-frame) {
+  --listen-blur: 18px;
+}
+.review-part.listen-blur:not(.is-editable) > *,
+.review-part.listen-blur.is-editable .review-part-body,
+.review-ruby rt.listen-blur {
+  filter: blur(var(--listen-blur, 0.4em));
+  user-select: none;
+  pointer-events: none;
+}
+.review-part.listen-veil video.media-frame {
+  filter: blur(24px);
+}
+.review-part.listen-hide,
+.review-ruby rt.listen-hide {
+  visibility: hidden;
+}
+.review-card.is-editing .review-part.listen-hide,
+.review-card.is-editing .review-ruby rt.listen-hide {
+  visibility: visible;
+  opacity: 0.3;
+}
+/* A clip's subtitles while listening (`LayoutPart.listenSubtitles`): the whole line blurred, or the card's word alone,
+   unlit, in it. */
+.sub-band.is-blurred,
+mark.sub-blur {
+  filter: blur(0.35em);
+  user-select: none;
+}
+.sub-ground > .sub-band.is-blurred {
+  pointer-events: none;
+}
+mark.sub-blur {
+  padding: 0 0.12em;
+  color: inherit;
+  background: none;
+}
+
 /* A card type's Layout (views/LayoutView.tsx): the card with what's above and under it, and the picked part's
    choices. One column; on a wide screen the choices stand beside the card (below). */
 .layout-editor {
@@ -2423,6 +2469,13 @@ mark.sub-mark {
   border-style: dashed;
   font-size: 13px;
   padding: 3px 10px;
+}
+/* What's the type's own (Listen first), above the picked part's choices and apart from them. */
+.layout-type-rows {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
 }
 .layout-part-title {
   margin: 0;

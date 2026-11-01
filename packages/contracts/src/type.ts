@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CardLayout, DEFAULT_STAGE_TAG, StageTag } from "./layout";
+import { CardLayout, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, ListenFirst, StageTag } from "./layout";
 import { MediaId, type MediaKind } from "./media";
 import { youtubeMetaOf, type YouTubeLink, type YouTubeMeta } from "./youtube";
 
@@ -98,6 +98,8 @@ export const NewCardType = z.object({
   layout: CardLayout.optional(),
   /** Where its cards' stage tag sits and how (`layout.ts` → `StageTag`); left out, as it stands (or the default). */
   tag: StageTag.optional(),
+  /** Whether its cards open on a Listen phase in a review, and how (`layout.ts` → `ListenFirst`); left out, as it stands (or off). */
+  listen: ListenFirst.optional(),
   /**
    * The field its cards are called by (`wordsFieldOf`): what names a card and what a card already there is found by
    * (the warning on adding, the duplicates, the popup, the highlighting). Picked by the owner, never assumed (2026-10-25:
@@ -115,6 +117,8 @@ export const CardType = NewCardType.extend({
   layout: CardLayout,
   /** The stage tag as it stands; a type from before it could be laid out (or an older server) has the default. */
   tag: StageTag.default(DEFAULT_STAGE_TAG),
+  /** Listen first as it stands; a type it was never switched on for (or an older server) has it off. */
+  listen: ListenFirst.default(DEFAULT_LISTEN_FIRST),
   /** Its main field as it stands, a field of words it has; null when none is picked (or from an older server). */
   mainField: CardFieldId.nullable().default(null),
   /** Stamped by the API, ms since epoch. */

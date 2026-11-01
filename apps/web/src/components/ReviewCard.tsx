@@ -10,11 +10,14 @@ import {
   partsOn,
   pitchesOf,
   playsOn,
+  wordsFieldOf,
   type CardField,
   type CardPlace,
   type CardSide,
   type CardType,
   type LayoutPart,
+  type ListenFirst,
+  type ListenShow,
   type MediaCues,
   type MediaKind,
   type SrsType,
@@ -136,6 +139,16 @@ type Props = {
   /** Turned to its back. */
   revealed: boolean;
   /**
+   * In its Listen phase, before its front (its type's Listen first): the front, each part shown, blurred or hidden as
+   * its `listen` says, keeping its room so nothing moves as the front shows; its sounds and clips there to hear, but a
+   * hidden one. What plays by itself when the card comes up plays now. Off by default.
+   */
+  listening?: boolean;
+  /** Listen first to go by in place of the type's own: one being laid out. */
+  listen?: ListenFirst;
+  /** While listening, one sound or clip heard to its end as many times as Listen first waits for (`heard`): the card is to show its front. */
+  onListened?: () => void;
+  /**
    * A press anywhere on the card but on a file's own player or a spoiler, or Enter or Space while the card has the focus.
    * Left out, a press on it does nothing: the review turns its card by its key and Show answer alone (the owner,
    * 2026-10-25).
@@ -199,12 +212,42 @@ export type StandIn = (subtitles: (cues: MediaCues, time: ClipTime) => ReactNode
 /** A part to draw on a side: its field, and whether it's only holding its place on the front for the back, unseen. */
 type Drawn = { part: LayoutPart; field: CardField; held: boolean };
 
+/** Whether a field's value on a card is a sound or a clip to play. */
+function playableOf(field: CardField, values: Readonly<Record<string, string>>, files: Readonly<Record<string, MediaKind>> | undefined): boolean {
+  const kind = fileKindOf(field.kind, values[field.id] ?? "", files);
+  return kind === "audio" || kind === "video";
+}
+
+/**
+ * Whether a card opens on its Listen phase: its type has Listen first on, and its front shows a sound or a clip that
+ * the Listen phase doesn't hide. A card with nothing to hear opens on its front.
+ */
+export function listensFirst(type: CardType, values: Readonly<Record<string, string>>, files: Readonly<Record<string, MediaKind>> | undefined, listen: ListenFirst = type.listen, layout: readonly LayoutPart[] = type.layout): boolean {
+  if (!listen.on) return false;
+  const fields = new Map(type.fields.map((f) => [f.id, f]));
+  return layout.some((part) => {
+    const field = fields.get(part.fieldId);
+    return field !== undefined && part.front === "show" && part.listen !== "hide" && playableOf(field, values, files);
+  });
+}
+
+/**
+ * How the Listen phase draws a part (`app.css`, "Listen first"): blurred words or a picture are out of reach (`inert`),
+ * a blurred sound or clip still plays, its picture blurred, and a hidden part keeps its room unseen.
+ */
+const VEIL_CLASS: Record<Exclude<ListenShow, "show">, { still: string; playing: string }> = {
+  blur: { still: "listen-blur", playing: "listen-veil" },
+  hide: { still: "listen-hide", playing: "listen-hide" },
+};
+
 /**
  * The card as a review shows it, drawn from its type's layout: each field where the layout puts it, in its size and
  * colour, beside the one above when it's set to be; on the front what the front shows, and once it's turned what the
  * back does. A spoiler is covered until it's pressed, and stays open when the card is turned. What only the back shows
- * keeps its room on the front, unseen, so turning the card moves nothing. What a press does is the caller's: a review
- * turns it once, a look at a card being made turns it back and forth. Never a second drawing of a card's two sides.
+ * keeps its room on the front, unseen, so turning the card moves nothing. A type with Listen first opens a card with
+ * something to hear on its Listen phase (`listening`), the front with each part shown, blurred or hidden. What a press
+ * does is the caller's: a review turns it once, a look at a card being made turns it back and forth. Never a second
+ * drawing of a card's two sides.
  */
 export function ReviewCard({
   type,
@@ -213,6 +256,9 @@ export function ReviewCard({
   srsType,
   place,
   revealed,
+  listening = false,
+  listen = type.listen,
+  onListened,
   onPress,
   srcOf,
   standIns,
@@ -249,6 +295,32 @@ export function ReviewCard({
     setCued(null);
     if (!revealed) setOpened(new Set());
   }, [revealed]);
+
+  /** In the Listen phase: on the front, never once it's turned. */
+  const inListen = listening && !revealed;
+  /** What the Listen phase does with a part: nothing outside it. */
+  const veilOf = (part: LayoutPart): ListenShow => (inListen ? part.listen : "show");
+  // A hearing is a sound or clip played to its end: paused and played on is one, played again after its end another.
+  // Any one of them heard as many times as Listen first waits for shows the front. Heard on the card itself, in the
+  // capture phase, since a media element's end doesn't bubble: every look of every player is heard alike.
+  const heard = useRef(new Map<string, number>());
+  const listened = useRef(onListened);
+  listened.current = onListened;
+  const heardTimes = listen.heard;
+  useEffect(() => {
+    heard.current = new Map();
+    const el = card.current;
+    if (!el || !inListen || heardTimes === null) return;
+    const onEnded = (e: Event) => {
+      const fieldId = e.target instanceof Element ? e.target.closest("[data-part]")?.getAttribute("data-part") : null;
+      if (!fieldId) return;
+      const times = (heard.current.get(fieldId) ?? 0) + 1;
+      heard.current.set(fieldId, times);
+      if (times >= heardTimes) listened.current?.();
+    };
+    el.addEventListener("ended", onEnded, true);
+    return () => el.removeEventListener("ended", onEnded, true);
+  }, [inListen, heardTimes]);
 
   const drawn: Drawn[] = layout.flatMap((part) => {
     const field = fields.get(part.fieldId);
@@ -342,17 +414,20 @@ export function ReviewCard({
   }
   /**
    * A clip's subtitles, when its part has them on and the clip was recorded with its words: following it as it plays,
-   * in the app's subtitle style, with its Highlight lit in each line it's in.
+   * in the app's subtitle style, with its Highlight lit in each line it's in. In the Listen phase, as its part's
+   * `listenSubtitles` says: shown, the card's word blurred (its Highlight, else the type's main field), the line
+   * blurred, or none.
    */
   function subtitlesOf(part: LayoutPart, said: MediaCues | undefined, time?: ClipTime): ReactNode {
     if (!part.subtitles || !said || said.length === 0) return null;
-    return <ClipSubtitles cues={said} style={subtitleStyle} time={time} lit={litOf(part)} />;
+    const veil = inListen ? part.listenSubtitles : "show";
+    if (veil === "hide") return null;
+    const main = wordsFieldOf(type);
+    const word = veil === "word" ? litOf(part) || (main ? (values[main.id] ?? "").trim() : "") : litOf(part);
+    return <ClipSubtitles cues={said} style={subtitleStyle} time={time} lit={word} blur={veil === "word" ? "word" : veil === "blur" ? "line" : null} />;
   }
   /** The file a field's value is, to be played: none for words, a link, a picture, or a file not there. */
-  const playable = (field: CardField) => {
-    const kind = fileKindOf(field.kind, values[field.id] ?? "", files);
-    return kind === "audio" || kind === "video";
-  };
+  const playable = (field: CardField) => playableOf(field, values, files);
   /** Each sound and clip's key, and its restart keys, in the card's order across both sides, so turning the card changes none. */
   const keyOf = new Map<string, Shortcut>();
   const restartOf = new Map<string, readonly Heard[]>();
@@ -371,9 +446,11 @@ export function ReviewCard({
 
   // What plays by itself: in the card's order, each once on a side, on the side its part says (`playsOn`: when the
   // card comes up, when it's turned, or both), a spoiler as it's opened; one that leaves the card while it plays is done.
-  const due = autoplay && !edit && srcOf ? drawn.filter((d) => !d.held && playsOn(d.part.plays, side) && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
+  // The card comes up as its Listen phase starts; one the Listen phase hides plays as the front shows instead.
+  const heardNow = (d: Drawn) => !d.held && veilOf(d.part) !== "hide";
+  const due = autoplay && !edit && srcOf ? drawn.filter((d) => heardNow(d) && playsOn(d.part.plays, side) && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
   const next = due[0]?.field.id ?? null;
-  const liveKey = drawn.filter((d) => !d.held).map((d) => d.field.id).join(" ");
+  const liveKey = drawn.filter(heardNow).map((d) => d.field.id).join(" ");
   useEffect(() => {
     if (cued !== null && !liveKey.split(" ").includes(cued)) {
       setPlayed((was) => new Set(was).add(cued));
@@ -391,6 +468,12 @@ export function ReviewCard({
     setCued((now) => (now === fieldId ? null : now));
   }
 
+  /** How the Listen phase draws the reading over a part's words, by the reading's own part: blurred or unseen, or as it is. */
+  function readingVeil(fieldId: string): string {
+    const reading = readingFor.get(fieldId);
+    const veil = reading ? veilOf(reading.part) : "show";
+    return veil === "show" ? "" : VEIL_CLASS[veil].still;
+  }
   /** Words as their part has them: their name over them when it's to be shown, and a reading over them when one is set to be. */
   function words(part: LayoutPart, field: CardField, value: ReactNode, blank = false, text = String(value)) {
     const reading = readingOver(field.id);
@@ -404,7 +487,7 @@ export function ReviewCard({
           <span className="review-ruby-line">
             <ruby className="review-ruby">
               {value}
-              <rt className={`tone-${readingFor.get(field.id)?.part.tone ?? "quiet"}`}>{reading}</rt>
+              <rt className={`tone-${readingFor.get(field.id)?.part.tone ?? "quiet"} ${readingVeil(field.id)}`.trim()}>{reading}</rt>
             </ruby>
           </span>
         )}
@@ -480,9 +563,14 @@ export function ReviewCard({
   /** One part: covered as a spoiler, held unseen for the back, or as it is; on a card being laid out, something to pick and move. */
   function partView({ part, field, held }: Drawn): ReactNode {
     const hidden = covered(part);
-    const inner = content(part, field, !edit && !held && !hidden);
+    const veil = held ? "show" : veilOf(part);
+    const inner = content(part, field, !edit && !held && !hidden && veil !== "hide");
     if (inner === null) return null;
-    const look = `review-part size-${part.size} tone-${part.tone} ${part.bold ? "is-bold" : ""}`.trim();
+    // In the Listen phase, blurred or unseen; out of reach unless it's a sound or a clip that's still there to hear.
+    const veilClass = veil === "show" ? "" : VEIL_CLASS[veil][playable(field) ? "playing" : "still"];
+    const away = !edit && veilClass !== "" && veilClass !== VEIL_CLASS.blur.playing;
+    const look = `review-part size-${part.size} tone-${part.tone} ${part.bold ? "is-bold" : ""} ${veilClass}`.replace(/\s+/g, " ").trim();
+    const reach = away ? { inert: true, "aria-hidden": true } : {};
     if (held) {
       return (
         <div key={field.id} className={`${look} is-later`} aria-hidden="true">
@@ -518,11 +606,13 @@ export function ReviewCard({
           key={field.id}
           variant="spoiler"
           className={look}
+          data-part={field.id}
           aria-label={`${field.name}, covered: press to see it`}
           onClick={(e) => {
             e.stopPropagation();
             setOpened((was) => new Set(was).add(field.id));
           }}
+          {...reach}
         >
           <span className="review-part-body" inert>
             {inner}
@@ -531,7 +621,7 @@ export function ReviewCard({
       );
     }
     return (
-      <div key={field.id} className={look}>
+      <div key={field.id} className={look} data-part={field.id} {...reach}>
         {inner}
       </div>
     );
@@ -601,7 +691,7 @@ export function ReviewCard({
   const pressable = edit || !onPress ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
 
   return (
-    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
+    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${inListen ? "is-listening" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
       <StageTagSpot tag={tag} edit={edit} card={card}>
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>

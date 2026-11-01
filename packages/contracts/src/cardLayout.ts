@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AutoPlay, DEFAULT_STAGE_TAG, FaceShow, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type StageTag } from "./layout";
+import { AutoPlay, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, FaceShow, LISTEN_HEARD_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type StageTag } from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -19,6 +19,8 @@ const KeptPart = z.object({
   over: z.string().nullable().optional().catch(undefined),
   mark: z.string().nullable().optional().catch(undefined),
   subtitles: z.boolean().optional().catch(undefined),
+  listen: ListenShow.optional().catch(undefined),
+  listenSubtitles: ListenSubtitles.optional().catch(undefined),
 });
 
 type FieldLike = Pick<CardField, "id" | "kind" | "side">;
@@ -46,6 +48,8 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     over: null,
     mark: null,
     subtitles: false,
+    listen: "show",
+    listenSubtitles: "show",
   });
   return [...front.map((f) => part(f, true)), ...back.map((f) => part(f, false))];
 }
@@ -95,6 +99,8 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
       ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
       ...(own.subtitles !== undefined ? { subtitles: own.subtitles && kindOf.get(base.fieldId) === "media" } : {}),
+      ...(own.listen !== undefined ? { listen: own.listen } : {}),
+      ...(own.listenSubtitles !== undefined ? { listenSubtitles: own.listenSubtitles } : {}),
     });
   }
   for (const part of defaults) if (!placed.has(part.fieldId)) parts.push(part);
@@ -116,4 +122,18 @@ export function stageTagOf(kept: unknown): StageTag {
   if (!read.success) return { ...DEFAULT_STAGE_TAG };
   const { shown, size, corner } = read.data;
   return { shown: shown ?? DEFAULT_STAGE_TAG.shown, size: size ?? DEFAULT_STAGE_TAG.size, corner: corner ?? DEFAULT_STAGE_TAG.corner };
+}
+
+/** Listen first as it was kept: anything missing or broken in it reads as the default's, so a type from before reads as off. */
+const KeptListen = z.object({
+  on: z.boolean().optional().catch(undefined),
+  heard: z.number().int().min(1).max(LISTEN_HEARD_MAX).nullable().optional().catch(undefined),
+});
+
+/** A type's Listen first as it stands, from what's kept (nothing, for a type it was never switched on for). */
+export function listenFirstOf(kept: unknown): ListenFirst {
+  const read = KeptListen.safeParse(kept);
+  if (!read.success) return { ...DEFAULT_LISTEN_FIRST };
+  const { on, heard } = read.data;
+  return { on: on ?? DEFAULT_LISTEN_FIRST.on, heard: heard === undefined ? DEFAULT_LISTEN_FIRST.heard : heard };
 }

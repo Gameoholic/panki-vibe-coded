@@ -41,6 +41,7 @@ import {
   resolve,
   sideOf,
   stageTagOf,
+  listenFirstOf,
   stageIndex,
   starterStageCount,
   toldApart,
@@ -805,6 +806,18 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       )
     `);
   },
+  (db) => {
+    // 39. Listen first (the owner, 2026-11-01: "understanding by hearing matters more"): a card type can open its cards
+    // on a Listen phase before the front, its sounds and clips heard while the rest is blurred. Whether a type does, and
+    // after how many hearings the card shows itself, as JSON (`ListenFirst`); none for every type there is, which reads
+    // as off (contracts → `listenFirstOf`). An answer, and a card put aside, keep the seconds the card was listened to
+    // before its front showed, a third span before `think_ms`; a sitting left part-way keeps which phase its card was
+    // in. Every row from before has none, and so does every one where no Listen phase happened: nothing is made up.
+    db.exec("ALTER TABLE card_types ADD COLUMN listen TEXT");
+    db.exec("ALTER TABLE card_places ADD COLUMN listen_ms INTEGER");
+    db.exec("ALTER TABLE card_holds ADD COLUMN listen_ms INTEGER");
+    db.exec("ALTER TABLE review_sessions ADD COLUMN left_phase TEXT");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -845,8 +858,8 @@ type CalledRow = { cardId: string; fieldId: string; value: string; deckId: strin
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
 /** What an answer carries beyond the move: the id it was given, the sitting, the spans the browser measured, and whether it was a miss. */
-type AnswerExtras = { givenId: string | null; sessionId: string | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
-const NO_EXTRAS: AnswerExtras = { givenId: null, sessionId: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
+type AnswerExtras = { givenId: string | null; sessionId: string | null; listenMs: number | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
+const NO_EXTRAS: AnswerExtras = { givenId: null, sessionId: null, listenMs: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
 /** An answer found by the id it was given: the row it made, a move (`card_places`) or a card put aside (`card_holds`). `liftedAt` is a hold's alone. */
 type GivenRow = { kind: "place" | "hold"; id: number; cardId: string; at: number; undoneAt: number | null; liftedAt: number | null };
 type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: number; endedAt: number | null; endedHow: string | null };
@@ -854,9 +867,9 @@ type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: n
  * An answer as the stats read it. `living` is 0 when its card has since been deleted: the answer still happened, the
  * card is no longer one to name. `undoneAt` is when it was taken back with Undo: its seconds were still spent.
  */
-type AnswerRow = { cardId: string; at: number; miss: number | null; thinkMs: number | null; decideMs: number | null; living: number; undoneAt: number | null };
+type AnswerRow = { cardId: string; at: number; miss: number | null; listenMs: number | null; thinkMs: number | null; decideMs: number | null; living: number; undoneAt: number | null };
 /** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
-type ShowingRow = Pick<AnswerRow, "at" | "thinkMs" | "decideMs" | "undoneAt">;
+type ShowingRow = Pick<AnswerRow, "at" | "listenMs" | "thinkMs" | "decideMs" | "undoneAt">;
 type SessionStatRow = { startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null };
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string };
 /** A kept dictionary as the move to the shared store reads it: the row as the app tells of it, and the hash of its zip. */
@@ -907,8 +920,8 @@ function canonical(value: unknown): unknown {
 
 /** A card type as its change log keeps it: everything the owner can edit, the fields in order with their layout, and its stage tag. */
 function typeSnapshot(type: CardType): string {
-  const { name, fields, layout, tag, mainField } = type;
-  return JSON.stringify(canonical({ name, fields, layout, tag, mainField }));
+  const { name, fields, layout, tag, listen, mainField } = type;
+  return JSON.stringify(canonical({ name, fields, layout, tag, listen, mainField }));
 }
 
 /** The type as its change log keeps it: everything the owner can edit, stages and answers in order. */
@@ -976,7 +989,7 @@ export function openDb(
   // Removed types, fields, stages, answers and decks are invisible everywhere the app reads; only an insert's read-back,
   // a deck's own type and remove itself see them.
   const typeColumns = `
-    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag, t.main_field AS mainField,
+    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag, t.listen, t.main_field AS mainField,
     (SELECT COUNT(*) FROM decks d WHERE d.type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
@@ -991,6 +1004,7 @@ export function openDb(
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
   const updateTypeLayout = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
   const updateTypeTag = db.prepare("UPDATE card_types SET stage_tag = ? WHERE id = ?");
+  const updateTypeListen = db.prepare("UPDATE card_types SET listen = ? WHERE id = ?");
   const updateTypeMainField = db.prepare("UPDATE card_types SET main_field = ? WHERE id = ?");
   const insertLayoutChange = db.prepare("INSERT INTO card_type_layout_changes (type_id, from_layout, to_layout, at) VALUES (?, ?, ?, ?)");
   const insertTypeChange = db.prepare(`INSERT INTO card_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
@@ -1137,9 +1151,9 @@ export function openDb(
   /** The card types the living decks use: whose words fields a deck's duplicates are looked for in. */
   const selectLivingTypeIds = db.prepare("SELECT DISTINCT type_id AS typeId FROM decks WHERE removed_at IS NULL");
   const insertPlace = db.prepare(`
-    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss, example_id, given_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms, given_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, listen_ms, think_ms, decide_ms, miss, example_id, given_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, listen_ms, think_ms, decide_ms, given_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   // Whether a card is suspended now: the same reading as a card's own (`cardColumns` → `suspendedAt`).
   const selectStandingSuspend = db.prepare("SELECT 1 FROM card_holds WHERE card_id = ? AND kind = 'suspend' AND lifted_at IS NULL AND undone_at IS NULL LIMIT 1");
   // Only what still stands is lifted: a bury whose wait is over had already ended by itself, an undone one never stood.
@@ -1157,7 +1171,7 @@ export function openDb(
   const reviewSessionColumns = "s.id, s.deck_id AS deckId, s.kind, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow";
   const insertReviewSession = db.prepare("INSERT OR IGNORE INTO review_sessions (id, deck_id, kind, started_at, device, user_agent) VALUES (?, ?, ?, ?, ?, ?)");
   const selectReviewSession = db.prepare(`SELECT ${reviewSessionColumns} FROM review_sessions s WHERE s.id = ? AND s.deck_id = ?`);
-  const endReviewSession = db.prepare("UPDATE review_sessions SET ended_at = ?, ended_how = ?, left_card_id = ?, left_shown_ms = ?, left_revealed = ? WHERE id = ? AND ended_at IS NULL");
+  const endReviewSession = db.prepare("UPDATE review_sessions SET ended_at = ?, ended_how = ?, left_card_id = ?, left_shown_ms = ?, left_revealed = ?, left_phase = ? WHERE id = ? AND ended_at IS NULL");
   const insertEvent = db.prepare("INSERT INTO events (at, client_at, kind, path, data, session_id, device) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
   const mediaColumns = "m.id, m.kind, m.mime, m.bytes, m.created_at AS createdAt";
@@ -1205,12 +1219,12 @@ export function openDb(
   const scopeWhere = "d.removed_at IS NULL AND (? IS NULL OR d.id = ?)";
   const selectScopeDecks = db.prepare(`SELECT d.id, d.type_id AS typeId, d.srs_type_id AS srsTypeId FROM decks d WHERE ${scopeWhere} ORDER BY d.created_at ASC, d.id ASC`);
   const selectScopeAnswers = db.prepare(`
-    SELECT p.card_id AS cardId, p.at, p.miss, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt FROM card_places p
+    SELECT p.card_id AS cardId, p.at, p.miss, p.listen_ms AS listenMs, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt FROM card_places p
     JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
   // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
   const selectScopeHolds = db.prepare(`
-    SELECT h.at, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
+    SELECT h.at, h.listen_ms AS listenMs, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
     JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
     WHERE ${scopeWhere} ORDER BY h.at ASC, h.id ASC`);
   const selectScopeSessions = db.prepare(`
@@ -1264,7 +1278,7 @@ export function openDb(
       return [];
     }
   }
-  /** A kept stage tag's JSON; none, or anything that doesn't read, is the tag where it always was. */
+  /** A kept stage tag's (or Listen first's) JSON; none, or anything that doesn't read, is the default. */
   function keptTag(json: string | null): unknown {
     if (json === null) return null;
     try {
@@ -1274,7 +1288,7 @@ export function openDb(
     }
   }
   function typeFrom(row: unknown): CardType {
-    const { layout: kept, stageTag, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; mainField: string | null };
+    const { layout: kept, stageTag, listen, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; listen: string | null; mainField: string | null };
     const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept));
@@ -1282,7 +1296,7 @@ export function openDb(
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     // The main field while it's one of the fields there are (a field hidden since reads as none picked).
     const mainField = keptMain !== null && fields.some((f) => f.id === keptMain) ? keptMain : null;
-    return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)), mainField });
+    return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)), listen: listenFirstOf(keptTag(listen)), mainField });
   }
   /** The field a card of a type is told by in words (the contracts' `wordsFieldOf`); none when it has no such field. */
   function wordFieldOf(typeId: string | null | undefined): string | null {
@@ -1382,7 +1396,7 @@ export function openDb(
       cardId, now, reason, answerId,
       from.stageId, from.past, JSON.stringify(from.node), from.burned ? 1 : 0,
       to.stageId, to.past, JSON.stringify(to.node), to.burned ? 1 : 0,
-      extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId, extras.givenId,
+      extras.sessionId, extras.listenMs, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId, extras.givenId,
     );
   }
   /** Whether an answer counts as a miss, frozen as the type's answers stand now: the first of the main ones, when there is more than one; nothing for one set apart. */
@@ -1582,6 +1596,7 @@ export function openDb(
           type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
           if (type.tag) updateTypeTag.run(JSON.stringify(type.tag), type.id);
+          if (type.listen) updateTypeListen.run(JSON.stringify(type.listen), type.id);
           if (type.mainField) updateTypeMainField.run(type.mainField, type.id);
         }
         return typeFrom(selectAnyType.get(type.id));
@@ -1615,6 +1630,8 @@ export function openDb(
         }
         // The stage tag when it's sent; what it was is in the whole type's log below.
         if (update.tag && JSON.stringify(update.tag) !== JSON.stringify(before.tag)) updateTypeTag.run(JSON.stringify(update.tag), id);
+        // Listen first when it's sent; what it was is in the whole type's log below.
+        if (update.listen && JSON.stringify(update.listen) !== JSON.stringify(before.listen)) updateTypeListen.run(JSON.stringify(update.listen), id);
         // The main field when it's sent (null is none picked); what it was is in the whole type's log below.
         if (update.mainField !== undefined && update.mainField !== before.mainField) updateTypeMainField.run(update.mainField, id);
         const after = typeFrom(selectType.get(id));
@@ -2024,6 +2041,7 @@ export function openDb(
         const extras: AnswerExtras = {
           givenId: answer.givenId ?? null,
           sessionId: answer.sessionId ?? null,
+          listenMs: answer.listenMs ?? null,
           thinkMs: answer.thinkMs ?? null,
           decideMs: answer.decideMs ?? null,
           miss: missOf(type, answer.answerId),
@@ -2032,7 +2050,7 @@ export function openDb(
         const outcome = resolve(type, place, answer.answerId);
         if (outcome.hold) {
           const until = outcome.wait === null ? null : now + outcome.wait * 60_000;
-          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.thinkMs, extras.decideMs, extras.givenId);
+          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.listenMs, extras.thinkMs, extras.decideMs, extras.givenId);
         }
         else recordPlace(cardId, now, "answer", answer.answerId, place, outcome.place, extras);
         const after = selectDeckCard.get(deckId, cardId) as CardRow;
@@ -2078,7 +2096,7 @@ export function openDb(
       return transaction(() => {
         if (!selectDeckCard.get(deckId, cardId)) return null;
         // Put aside by hand, with no answer or sitting behind it; doing it again to a card already suspended changes nothing.
-        if (!selectStandingSuspend.get(cardId)) insertHold.run(cardId, "suspend", now, null, null, null, null, null, null);
+        if (!selectStandingSuspend.get(cardId)) insertHold.run(cardId, "suspend", now, null, null, null, null, null, null, null);
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
       });
@@ -2102,7 +2120,7 @@ export function openDb(
     endReviewSession(deckId: string, sessionId: string, end: ReviewSessionEnd, now: number): ReviewSession | null {
       return transaction(() => {
         if (!selectReviewSession.get(sessionId, deckId)) return null;
-        endReviewSession.run(now, end.how, end.cardId ?? null, end.shownMs ?? null, end.revealed === undefined ? null : end.revealed ? 1 : 0, sessionId);
+        endReviewSession.run(now, end.how, end.cardId ?? null, end.shownMs ?? null, end.revealed === undefined ? null : end.revealed ? 1 : 0, end.phase ?? null, sessionId);
         return reviewSessionFrom(selectReviewSession.get(sessionId, deckId) as ReviewSessionRow);
       });
     },
@@ -2344,14 +2362,15 @@ export function openDb(
         if (entry) entry.ms += ms;
       };
       // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
-      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it.
+      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it. A card listened to
+      // first (Listen first) adds the seconds before its front to the rest, under the same cap.
       const spent = (ms: number) => Math.min(ms, CARD_TIME_MAX_MS);
       const showings: ShowingRow[] = [...kept, ...(selectScopeHolds.all(deckId, deckId) as ShowingRow[])];
-      for (const s of showings) addTime(day(s.at), spent((s.thinkMs ?? 0) + (s.decideMs ?? 0)));
+      for (const s of showings) addTime(day(s.at), spent((s.listenMs ?? 0) + (s.thinkMs ?? 0) + (s.decideMs ?? 0)));
       for (const s of sessions) if (s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null) addTime(day(s.endedAt), spent(s.leftShownMs));
       // The typical card: its showings in the past 30 days that stand (not taken back), with both spans measured.
       const spans = showings
-        .flatMap((s) => (s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null && day(s.at) >= from30 ? [spent(s.thinkMs + s.decideMs)] : []))
+        .flatMap((s) => (s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null && day(s.at) >= from30 ? [spent((s.listenMs ?? 0) + s.thinkMs + s.decideMs)] : []))
         .sort((x, y) => x - y);
       const mid = spans[Math.floor(spans.length / 2)];
       const perCardMs = spans.length === 0 || mid === undefined ? null : spans.length % 2 === 1 ? mid : Math.round((mid + (spans[spans.length / 2 - 1] ?? mid)) / 2);

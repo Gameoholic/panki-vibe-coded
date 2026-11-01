@@ -1,4 +1,4 @@
-import type { AutoPlay, FaceShow, MediaLook, PartSize, PartTone } from "@panki/contracts";
+import { LISTEN_HEARD_MAX, type AutoPlay, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -27,6 +27,26 @@ export const PLAY_OPTIONS: readonly { id: AutoPlay; label: string }[] = [
   { id: "shown", label: "When the card appears" },
   { id: "turned", label: "When the card is turned" },
   { id: "both", label: "Both" },
+];
+/** What the Listen phase does with a part (Listen first, the owner, 2026-11-01), in the words of the sides' own choices. */
+export const LISTEN_OPTIONS: readonly { id: ListenShow; label: string }[] = [
+  { id: "show", label: "Show" },
+  { id: "blur", label: "Blur" },
+  { id: "hide", label: "Hide" },
+];
+/** What the Listen phase does with a clip's subtitles: the card's word blurred in them is its Highlight (else the type's main field). */
+export const LISTEN_SUBTITLE_OPTIONS: readonly { id: ListenSubtitles; label: string }[] = [
+  { id: "show", label: "Show" },
+  { id: "word", label: "Blur word" },
+  { id: "blur", label: "Blur" },
+  { id: "hide", label: "Hide" },
+];
+/** Listen first's hearings before the card shows itself, as a choice: a sound or clip heard to its end; 0 is only by Show card. */
+export const ONLY_BY_BUTTON = 0;
+const HEARD_WORDS = ["once", "twice"];
+export const HEARD_OPTIONS: readonly { id: number; label: string }[] = [
+  ...Array.from({ length: LISTEN_HEARD_MAX }, (_, i) => ({ id: i + 1, label: `Heard ${HEARD_WORDS[i] ?? `${i + 1} times`}` })),
+  { id: ONLY_BY_BUTTON, label: "Only by the button" },
 ];
 /** A sound's or a clip's player style: every one the owner chose to keep (2026-10-15), by name alone (the words beside each were taken out at their word). */
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [
