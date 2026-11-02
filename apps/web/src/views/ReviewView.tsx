@@ -600,6 +600,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
    * back of card, their keys heard no more while it's on.
    */
   const chainOn = binds.holdChain.on;
+  /** A key Done listening, Show back of card and Hide back of card would show: none while the Hold button is on, whose they are then. */
+  const faceBind = (bind: Bind) => (chainOn ? undefined : bind);
   const holdAnswer = card ? srsType.answers.find((a) => a.id === deck.settings.holdAnswer && offered(srsType, card.place, a.id)) : undefined;
   // Whether this showing of the card started in its Listen phase: one put back by Undo starts on its front.
   const listensHere = card !== undefined && undoneTurn !== turn && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
@@ -1094,12 +1096,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   // 2026-10-18), the CSS showing one of the two. Pinned over the counts' row, they covered "in play · waiting".
   const tools = (
     <>
-      {/* While the answer shows: the card back to its front, its key's hold drawn on it; with the Hold button on, none: a tap of the Hold button, or Back to start's key, does it. */}
-      {revealed && !chainOn ? (
+      {/* While the answer shows: the card back to its front, its key's hold drawn on it; with the Hold button on, pressed by hand alone, its key being the Hold button's. */}
+      {revealed ? (
         <Button className="review-hide" data-hold="hide" disabled={busy} onClick={hideAnswer}>
           <Icon name="eyeOff" />
           Hide back of card
-          <KeyCap bind={binds.hide} />
+          <KeyCap bind={faceBind(binds.hide)} />
         </Button>
       ) : null}
       <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
@@ -1131,10 +1133,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         {full ? (
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it (the owner, 2026-10-29: it didn't appear here). */}
-            {revealed && !chainOn ? (
+            {revealed ? (
               <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={hideAnswer}>
                 <Icon name="eyeOff" />
-                <KeyCap bind={binds.hide} />
+                <KeyCap bind={faceBind(binds.hide)} />
               </Button>
             ) : null}
             <Button className="btn-icon review-stage-undo" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
@@ -1202,7 +1204,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           {failure}
         </p>
       ) : null}
-      {/* The Hold button, while it's on: under the card on both its sides, in place of Show back of card and Hide back of card. */}
+      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons, which keep working by hand without their keys (the owner, 2026-11-02). */}
       {chainOn ? (
         <div className="review-hold">
           <HoldButton view={chain.view} />
@@ -1224,9 +1226,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         </div>
       ) : (
         <>
-          {/* With the Hold button on, the answers hold their room on the front, unseen, as those set apart do: turning the card moves nothing. */}
-          <div className={chainOn && !revealed ? "review-actions is-later" : "review-actions"} aria-hidden={chainOn && !revealed}>
-            {revealed || chainOn ? (
+          <div className="review-actions">
+            {revealed ? (
               // An answer the chart doesn't offer at this point (its rule here is "Not offered") has no button; the others keep their keys.
               answers.map((a, i) =>
                 a.aside || !offered(srsType, card.place, a.id) ? null : (
@@ -1235,7 +1236,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
                     variant="answer"
                     className={answerClass(answers, i)}
                     data-answer={a.id}
-                    disabled={busy || !revealed}
+                    disabled={busy}
                     onClick={() => press(a.id)}
                     onMouseEnter={() => rest(a.id)}
                     onMouseLeave={leave}
@@ -1248,7 +1249,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
               )
             ) : (
               // Listened to, Done listening stands in Show answer's place, with its key: the card's front, out of its Listen phase.
-              <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={listening ? showCard : reveal} />
+              <ShowButton listening={listening} bind={faceBind(listening ? binds.showCard : binds.reveal)} onPress={listening ? showCard : reveal} />
             )}
           </div>
           {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}

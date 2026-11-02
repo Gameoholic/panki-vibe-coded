@@ -154,7 +154,7 @@ export function KeysPanels() {
             <HoldButtonScene binds={binds} />
           </Explainer>
         </div>
-        <p className="setting-why">Replaces Show back of card and the other review buttons while it's on.</p>
+        <p className="setting-why">While it's on, the review buttons keep working by touch but have no keys of their own.</p>
         <Setting id="holdChain" label="Hold button" control={<Toggle id="hold-chain" says={{ on: "On", off: "Off" }} on={chain.on} onChange={(on) => setKeyBinds(withHoldChain(binds, on))} />} />
         <KeyRow id="hold-button" label="Key" bind={binds.holdButton} slot={{ kind: "holdButton" }} binds={binds} disabled={!chain.on} keyOnly />
         {HOLD_STAGES.map((stage) => (

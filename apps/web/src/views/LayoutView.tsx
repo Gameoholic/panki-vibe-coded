@@ -446,14 +446,15 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
                 },
               })}
         />
-        {/* With the Hold button on, it stands under the card on both its sides, a tap of it back to the card's start, as in a review. */}
+        {/* With the Hold button on, it stands under the card on both its sides, a tap of it back to the card's start, as in a review; the review's own button beside it, without its key. */}
         {trying && chainOn ? (
           <div ref={previewActions} className="review-hold">
             <HoldButton view={chain.view} />
           </div>
-        ) : trying && face !== "back" ? (
+        ) : null}
+        {trying && face !== "back" ? (
           <div className="review-actions">
-            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
+            <ShowButton listening={face === "listen"} bind={chainOn ? undefined : face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
           </div>
         ) : null}
         {!trying && away.length > 0 ? (

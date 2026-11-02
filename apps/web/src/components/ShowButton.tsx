@@ -15,8 +15,8 @@ type Props = {
 
 /**
  * The button under a review card that shows the next of it: Done listening out of its Listen phase, Show back of card on its
- * front (with the Hold button on, `HoldButton` stands for it). `data-hold="reveal"` is where its key's hold is drawn. The
- * review and the Layout tab's Preview are both this.
+ * front (with the Hold button on, still there to press, with no key: `bind` left out). `data-hold="reveal"` is where its
+ * key's hold is drawn. The review and the Layout tab's Preview are both this.
  */
 export function ShowButton({ listening, bind, onPress }: Props) {
   return (
@@ -36,8 +36,9 @@ const holdWords = (ms: number) => (ms > 0 ? `Hold ${ms / 1000} s` : "Press");
  * (2026-11-02: "it looked cool and was better for this"): its key as one clock face for every stage of the card
  * (`HoldClock`), what's done filled and the stage being held filling on from there, and beside it the next stage in
  * words (Done listening, Show back of card, the deck's answer by its name) over how it's held and what comes after it.
- * Held, it goes on; tapped, the card goes back to its start. It stands under the card on both its sides, in place of
- * Show back of card and Hide back of card. The review, the Layout tab's Preview and its explainer are all this.
+ * Held, it goes on; tapped, the card goes back to its start. It stands under the card on both its sides, beside the
+ * review's own buttons, which keep working by hand with no keys of their own while it's on (the owner, 2026-11-02). The
+ * review, the Layout tab's Preview and its explainer are all this.
  */
 export function HoldButton({ view }: { view: HoldButtonView }) {
   const style = { "--hold-from": view.from.toFixed(4), "--hold-span": view.span.toFixed(4) } as CSSProperties;

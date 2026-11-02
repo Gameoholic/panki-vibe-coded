@@ -3,7 +3,7 @@ import { CardType, defaultLayout, mainAnswers, makeStarter, type CardPlace } fro
 import { Button } from "../components/Button";
 import { Stage, type Site, type Tools } from "../components/Explainer";
 import { ReviewCard } from "../components/ReviewCard";
-import { HoldButton } from "../components/ShowButton";
+import { HoldButton, ShowButton } from "../components/ShowButton";
 import { TAP_MS } from "../hooks/useHold";
 import { clockPieces, holdShares, type HoldButtonView, type HoldStage } from "../hooks/useHoldButton";
 import { pressKind, type KeyBinds } from "../keys";
@@ -186,14 +186,18 @@ export function HoldButtonScene({ binds }: { binds: KeyBinds }) {
           <div className="review-hold">
             <HoldButton view={view} />
           </div>
-          {/* The answers hold their room on the front, unseen, as in a review. */}
-          <div className={phase === "back" ? "review-actions" : "review-actions is-later"}>
-            {answers.map((a, i) =>
-              a.aside ? null : (
-                <Button key={a.id} variant="answer" className={answerClass(answers, i)}>
-                  <span className="name">{a.name}</span>
-                </Button>
-              ),
+          {/* The review's own buttons beside it, without their keys, as in a review with the Hold button on. */}
+          <div className="review-actions">
+            {phase === "back" ? (
+              answers.map((a, i) =>
+                a.aside ? null : (
+                  <Button key={a.id} variant="answer" className={answerClass(answers, i)}>
+                    <span className="name">{a.name}</span>
+                  </Button>
+                ),
+              )
+            ) : (
+              <ShowButton listening={phase === "listen"} bind={undefined} onPress={nothing} />
             )}
           </div>
         </section>

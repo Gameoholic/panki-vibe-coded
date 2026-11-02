@@ -2903,12 +2903,7 @@ mark.sub-blur {
   font-size: 11px;
   font-weight: 800;
   color: var(--fg);
-}
-/* With the Hold button on, the answers hold their room on the front, unseen (`ReviewView`), as those set apart do. */
-.review-actions.is-later {
-  visibility: hidden;
-}
-/* Show answer carries its key too, the one to hold. */
+}/* Show answer carries its key too, the one to hold. */
 .review-actions > .btn-primary {
   gap: 10px;
 }
