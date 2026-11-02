@@ -1,10 +1,9 @@
 import type { CSSProperties } from "react";
 import type { HoldButtonView } from "../hooks/useHoldButton";
-import { useKeycapsShown, type Key } from "../keys";
-import { keyWords } from "../words";
+import type { Key } from "../keys";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-import { KeyCap } from "./KeyCap";
+import { HoldClock, KeyCap } from "./KeyCap";
 
 type Props = {
   /** The card in its Listen phase: Done listening, which shows its front; otherwise Show back of card (Show answer until 2026-11-01), which turns it. */
@@ -12,17 +11,14 @@ type Props = {
   /** The key it's pressed with, drawn as its keycap: Done listening's own while listening, Show back of card's on the front. */
   bind: Key | undefined;
   onPress: () => void;
-  /** The Hold button, while it's on (Settings → Keybinds): drawn in this one's place (`HoldButton`). */
-  chain?: HoldButtonView | null | undefined;
 };
 
 /**
  * The button under a review card that shows the next of it: Done listening out of its Listen phase, Show back of card on its
- * front; with the Hold button on, the Hold button. `data-hold="reveal"` is where its key's hold is drawn. The review and
- * the Layout tab's Preview are both this.
+ * front (with the Hold button on, `HoldButton` stands for it). `data-hold="reveal"` is where its key's hold is drawn. The
+ * review and the Layout tab's Preview are both this.
  */
-export function ShowButton({ listening, bind, onPress, chain }: Props) {
-  if (chain) return <HoldButton view={chain} variant="primary" size="lg" />;
+export function ShowButton({ listening, bind, onPress }: Props) {
   return (
     <Button variant="primary" size="lg" data-hold="reveal" onClick={onPress}>
       <Icon name={listening ? "check" : "eye"} />
@@ -32,23 +28,23 @@ export function ShowButton({ listening, bind, onPress, chain }: Props) {
   );
 }
 
+/** A stage's hold in words: "Hold 0.5 s", or "Press". */
+const holdWords = (ms: number) => (ms > 0 ? `Hold ${ms / 1000} s` : "Press");
+
 /**
- * The Hold button (`useHoldButton`): the next stage of the card in words (Done listening, Show back of card, the deck's
- * answer), and its key as one clock face, a mark where each stage ends (`.key.is-chain`), what's done filled and the
- * stage being held filling on from there. Held, it goes on; tapped, the card goes back to its start. In Show back of
- * card's place on the front, in Hide back of card's on the back (`className`), its words there too in a full screen's top row.
+ * The Hold button (`useHoldButton`), drawn as the owner's drawing A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA
+ * (2026-11-02: "it looked cool and was better for this"): its key as one clock face for every stage of the card
+ * (`HoldClock`), what's done filled and the stage being held filling on from there, and beside it the next stage in
+ * words (Done listening, Show back of card, the deck's answer by its name) over how it's held and what comes after it.
+ * Held, it goes on; tapped, the card goes back to its start. It stands under the card on both its sides, in place of
+ * Show back of card and Hide back of card. The review, the Layout tab's Preview and its explainer are all this.
  */
-export function HoldButton({ view, variant = "ghost", size = "md", className = "" }: { view: HoldButtonView; variant?: "primary" | "ghost"; size?: "md" | "lg"; className?: string }) {
-  const shown = useKeycapsShown();
-  const cuts = view.cuts.map((at) => `transparent 0 ${(at - 0.012).toFixed(4)}turn, var(--chain-cut) 0 ${(at + 0.012).toFixed(4)}turn`).join(", ");
+export function HoldButton({ view }: { view: HoldButtonView }) {
   const style = { "--hold-from": view.from.toFixed(4), "--hold-span": view.span.toFixed(4) } as CSSProperties;
-  // On the keycap itself, where the colour of its marks (`--chain-cut`) is known.
-  const marks = { "--chain-cuts": `conic-gradient(${cuts ? `${cuts}, ` : ""}transparent 0)` } as CSSProperties;
+  const how = [view.ms === null ? null : holdWords(view.ms), view.then.length > 0 ? `then ${view.then.join(", ")}` : null].filter((part) => part !== null);
   return (
     <Button
-      variant={variant}
-      size={size}
-      className={`hold-button ${className}`.trim()}
+      className="hold-button"
       data-hold="chain"
       style={style}
       onPointerDown={view.onPointerDown}
@@ -57,9 +53,11 @@ export function HoldButton({ view, variant = "ghost", size = "md", className = "
       onClick={view.onClick}
       onContextMenu={view.onContextMenu}
     >
-      {view.icon ? <Icon name={view.icon} /> : null}
-      {view.label}
-      {view.bind.key && shown ? <span className="key is-hold is-chain" style={marks}>{keyWords(view.bind.key)}</span> : null}
+      <HoldClock bind={view.bind} pieces={view.pieces} tone={view.tone} />
+      <span className="hold-button-words">
+        <b>{view.label}</b>
+        {how.length > 0 ? <span>{how.join(" · ")}</span> : null}
+      </span>
     </Button>
   );
 }

@@ -1,21 +1,28 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { IconName } from "../components/Icon";
+import type { ClockPiece } from "../components/KeyCap";
 import { keyIn, type Bind } from "../keys";
-import { DOUBLE_MS, TAP_MS, useHold } from "./useHold";
+import { TAP_MS, useHold } from "./useHold";
 
-/** One stage of a card on the Hold button: what the button says while it's next, how long it's held, and what it does once it is. */
-export type HoldStage = { label: string; icon?: IconName | undefined; ms: number; done: () => void };
+/**
+ * One stage of a card on the Hold button: what the button says while it's next, how long it's held, and what it does
+ * once it is. The answer's stage is drawn in the answer's colour (`tone`, its `answerClass`), the last `confirmMs` of it,
+ * an answer that requires confirmation's extra hold, in the flag's amber.
+ */
+export type HoldStage = { label: string; ms: number; done: () => void; tone?: string | undefined; confirmMs?: number | undefined };
 
 /** What the Hold button draws (`ShowButton.tsx` → `HoldButton`): its words, and how far along the card's stages it stands. */
 export type HoldButtonView = {
+  /** The next stage, and how long it's held; the stages after it. */
   label: string;
-  icon: IconName | undefined;
-  /** Its key, drawn as one clock face for every stage. */
+  ms: number | null;
+  then: readonly string[];
+  /** Its key, in the middle of the clock. */
   bind: Bind;
-  /** The share of the card's stages already done, and of the one being held; where one stage ends and the next begins, as shares of a turn. */
+  /** The share of the card's stages already done, and of the one being held; the clock's stretches, and the answer's colour. */
   from: number;
   span: number;
-  cuts: readonly number[];
+  pieces: readonly ClockPiece[];
+  tone: string | undefined;
   onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerCancel: () => void;
@@ -28,38 +35,51 @@ type Options = {
   stages: readonly HoldStage[];
   at: number;
   /** What the button says with no stage left (the back of a card in a deck whose Hold button answers with None). */
-  rest: { label: string; icon: IconName };
+  rest: string;
   /** Back to start: the card on its start again, nothing answered. */
   back: () => void;
-  /** Which card is showing (a new showing ends a hold, and what a tap was). */
+  /** Which card is showing (a new showing ends a hold). */
   showing: string;
   bind: Bind;
   /** Where its hold is drawn now: the Hold button on screen. */
   where: () => HTMLElement | null;
 };
 
-/** Where in a turn each stage ends, by how long each is held (`ms`, in order), and what's done and being held at stage `at`. The Hold button's explainer draws its clock by this too. */
-export function holdShares(ms: readonly number[], at: number): { from: number; span: number; cuts: number[] } {
+/** Where in a turn each stage ends, by how long each is held (`ms`, in order), and what's done and being held at stage `at`. */
+export function holdShares(ms: readonly number[], at: number): { from: number; span: number } {
   const total = ms.reduce((n, s) => n + s, 0);
-  if (total === 0) return { from: at >= ms.length ? 1 : 0, span: 0, cuts: [] };
+  if (total === 0) return { from: at >= ms.length ? 1 : 0, span: 0 };
   const upTo = (i: number) => ms.slice(0, i).reduce((n, s) => n + s, 0);
-  return { from: upTo(at) / total, span: (ms[at] ?? 0) / total, cuts: ms.slice(1).map((_, i) => upTo(i + 1) / total) };
+  return { from: upTo(at) / total, span: (ms[at] ?? 0) / total };
+}
+/** The clock's stretches: each stage's share of the turn, an answer's confirmation a stretch of its own. The Hold button's explainer draws its clock by this too. */
+export function clockPieces(stages: readonly Pick<HoldStage, "ms" | "tone" | "confirmMs">[]): ClockPiece[] {
+  const total = stages.reduce((n, s) => n + s.ms, 0);
+  if (total === 0) return [];
+  return stages.flatMap((s): ClockPiece[] => {
+    const tone = s.tone ? "answer" : "step";
+    const confirm = Math.min(s.confirmMs ?? 0, s.ms);
+    return confirm > 0
+      ? [
+          { share: (s.ms - confirm) / total, tone },
+          { share: confirm / total, tone: "confirm" },
+        ]
+      : [{ share: s.ms / total, tone }];
+  });
 }
 
 /**
  * The Hold button (the owner, 2026-11-02, A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA): one button whose
  * key or press, held, carries the card through every stage without letting go, each stage held for its own time
  * (`useHold`, so it's drawn and let go as every hold is). Let go, the card stays at the stage it reached, and a new hold
- * goes on from there; a tap of the button, or a double press of its key, takes the card back to its start (Back to
- * start). Its key is heard by whoever has the keys (`keyDown`, `keyUp`: the review); the button's own presses are the
- * view's. The review and the Layout tab's Preview are both this.
+ * goes on from there; a tap of the button takes the card back to its start (Back to start, which has its own key in the
+ * review: `keys.ts` → `holdReset`). Its key is heard by whoever has the keys (`keyDown`, `keyUp`: the review); the
+ * button's own presses are the view's. The review and the Layout tab's Preview are both this.
  */
 export function useHoldButton({ stages, at, rest, back, showing, bind, where }: Options) {
   const hold = useHold();
   /** What's held now: the key or the pointer, when it went down, and whether a stage was done on it. Spent, it does nothing more until let go. */
   const held = useRef<{ by: string; at: number; moved: boolean; spent: boolean } | null>(null);
-  /** When the key was last tapped (let go before `TAP_MS` with nothing done): a press soon after is a double press. */
-  const tapped = useRef(0);
   const now = useRef({ stages, at });
   now.current = { stages, at };
 
@@ -83,14 +103,13 @@ export function useHoldButton({ stages, at, rest, back, showing, bind, where }: 
   }
   /**
    * The card moved on while it's held (a stage done, or by something else: its clip ending its Listen phase): the next
-   * stage goes on from there as soon as it's drawn. Another card showing ends the hold, and forgets a tap.
+   * stage goes on from there as soon as it's drawn. Another card showing ends the hold.
    */
   const shownNow = useRef(showing);
   useEffect(() => {
     const h = held.current;
     if (shownNow.current !== showing) {
       shownNow.current = showing;
-      tapped.current = 0;
       if (h) h.spent = true;
       hold.release();
       return;
@@ -109,40 +128,37 @@ export function useHoldButton({ stages, at, rest, back, showing, bind, where }: 
     held.current = { by, at: performance.now(), moved: false, spent: false };
     go(true);
   }
-  /** Let go: what was held eases back; a tap was what's said by `tap` (the key's, a double press to come; the button's, Back to start). */
-  function up(by: string, tap: () => void) {
+  /** Let go: what was held eases back; a tap, let go before anything was done, is `tap`'s (the button's: Back to start). */
+  function up(by: string, tap?: () => void) {
     const h = held.current;
     if (!h || h.by !== by) return;
     held.current = null;
     hold.release(by);
-    if (!h.moved && !h.spent && performance.now() - h.at < TAP_MS) tap();
+    if (tap && !h.moved && !h.spent && performance.now() - h.at < TAP_MS) tap();
   }
 
   /** A key going down: whether it's the Hold button's (the caller then keeps it from the page). */
   function keyDown(e: KeyboardEvent, key: string): boolean {
     if (!keyIn(bind, key)) return false;
-    if (e.repeat) return true;
-    if (performance.now() - tapped.current < DOUBLE_MS) {
-      tapped.current = 0;
-      held.current = { by: e.key, at: performance.now(), moved: false, spent: true };
-      back();
-      return true;
-    }
-    down(e.key);
+    if (!e.repeat) down(e.key);
     return true;
   }
   function keyUp(e: KeyboardEvent) {
-    up(e.key, () => (tapped.current = performance.now()));
+    up(e.key);
   }
 
+  const next = stages[at];
   const view: HoldButtonView = {
-    label: stages[at]?.label ?? rest.label,
-    icon: stages[at] ? stages[at].icon : rest.icon,
+    label: next?.label ?? rest,
+    ms: next ? next.ms : null,
+    then: stages.slice(at + 1).map((s) => s.label),
     bind,
     ...holdShares(
       stages.map((s) => s.ms),
       at,
     ),
+    pieces: clockPieces(stages),
+    tone: stages.find((s) => s.tone)?.tone,
     onPointerDown: (e) => {
       if (e.button !== 0) return;
       e.preventDefault();

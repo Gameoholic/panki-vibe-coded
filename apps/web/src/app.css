@@ -2818,37 +2818,95 @@ mark.sub-blur {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
 }
-/* The Hold button's key (`ShowButton.tsx` → `HoldButton`): one clock face for every stage of the card, what's done
-   (`--hold-from`) filled and the stage being held (`--hold`, `useHold`'s) filling its share (`--hold-span`) on from
-   there; a mark on its edge where each stage ends (`--chain-cuts`). Held by a finger it's a hold, never a scroll, a
-   selection or the phone's menu. */
-.hold-button {
+/* A key pressed twice: its keycap twice (`KeyCap`). */
+.key-twice {
+  display: inline-flex;
+  gap: 3px;
+}
+/* The Hold button (`ShowButton.tsx` → `HoldButton`), drawing A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA:
+   its clock and, beside it, the next stage over how it's held and what follows, in a row of its own under the card on
+   both its sides (`.review-hold`). Held by a finger it's a hold, never a scroll, a selection or the phone's menu. */
+.review-hold {
+  display: flex;
+  justify-content: center;
+}
+.btn.hold-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 4px 16px;
+  text-align: left;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-.key.is-chain {
-  --chain-at: calc((var(--hold-from, 0) + var(--hold, 0) * var(--hold-span, 0)) * 1turn);
-  --chain-cut: color-mix(in srgb, var(--hold-ink) 55%, transparent);
-  background: conic-gradient(color-mix(in srgb, var(--hold-ink) 24%, transparent) var(--chain-at), transparent 0);
+.hold-button-words {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
 }
-.key.is-chain::after {
-  background: conic-gradient(var(--hold-ink) var(--chain-at), transparent 0);
+.hold-button-words b {
+  font-size: 18px;
+  font-weight: 800;
 }
-.key.is-chain::before {
+.hold-button-words span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Its clock (`KeyCap.tsx` → `HoldClock`): a ring cut into each stage's stretch (`--clock-gaps`), the track under it,
+   and each stretch in its own colour (`--clock-paint`) as far as what's done (`--hold-from`) and the stage being held
+   (`--hold`, `useHold`'s, over `--hold-span`) reach, round from the top; the key's name in its middle. */
+.hold-clock {
+  --clock-at: calc((var(--hold-from, 0) + var(--hold, 0) * var(--hold-span, 0)) * 1turn);
+  --clock-ring: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px));
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+}
+.hold-clock::before,
+.hold-clock::after {
   content: "";
   position: absolute;
-  inset: -1px -1px -3px;
-  padding: 2px;
-  border-radius: 6px;
+  inset: 0;
+  border-radius: 50%;
   pointer-events: none;
-  background: var(--chain-cuts);
+}
+.hold-clock::before {
+  background: var(--line-strong);
+  -webkit-mask: var(--clock-ring), var(--clock-gaps);
+  -webkit-mask-composite: source-in;
+  mask: var(--clock-ring), var(--clock-gaps);
+  mask-composite: intersect;
+}
+.hold-clock::after {
+  background: var(--clock-paint);
   -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
+    var(--clock-ring),
+    var(--clock-gaps),
+    conic-gradient(#000 var(--clock-at), transparent 0);
+  -webkit-mask-composite: source-in;
+  mask:
+    var(--clock-ring),
+    var(--clock-gaps),
+    conic-gradient(#000 var(--clock-at), transparent 0);
+  mask-composite: intersect;
+}
+.hold-clock-key {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--fg);
+}
+/* With the Hold button on, the answers hold their room on the front, unseen (`ReviewView`), as those set apart do. */
+.review-actions.is-later {
+  visibility: hidden;
 }
 /* Show answer carries its key too, the one to hold. */
 .review-actions > .btn-primary {

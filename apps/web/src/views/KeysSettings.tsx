@@ -8,15 +8,20 @@ import { KeyField } from "../components/KeyField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
-import { ALSO_MAX, DEFAULT_KEYS, HOLD_TIMES, setKeyBinds, setKeycapsOnPhone, useKeyBinds, useKeycapsOnPhone, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { ALSO_MAX, DEFAULT_KEYS, DOUBLE_PRESS, HOLD_TIMES, PRESS_KINDS, setKeyBinds, setKeycapsOnPhone, useKeyBinds, useKeycapsOnPhone, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
 import { HoldButtonScene } from "./HoldButtonScene";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
-/** A key's hold as its choice reads: "Press", "Hold 0.5 s". */
-const HOLD_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: ms === 0 ? "Press" : `Hold ${seconds(ms)}` }));
+/** A hold as its choice reads: "Press", "Hold 0.5 s". */
+const holdLabel = (ms: number) => (ms === 0 ? "Press" : `Hold ${seconds(ms)}`);
+/** A Hold button stage's hold: "Press", "Hold 0.5 s". */
+const HOLD_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: holdLabel(ms) }));
+/** How a key is pressed, every kind (`PRESS_KINDS`): "Press", "Double press", "Hold 0.5 s" (Double press, the owner, 2026-11-02). */
+const PRESS_OPTIONS = PRESS_KINDS.map((ms) => ({ id: String(ms), label: ms === DOUBLE_PRESS ? "Double press" : holdLabel(ms) }));
 /** Confirmation's extra hold as its choice reads: "+0 s", "+1 s". */
 const EXTRA_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: `+${seconds(ms)}` }));
 const holdOf = (id: string, fallback: number) => HOLD_TIMES.find((ms) => String(ms) === id) ?? fallback;
+const pressOf = (id: string, fallback: number) => PRESS_KINDS.find((ms) => String(ms) === id) ?? fallback;
 /**
  * The Hold button's stages as rows, the review's own names, in the order a hold goes through them, each its own hold
  * (the owner, 2026-11-02). Done listening's is unused on a card with no Listen phase; the row stays, the panel being
@@ -38,10 +43,10 @@ function KeyPair({ id, label, own, part, slot, binds, asking, onAsk, listen = fa
         <Dropdown
           id={`key-${id}-hold`}
           label={`${label}: press or hold`}
-          options={HOLD_OPTIONS}
+          options={PRESS_OPTIONS}
           value={String(own.holdMs)}
           disabled={disabled || own.key === null}
-          onChange={(ms) => setKeyBinds(withPart(binds, slot, part, (k) => ({ ...k, holdMs: holdOf(ms, k.holdMs) })))}
+          onChange={(ms) => setKeyBinds(withPart(binds, slot, part, (k) => ({ ...k, holdMs: pressOf(ms, k.holdMs) })))}
         />
       )}
     </span>
@@ -136,18 +141,20 @@ export function KeysPanels() {
       </section>
       {/*
         The Hold button (the owner, 2026-11-02): held, one key carries a card from its start through every stage to the
-        deck's answer (a deck's "Hold button answers with"), each stage held for its own time; a double press goes back to
-        the start. Off to begin with; its rows greyed while it's off.
+        deck's answer (a deck's "Hold button answers with"), each stage held for its own time; Back to start, a key of its
+        own (Space pressed twice to begin with), takes the card back to its start. Off to begin with; its rows greyed while
+        it's off. The line under its title the owner asked for (2026-11-02), an exception to no explaining lines.
       */}
       <section className="panel" aria-labelledby="keys-hold-title">
         <div className="explain-head">
           <h2 id="keys-hold-title" className="panel-title">
-            Hold button
+            Hold button for reviews
           </h2>
-          <Explainer name="Hold button">
+          <Explainer name="Hold button for reviews">
             <HoldButtonScene binds={binds} />
           </Explainer>
         </div>
+        <p className="setting-why">Replaces Show back of card and the other review buttons while it's on.</p>
         <Setting id="holdChain" label="Hold button" control={<Toggle id="hold-chain" says={{ on: "On", off: "Off" }} on={chain.on} onChange={(on) => setKeyBinds(withHoldChain(binds, on))} />} />
         <KeyRow id="hold-button" label="Key" bind={binds.holdButton} slot={{ kind: "holdButton" }} binds={binds} disabled={!chain.on} keyOnly />
         {HOLD_STAGES.map((stage) => (
@@ -167,6 +174,7 @@ export function KeysPanels() {
             }
           />
         ))}
+        <KeyRow id="hold-reset" label="Back to start" bind={binds.holdReset} slot={{ kind: "holdReset" }} binds={binds} disabled={!chain.on} />
       </section>
       <section className="panel" aria-labelledby="keys-review-title">
         <h2 id="keys-review-title" className="panel-title">

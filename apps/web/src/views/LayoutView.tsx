@@ -25,7 +25,7 @@ import { Icon } from "../components/Icon";
 import { ReviewCard, listensFirst } from "../components/ReviewCard";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
-import { ShowButton } from "../components/ShowButton";
+import { HoldButton, ShowButton } from "../components/ShowButton";
 import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
@@ -197,13 +197,13 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   /** The Hold button, while it's on (Settings → Keybinds): previewed, it goes as far as the back, a preview giving no answer. */
   const chainOn = binds.holdChain.on;
   const previewStages: HoldStage[] = [
-    ...(opening === "listen" ? [{ label: "Done listening", icon: "check" as const, ms: binds.holdChain.listenMs, done: () => setFace("front") }] : []),
-    { label: "Show back of card", icon: "eye", ms: binds.holdChain.backMs, done: () => setFace("back") },
+    ...(opening === "listen" ? [{ label: "Done listening", ms: binds.holdChain.listenMs, done: () => setFace("front") }] : []),
+    { label: "Show back of card", ms: binds.holdChain.backMs, done: () => setFace("back") },
   ];
   const chain = useHoldButton({
     stages: previewStages,
     at: face === "listen" ? 0 : face === "front" ? previewStages.length - 1 : previewStages.length,
-    rest: { label: "Hide back of card", icon: "eyeOff" },
+    rest: "Back to start",
     back: () => setFace(opening),
     showing: `${sampleId}:${trying ? "try" : "edit"}`,
     bind: binds.holdButton,
@@ -446,10 +446,14 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
                 },
               })}
         />
-        {/* With the Hold button on, it stands on the back too, a tap of it back to the card's start, as in a review. */}
-        {trying && (face !== "back" || chainOn) ? (
-          <div ref={previewActions} className="review-actions">
-            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} chain={chainOn ? chain.view : null} />
+        {/* With the Hold button on, it stands under the card on both its sides, a tap of it back to the card's start, as in a review. */}
+        {trying && chainOn ? (
+          <div ref={previewActions} className="review-hold">
+            <HoldButton view={chain.view} />
+          </div>
+        ) : trying && face !== "back" ? (
+          <div className="review-actions">
+            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
           </div>
         ) : null}
         {!trying && away.length > 0 ? (

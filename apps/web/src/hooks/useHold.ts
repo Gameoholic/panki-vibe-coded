@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { pressed } from "../keys";
+import { DOUBLE_PRESS, pressed } from "../keys";
 
 /** How long a hold let go early takes to go back to nothing. */
 const LET_GO_MS = 160;
@@ -29,8 +29,25 @@ const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed
  * 0.2 s, the owner's pick (2026-11-01; 0.15 s from 2026-10-29, after trying 0.1 s).
  */
 export const TAP_MS = 200;
-/** A second press of a key this soon after a tap of it is a double press (the Hold button's Back to start, 2026-11-02). */
-export const DOUBLE_MS = 350;
+/**
+ * A second press of a key this soon after the first is a double press (`keys.ts` → `DOUBLE_PRESS`, the owner,
+ * 2026-11-02: the Hold button's Back to start, and any key set to it); a press of a key whose double press does
+ * something waits this long before it's a press.
+ */
+export const DOUBLE_MS = 300;
+
+/** Keys a double press of which does something right now, by how many listen for it (`keepDouble`): a press of one waits `DOUBLE_MS`. */
+const liveDoubles = new Map<string, number>();
+/** Notes a key whose double press does something right now; what it gives back lets go of it. */
+export function keepDouble(key: string): () => void {
+  liveDoubles.set(key, (liveDoubles.get(key) ?? 0) + 1);
+  return () => {
+    const left = (liveDoubles.get(key) ?? 1) - 1;
+    if (left > 0) liveDoubles.set(key, left);
+    else liveDoubles.delete(key);
+  };
+}
+const doubleLive = (e: KeyboardEvent) => [...liveDoubles.keys()].some((key) => pressed(e, key));
 
 /**
  * A key held on a button until it does its thing (`keys.ts`, a bind to hold): how far along, 0 to 1, is written on the
@@ -40,6 +57,10 @@ export const DOUBLE_MS = 350;
 export function useHold() {
   const current = useRef<{ key: string; el: HTMLElement; raf: number } | null>(null);
   const easing = useRef(new Map<HTMLElement, number>());
+  /** When each key's double press began here, by the key: its second press within `DOUBLE_MS` is the double. */
+  const firsts = useRef(new Map<string, number>());
+  /** Presses here waiting out a double press of their key, by the key: a second press calls one off. */
+  const waiting = useRef(new Map<string, number>());
 
   const set = (el: HTMLElement, share: number) => el.style.setProperty("--hold", share.toFixed(4));
   function settle(el: HTMLElement, from: number) {
@@ -62,10 +83,38 @@ export function useHold() {
    */
   function begin(e: KeyboardEvent | string, el: HTMLElement | null, ms: number, done: () => void, quiet?: boolean) {
     const key = typeof e === "string" ? e : e.key;
+    const named = key.toLowerCase();
     if (current.current) return;
-    // A hold of no time is a press.
+    // A double press (`DOUBLE_PRESS`): the first press noted, the second within `DOUBLE_MS` does it.
+    if (ms === DOUBLE_PRESS) {
+      const first = firsts.current.get(named);
+      const now = performance.now();
+      if (first !== undefined && now - first < DOUBLE_MS) {
+        firsts.current.delete(named);
+        done();
+      } else firsts.current.set(named, now);
+      return;
+    }
+    // A hold of no time is a press; one of a key whose double press does something waits to see it isn't that, a second
+    // press of it in time calling it off.
     if (ms <= 0) {
-      done();
+      if (typeof e === "string" || !doubleLive(e)) {
+        done();
+        return;
+      }
+      const pending = waiting.current.get(named);
+      if (pending !== undefined) {
+        window.clearTimeout(pending);
+        waiting.current.delete(named);
+        return;
+      }
+      waiting.current.set(
+        named,
+        window.setTimeout(() => {
+          waiting.current.delete(named);
+          done();
+        }, DOUBLE_MS),
+      );
       return;
     }
     if (!el) return;
@@ -104,9 +153,11 @@ export function useHold() {
   useEffect(() => {
     const away = () => release();
     window.addEventListener("blur", away);
+    const pending = waiting.current;
     return () => {
       window.removeEventListener("blur", away);
       release();
+      for (const timer of pending.values()) window.clearTimeout(timer);
     };
     // Once: `release` reads only refs.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
