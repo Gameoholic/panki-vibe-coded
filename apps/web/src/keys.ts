@@ -318,9 +318,7 @@ function read(): KeyBinds {
     const holdButton = asHolds("holdButton" in raw ? bindOf(raw.holdButton, DEFAULT_KEYS.holdButton, undefined) : DEFAULT_KEYS.holdButton);
     const holdReset = "holdReset" in raw ? bindOf(raw.holdReset, DEFAULT_KEYS.holdReset, undefined) : DEFAULT_KEYS.holdReset;
     const holdChain = holdChainOf("holdChain" in raw ? raw.holdChain : undefined);
-    const read: KeyBinds = { reveal, showCard, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
-    // Kept on with no key (its Space lost to a clip's Space tapped, 2026-11-02): it takes its Space again, unless Space is held for something else.
-    return read.holdChain.on ? withHoldKey(read) : read;
+    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -438,25 +436,12 @@ export function withKey(binds: KeyBinds, slot: Slot, key: string | null, part: P
   return withPart(binds, slot, part, (k) => ({ ...k, key }));
 }
 /**
- * The Hold button given its own key back when it has none (Space to begin with), unless that key is held for something
- * else on the review: a press of it and a double press share it with the hold.
- */
-function withHoldKey(binds: KeyBinds): KeyBinds {
-  const own = DEFAULT_KEYS.holdButton;
-  if (keysOf(binds.holdButton).some((key) => key.key !== null)) return binds;
-  const others = slotsOf(binds).filter((slot) => screenOf(slot.kind) === "review" && !apart(slot, { kind: "holdButton" }));
-  if (others.some((slot) => keysOf(bindAt(binds, slot)).some((key) => clash(key, own)))) return binds;
-  return { ...binds, holdButton: own };
-}
-/**
- * The keys with the Hold button switched on or off. On, it has its key (`withHoldKey`), and its keys take theirs from
- * whatever else on the review has them the same way (another hold of Space, a double press of it), as setting them
- * would; off, nothing else changes.
+ * The keys with the Hold button switched on or off. On, its keys take theirs from whatever else on the review has them
+ * the same way (another hold of Space, a double press of it), as setting them would; off, nothing else changes.
  */
 export function withHoldChain(binds: KeyBinds, on: boolean): KeyBinds {
   let next: KeyBinds = { ...binds, holdChain: { ...binds.holdChain, on } };
   if (!on) return next;
-  next = withHoldKey(next);
   for (const kind of ["holdButton", "holdReset"] as const) {
     for (const part of partsOf(next[kind])) next = withPart(next, { kind }, part, (key) => key);
   }
