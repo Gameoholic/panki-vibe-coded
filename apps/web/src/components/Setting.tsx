@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PerDevice } from "./PerDevice";
 
 type Props = {
   /** Names the setting for the checks that drive the real UI. */
@@ -11,14 +12,19 @@ type Props = {
   why?: ReactNode;
   /** Under the row, the whole of its width: a question its control asks before it changes something (a key taken off). */
   children?: ReactNode;
+  /** Kept on this device alone: "This device" beside its label (`PerDevice`). */
+  perDevice?: boolean;
 };
 
 /** One setting as a row: what it is, the control that sets it, and a line of why under them. The Settings tab and a deck's settings are both made of these. */
-export function Setting({ id, label, control, why, children }: Props) {
+export function Setting({ id, label, control, why, children, perDevice = false }: Props) {
   return (
     <div className="setting" data-setting={id}>
       <div className="setting-head">
-        <span className="setting-label">{label}</span>
+        <span className="setting-label">
+          {label}
+          {perDevice ? <PerDevice /> : null}
+        </span>
         {control}
       </div>
       {why ? <p className="setting-why">{why}</p> : null}

@@ -8,6 +8,12 @@ export const VIDEO_TRACKING_WHY =
 /** What a watching tile or shelf says while the account's Video tracking is off: Panki's tiles and YouTube's home alike. */
 export const VIDEO_TRACKING_OFF = "Video tracking is off";
 
+/**
+ * The tag beside what's kept on this device alone (`PerDevice`, the owner, 2026-11-02: "I want as a user to know what's
+ * per device"); everything untagged is the account's.
+ */
+export const PER_DEVICE = "This device";
+
 /** "1 card", "2 cards", "212,345 words": every count the owner reads is phrased here. */
 export function count(n: number, one: string, many: string) {
   return `${n.toLocaleString("en")} ${n === 1 ? one : many}`;

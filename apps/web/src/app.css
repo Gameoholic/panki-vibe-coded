@@ -3137,6 +3137,32 @@ mark.sub-blur {
 .setting-label {
   font-weight: 700;
 }
+/* "This device": the quiet tag beside what's kept on this device alone (`PerDevice`), a mode chip's shape in the muted colour. */
+.per-device {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+/* A panel's title with something beside it on its line (the tab's "This device"). */
+.panel-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.panel-head .panel-title {
+  margin: 0;
+}
 /* A control too wide to stand beside its label goes under it, still at the right, where the rows' controls all stand. */
 .setting-label + * {
   margin-left: auto;

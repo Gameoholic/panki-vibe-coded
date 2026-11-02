@@ -491,35 +491,42 @@ export function withoutAdded(binds: KeyBinds, slot: Slot, index: number): KeyBin
 }
 
 /**
- * Whether the keycaps on buttons show on a phone (the owner, 2026-11-01: "make it so keybinds don't appear on mobile…
- * some people might connect a keyboard, so make that a setting whether to show on mobile, default false"). A phone is a
- * screen with no hover, as `app.css` judges a touch screen (`@media (hover: none)`); there a keycap is drawn only while
- * this is on, and a key pressed still works either way. This device's own, beside its keys.
+ * Whether the keycaps on buttons are drawn on this device (the owner, 2026-11-02: "keycaps on/off cuz it's per device so I
+ * can just disable it on the mobile"; a phone-only switch, "Keys on buttons", from 2026-11-01). Until it's set, the
+ * device's own: off on a phone, a screen with no hover as `app.css` judges a touch screen (`@media (hover: none)`), on
+ * everywhere else. A key pressed works either way. This device's own, beside its keys.
  */
-const KEYCAPS_KEY = "panki.keycapsOnPhone";
+const KEYCAPS_KEY = "panki.keycaps";
+/** Where the phone-only switch was kept: "true" (shown on a phone) carried over once, "false" being the phone's default now. */
+const OLD_KEYCAPS_KEY = "panki.keycapsOnPhone";
 const PHONE_QUERY = "(hover: none)";
-function readKeycapsOnPhone(): boolean {
+function readKeycaps(): boolean | null {
   try {
-    return localStorage.getItem(KEYCAPS_KEY) === "true";
+    const kept = localStorage.getItem(KEYCAPS_KEY);
+    if (kept !== null) return kept === "true";
+    const old = localStorage.getItem(OLD_KEYCAPS_KEY);
+    if (old === null) return null;
+    localStorage.removeItem(OLD_KEYCAPS_KEY);
+    if (old !== "true") return null;
+    localStorage.setItem(KEYCAPS_KEY, "true");
+    return true;
   } catch {
-    return false;
+    return null;
   }
 }
-let keycapsOnPhone: boolean | null = null;
-const getKeycapsOnPhone = () => (keycapsOnPhone ??= readKeycapsOnPhone());
-/** Whether keycaps show on a phone, set in Settings → Keybinds; a `keys` row in the ledger each change. */
-export function useKeycapsOnPhone(): boolean {
-  return useSyncExternalStore(subscribe, getKeycapsOnPhone);
-}
-export function setKeycapsOnPhone(on: boolean) {
-  keycapsOnPhone = on;
+/** What's kept: on, off, or null for the device's own; undefined until it's read. */
+let keycaps: boolean | null | undefined;
+const getKeycaps = () => (keycaps === undefined ? (keycaps = readKeycaps()) : keycaps);
+/** Keycaps On or Off on this device, set in Settings → Keybinds; a `keys` row in the ledger each change. */
+export function setKeycaps(on: boolean) {
+  keycaps = on;
   try {
     localStorage.setItem(KEYCAPS_KEY, String(on));
   } catch {
     // Storage refused (a private window): it holds while the page is open.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { keycapsOnPhone: on } });
+  ledger.record("keys", { data: { keycaps: on } });
 }
 function subscribePhone(listener: () => void) {
   const query = window.matchMedia(PHONE_QUERY);
@@ -527,9 +534,9 @@ function subscribePhone(listener: () => void) {
   return () => query.removeEventListener("change", listener);
 }
 const onPhone = () => window.matchMedia(PHONE_QUERY).matches;
-/** Whether a keycap is drawn on this device now: not on a phone, unless keycaps are set to show there. The keycaps' one rule (`KeyCap`, `MediaKey`). */
+/** Whether a keycap is drawn on this device now: as Keycaps is set, else off on a phone and on elsewhere. The keycaps' one rule (`KeyCap`, `MediaKey`, the setting's own switch). */
 export function useKeycapsShown(): boolean {
   const phone = useSyncExternalStore(subscribePhone, onPhone);
-  const onPhoneToo = useKeycapsOnPhone();
-  return !phone || onPhoneToo;
+  const kept = useSyncExternalStore(subscribe, getKeycaps);
+  return kept ?? !phone;
 }

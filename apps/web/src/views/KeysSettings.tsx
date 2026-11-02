@@ -5,10 +5,11 @@ import { Dropdown } from "../components/Dropdown";
 import { Explainer } from "../components/Explainer";
 import { Icon } from "../components/Icon";
 import { KeyField } from "../components/KeyField";
+import { PerDevice } from "../components/PerDevice";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
-import { ALSO_MAX, DEFAULT_KEYS, DOUBLE_PRESS, HOLD_TIMES, PRESS_KINDS, setKeyBinds, setKeycapsOnPhone, useKeyBinds, useKeycapsOnPhone, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { ALSO_MAX, DEFAULT_KEYS, DOUBLE_PRESS, HOLD_TIMES, PRESS_KINDS, setKeyBinds, setKeycaps, useKeyBinds, useKeycapsShown, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
 import { HoldButtonScene } from "./HoldButtonScene";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
@@ -122,16 +123,23 @@ export function KeysPanels() {
   const changed = JSON.stringify(binds) !== JSON.stringify(DEFAULT_KEYS);
   /** Reset to default keys is asking first. */
   const [resetting, setResetting] = useState(false);
-  const keycapsOnPhone = useKeycapsOnPhone();
+  const keycaps = useKeycapsShown();
   const chain = binds.holdChain;
   return (
     <>
-      {/* Whether a phone draws the keys on its buttons (the owner, 2026-11-01): hidden to begin with, there being no keyboard. */}
-      <section className="panel" aria-labelledby="keys-phone-title">
-        <h2 id="keys-phone-title" className="panel-title">
-          Mobile
-        </h2>
-        <Setting id="keycapsOnPhone" label="Keys on buttons" control={<Toggle id="keycaps-on-phone" says={{ on: "Shown", off: "Hidden" }} on={keycapsOnPhone} onChange={setKeycapsOnPhone} />} />
+      {/*
+        The tab's head: all of it is this device's, so it says so once (the owner, 2026-11-02). Keycaps, whether this
+        device draws the keys on its buttons, off on a phone and on elsewhere until it's set ("Keys on buttons" on a
+        Mobile panel, for phones alone, until the owner made it one switch per device, 2026-11-02).
+      */}
+      <section className="panel" aria-labelledby="keys-device-title">
+        <div className="panel-head">
+          <h2 id="keys-device-title" className="panel-title">
+            Keybinds
+          </h2>
+          <PerDevice />
+        </div>
+        <Setting id="keycaps" label="Keycaps" control={<Toggle id="keycaps" says={{ on: "On", off: "Off" }} on={keycaps} onChange={setKeycaps} />} />
       </section>
       <section className="panel" aria-labelledby="keys-home-title">
         <h2 id="keys-home-title" className="panel-title">

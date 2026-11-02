@@ -1097,6 +1097,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
           <Setting
             id="theme"
             label="Theme"
+            perDevice
             control={
               <div className="chips theme-chips" role="group" aria-label="Theme">
                 {THEMES.map((t) => {
