@@ -128,8 +128,9 @@ export const DEFAULT_KEYS: KeyBinds = {
   start: one(" ", 250),
   homeReview: one(" ", 500),
   confirmMs: 1000,
-  // Space, Show back of card's own to begin with: the two never act together (`FACE_KEYS`).
-  holdButton: one(" ", 0),
+  // Space held, Show back of card's own to begin with: the two never act together (`FACE_KEYS`). Its hold's time is its
+  // stages' (`holdChain`); what's kept on the key is only its shape, a hold.
+  holdButton: one(" ", HOLD_START),
   holdReset: one(" ", DOUBLE_PRESS),
   holdChain: { on: false, listenMs: 500, backMs: 1000, answerMs: 2000 },
 };
@@ -278,11 +279,14 @@ function read(): KeyBinds {
     const reveal = bindOf("reveal" in raw ? raw.reveal : undefined, DEFAULT_KEYS.reveal, oldHold);
     const answers = bindsOf("answers" in raw ? raw.answers : undefined, DEFAULT_KEYS.answers, oldHold);
     const media = bindsOf("media" in raw ? raw.media : undefined, DEFAULT_KEYS.media, oldHold);
+    // Each key given to a device that kept its keys from before it existed is given only where nothing on its screen
+    // already has that key in the same shape (`clash`: a press, a hold and a double press of one key are three things).
+    const takenBy = (keys: readonly Bind[], wanted: Key) => keys.flatMap(keysOf).some((key) => clash(key, wanted));
     // Kept before there was a full screen key: it starts on F, unless F already does something else here.
-    const taken = [reveal, ...answers, ...media].some((bind) => sameKey(bind.key, DEFAULT_KEYS.fullScreen.key));
+    const taken = takenBy([reveal, ...answers, ...media], DEFAULT_KEYS.fullScreen);
     const fullScreen = "fullScreen" in raw ? bindOf(raw.fullScreen, DEFAULT_KEYS.fullScreen, undefined) : taken ? { ...DEFAULT_KEYS.fullScreen, key: null } : DEFAULT_KEYS.fullScreen;
     // Kept before there were restart keys: the first gets 1 held, unless 1 held already does something else here.
-    const restartTaken = [reveal, ...answers, ...media, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, RESTART_START.key) && key.holdMs > 0);
+    const restartTaken = takenBy([reveal, ...answers, ...media, fullScreen], RESTART_START);
     const restart =
       "restart" in raw
         ? bindsOf(raw.restart, DEFAULT_KEYS.restart, undefined)
@@ -291,7 +295,7 @@ function read(): KeyBinds {
           : DEFAULT_KEYS.restart;
     // Kept before there was a key of its own to hide the answer: Space held, unless a hold of Space already does something
     // else on the review here (Show answer's doesn't count: they're never on the card's same side).
-    const hideTaken = [...answers, ...media, ...restart, fullScreen].flatMap(keysOf).some((key) => sameKey(key.key, DEFAULT_KEYS.hide.key) && key.holdMs > 0);
+    const hideTaken = takenBy([...answers, ...media, ...restart, fullScreen], DEFAULT_KEYS.hide);
     const hide = "hide" in raw ? bindOf(raw.hide, DEFAULT_KEYS.hide, undefined) : hideTaken ? one(null, 0) : DEFAULT_KEYS.hide;
     // Kept before Done listening had a key of its own: Show back of card's, which was its until then.
     const showCard = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.showCard, undefined) : reveal;
@@ -299,18 +303,19 @@ function read(): KeyBinds {
     // Kept before the examples had keys to begin with (`ARROWS_KEPT`): one left with none gets its arrow, unless that
     // arrow already does something else on the review here.
     const arrowed = "kept" in raw && typeof raw.kept === "number" && raw.kept >= ARROWS_KEPT;
-    const rest = [reveal, hide, ...answers, ...media, ...restart, fullScreen, undo].flatMap(keysOf);
+    const rest = [reveal, hide, ...answers, ...media, ...restart, fullScreen, undo];
     const exampleOf = (name: "examplePrev" | "exampleNext"): Bind => {
       const fallback = DEFAULT_KEYS[name];
       const kept = name in raw ? bindOf((raw as Record<string, unknown>)[name], fallback, undefined) : fallback;
       if (arrowed || kept.key !== null || kept.also.length > 0) return kept;
-      return rest.some((key) => sameKey(key.key, fallback.key)) ? kept : fallback;
+      return takenBy(rest, fallback) ? kept : fallback;
     };
     const examplePrev = exampleOf("examplePrev");
     const exampleNext = exampleOf("exampleNext");
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    const holdButton = "holdButton" in raw ? bindOf(raw.holdButton, DEFAULT_KEYS.holdButton, undefined) : DEFAULT_KEYS.holdButton;
+    // The Hold button's keys are holds (kept as presses on its first day, when its hold wasn't kept on the key).
+    const holdButton = asHolds("holdButton" in raw ? bindOf(raw.holdButton, DEFAULT_KEYS.holdButton, undefined) : DEFAULT_KEYS.holdButton);
     const holdReset = "holdReset" in raw ? bindOf(raw.holdReset, DEFAULT_KEYS.holdReset, undefined) : DEFAULT_KEYS.holdReset;
     const holdChain = holdChainOf("holdChain" in raw ? raw.holdChain : undefined);
     const read: KeyBinds = { reveal, showCard, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
@@ -390,11 +395,14 @@ const partsOf = (bind: Bind): Part[] => ["main", ...bind.also.map((_, i) => i)];
  */
 const clash = (a: Key, b: Key) => sameKey(a.key, b.key) && pressKind(a) === pressKind(b);
 /**
- * A slot's key as it's pressed: the Hold button's are held through its stages whatever they keep (`holdChain` holds
- * them), so they share their key with a press of it (a clip's Space tapped) and a double press (Back to start), as Show
- * back of card's hold always did (the owner, 2026-11-02: it lost its Space to the clip's tap until then).
+ * A bind whose every key is a hold: the Hold button's, held through its stages (`holdChain` keeps the times), so by
+ * `clash` it shares its key with a press of it (a clip's Space tapped) and a double press (Back to start), as Show back
+ * of card's hold always did (the owner, 2026-11-02: kept as a press on its first day, it lost its Space to a clip's).
  */
-const asPressed = (slot: Slot, key: Key): Key => (slot.kind === "holdButton" ? { ...key, holdMs: HOLD_START } : key);
+function asHolds(bind: Bind): Bind {
+  const hold = (key: Key): Key => (pressKind(key) === "hold" ? key : { ...key, holdMs: HOLD_START });
+  return { ...hold(bind), also: bind.also.map(hold) };
+}
 
 /**
  * The keys with one of a slot's keys changed, that key taken from whatever else on the same screen it would clash with
@@ -414,7 +422,7 @@ export function withPart(binds: KeyBinds, slot: Slot, part: Part, change: (key: 
     for (const p of partsOf(bind)) {
       if (sameSlot(other, slot) && p === part) continue;
       const key = partOf(bind, p);
-      if (clash(asPressed(other, key), asPressed(slot, mine))) changed = withPartOf(changed, p, { ...key, key: null });
+      if (clash(key, mine)) changed = withPartOf(changed, p, { ...key, key: null });
     }
     if (changed !== bind) next = setAt(next, other, sameSlot(other, slot) ? changed : tidy(changed));
   }
@@ -436,7 +444,8 @@ export function withKey(binds: KeyBinds, slot: Slot, key: string | null, part: P
 function withHoldKey(binds: KeyBinds): KeyBinds {
   const own = DEFAULT_KEYS.holdButton;
   if (keysOf(binds.holdButton).some((key) => key.key !== null)) return binds;
-  if (heldOnReview(binds).some((key) => sameKey(key.key, own.key))) return binds;
+  const others = slotsOf(binds).filter((slot) => screenOf(slot.kind) === "review" && !apart(slot, { kind: "holdButton" }));
+  if (others.some((slot) => keysOf(bindAt(binds, slot)).some((key) => clash(key, own)))) return binds;
   return { ...binds, holdButton: own };
 }
 /**
