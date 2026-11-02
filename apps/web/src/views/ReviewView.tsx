@@ -459,10 +459,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /** What Undo can take back, newest last (the owner, 2026-10-26): every answer of this sitting, until it's left. */
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
-  /** The showing (its `turn`) whose Listen phase is over: Done listening pressed, or its sound or clip begun the play that shows it. Undo puts a card back on its front, never in it. */
+  /**
+   * The showing (its `turn`) whose Listen phase is over: Done listening pressed, or its sound or clip begun the play that
+   * shows it. A card's start is its Listen phase where it has one, its front otherwise: a new showing (an answer, Undo)
+   * and Back to start all put it there (the owner, 2026-11-02: Undo put it on its front until then).
+   */
   const [listenedTurn, setListenedTurn] = useState<number | null>(null);
-  /** The showing (its `turn`) Undo put on screen: on its front from the start, with no Listen phase to go back to. */
-  const [undoneTurn, setUndoneTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -603,8 +605,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /** A key Done listening, Show back of card and Hide back of card would show: none while the Hold button is on, whose they are then. */
   const faceBind = (bind: Bind) => (chainOn ? undefined : bind);
   const holdAnswer = card ? srsType.answers.find((a) => a.id === deck.settings.holdAnswer && offered(srsType, card.place, a.id)) : undefined;
-  // Whether this showing of the card started in its Listen phase: one put back by Undo starts on its front.
-  const listensHere = card !== undefined && undoneTurn !== turn && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
+  // Whether the card starts in its Listen phase, as every showing of it does where it has one.
+  const listensHere = card !== undefined && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
   const lead = listensHere ? 1 : 0;
   const chainStages: HoldStage[] = [
     ...(listensHere ? [{ label: "Done listening", ms: binds.holdChain.listenMs, done: showCard }] : []),
@@ -621,12 +623,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   function chainAt() {
     return place.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null;
   }
-  /** Back to start: the card on its start again (its Listen phase, where this showing began in it), nothing answered. */
+  /** Back to start: the card on its start again (its Listen phase where it has one, its front otherwise), nothing answered. */
   function backToStart() {
     if (busy) return;
     setAsking(null);
     setRevealed(false);
-    if (listensHere) setListenedTurn(null);
+    setListenedTurn(null);
   }
   const chain = useHoldButton({
     stages: chainStages,
@@ -824,7 +826,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   /**
    * Takes the last answer back: Panki keeps it, marked undone, and the card stands where it stood before it. The review
-   * is put back as it was just before it, the card on screen again on its front, a showing of its own. One Panki
+   * is put back as it was just before it, the card on screen again at its start (its Listen phase where it has one), a
+   * showing of its own. One Panki
    * can't take back (the card answered elsewhere since, or gone) leaves nothing before it to take back either.
    */
   async function undo() {
@@ -839,10 +842,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       setLine(last.line);
       setCounts(last.counts);
       setAnswered(last.answered);
-      // On its front, as it was answered from: an Undo never starts a card's Listen phase again.
+      // On its start, as it first came up: its Listen phase where it has one, its front otherwise.
       setTurn(turn + 1);
-      setListenedTurn(turn + 1);
-      setUndoneTurn(turn + 1);
+      setListenedTurn(null);
       setGiven((g) => g.slice(0, -1));
       setRevealed(false);
     } catch (e) {
