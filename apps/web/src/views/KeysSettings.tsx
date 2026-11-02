@@ -143,7 +143,7 @@ export function KeysPanels() {
         The Hold button (the owner, 2026-11-02): held, one key carries a card from its start through every stage to the
         deck's answer (a deck's "Hold button answers with"), each stage held for its own time; Back to start, a key of its
         own (Space pressed twice to begin with), takes the card back to its start. Off to begin with; its rows greyed while
-        it's off. The line under its title the owner asked for (2026-11-02), an exception to no explaining lines.
+        it's off. One more action with its own key (Shift held to begin with), beside the review's own and theirs.
       */}
       <section className="panel" aria-labelledby="keys-hold-title">
         <div className="explain-head">
@@ -154,7 +154,6 @@ export function KeysPanels() {
             <HoldButtonScene binds={binds} />
           </Explainer>
         </div>
-        <p className="setting-why">While it's on, the review buttons keep working by touch but have no keys of their own.</p>
         <Setting id="holdChain" label="Hold button" control={<Toggle id="hold-chain" says={{ on: "On", off: "Off" }} on={chain.on} onChange={(on) => setKeyBinds(withHoldChain(binds, on))} />} />
         <KeyRow id="hold-button" label="Key" bind={binds.holdButton} slot={{ kind: "holdButton" }} binds={binds} disabled={!chain.on} keyOnly />
         {HOLD_STAGES.map((stage) => (
@@ -181,10 +180,10 @@ export function KeysPanels() {
           Review
         </h2>
         <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} />
-        {/* In the order a card goes: out of its Listen phase, to its back, and back to its front. The Hold button stands for all three while it's on. */}
-        <KeyRow id="show-card" label="Done listening" bind={binds.showCard} slot={{ kind: "showCard" }} binds={binds} disabled={chain.on} />
-        <KeyRow id="reveal" label="Show back of card" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} disabled={chain.on} />
-        <KeyRow id="hide" label="Hide back of card" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} disabled={chain.on} />
+        {/* In the order a card goes: out of its Listen phase, to its back, and back to its front. */}
+        <KeyRow id="show-card" label="Done listening" bind={binds.showCard} slot={{ kind: "showCard" }} binds={binds} />
+        <KeyRow id="reveal" label="Show back of card" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} />
+        <KeyRow id="hide" label="Hide back of card" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} />
         {binds.answers.map((bind, index) => (
           <KeyRow key={index} id={`answer-${index + 1}`} label={`Answer ${index + 1}`} bind={bind} slot={{ kind: "answers", index }} binds={binds} />
         ))}

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { DOUBLE_PRESS, pressed } from "../keys";
+import { DOUBLE_PRESS, isModifier, pressed } from "../keys";
 
 /** How long a hold let go early takes to go back to nothing. */
 const LET_GO_MS = 160;
@@ -50,12 +50,40 @@ export function keepDouble(key: string): () => void {
 const doubleLive = (e: KeyboardEvent) => [...liveDoubles.keys()].some((key) => pressed(e, key));
 
 /**
+ * Shift, Ctrl or Alt down by itself (`keys.ts` → `isModifier`, the owner, 2026-11-02): each one down now, and whether it
+ * still is its own press, nothing else having gone down since (Ctrl+Z is Z's, never Ctrl's). Heard on the window before
+ * anything else (capture), and let go of just after its key goes up, so whoever hears that can still ask.
+ */
+const modifiersDown = new Map<string, boolean>();
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      const named = e.key.toLowerCase();
+      for (const key of modifiersDown.keys()) if (key !== named) modifiersDown.set(key, false);
+      if (isModifier(e.key) && !e.repeat) modifiersDown.set(named, true);
+    },
+    true,
+  );
+  window.addEventListener(
+    "keyup",
+    (e) => {
+      const named = e.key.toLowerCase();
+      if (isModifier(e.key)) window.setTimeout(() => modifiersDown.delete(named), 0);
+    },
+    true,
+  );
+}
+/** Whether Shift, Ctrl or Alt is its own press: down (or just let go) with nothing else pressed meanwhile. */
+const ownModifier = (key: string) => modifiersDown.get(key.toLowerCase()) === true;
+
+/**
  * A key held on a button until it does its thing (`keys.ts`, a bind to hold): how far along, 0 to 1, is written on the
  * button as `--hold` each frame, and what draws it is the CSS's (its keycap, `.key.is-hold`). Let go early, it eases back and nothing
  * happens; the window losing the focus lets go too. One hold at a time. The review is the pattern.
  */
 export function useHold() {
-  const current = useRef<{ key: string; el: HTMLElement; raf: number } | null>(null);
+  const current = useRef<{ key: string; el: HTMLElement; raf: number; stop: () => void } | null>(null);
   const easing = useRef(new Map<HTMLElement, number>());
   /** When each key's double press began here, by the key: its second press within `DOUBLE_MS` is the double. */
   const firsts = useRef(new Map<string, number>());
@@ -85,36 +113,23 @@ export function useHold() {
     const key = typeof e === "string" ? e : e.key;
     const named = key.toLowerCase();
     if (current.current) return;
-    // A double press (`DOUBLE_PRESS`): the first press noted, the second within `DOUBLE_MS` does it.
-    if (ms === DOUBLE_PRESS) {
-      const first = firsts.current.get(named);
-      const now = performance.now();
-      if (first !== undefined && now - first < DOUBLE_MS) {
-        firsts.current.delete(named);
-        done();
-      } else firsts.current.set(named, now);
+    // Shift, Ctrl or Alt pressed (or pressed twice) is its own press only if nothing else went down while it was: heard
+    // as it goes up, then as any press is.
+    if (typeof e !== "string" && ms <= 0 && isModifier(key)) {
+      if (e.type === "keyup") {
+        if (ownModifier(key)) pressNow(e, named, ms, done);
+        return;
+      }
+      const up = (u: KeyboardEvent) => {
+        if (u.key.toLowerCase() !== named) return;
+        window.removeEventListener("keyup", up);
+        if (ownModifier(key)) pressNow(u, named, ms, done);
+      };
+      window.addEventListener("keyup", up);
       return;
     }
-    // A hold of no time is a press; one of a key whose double press does something waits to see it isn't that, a second
-    // press of it in time calling it off.
     if (ms <= 0) {
-      if (typeof e === "string" || !doubleLive(e)) {
-        done();
-        return;
-      }
-      const pending = waiting.current.get(named);
-      if (pending !== undefined) {
-        window.clearTimeout(pending);
-        waiting.current.delete(named);
-        return;
-      }
-      waiting.current.set(
-        named,
-        window.setTimeout(() => {
-          waiting.current.delete(named);
-          done();
-        }, DOUBLE_MS),
-      );
+      pressNow(e, named, ms, done);
       return;
     }
     if (!el) return;
@@ -125,7 +140,13 @@ export function useHold() {
     }
     const t0 = performance.now();
     const still = (quiet ?? (typeof e !== "string" && tapLive(e))) ? Math.min(TAP_MS, ms) : 0;
-    const hold = { key, el, raf: 0 };
+    // A hold of Shift, Ctrl or Alt lets go the moment another key goes down: it's that key's, held with it.
+    const other = (d: KeyboardEvent) => {
+      if (d.key.toLowerCase() !== named) release();
+    };
+    const watching = isModifier(key);
+    if (watching) window.addEventListener("keydown", other, true);
+    const hold = { key, el, raf: 0, stop: () => watching && window.removeEventListener("keydown", other, true) };
     current.current = hold;
     const tick = (t: number) => {
       const share = ms === still ? (t - t0 >= ms ? 1 : 0) : Math.min(1, Math.max(0, t - t0 - still) / (ms - still));
@@ -135,10 +156,44 @@ export function useHold() {
         return;
       }
       current.current = null;
+      hold.stop();
       set(el, 0);
       done();
     };
     hold.raf = requestAnimationFrame(tick);
+  }
+
+  /** A press, or a double press (`DOUBLE_PRESS`), heard now. */
+  function pressNow(e: KeyboardEvent | string, named: string, ms: number, done: () => void) {
+    // A double press: the first press noted, the second within `DOUBLE_MS` does it.
+    if (ms === DOUBLE_PRESS) {
+      const first = firsts.current.get(named);
+      const now = performance.now();
+      if (first !== undefined && now - first < DOUBLE_MS) {
+        firsts.current.delete(named);
+        done();
+      } else firsts.current.set(named, now);
+      return;
+    }
+    // A press; one of a key whose double press does something waits to see it isn't that, a second press of it in time
+    // calling it off.
+    if (typeof e === "string" || !doubleLive(e)) {
+      done();
+      return;
+    }
+    const pending = waiting.current.get(named);
+    if (pending !== undefined) {
+      window.clearTimeout(pending);
+      waiting.current.delete(named);
+      return;
+    }
+    waiting.current.set(
+      named,
+      window.setTimeout(() => {
+        waiting.current.delete(named);
+        done();
+      }, DOUBLE_MS),
+    );
   }
 
   /** Lets go of the hold on `key` (any key, left out); what it was for doesn't happen. */
@@ -146,6 +201,7 @@ export function useHold() {
     const hold = current.current;
     if (!hold || (key !== undefined && hold.key.toLowerCase() !== key.toLowerCase())) return;
     cancelAnimationFrame(hold.raf);
+    hold.stop();
     current.current = null;
     settle(hold.el, parseFloat(hold.el.style.getPropertyValue("--hold") || "0"));
   }

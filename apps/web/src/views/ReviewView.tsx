@@ -598,12 +598,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /**
    * The Hold button, while it's on (Settings → Keybinds): the card's stages from its start, Done listening on a card
    * that listens first, Show back of card, and the deck's answer (`holdAnswer`) where the chart offers it here, each held
-   * for its own time; what's done is where the card stands. It stands for Done listening, Show back of card and Hide
-   * back of card, their keys heard no more while it's on.
+   * for its own time; what's done is where the card stands. One more action with its own key, beside the review's own
+   * buttons and their keys (the owner, 2026-11-02).
    */
   const chainOn = binds.holdChain.on;
-  /** A key Done listening, Show back of card and Hide back of card would show: none while the Hold button is on, whose they are then. */
-  const faceBind = (bind: Bind) => (chainOn ? undefined : bind);
   const holdAnswer = card ? srsType.answers.find((a) => a.id === deck.settings.holdAnswer && offered(srsType, card.place, a.id)) : undefined;
   // Whether the card starts in its Listen phase, as every showing of it does where it has one.
   const listensHere = card !== undefined && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
@@ -942,8 +940,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       }
       // Turned back to its front by Hide back of card's own key (the owner, 2026-10-29: Show answer's tap did it until Space
       // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide back of card button showing.
-      // With the Hold button on, it stands for this key, Done listening's and Show back of card's: they're heard no more.
-      const hiding = revealed && !chainOn ? keyIn(binds.hide, key) : null;
+      const hiding = revealed ? keyIn(binds.hide, key) : null;
       if (hiding) {
         e.preventDefault();
         if (e.repeat || busy) return;
@@ -952,7 +949,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         return;
       }
       // Done listening's own key while the card is listened to (the owner, 2026-11-01), Show back of card's on its front.
-      const showing = chainOn ? null : keyIn(listening ? binds.showCard : binds.reveal, key);
+      const showing = keyIn(listening ? binds.showCard : binds.reveal, key);
       if (showing) {
         e.preventDefault();
         if (e.repeat || revealed) return;
@@ -986,8 +983,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       hold.release(e.key);
       chain.keyUp(e);
       const starts = today !== null || (!card && extraOrder.length > 0);
-      const own = starts ? binds.start : chainOn ? binds.holdButton : listening ? binds.showCard : binds.reveal;
-      if (pressedIn(e, own) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      const own = starts ? [binds.start] : [listening ? binds.showCard : binds.reveal, ...(chainOn ? [binds.holdButton] : [])];
+      if (own.some((bind) => pressedIn(e, bind)) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -1098,12 +1095,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   // 2026-10-18), the CSS showing one of the two. Pinned over the counts' row, they covered "in play · waiting".
   const tools = (
     <>
-      {/* While the answer shows: the card back to its front, its key's hold drawn on it; with the Hold button on, pressed by hand alone, its key being the Hold button's. */}
+      {/* While the answer shows: the card back to its front, its key's hold drawn on it. */}
       {revealed ? (
         <Button className="review-hide" data-hold="hide" disabled={busy} onClick={hideAnswer}>
           <Icon name="eyeOff" />
           Hide back of card
-          <KeyCap bind={faceBind(binds.hide)} />
+          <KeyCap bind={binds.hide} />
         </Button>
       ) : null}
       <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
@@ -1138,7 +1135,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
             {revealed ? (
               <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={hideAnswer}>
                 <Icon name="eyeOff" />
-                <KeyCap bind={faceBind(binds.hide)} />
+                <KeyCap bind={binds.hide} />
               </Button>
             ) : null}
             <Button className="btn-icon review-stage-undo" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
@@ -1206,7 +1203,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           {failure}
         </p>
       ) : null}
-      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons, which keep working by hand without their keys (the owner, 2026-11-02). */}
+      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons and their keys (the owner, 2026-11-02). */}
       {chainOn ? (
         <div className="review-hold">
           <HoldButton view={chain.view} />
@@ -1251,7 +1248,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
               )
             ) : (
               // Listened to, Done listening stands in Show answer's place, with its key: the card's front, out of its Listen phase.
-              <ShowButton listening={listening} bind={faceBind(listening ? binds.showCard : binds.reveal)} onPress={listening ? showCard : reveal} />
+              <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={listening ? showCard : reveal} />
             )}
           </div>
           {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}

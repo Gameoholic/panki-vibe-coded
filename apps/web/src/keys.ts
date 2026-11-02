@@ -128,16 +128,28 @@ export const DEFAULT_KEYS: KeyBinds = {
   start: one(" ", 250),
   homeReview: one(" ", 500),
   confirmMs: 1000,
-  // Space held, Show back of card's own to begin with: the two never act together (`FACE_KEYS`). Its hold's time is its
-  // stages' (`holdChain`); what's kept on the key is only its shape, a hold.
-  holdButton: one(" ", HOLD_START),
+  // Shift held, so it never meets Space (the owner, 2026-11-02; Space until then). Its hold's time is its stages'
+  // (`holdChain`); what's kept on the key is only its shape, a hold.
+  holdButton: one("Shift", HOLD_START),
   holdReset: one(" ", DOUBLE_PRESS),
   holdChain: { on: false, listenMs: 500, backMs: 1000, answerMs: 2000 },
 };
 
-/** Keys that are never bound: the modifiers, and the ones the page keeps for itself (Escape cancels, Tab moves on). */
-const NEVER = new Set(["Shift", "Control", "Alt", "AltGraph", "Meta", "OS", "CapsLock", "NumLock", "ScrollLock", "Escape", "Tab", "Dead", "Process", "Unidentified", "ContextMenu"]);
+/**
+ * Keys that are never bound: the Windows or Command key and the locks, and the ones the page keeps for itself (Escape
+ * cancels, Tab moves on). Shift, Ctrl and Alt are keys by themselves too (the owner, 2026-11-02: the Hold button on
+ * Shift), as `MODIFIERS` names them.
+ */
+const NEVER = new Set(["AltGraph", "Meta", "OS", "CapsLock", "NumLock", "ScrollLock", "Escape", "Tab", "Dead", "Process", "Unidentified", "ContextMenu"]);
 export const bindable = (key: string) => !NEVER.has(key);
+/**
+ * Shift, Ctrl and Alt as keys by themselves: the browser's name for each (`KeyboardEvent.key`) and the one a bind keeps.
+ * One is its own press only when nothing else was pressed while it was down (Ctrl+Z is Z's): a tap acts as it's let go,
+ * a hold lets go the moment another key goes down (`useHold.ts`).
+ */
+const MODIFIERS: Readonly<Record<string, string>> = { Shift: "Shift", Control: "Ctrl", Alt: "Alt" };
+/** Whether a key, as the browser names it or as a bind keeps it, is Shift, Ctrl or Alt by itself. */
+export const isModifier = (key: string) => key in MODIFIERS || Object.values(MODIFIERS).includes(key);
 
 /** One key the same as another, whatever its case: "a" and "A" are the one key. */
 export const sameKey = (a: string | null, b: string | null) => a !== null && b !== null && a.toLowerCase() === b.toLowerCase();
@@ -153,9 +165,12 @@ export function keyIn(bind: Bind | undefined, key: string): Key | null {
 
 /**
  * The key a press is, as a bind keeps it: the key itself, after Ctrl and Alt when either is held with it ("Ctrl+z",
- * "Ctrl+Alt+z"). Shift isn't written: it only changes how the key reads ("A" for "a"), as it always has.
+ * "Ctrl+Alt+z"). Shift isn't written: it only changes how the key reads ("A" for "a"), as it always has. Shift, Ctrl
+ * or Alt pressed is itself, alone ("Shift", "Ctrl", "Alt"), whatever else is held.
  */
 export function keyOf(e: KeyboardEvent): string {
+  const modifier = MODIFIERS[e.key];
+  if (modifier) return modifier;
   const held = [e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null].filter((name) => name !== null);
   return [...held, e.key.length === 1 ? e.key.toLowerCase() : e.key].join("+");
 }
@@ -165,10 +180,9 @@ export const pressed = (e: KeyboardEvent, key: string | null) => !e.metaKey && s
 /** Which of an action's keys a press is, or null: `pressed` for either. */
 export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKey ? null : keyIn(bind, keyOf(e)));
 
-/** Every review key but the home's and today's Start: what's on the review's own screen (`screenOf`); with the Hold button on, it in place of the three it stands for. */
+/** Every review key but the home's and today's Start, and the Hold button's two: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
-  const faces = binds.holdChain.on ? [] : [binds.reveal, binds.showCard, binds.hide];
-  return [...faces, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
+  return [binds.reveal, binds.showCard, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
 }
 /**
  * The keys held on the review, each with how long: every review key that's a hold, and the Hold button's while it's on,
@@ -269,6 +283,8 @@ const KEY = "panki.keys";
  * example's key left with none was never chosen, so it takes its arrow; kept with it, none is the owner's own.
  */
 const ARROWS_KEPT = 1;
+/** `kept` from when the Hold button was moved to Shift (2026-11-02): kept before it, a Hold button still on Space, its old default, takes Shift. */
+const SHIFT_KEPT = 2;
 function read(): KeyBinds {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
@@ -314,8 +330,13 @@ function read(): KeyBinds {
     const exampleNext = exampleOf("exampleNext");
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    // The Hold button's keys are holds (kept as presses on its first day, when its hold wasn't kept on the key).
-    const holdButton = asHolds("holdButton" in raw ? bindOf(raw.holdButton, DEFAULT_KEYS.holdButton, undefined) : DEFAULT_KEYS.holdButton);
+    // The Hold button's keys are holds (kept as presses on its first day, when its hold wasn't kept on the key). Kept
+    // before it moved to Shift and still on its old Space alone, it takes Shift, unless Shift is held for something else
+    // on the review here.
+    const keptHold = asHolds("holdButton" in raw ? bindOf(raw.holdButton, DEFAULT_KEYS.holdButton, undefined) : DEFAULT_KEYS.holdButton);
+    const shifted = "kept" in raw && typeof raw.kept === "number" && raw.kept >= SHIFT_KEPT;
+    const onOldSpace = keptHold.key === " " && keptHold.also.length === 0;
+    const holdButton = shifted || !onOldSpace || takenBy([showCard, ...rest, examplePrev, exampleNext], DEFAULT_KEYS.holdButton) ? keptHold : DEFAULT_KEYS.holdButton;
     const holdReset = "holdReset" in raw ? bindOf(raw.holdReset, DEFAULT_KEYS.holdReset, undefined) : DEFAULT_KEYS.holdReset;
     const holdChain = holdChainOf("holdChain" in raw ? raw.holdChain : undefined);
     return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
@@ -343,7 +364,7 @@ export function useKeyBinds(): KeyBinds {
 export function setKeyBinds(next: KeyBinds) {
   now = next;
   try {
-    localStorage.setItem(KEY, JSON.stringify({ ...next, kept: ARROWS_KEPT }));
+    localStorage.setItem(KEY, JSON.stringify({ ...next, kept: SHIFT_KEPT }));
   } catch {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
@@ -358,10 +379,10 @@ const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "examplePrev"
 const HOLD_KINDS: readonly Slot["kind"][] = ["holdButton", "holdReset"];
 /**
  * Done listening, Show back of card and Hide back of card are each heard on a face of its own (Listen, front, back): none
- * takes another's key. The Hold button and its Back to start stand for all three while it's on, and are heard nowhere
- * while it's off: they never act beside them either. The two share their key by design (Space held, Space pressed twice).
+ * takes another's key. The Hold button and its Back to start are heard beside them, on every face, so they share keys
+ * with them only by the shape rule (`clash`), as every other action does (the owner, 2026-11-02).
  */
-const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide", ...HOLD_KINDS];
+const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide"];
 const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
 
 /** The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space starts the review, then shows the answer). */

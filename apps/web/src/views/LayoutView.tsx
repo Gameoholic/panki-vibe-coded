@@ -454,7 +454,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         ) : null}
         {trying && face !== "back" ? (
           <div className="review-actions">
-            <ShowButton listening={face === "listen"} bind={chainOn ? undefined : face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
+            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
           </div>
         ) : null}
         {!trying && away.length > 0 ? (

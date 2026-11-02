@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDismiss } from "../hooks/useDismiss";
-import { bindable, keyOf } from "../keys";
+import { bindable, isModifier, keyOf } from "../keys";
 import { keyWords } from "../words";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -27,8 +27,9 @@ type Props = {
 
 /**
  * A key set by pressing it: its keycap on a chip; pressed, the chip says "Press a key" and takes the next key pressed
- * (but a modifier alone, or one the page keeps for itself), with Ctrl or Alt when either is held with it ("Ctrl+Z",
- * `keys.ts` → `keyOf`); Escape, or a press anywhere else, leaves it as it was. The trash takes the key off, once the
+ * (but one the page keeps for itself), with Ctrl or Alt when either is held with it ("Ctrl+Z", `keys.ts` → `keyOf`);
+ * Shift, Ctrl or Alt pressed and let go with nothing else is that key by itself (the owner, 2026-11-02); Escape, or a
+ * press anywhere else, leaves it as it was. The trash takes the key off, once the
  * row has asked: the question stands under the whole row, so the keys beside it stay where they are. Settings →
  * Keybinds is made of these.
  */
@@ -40,6 +41,14 @@ export function KeyField({ id, label, value, onChange, asking, onAsk, removable 
   useDismiss(box, listening, () => setListening(false));
   useEffect(() => {
     if (!listening) return;
+    /** Shift, Ctrl or Alt pressed and not yet let go: the key itself if it's let go with nothing else pressed, else what's held with it. */
+    let modifier: string | null = null;
+    const take = (key: string) => {
+      latest.current(key);
+      setListening(false);
+      // Space or Enter on the chip would press it again as it's let go.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    };
     // Heard before anything else on the page, so the key sets this and does nothing more.
     function onKey(e: KeyboardEvent) {
       e.preventDefault();
@@ -49,13 +58,24 @@ export function KeyField({ id, label, value, onChange, asking, onAsk, removable 
         return;
       }
       if (e.repeat || e.metaKey || !bindable(e.key)) return;
-      latest.current(keyOf(e));
-      setListening(false);
-      // Space or Enter on the chip would press it again as it's let go.
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (isModifier(e.key)) {
+        modifier = keyOf(e);
+        return;
+      }
+      take(keyOf(e));
+    }
+    function onUp(e: KeyboardEvent) {
+      if (modifier === null || !isModifier(e.key)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (keyOf(e) === modifier) take(modifier);
     }
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    window.addEventListener("keyup", onUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onUp, true);
+    };
   }, [listening]);
 
   return (
