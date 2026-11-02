@@ -153,6 +153,13 @@ const Stored = z.object({
   shortSkip: z.boolean().catch(DEFAULT_MODULES.shortSkip),
   shortSkipKey: SkipKey.catch(DEFAULT_MODULES.shortSkipKey),
   shortSkipSeconds: SkipSeconds.catch(DEFAULT_MODULES.shortSkipSeconds),
+  /**
+   * Video tracking, this browser's own (the owner, 2026-11-02: "I can want some devices sending and others not"; the
+   * account's until then): whether the videos watched here are noted and sent to Panki. Set on the options page
+   * (YouTube → Data tracking). Null until it's settled, once, by `watch/tracking.ts`: Off for a browser new to Panki,
+   * the account's old switch for one that was already signed in.
+   */
+  videoTracking: z.boolean().nullable().catch(null),
   /** How this extension stood against Panki's build when it last asked (`updates.ts`); null until it has. */
   update: UpdateState.nullable().catch(null),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */

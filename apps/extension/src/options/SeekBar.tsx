@@ -240,7 +240,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
           </div>
         );
       })}
-      {/* Where a video watched before was stopped: what happens as it opens again, and whether the bar marks it. A panel of its own until the owner had it here, 2026-10-21. Nothing while the account's Video tracking is off. */}
+      {/* Where a video watched before was stopped: what happens as it opens again, and whether the bar marks it. A panel of its own until the owner had it here, 2026-10-21. Nothing while this browser's Video tracking is off. */}
       <div className="seek-group">
         <h3 className="seek-group-title">
           <span className={`seek-group-sample is-stop ${store.moduleSeek && store.markStop ? "" : "is-off"}`.trim()} aria-hidden="true" />

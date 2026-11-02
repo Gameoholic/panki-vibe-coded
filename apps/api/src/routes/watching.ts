@@ -7,8 +7,8 @@ import type { Shared } from "../shared";
 /**
  * What the account watches (2026-10-21, `watching.ts` in the contracts): the extension sends the stretches watched in
  * batches, asks of a video as it opens it (where it was stopped, whether it counts) and says what the owner said of it;
- * Settings reads the history in brief and forgets it. The API stamps every time; nothing is kept while the account's
- * Video tracking is off.
+ * Settings reads the history in brief and forgets it. The API stamps every time and keeps whatever arrives: whether a
+ * browser sends is its own Video tracking (since 2026-11-02; the account's until then, which refused stretches here).
  */
 export function watchingRouter(dbOf: DbOf, shared: Shared, now: () => number) {
   const router = Router();

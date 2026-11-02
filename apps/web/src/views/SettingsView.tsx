@@ -123,14 +123,14 @@ function zoneOptions(saved: string): { id: string; label: string; note?: string 
 }
 
 /**
- * Whether the account's videos are being recorded, said and not changed: Video tracking is the extension's to switch,
- * the extension being what records (the owner, 2026-10-28: "it's not changeable and it's synced to the extension
- * setting and it just displays the status"), where it's switched said under it. Then all that's kept of the videos
- * watched, in one line, and a way to forget it, asked in place with words to type (a Watch history panel of its own,
- * on the Account tab, until the owner had it in here, 2026-10-28). The rows are hidden on Panki with the time they
- * went, never destroyed; the watch time and Continue watching start over.
+ * What Video tracking records, all that's kept of the videos watched in one line, and a way to forget it, asked in
+ * place with words to type (a Watch history panel of its own, on the Account tab, until the owner had it in here,
+ * 2026-10-28). Video tracking is each browser's own, switched in the extension (since 2026-11-02; the account's until
+ * then, shown here greyed, "Linked to the extension"), so nothing here says whether it's on: no list of devices, no
+ * stopping one from here (the owner's word). The rows are hidden on Panki with the time they went, never destroyed;
+ * the watch time and Continue watching start over.
  */
-function DataTrackingPanel({ on }: { on: boolean }) {
+function DataTrackingPanel() {
   const [history, setHistory] = useState<WatchHistory | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -170,17 +170,10 @@ function DataTrackingPanel({ on }: { on: boolean }) {
       <h2 id="data-tracking-title" className="panel-title">
         Data tracking
       </h2>
-      <Setting
-        id="videoTracking"
-        label="Video tracking"
-        control={<Toggle id="setting-video-tracking" icon="link" says={{ on: "On · Linked to the extension", off: "Off · Linked to the extension" }} on={on} disabled onChange={() => undefined} />}
-        why={VIDEO_TRACKING_WHY}
-      />
+      <p className="setting-why">{VIDEO_TRACKING_WHY}</p>
       {history ? (
-        // Since the first video it kept (the owner, 2026-10-29: "just say On since…"; how many videos and how long stood here until then); nothing while it's off.
-        kept && !on ? null : (
-          <p className="session-who">{kept && history.since !== null ? `On since ${dateWords(history.since)}` : kept ? "On" : "Nothing kept."}</p>
-        )
+        // What's kept, and since the first video (it said "On since…" while Video tracking was the account's, 2026-10-29 to 2026-11-02).
+        <p className="session-who">{kept ? `${count(history.videos, "video", "videos")} kept${history.since !== null ? ` since ${dateWords(history.since)}` : ""}` : "Nothing kept."}</p>
       ) : failure ? null : (
         <Skeleton shape="lines" count={1} />
       )}
@@ -1159,7 +1152,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
       {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
-        <DataTrackingPanel on={current.videoTracking} />
+        <DataTrackingPanel />
       </div>
 
       <div className="settings-tab" hidden={shown !== "account"}>

@@ -17,7 +17,8 @@ import { z } from "zod";
  * extension alone leaves it as it is. An extension built with a smaller number is refused by every route but the two
  * that tell it how to update, and says "Update needed" until it is.
  */
-export const EXTENSION_PROTOCOL = 2;
+// 3 since 2026-11-02: Video tracking became each browser's own, and `WatchedVideo.on` and `Watching.on` went.
+export const EXTENSION_PROTOCOL = 3;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

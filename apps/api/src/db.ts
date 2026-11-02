@@ -1532,34 +1532,29 @@ export function openDb(
     }
     const msSince = (from: Day) => [...msByDay].reduce((sum, [d, ms]) => (d >= from && d <= todayKey ? sum + ms : sum), 0);
 
-    const continuing = !settings.videoTracking
-      ? []
-      : [...latest.entries()]
-          .flatMap(([videoId, s]) => {
-            const stoppedAtMs = stopOf(s.toMs, s.lengthMs, marks.get(videoId)?.finished ?? false);
-            const putAwayAt = marks.get(videoId)?.putAwayAt ?? null;
-            // Put away until it's watched again.
-            if (stoppedAtMs === null || (putAwayAt !== null && putAwayAt >= s.at)) return [];
-            return [{ videoId, title: s.title ?? "", channel: s.channel ?? "", lengthMs: s.lengthMs ?? 0, stoppedAtMs, lastAt: s.at }];
-          })
-          .sort((a, b) => b.lastAt - a.lastAt)
-          .slice(0, WATCH.continueMax);
+    const continuing = [...latest.entries()]
+      .flatMap(([videoId, s]) => {
+        const stoppedAtMs = stopOf(s.toMs, s.lengthMs, marks.get(videoId)?.finished ?? false);
+        const putAwayAt = marks.get(videoId)?.putAwayAt ?? null;
+        // Put away until it's watched again.
+        if (stoppedAtMs === null || (putAwayAt !== null && putAwayAt >= s.at)) return [];
+        return [{ videoId, title: s.title ?? "", channel: s.channel ?? "", lengthMs: s.lengthMs ?? 0, stoppedAtMs, lastAt: s.at }];
+      })
+      .sort((a, b) => b.lastAt - a.lastAt)
+      .slice(0, WATCH.continueMax);
 
     // Recently watched: the videos finished, the latest finished first, named as the page last showed them (a video
     // finished by hand before a stretch of it was kept has nothing to be named by, and waits for one).
-    const finished = !settings.videoTracking
-      ? []
-      : [...marks.entries()]
-          .flatMap(([videoId, said]) => {
-            const s = latest.get(videoId);
-            if (!said.finished || said.finishedAt === null || !s) return [];
-            return [{ videoId, title: s.title ?? "", channel: s.channel ?? "", lengthMs: s.lengthMs ?? 0, finishedAt: said.finishedAt }];
-          })
-          .sort((a, b) => b.finishedAt - a.finishedAt)
-          .slice(0, WATCH.finishedMax);
+    const finished = [...marks.entries()]
+      .flatMap(([videoId, said]) => {
+        const s = latest.get(videoId);
+        if (!said.finished || said.finishedAt === null || !s) return [];
+        return [{ videoId, title: s.title ?? "", channel: s.channel ?? "", lengthMs: s.lengthMs ?? 0, finishedAt: said.finishedAt }];
+      })
+      .sort((a, b) => b.finishedAt - a.finishedAt)
+      .slice(0, WATCH.finishedMax);
 
     return {
-      on: settings.videoTracking,
       today: msByDay.get(todayKey) ?? 0,
       days7: msSince(addDays(todayKey, -6)),
       days30: msSince(from30),
@@ -1725,7 +1720,9 @@ export function openDb(
     updateSettings(patch: SettingsUpdate, now: number): Settings {
       return transaction(() => {
         const before = settingsFrom(selectSettings.all() as SettingRow[]);
+        // `videoTracking` is never written again (each browser's own since 2026-11-02): `SettingsUpdate` leaves it out.
         for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+          if (key === "videoTracking") continue;
           const value = patch[key];
           if (value === undefined) continue;
           const [from, to] = [JSON.stringify(before[key]), JSON.stringify(value)];
@@ -2211,43 +2208,39 @@ export function openDb(
     },
     /**
      * Keeps what was watched: each video's words as the page told them, and each stretch, stamped by the API's clock
-     * with the device it was watched on. A stretch sent again is the one already kept. Nothing is kept while the
-     * account's Video tracking is off, whatever the extension sends; false then.
+     * with the device it was watched on. A stretch sent again is the one already kept. Whatever arrives is kept: whether
+     * a browser sends is that browser's own Video tracking (since 2026-11-02; until then the account's, which refused
+     * stretches here while it was off).
      */
-    keepWatching(batch: WatchBatch, who: { device: string }, now: number): boolean {
-      if (!settingsFrom(selectSettings.all() as SettingRow[]).videoTracking) return false;
+    keepWatching(batch: WatchBatch, who: { device: string }, now: number): void {
       transaction(() => {
         for (const v of batch.videos) upsertWatchVideo.run(v.videoId, v.title, v.channel?.name ?? null, v.channel?.url ?? null, v.lengthMs, now, now);
         for (const s of batch.stretches) insertWatchStretch.run(s.id, s.videoId, s.fromMs, s.toMs, s.spentMs, s.rate, now, who.device);
       });
-      return true;
     },
     /**
-     * One video as the extension asks of it when it opens: whether watching is kept at all, where it was stopped (nothing
-     * is offered while it isn't kept), whether it counts, whether it's finished, and how close to its end that is.
+     * One video as the extension asks of it when it opens: where it was stopped, whether it counts, whether it's
+     * finished, and how close to its end that is. Whether it's noted at all is the browser's to say.
      */
     watchedVideo(videoId: string): WatchedVideo {
-      const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
       const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
       const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
       const finished = said?.finished ?? false;
       return {
-        on: videoTracking,
-        stoppedAtMs: videoTracking && last ? stopOf(last.toMs, last.lengthMs, finished) : null,
+        stoppedAtMs: last ? stopOf(last.toMs, last.lengthMs, finished) : null,
         counted: said?.counted ?? true,
         finished,
         finishedWithinMs: finishedWithinMs(),
       };
     },
     /**
-     * Videos as their thumbnails on YouTube are marked: how far this account got in each (nothing while its Video
-     * tracking is off), how long each is as last seen, and how many of its living cards came from each. Whether Panki
-     * has subtitles for it is everyone's, and the route's to add.
+     * Videos as their thumbnails on YouTube are marked: how far this account got in each, how long each is as last
+     * seen, and how many of its living cards came from each. Whether Panki has subtitles for it is everyone's, and the
+     * route's to add.
      */
     glance(videoIds: readonly string[]): Omit<VideoGlance, "transcribed">[] {
-      const { videoTracking } = settingsFrom(selectSettings.all() as SettingRow[]);
       return videoIds.map((videoId) => {
-        const last = videoTracking ? (selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined) : undefined;
+        const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
         const length = selectWatchVideoLength.get(videoId) as { lengthMs: number } | undefined;
         return {
           videoId,
@@ -2255,7 +2248,7 @@ export function openDb(
           lengthMs: length?.lengthMs ?? null,
           cards: api.videoCards(videoId).length,
           saved: selectIsSaved.get(videoId) !== undefined,
-          finished: videoTracking && (marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId)?.finished ?? false),
+          finished: marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId)?.finished ?? false,
         };
       });
     },

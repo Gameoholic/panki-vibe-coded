@@ -112,10 +112,10 @@ export type FinishedVideo = z.infer<typeof FinishedVideo>;
 
 /**
  * The account's watching as the immersion tiles read it. Every span is ms on the clock (the time spent, whatever the
- * speed), only videos that count; days are the account's own. With Video tracking off, `on` is false and the tiles say so.
+ * speed), only videos that count; days are the account's own. (`on`, the account's Video tracking, went when that
+ * became each browser's own, 2026-11-02: the tiles show what's kept, and their ordinary empty state with none.)
  */
 export const Watching = z.object({
-  on: z.boolean(),
   today: Count,
   days7: Count,
   days30: Count,

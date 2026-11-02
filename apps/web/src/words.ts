@@ -5,8 +5,8 @@
 export const VIDEO_TRACKING_WHY =
   "Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats use it.";
 
-/** What a watching tile or shelf says while the account's Video tracking is off: Panki's tiles and YouTube's home alike. */
-export const VIDEO_TRACKING_OFF = "Video tracking is off";
+// `VIDEO_TRACKING_OFF` ("Video tracking is off", the tiles' and YouTube's shelves' while the account's was) went when
+// Video tracking became each browser's own, 2026-11-02.
 
 /**
  * The tag beside what's kept on this device alone (`PerDevice`, the owner, 2026-11-02: "I want as a user to know what's

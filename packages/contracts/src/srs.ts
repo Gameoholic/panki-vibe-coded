@@ -419,9 +419,10 @@ export const Settings = z.object({
    */
   language: TranscribeLanguage,
   /**
-   * Whether the account's watching is kept at all (`watching.ts`): its own alone, shown to nobody else. Off to begin
-   * with (the owner, 2026-10-21; it was on that morning); an account that had already kept some watching keeps it on
-   * (migration 30).
+   * Whether the account's watching was kept, when that was the account's to say (2026-10-21 to 2026-11-02; migration
+   * 30). Retired: Video tracking is each browser's own since 2026-11-02 (the owner: "I can want some devices sending
+   * and others not"), and this is read only by an extension that has no switch of its own yet, once, to start from
+   * (`apps/extension/src/watch/tracking.ts`). Never written again: `SettingsUpdate` leaves it out.
    */
   videoTracking: z.boolean(),
   // `dailyGoal` (minutes a day that kept the watch streak) went with the streak, 2026-10-21. A row kept of it is read by nothing.
@@ -435,7 +436,7 @@ export const DEFAULT_SETTINGS: Settings = {
   language: "eng",
   videoTracking: false,
 };
-export const SettingsUpdate = Settings.partial();
+export const SettingsUpdate = Settings.omit({ videoTracking: true }).partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
 /** The account's settings, all of them its own. */
 export const SettingsResponse = z.object({ settings: Settings });

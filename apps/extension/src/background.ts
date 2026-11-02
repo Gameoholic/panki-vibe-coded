@@ -13,6 +13,7 @@ import { mappingOn } from "./roles";
 import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
 import { sourceOf } from "./subtitles";
 import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, runningBuild, showFolder } from "./updates";
+import { settleVideoTracking, videoTrackingOn } from "./watch/tracking";
 
 /**
  * The extension's one worker. It holds the sign-in and is the only thing that talks to Panki (word audio from Forvo
@@ -226,6 +227,9 @@ function startChecking() {
 }
 chrome.runtime.onStartup.addListener(startChecking);
 chrome.runtime.onInstalled.addListener(startChecking);
+// This browser's Video tracking, settled once (`watch/tracking.ts`): Off as the extension first comes, before any
+// sign-in; a browser already signed in when it became each browser's own starts from the account's switch.
+void settleVideoTracking();
 // Reloaded from the options page with Reload Panki: that page, closed by the reload, opens again.
 chrome.runtime.onInstalled.addListener(() => {
   void readStore().then(async (store) => {
@@ -367,13 +371,14 @@ async function answer(ask: Ask, sender: chrome.runtime.MessageSender): Promise<S
       return { ok: true, thumbnail, avatar };
     }
     if (ask.kind === "videoCards") return { ok: true, cards: await panki.videoCards(door, ask.videoId) };
-    // What's kept of the account's watching: a video as it opens, the stretches watched, a video marked.
-    if (ask.kind === "watched") return { ok: true, video: await panki.watched(door, ask.videoId) };
+    // What's kept of the account's watching: a video as it opens, the stretches watched, a video marked. Whether this
+    // browser notes anything is its own Video tracking (`watch/tracking.ts`): off, a batch that slipped through is let go.
+    if (ask.kind === "watched") return { ok: true, video: await panki.watched(door, ask.videoId), on: await videoTrackingOn() };
     if (ask.kind === "watch") {
-      await panki.watch(door, ask.batch);
+      if (await videoTrackingOn()) await panki.watch(door, ask.batch);
       return { ok: true };
     }
-    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark, ask.source) };
+    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark, ask.source), on: await videoTrackingOn() };
     // Panki on YouTube's own pages: the tiles over its home's videos, and the marks on its thumbnails.
     if (ask.kind === "home") {
       const [stats, decks, settings, saved] = await Promise.all([panki.stats(door), panki.decks(door), panki.settings(door), panki.saved(door)]);

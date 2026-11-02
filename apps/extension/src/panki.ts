@@ -28,7 +28,6 @@ import {
   StatsResponse,
   type SaveVideo,
   type SavedVideo,
-  type SettingsUpdate,
   type CalledCard,
   type Settings,
   type Stats,
@@ -218,15 +217,13 @@ export const panki = {
     const timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     return call(address, token, "/api/settings", json("PATCH", { timeZone }), (b) => SettingsResponse.parse(b).settings);
   },
-  /** Some of the account's own settings changed (the options page's Video tracking, the same switch as Panki's Settings); the settings after. */
-  updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
-    call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
+  // `updateSettings` (the options page's Video tracking, the account's switch) went when it became each browser's own, 2026-11-02.
   /** Videos as their thumbnails on YouTube are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   glance: ({ address, token }: Door, videoIds: readonly string[]): Promise<VideoGlance[]> =>
     call(address, token, "/api/watching/glance", json("POST", { videoIds }), (b) => GlanceResponse.parse(b).videos),
-  /** A video as the account's watching has it: whether it's kept at all, where it was stopped, whether it counts. */
+  /** A video as the account's watching has it: where it was stopped, whether it counts, whether it's finished. */
   watched: ({ address, token }: Door, videoId: string): Promise<WatchedVideo> => call(address, token, `/api/watching/videos/${id(videoId)}`, {}, (b) => WatchedVideoResponse.parse(b).video),
-  /** Stretches of videos watched, kept on the account's Panki (nothing, when its Video tracking is off). */
+  /** Stretches of videos watched, kept on the account's Panki (sent only while this browser's Video tracking is on). */
   watch: ({ address, token }: Door, batch: WatchBatch): Promise<void> => call(address, token, "/api/watching", json("POST", batch), () => undefined),
   /** A video left out of the count, counted again, put away from Continue watching, finished or not; by the viewer, or by Panki as it was played into its end. */
   watchMark: ({ address, token }: Door, videoId: string, kind: WatchMarkKind, source: WatchMarkSource): Promise<WatchedVideo> =>

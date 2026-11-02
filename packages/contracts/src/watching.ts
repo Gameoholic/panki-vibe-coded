@@ -6,8 +6,10 @@ import { VideoId } from "./transcription";
  * played timestamp", "Netflix like 'continue watching'", "count immersion"): what's kept of the videos an account
  * watches, on that account's own Panki. While a video plays, the extension notes each stretch of it watched (from where
  * to where in the video, how long it took on the clock, at what speed) and sends them in batches; the API stamps when.
- * Where a video was stopped is the end of its latest stretch, never a number kept on its own. Nothing is sent while the
- * account's Video tracking is off. Forgetting the history hides every row with the time it went, as a deleted card is.
+ * Where a video was stopped is the end of its latest stretch, never a number kept on its own. Whether a browser sends
+ * at all is that browser's own Video tracking (since 2026-11-02; the account's until then, `Settings.videoTracking`):
+ * the API keeps whatever arrives, from every browser, in the account's one pool. Forgetting the history hides every row
+ * with the time it went, as a deleted card is.
  */
 
 // What other accounts saw of this one's watching (ShareWatching, for Together) went on 2026-10-21 with everything about
@@ -95,10 +97,12 @@ export type WatchMarkSource = z.infer<typeof WatchMarkSource>;
 export const WatchMark = z.object({ kind: WatchMarkKind, source: WatchMarkSource.optional() });
 export type WatchMark = z.infer<typeof WatchMark>;
 
-/** One video as the extension asks of it when it opens: whether the account keeps its watching at all, where it was stopped, whether it counts, whether it's finished. */
+/**
+ * One video as the extension asks of it when it opens: where it was stopped, whether it counts, whether it's finished.
+ * (`on`, the account's Video tracking, stood first until it became each browser's own, 2026-11-02: the extension's
+ * worker says that, `messages.ts` → `Watched`.)
+ */
 export const WatchedVideo = z.object({
-  /** The account's Video tracking: off, nothing is sent and nothing is offered. */
-  on: z.boolean(),
   /** Where it was last stopped, in ms of the video; null when never, when forgotten, or when it's finished. */
   stoppedAtMs: z.number().int().nonnegative().nullable(),
   counted: z.boolean(),
@@ -115,8 +119,8 @@ export type WatchedVideoResponse = z.infer<typeof WatchedVideoResponse>;
 export const GLANCE_MAX = 100;
 /**
  * A video as Panki marks its thumbnail on YouTube's own pages (the owner, 2026-10-21: "make my YouTube homepage
- * better for Panki"): how far the account got in it (the end of its latest stretch; null while it never watched it or
- * its Video tracking is off), how long it is as last seen, how many of its living cards came from it, and whether
+ * better for Panki"): how far the account got in it (the end of its latest stretch; null while it never watched it),
+ * how long it is as last seen, how many of its living cards came from it, and whether
  * Panki has subtitles for it (any of a transcript: everyone's).
  */
 export const VideoGlance = z.object({

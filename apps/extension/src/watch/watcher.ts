@@ -7,8 +7,8 @@ import { uuid } from "../uuid";
  * on the clock and how fast it played, sent to Panki through the worker. A stretch closes when the video stops, jumps,
  * changes speed or changes, when an ad comes on, a video's first one `WATCH.firstMs` after it starts (so it counts at
  * once), and every `WATCH.flushMs` while it plays on (the next one starting where it ended), so a crash or a closed tab
- * loses little. Nothing is noted while the account's Video tracking is off, and
- * Panki keeps nothing then either. Several tabs each watch their own video, each with a watcher of its own.
+ * loses little. Nothing is noted while this browser's Video tracking is off (`watch/tracking.ts`; the account's until
+ * 2026-11-02), and the worker sends nothing then either. Several tabs each watch their own video, each with a watcher of its own.
  */
 
 /** A jump: the video stands this far from where it would be had it played on since the last look. */

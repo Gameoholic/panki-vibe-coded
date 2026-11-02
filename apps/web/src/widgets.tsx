@@ -7,7 +7,7 @@ import { Icon } from "./components/Icon";
 import { LinkView } from "./components/LinkView";
 import { Tip } from "./components/Tip";
 import { NEW_WORDS, tintStyle } from "./srsKinds";
-import { VIDEO_TRACKING_OFF, count, dateWords, durationWords, langOf, leftWords } from "./words";
+import { count, dateWords, durationWords, langOf, leftWords } from "./words";
 
 /**
  * The widgets, one registry: every tile the Stats tab shows (all of them, in this order) and the home can carry
@@ -217,11 +217,10 @@ const everyOtherDay = (byDay: readonly { day: Day }[]) => byDay.map((d, i) => (i
 const spent = (ms: number) => durationWords(ms / 1000);
 
 /**
- * A watching tile's body: said to be off while the account's Video tracking is, said to be empty while there's nothing
- * for it yet, drawn otherwise.
+ * A watching tile's body: said to be empty while there's nothing for it yet, drawn otherwise. ("Video tracking is
+ * off" stood first while that was the account's; it's each browser's since 2026-11-02.)
  */
-function watchTile(stats: Stats, empty: boolean, draw: () => ReactNode): ReactNode {
-  if (!stats.watching.on) return <Quiet>{VIDEO_TRACKING_OFF}</Quiet>;
+function watchTile(empty: boolean, draw: () => ReactNode): ReactNode {
   if (empty) return <Quiet />;
   return draw();
 }
@@ -590,7 +589,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     control: "Today",
     render(stats) {
       const w = stats.watching;
-      return watchTile(stats, w.days30 === 0 && w.today === 0, () => (
+      return watchTile(w.days30 === 0 && w.today === 0, () => (
         <>
           <div className="w-hero">{spent(w.today)}</div>
           <div className="w-stats">
@@ -619,7 +618,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     control: "2 weeks",
     render(stats) {
       const { byDay, days7 } = stats.watching;
-      return watchTile(stats, byDay.every((d) => d.ms === 0), () => (
+      return watchTile(byDay.every((d) => d.ms === 0), () => (
         <>
           <Columns values={byDay.map((d) => Math.round(d.ms / 60_000))} labels={everyOtherDay(byDay)} />
           <p className="w-line">{spent(days7)} in 7 days</p>
@@ -634,7 +633,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     control: "30 days",
     render(stats) {
       const { channels } = stats.watching;
-      return watchTile(stats, channels.length === 0, () => (
+      return watchTile(channels.length === 0, () => (
         <div className="w-list">
           {channels.map((channel) => (
             <div key={channel.name} className="w-item">
@@ -653,10 +652,10 @@ export const WIDGETS: readonly WidgetEntry[] = [
     name: "Continue watching",
     wide: true,
     home: true,
-    control: (stats) => (stats.watching.on && stats.watching.continuing.length > 0 ? count(stats.watching.continuing.length, "video", "videos") : ""),
+    control: (stats) => (stats.watching.continuing.length > 0 ? count(stats.watching.continuing.length, "video", "videos") : ""),
     render(stats, ctx) {
       const { continuing } = stats.watching;
-      return watchTile(stats, continuing.length === 0, () => <ContinueRows videos={continuing} onStale={ctx.onStale} />);
+      return watchTile(continuing.length === 0, () => <ContinueRows videos={continuing} onStale={ctx.onStale} />);
     },
   },
   {
@@ -676,10 +675,10 @@ export const WIDGETS: readonly WidgetEntry[] = [
     name: "Recently watched",
     wide: true,
     home: true,
-    control: (stats) => (stats.watching.on && stats.watching.finished.length > 0 ? count(stats.watching.finished.length, "video", "videos") : ""),
+    control: (stats) => (stats.watching.finished.length > 0 ? count(stats.watching.finished.length, "video", "videos") : ""),
     render(stats) {
       const { finished } = stats.watching;
-      return watchTile(stats, finished.length === 0, () => <RecentRows videos={finished} />);
+      return watchTile(finished.length === 0, () => <RecentRows videos={finished} />);
     },
   },
   // Together and Together · this week (everyone on this Panki) stood here for a day, 2026-10-21, until the owner shelved
