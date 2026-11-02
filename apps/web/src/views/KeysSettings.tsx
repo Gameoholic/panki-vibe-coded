@@ -5,11 +5,10 @@ import { Dropdown } from "../components/Dropdown";
 import { Explainer } from "../components/Explainer";
 import { Icon } from "../components/Icon";
 import { KeyField } from "../components/KeyField";
-import { PerDevice } from "../components/PerDevice";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
-import { ALSO_MAX, DEFAULT_KEYS, DOUBLE_PRESS, HOLD_TIMES, PRESS_KINDS, setKeyBinds, setKeycaps, useKeyBinds, useKeycapsShown, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { ALSO_MAX, DEFAULT_KEYS, DOUBLE_PRESS, HOLD_TIMES, PRESS_KINDS, setKeyBinds, setKeybindsEnabled, useKeyBindsSet, useKeybindsEnabled, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
 import { HoldButtonScene } from "./HoldButtonScene";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
@@ -119,33 +118,32 @@ function KeyRow({ id, label, bind, slot, binds, disabled = false, keyOnly = fals
  * a time of its own, and how much longer an answer that requires confirmation is held on top.
  */
 export function KeysPanels() {
-  const binds = useKeyBinds();
+  const binds = useKeyBindsSet();
   const changed = JSON.stringify(binds) !== JSON.stringify(DEFAULT_KEYS);
   /** Reset to default keys is asking first. */
   const [resetting, setResetting] = useState(false);
-  const keycaps = useKeycapsShown();
+  const enabled = useKeybindsEnabled();
+  /** Keybinds off: every row of every other panel greyed, still readable. */
+  const off = !enabled;
   const chain = binds.holdChain;
   return (
     <>
       {/*
-        The tab's head: all of it is this device's, so it says so once (the owner, 2026-11-02). Keycaps, whether this
-        device draws the keys on its buttons, off on a phone and on elsewhere until it's set ("Keys on buttons" on a
-        Mobile panel, for phones alone, until the owner made it one switch per device, 2026-11-02).
+        Enabled, the whole feature's switch on this device (the owner, 2026-11-02: "make it enable/disable keybinds
+        entirely"): off, no key is heard anywhere and no keycap drawn. Off on a phone and on elsewhere until it's set
+        (Keycaps until then, and a phone's Keys on buttons before it).
       */}
-      <section className="panel" aria-labelledby="keys-device-title">
-        <div className="panel-head">
-          <h2 id="keys-device-title" className="panel-title">
-            Keybinds
-          </h2>
-          <PerDevice />
-        </div>
-        <Setting id="keycaps" label="Keycaps" control={<Toggle id="keycaps" says={{ on: "On", off: "Off" }} on={keycaps} onChange={setKeycaps} />} />
+      <section className="panel" aria-labelledby="keys-enabled-title">
+        <h2 id="keys-enabled-title" className="panel-title">
+          Keybinds
+        </h2>
+        <Setting id="keybinds" label="Enabled" control={<Toggle id="keybinds" says={{ on: "On", off: "Off" }} on={enabled} onChange={setKeybindsEnabled} />} />
       </section>
       <section className="panel" aria-labelledby="keys-home-title">
         <h2 id="keys-home-title" className="panel-title">
           Home
         </h2>
-        <KeyRow id="home-review" label="Review" bind={binds.homeReview} slot={{ kind: "homeReview" }} binds={binds} />
+        <KeyRow id="home-review" label="Review" bind={binds.homeReview} slot={{ kind: "homeReview" }} binds={binds} disabled={off} />
       </section>
       {/*
         The Hold button (the owner, 2026-11-02): held, one key carries a card from its start through every stage to the
@@ -162,8 +160,8 @@ export function KeysPanels() {
             <HoldButtonScene binds={binds} />
           </Explainer>
         </div>
-        <Setting id="holdChain" label="Hold button" control={<Toggle id="hold-chain" says={{ on: "On", off: "Off" }} on={chain.on} onChange={(on) => setKeyBinds(withHoldChain(binds, on))} />} />
-        <KeyRow id="hold-button" label="Key" bind={binds.holdButton} slot={{ kind: "holdButton" }} binds={binds} disabled={!chain.on} keyOnly />
+        <Setting id="holdChain" label="Hold button" control={<Toggle id="hold-chain" says={{ on: "On", off: "Off" }} on={chain.on} disabled={off} onChange={(on) => setKeyBinds(withHoldChain(binds, on))} />} />
+        <KeyRow id="hold-button" label="Key" bind={binds.holdButton} slot={{ kind: "holdButton" }} binds={binds} disabled={off || !chain.on} keyOnly />
         {HOLD_STAGES.map((stage) => (
           <Setting
             key={stage.id}
@@ -175,46 +173,46 @@ export function KeysPanels() {
                 label={stage.label}
                 options={HOLD_OPTIONS}
                 value={String(chain[stage.id])}
-                disabled={!chain.on}
+                disabled={off || !chain.on}
                 onChange={(ms) => setKeyBinds({ ...binds, holdChain: { ...chain, [stage.id]: holdOf(ms, chain[stage.id]) } })}
               />
             }
           />
         ))}
-        <KeyRow id="hold-reset" label="Back to start" bind={binds.holdReset} slot={{ kind: "holdReset" }} binds={binds} disabled={!chain.on} />
+        <KeyRow id="hold-reset" label="Back to start" bind={binds.holdReset} slot={{ kind: "holdReset" }} binds={binds} disabled={off || !chain.on} />
       </section>
       <section className="panel" aria-labelledby="keys-review-title">
         <h2 id="keys-review-title" className="panel-title">
           Review
         </h2>
-        <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} />
+        <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} disabled={off} />
         {/* In the order a card goes: out of its Listen phase, to its back, and back to its front. */}
-        <KeyRow id="show-card" label="Done listening" bind={binds.showCard} slot={{ kind: "showCard" }} binds={binds} />
-        <KeyRow id="reveal" label="Show back of card" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} />
-        <KeyRow id="hide" label="Hide back of card" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} />
+        <KeyRow id="show-card" label="Done listening" bind={binds.showCard} slot={{ kind: "showCard" }} binds={binds} disabled={off} />
+        <KeyRow id="reveal" label="Show back of card" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} disabled={off} />
+        <KeyRow id="hide" label="Hide back of card" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} disabled={off} />
         {binds.answers.map((bind, index) => (
-          <KeyRow key={index} id={`answer-${index + 1}`} label={`Answer ${index + 1}`} bind={bind} slot={{ kind: "answers", index }} binds={binds} />
+          <KeyRow key={index} id={`answer-${index + 1}`} label={`Answer ${index + 1}`} bind={bind} slot={{ kind: "answers", index }} binds={binds} disabled={off} />
         ))}
         <Setting
           id="confirmMs"
           label="Extra hold for answers that require confirmation"
-          control={<Segmented idPrefix="key-confirm" label="Extra hold for answers that require confirmation" options={EXTRA_OPTIONS} value={String(binds.confirmMs)} onChange={(id) => setKeyBinds({ ...binds, confirmMs: holdOf(id, binds.confirmMs) })} />}
+          control={<Segmented idPrefix="key-confirm" label="Extra hold for answers that require confirmation" options={EXTRA_OPTIONS} value={String(binds.confirmMs)} disabled={off} onChange={(id) => setKeyBinds({ ...binds, confirmMs: holdOf(id, binds.confirmMs) })} />}
         />
-        <KeyRow id="undo" label="Undo" bind={binds.undo} slot={{ kind: "undo" }} binds={binds} />
-        <KeyRow id="example-prev" label="Previous example" bind={binds.examplePrev} slot={{ kind: "examplePrev" }} binds={binds} />
-        <KeyRow id="example-next" label="Next example" bind={binds.exampleNext} slot={{ kind: "exampleNext" }} binds={binds} />
+        <KeyRow id="undo" label="Undo" bind={binds.undo} slot={{ kind: "undo" }} binds={binds} disabled={off} />
+        <KeyRow id="example-prev" label="Previous example" bind={binds.examplePrev} slot={{ kind: "examplePrev" }} binds={binds} disabled={off} />
+        <KeyRow id="example-next" label="Next example" bind={binds.exampleNext} slot={{ kind: "exampleNext" }} binds={binds} disabled={off} />
       </section>
       <section className="panel" aria-labelledby="keys-media-title">
         <h2 id="keys-media-title" className="panel-title">
           Sounds and clips
         </h2>
         {binds.media.map((bind, index) => (
-          <KeyRow key={index} id={`media-${index + 1}`} label={`Sound or clip ${index + 1}`} bind={bind} slot={{ kind: "media", index }} binds={binds} />
+          <KeyRow key={index} id={`media-${index + 1}`} label={`Sound or clip ${index + 1}`} bind={bind} slot={{ kind: "media", index }} binds={binds} disabled={off} />
         ))}
         {binds.restart.map((bind, index) => (
-          <KeyRow key={`restart-${index}`} id={`restart-${index + 1}`} label={`Restart sound or clip ${index + 1}`} bind={bind} slot={{ kind: "restart", index }} binds={binds} />
+          <KeyRow key={`restart-${index}`} id={`restart-${index + 1}`} label={`Restart sound or clip ${index + 1}`} bind={bind} slot={{ kind: "restart", index }} binds={binds} disabled={off} />
         ))}
-        <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} />
+        <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} disabled={off} />
       </section>
       {/* Every key set here goes at once, so it asks first, in place (the owner, 2026-10-29). */}
       {changed && resetting ? (
@@ -234,7 +232,7 @@ export function KeysPanels() {
         </div>
       ) : changed ? (
         <div className="add-actions add-actions-start">
-          <Button id="keys-reset" onClick={() => setResetting(true)}>
+          <Button id="keys-reset" disabled={off} onClick={() => setResetting(true)}>
             <Icon name="reset" />
             Reset to default keys
           </Button>

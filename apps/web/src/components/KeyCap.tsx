@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { DOUBLE_PRESS, pressKind, useKeycapsShown, type Key } from "../keys";
+import { DOUBLE_PRESS, pressKind, useKeybindsEnabled, type Key } from "../keys";
 import { keyWords } from "../words";
 
 /**
@@ -10,11 +10,11 @@ export const holdFor = (bind: Key | undefined, extra = 0) => (!bind?.key ? 0 : p
 
 /**
  * A key as its keycap on the button it presses (this device's, `keys.ts`; an action's own key, not its second), none
- * when it has none, and none on a phone unless keycaps are set to show there (`useKeycapsShown`); a key that's held is
+ * when it has none, and none while keybinds are off on this device (`useKeybindsEnabled`); a key that's held is
  * a clock face that fills as it's held (`useHold`, `.key.is-hold`); one pressed twice is its keycap twice.
  */
 export function KeyCap({ bind, extra = 0 }: { bind: Key | undefined; extra?: number }) {
-  const shown = useKeycapsShown();
+  const shown = useKeybindsEnabled();
   if (!bind?.key || !shown) return null;
   const words = keyWords(bind.key);
   if (pressKind(bind) === "double")
@@ -38,12 +38,12 @@ const turn = (share: number) => `${share.toFixed(4)}turn`;
  * The Hold button's key as one clock face for every stage of a card (the owner, 2026-11-02, drawing A of
  * https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA): a ring cut into its stretches, each in its own colour, filling
  * round from the top as far as the card has got (`--hold-from`) and the stage held fills on (`--hold`, `useHold`'s, over
- * `--hold-span`), the key's name in its middle (none on a phone unless keycaps show there). `tone` is the answer's
- * colour class (`answerClass`), which its stretch is drawn in. The keycap's clock grown to the button it stands for:
- * never a second drawing of a hold.
+ * `--hold-span`), the key's name in its middle (none while keybinds are off). `tone` is the answer's colour class
+ * (`answerClass`), which its stretch is drawn in. The keycap's clock grown to the button it stands for: never a second
+ * drawing of a hold.
  */
 export function HoldClock({ bind, pieces, tone }: { bind: Key | undefined; pieces: readonly ClockPiece[]; tone?: string | undefined }) {
-  const shown = useKeycapsShown();
+  const shown = useKeybindsEnabled();
   let at = 0;
   const paint: string[] = [];
   const gaps: string[] = [`transparent 0 ${turn(CLOCK_GAP / 2)}`];

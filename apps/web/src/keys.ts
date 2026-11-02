@@ -355,9 +355,37 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** The keys as they stand, drawn again whenever they change. */
+/**
+ * The keys as they're heard, drawn again whenever they change: as they're set while keybinds are Enabled on this device,
+ * and every one without its key while they're off (`unbound`), so nothing anywhere hears a key or draws a keycap. The
+ * one gate: every screen that hears a key reads them here. Settings → Keybinds alone reads them as set (`useKeyBindsSet`).
+ */
 export function useKeyBinds(): KeyBinds {
+  return useSyncExternalStore(subscribeAll, heardNow);
+}
+/** The keys as they're set, whether or not keybinds are Enabled: what Settings → Keybinds shows and changes. */
+export function useKeyBindsSet(): KeyBinds {
   return useSyncExternalStore(subscribe, get);
+}
+
+const isBind = (value: unknown): value is Bind => typeof value === "object" && value !== null && "key" in value && "also" in value;
+const keyless = (bind: Bind): Bind => ({ ...bind, key: null, also: [] });
+/**
+ * The keys with every action left without a key, whatever kind of thing holds it (one bind, or a row of them), so an
+ * action added later is covered without being named here. The Hold button stays as it's set: held by a finger or a mouse
+ * it still works, with no key.
+ */
+function unbound(binds: KeyBinds): KeyBinds {
+  const each = Object.entries(binds).map(([name, value]: [string, unknown]) => [name, Array.isArray(value) ? value.map((bind) => (isBind(bind) ? keyless(bind) : bind)) : isBind(value) ? keyless(value) : value]);
+  return Object.fromEntries(each) as KeyBinds;
+}
+/** The unbound keys, worked out once for each set of keys, so the store hands back the same object until they change. */
+let unboundOf: { from: KeyBinds; to: KeyBinds } | null = null;
+function heardNow(): KeyBinds {
+  const set = get();
+  if (enabledNow()) return set;
+  if (unboundOf?.from !== set) unboundOf = { from: set, to: unbound(set) };
+  return unboundOf.to;
 }
 
 /** Keeps them for next time; every change is a `keys` row in the ledger. */
@@ -491,52 +519,65 @@ export function withoutAdded(binds: KeyBinds, slot: Slot, index: number): KeyBin
 }
 
 /**
- * Whether the keycaps on buttons are drawn on this device (the owner, 2026-11-02: "keycaps on/off cuz it's per device so I
- * can just disable it on the mobile"; a phone-only switch, "Keys on buttons", from 2026-11-01). Until it's set, the
- * device's own: off on a phone, a screen with no hover as `app.css` judges a touch screen (`@media (hover: none)`), on
- * everywhere else. A key pressed works either way. This device's own, beside its keys.
+ * Whether keybinds are Enabled on this device, the whole feature (the owner, 2026-11-02: "make it enable/disable keybinds
+ * entirely, the entire feature. Call it Enabled."): off, no key is heard anywhere and no keycap is drawn, everything
+ * still pressed by touch and click. Until it's set, the device's own: off on a phone, a screen with no hover as
+ * `app.css` judges a touch screen (`@media (hover: none)`), on everywhere else. This device's own, beside its keys.
+ */
+const ENABLED_KEY = "panki.keybinds.enabled";
+/**
+ * Where the switch was kept before it was the whole feature's, carried over once: Keycaps On / Off (`panki.keycaps`,
+ * the morning of 2026-11-02), and before it the phone's Keys on buttons (`panki.keycapsOnPhone`, "true" shown on a phone,
+ * "false" being the phone's default).
  */
 const KEYCAPS_KEY = "panki.keycaps";
-/** Where the phone-only switch was kept: "true" (shown on a phone) carried over once, "false" being the phone's default now. */
 const OLD_KEYCAPS_KEY = "panki.keycapsOnPhone";
 const PHONE_QUERY = "(hover: none)";
-function readKeycaps(): boolean | null {
+function readEnabled(): boolean | null {
   try {
-    const kept = localStorage.getItem(KEYCAPS_KEY);
+    const kept = localStorage.getItem(ENABLED_KEY);
     if (kept !== null) return kept === "true";
-    const old = localStorage.getItem(OLD_KEYCAPS_KEY);
-    if (old === null) return null;
+    const keycaps = localStorage.getItem(KEYCAPS_KEY);
+    const phone = localStorage.getItem(OLD_KEYCAPS_KEY);
+    localStorage.removeItem(KEYCAPS_KEY);
     localStorage.removeItem(OLD_KEYCAPS_KEY);
-    if (old !== "true") return null;
-    localStorage.setItem(KEYCAPS_KEY, "true");
-    return true;
+    const carried = keycaps !== null ? keycaps === "true" : phone === "true" ? true : null;
+    if (carried !== null) localStorage.setItem(ENABLED_KEY, String(carried));
+    return carried;
   } catch {
     return null;
   }
 }
 /** What's kept: on, off, or null for the device's own; undefined until it's read. */
-let keycaps: boolean | null | undefined;
-const getKeycaps = () => (keycaps === undefined ? (keycaps = readKeycaps()) : keycaps);
-/** Keycaps On or Off on this device, set in Settings → Keybinds; a `keys` row in the ledger each change. */
-export function setKeycaps(on: boolean) {
-  keycaps = on;
+let enabled: boolean | null | undefined;
+const getEnabled = () => (enabled === undefined ? (enabled = readEnabled()) : enabled);
+/** Keybinds Enabled or not on this device, set in Settings → Keybinds; a `keys` row in the ledger each change. */
+export function setKeybindsEnabled(on: boolean) {
+  enabled = on;
   try {
-    localStorage.setItem(KEYCAPS_KEY, String(on));
+    localStorage.setItem(ENABLED_KEY, String(on));
   } catch {
     // Storage refused (a private window): it holds while the page is open.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { keycaps: on } });
+  ledger.record("keys", { data: { enabled: on } });
 }
 function subscribePhone(listener: () => void) {
   const query = window.matchMedia(PHONE_QUERY);
   query.addEventListener("change", listener);
   return () => query.removeEventListener("change", listener);
 }
+function subscribeAll(listener: () => void) {
+  const keys = subscribe(listener);
+  const phone = subscribePhone(listener);
+  return () => {
+    keys();
+    phone();
+  };
+}
 const onPhone = () => window.matchMedia(PHONE_QUERY).matches;
-/** Whether a keycap is drawn on this device now: as Keycaps is set, else off on a phone and on elsewhere. The keycaps' one rule (`KeyCap`, `MediaKey`, the setting's own switch). */
-export function useKeycapsShown(): boolean {
-  const phone = useSyncExternalStore(subscribePhone, onPhone);
-  const kept = useSyncExternalStore(subscribe, getKeycaps);
-  return kept ?? !phone;
+const enabledNow = () => getEnabled() ?? !onPhone();
+/** Whether keybinds are Enabled on this device now: as it's set, else off on a phone and on elsewhere (`KeyCap`, `MediaKey`, the review's Enter, the setting's own switch). */
+export function useKeybindsEnabled(): boolean {
+  return useSyncExternalStore(subscribeAll, enabledNow);
 }

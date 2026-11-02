@@ -40,6 +40,7 @@ import { Icon } from "../components/Icon";
 import { ModeChip } from "../components/ModeChip";
 import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
+import { PerDevice } from "../components/PerDevice";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Skeleton } from "../components/Skeleton";
@@ -1146,6 +1147,10 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
 
       {/* The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"). */}
       <div className="settings-tab" hidden={shown !== "keys"}>
+        {/* The tab's head, above its panels: all of it is this device's, so it says so once (the owner, 2026-11-02). */}
+        <div className="settings-tab-head">
+          <PerDevice />
+        </div>
         <KeysPanels />
       </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type MouseEvent, type PointerEvent } from "react";
 import type { MediaKind } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";
-import { sameKey, useKeycapsShown, type Heard, type Shortcut } from "../keys";
+import { sameKey, useKeybindsEnabled, type Heard, type Shortcut } from "../keys";
 import { AS_SAID, SPEEDS, type Speed } from "../playback";
 import { clock, keyWords } from "../words";
 import { Button } from "./Button";
@@ -35,8 +35,8 @@ export type LookProps = { kind: "audio" | "video"; src: string; label: string; n
  * a key of its own has a cap of its own, the again sign in it. Nothing when it has none.
  */
 export function MediaKey({ shortcut, restart = NO_RESTART, className = "" }: { shortcut: Shortcut | null; restart?: readonly Heard[]; className?: string }) {
-  // None on a phone unless keycaps are set to show there: the keys still work.
-  const shown = useKeycapsShown();
+  // None while keybinds are off on this device: no key is heard then either.
+  const shown = useKeybindsEnabled();
   const sameHeld = shortcut !== null && restart.some((key) => key.holdMs > 0 && sameKey(key.key, shortcut.key));
   const own = restart.filter((key) => shortcut === null || !sameKey(key.key, shortcut.key));
   if (!shown || (!shortcut && own.length === 0)) return null;

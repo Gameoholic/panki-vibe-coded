@@ -3154,14 +3154,14 @@ mark.sub-blur {
   white-space: nowrap;
   vertical-align: middle;
 }
-/* A panel's title with something beside it on its line (the tab's "This device"). */
-.panel-head {
+/* A Settings tab's own head, above its panels, between the tabs and the first panel: "This device" on a tab that's all
+   this device's (Keybinds). */
+.settings-tab-head {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
 }
-.panel-head .panel-title {
-  margin: 0;
+.settings-tab-head .per-device {
+  margin-left: 0;
 }
 /* A control too wide to stand beside its label goes under it, still at the right, where the rows' controls all stand. */
 .setting-label + * {

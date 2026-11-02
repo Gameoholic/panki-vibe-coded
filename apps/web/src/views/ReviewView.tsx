@@ -13,7 +13,7 @@ import { TodayBar, todayWords } from "../components/TodayBar";
 import { keepDouble, useHold } from "../hooks/useHold";
 import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
-import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, type Bind } from "../keys";
+import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
@@ -482,8 +482,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   const rest = (id: string) => setHover(id);
   const leave = () => setHover(null);
-  /** This device's keys (`keys.ts`, Settings → Keybinds), and a key being held on a button until it does its thing. */
+  /** This device's keys (`keys.ts`, Settings → Keybinds; none while keybinds are off), and a key being held on a button until it does its thing. */
   const binds = useKeyBinds();
+  /** Keybinds Enabled on this device: off, Enter does nothing either. */
+  const keysOn = useKeybindsEnabled();
   const hold = useHold();
   const place = useRef<HTMLElement | null>(null);
   /** How many more new cards extra study offers once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
@@ -859,9 +861,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       if (e.metaKey) return;
       // What's held with it is part of the key ("Ctrl+z" isn't "z"), as Settings → Keybinds keeps it.
       const key = keyOf(e);
+      // Enter starts and shows as Start's and Show back of card's keys do, while keybinds are on.
+      const enter = keysOn && key === "Enter";
       // On today's cards, Start's own key starts the review (the owner, 2026-10-27: not Show answer's); Enter does too, but on a button.
       if (today) {
-        if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+        if (enter && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           start();
         } else {
@@ -885,7 +889,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       }
       // At the end, Start's key starts extra study, as it starts a review on today's cards; Enter does too, but on a button.
       if (!card && extraOrder.length > 0) {
-        if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+        if (enter && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           startExtra();
         } else {
@@ -931,7 +935,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       if (resetting) return;
       // Enter shows the answer too, at a press, whatever the keys are (the card, while it's listened to); on a button
       // it's that button's own.
-      if (key === "Enter") {
+      if (enter) {
         if (e.target instanceof HTMLButtonElement || revealed) return;
         e.preventDefault();
         if (listening) showCard();
