@@ -79,7 +79,6 @@ export function HoldButtonScene({ binds }: { binds: KeyBinds }) {
   const view: HoldButtonView = {
     label: stages[at]?.label ?? "Back to start",
     ms: stages[at]?.ms ?? null,
-    then: stages.slice(at + 1).map((s) => s.label),
     bind: binds.holdButton,
     from: round,
     span: 0,

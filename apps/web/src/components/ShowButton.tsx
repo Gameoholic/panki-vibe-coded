@@ -35,14 +35,14 @@ const holdWords = (ms: number) => (ms > 0 ? `Hold ${ms / 1000} s` : "Press");
  * The Hold button (`useHoldButton`), drawn as the owner's drawing A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA
  * (2026-11-02: "it looked cool and was better for this"): its key as one clock face for every stage of the card
  * (`HoldClock`), what's done filled and the stage being held filling on from there, and beside it the next stage in
- * words (Done listening, Show back of card, the deck's answer by its name) over how it's held and what comes after it.
+ * words (Done listening, Show back of card, the deck's answer by its name) over how long it's held ("Hold 0.5 s"; what
+ * comes after it is the clock's to show, the owner, 2026-11-02).
  * Held, it goes on; tapped, the card goes back to its start. It stands under the card on both its sides, beside the
  * review's own buttons, which keep working by hand with no keys of their own while it's on (the owner, 2026-11-02). The
  * review, the Layout tab's Preview and its explainer are all this.
  */
 export function HoldButton({ view }: { view: HoldButtonView }) {
   const style = { "--hold-from": view.from.toFixed(4), "--hold-span": view.span.toFixed(4) } as CSSProperties;
-  const how = [view.ms === null ? null : holdWords(view.ms), view.then.length > 0 ? `then ${view.then.join(", ")}` : null].filter((part) => part !== null);
   return (
     <Button
       className="hold-button"
@@ -57,7 +57,7 @@ export function HoldButton({ view }: { view: HoldButtonView }) {
       <HoldClock bind={view.bind} pieces={view.pieces} tone={view.tone} />
       <span className="hold-button-words">
         <b>{view.label}</b>
-        {how.length > 0 ? <span>{how.join(" · ")}</span> : null}
+        {view.ms === null ? null : <span>{holdWords(view.ms)}</span>}
       </span>
     </Button>
   );

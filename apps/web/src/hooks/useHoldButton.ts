@@ -12,10 +12,9 @@ export type HoldStage = { label: string; ms: number; done: () => void; tone?: st
 
 /** What the Hold button draws (`ShowButton.tsx` → `HoldButton`): its words, and how far along the card's stages it stands. */
 export type HoldButtonView = {
-  /** The next stage, and how long it's held; the stages after it. */
+  /** The next stage, and how long it's held. */
   label: string;
   ms: number | null;
-  then: readonly string[];
   /** Its key, in the middle of the clock. */
   bind: Bind;
   /** The share of the card's stages already done, and of the one being held; the clock's stretches, and the answer's colour. */
@@ -151,7 +150,6 @@ export function useHoldButton({ stages, at, rest, back, showing, bind, where }: 
   const view: HoldButtonView = {
     label: next?.label ?? rest,
     ms: next ? next.ms : null,
-    then: stages.slice(at + 1).map((s) => s.label),
     bind,
     ...holdShares(
       stages.map((s) => s.ms),
