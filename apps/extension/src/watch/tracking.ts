@@ -39,3 +39,18 @@ async function settle(store: Stored): Promise<boolean> {
 export async function setVideoTracking(on: boolean): Promise<void> {
   await writeStore({ videoTracking: on });
 }
+
+/**
+ * The switch said to Panki on the sign-in in use, so Panki's Settings → Extension → Data tracking can list this browser
+ * and whether it sends (2026-11-03): as the browser starts or the extension is updated, and whenever the switch or the
+ * sign-in changes (the worker's). Nothing while signed out or still unsettled; a failure is said again the next time.
+ */
+export async function reportVideoTracking(): Promise<void> {
+  const store = await readStore();
+  if (!store.address || !store.token || store.videoTracking === null) return;
+  try {
+    await panki.tracking({ address: store.address, token: store.token }, store.videoTracking);
+  } catch {
+    // Panki unreachable, or an older Panki without the route: its list says Unknown until the next time.
+  }
+}

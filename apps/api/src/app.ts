@@ -90,7 +90,7 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
   app.use("/api/transcription", transcriptionRouter(dbOf, shared, engines, engineKeys, now));
   app.use("/api/transcripts", transcriptsRouter(dbOf, shared, engines, engineKeys, jobs, now));
   app.use("/api/videos", videosRouter(dbOf, shared, now));
-  app.use("/api/watching", watchingRouter(dbOf, shared, now));
+  app.use("/api/watching", watchingRouter(dbOf, auth, shared, now));
   app.use("/api/stats", statsRouter(dbOf, now));
   app.use("/api/space", spaceRouter(space, storage));
   app.use("/api", (_req, res) => {

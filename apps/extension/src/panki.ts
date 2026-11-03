@@ -6,6 +6,7 @@ import {
   WordsInCards,
   CardTypeList,
   DeckList,
+  type DeviceTracking,
   EXTENSION_HEADER,
   EXTENSION_PROTOCOL,
   ExtensionBuildResponse,
@@ -102,7 +103,7 @@ async function call<T>(address: string, token: string | null, path: string, init
   return parse(body);
 }
 
-const json = (method: "POST" | "PATCH", body: unknown): Init => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const json = (method: "POST" | "PUT" | "PATCH", body: unknown): Init => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const id = encodeURIComponent;
 
 export const panki = {
@@ -225,6 +226,9 @@ export const panki = {
   watched: ({ address, token }: Door, videoId: string): Promise<WatchedVideo> => call(address, token, `/api/watching/videos/${id(videoId)}`, {}, (b) => WatchedVideoResponse.parse(b).video),
   /** Stretches of videos watched, kept on the account's Panki (sent only while this browser's Video tracking is on). */
   watch: ({ address, token }: Door, batch: WatchBatch): Promise<void> => call(address, token, "/api/watching", json("POST", batch), () => undefined),
+  /** This browser's Video tracking switch, said to Panki so its Settings → Extension → Data tracking can list it. */
+  tracking: ({ address, token }: Door, videoTracking: boolean): Promise<void> =>
+    call(address, token, "/api/watching/device", json("PUT", { videoTracking } satisfies DeviceTracking), () => undefined),
   /** A video left out of the count, counted again, put away from Continue watching, finished or not; by the viewer, or by Panki as it was played into its end. */
   watchMark: ({ address, token }: Door, videoId: string, kind: WatchMarkKind, source: WatchMarkSource): Promise<WatchedVideo> =>
     call(address, token, `/api/watching/videos/${id(videoId)}/marks`, json("POST", { kind, source } satisfies WatchMark), (b) => WatchedVideoResponse.parse(b).video),

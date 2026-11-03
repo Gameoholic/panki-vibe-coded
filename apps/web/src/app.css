@@ -5045,6 +5045,22 @@ mark.sub-blur {
 .kept-row.is-low .kept-size {
   color: var(--danger);
 }
+/* At a row's end, how something stands in quiet words (an extension's Video tracking in Data tracking); on a phone it
+   wraps under the name rather than squeezing it. */
+.kept-state {
+  flex: 0 1 auto;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .kept-row:has(.kept-state) {
+    flex-wrap: wrap;
+  }
+  .kept-state {
+    text-align: left;
+  }
+}
 /* Setting the extension up on a computer (Settings → Extension): the steps, numbered, as they're done. */
 .setup-steps {
   display: grid;

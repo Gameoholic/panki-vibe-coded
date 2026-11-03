@@ -1,12 +1,13 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Session, User } from "@panki/contracts";
+import { Session, TrackingDevice, User } from "@panki/contracts";
 
 export type AuthDb = ReturnType<typeof openAuthDb>;
 
 /** One signed-in device as the API keeps it: who it belongs to and what it looks like, never the cookie's secret. */
-export type SessionRow = { id: string; userId: string; device: string; userAgent: string; createdAt: number; lastSeenAt: number };
+export type SessionRow = { id: string; userId: string; device: string; userAgent: string; createdAt: number; lastSeenAt: number; extension: number };
+type TrackingRow = { id: string; device: string; createdAt: number; videoTracking: number | null; lastSentAt: number | null };
 type UserRow = { id: string; name: string; passwordHash: string; createdAt: number; admin: number };
 
 /**
@@ -72,6 +73,23 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
       )
     `);
   },
+  (db) => {
+    // Each extension and its Video tracking (2026-11-03, Settings → Extension → Data tracking): a sign-in is an
+    // extension's from the first request it makes with the extension's header; what it last said of its switch (null:
+    // never said) and when, and when a stretch watched last came on it. Every change of the switch is kept with its time.
+    db.exec("ALTER TABLE sessions ADD COLUMN extension INTEGER NOT NULL DEFAULT 0");
+    db.exec("ALTER TABLE sessions ADD COLUMN video_tracking INTEGER");
+    db.exec("ALTER TABLE sessions ADD COLUMN tracking_at INTEGER");
+    db.exec("ALTER TABLE sessions ADD COLUMN last_sent_at INTEGER");
+    db.exec(`
+      CREATE TABLE tracking_changes (
+        id INTEGER PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        video_tracking INTEGER NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -110,7 +128,7 @@ export function openAuthDb(dataDir: string) {
   const updateAdmin = db.prepare("UPDATE users SET admin = ? WHERE id = ?");
   const insertAdminChange = db.prepare("INSERT INTO admin_changes (user_id, admin, at) VALUES (?, ?, ?)");
 
-  const sessionColumns = "s.id, s.user_id AS userId, s.device, s.user_agent AS userAgent, s.created_at AS createdAt, s.last_seen_at AS lastSeenAt";
+  const sessionColumns = "s.id, s.user_id AS userId, s.device, s.user_agent AS userAgent, s.created_at AS createdAt, s.last_seen_at AS lastSeenAt, s.extension";
   const insertSession = db.prepare("INSERT INTO sessions (id, token_hash, user_id, user_agent, device, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   // A session is live while it isn't revoked and its account is still there.
   const live = "s.revoked_at IS NULL AND EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id AND u.removed_at IS NULL)";
@@ -120,6 +138,14 @@ export function openAuthDb(dataDir: string) {
   const revokeSession = db.prepare("UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL");
   const revokeSessions = db.prepare("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL");
   const sessionExists = db.prepare("SELECT 1 FROM sessions WHERE id = ? AND user_id = ?");
+  const markExtension = db.prepare("UPDATE sessions SET extension = 1 WHERE id = ?");
+  const selectTracking = db.prepare("SELECT video_tracking AS videoTracking FROM sessions WHERE id = ?");
+  const updateTracking = db.prepare("UPDATE sessions SET video_tracking = ?, tracking_at = ? WHERE id = ?");
+  const insertTrackingChange = db.prepare("INSERT INTO tracking_changes (session_id, video_tracking, at) VALUES (?, ?, ?)");
+  const updateLastSent = db.prepare("UPDATE sessions SET last_sent_at = ? WHERE id = ?");
+  const selectTrackingDevices = db.prepare(
+    "SELECT id, device, created_at AS createdAt, video_tracking AS videoTracking, last_sent_at AS lastSentAt FROM sessions WHERE user_id = ? AND extension = 1 AND revoked_at IS NULL ORDER BY created_at DESC, id DESC",
+  );
 
   const insertAttempt = db.prepare("INSERT INTO login_attempts (at, name, ok, address) VALUES (?, ?, ?, ?)");
 
@@ -198,6 +224,34 @@ export function openAuthDb(dataDir: string) {
     },
     revokeAllSessions(userId: string, now: number): void {
       revokeSessions.run(now, userId);
+    },
+    /** Marks a sign-in as an extension's, once: the first request it makes with the extension's header. */
+    markExtension(sessionId: string): void {
+      markExtension.run(sessionId);
+    },
+    /** What an extension last said of its Video tracking; a change is kept with its time, the same said again is nothing new. */
+    setTracking(sessionId: string, on: boolean, now: number): void {
+      const was = selectTracking.get(sessionId) as { videoTracking: number | null } | undefined;
+      if (!was || was.videoTracking === (on ? 1 : 0)) return;
+      db.exec("BEGIN");
+      try {
+        updateTracking.run(on ? 1 : 0, now, sessionId);
+        insertTrackingChange.run(sessionId, on ? 1 : 0, now);
+        db.exec("COMMIT");
+      } catch (e) {
+        db.exec("ROLLBACK");
+        throw e;
+      }
+    },
+    /** A batch of stretches watched came on this sign-in. */
+    noteSent(sessionId: string, now: number): void {
+      updateLastSent.run(now, sessionId);
+    },
+    /** The account's live extension sign-ins, newest first, with what each last said of its Video tracking. */
+    trackingDevices(userId: string): TrackingDevice[] {
+      return (selectTrackingDevices.all(userId) as TrackingRow[]).map((row) =>
+        TrackingDevice.parse({ id: row.id, device: row.device, createdAt: row.createdAt, videoTracking: row.videoTracking === null ? null : row.videoTracking === 1, lastSentAt: row.lastSentAt }),
+      );
     },
     recordLoginAttempt(now: number, name: string, ok: boolean, address: string): void {
       insertAttempt.run(now, name, ok ? 1 : 0, address);

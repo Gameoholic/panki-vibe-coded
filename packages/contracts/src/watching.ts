@@ -175,3 +175,26 @@ export const WatchHistory = z.object({
 export type WatchHistory = z.infer<typeof WatchHistory>;
 export const WatchHistoryResponse = z.object({ history: WatchHistory });
 export type WatchHistoryResponse = z.infer<typeof WatchHistoryResponse>;
+
+/**
+ * What an extension says of its own Video tracking switch, as it starts signed in and whenever it's changed
+ * (`PUT /api/watching/device`, the owner, 2026-11-03: Settings → Extension → Data tracking lists each extension and
+ * whether it sends). Kept on the sign-in it came on; nothing on Panki switches it.
+ */
+export const DeviceTracking = z.object({ videoTracking: z.boolean() });
+export type DeviceTracking = z.infer<typeof DeviceTracking>;
+/**
+ * One extension's sign-in as Data tracking lists it: the device as the Account tab names it, and what it last said of
+ * its Video tracking (null for an extension that hasn't said yet: Unknown), and when a stretch watched last came from
+ * it (null for never). The website's own sign-ins are never here.
+ */
+export const TrackingDevice = z.object({
+  id: z.string().min(1),
+  device: z.string(),
+  createdAt: z.number().int().nonnegative(),
+  videoTracking: z.boolean().nullable(),
+  lastSentAt: z.number().int().nonnegative().nullable(),
+});
+export type TrackingDevice = z.infer<typeof TrackingDevice>;
+export const TrackingDevicesResponse = z.object({ devices: z.array(TrackingDevice) });
+export type TrackingDevicesResponse = z.infer<typeof TrackingDevicesResponse>;

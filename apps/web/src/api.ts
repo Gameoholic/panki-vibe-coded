@@ -23,6 +23,8 @@ import {
   SrsTypeResponse,
   StatsResponse,
   TranscriptionResponse,
+  TrackingDevicesResponse,
+  type TrackingDevice,
   WatchHistoryResponse,
   WatchedVideoResponse,
   WatchingSettingsResponse,
@@ -169,6 +171,8 @@ export const api = {
   updateSettings: (patch: SettingsUpdate): Promise<SettingsAnswer> => request("/api/settings", send("PATCH", patch), (b) => SettingsResponse.parse(b)),
   /** All that's kept of the videos watched, in brief: how many, how long, since when. */
   watchHistory: (): Promise<WatchHistory> => request(WATCHING_PATH, undefined, (b) => WatchHistoryResponse.parse(b).history),
+  /** The account's extensions, each with what it last said of its Video tracking and when it last sent (Data tracking's list, read-only). */
+  trackingDevices: (): Promise<TrackingDevice[]> => request(`${WATCHING_PATH}/devices`, undefined, (b) => TrackingDevicesResponse.parse(b).devices),
   /** Hides every video watched, with the time it went; nothing is destroyed. Answers with what's left, which is nothing. */
   forgetWatchHistory: (): Promise<WatchHistory> => request(`${WATCHING_PATH}/forget`, send("POST"), (b) => WatchHistoryResponse.parse(b).history),
   /** Something said of one video watched: put away from Continue watching, left out of the count, or counted again. */

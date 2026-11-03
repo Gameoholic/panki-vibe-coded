@@ -1,6 +1,7 @@
 import { Router, type Response } from "express";
-import { GlanceAsk, SaveVideo, VideoId, WatchBatch, WatchMark, WatchingSettingsUpdate, type GlanceResponse, type SavedResponse, type WatchedVideoResponse, type WatchHistoryResponse, type WatchingSettingsResponse } from "@panki/contracts";
+import { DeviceTracking, GlanceAsk, SaveVideo, VideoId, WatchBatch, WatchMark, WatchingSettingsUpdate, type GlanceResponse, type SavedResponse, type TrackingDevicesResponse, type WatchedVideoResponse, type WatchHistoryResponse, type WatchingSettingsResponse } from "@panki/contracts";
 import type { DbOf } from "../app";
+import type { AuthDb } from "../authDb";
 import { requireAdmin, signedIn } from "../session";
 import type { Shared } from "../shared";
 
@@ -10,7 +11,7 @@ import type { Shared } from "../shared";
  * Settings reads the history in brief and forgets it. The API stamps every time and keeps whatever arrives: whether a
  * browser sends is its own Video tracking (since 2026-11-02; the account's until then, which refused stretches here).
  */
-export function watchingRouter(dbOf: DbOf, shared: Shared, now: () => number) {
+export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: () => number) {
   const router = Router();
 
   /** The video the address names, or null after saying it isn't one. */
@@ -44,8 +45,27 @@ export function watchingRouter(dbOf: DbOf, shared: Shared, now: () => number) {
       res.status(400).json({ error: { message: "That isn't what was watched.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    dbOf(res).keepWatching(parsed.data, { device: signedIn(res).device }, now());
+    const at = now();
+    dbOf(res).keepWatching(parsed.data, { device: signedIn(res).device }, at);
+    auth.noteSent(signedIn(res).sessionId, at);
     res.status(204).end();
+  });
+
+  // Each extension says what its Video tracking switch is, as it starts signed in and as it's changed (2026-11-03);
+  // Settings → Extension → Data tracking lists them, read-only.
+  router.put("/device", (req, res) => {
+    const parsed = DeviceTracking.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't a Video tracking switch.", path: parsed.error.issues[0]?.path ?? [] } });
+      return;
+    }
+    auth.setTracking(signedIn(res).sessionId, parsed.data.videoTracking, now());
+    res.status(204).end();
+  });
+
+  router.get("/devices", (_req, res) => {
+    const answer: TrackingDevicesResponse = { devices: auth.trackingDevices(signedIn(res).user.id) };
+    res.json(answer);
   });
 
   router.get("/", (_req, res) => {

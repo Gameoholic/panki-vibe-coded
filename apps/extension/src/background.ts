@@ -13,7 +13,7 @@ import { mappingOn } from "./roles";
 import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
 import { sourceOf } from "./subtitles";
 import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, runningBuild, showFolder } from "./updates";
-import { settleVideoTracking, videoTrackingOn } from "./watch/tracking";
+import { reportVideoTracking, settleVideoTracking, videoTrackingOn } from "./watch/tracking";
 
 /**
  * The extension's one worker. It holds the sign-in and is the only thing that talks to Panki (word audio from Forvo
@@ -230,6 +230,13 @@ chrome.runtime.onInstalled.addListener(startChecking);
 // This browser's Video tracking, settled once (`watch/tracking.ts`): Off as the extension first comes, before any
 // sign-in; a browser already signed in when it became each browser's own starts from the account's switch.
 void settleVideoTracking();
+// And said to Panki, for its Data tracking's list of extensions: as the browser starts or the extension is updated, and
+// whenever the switch or the sign-in in use changes (`reportVideoTracking`).
+chrome.runtime.onStartup.addListener(() => void reportVideoTracking());
+chrome.runtime.onInstalled.addListener(() => void reportVideoTracking());
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && ("videoTracking" in changes || "token" in changes)) void reportVideoTracking();
+});
 // Reloaded from the options page with Reload Panki: that page, closed by the reload, opens again.
 chrome.runtime.onInstalled.addListener(() => {
   void readStore().then(async (store) => {
