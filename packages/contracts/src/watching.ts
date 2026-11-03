@@ -185,8 +185,8 @@ export const DeviceTracking = z.object({ videoTracking: z.boolean() });
 export type DeviceTracking = z.infer<typeof DeviceTracking>;
 /**
  * One extension's sign-in as Data tracking lists it: the device as the Account tab names it, and what it last said of
- * its Video tracking (null for an extension that hasn't said yet: Unknown), and when a stretch watched last came from
- * it (null for never). The website's own sign-ins are never here.
+ * its Video tracking (null for an extension that hasn't said yet, shown as Off), and when a stretch watched last came
+ * from it (null for never). The website's own sign-ins are never here.
  */
 export const TrackingDevice = z.object({
   id: z.string().min(1),

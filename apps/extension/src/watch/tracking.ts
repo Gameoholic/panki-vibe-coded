@@ -51,6 +51,6 @@ export async function reportVideoTracking(): Promise<void> {
   try {
     await panki.tracking({ address: store.address, token: store.token }, store.videoTracking);
   } catch {
-    // Panki unreachable, or an older Panki without the route: its list says Unknown until the next time.
+    // Panki unreachable, or an older Panki without the route: its list says what it last heard (Off if nothing) until the next time.
   }
 }

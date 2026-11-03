@@ -130,11 +130,11 @@ const TRACKING_SHAPE = "tracking-devices";
 
 /**
  * One extension's Video tracking as Data tracking lists it, in the setting's own name and words: "Video tracking · On
- * · last sent 3 hours ago", "Video tracking · Unknown · never sent" for one that hasn't said yet (the owner, 2026-11-03:
- * quiet words, no chip).
+ * · last sent 3 hours ago", "Video tracking · Off · never sent" (the owner, 2026-11-03: quiet words, no chip). Two
+ * states alone: one that hasn't said yet, an extension not yet updated, reads Off.
  */
 function trackingWords(device: TrackingDevice, now: number): string {
-  const state = device.videoTracking === null ? "Unknown" : device.videoTracking ? "On" : "Off";
+  const state = device.videoTracking === true ? "On" : "Off";
   const sent = device.lastSentAt === null ? "never sent" : `last sent ${sinceWords(device.lastSentAt, now)}`;
   return `Video tracking · ${state} · ${sent}`;
 }
