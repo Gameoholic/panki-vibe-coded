@@ -574,7 +574,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
    * The card's examples in the order its arrows turn through them (its own first, then each added, as Rotate goes), and
    * the one looked at by hand (the owner, 2026-10-26, A of https://claude.ai/artifact/NvKf27gK3s88efz7WeRjV2): none
    * until an arrow is pressed, and none again on each showing. The answer counts for the one the review picked
-   * (`exampleId`); looking at another plays nothing by itself.
+   * (`exampleId`). Switching to another, each sound and clip that's One per example starts by itself where the one left
+   * was playing or had played to its end, and stays still otherwise (`ReviewCard`, the owner, 2026-11-04).
    */
   const exampleIds = card && exampleFieldsOf(type).length > 0 && card.examples.length > 0 ? [null, ...card.examples.map((e) => e.id)] : [];
   const [browsed, setBrowsed] = useState<{ id: string | null } | null>(null);
@@ -1179,8 +1180,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           cues={card.cues}
           subtitleStyle={subtitleStyle}
           picturesOf={api.videoPictures}
-          // Another example looked at: it plays when it's pressed, not by itself.
-          autoplay={browsed === null}
+          // Another example looked at carries how each of its sounds and clips stood (`ReviewCard`): playing or played to its end, the next one starts.
+          autoplay
           shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
           restarts={binds.restart.map((bind) => restartOf(bind, binds))}
           screenKey={shortcutOf(binds.fullScreen, binds)}

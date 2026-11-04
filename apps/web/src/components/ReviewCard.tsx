@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   DEFAULT_SUBTITLE_STYLE,
   MediaId,
@@ -162,7 +162,11 @@ type Props = {
   srcOf?: (mediaId: string) => string;
   /** What's drawn in a field's place for something the card will hold but doesn't yet: a clip before it's recorded. */
   standIns?: Readonly<Record<string, ReactNode | StandIn>>;
-  /** Plays what's set to play by itself as it comes into view, one after another: a review. Off where a card is only looked at. */
+  /**
+   * Plays what's set to play by itself as it comes into view, one after another: a review. Off where a card is only
+   * looked at. With `examplePager`, a switch of examples also carries each One per example sound's and clip's playing:
+   * playing or played to its end, the next example's starts.
+   */
   autoplay?: boolean;
   /** A layout to draw in place of the type's own: one being edited. */
   layout?: readonly LayoutPart[];
@@ -299,9 +303,12 @@ export function ReviewCard({
   const [played, setPlayed] = useState<ReadonlySet<string>>(() => new Set());
   /** What's playing by itself right now. */
   const [cued, setCued] = useState<string | null>(null);
+  /** What starts by itself because the example before it was playing, or had played to its end, as the examples were switched. */
+  const [carried, setCarried] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     setPlayed(new Set());
     setCued(null);
+    setCarried(new Set());
     if (!revealed) setOpened(new Set());
   }, [revealed]);
 
@@ -491,14 +498,64 @@ export function ReviewCard({
     }
     if (cued === null && next !== null) setCued(next);
   }, [cued, next, liveKey]);
-  // Playing by itself switched off while the card is up (another example looked at): nothing goes on playing by itself.
+  // Playing by itself switched off while the card is up (the Layout tab's Preview left): nothing goes on playing by itself.
   useEffect(() => {
-    if (!autoplay) setCued(null);
+    if (autoplay) return;
+    setCued(null);
+    setCarried(new Set());
   }, [autoplay]);
   function finishCue(fieldId: string) {
     setPlayed((was) => new Set(was).add(fieldId));
     setCued((now) => (now === fieldId ? null : now));
+    setCarried((was) => {
+      if (!was.has(fieldId)) return was;
+      const next = new Set(was);
+      next.delete(fieldId);
+      return next;
+    });
   }
+
+  // The examples switched (the review's arrows): each sound and clip that's One per example carries how the one being
+  // left stood (the owner, 2026-11-04). Playing, or played to its end, the next example's starts from its beginning by
+  // itself; paused part-way, or never started, it stays still. Only where it stands on the side shown, ready to hear;
+  // its "plays by itself" is for the card coming up and being turned, which a switch is neither. A part that's One per
+  // card is the same file in every example, so its player is left exactly as it is. The element each field last played
+  // in is heard on the card (a media element's events don't bubble) and read as the switch lands, before the one
+  // leaving is paused by being taken off the page; one already off it by an earlier change (a part the turned card no
+  // longer shows) is let go, so it never speaks for the fresh one.
+  const playedIn = useRef(new Map<string, HTMLMediaElement>());
+  useEffect(() => {
+    const el = card.current;
+    if (!el) return;
+    const onPlay = (e: Event) => {
+      const media = e.target;
+      const id = media instanceof HTMLMediaElement ? media.closest("[data-part]")?.getAttribute("data-part") : null;
+      if (media instanceof HTMLMediaElement && id) playedIn.current.set(id, media);
+    };
+    el.addEventListener("play", onPlay, true);
+    return () => el.removeEventListener("play", onPlay, true);
+  }, []);
+  const shownBefore = useRef(values);
+  const switches = autoplay && !edit && srcOf !== undefined && examplePager !== null;
+  useLayoutEffect(() => {
+    const was = shownBefore.current;
+    shownBefore.current = values;
+    const switched = switches ? type.fields.filter((f) => f.perExample && holdsFile(f.kind) && (was[f.id] ?? "") !== (values[f.id] ?? "")).map((f) => f.id) : [];
+    if (switched.length > 0) {
+      const ready = new Set(drawn.filter((d) => heardNow(d) && !covered(d.part) && standIns?.[d.field.id] === undefined && playable(d.field)).map((d) => d.field.id));
+      const going = (id: string) => {
+        const media = playedIn.current.get(id);
+        return media !== undefined && (!media.paused || media.ended);
+      };
+      const starts = new Set(switched.filter((id) => ready.has(id) && going(id)));
+      // Every switched one counts as played on this side, so none is queued to play by itself afterwards.
+      setPlayed((now) => new Set([...now, ...switched]));
+      setCarried((now) => new Set([...[...now].filter((id) => !switched.includes(id)), ...starts]));
+      setCued((now) => (now !== null && switched.includes(now) && !starts.has(now) ? null : now));
+      for (const id of switched) playedIn.current.delete(id);
+    }
+    for (const [id, media] of playedIn.current) if (!media.isConnected) playedIn.current.delete(id);
+  });
 
   /** How the Listen phase draws the reading over a part's words, by the reading's own part: blurred or unseen, or as it is. */
   function readingVeil(fieldId: string): string {
@@ -567,7 +624,7 @@ export function ReviewCard({
             label={field.name}
             look={part.look}
             named={part.label}
-            cue={live && cued === field.id}
+            cue={live && (cued === field.id || carried.has(field.id))}
             onCueEnd={() => finishCue(field.id)}
             waveOf={waveOf}
             over={file === "video" ? subtitlesOf(part, cues?.[value]) : null}
