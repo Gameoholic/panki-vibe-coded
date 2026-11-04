@@ -81,9 +81,9 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   card: "Card",
   // A follow-up's (AI step 5): what was typed, and the field it was asked from, by the card's own name for it; empty
   // on a first ask, so a Follow-up prompt's lines holding them drop there and a first prompt never meets them.
-  // "Question" until the owner, 2026-11-01: "same for {Question}" (account migration 42).
+  // "Question" until the owner, 2026-11-01: "same for {Question}" (account migration 43).
   question: "Follow-up question",
-  // "Field" until the owner, 2026-11-01: "rename {Field} to follow-up-field so it's clear" (account migration 41
+  // "Field" until the owner, 2026-11-01: "rename {Field} to follow-up-field so it's clear" (account migration 42
   // rewrote every kept template).
   field: "Follow-up field",
   // Proofread's (AI step 6): the lines being proofread, numbered, and two lists of their words by line number, those a

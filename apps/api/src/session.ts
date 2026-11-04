@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
+import { EXTENSION_HEADER } from "@panki/contracts";
 import type { AuthDb } from "./authDb";
 
 /**
@@ -79,6 +80,8 @@ export function requireSession(auth: AuthDb, now: () => number) {
     }
     const at = now();
     if (at - session.lastSeenAt >= TOUCH_EVERY_MS) auth.touchSession(session.id, at);
+    // A sign-in is the extension's from its first request with the extension's header (Data tracking lists those alone).
+    if (session.extension === 0 && req.get(EXTENSION_HEADER) !== undefined) auth.markExtension(session.id);
     const signed: Signed = { user: { id: user.id, name: user.name, admin: user.admin }, sessionId: session.id, device: session.device, userAgent: session.userAgent };
     res.locals.signed = signed;
     next();

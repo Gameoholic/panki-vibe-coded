@@ -3766,9 +3766,10 @@
 }
 
 /* ---------- The options page's explainers (options/explainerScenes.tsx) ----------
-   The explainer itself (`explain-*`) and the video site the scenes play on (`.ex-yt`, `.ex-video`, `.ex-thumb`, the
-   drawer's place, the band over the video) are the app's (app.css): Settings → Panki AI has explainers too. What only
-   the options page's scenes draw is here: the news site, the Panki panel, the player's controls, YouTube's home. */
+   The explainer itself (`explain-*`, `@web/components/Explainer`, since 2026-11-02) and the video site the scenes play
+   on (`.ex-yt`, `.ex-video`, `.ex-thumb`, the drawer's place, the band over the video) are the app's (app.css):
+   Settings → Panki AI and Keybinds have explainers too. What only the options page's scenes draw is here: the news
+   site, the Panki panel, the player's controls, YouTube's home. */
 
 /* A news site, in its own colours */
 .ex-news {

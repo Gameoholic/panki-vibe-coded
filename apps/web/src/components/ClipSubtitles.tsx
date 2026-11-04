@@ -17,6 +17,11 @@ type Props = {
   time?: ClipTime;
   /** Words lit where they first stand in the line showing (the part's "Highlight": the card's word); empty for none. */
   lit?: string;
+  /**
+   * What a review's Listen phase blurs (`LayoutPart.listenSubtitles`): the lit words alone, in place of lighting them,
+   * or the whole line; nothing by default.
+   */
+  blur?: "word" | "line" | null;
 };
 
 type Span = { from: number; to: number };
@@ -35,15 +40,18 @@ function said(text: string, stretch: Span, now: Span): ReactNode {
   );
 }
 
-/** The line showing: the words lit (where they first stand) in one box, and the piece being said underlined wherever it falls. */
-function lineOf(text: string, now: Span, lit: string): ReactNode {
+/**
+ * The line showing: the words lit (where they first stand) in one box, or blurred in it while they're to be listened
+ * for, and the piece being said underlined wherever it falls.
+ */
+function lineOf(text: string, now: Span, lit: string, blurLit: boolean): ReactNode {
   const at = lit ? text.indexOf(lit) : -1;
   if (at < 0) return said(text, { from: 0, to: text.length }, now);
   const end = at + lit.length;
   return (
     <>
       {said(text, { from: 0, to: at }, now)}
-      <mark className="sub-mark">{said(text, { from: at, to: end }, now)}</mark>
+      <mark className={blurLit ? "sub-blur" : "sub-mark"}>{said(text, { from: at, to: end }, now)}</mark>
       {said(text, { from: end, to: text.length }, now)}
     </>
   );
@@ -60,7 +68,7 @@ type Showing = { text: string; from: number; to: number } | null;
  * own `<video>` there; its words are sized with the box's height, so they're the same share of the clip on the card and
  * on the full screen. The band is the app's `.sub-band`, the one the extension draws too.
  */
-export function ClipSubtitles({ cues, style, time, lit = "" }: Props) {
+export function ClipSubtitles({ cues, style, time, lit = "", blur = null }: Props) {
   const ground = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [showing, setShowing] = useState<Showing>(null);
@@ -100,8 +108,8 @@ export function ClipSubtitles({ cues, style, time, lit = "" }: Props) {
   return (
     <div ref={ground} className="sub-ground" style={vars}>
       {showing ? (
-        <div className="sub-band" lang={langOf(showing.text)}>
-          {lineOf(showing.text, showing, lit)}
+        <div className={blur === "line" ? "sub-band is-blurred" : "sub-band"} lang={langOf(showing.text)} aria-hidden={blur === "line" ? true : undefined}>
+          {lineOf(showing.text, showing, lit, blur === "word")}
         </div>
       ) : null}
     </div>

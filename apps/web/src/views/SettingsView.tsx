@@ -43,6 +43,7 @@ import {
   type TranscribeMode,
   type Transcription,
   type TranscriptionStatus,
+  type TrackingDevice,
   type WatchHistory,
   type WordAudio,
   type WordAudioStatus,
@@ -57,6 +58,7 @@ import { Icon } from "../components/Icon";
 import { ModeChip } from "../components/ModeChip";
 import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
+import { PerDevice } from "../components/PerDevice";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Skeleton } from "../components/Skeleton";
@@ -68,7 +70,8 @@ import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
-import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, tokenWords } from "../words";
+import { rememberShape, shapeOf } from "../skeletonMemory";
+import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, sinceWords, tokenWords } from "../words";
 
 type Props = {
   settings: Settings;
@@ -202,16 +205,32 @@ function zoneOptions(saved: string): { id: string; label: string; note?: string 
   return zones.map((zone) => ({ id: zone, label: zone.replaceAll("_", " "), ...(zone === DEVICE_ZONE ? { note: "This device" } : {}) }));
 }
 
+/** Where Data tracking's list of extensions remembers how many rows it drew (`skeletonMemory.ts`). */
+const TRACKING_SHAPE = "tracking-devices";
+
 /**
- * Whether the account's videos are being recorded, said and not changed: Video tracking is the extension's to switch,
- * the extension being what records (the owner, 2026-10-28: "it's not changeable and it's synced to the extension
- * setting and it just displays the status"), where it's switched said under it. Then all that's kept of the videos
- * watched, in one line, and a way to forget it, asked in place with words to type (a Watch history panel of its own,
- * on the Account tab, until the owner had it in here, 2026-10-28). The rows are hidden on Panki with the time they
- * went, never destroyed; the watch time and Continue watching start over.
+ * One extension's Video tracking as Data tracking lists it, in the setting's own name and words: "Video tracking · On
+ * · last sent 3 hours ago", "Video tracking · Off · never sent" (the owner, 2026-11-03: quiet words, no chip). Two
+ * states alone: one that hasn't said yet, an extension not yet updated, reads Off.
  */
-function DataTrackingPanel({ on }: { on: boolean }) {
+function trackingWords(device: TrackingDevice, now: number): string {
+  const state = device.videoTracking === true ? "On" : "Off";
+  const sent = device.lastSentAt === null ? "never sent" : `last sent ${sinceWords(device.lastSentAt, now)}`;
+  return `Video tracking · ${state} · ${sent}`;
+}
+
+/**
+ * What Video tracking records, each extension signed in to the account and whether its Video tracking is on (the
+ * owner, 2026-11-03, option A of https://claude.ai/artifact/QkVtNkysEjXQAgdJYqqxDT: the Account tab's rows, the state
+ * in quiet words at the right), all that's kept of the videos watched in one line, and a way to forget it, asked in
+ * place with words to type (a Watch history panel of its own, on the Account tab, until the owner had it in here,
+ * 2026-10-28). Video tracking is each browser's own, switched in the extension alone (since 2026-11-02): the list is
+ * read-only, nothing here switches or stops one. The website's own sign-ins aren't in it. The rows are hidden on Panki
+ * with the time they went, never destroyed; the watch time and Continue watching start over.
+ */
+function DataTrackingPanel() {
   const [history, setHistory] = useState<WatchHistory | null>(null);
+  const [devices, setDevices] = useState<TrackingDevice[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -221,6 +240,16 @@ function DataTrackingPanel({ on }: { on: boolean }) {
     api.watchHistory().then(
       (now) => {
         if (alive) setHistory(now);
+      },
+      (e: unknown) => {
+        if (alive) setFailure(said(e));
+      },
+    );
+    api.trackingDevices().then(
+      (now) => {
+        if (!alive) return;
+        setDevices(now);
+        rememberShape(TRACKING_SHAPE, now.length);
       },
       (e: unknown) => {
         if (alive) setFailure(said(e));
@@ -250,17 +279,29 @@ function DataTrackingPanel({ on }: { on: boolean }) {
       <h2 id="data-tracking-title" className="panel-title">
         Data tracking
       </h2>
-      <Setting
-        id="videoTracking"
-        label="Video tracking"
-        control={<Toggle id="setting-video-tracking" icon="link" says={{ on: "On · Linked to the extension", off: "Off · Linked to the extension" }} on={on} disabled onChange={() => undefined} />}
-        why={VIDEO_TRACKING_WHY}
-      />
-      {history ? (
-        // Since the first video it kept (the owner, 2026-10-29: "just say On since…"; how many videos and how long stood here until then); nothing while it's off.
-        kept && !on ? null : (
-          <p className="session-who">{kept && history.since !== null ? `On since ${dateWords(history.since)}` : kept ? "On" : "Nothing kept."}</p>
+      <p className="setting-why">{VIDEO_TRACKING_WHY}</p>
+      {devices ? (
+        devices.length > 0 ? (
+          <div className="kept-rows">
+            {devices.map((device) => (
+              <div key={device.id} className="kept-row" data-session={device.id}>
+                <span className="kept-name">
+                  {device.device}
+                  <span className="row-sub">since {dateWords(device.createdAt)}</span>
+                </span>
+                <span className="kept-state">{trackingWords(device, Date.now())}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="session-who">No extension is signed in.</p>
         )
+      ) : failure ? null : (
+        <Skeleton shape="kept" count={shapeOf(TRACKING_SHAPE, 1)} />
+      )}
+      {history ? (
+        // What's kept, and since the first video (it said "On since…" while Video tracking was the account's, 2026-10-29 to 2026-11-02).
+        <p className="session-who">{kept ? `${count(history.videos, "video", "videos")} kept${history.since !== null ? ` since ${dateWords(history.since)}` : ""}` : "Nothing kept."}</p>
       ) : failure ? null : (
         <Skeleton shape="lines" count={1} />
       )}
@@ -1349,6 +1390,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
           <Setting
             id="theme"
             label="Theme"
+            perDevice
             control={
               <div className="chips theme-chips" role="group" aria-label="Theme">
                 {THEMES.map((t) => {
@@ -1421,6 +1463,10 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
 
       {/* The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"). */}
       <div className="settings-tab" hidden={shown !== "keys"}>
+        {/* The tab's head, above its panels: all of it is this device's, so it says so once (the owner, 2026-11-02). */}
+        <div className="settings-tab-head">
+          <PerDevice />
+        </div>
         <KeysPanels />
       </div>
 
@@ -1441,7 +1487,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
       {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
-        <DataTrackingPanel on={current.videoTracking} />
+        <DataTrackingPanel />
       </div>
 
       <div className="settings-tab" hidden={shown !== "account"}>

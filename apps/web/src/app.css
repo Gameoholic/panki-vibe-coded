@@ -324,6 +324,17 @@ body {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+/* Segmented's `wrap`: the row's full width under its label, each cell's words on one line, the cells going onto a
+   second row (stretched to fill it) when they don't fit. */
+.segmented-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+}
+.segmented-wrap > .btn-seg {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
 .btn-seg {
   padding: 8px 10px;
   border-radius: 8px;
@@ -3276,6 +3287,52 @@ mark.sub-mark {
   font-weight: 600;
 }
 
+/* Listen first (components/ReviewCard.tsx, a type's `ListenFirst`): the card's Listen phase, before its front. A part
+   blurred or hidden keeps exactly its room, so nothing moves as the front shows. Blurred words, a picture or a link
+   are out of reach (`inert` in the review) and can't be selected; a blurred sound or clip still plays, its picture
+   blurred. The blur is a share of the words' own size, so big words are as unreadable as small ones; a picture's is
+   fixed. On the card being laid out, a hidden part stays faintly there, to be picked. */
+.review-part.listen-blur {
+  --listen-blur: 0.4em;
+}
+.review-part.listen-blur:has(img.media-frame) {
+  --listen-blur: 18px;
+}
+.review-part.listen-blur:not(.is-editable) > *,
+.review-part.listen-blur.is-editable .review-part-body,
+.review-ruby rt.listen-blur {
+  filter: blur(var(--listen-blur, 0.4em));
+  user-select: none;
+  pointer-events: none;
+}
+.review-part.listen-veil video.media-frame {
+  filter: blur(24px);
+}
+.review-part.listen-hide,
+.review-ruby rt.listen-hide {
+  visibility: hidden;
+}
+.review-card.is-editing .review-part.listen-hide,
+.review-card.is-editing .review-ruby rt.listen-hide {
+  visibility: visible;
+  opacity: 0.3;
+}
+/* A clip's subtitles while listening (`LayoutPart.listenSubtitles`): the whole line blurred, or the card's word alone,
+   unlit, in it. */
+.sub-band.is-blurred,
+mark.sub-blur {
+  filter: blur(0.35em);
+  user-select: none;
+}
+.sub-ground > .sub-band.is-blurred {
+  pointer-events: none;
+}
+mark.sub-blur {
+  padding: 0 0.12em;
+  color: inherit;
+  background: none;
+}
+
 /* A card type's Layout (views/LayoutView.tsx): the card with what's above and under it, and the picked part's
    choices. One column; on a wide screen the choices stand beside the card (below). */
 .layout-editor {
@@ -3314,6 +3371,13 @@ mark.sub-mark {
   border-style: dashed;
   font-size: 13px;
   padding: 3px 10px;
+}
+/* Beside the card: the type's own panel (Listen first), then the picked part's, each a panel of its own. */
+.layout-side {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
 }
 .layout-part-title {
   margin: 0;
@@ -3645,7 +3709,92 @@ mark.sub-mark {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
 }
-/* Show answer carries its key too, the one to hold. */
+/* A key pressed twice: its keycap twice (`KeyCap`). */
+.key-twice {
+  display: inline-flex;
+  gap: 3px;
+}
+/* The Hold button (`ShowButton.tsx` → `HoldButton`), drawing A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA:
+   its clock and, beside it, the next stage over how it's held and what follows, in a row of its own under the card on
+   both its sides (`.review-hold`). Held by a finger it's a hold, never a scroll, a selection or the phone's menu. */
+.review-hold {
+  display: flex;
+  justify-content: center;
+}
+.btn.hold-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 4px 16px;
+  text-align: left;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.hold-button-words {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.hold-button-words b {
+  font-size: 18px;
+  font-weight: 800;
+}
+.hold-button-words span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Its clock (`KeyCap.tsx` → `HoldClock`): a ring cut into each stage's stretch (`--clock-gaps`), the track under it,
+   and each stretch in its own colour (`--clock-paint`) as far as what's done (`--hold-from`) and the stage being held
+   (`--hold`, `useHold`'s, over `--hold-span`) reach, round from the top; the key's name in its middle. */
+.hold-clock {
+  --clock-at: calc((var(--hold-from, 0) + var(--hold, 0) * var(--hold-span, 0)) * 1turn);
+  --clock-ring: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px));
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+}
+.hold-clock::before,
+.hold-clock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.hold-clock::before {
+  background: var(--line-strong);
+  -webkit-mask: var(--clock-ring), var(--clock-gaps);
+  -webkit-mask-composite: source-in;
+  mask: var(--clock-ring), var(--clock-gaps);
+  mask-composite: intersect;
+}
+.hold-clock::after {
+  background: var(--clock-paint);
+  -webkit-mask:
+    var(--clock-ring),
+    var(--clock-gaps),
+    conic-gradient(#000 var(--clock-at), transparent 0);
+  -webkit-mask-composite: source-in;
+  mask:
+    var(--clock-ring),
+    var(--clock-gaps),
+    conic-gradient(#000 var(--clock-at), transparent 0);
+  mask-composite: intersect;
+}
+.hold-clock-key {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--fg);
+}/* Show answer carries its key too, the one to hold. */
 .review-actions > .btn-primary {
   gap: 10px;
 }
@@ -3883,6 +4032,32 @@ mark.sub-mark {
 }
 .setting-label {
   font-weight: 700;
+}
+/* "This device": the quiet tag beside what's kept on this device alone (`PerDevice`), a mode chip's shape in the muted colour. */
+.per-device {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+/* A Settings tab's own head, above its panels, between the tabs and the first panel: "This device" on a tab that's all
+   this device's (Keybinds). */
+.settings-tab-head {
+  display: flex;
+  align-items: center;
+}
+.settings-tab-head .per-device {
+  margin-left: 0;
 }
 /* A control too wide to stand beside its label goes under it, still at the right, where the rows' controls all stand. */
 .setting-label + * {
@@ -4727,7 +4902,7 @@ mark.sub-mark {
     grid-template-columns: minmax(0, 1fr) 340px;
     align-items: start;
   }
-  .app.is-wide .layout-editor > .layout-panel {
+  .app.is-wide .layout-editor > .layout-side {
     position: sticky;
     top: 16px;
   }
@@ -5827,6 +6002,22 @@ mark.sub-mark {
   width: 14px;
   height: 14px;
 }
+/* At a row's end, how something stands in quiet words (an extension's Video tracking in Data tracking); on a phone it
+   wraps under the name rather than squeezing it. */
+.kept-state {
+  flex: 0 1 auto;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .kept-row:has(.kept-state) {
+    flex-wrap: wrap;
+  }
+  .kept-state {
+    text-align: left;
+  }
+}
 /* Setting the extension up on a computer (Settings → Extension): the steps, numbered, as they're done. */
 .setup-steps {
   display: grid;
@@ -6849,10 +7040,12 @@ mark.sub-mark {
   }
 }
 
-/* ---------- What a feature is, shown (components/Explainer.tsx) ----------
-   A (?) beside a panel's title; its window holds a browser with a page in it, the feature being used there. The page
+/* ---------- What a panel's feature is, shown (components/Explainer.tsx; the extension's options/explainerScenes.tsx,
+   the app's views/HoldButtonScene.tsx and explainers/aiScenes.tsx) ----------
+   A (?) beside the panel's title; its window holds a browser with a page in it, the feature being used there. The page
    is drawn at a real page's size (CANVAS) and scaled to the window, so Panki's components keep their own sizes. The
-   extension's options page and Settings → Panki AI both have them. */
+   extension's options page had these alone until 2026-11-02; the video site the scenes play on is here too (`.ex-yt`),
+   since Settings → Panki AI plays on it, and what only the extension's scenes draw is still its own. */
 /* The title and its (?) on one line, centred on each other: the title's own space under it is the row's. */
 .explain-head {
   display: flex;
@@ -6997,6 +7190,11 @@ mark.sub-mark {
 }
 .explain-favicon.is-video {
   background: var(--mark-red);
+  border-radius: 4px;
+}
+/* Panki's own tab: its accent, as its mark's tile. */
+.explain-favicon.is-panki {
+  background: var(--accent);
   border-radius: 4px;
 }
 .explain-address {
@@ -7449,4 +7647,17 @@ span.ex-under-pencil {
   .ex-under-ai {
     animation: none;
   }
+}
+/* Panki's own page in a picture (the Hold button's): the app's ground, its review in the middle at the width a review
+   stands at on a computer. */
+.explain-panki {
+  width: 100%;
+  height: 100%;
+  padding: 28px 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+.explain-panki .review {
+  width: 640px;
+  margin: 0 auto;
 }

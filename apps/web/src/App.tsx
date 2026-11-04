@@ -15,6 +15,7 @@ import {
   type CardAnswer,
   type CardExampleUpdate,
   type CardLayout,
+  type ListenFirst,
   type StageTag,
   type CardType,
   type CardUpdate,
@@ -608,9 +609,9 @@ export function App() {
     return saved;
   }, []);
 
-  /** A card type's layout and stage tag, saved: the fields go along as they are, so only the layout (and the sides it gives them) and the tag change. */
-  const saveLayout = useCallback(async (type: CardType, layout: CardLayout, tag: StageTag) => {
-    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout, tag });
+  /** A card type's layout, stage tag and Listen first, saved: the fields go along as they are, so only the layout (and the sides it gives them), the tag and Listen first change. */
+  const saveLayout = useCallback(async (type: CardType, layout: CardLayout, tag: StageTag, listen: ListenFirst) => {
+    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout, tag, listen });
     setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
     setScreen((s) => (s.kind === "type" && s.type?.id === saved.id ? { ...s, type: saved } : s));
     return saved;
@@ -1092,6 +1093,7 @@ export function App() {
                 cardTypeName={type?.name ?? "Missing"}
                 takesExamples={type ? exampleFieldsOf(type).length > 0 : false}
                 srsTypeName={srsType?.name ?? "Missing"}
+                srsAnswers={srsType?.answers ?? []}
                 onOpenCardType={type ? () => go({ kind: "type", type, tab: "fields" }) : undefined}
                 onOpenSrsType={srsType ? () => go({ kind: "srsEdit", type: srsType, isNew: false }) : undefined}
                 key={deck.id}
@@ -1165,7 +1167,7 @@ export function App() {
                   type={type}
                   decks={decks}
                   srsTypes={srsTypes}
-                  onSave={(layout, tag) => saveLayout(type, layout, tag)}
+                  onSave={(layout, tag, listen) => saveLayout(type, layout, tag, listen)}
                   onStatus={setEditStatus}
                   onGuard={setGuard}
                   subtitleStyle={settings.subtitleStyle}

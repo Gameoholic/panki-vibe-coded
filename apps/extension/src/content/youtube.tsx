@@ -345,7 +345,7 @@ function adPlaying() {
   const player = document.querySelector(PLAYER);
   return player !== null && AD.some((name) => player.classList.contains(name));
 }
-/** What's watched here, noted and sent to Panki while the account keeps it (`watch/watcher.ts`). */
+/** What's watched here, noted and sent to Panki while this browser's Video tracking is on (`watch/watcher.ts`, `watch/tracking.ts`). */
 const watcher = createWatcher({
   send: async (batch) => (await askWatch(batch)).ok,
   about: aboutVideo,
@@ -617,8 +617,8 @@ function setPanelView(view: PanelView) {
 }
 
 /**
- * Asks Panki how this video stands in the account's watching. With the answer the watcher starts (or doesn't: the
- * account keeps nothing), and, the first time for this video, where it was stopped the time before is offered, gone to
+ * Asks Panki how this video stands in the account's watching. With the answer the watcher starts (or doesn't: this
+ * browser's Video tracking is off), and, the first time for this video, where it was stopped the time before is offered, gone to
  * or only marked, as the options page says. Read again with the focus, it keeps the stop it first had: the mark is
  * where it was stopped the time before, not where this viewing is.
  */
@@ -634,14 +634,15 @@ async function readSeen() {
   const was = seen.get();
   const first = was === null || was.videoId !== id;
   const stoppedAt = answer.video.stoppedAtMs === null ? null : answer.video.stoppedAtMs / 1000;
-  seen.set({ videoId: id, on: answer.video.on, stoppedAt: first ? stoppedAt : was.stoppedAt, counted: answer.video.counted });
+  // `on` is this browser's own Video tracking (`watch/tracking.ts`): off, nothing is noted and nothing offered here.
+  seen.set({ videoId: id, on: answer.on, stoppedAt: first ? stoppedAt : was.stoppedAt, counted: answer.video.counted });
   // Whether it's finished, as Panki has it; one being said right now is the chip's until Panki answers it.
   const had = finishHere.get();
   const same = had !== null && had.videoId === id;
-  finishHere.set(answer.video.on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
+  finishHere.set(answer.on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
   // Nothing is noted, and nothing offered, while Panki is switched off altogether.
-  watcher.video(id, answer.video.on && modules.get().on);
-  if (first && answer.video.on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
+  watcher.video(id, answer.on && modules.get().on);
+  if (first && answer.on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
 }
 
 /** Where the video was stopped the time before, not yet acted on: Panki's answer can come before the player holds this video. */

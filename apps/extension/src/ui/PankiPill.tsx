@@ -16,8 +16,7 @@ import type { PillLayout, PillPart } from "../modules";
 
 /** The numbers the pill can say, from Panki's stats and decks. */
 export type PillNumbers = {
-  /** Video tracking on: the minutes watched today counted; off, the part says nothing. */
-  watching: boolean;
+  // `watching` (the account's Video tracking: off, the minutes watched said nothing) went when that became each browser's own, 2026-11-02.
   watchedMs: number;
   due: number;
   reviews: number;
@@ -29,7 +28,6 @@ export type PillNumbers = {
 export function pillNumbersOf(stats: Stats, decks: readonly Deck[]): PillNumbers {
   const lastDay = stats.time.byDay.at(-1);
   return {
-    watching: stats.watching.on,
     watchedMs: stats.watching.today,
     due: decks.reduce((sum, d) => sum + d.dueCount + d.newCount, 0),
     reviews: stats.reviews.today,
@@ -39,13 +37,13 @@ export function pillNumbersOf(stats: Stats, decks: readonly Deck[]): PillNumbers
 }
 
 /** Numbers for the options page's preview: none of the owner's own. */
-export const SAMPLE_NUMBERS: PillNumbers = { watching: true, watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: 7 };
+export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: 7 };
 
-/** Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it. Null when it has nothing to say (watching with Video tracking off). */
+/** Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it. */
 export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; words: string; said: string } | null {
   switch (part) {
     case "watched":
-      return n.watching ? { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watched today` } : null;
+      return { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watched today` };
     case "due":
       return { icon: "review", words: `${n.due} due`, said: `${count(n.due, "card", "cards")} due` };
     case "reviews":

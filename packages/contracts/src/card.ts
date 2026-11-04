@@ -107,7 +107,7 @@ export function aiOwns(sources: Readonly<Record<string, ValueSource>> | undefine
 }
 
 /**
- * A value kept before sources were (migration 39): the owner's, or, on a card the extension made, what its capture
+ * A value kept before sources were (migration 40): the owner's, or, on a card the extension made, what its capture
  * says filled the field (`CaptureFacts.fields`, the role by its id): the dictionary's (its dictionaries then), the words
  * pointed at (which subtitles), Forvo, or the video for the link and every recording. Worked out on every read, never
  * written, so nothing kept is rewritten. A value typed over a dictionary's in the drawer reads as the dictionary's: the

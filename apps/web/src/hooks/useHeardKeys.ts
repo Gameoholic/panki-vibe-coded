@@ -39,7 +39,8 @@ export function useHeardKeys(keys: readonly (Heard | null)[], at: () => HTMLElem
       tapping.delete(e.key);
       const hit = listened.find((key) => pressed(e, key.key));
       // A tap only when let go before the other action's ring would begin (`TAP_MS`): later, it was a hold let go early.
-      if (hit && performance.now() - began < Math.min(TAP_MS, hit.tapUnder)) now.current.act();
+      // Heard as every press is (`useHold`): one of a key whose double press does something waits to see it isn't that.
+      if (hit && performance.now() - began < Math.min(TAP_MS, hit.tapUnder)) held.begin(e, null, 0, () => now.current.act());
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);

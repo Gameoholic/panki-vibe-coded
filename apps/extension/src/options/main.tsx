@@ -26,6 +26,7 @@ import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, t
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
+import { setVideoTracking, videoTrackingOn } from "../watch/tracking";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
 import { SceneTitle } from "./explainerScenes";
 import { PopupLayoutPanel } from "./PopupLayout";
@@ -362,46 +363,39 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
 
 /**
  * Video tracking (the owner, 2026-10-21, the extension being what tracks: "shouldn't this be on the extension too?"):
- * the account's own setting, kept on Panki, and changed here alone since 2026-10-28 (Panki's Settings → Extension
- * shows it, and forgets what's kept). Turning it off asks first, saying what stops and what stays. Shown while signed
- * in; a failure puts it back and says so. The panel was Immersion until the owner renamed it, 2026-10-28.
+ * this browser's own since 2026-11-02 (`watch/tracking.ts`; the owner: "I can want some devices sending and others
+ * not"), the account's on Panki until then. Turning it off asks first, saying what stops and what stays. The panel
+ * was Immersion until the owner renamed it, 2026-10-28.
  */
-function VideoTracking({ door }: { door: Door }) {
-  const [on, setOn] = useState<boolean | null>(null);
-  /** How close to its end a video counts as finished, as Panki has it; null until it's said. */
+function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
+  const [asking, setAsking] = useState(false);
+  const on = store.videoTracking;
+  /** How close to its end a video counts as finished, as Panki has it (the account's own); null until it's said, or signed out. */
   const [finished, setFinished] = useState<number | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const { address, token } = door;
+  // Not settled yet (the worker couldn't reach Panki as it started): settled now, as the worker would.
   useEffect(() => {
-    let alive = true;
+    if (on === null) void videoTrackingOn().then(onChanged);
+  }, [on, onChanged]);
+  const address = door?.address ?? null;
+  const token = door?.token ?? null;
+  useEffect(() => {
+    setFinished(null);
     setFailure(null);
+    if (address === null || token === null) return;
+    let alive = true;
     panki
       .settings({ address, token })
-      .then((settings) => {
-        if (!alive) return;
-        setOn(settings.videoTracking);
-        setFinished(settings.finishedWithinSec);
-      })
+      .then((settings) => alive && setFinished(settings.finishedWithinSec))
       .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
     return () => {
       alive = false;
     };
   }, [address, token]);
   async function change(next: boolean) {
-    setFailure(null);
-    setBusy(true);
-    setOn(next);
-    try {
-      setOn((await panki.updateSettings({ address, token }, { videoTracking: next })).videoTracking);
-      setAsking(false);
-    } catch (e) {
-      setOn(!next);
-      setFailure(e instanceof Error ? e.message : "Couldn't reach Panki.");
-    } finally {
-      setBusy(false);
-    }
+    await setVideoTracking(next);
+    setAsking(false);
+    onChanged();
   }
   return (
     <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="data-tracking-title">
@@ -416,7 +410,7 @@ function VideoTracking({ door }: { door: Door }) {
             id="video-tracking-on"
             says={{ on: "On", off: "Off" }}
             on={on === true}
-            disabled={on === null || asking || busy}
+            disabled={on === null || asking}
             // Turning it on just does it; turning it off asks first.
             onChange={(next) => (next ? void change(true) : setAsking(true))}
           />
@@ -432,8 +426,8 @@ function VideoTracking({ door }: { door: Door }) {
               <div>
                 <h3>From now on</h3>
                 <ul>
-                  <li>The videos you watch aren&apos;t recorded, in any browser signed in to this account.</li>
-                  <li>Your watch time stops growing, and Continue watching and Recently watched stop updating.</li>
+                  <li>The videos you watch in this browser aren&apos;t recorded. Other browsers go on as each is set.</li>
+                  <li>What you watch here stops adding to your watch time, Continue watching and Recently watched.</li>
                   <li>Where you stopped in a video isn&apos;t kept, so you can&apos;t continue from it next time.</li>
                 </ul>
               </div>
@@ -447,20 +441,18 @@ function VideoTracking({ door }: { door: Door }) {
             </>
           }
           go={{ words: "Turn off", busy: "Turning off…", icon: "power" }}
-          busy={busy}
-          failure={failure}
-          onKeep={() => {
-            setAsking(false);
-            setFailure(null);
-          }}
+          busy={false}
+          failure={null}
+          onKeep={() => setAsking(false)}
           onGo={() => void change(false)}
         />
-      ) : failure ? (
+      ) : null}
+      {door && finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
+      {failure ? (
         <p className="form-failure" role="alert">
           {failure}
         </p>
       ) : null}
-      {finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
     </section>
   );
 }
@@ -815,7 +807,7 @@ function Options() {
           </div>
           <div className="options-tab" hidden={tab !== "youtube"}>
             {/* Data tracking first: what's recorded of the videos watched (the owner, 2026-10-28). */}
-            {door ? <VideoTracking door={door} /> : null}
+            <VideoTracking store={store} onChanged={refresh} door={door} />
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />

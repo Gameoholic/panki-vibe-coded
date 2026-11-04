@@ -288,8 +288,8 @@ export type Carded = z.infer<typeof Carded>;
 /** Which of Panki's parts are on in this browser. */
 const Moduled = z.union([z.object({ ok: z.literal(true), modules: Modules }), Failed]);
 export type Moduled = z.infer<typeof Moduled>;
-/** A video as the account's watching has it. */
-const Watched = z.union([z.object({ ok: z.literal(true), video: WatchedVideo }), Failed]);
+/** A video as the account's watching has it, and whether this browser's Video tracking is on (`watch/tracking.ts`): off, nothing is noted and nothing offered. */
+const Watched = z.union([z.object({ ok: z.literal(true), video: WatchedVideo, on: z.boolean() }), Failed]);
 export type Watched = z.infer<typeof Watched>;
 /** Panki for YouTube's home: who's signed in (the account, and what the profile in use is called), the account's stats, its decks (what's due) and its settings. */
 const Homed = z.union([z.object({ ok: z.literal(true), name: z.string(), profile: z.string(), stats: Stats, decks: z.array(Deck), settings: Settings, saved: z.array(SavedVideo) }), Failed]);
@@ -523,7 +523,7 @@ export async function askModules(): Promise<Moduled> {
   const answer = Moduled.safeParse(await ask({ kind: "modules" }));
   return answer.success ? answer.data : failed(answer.error);
 }
-/** A video as it opens: whether its watching is kept, where it was stopped, whether it counts. */
+/** A video as it opens: whether this browser notes it, where it was stopped, whether it counts. */
 export async function askWatched(videoId: string): Promise<Watched> {
   const answer = Watched.safeParse(await ask({ kind: "watched", videoId }));
   return answer.success ? answer.data : failed(answer.error);

@@ -20,6 +20,7 @@ import {
   WordsInCards,
   CardTypeList,
   DeckList,
+  type DeviceTracking,
   EXTENSION_HEADER,
   EXTENSION_PROTOCOL,
   ExtensionBuildResponse,
@@ -42,7 +43,6 @@ import {
   StatsResponse,
   type SaveVideo,
   type SavedVideo,
-  type SettingsUpdate,
   type CalledCard,
   type Settings,
   type Stats,
@@ -64,6 +64,7 @@ import {
   type RedoAsk,
   type Stretch,
   type ServerDictionary,
+  type SettingsUpdate,
   type SrsType,
   type SubtitleStyle,
   type Transcript,
@@ -143,7 +144,7 @@ async function call<T>(address: string, token: string | null, path: string, init
   return parse(body);
 }
 
-const json = (method: "POST" | "PATCH", body: unknown): Init => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const json = (method: "POST" | "PUT" | "PATCH", body: unknown): Init => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const id = encodeURIComponent;
 
 export const panki = {
@@ -258,16 +259,23 @@ export const panki = {
     const timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     return call(address, token, "/api/settings", json("PATCH", { timeZone }), (b) => SettingsResponse.parse(b).settings);
   },
-  /** Some of the account's own settings changed (the options page's Video tracking, the same switch as Panki's Settings); the settings after. */
+  /**
+   * Some of the account's own settings changed; the settings after. The options page's Video counts as finished in its
+   * last (`finishedWithinSec`) since 2026-10-30; its Video tracking, the account's switch until it became each
+   * browser's own on 2026-11-02, never (`SettingsUpdate` leaves it out).
+   */
   updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
     call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
   /** Videos as their thumbnails on YouTube are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   glance: ({ address, token }: Door, videoIds: readonly string[]): Promise<VideoGlance[]> =>
     call(address, token, "/api/watching/glance", json("POST", { videoIds }), (b) => GlanceResponse.parse(b).videos),
-  /** A video as the account's watching has it: whether it's kept at all, where it was stopped, whether it counts. */
+  /** A video as the account's watching has it: where it was stopped, whether it counts, whether it's finished. */
   watched: ({ address, token }: Door, videoId: string): Promise<WatchedVideo> => call(address, token, `/api/watching/videos/${id(videoId)}`, {}, (b) => WatchedVideoResponse.parse(b).video),
-  /** Stretches of videos watched, kept on the account's Panki (nothing, when its Video tracking is off). */
+  /** Stretches of videos watched, kept on the account's Panki (sent only while this browser's Video tracking is on). */
   watch: ({ address, token }: Door, batch: WatchBatch): Promise<void> => call(address, token, "/api/watching", json("POST", batch), () => undefined),
+  /** This browser's Video tracking switch, said to Panki so its Settings → Extension → Data tracking can list it. */
+  tracking: ({ address, token }: Door, videoTracking: boolean): Promise<void> =>
+    call(address, token, "/api/watching/device", json("PUT", { videoTracking } satisfies DeviceTracking), () => undefined),
   /** A video left out of the count, counted again, put away from Continue watching, finished or not; by the viewer, or by Panki as it was played into its end. */
   watchMark: ({ address, token }: Door, videoId: string, kind: WatchMarkKind, source: WatchMarkSource): Promise<WatchedVideo> =>
     call(address, token, `/api/watching/videos/${id(videoId)}/marks`, json("POST", { kind, source } satisfies WatchMark), (b) => WatchedVideoResponse.parse(b).video),

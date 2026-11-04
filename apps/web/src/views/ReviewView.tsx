@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsAnswer, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -7,11 +7,13 @@ import { Icon, type IconName } from "../components/Icon";
 import { KeyCap, holdFor } from "../components/KeyCap";
 import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
-import { ReviewCard } from "../components/ReviewCard";
+import { ReviewCard, listensFirst } from "../components/ReviewCard";
+import { HoldButton, ShowButton } from "../components/ShowButton";
 import { TodayBar, todayWords } from "../components/TodayBar";
-import { useHold } from "../hooks/useHold";
+import { keepDouble, useHold } from "../hooks/useHold";
+import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
-import { keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, type Bind } from "../keys";
+import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
@@ -457,6 +459,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /** What Undo can take back, newest last (the owner, 2026-10-26): every answer of this sitting, until it's left. */
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
+  /**
+   * The showing (its `turn`) whose Listen phase is over: Done listening pressed, or its sound or clip begun the play that
+   * shows it. A card's start is its Listen phase where it has one, its front otherwise: a new showing (an answer, Undo)
+   * and Back to start all put it there (the owner, 2026-11-02: Undo put it on its front until then).
+   */
+  const [listenedTurn, setListenedTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -474,8 +482,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   const rest = (id: string) => setHover(id);
   const leave = () => setHover(null);
-  /** This device's keys (`keys.ts`, Settings → Keybinds), and a key being held on a button until it does its thing. */
+  /** This device's keys (`keys.ts`, Settings → Keybinds; none while keybinds are off), and a key being held on a button until it does its thing. */
   const binds = useKeyBinds();
+  /** Keybinds Enabled on this device: off, Enter does nothing either. */
+  const keysOn = useKeybindsEnabled();
   const hold = useHold();
   const place = useRef<HTMLElement | null>(null);
   /** How many more new cards extra study offers once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
@@ -570,6 +580,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const [browsed, setBrowsed] = useState<{ id: string | null } | null>(null);
   useEffect(() => setBrowsed(null), [cardId, turn]);
   const onScreen = browsed ? browsed.id : exampleId;
+  /**
+   * The card on screen is in its Listen phase (its type's Listen first, the owner, 2026-11-01): it has something to hear
+   * in the example the review picked, and this showing hasn't gone on to its front yet.
+   */
+  const listening = card !== undefined && !revealed && listenedTurn !== turn && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
   function stepExample(by: 1 | -1) {
     if (exampleIds.length < 2 || !card) return;
     const at = Math.max(0, exampleIds.indexOf(onScreen));
@@ -581,15 +596,66 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   useEffect(() => {
     leave();
     hold.release();
-  }, [cardId, revealed]); // eslint-disable-line react-hooks/exhaustive-deps -- `leave` and `hold.release` read nothing that changes
+  }, [cardId, revealed, listening]); // eslint-disable-line react-hooks/exhaustive-deps -- `leave` and `hold.release` read nothing that changes
+  /**
+   * The Hold button, while it's on (Settings → Keybinds): the card's stages from its start, Done listening on a card
+   * that listens first, Show back of card, and the deck's answer (`holdAnswer`) where the chart offers it here, each held
+   * for its own time; what's done is where the card stands. One more action with its own key, beside the review's own
+   * buttons and their keys (the owner, 2026-11-02).
+   */
+  const chainOn = binds.holdChain.on;
+  const holdAnswer = card ? srsType.answers.find((a) => a.id === deck.settings.holdAnswer && offered(srsType, card.place, a.id)) : undefined;
+  // Whether the card starts in its Listen phase, as every showing of it does where it has one.
+  const listensHere = card !== undefined && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
+  const lead = listensHere ? 1 : 0;
+  const chainStages: HoldStage[] = [
+    ...(listensHere ? [{ label: "Done listening", ms: binds.holdChain.listenMs, done: showCard }] : []),
+    { label: "Show back of card", ms: binds.holdChain.backMs, done: reveal },
+    ...(holdAnswer ? [answerStage(holdAnswer)] : []),
+  ];
+  /** Pick the answer: the deck's answer by its name, in its colour, an answer that requires confirmation its extra hold on top. */
+  function answerStage(given: SrsAnswer): HoldStage {
+    const confirmMs = given.confirm ? binds.confirmMs : 0;
+    const ordered = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
+    return { label: given.name, ms: binds.holdChain.answerMs + confirmMs, confirmMs, tone: answerClass(ordered, ordered.indexOf(given)), done: () => void answer(given.id) };
+  }
+  /** The Hold button on screen, where its holds are drawn. */
+  function chainAt() {
+    return place.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null;
+  }
+  /** Back to start: the card on its start again (its Listen phase where it has one, its front otherwise), nothing answered. */
+  function backToStart() {
+    if (busy) return;
+    setAsking(null);
+    setRevealed(false);
+    setListenedTurn(null);
+  }
+  const chain = useHoldButton({
+    stages: chainStages,
+    at: listening ? 0 : revealed ? lead + 1 : lead,
+    rest: "Back to start",
+    back: backToStart,
+    showing: `${cardId ?? ""}:${turn}`,
+    bind: binds.holdButton,
+    where: chainAt,
+  });
+  // Every key whose double press does something here: a press of it waits to see it isn't that (`useHold.ts` → `keepDouble`).
+  const doubles = doubleKeys(binds);
+  useEffect(() => {
+    const kept = doubles.map(keepDouble);
+    return () => {
+      for (const letGo of kept) letGo();
+    };
+  }, [doubles.join("\n")]); // eslint-disable-line react-hooks/exhaustive-deps -- the keys are what the joined list says
 
   const sitting = useRef<Sitting | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh,
-   * and has the id its answer will be given (so the same answer sent again is kept once).
+   * and has the id its answer will be given (so the same answer sent again is kept once). One that came on in its
+   * Listen phase (`listen`) is also timed to its front (`frontAt`).
    */
-  const shown = useRef<{ cardId: string | null; at: number; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, revealedAt: null, givenId: "" });
+  const shown = useRef<{ cardId: string | null; at: number; listen: boolean; frontAt: number | null; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, listen: false, frontAt: null, revealedAt: null, givenId: "" });
   function startSitting(kind: "review" | "extra") {
     const s: Sitting = { id: crypto.randomUUID(), ready: Promise.resolve(false), ok: null, ended: false };
     s.ready = api.startSession(deck.id, { id: s.id, kind }).then(
@@ -610,7 +676,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
    */
   function endHere() {
     const s = shown.current;
-    if (s.cardId) endSitting({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: s.revealedAt !== null }, true);
+    // Where a card that opened on its Listen phase stood; nothing said of one that didn't.
+    const phase = !s.listen ? undefined : s.revealedAt !== null ? "back" : s.frontAt !== null ? "front" : "listen";
+    if (s.cardId) endSitting({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: s.revealedAt !== null, phase }, true);
     else endSitting({ how: "done" }, true);
   }
   useEffect(() => {
@@ -630,15 +698,21 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }, []);
   // A card comes on screen: its clock starts. A card back for another go, even the same one, starts afresh.
   useEffect(() => {
-    shown.current = { cardId: cardId ?? null, at: performance.now(), revealedAt: null, givenId: crypto.randomUUID() };
-  }, [cardId, turn]);
+    shown.current = { cardId: cardId ?? null, at: performance.now(), listen: listening, frontAt: null, revealedAt: null, givenId: crypto.randomUUID() };
+  }, [cardId, turn]); // eslint-disable-line react-hooks/exhaustive-deps -- whether it opens listening is read as it comes on
 
+  /** Done listening: from the Listen phase to the front, by its button, its key, or its sound or clip beginning the play that shows it. */
+  function showCard() {
+    if (!listening) return;
+    shown.current.frontAt ??= performance.now();
+    setListenedTurn(turn);
+  }
   function reveal() {
-    if (revealed) return;
+    if (revealed || listening) return;
     shown.current.revealedAt ??= performance.now();
     setRevealed(true);
   }
-  /** The card turned back to its front (Hide answer): a question asked about an answer goes with it. */
+  /** The card turned back to its front (Hide back of card): a question asked about an answer goes with it. */
   function hideAnswer() {
     if (!revealed || busy) return;
     setAsking(null);
@@ -714,6 +788,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     const now = performance.now();
     const t = shown.current;
     const revealedAt = t.revealedAt ?? now;
+    // Thinking starts at the front: as the card came on, or as its Listen phase ended.
+    const frontAt = t.listen ? (t.frontAt ?? revealedAt) : t.at;
     const s = sitting.current;
     const before: Given = { givenId: t.givenId, cardId: card.id, line, counts, answered };
     try {
@@ -722,7 +798,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         answerId,
         // A sitting that failed to start is left out; one still starting is named, the API has it by the time this lands.
         sessionId: s && s.ok !== false ? s.id : undefined,
-        thinkMs: span(t.at, revealedAt),
+        listenMs: t.listen ? span(t.at, frontAt) : undefined,
+        thinkMs: span(frontAt, revealedAt),
         decideMs: span(revealedAt, now),
         exampleId: exampleId ?? undefined,
       });
@@ -749,7 +826,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   /**
    * Takes the last answer back: Panki keeps it, marked undone, and the card stands where it stood before it. The review
-   * is put back as it was just before it, the card on screen again on its front, a showing of its own. One Panki
+   * is put back as it was just before it, the card on screen again at its start (its Listen phase where it has one), a
+   * showing of its own. One Panki
    * can't take back (the card answered elsewhere since, or gone) leaves nothing before it to take back either.
    */
   async function undo() {
@@ -764,7 +842,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       setLine(last.line);
       setCounts(last.counts);
       setAnswered(last.answered);
-      setTurn((n) => n + 1);
+      // On its start, as it first came up: its Listen phase where it has one, its front otherwise.
+      setTurn(turn + 1);
+      setListenedTurn(null);
       setGiven((g) => g.slice(0, -1));
       setRevealed(false);
     } catch (e) {
@@ -781,9 +861,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       if (e.metaKey) return;
       // What's held with it is part of the key ("Ctrl+z" isn't "z"), as Settings → Keybinds keeps it.
       const key = keyOf(e);
+      // Enter starts and shows as Start's and Show back of card's keys do, while keybinds are on.
+      const enter = keysOn && key === "Enter";
       // On today's cards, Start's own key starts the review (the owner, 2026-10-27: not Show answer's); Enter does too, but on a button.
       if (today) {
-        if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+        if (enter && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           start();
         } else {
@@ -807,7 +889,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       }
       // At the end, Start's key starts extra study, as it starts a review on today's cards; Enter does too, but on a button.
       if (!card && extraOrder.length > 0) {
-        if (key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+        if (enter && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
           startExtra();
         } else {
@@ -832,15 +914,39 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         hold.begin(e,place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, (back ?? on)?.holdMs ?? 0, () => stepExample(step));
         return;
       }
-      // Enter shows the answer too, at a press, whatever the keys are; on a button it's that button's own.
-      if (key === "Enter") {
-        if (e.target instanceof HTMLButtonElement || revealed) return;
+      // The Hold button's Back to start, while it's on: its own key (Space pressed twice to begin with), heard beside the
+      // Hold button's, which shares it; done, this press holds nothing. Until it's done (the first press of its double
+      // press), the press goes on to whatever else its key is in another shape (Done listening's Space held), as every key
+      // shared by shape is (`keys.ts` → `clash`): it went no further until 2026-11-04, so a hold of Back to start's key
+      // did nothing on the review.
+      const resetting = chainOn ? keyIn(binds.holdReset, key) : null;
+      let reset = false;
+      if (resetting) {
         e.preventDefault();
-        reveal();
+        if (!e.repeat && !busy)
+          hold.begin(e, chainAt(), resetting.holdMs, () => {
+            reset = true;
+            backToStart();
+          });
+      }
+      // The Hold button's key, while it's on: the card's stages held through.
+      if (chainOn && keyIn(binds.holdButton, key)) {
+        e.preventDefault();
+        if (!busy && !reset) chain.keyDown(e, key);
         return;
       }
-      // Turned back to its front by Hide answer's own key (the owner, 2026-10-29: Show answer's tap did it until Space
-      // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide answer button showing.
+      if (reset) return;
+      // Enter shows the answer too, at a press, whatever the keys are (the card, while it's listened to); on a button
+      // it's that button's own.
+      if (enter) {
+        if (e.target instanceof HTMLButtonElement || revealed) return;
+        e.preventDefault();
+        if (listening) showCard();
+        else reveal();
+        return;
+      }
+      // Turned back to its front by Hide back of card's own key (the owner, 2026-10-29: Show answer's tap did it until Space
+      // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide back of card button showing.
       const hiding = revealed ? keyIn(binds.hide, key) : null;
       if (hiding) {
         e.preventDefault();
@@ -849,11 +955,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         hold.begin(e, button, hiding.holdMs, hideAnswer);
         return;
       }
-      const showing = keyIn(binds.reveal, key);
+      // Done listening's own key while the card is listened to (the owner, 2026-11-01), Show back of card's on its front.
+      const showing = keyIn(listening ? binds.showCard : binds.reveal, key);
       if (showing) {
         e.preventDefault();
         if (e.repeat || revealed) return;
-        hold.begin(e, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, reveal);
+        hold.begin(e, place.current?.querySelector<HTMLElement>("[data-hold='reveal']") ?? null, showing.holdMs, listening ? showCard : reveal);
         return;
       }
       if (key === "Escape" && asking) {
@@ -869,12 +976,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         e.preventDefault();
         if (e.repeat) return;
         const ms = holdFor(keyIn(binds.answers[slot], key) ?? undefined, picked.confirm ? binds.confirmMs : 0);
-        if (ms === 0) {
-          press(picked.id);
-          return;
-        }
         const button = place.current?.querySelector<HTMLElement>(`[data-answer="${picked.id}"]`) ?? null;
-        hold.begin(e,button, ms, () => void answer(picked.id));
+        // A press asks first where the answer requires confirmation; a hold or a double press is its yes.
+        hold.begin(e, button, ms, () => (ms === 0 ? press(picked.id) : void answer(picked.id)));
       }
     }
     /**
@@ -884,8 +988,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
      */
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
+      chain.keyUp(e);
       const starts = today !== null || (!card && extraOrder.length > 0);
-      if (pressedIn(e, starts ? binds.start : binds.reveal) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
+      const own = starts ? [binds.start] : [listening ? binds.showCard : binds.reveal, ...(chainOn ? [binds.holdButton] : [])];
+      if (own.some((bind) => pressedIn(e, bind)) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -1000,7 +1106,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       {revealed ? (
         <Button className="review-hide" data-hold="hide" disabled={busy} onClick={hideAnswer}>
           <Icon name="eyeOff" />
-          Hide answer
+          Hide back of card
           <KeyCap bind={binds.hide} />
         </Button>
       ) : null}
@@ -1034,7 +1140,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it (the owner, 2026-10-29: it didn't appear here). */}
             {revealed ? (
-              <Button className="btn-icon review-stage-hide" aria-label="Hide answer" data-hold="hide" disabled={busy} onClick={hideAnswer}>
+              <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={hideAnswer}>
                 <Icon name="eyeOff" />
                 <KeyCap bind={binds.hide} />
               </Button>
@@ -1065,6 +1171,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           srsType={srsType}
           place={card.place}
           revealed={revealed}
+          listening={listening}
+          onListened={showCard}
           // Turned by its key and Show answer alone: a press on the card does nothing (the owner, 2026-10-25).
           srcOf={api.mediaUrl}
           waveOf={waveOf}
@@ -1102,6 +1210,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         <p className="load-error" role="alert">
           {failure}
         </p>
+      ) : null}
+      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons and their keys (the owner, 2026-11-02). */}
+      {chainOn ? (
+        <div className="review-hold">
+          <HoldButton view={chain.view} />
+        </div>
       ) : null}
       {revealed && asked ? (
         <div className="panel panel-alarm review-ask">
@@ -1141,11 +1255,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
                 ),
               )
             ) : (
-              <Button variant="primary" size="lg" data-hold="reveal" onClick={reveal}>
-                <Icon name="eye" />
-                Show answer
-                <KeyCap bind={binds.reveal} />
-              </Button>
+              // Listened to, Done listening stands in Show answer's place, with its key: the card's front, out of its Listen phase.
+              <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={listening ? showCard : reveal} />
             )}
           </div>
           {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}

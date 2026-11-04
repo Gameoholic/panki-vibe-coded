@@ -1,4 +1,4 @@
-import type { AutoPlay, FaceShow, MediaLook, PartSize, PartTone } from "@panki/contracts";
+import { SHOW_ON_PLAY_MAX, type AutoPlay, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -27,6 +27,29 @@ export const PLAY_OPTIONS: readonly { id: AutoPlay; label: string }[] = [
   { id: "shown", label: "When the card appears" },
   { id: "turned", label: "When the card is turned" },
   { id: "both", label: "Both" },
+];
+/** What the Listen phase does with a part (Listen first, the owner, 2026-11-01), in the words of the sides' own choices. */
+export const LISTEN_OPTIONS: readonly { id: ListenShow; label: string }[] = [
+  { id: "show", label: "Show" },
+  { id: "blur", label: "Blur" },
+  { id: "hide", label: "Hide" },
+];
+/** What the Listen phase does with a clip's subtitles: what's blurred in them is its Highlight (else the type's main field), named so (the owner, 2026-11-01). */
+export const LISTEN_SUBTITLE_OPTIONS: readonly { id: ListenSubtitles; label: string }[] = [
+  { id: "show", label: "Show" },
+  { id: "word", label: "Blur highlight" },
+  { id: "blur", label: "Blur" },
+  { id: "hide", label: "Hide" },
+];
+/**
+ * A sound's or clip's Ends listening, as a choice: Never (Done listening alone, 0 here, null as it's kept), or the play
+ * whose start shows the card, from the second (the owner, 2026-11-01: "On second watch", a sound's too, so "play").
+ */
+export const NEVER_BY_ITSELF = 0;
+const PLAY_WORDS = ["second", "third", "fourth", "fifth", "sixth"];
+export const SHOW_ON_PLAY_OPTIONS: readonly { id: number; label: string }[] = [
+  { id: NEVER_BY_ITSELF, label: "Never" },
+  ...Array.from({ length: SHOW_ON_PLAY_MAX - 1 }, (_, i) => ({ id: i + 2, label: `On ${PLAY_WORDS[i] ?? `play ${i + 2}`} play` })),
 ];
 /** A sound's or a clip's player style: every one the owner chose to keep (2026-10-15), by name alone (the words beside each were taken out at their word). */
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [

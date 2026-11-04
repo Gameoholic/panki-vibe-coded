@@ -436,9 +436,10 @@ export const Settings = z.object({
    */
   appLanguage: AppLanguage,
   /**
-   * Whether the account's watching is kept at all (`watching.ts`): its own alone, shown to nobody else. Off to begin
-   * with (the owner, 2026-10-21; it was on that morning); an account that had already kept some watching keeps it on
-   * (migration 30).
+   * Whether the account's watching was kept, when that was the account's to say (2026-10-21 to 2026-11-02; migration
+   * 30). Retired: Video tracking is each browser's own since 2026-11-02 (the owner: "I can want some devices sending
+   * and others not"), and this is read only by an extension that has no switch of its own yet, once, to start from
+   * (`apps/extension/src/watch/tracking.ts`). Never written again: `SettingsUpdate` leaves it out.
    */
   videoTracking: z.boolean(),
   /**
@@ -482,7 +483,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiShowCostOverMicros: 0,
   aiDefaults: {},
 };
-export const SettingsUpdate = Settings.partial();
+export const SettingsUpdate = Settings.omit({ videoTracking: true }).partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
 /** The account's settings, all of them its own. */
 export const SettingsResponse = z.object({ settings: Settings });
@@ -506,13 +507,16 @@ export const GivenId = z.uuid();
 /**
  * What the browser sends when a card is answered. The time and the outcome are the API's; the browser adds the
  * sitting it happened in and how long the card was on screen before the flip (`thinkMs`) and after it (`decideMs`),
- * spans measured on its own clock, kept for the stats.
+ * spans measured on its own clock, kept for the stats; and, when the card opened on a Listen phase (its type's Listen
+ * first), how long it was listened to before its front showed (`listenMs`; `thinkMs` then starts at the front).
  */
 export const CardAnswer = z.object({
   /** Left out, the answer can't be undone, and sending it again gives it twice. */
   givenId: GivenId.optional(),
   answerId: SrsAnswerId,
   sessionId: z.uuid().optional(),
+  /** Left out when there was no Listen phase: its type has Listen first off, or the card had nothing to hear. */
+  listenMs: z.number().int().nonnegative().max(86_400_000).optional(),
   thinkMs: z.number().int().nonnegative().max(86_400_000).optional(),
   decideMs: z.number().int().nonnegative().max(86_400_000).optional(),
   /** Which of the card's examples it was shown with (`card.ts` → `exampleShownOf`); left out, its own. */
