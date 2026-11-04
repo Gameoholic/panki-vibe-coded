@@ -408,6 +408,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           type={type}
           layout={draft}
           values={sample?.card.values ?? {}}
+          // What Panki AI wrote on the card previewed, marked as a review marks it: its own example's values are these.
+          sources={sample?.card.sources ?? {}}
           files={sample?.card.files}
           cues={sample?.card.cues}
           srsType={ladder}

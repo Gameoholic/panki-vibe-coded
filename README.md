@@ -7,8 +7,6 @@ pm2 restart panki-api
 ```
 
 
-- big feature / epic: LLM support for sentence translation and/or correction "touch-up". Or maybe we translate the videos at the same way as transcirption? as an admin toggle?
-
 - Netflix / Jellyfin Support
 - Fun games for memorization and learning including the video clips
 - Speedrun "Video" sessions - Will pick a random video and will skip along to the parts where there's words I don't understand until I get them?
@@ -39,3 +37,13 @@ Before sharing with public:
 - Deploy via docker.
 - redacat all repo history because i put some texts int his repo that probably private
 - Remove cronjob for running daily backups. Make it so the app triggers it, like whiteboard, minimal setup on sysadmin side.
+
+- Investigate youtube comments feature to learn from them. "Dive" into the video. meaning title, descirption, comments being analyzed and drilld on them. Deep Dive feature.
+
+- Card type default that comes with Panki?
+
+
+
+- Cards that appear green now should optionally appear greener the more examples we hafve for this card (ideally 3 examples per card (the 3 is customizable, can set it to 0))
+
+- disconnect wanikani+ from wanikani. make my own grading.

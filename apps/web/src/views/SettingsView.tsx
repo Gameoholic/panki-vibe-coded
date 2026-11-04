@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  AI_ACTIONS,
+  AI_ACTION_IDS,
+  AI_LIMITS,
+  APP_LANGUAGES,
+  AppLanguage,
+  AI_PROVIDERS,
+  AI_PROVIDER_IDS,
+  AiKeyUpdate,
+  PankiAi,
+  aiModelOf,
+  type AiActionId,
+  type AiModel,
+  type AiTemplate,
+  type PankiAiStatus,
+  type UsageKind,
+  type UsageReport,
+  type UsageTotals,
   CHUNK_LENGTH_MAX,
   DICTIONARY_MAX_BYTES,
   ENGINES,
@@ -30,9 +47,9 @@ import {
   type WatchHistory,
   type WordAudio,
   type WordAudioStatus,
-  type WatchingSettings,
 } from "@panki/contracts";
 import { ApiError, api, type Me } from "../api";
+import { AiSpark } from "../components/AiWaiting";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -46,6 +63,7 @@ import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Skeleton } from "../components/Skeleton";
 import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
+import { AiTemplatesTab } from "./AiTemplatesView";
 import { KeysPanels } from "./KeysSettings";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
@@ -53,7 +71,7 @@ import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
 import { rememberShape, shapeOf } from "../skeletonMemory";
-import { VIDEO_TRACKING_WHY, count, dateWords, dollarWords, durationWords, sinceWords } from "../words";
+import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, sinceWords, tokenWords } from "../words";
 
 type Props = {
   settings: Settings;
@@ -63,6 +81,10 @@ type Props = {
   /** Signs one device out; this one, and the sign-in screen follows. */
   onSignOut: (sessionId: string) => Promise<void>;
   onSignOutAll: () => Promise<void>;
+  /** Panki AI as it stands, with the account's own templates, for the Panki AI tab; null while it loads. */
+  ai: PankiAiStatus | null;
+  onOpenTemplate: (template: AiTemplate) => void;
+  onNewTemplate: (action: AiActionId) => void;
 };
 
 /** An hour of the day as the clock shows it: "4:00", "23:00". */
@@ -70,19 +92,36 @@ const clock = (hour: number) => `${hour}:00`;
 
 /**
  * The page's tabs, as the extension's own page has them (the owner, 2026-10-17: "more organized, similar to the
- * extension settings page"): the look and what every deck shares, the keys, the extension, and the account. The tab
- * is in the address, so a reload stays on it; every tab is drawn and the others hidden, so a key half typed on one
- * survives a look at another. What an admin alone changes was a tab here until the owner gave it a screen of its own,
- * at the bar's far end (2026-10-29; `AdminView`).
+ * extension settings page"): the look and what every deck shares, the keys, Panki AI's templates (AI step 5), the
+ * extension, and the account. The tab is in the address, so a reload stays on it (and the extension opens Panki at
+ * `/settings#ai` for the templates); every tab is drawn and the others hidden, so a key half typed on one survives a
+ * look at another. What an admin alone changes was a tab here until the owner gave it a screen of its own, at the
+ * bar's far end (2026-10-29; `AdminView`).
  */
-type SettingsTab = "general" | "keys" | "extension" | "account";
+export type SettingsTab = "general" | "keys" | "ai" | "extension" | "account";
 const TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "keys", label: "Keybinds" },
+  { id: "ai", label: "Panki AI" },
   { id: "extension", label: "Extension" },
   { id: "account", label: "Account" },
 ];
-const tabOfAddress = (): SettingsTab | null => TABS.find((t) => `#${t.id}` === window.location.hash)?.id ?? null;
+/** The tab the address names (`#general`), of a page's tabs; null when it names none. */
+const tabOfAddress = <T extends string>(tabs: readonly { id: T }[]): T | null => tabs.find((t) => `#${t.id}` === window.location.hash)?.id ?? null;
+
+/**
+ * Admin's tabs, as Settings has its own (the owner, 2026-10-30: "split the admin settings into tabs like these"): one
+ * a paid service or what it keeps, each panel where it stood. Too many for a phone's row, so there they take two rows.
+ * (Watching was a sixth for an hour, until when a video counts as finished became each account's own, 2026-10-30.)
+ */
+type AdminTab = "transcription" | "wordAudio" | "ai" | "dictionaries" | "storage";
+const ADMIN_TABS: readonly { id: AdminTab; label: string }[] = [
+  { id: "transcription", label: "Transcription" },
+  { id: "wordAudio", label: "Word audio" },
+  { id: "ai", label: "Panki AI" },
+  { id: "dictionaries", label: "Dictionaries" },
+  { id: "storage", label: "Storage" },
+];
 
 /** Whose key a service has: the one typed here, the server's own, or none. */
 type KeyStatus = WordAudioStatus["key"];
@@ -110,7 +149,48 @@ const PAUSED_OPTIONS = [
 ] as const satisfies readonly { id: TranscribePaused; label: string }[];
 const ENGINE_OPTIONS = ENGINE_IDS.map((id) => ({ id, label: ENGINES[id].name }));
 const LANGUAGE_OPTIONS = TRANSCRIBE_LANGUAGE_IDS.map((id) => ({ id, label: TRANSCRIBE_LANGUAGES[id] }));
+const APP_LANGUAGE_OPTIONS = AppLanguage.options.map((id) => ({ id, label: APP_LANGUAGES[id] }));
 const SOURCE_OPTIONS = WORD_AUDIO_SOURCE_IDS.map((id) => ({ id, label: WORD_AUDIO_SOURCES[id].name }));
+const PROVIDER_OPTIONS = AI_PROVIDER_IDS.map((id) => ({ id, label: AI_PROVIDERS[id].name }));
+/** Whole cents as a listed price, "$0.10", "$3.75": a price, not an estimate, so it says nothing more. */
+const centsWords = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+/** A model's listed price, in and out: "$0.10 in · $0.50 out". */
+const priceWords = (model: AiModel) => `${centsWords(model.inCentsPerMTok)} in · ${centsWords(model.outCentsPerMTok)} out`;
+
+/** The stretches a Usage section is read over, each from a moment on this device's clock; All time from the first call. */
+type UsagePeriod = "month" | "days30" | "all";
+const USAGE_PERIODS = [
+  { id: "month", label: "This month" },
+  { id: "days30", label: "Last 30 days" },
+  { id: "all", label: "All time" },
+] as const satisfies readonly { id: UsagePeriod; label: string }[];
+function sinceOf(period: UsagePeriod): number | null {
+  const now = new Date();
+  if (period === "month") return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  if (period === "days30") return now.getTime() - 30 * 24 * 60 * 60 * 1000;
+  return null;
+}
+/** What a kind's usage comes to, as a row's small print: the calls and tokens, the sound, or the requests. */
+const USAGE_WORDS: Record<UsageKind, (used: UsageTotals) => string> = {
+  ai: (used) => (used.calls === 0 ? "No usage" : `${count(used.calls, "call", "calls")} · ${tokenWords(used.inputTokens)} tokens in · ${tokenWords(used.outputTokens)} out`),
+  transcription: (used) => (used.soundMs === 0 ? "Nothing transcribed" : used.soundMs < 60_000 ? "Under a minute transcribed" : `${durationWords(used.soundMs / 1000)} transcribed`),
+  wordAudio: (used) => (used.requests === 0 ? "No requests" : count(used.requests, "request", "requests")),
+};
+/**
+ * What a kind's calls were, as a second line of small print, where that's worth saying (AI step 6): Panki AI's by
+ * action, in `AI_ACTIONS`' order, "Explain 44 · Touch up 14 · Proofread 3", one with none left out; null for nothing.
+ */
+const USAGE_WHAT: Record<UsageKind, ((used: UsageTotals) => string | null) | null> = {
+  ai: (used) => {
+    const done = AI_ACTION_IDS.flatMap((id) => {
+      const calls = used.byWhat[id] ?? 0;
+      return calls > 0 ? [`${AI_ACTIONS[id].name} ${calls.toLocaleString("en")}`] : [];
+    });
+    return done.length > 0 ? done.join(" · ") : null;
+  },
+  transcription: null,
+  wordAudio: null,
+};
 
 /** The zone this device is in, by its name in the time zone database: what an account's zone starts as (`App.tsx` writes it the first time the account opens Panki). */
 export const DEVICE_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -278,7 +358,7 @@ type KeyPanelProps = {
  * A service's key: typed in plain sight, saved, and then kept under a spoiler like a card's, pressed to see it and
  * pressed again to cover it (the owner, 2026-10-17: "you don't have to hide it… otherwise it's a spoiler like the
  * spoiler words in the card types"; it was typed as a password and never shown again). Saving another replaces it;
- * Forget takes it off, asking first. Forvo's and a transcribing engine's are both this, inside the Admin panel.
+ * Forget takes it off, asking first. Forvo's, a transcribing engine's and a Panki AI provider's are all this, inside the Admin panel.
  */
 function KeyPanel({ id, title, from, label, status, saved, schema, onSave, children }: KeyPanelProps) {
   const [key, setKey] = useState("");
@@ -416,12 +496,67 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
   );
 }
 
-/** The tally under the engine's key: how much sound has gone to engines, and what that came to at this engine's rate. */
-function transcribedWords(seconds: number, centsPerHour: number): string {
-  if (seconds === 0) return "Nothing transcribed yet.";
-  // Whole cents, rounded once; only the display splits them into dollars.
-  const cents = Math.round((seconds * centsPerHour) / 3600);
-  return `${durationWords(seconds)} transcribed · about ${dollarWords(cents)}`;
+/**
+ * What a kind of paid call has come to, read from the usage ledger (the owner, 2026-10-30: each service's own, under
+ * its own panel): every account, those from before calls were counted per account, and everyone, over this month, the
+ * last 30 days or all of it. What it cost is at the listed prices, so it says "(est.)"; Forvo, a flat plan, has none.
+ */
+function UsageSection({ kind }: { kind: UsageKind }) {
+  const [period, setPeriod] = useState<UsagePeriod>("month");
+  const [report, setReport] = useState<UsageReport | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setReport(null);
+    setFailure(null);
+    api.usage(kind, sinceOf(period)).then(
+      (now) => {
+        if (alive) setReport(now);
+      },
+      (e: unknown) => {
+        if (alive) setFailure(said(e));
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [kind, period]);
+  const row = (key: string, name: string, used: UsageTotals, all = false) => {
+    const what = USAGE_WHAT[kind]?.(used) ?? null;
+    return (
+      <div key={key} className={`kept-row ${all ? "is-all" : ""}`.trim()}>
+        <span className="kept-name">
+          {name}
+          <span className="row-sub">{USAGE_WORDS[kind](used)}</span>
+          {what ? <span className="row-sub">{what}</span> : null}
+        </span>
+        {used.costMicros !== null ? <span className="kept-size">{estimateWords(used.costMicros)}</span> : null}
+      </div>
+    );
+  };
+  return (
+    <section className="panel-section" aria-labelledby={`${kind}-usage-title`}>
+      <div className="usage-head">
+        <h3 id={`${kind}-usage-title`} className="panel-subtitle">
+          Usage
+        </h3>
+        <Dropdown id={`${kind}-usage-period`} label="Usage over" options={USAGE_PERIODS} value={period} onChange={setPeriod} />
+      </div>
+      {failure ? (
+        <p className="load-error" role="alert">
+          {failure}
+        </p>
+      ) : null}
+      {report ? (
+        <div className="kept-rows">
+          {report.accounts.map((account, i) => row(`${i}`, account.name ?? "Account not known", account))}
+          {row("all", "Everyone", report.all, true)}
+        </div>
+      ) : failure ? null : (
+        <Skeleton shape="kept" count={3} />
+      )}
+    </section>
+  );
 }
 
 /** An account's standing as the engine says it, in the app's words; as it came when it's a word the app doesn't know. */
@@ -513,10 +648,11 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
         {/* The language every video was transcribed in stood here from 2026-10-18 until the owner made it each account's own, 2026-10-21 (General → Watching). */}
         <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
-          <p className="setting-why">{transcribedWords(status.seconds, engine.centsPerHour)}</p>
           {/* Read again whenever the key changes: the saved key's text is the sign of that. */}
           <EngineAccountLines keyed={status.key !== null} turn={(status.saved ?? "").length} />
         </KeyPanel>
+        {/* What's been transcribed and what it cost, from the usage ledger; a tally under the key stood here until 2026-10-30. */}
+        <UsageSection kind="transcription" />
       </section>
       <section className="panel" aria-labelledby="modes-title">
         <h2 id="modes-title" className="panel-title">
@@ -633,33 +769,9 @@ type WordAudioProps = {
 /**
  * Where word audio comes from, for everyone (the owner, 2026-10-17: "like engine and key; even though there's only one
  * engine for audio pronunciation, we might have others in the future"): the source, saved a moment after it's changed,
- * then its key and how many of the day's requests Panki has made to it.
+ * then its key and how many of the day's requests Panki has made to it. (Watching, how close to its end a video counts
+ * as finished, stood after it from 2026-10-25 until it became each account's own on the extension's page, 2026-10-30.)
  */
-/**
- * How watching is told, for everyone (the owner, 2026-10-25: "make that number configurable"): how close to its end a
- * video played is finished, a flag kept on it, so it leaves Continue watching and isn't offered to continue.
- */
-function WatchingSection({ settings }: { settings: WatchingSettings }) {
-  const [current, patch, failure] = useSavedSoon<WatchingSettings>(settings, (change) => api.updateWatchingSettings(change));
-  return (
-    <section className="panel" aria-labelledby="watching-admin-title">
-      <h2 id="watching-admin-title" className="panel-title">
-        Watching
-      </h2>
-      {failure ? (
-        <p className="load-error" role="alert">
-          {failure}
-        </p>
-      ) : null}
-      <Setting
-        id="finishedWithinSec"
-        label="Video counts as finished in its last"
-        control={<NumberField id="finished-within" label="Video counts as finished in its last" value={current.finishedWithinSec} min={0} max={600} suffix="s" onChange={(finishedWithinSec) => patch({ finishedWithinSec })} />}
-      />
-    </section>
-  );
-}
-
 function WordAudioSection({ status, onStatus }: WordAudioProps) {
   const [current, patch, failure] = useSavedSoon<WordAudio>(status.settings, async (change) => {
     const next = await api.updateWordAudio(change);
@@ -686,6 +798,119 @@ function WordAudioSection({ status, onStatus }: WordAudioProps) {
           </p>
         ) : null}
       </KeyPanel>
+      <UsageSection kind="wordAudio" />
+    </section>
+  );
+}
+
+type PankiAiProps = {
+  status: PankiAiStatus;
+  /** Every answer from Panki carries the key's state with it; the panel keeps the latest. */
+  onStatus: (status: PankiAiStatus) => void;
+};
+
+/** Panki AI's limits as rows, in the order they're read (Admin → Panki AI → Limits): each a number its words follow, stepped by a sensible amount. */
+const LIMIT_ROWS: readonly { key: keyof typeof AI_LIMITS; label: string; suffix?: string; step: number }[] = [
+  { key: "aiMaxRequestChars", label: "Max request length", suffix: "characters", step: 1_000 },
+  { key: "aiMaxAnswerTokens", label: "Max answer length", suffix: "tokens", step: 100 },
+  { key: "aiMaxTouchUpTokens", label: "Max Touch up answer length", suffix: "tokens", step: 100 },
+  { key: "aiMaxProofreadTokens", label: "Max Proofread answer length", suffix: "tokens", step: 100 },
+  { key: "aiMaxFollowUps", label: "Max follow-ups", step: 1 },
+  { key: "aiMaxQuestionChars", label: "Max follow-up length", suffix: "characters", step: 100 },
+  { key: "aiMaxDescriptionChars", label: "Max video description length", suffix: "characters", step: 100 },
+  { key: "aiSurroundingSeconds", label: "Surrounding video subtitles", suffix: "seconds before and after", step: 5 },
+];
+
+/**
+ * Panki AI's limits, everyone's, held by the server (the owner, 2026-10-30: "just so I know it's there… and maybe even
+ * edit it"): a number each, saved a moment after each change as the panel's other settings are.
+ */
+function AiLimits({ current, on, patch }: { current: PankiAi; on: boolean; patch: (change: Partial<PankiAi>) => void }) {
+  return (
+    <section className="panel-section" aria-labelledby="ai-limits-title">
+      <h3 id="ai-limits-title" className="panel-subtitle">
+        Limits
+      </h3>
+      {LIMIT_ROWS.map((row) => (
+        <Setting
+          key={row.key}
+          id={row.key}
+          label={row.label}
+          control={
+            <NumberField
+              id={`ai-limit-${row.key}`}
+              label={row.suffix ? `${row.label}, ${row.suffix}` : row.label}
+              value={current[row.key]}
+              min={AI_LIMITS[row.key].min}
+              max={AI_LIMITS[row.key].max}
+              step={row.step}
+              {...(row.suffix ? { suffix: row.suffix } : {})}
+              disabled={!on}
+              onChange={(value) => {
+                const change: Partial<PankiAi> = {};
+                change[row.key] = value;
+                patch(change);
+              }}
+            />
+          }
+        />
+      ))}
+    </section>
+  );
+}
+
+/**
+ * Panki AI, for everyone (2026-10-30, the AI's first step): whether it's on, the provider and its model (greyed while
+ * it's off, as a panel's switch greys its rows), each saved a moment after it's changed; the model's listed price under
+ * it; the provider's key; the limits (step 2, greyed while it's off too); and what it's been used for. The prompts stood
+ * here, everyone's, with Prompt context and What Panki AI answers, until AI step 5 made them each account's templates
+ * (Settings → Panki AI, `AiTemplateView`).
+ */
+function PankiAiSection({ status, onStatus }: PankiAiProps) {
+  const [current, patch, failure] = useSavedSoon<PankiAi>(status.settings, async (change) => {
+    const next = await api.updateAi(change);
+    onStatus(next);
+    return next.settings;
+  });
+  const provider = AI_PROVIDERS[current.aiProvider];
+  const model = aiModelOf(current);
+  const modelOptions = provider.models.map((m) => ({ id: m.id, label: m.name, note: priceWords(m) }));
+  return (
+    <section className="panel" aria-labelledby="ai-title">
+      <h2 id="ai-title" className="panel-title has-icon">
+        <AiSpark />
+        Panki AI
+      </h2>
+      {failure ? (
+        <p className="load-error" role="alert">
+          {failure}
+        </p>
+      ) : null}
+      <Setting id="aiOn" label="Panki AI" control={<Toggle id="ai-on" says={{ on: "On", off: "Off" }} on={current.aiOn} onChange={(aiOn) => patch({ aiOn })} />} />
+      <Setting
+        id="aiProvider"
+        label="Provider"
+        control={
+          <Dropdown
+            id="ai-provider"
+            label="Provider"
+            options={PROVIDER_OPTIONS}
+            value={current.aiProvider}
+            disabled={!current.aiOn}
+            // A provider of its own takes its own first model, as the API does when it's changed alone.
+            onChange={(aiProvider) => patch({ aiProvider, aiModel: AI_PROVIDERS[aiProvider].models[0]?.id ?? current.aiModel })}
+          />
+        }
+      />
+      <Setting
+        id="aiModel"
+        label="Model"
+        control={<Dropdown id="ai-model" label="Model" options={modelOptions} columns={{ choice: "Model", note: "Per million tokens" }} value={model.id} disabled={!current.aiOn} onChange={(aiModel) => patch({ aiModel })} />}
+        why={`${priceWords(model)}, per million tokens.`}
+      />
+      <KeyPanel id="ai-key" title={provider.name} from={provider.vendor} label="API key" status={status.key} saved={status.saved} schema={AiKeyUpdate} onSave={async (key) => onStatus(await api.setAiKey(current.aiProvider, key))} />
+      <AiLimits current={current} on={current.aiOn} patch={patch} />
+      <UsageSection kind="ai" />
     </section>
   );
 }
@@ -867,11 +1092,16 @@ function ExtensionPanel() {
   );
 }
 
-/** What everyone shares and an admin alone changes, a panel each: how transcribing runs, the engine's key, the Forvo key for word audio, watching; and, to read, what it all takes on the disk. */
-function AdminPanel() {
+/**
+ * What everyone shares and an admin alone changes, a tab each: how transcribing runs with the engine's key, the Forvo
+ * key for word audio, Panki AI (each paid service with its usage), the dictionaries kept on Panki, watching; and, to
+ * read, what it all takes on the disk. Every tab is drawn and the others hidden, as Settings' are, so a key half typed
+ * on one survives a look at another; each loads as the screen opens.
+ */
+function AdminPanel({ tab }: { tab: AdminTab }) {
   const [transcription, setTranscription] = useState<TranscriptionStatus | null>(null);
   const [wordAudio, setWordAudio] = useState<WordAudioStatus | null>(null);
-  const [watching, setWatching] = useState<WatchingSettings | null>(null);
+  const [ai, setAi] = useState<PankiAiStatus | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
@@ -879,8 +1109,8 @@ function AdminPanel() {
     const failed = (e: unknown) => {
       if (alive) setFailure(said(e));
     };
-    api.watchingSettings().then((now) => {
-      if (alive) setWatching(now);
+    api.getAi().then((now) => {
+      if (alive) setAi(now);
     }, failed);
     api.getTranscription().then((now) => {
       if (alive) setTranscription(now);
@@ -902,43 +1132,63 @@ function AdminPanel() {
           {failure}
         </p>
       ) : null}
-      {transcription ? (
-        <Transcribing status={transcription} onStatus={setTranscription} />
-      ) : failure ? null : (
-        <>
-          {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki (2026-10-27); the modes' chart is far taller on a phone. */}
-          <LoadingPanel id="transcribing" title="Transcribing" rows={5} />
-          <LoadingPanel id="modes" title="Transcription modes" rows={19} />
-          <LoadingPanel id="chunks" title="Chunks" rows={15} />
-          <LoadingPanel id="fixing" title="Editing" rows={2} />
-        </>
-      )}
-      {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : failure ? null : <LoadingPanel id="word-audio" title="Word audio" rows={5} />}
-      {watching ? <WatchingSection settings={watching} /> : failure ? null : <LoadingPanel id="watching-admin" title="Watching" rows={1} />}
-      <StorageSection />
+      <div className="settings-tab" hidden={tab !== "transcription"}>
+        {transcription ? (
+          <Transcribing status={transcription} onStatus={setTranscription} />
+        ) : failure ? null : (
+          <>
+            {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki (2026-10-27); the modes' chart is far taller on a phone. */}
+            {/* Transcribing and Word audio took their Usage on 2026-10-30, Panki AI is new: those three not measured since. */}
+            <LoadingPanel id="transcribing" title="Transcribing" rows={8} />
+            <LoadingPanel id="modes" title="Transcription modes" rows={19} />
+            <LoadingPanel id="chunks" title="Chunks" rows={15} />
+            <LoadingPanel id="fixing" title="Editing" rows={2} />
+          </>
+        )}
+      </div>
+      <div className="settings-tab" hidden={tab !== "wordAudio"}>
+        {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : failure ? null : <LoadingPanel id="word-audio" title="Word audio" rows={8} />}
+      </div>
+      <div className="settings-tab" hidden={tab !== "ai"}>
+        {/* The rows its height comes to with the key, Limits and Usage under it (the prompts went to the templates, AI step 5), worked out from a setting row's height, not measured. */}
+        {ai ? <PankiAiSection status={ai} onStatus={setAi} /> : failure ? null : <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={20} />}
+      </div>
+      <div className="settings-tab" hidden={tab !== "dictionaries"}>
+        <DictionariesPanel />
+      </div>
+      <div className="settings-tab" hidden={tab !== "storage"}>
+        <StorageSection />
+      </div>
     </>
   );
 }
 
 /**
- * The Admin screen (the owner, 2026-10-29: "in the most top right of the website"; a tab of Settings until then): what
- * everyone shares, then the dictionaries kept on Panki. In a `.settings-tab`, so it stands as wide as Settings does and
- * its panels sit as they did there. Its pieces are Settings' own (`Setting`, `KeyPanel`), so it stays in this file.
+ * The Admin screen (the owner, 2026-10-29: "in the most top right of the website"; a tab of Settings until then), in
+ * tabs since 2026-10-30 as Settings is: the tab in the address (`#ai`), so a reload stays on it. Its tabs are
+ * `.settings-tab`s, so it stands as wide as Settings does. Its pieces are Settings' own (`Setting`, `KeyPanel`), so it
+ * stays in this file.
  */
 export function AdminView() {
+  const [tab, setTab] = useState<AdminTab>(() => tabOfAddress(ADMIN_TABS) ?? "transcription");
+  function choose(next: AdminTab) {
+    setTab(next);
+    window.history.replaceState(window.history.state, "", `#${next}`);
+  }
   return (
-    <div className="settings-tab is-admin">
-      <AdminPanel />
-      <DictionariesPanel />
-    </div>
+    <>
+      <Segmented idPrefix="admin-tab" label="Admin" options={ADMIN_TABS} value={tab} wraps onChange={choose} />
+      <AdminPanel tab={tab} />
+    </>
   );
 }
 
 /** An admin's panel while what's in it loads: its title, already known, over the shape of its rows. */
-function LoadingPanel({ id, title, rows }: { id: string; title: string; rows: number }) {
+function LoadingPanel({ id, title, icon, rows }: { id: string; title: string; icon?: "ai"; rows: number }) {
   return (
     <section className="panel" aria-labelledby={`${id}-title`}>
-      <h2 id={`${id}-title`} className="panel-title">
+      <h2 id={`${id}-title`} className={`panel-title ${icon ? "has-icon" : ""}`.trim()}>
+        {icon ? <Icon name={icon} className="is-solid" /> : null}
         {title}
       </h2>
       <Skeleton shape="settings" count={rows} />
@@ -1089,14 +1339,14 @@ function DictionariesPanel() {
  * it's made. Last, the devices signed in and the watch history. (What every account shares is an admin's own screen,
  * `AdminView`.)
  */
-export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }: Props) {
+export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, ai, onOpenTemplate, onNewTemplate }: Props) {
   const [current, patch, failure] = useSavedSoon<Settings>(settings, onChange);
   const zones = useMemo(() => zoneOptions(current.timeZone), [current.timeZone]);
   const [theme, setTheme] = useState<ThemeId>(readTheme);
   const [askingAll, setAskingAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [signOutFailure, setSignOutFailure] = useState<string | null>(null);
-  const [tab, setTab] = useState<SettingsTab>(() => tabOfAddress() ?? "general");
+  const [tab, setTab] = useState<SettingsTab>(() => tabOfAddress(TABS) ?? "general");
   const shown = tab;
   function choose(next: SettingsTab) {
     setTab(next);
@@ -1124,16 +1374,18 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
 
   return (
     <>
-      <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} onChange={choose} />
+      {/* Five tabs since Panki AI joined them: on a phone, rows of three, as Admin's are. */}
+      <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} wraps onChange={choose} />
       <div className="settings-tab" hidden={shown !== "general"}>
         {failure ? (
           <p className="load-error" role="alert">
             {failure}
           </p>
         ) : null}
-        <section className="panel" aria-labelledby="look-title">
-          <h2 id="look-title" className="panel-title">
-            Look
+        {/* Display: how Panki looks and speaks to you (Look until the owner, 2026-10-30, moved Language here). */}
+        <section className="panel" aria-labelledby="display-title">
+          <h2 id="display-title" className="panel-title">
+            Display
           </h2>
           <Setting
             id="theme"
@@ -1154,6 +1406,22 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
               </div>
             }
           />
+          {/* The language Panki speaks in: the AI's answers now (a prompt's {Language}), the whole app later. Greyed while
+              English is the one choice, as Word audio's source is while Forvo is (the owner, 2026-10-30). */}
+          <Setting
+            id="appLanguage"
+            label="Language"
+            control={
+              <Dropdown
+                id="setting-app-language"
+                label="Language"
+                options={APP_LANGUAGE_OPTIONS}
+                value={current.appLanguage}
+                disabled={APP_LANGUAGE_OPTIONS.length < 2}
+                onChange={(appLanguage) => patch({ appLanguage })}
+              />
+            }
+          />
         </section>
 
         <section className="panel" aria-labelledby="settings-title">
@@ -1172,11 +1440,12 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
             label="Time zone"
             control={<Dropdown id="setting-time-zone" label="Time zone" options={zones} value={current.timeZone || DEVICE_ZONE} onChange={(timeZone) => patch({ timeZone })} />}
           />
-          {/* The account's own, told to the engine for every video it transcribes (moved here from Watching at the owner's word, 2026-10-21). */}
+          {/* The language learned: the account's own, told to the engine for every video it transcribes (moved here from Watching at
+              the owner's word, 2026-10-21), and a Panki AI prompt's {Learning language} (Transcription language until 2026-10-30). */}
           <Setting
             id="language"
-            label="Transcription language"
-            control={<Dropdown id="setting-language" label="Transcription language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />}
+            label="Learning language"
+            control={<Dropdown id="setting-language" label="Learning language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />}
           />
         </section>
 
@@ -1199,6 +1468,20 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
           <PerDevice />
         </div>
         <KeysPanels />
+      </div>
+
+      {/* Panki AI's templates, each account's own, when a run asks first and when its cost is shown (AI step 5, 2026-11-01). */}
+      <div className="settings-tab" hidden={shown !== "ai"}>
+        <AiTemplatesTab
+          ai={ai}
+          defaults={current.aiDefaults}
+          askOver={current.aiAskOverMicros}
+          onAskOver={(aiAskOverMicros) => patch({ aiAskOverMicros })}
+          showCostOver={current.aiShowCostOverMicros}
+          onShowCostOver={(aiShowCostOverMicros) => patch({ aiShowCostOverMicros })}
+          onOpen={onOpenTemplate}
+          onNew={onNewTemplate}
+        />
       </div>
 
       {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}

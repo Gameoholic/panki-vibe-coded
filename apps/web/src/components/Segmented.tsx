@@ -27,6 +27,8 @@ type Props<T extends string> = {
   size?: "md" | "sm";
   /** Shown but not changeable, when something else decides it or it doesn't apply right now. */
   disabled?: boolean;
+  /** Too many cells for a phone's width in one row (Admin's five tabs): there they take two rows of three. */
+  wraps?: boolean;
   /**
    * Its whole row under its label, each cell's words kept on one line and the cells going onto a second row when they
    * don't fit: for choices too long to stand side by side in a narrow panel (a clip's subtitles while listening).
@@ -35,9 +37,9 @@ type Props<T extends string> = {
 };
 
 /** A few choices side by side, one of them on: the tabs inside a deck, and the settings that are a pick from a short list. */
-export function Segmented<T extends string>({ options, value, onChange, label, idPrefix, size = "md", disabled = false, wrap = false }: Props<T>) {
+export function Segmented<T extends string>({ options, value, onChange, label, idPrefix, size = "md", disabled = false, wraps = false, wrap = false }: Props<T>) {
   return (
-    <div className={`segmented ${size === "sm" ? "segmented-sm" : ""} ${wrap ? "segmented-wrap" : ""} ${disabled ? "is-disabled" : ""}`.replace(/\s+/g, " ").trim()} role="group" aria-label={label}>
+    <div className={`segmented ${size === "sm" ? "segmented-sm" : ""} ${wrap ? "segmented-wrap" : ""} ${disabled ? "is-disabled" : ""} ${wraps ? "is-wrapping" : ""}`.replace(/\s+/g, " ").trim()} role="group" aria-label={label}>
       {options.map((option) =>
         option.id === value && option.lit !== undefined ? (
           <span key={option.id} id={`${idPrefix}-${option.id}`} className="btn btn-seg is-lit">

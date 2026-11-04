@@ -16,7 +16,11 @@ export const PER_DEVICE = "This device";
 
 /** "1 card", "2 cards", "212,345 words": every count the owner reads is phrased here. */
 export function count(n: number, one: string, many: string) {
-  return `${n.toLocaleString("en")} ${n === 1 ? one : many}`;
+  return `${n.toLocaleString("en")} ${wordFor(n, one, many)}`;
+}
+/** The word alone for a count, with no number: "meaning" for one, "meanings" for any other. The one plural rule, `count`'s. */
+export function wordFor(n: number, one: string, many: string) {
+  return n === 1 ? one : many;
 }
 
 const LIST_WORDS = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
@@ -101,10 +105,28 @@ export function hmsWords(seconds: number): string {
   return `${hours > 0 ? `${hours}h` : ""}${minutes > 0 ? `${minutes}m` : ""}${whole % 60}s`;
 }
 
-/** A whole number of US cents as dollars, "$0.70", "$1,234.05": the cents stay whole, only this display splits them. */
-export function dollarWords(cents: number): string {
-  const whole = Math.max(0, Math.round(cents));
-  return `$${Math.floor(whole / 100).toLocaleString("en")}.${String(whole % 100).padStart(2, "0")}`;
+/**
+ * What something costs at a listed price, from whole micro-dollars (the usage ledger's unit, `MICROS_PER_CENT` to the
+ * cent), one of two ways everywhere (the owner, 2026-10-30): from a cent up, dollars and cents, "$0.70 (est.)",
+ * "$1,234.05 (est.)"; under a cent, four decimals, "$0.0006 (est.)", "$0.0040 (est.)", and under the fourth,
+ * "<$0.0001 (est.)". Nothing at all is "$0.00 (est.)". Every dollar amount Panki shows is worked out from a listed
+ * price, never told by the provider, so each says so. The micro-dollars stay whole; only this display splits them.
+ */
+export function estimateWords(micros: number): string {
+  const whole = Math.max(0, Math.round(micros));
+  if (whole > 0 && whole < 100) return "<$0.0001 (est.)";
+  // A ten-thousandth of a dollar is 100 micro-dollars; one that rounds up to a whole cent is said as cents, below.
+  const tenThousandths = Math.round(whole / 100);
+  if (whole > 0 && tenThousandths < 100) return `$0.${String(tenThousandths).padStart(4, "0")} (est.)`;
+  const cents = Math.round(whole / 10_000);
+  return `$${Math.floor(cents / 100).toLocaleString("en")}.${String(cents % 100).padStart(2, "0")} (est.)`;
+}
+
+/** A count of tokens packed tight: "820", "744K", "1.2M". */
+export function tokenWords(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
+  return String(tokens);
 }
 
 const DATE_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric" });

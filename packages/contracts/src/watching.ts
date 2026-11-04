@@ -17,26 +17,15 @@ import { VideoId } from "./transcription";
 
 // The daily goals offered (WATCH_GOALS) went with the watch streak, 2026-10-21: no goal and no streak for immersion, for now.
 
-/**
- * How watching is told, for everyone, set by an admin in Settings → Admin (the owner, 2026-10-25: "make that number
- * configurable"): a video played into its last this many seconds is finished (`inEndZone`), a flag kept until it's
- * taken off by hand, so it leaves Continue watching, isn't offered to continue, and its thumbnail's bar is full. 20 to
- * begin with (30 for its first day). Only what an admin changed is kept; the rest reads as the defaults.
- */
-export const WatchingSettings = z.object({ finishedWithinSec: z.number().int().min(0).max(600) });
-export type WatchingSettings = z.infer<typeof WatchingSettings>;
-export const DEFAULT_WATCHING_SETTINGS: WatchingSettings = { finishedWithinSec: 20 };
+// How close to its end a video counts as finished was everyone's, an admin's `WatchingSettings` (2026-10-25), until the
+// owner made it each account's own, 2026-10-30: `Settings.finishedWithinSec`. A value an admin kept is read by nothing.
 /** Whether a moment of a video, in ms, is in its last `finishedWithinMs`: played into there, the video is finished. */
 export const inEndZone = (atMs: number, lengthMs: number, finishedWithinMs: number) => atMs >= lengthMs - finishedWithinMs;
-export const WatchingSettingsUpdate = WatchingSettings.partial();
-export type WatchingSettingsUpdate = z.infer<typeof WatchingSettingsUpdate>;
-export const WatchingSettingsResponse = z.object({ watching: WatchingSettings });
-export type WatchingSettingsResponse = z.infer<typeof WatchingSettingsResponse>;
 
 /** The magnitudes of watching, one home. */
 export const WATCH = {
-  // `endMs` (a video stopped within 30 s of its end was watched to the end) became an admin's setting, 2026-10-25:
-  // `WatchingSettings.finishedWithinSec`.
+  // `endMs` (a video stopped within 30 s of its end was watched to the end) became an admin's setting, 2026-10-25, and
+  // each account's own, 2026-10-30: `Settings.finishedWithinSec`.
   // `minStopMs` (a stop under 15 s wasn't somewhere to continue from) went on 2026-10-21: a video counts the moment it
   // plays (the owner: "I want it to count as soon as I clicked the video").
   /** How soon after a video starts playing its first stretch is sent, so it's in Continue watching and on its thumbnail at once. */
@@ -108,8 +97,8 @@ export const WatchedVideo = z.object({
   counted: z.boolean(),
   /** Finished: its latest finish or unfinish mark is a finish. False from an older server. */
   finished: z.boolean().default(false),
-  /** How close to its end a video played counts as finished, for everyone (`WatchingSettings`), in ms. */
-  finishedWithinMs: z.number().int().nonnegative().default(DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000),
+  /** How close to its end a video played counts as finished, the account's own (`Settings.finishedWithinSec`), in ms; 20 s from an older server. */
+  finishedWithinMs: z.number().int().nonnegative().default(20_000),
 });
 export type WatchedVideo = z.infer<typeof WatchedVideo>;
 export const WatchedVideoResponse = z.object({ video: WatchedVideo });

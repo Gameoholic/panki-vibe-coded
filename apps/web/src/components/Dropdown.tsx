@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import type { MeaningAccuracyId } from "@panki/contracts";
 import { useDismiss } from "../hooks/useDismiss";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
+import { JudgedRow } from "./JudgedRow";
 
 type Common<T extends string | number> = {
   id: string;
@@ -10,9 +12,11 @@ type Common<T extends string | number> = {
   /**
    * `disabled` is a choice that's shown, so it's known to exist, but can't be made here. `note` is a quiet word at the
    * right of a choice in the list (where it comes from, say); the button shows only the label. `icon` is drawn before
-   * the label, in the list and on the button (a transcription mode's).
+   * the label, in the list and on the button (a transcription mode's). A `note` can be a sign rather than words (Panki
+   * AI's spark where a meaning's dictionary would be). `judged` is Panki AI's verdict on a meaning: the choice drawn in
+   * a `JudgedRow`, as the pop-up draws its meanings (the drawer's Meaning list under Touch up).
    */
-  options: readonly { id: T; label: string; disabled?: boolean; note?: string; icon?: IconName }[];
+  options: readonly { id: T; label: string; disabled?: boolean; note?: ReactNode; icon?: IconName; judged?: { accuracy: MeaningAccuracyId; reason: string } }[];
   /** What the button says while the value is none of the choices: nothing has been chosen yet. */
   placeholder?: string;
   /** Shown, with what's chosen, but not to be changed just now. */
@@ -64,30 +68,39 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
               <span>{columns.note}</span>
             </div>
           ) : null}
-          {options.map((o) => (
-            <Button
-              key={o.id}
-              variant="item"
-              role="option"
-              aria-selected={isOn(o.id)}
-              aria-pressed={isOn(o.id)}
-              disabled={o.disabled === true}
-              onClick={() => {
-                if ("values" in props) {
-                  props.onToggle(o.id);
-                  return;
-                }
-                props.onChange(o.id);
-                setOpen(false);
-              }}
-            >
-              {/* Ticked or not, each choice of several keeps the tick's room, so their words stand in one column. */}
-              {many ? <Icon name="check" className={`dropdown-tick ${isOn(o.id) ? "" : "is-off"}`.trim()} /> : null}
-              {o.icon ? <Icon name={o.icon} className="dropdown-icon" /> : null}
-              <span className="dropdown-choice">{o.label}</span>
-              {o.note ? <span className="dropdown-note">{o.note}</span> : null}
-            </Button>
-          ))}
+          {options.map((o) => {
+            const choice = (
+              <Button
+                key={o.id}
+                variant="item"
+                role="option"
+                aria-selected={isOn(o.id)}
+                aria-pressed={isOn(o.id)}
+                disabled={o.disabled === true}
+                onClick={() => {
+                  if ("values" in props) {
+                    props.onToggle(o.id);
+                    return;
+                  }
+                  props.onChange(o.id);
+                  setOpen(false);
+                }}
+              >
+                {/* Ticked or not, each choice of several keeps the tick's room, so their words stand in one column. */}
+                {many ? <Icon name="check" className={`dropdown-tick ${isOn(o.id) ? "" : "is-off"}`.trim()} /> : null}
+                {o.icon ? <Icon name={o.icon} className="dropdown-icon" /> : null}
+                <span className={o.judged ? "dropdown-choice ai-accuracy-words" : "dropdown-choice"}>{o.label}</span>
+                {o.note ? <span className="dropdown-note">{o.note}</span> : null}
+              </Button>
+            );
+            return o.judged ? (
+              <JudgedRow key={o.id} accuracy={o.judged.accuracy} reason={o.judged.reason}>
+                {choice}
+              </JudgedRow>
+            ) : (
+              choice
+            );
+          })}
         </div>
       ) : null}
     </span>

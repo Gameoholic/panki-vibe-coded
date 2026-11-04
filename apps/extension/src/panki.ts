@@ -1,6 +1,20 @@
+import type { z } from "zod";
 import {
   ApiErrorBody,
   BearerLogin,
+  ExplainError,
+  ExplainResponse,
+  PankiAiResponse,
+  TouchUpResponse,
+  ProofreadResponse,
+  type ProofreadAsk,
+  type TranscriptUndo,
+  type TranscriptLineMark,
+  type TouchUpAsk,
+  type ExplainAsk,
+  type ExplainProblem,
+  type PankiAiStatus,
+  type AiUnread,
   CalledCards,
   CardResponse,
   WordsInCards,
@@ -50,6 +64,7 @@ import {
   type RedoAsk,
   type Stretch,
   type ServerDictionary,
+  type SettingsUpdate,
   type SrsType,
   type SubtitleStyle,
   type Transcript,
@@ -65,9 +80,35 @@ export class PankiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** What Panki answered with its refusal, as it came, for a call whose refusal says more than its words (Explain's). */
+    readonly body: unknown = null,
   ) {
     super(message);
   }
+}
+
+/**
+ * Explain (or Touch up) refused by Panki: why, for the page to say, Panki AI as it stood then (an admin may have changed
+ * it), and an answer that came back unusable, for Details' Log (`unread`).
+ */
+export class ExplainRefused extends PankiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly problem: ExplainProblem,
+    readonly ai: PankiAiStatus,
+    readonly unread: AiUnread | null,
+  ) {
+    super(message, status);
+  }
+}
+
+/** A Panki AI action's failure as an `ExplainRefused` when Panki gave its reason; anything else as it was. */
+function refusedOf(e: unknown): unknown {
+  const refused = e instanceof PankiError ? ExplainError.safeParse(e.body) : null;
+  if (!(e instanceof PankiError) || !refused?.success) return e;
+  const { message, problem, unread } = refused.data.error;
+  return new ExplainRefused(message, e.status, problem, refused.data.ai, unread ?? null);
 }
 
 /** Where Panki is and the sign-in to it. */
@@ -98,7 +139,7 @@ async function call<T>(address: string, token: string | null, path: string, init
   const body: unknown = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
     const known = ApiErrorBody.safeParse(body);
-    throw new PankiError(known.success ? known.data.error.message : "Something went wrong.", res.status);
+    throw new PankiError(known.success ? known.data.error.message : "Something went wrong.", res.status, body);
   }
   return parse(body);
 }
@@ -218,7 +259,13 @@ export const panki = {
     const timeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     return call(address, token, "/api/settings", json("PATCH", { timeZone }), (b) => SettingsResponse.parse(b).settings);
   },
-  // `updateSettings` (the options page's Video tracking, the account's switch) went when it became each browser's own, 2026-11-02.
+  /**
+   * Some of the account's own settings changed; the settings after. The options page's Video counts as finished in its
+   * last (`finishedWithinSec`) since 2026-10-30; its Video tracking, the account's switch until it became each
+   * browser's own on 2026-11-02, never (`SettingsUpdate` leaves it out).
+   */
+  updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
+    call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
   /** Videos as their thumbnails on YouTube are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   glance: ({ address, token }: Door, videoIds: readonly string[]): Promise<VideoGlance[]> =>
     call(address, token, "/api/watching/glance", json("POST", { videoIds }), (b) => GlanceResponse.parse(b).videos),
@@ -246,6 +293,42 @@ export const panki = {
   /** The account's cards, in any deck, already called by one of these words: the drawer says so before a card is added. */
   cardsCalled: ({ address, token }: Door, words: readonly string[]): Promise<CalledCard[]> =>
     call(address, token, `/api/cards/called?${words.map((word) => `word=${id(word)}`).join("&")}`, {}, (b) => CalledCards.parse(b).cards),
+  /** Panki AI as it stands for everyone, and whose key it has: what the pop-up's Explain is worked out from. */
+  ai: ({ address, token }: Door): Promise<PankiAiStatus> => call(address, token, "/api/ai", {}, (b) => PankiAiResponse.parse(b).ai),
+  /**
+   * A word explained by Panki AI, or a follow-up to its answer: Panki's server fills the prompt and calls the provider.
+   * A refusal Panki explains (off, no key, too long, the provider's failure) is an `ExplainRefused`, with Panki AI as
+   * it stands; anything else is a `PankiError` as ever.
+   */
+  explain: async ({ address, token }: Door, ask: ExplainAsk): Promise<z.infer<typeof ExplainResponse>> => {
+    try {
+      return await call(address, token, "/api/ai/explain", json("POST", ask), (b) => ExplainResponse.parse(b));
+    } catch (e) {
+      throw refusedOf(e);
+    }
+  },
+  /** The drawer's card touched up by Panki AI, through Panki's server: refused as Explain is, its refusals the same family. */
+  touchUp: async ({ address, token }: Door, ask: TouchUpAsk): Promise<z.infer<typeof TouchUpResponse>> => {
+    try {
+      return await call(address, token, "/api/ai/touch-up", json("POST", ask), (b) => TouchUpResponse.parse(b));
+    } catch (e) {
+      throw refusedOf(e);
+    }
+  },
+  /** Lines of a video's Panki subtitles proofread by Panki AI, for everyone (AI step 6): refused as Explain is; its edits and the transcript after. */
+  proofread: async ({ address, token }: Door, ask: ProofreadAsk): Promise<ProofreadResponse> => {
+    try {
+      return await call(address, token, "/api/ai/proofread", json("POST", ask), (b) => ProofreadResponse.parse(b));
+    } catch (e) {
+      throw refusedOf(e);
+    }
+  },
+  /** A line split or joined by hand at a word, for everyone. */
+  markLine: ({ address, token }: Door, videoId: string, mark: TranscriptLineMark): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/line-marks`, json("POST", mark), (b) => TranscriptResponse.parse(b).transcript),
+  /** Panki AI's edits taken back, a word's or a run's, one step each, for everyone. */
+  undoFixes: ({ address, token }: Door, videoId: string, undo: TranscriptUndo): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/undo`, json("POST", undo), (b) => TranscriptResponse.parse(b).transcript),
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */

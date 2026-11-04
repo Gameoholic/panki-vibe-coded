@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, UpdateState } from "./messages";
-import { AfterAdd, DEFAULT_MODULES, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type Modules } from "./modules";
+import { AfterAdd, BesideRecs, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PillLayout, StageSide, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -59,6 +59,8 @@ const Stored = z.object({
    * owner, 2026-10-11: "we have to consciously select it"); from then on it's that one until another is chosen.
    */
   defaultDeckId: DeckId.nullable().catch(null),
+  // `drawerLayout` was a key here for a day (2026-10-31): the drawer laid out six ways while the owner tried them, until
+  // they kept the one it always had. A browser that still has it keeps it unread.
   // `clipToWords` was a key here (2026-10-11): whether a clip's end snapped to the edges of words as it was pulled.
   // The owner had the setting taken out on 2026-10-19, never using it: an end goes where it's put, Alt held snaps it.
   // A browser that still has it keeps it unread.
@@ -93,6 +95,7 @@ const Stored = z.object({
   lookSites: z.array(z.string()).catch([]),
   /** How the popup is laid out, as the options page's editor saved it; none until it's saved once (`popupLayoutOf` fills it out). */
   popupLayout: PopupLayout.nullable().catch(null),
+  // `explainOnOpen` (Explain as the pop-up opens) went at the owner's word, 2026-11-02: a browser that kept it reads nothing of it.
   /** The tab the options page is to open on, when the drawer sent the owner there to sign in or to switch a deck's field mapping on; the page takes it and clears it. */
   optionsTab: OptionsTab.nullable().catch(null),
   /**
@@ -127,6 +130,18 @@ const Stored = z.object({
   /** Which of Panki's parts are on, and what happens where a video was stopped (`modules.ts`), set on the options page; `pankiOn` in the strip's head too. */
   pankiOn: z.boolean().catch(DEFAULT_MODULES.on),
   modulePanel: z.boolean().catch(DEFAULT_MODULES.panel),
+  /** Where the Panki panel stands on a video's page, picked on the panel itself; beside the video, above the recommendations or in their place (options page, YouTube → Panki panel). */
+  // "stage" was a view of its own for a day (2026-11-04); kept so, it's beside the video, whose switch Theatre mode now is.
+  panelView: z
+    .string()
+    .transform((view) => (view === "stage" ? "beside" : view))
+    .pipe(PanelView)
+    .catch(DEFAULT_MODULES.panelView),
+  besideRecs: BesideRecs.catch(DEFAULT_MODULES.besideRecs),
+  /** On the Stage, the side the panel's column stands at (options page, YouTube → Panki panel). */
+  stageSide: StageSide.catch(DEFAULT_MODULES.stageSide),
+  /** Whether Theatre mode is in the browser's full screen (options page, YouTube → Panki panel). */
+  stageFull: z.boolean().catch(DEFAULT_MODULES.stageFull),
   moduleLookup: z.boolean().catch(DEFAULT_MODULES.lookup),
   moduleSeek: z.boolean().catch(DEFAULT_MODULES.seek),
   resumeHow: ResumeHow.catch(DEFAULT_MODULES.resume),
@@ -146,9 +161,18 @@ const Stored = z.object({
   thumbSave: z.boolean().catch(DEFAULT_MODULES.thumbSave),
   moduleShorts: z.boolean().catch(DEFAULT_MODULES.shorts),
   // `homeChips` and `feedFilter` (the chips over YouTube's home feed) went on 2026-10-21; a browser that kept them keeps them unread.
-  /** The YouTube utilities beside Hide Shorts (`moduleShorts`): the player's speed from a button among its controls, and when the video will end. */
-  speedControl: z.boolean().catch(DEFAULT_MODULES.speedControl),
-  endTime: z.boolean().catch(DEFAULT_MODULES.endTime),
+  /**
+   * The player's control bar laid out by Panki, or YouTube's own (`modules.ts` → `playerBar`, `BarLayout`): the switch,
+   * and the layout made whole as it's read; null until it's first laid out on the options page, read until then from
+   * the two switches the speed button and the end time had (`barOf`).
+   */
+  playerBar: z.boolean().catch(DEFAULT_MODULES.playerBar),
+  playerBarLayout: KeptBar.nullable().catch(null),
+  /** Whether the bar stays on the video as it plays (`modules.ts` → `barKept`). */
+  playerBarKept: z.boolean().catch(DEFAULT_MODULES.barKept),
+  /** The speed button's and the end time's own switches, before they were rows of the player bar (2026-11-04): read once into its layout, never written again. */
+  speedControl: z.boolean().catch(true),
+  endTime: z.boolean().catch(true),
   /** A short skip with ← or → and a key held (`modules.ts` → `shortSkip`). */
   shortSkip: z.boolean().catch(DEFAULT_MODULES.shortSkip),
   shortSkipKey: SkipKey.catch(DEFAULT_MODULES.shortSkipKey),
@@ -180,10 +204,22 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   mode: store.transcribeMode,
 });
 
+/**
+ * The player bar as laid out: as kept once it has been, and before that as it always stood, with the speed button and
+ * the end time hidden where this browser had switched them off.
+ */
+export const barOf = (store: Stored): BarLayout =>
+  store.playerBarLayout ??
+  DEFAULT_BAR.map((control) => (control.id === "speed" ? { ...control, shown: store.speedControl } : control.id === "endTime" ? { ...control, shown: store.endTime } : control));
+
 /** Which parts are on, as one value, as a page gets them. */
 export const modulesOf = (store: Stored): Modules => ({
   on: store.pankiOn,
   panel: store.modulePanel,
+  panelView: store.panelView,
+  besideRecs: store.besideRecs,
+  stageSide: store.stageSide,
+  stageFull: store.stageFull,
   lookup: store.moduleLookup,
   seek: store.moduleSeek,
   resume: store.resumeHow,
@@ -199,8 +235,9 @@ export const modulesOf = (store: Stored): Modules => ({
   homeRecent: store.homeRecent,
   thumbSave: store.thumbSave,
   shorts: store.moduleShorts,
-  speedControl: store.speedControl,
-  endTime: store.endTime,
+  playerBar: store.playerBar,
+  bar: barOf(store),
+  barKept: store.playerBarKept,
   shortSkip: store.shortSkip,
   shortSkipKey: store.shortSkipKey,
   shortSkipSeconds: store.shortSkipSeconds,

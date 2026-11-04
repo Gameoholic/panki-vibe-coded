@@ -57,16 +57,20 @@ export type Forvo = ReturnType<typeof createForvo>;
 /** A recording as Panki tells of it: who said it, from where, and how many liked it. */
 export const voiceOf = (item: ForvoItem): ForvoVoice => ({ id: item.id, by: item.username, sex: item.sex, country: item.country, votes: item.num_positive_votes });
 
+/** What a request to Forvo was: a word's list (`ref` the word) or a recording's file (`ref` its Forvo id); and whose ask it was. */
+export type ForvoRequest = { what: "list" | "recording"; ref: string; userId: string };
+
 /**
  * `fetcher` is passed in, like the API's clock, so a test can stand in for Forvo. `onRequest` is told of every request
- * made (a word's list, a file), for the count against the day's 500 that Forvo itself doesn't give.
+ * made, as it's made (Forvo counts it whatever comes back), for the usage ledger and the count against the day's 500
+ * that Forvo itself doesn't give.
  */
-export function createForvo(fetcher: typeof fetch = fetch, onRequest: () => void = () => undefined) {
+export function createForvo(fetcher: typeof fetch = fetch, onRequest: (request: ForvoRequest) => void = () => undefined) {
   return {
-    /** A word's recordings as Forvo lists them now, the best liked first: one request. */
-    async list(key: string, word: string): Promise<ForvoItem[]> {
+    /** A word's recordings as Forvo lists them now, the best liked first: one request, for `userId`. */
+    async list(key: string, word: string, userId: string): Promise<ForvoItem[]> {
       let res: Response;
-      onRequest();
+      onRequest({ what: "list", ref: word, userId });
       try {
         // The key goes in the address, as Forvo has it: the address is never logged.
         res = await fetcher(`${API}/key/${encodeURIComponent(key)}/format/json/action/word-pronunciations/word/${encodeURIComponent(word)}/language/ja/order/rate-desc`, {
@@ -89,10 +93,10 @@ export function createForvo(fetcher: typeof fetch = fetch, onRequest: () => void
       // Forvo puts the best rated first; liked by more, first, settles the rest.
       return items.sort((a, b) => b.num_positive_votes - a.num_positive_votes);
     },
-    /** One recording's file (an mp3), from the address its word's list gave: Forvo's own, and good for two hours. One request. */
-    async download(item: ForvoItem): Promise<Buffer> {
+    /** One recording's file (an mp3), from the address its word's list gave: Forvo's own, and good for two hours. One request, for `userId`. */
+    async download(item: ForvoItem, userId: string): Promise<Buffer> {
       let res: Response;
-      onRequest();
+      onRequest({ what: "recording", ref: String(item.id), userId });
       try {
         res = await fetcher(item.pathmp3, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       } catch (e) {

@@ -40,12 +40,12 @@ export function forvoRouter(dbOf: DbOf, mediaDirOf: MediaDirOf, forvo: Forvo, sh
    * kept as having none.
    */
   async function ask(key: string, word: string, userId: string): Promise<ForvoVoice[]> {
-    const items = (await forvo.list(key, word)).slice(0, KEPT_PER_WORD);
+    const items = (await forvo.list(key, word, userId)).slice(0, KEPT_PER_WORD);
     const came = await Promise.all(
       items.map(async (item) => {
         if (shared.hasForvoRecording(item.id)) return item;
         try {
-          const bytes = await forvo.download(item);
+          const bytes = await forvo.download(item, userId);
           shared.keepForvoRecording(item.id, { word, by: item.username, country: item.country, mime: "audio/mpeg", bytes }, userId, now());
           return item;
         } catch (e) {

@@ -9,6 +9,8 @@ import {
   TranscriptFix,
   TranscriptForget,
   TranscriptLineFix,
+  TranscriptLineMark,
+  TranscriptUndo,
   VideoId,
   WholeAsk,
   modesOn,
@@ -187,9 +189,11 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
         return;
       }
       const engineMs = Math.round(performance.now() - askedAt);
+      // Paid for once the engine has answered: the sound sent, a row of the usage ledger.
+      shared.meterSound(engine, "chunk", ids.pieceId, userId, meta.end - meta.sound, now());
       shared.insertPiece(
         { id: ids.pieceId, videoId: ids.videoId, heardFrom: meta.start, startMs: meta.sound, endMs: meta.end, engine, userId, told, language: heard.language, engineMs, runMs: meta.since ?? null, redoId },
-        heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs })),
+        heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs, logprob: w.logprob ?? null })),
         now(),
       );
       const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs };
@@ -220,7 +224,8 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     res.json({ transcript: shared.transcript(videoId) });
   });
 
-  // A line put right by hand (the pencil): its words and where it starts and ends, each word changed kept beside the engine's.
+  // A line edited by hand (the editors, AI step 6): its words and where it starts and ends, each word changed kept
+  // beside the engine's. Its ends never over the line before or after (the owner, 2026-11-03: lines never overlap).
   router.post("/:videoId/lines", (req, res) => {
     const videoId = videoOf(req, res);
     if (!videoId || fixesOff(res)) return;
@@ -230,10 +235,45 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
       res.status(400).json({ error: { message: refined?.message ?? "That isn't a line of the transcript.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    if (!shared.fixLine(videoId, parsed.data, signedIn(res).user.id, now())) {
+    const fixed = shared.fixLine(videoId, parsed.data, signedIn(res).user.id, now());
+    if (!fixed.ok && fixed.problem === "gone") {
       res.status(404).json({ error: { message: "That line isn't in the transcript any more." } });
       return;
     }
+    if (!fixed.ok) {
+      res.status(409).json({ error: { message: "A line can't reach into the line before or after it.", detail: fixed.detail } });
+      return;
+    }
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  // A line split or joined by hand at a word (AI step 6, the editors): everyone's, like an edit, held to the same switch.
+  router.post("/:videoId/line-marks", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId || fixesOff(res)) return;
+    const parsed = TranscriptLineMark.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't a split or a join." } });
+      return;
+    }
+    if (!shared.markLine(videoId, parsed.data.wordId, parsed.data.mark, signedIn(res).user.id, now())) {
+      res.status(404).json({ error: { message: "That line isn't in the transcript any more." } });
+      return;
+    }
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  // Panki AI's edits taken back, one step each (AI step 6): a word's latest, or a whole run's still standing. Everyone's,
+  // like a fix, and held to the same switch.
+  router.post("/:videoId/undo", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId || fixesOff(res)) return;
+    const parsed = TranscriptUndo.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't an edit of Panki AI's." } });
+      return;
+    }
+    shared.undoFixes(videoId, parsed.data, signedIn(res).user.id, now());
     res.json({ transcript: shared.transcript(videoId) });
   });
 

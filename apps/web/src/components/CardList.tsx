@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from "react";
-import { MediaId, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
+import { MediaId, byAi, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
+import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import { HOLD_KINDS, dueWords } from "../srsKinds";
 import { count, langOf } from "../words";
@@ -71,12 +72,16 @@ function cell(card: Card, field: CardField, className: string) {
       </span>
     );
   }
+  // What Panki AI wrote is in the AI's ink; the row carries its spark once, at its top right (`aiOn`).
   return (
-    <span key={field.id} className={`${className} ${kindClass(field.kind)}`.trim()} lang={langOf(value)}>
+    <span key={field.id} className={`${className} ${kindClass(field.kind)} ${byAi(card.sources, field.id) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()} lang={langOf(value)}>
       {value}
     </span>
   );
 }
+
+/** Whether anything on a card's row is Panki AI's: the row then carries the spark once (the owner, 2026-11-04). */
+const aiOn = (card: Card, type: CardType) => type.fields.some((field) => (card.values[field.id] ?? "") !== "" && byAi(card.sources, field.id));
 
 /**
  * Cards as rows: the front fields on the first line, the first one that holds words big; the back fields under them; a
@@ -154,21 +159,24 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
             const itsTwins = twins[card.id] ?? [];
             const twin = itsTwins.length > 0 ? twinWords(card, itsTwins) : null;
             const when = srsType ? dueWords(srsType, card, now) : null;
+            const ai = aiOn(card, type);
+            const state = srsType || twin || card.examples.length > 0 || ai;
             return (
               <li
                 key={card.id}
-                className={`card-row ${srsType || twin || card.examples.length > 0 ? "has-state" : ""} ${onEdit || onRemove || onPreview || onSuspend ? "has-tools" : ""} ${card.hold?.kind === "suspend" ? "is-suspended" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${state ? "has-state" : ""} ${onEdit || onRemove || onPreview || onSuspend ? "has-tools" : ""} ${card.hold?.kind === "suspend" ? "is-suspended" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
-                {srsType || twin || card.examples.length > 0 ? (
+                {state ? (
                   <div className="card-state">
-                    {srsType ? (
-                      <>
-                        <PlacePill type={srsType} place={card.place} />
-                        {when === null ? null : <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{when}</span>}
-                      </>
+                    {srsType || ai ? (
+                      <span className="card-state-top">
+                        {ai ? <AiSpark className="card-ai" /> : null}
+                        {srsType ? <PlacePill type={srsType} place={card.place} /> : null}
+                      </span>
                     ) : null}
+                    {srsType && when !== null ? <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{when}</span> : null}
                     {/* Its own example and each one added to it. */}
                     {card.examples.length > 0 ? <span className="card-example-count">{count(card.examples.length + 1, "example", "examples")}</span> : null}
                     {twin && onTwins ? (

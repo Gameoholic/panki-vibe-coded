@@ -25,9 +25,11 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
+/* Everything in it is centred on one line: lined up by their text's baseline, a chip that begins with an icon (the
+   View's) has none there, so it was lined up by its icon's foot and sat lower than the one beside it. */
 .strip-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   font-size: 12px;
@@ -576,86 +578,500 @@
   gap: 10px;
   flex-wrap: wrap;
 }
-/* A transcript's word being fixed: the app's field with Save and Cancel in one row under the rows. */
-.strip-fix {
-  display: flex;
-  align-items: start;
-  gap: 8px;
-  margin-top: 8px;
-}
-.strip-fix .field {
-  flex: 1;
-  min-width: 0;
-}
-.strip-fix .field-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-.strip-fix .btn {
-  margin-top: 1px;
-}
-/* The rows give way while one is fixed with its pencil. */
+/* The rows give way while the strip is open as the editor. */
 .strip-rows[hidden] {
   display: none;
 }
-/* A row of the transcript with its pencil at the end (`content/youtube.tsx` → `Row`): the words take the room, the
-   pencil keeps its own. Dim and not to be pressed while the video plays or the whole video is on its way. */
-.strip-row {
+/* The panel beside the video (`PanelView` "beside"; the owner, 2026-11-03): in the column beside the player and as tall
+   as it (`--panki-beside-h`, written by the page as the player's height), its head on top and the whole transcript
+   under it, scrolled inside the panel, never the page. */
+.strip.is-beside {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: var(--panki-beside-h, 480px);
+  min-height: 320px;
+  padding: 8px 6px 6px 12px;
+}
+.strip.is-beside .strip-head {
+  padding-right: 6px;
+}
+/* On the stage (`PanelView` "stage"): the panel is the screen's whole other side, its height the screen's, edge to edge;
+   the column it stands in draws the line between it and the video. */
+.strip.is-stage {
+  border: 0;
+  border-radius: 0;
+  min-height: 100%;
+  padding-top: 12px;
+}
+/* The column is narrow (beside the video, Theatre mode): the head is the name, the source, the view and the three small
+   buttons at the far end on its first line, then the rest of the tools on a line of their own from the left, wrapping
+   as a row; never a ragged stack at the right. */
+.strip-corner {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  margin-left: auto;
 }
-.strip-row > .line {
+/* Theatre mode's switch, lit while it's on. */
+.btn.strip-theatre[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.strip.is-beside .strip-tools {
+  flex: 1 0 100%;
+  margin-left: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+.strip.is-beside .strip-tools:empty {
+  display: none;
+}
+/* There a menu opens under the whole head, the panel's width, wherever its button stands in the row: hung from its
+   button it ran past the column's edge. */
+.strip.is-beside .strip-head {
+  position: relative;
+}
+.strip.is-beside .strip-menu-wrap {
+  position: static;
+}
+.strip.is-beside .strip-menu,
+.strip.is-beside .strip-menu.is-settings {
+  left: 0;
+  right: 0;
+  width: auto;
+}
+.strip-list {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  padding-right: 6px;
+}
+.strip-list.is-empty {
+  align-content: center;
+}
+/* A line: its time, pressed to go there, then its words; the one the video is at tinted whole. */
+.strip-list-line {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 0 6px;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.strip-list-line.is-now {
+  background: var(--accent-soft);
+}
+.btn.strip-list-time {
+  justify-content: flex-start;
+  align-self: start;
+  gap: 3px;
+  height: auto;
+  min-height: 0;
+  padding: 0.45em 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) {
+  .btn.strip-list-time:hover {
+    background: transparent;
+    color: var(--accent);
+  }
+}
+.btn.strip-list-time .ai-spark {
+  width: 9px;
+  height: 9px;
+}
+.strip-list .line {
+  font-size: 17px;
+  line-height: 1.65;
+}
+/* The editor beside the video: every line, scrolled inside the panel under its bar. */
+.strip.is-beside .strip-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.strip-editor.is-whole .strip-editor-lines {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+  font-size: 17px;
+  padding-right: 6px;
+}
+/* Proofread (AI step 6). The menu in three parts, each named (A of the owner's preview, Sections): a part's label, set
+   in as an item is; a row inside a part takes the part's own line, never one of its own. */
+.strip-menu-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 2px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.strip-menu-label .ai-spark {
+  width: 13px;
+  height: 13px;
+}
+.strip-menu-items > .strip-menu-row {
+  padding: 7px 10px;
+  border-top: 0;
+}
+.strip-menu-items > .ai-run-ask,
+.strip-menu-undo {
+  margin: 2px 0 4px;
+}
+/* Once a run is made, the AI's head is the Panki AI part's heading: its name in the label's place and look, the status
+   and the cost at its right (the owner, 2026-11-03: "having Panki AI twice there is kinda wack"). */
+.strip-menu-items > .ai-status {
+  margin-bottom: 4px;
+}
+.strip-menu-items > .ai-status > .ai-status-head {
+  padding: 0 10px 2px;
+}
+.strip-menu-items > .ai-status .ai-status-name {
+  font-weight: 800;
+}
+.strip-menu-items > .ai-status .ai-status-name > .ai-spark {
+  width: 13px;
+  height: 13px;
+}
+/* What the latest run left standing, and Undo all for it, under the head. */
+.strip-menu-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+/* The template arrow joined to Proofread the entire video, the item taking the row. */
+.strip-menu-items > .ai-split {
+  display: flex;
+  align-items: stretch;
+}
+.strip-menu-items > .ai-split > .btn-item {
   flex: 1;
   min-width: 0;
 }
-.btn.strip-row-edit {
-  flex: none;
-  padding: 4px;
-  border-color: transparent;
+/* Under a part's button: what it can cost. */
+.strip-menu-form-note {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--muted);
 }
-.btn.strip-row-edit .icon {
+/* A word Panki AI edited, lit in the accent with the spark after it, under the player and over the video. A picked
+   word keeps the pick's own colour. */
+.btn.tok.is-ai:not([aria-pressed="true"]) {
+  color: var(--accent);
+}
+.tok-spark {
+  display: inline-flex;
+  vertical-align: super;
+  margin-left: 1px;
+}
+.tok-spark .ai-spark {
+  width: 0.45em;
+  height: 0.45em;
+}
+.over-line .btn.tok.is-ai:not([aria-pressed="true"]) {
+  color: var(--theater-mark);
+}
+/* A line typed in where it stands (`ui/LineText.tsx`): the text box and the drawing of its text one over the other in
+   the same cell, the same font, wrapping and padding, so the caret stands in the words; the box's own text is clear and
+   the drawing shows through, Panki AI's words lit with the spark, which takes no room. */
+.line-text {
+  display: grid;
+  min-width: 0;
+  border-radius: 6px;
+}
+.line-text > .line-text-drawn,
+.line-text > .line-text-input {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.line-text-input {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
+  outline: none;
+}
+.line-text-input::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.line-text:hover {
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+.line-text:focus-within {
+  background: var(--surface);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.line-text-ai {
+  position: relative;
+  color: var(--accent);
+}
+.line-text-spark {
+  position: absolute;
+  top: -0.2em;
+  right: -0.32em;
+  width: 0.42em;
+  height: 0.42em;
+  pointer-events: none;
+}
+.line-text-spark .ai-spark {
+  width: 100%;
+  height: 100%;
+}
+/* B: the strip opened as the editor (`ui/TranscriptEditor.tsx` → `StripEditor`): a bar that says so with Done, then the
+   lines around the moment, each its time and its text; the one being edited lit at its left, its tools under it. */
+.strip-editor {
+  display: grid;
+  gap: 6px;
+}
+.strip-editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+.strip-editor-bar b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.strip-editor-bar .icon {
   width: 15px;
   height: 15px;
 }
-.btn.strip-row-edit:disabled {
-  opacity: 0.3;
-}
-/* A row being fixed: where it starts, what it says, where it ends, then Save and Cancel, in one line while there's room
-   (the field taking what's left), its ends and buttons on a line of their own when there isn't. */
-.strip-edit {
-  display: flex;
+.strip-editor-end {
+  margin-left: auto;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 4px 0 2px;
-  font-size: 14px;
+  gap: 10px;
 }
-.strip-edit > .field {
-  flex: 1 1 260px;
+.strip-editor-said {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--good);
+}
+.strip-editor-said.is-failed {
+  color: var(--danger);
+}
+.editor-quiet {
+  color: var(--muted);
+  font-weight: 500;
+}
+.strip-editor-lines {
+  display: grid;
+  font-size: 20px;
+  line-height: 1.6;
+}
+.strip-editor-line {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.strip-editor-line.is-now {
+  background: var(--accent-soft);
+}
+/* The line being edited, tinted whole (never a stripe down its side: `CONVENTIONS.md`). */
+.strip-editor-line.is-focus {
+  background: var(--surface-2);
+}
+.strip-editor-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: start;
+  padding: 0.35em 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .strip-editor-time:hover {
+    color: var(--accent);
+  }
+}
+.strip-editor-time .ai-spark {
+  width: 10px;
+  height: 10px;
+}
+.strip-editor-line > .ai-waiting {
   min-width: 0;
 }
-.strip-edit > .field .field-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+.strip-editor-tools {
+  grid-column: 2;
+  display: grid;
+  gap: 6px;
+  padding: 2px 0 6px;
+  font-size: 13px;
+  line-height: 1.4;
 }
-.strip-edit .btn.capture-time {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.strip-editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.btn.editor-tool {
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 12.5px;
   border-color: var(--line);
 }
-.strip-edit-actions {
+.btn.editor-tool.is-danger {
+  color: var(--danger);
+  border-color: transparent;
+}
+.btn.editor-tool .icon,
+.btn.editor-tool .ai-spark {
+  width: 14px;
+  height: 14px;
+}
+.editor-key {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0 4px;
+}
+.editor-times {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.editor-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.editor-time .btn.editor-tool {
+  padding: 1px 6px;
+  border-color: transparent;
+}
+/* The caret in a word Panki AI edited: what was heard, why, and Undo. */
+.editor-ai {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.editor-ai-head {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.editor-ai-head .ai-spark {
+  width: 14px;
+  height: 14px;
+}
+/* C: the subtitle over the video edited where it stands (`OverLineEditor`): its hint and, with the caret in an edited
+   word, its note over it; the text in the band's own look, the caret in its ink. */
+.over-line.is-editing {
+  pointer-events: auto;
+}
+.over-editor {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+.over-editor-hint {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theater) 80%, transparent);
+  color: var(--theater-ink);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.over-editor-hint .editor-key {
+  color: var(--theater-ink);
+  border-color: color-mix(in srgb, var(--theater-ink) 40%, transparent);
+}
+.over-editor-hint .btn.editor-tool {
+  color: var(--theater-ink);
+  background: color-mix(in srgb, var(--theater-ink) 14%, transparent);
+  border-color: transparent;
+}
+.over-editor .editor-ai {
+  font-family: var(--font);
+  max-width: min(420px, 90%);
+}
+.over-editor-failure {
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--theater-ink);
+  background: var(--danger);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.line-text.is-over {
+  box-shadow: 0 0 0 2px var(--theater-mark);
+}
+.line-text.is-over:hover,
+.line-text.is-over:focus-within {
+  background: transparent;
+}
+.line-text.is-over .line-text-input {
+  caret-color: var(--theater-ink);
+}
+.line-text.is-over .line-text-ai {
+  color: var(--theater-mark);
 }
 /* The transcript over the video (the line being said): the same words as under the player, on a dark band that
    sits over the picture whatever the theme, each word still a box to press. */
@@ -706,89 +1122,190 @@
   color: var(--theater-ink);
 }
 /* The player's speed among its own controls (ui/SpeedControl.tsx, a YouTube utility): − and + of the player's own kind,
-   white on the picture, round the speed; the speed pressed, a dark panel above it of the speed, its slider and the
-   common speeds, the one playing lit. */
+   white on the picture, round the speed; the speed pressed, the site's own Playback speed panel above it. Its words,
+   and the end time's, are in the player's own time's type, read off the page as it stands (`content/playerBar.ts` →
+   `--yt-bar-*`; the owner, 2026-11-04: "the font of the 1.1× I think is wrong"); on the options page, as it was read
+   when this was written. */
 .yt-speed {
   position: relative;
   display: inline-flex;
   align-items: center;
   height: 100%;
 }
-.btn.btn-ghost.yt-speed-button {
-  height: 100%;
-  min-width: 44px;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--theater-ink);
-  font: 500 13px/1 "Roboto", "Arial", var(--font);
-  font-variant-numeric: tabular-nums;
-  opacity: 0.9;
-}
-@media (hover: hover) {
-  .btn.btn-ghost.yt-speed-button:hover {
-    background: transparent;
-    color: var(--theater-ink);
-    opacity: 1;
-  }
-}
-.btn.btn-ghost.yt-speed-button:focus-visible,
-.btn.btn-ghost.yt-speed-step:focus-visible {
-  outline: 2px solid var(--theater-ink);
-  outline-offset: -2px;
-}
+.btn.btn-ghost.yt-speed-button,
 .btn.btn-ghost.yt-speed-step {
   height: 100%;
-  min-width: 24px;
-  padding: 0 4px;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--theater-ink);
-  font: 400 18px/1 "Roboto", "Arial", var(--font);
-  opacity: 0.75;
+  color: var(--yt-bar-ink, var(--theater-ink));
+  font-family: var(--yt-bar-family, "Roboto", "Arial", sans-serif);
+  font-size: var(--yt-bar-size, 15px);
+  font-weight: var(--yt-bar-weight, 400);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
-@media (hover: hover) {
-  .btn.btn-ghost.yt-speed-step:hover:not(:disabled) {
-    background: transparent;
-    color: var(--theater-ink);
-    opacity: 1;
-  }
+.btn.btn-ghost.yt-speed-button {
+  min-width: 44px;
+  padding: 0 8px;
+}
+.btn.btn-ghost.yt-speed-step {
+  min-width: 40px;
+  padding: 0;
 }
 .btn.btn-ghost.yt-speed-step:disabled {
   opacity: 0.3;
 }
-/* Well above the controls, so it clears the seek bar that runs just over them (the owner's screenshot, 2026-10-21). */
+/* Panki's buttons on the player's bar (the speed's −, its speed and +, Theatre mode with the Panki panel) hover as the
+   site's own do (the owner, 2026-11-04: "the hover CSS is a little different on ours"): the icon or words stay white,
+   and a lighter glass disc comes up behind them, as big as the button's room, a pill round words; pressed, a shade
+   more; with the keyboard, the disc and a ring. They stand in Panki's closed shadow roots, where the site's own
+   stylesheet can't reach, so the site's look is said again here, as it draws it. */
+.btn.btn-ghost.yt-speed-step,
+.btn.btn-ghost.yt-speed-button,
+.btn.btn-ghost.yt-bar-button {
+  position: relative;
+  isolation: isolate;
+  opacity: 1;
+}
+.btn.btn-ghost.yt-speed-step::before,
+.btn.btn-ghost.yt-speed-button::before,
+.btn.btn-ghost.yt-bar-button::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 20px;
+  background: transparent;
+  transition: background-color 0.1s;
+  pointer-events: none;
+}
+/* Round words, a pill as wide as the button. */
+.btn.btn-ghost.yt-speed-button::before {
+  left: 0;
+  right: 0;
+  width: auto;
+  margin-left: 0;
+}
+@media (hover: hover) {
+  .btn.btn-ghost.yt-speed-step:hover:not(:disabled),
+  .btn.btn-ghost.yt-speed-button:hover,
+  .btn.btn-ghost.yt-bar-button:hover {
+    background: transparent;
+    color: var(--theater-ink);
+  }
+  .btn.btn-ghost.yt-speed-step:hover:not(:disabled)::before,
+  .btn.btn-ghost.yt-speed-button:hover::before,
+  .btn.btn-ghost.yt-bar-button:hover::before {
+    background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
+  }
+}
+.btn.btn-ghost.yt-speed-step:active:not(:disabled)::before,
+.btn.btn-ghost.yt-speed-button:active::before,
+.btn.btn-ghost.yt-bar-button:active::before {
+  background: color-mix(in srgb, var(--theater-ink) 20%, transparent);
+}
+.btn.btn-ghost.yt-speed-step:focus-visible,
+.btn.btn-ghost.yt-speed-button:focus-visible,
+.btn.btn-ghost.yt-bar-button:focus-visible {
+  outline: none;
+}
+.btn.btn-ghost.yt-speed-step:focus-visible::before,
+.btn.btn-ghost.yt-speed-button:focus-visible::before,
+.btn.btn-ghost.yt-bar-button:focus-visible::before {
+  background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
+  box-shadow: 0 0 0 2px var(--theater-ink);
+}
+/* The site's own Playback speed panel, as its gear opens it (the owner's picture, 2026-11-04): a wide panel of the
+   player's dark glass with soft corners, above the bar's seek line; its head (the way back, the name) over a hairline;
+   the speed big in the middle; a round glass − and +, the white slider between; the presets as round glass pills in a
+   row, Standard small and quiet under 1. They stand in Panki's shadow root, where the site's stylesheet doesn't reach,
+   so its look is said again here, from its picture: its glass and white are the player's own, not Panki's tokens. */
 .yt-speed-pop {
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 40px);
+  right: -8px;
+  bottom: calc(100% + 26px);
   display: grid;
-  gap: 8px;
-  width: 300px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--theater) 90%, transparent);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--theater) 45%, transparent);
+  width: 400px;
+  padding: 0 0 18px;
+  border-radius: 16px;
+  background: rgba(28, 28, 28, 0.72);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.3);
   color: var(--theater-ink);
+  font-family: "Roboto", "Arial", sans-serif;
   white-space: nowrap;
+}
+.yt-speed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 52px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+/* × at the head's right: the panel's round glass, as its − and + are. */
+.btn.btn-ghost.yt-speed-close {
+  width: 32px;
+  height: 32px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--theater-ink);
+}
+.btn.btn-ghost.yt-speed-close .icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.4;
+}
+.yt-speed-title {
+  font-size: 14px;
+  font-weight: 500;
 }
 .yt-speed-read {
   justify-self: center;
-  font: 500 15px/1 "Roboto", "Arial", var(--font);
+  margin: 26px 0 22px;
+  font-size: 20px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-/* The slider: a line taller to press than it looks, its knob, and the marks under it at their speeds (0.1× and 10×
-   held inside its ends). */
-.yt-speed-slider {
+.yt-speed-row {
   display: grid;
-  gap: 4px;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 20px;
+  padding: 0 20px;
+}
+.btn.btn-ghost.yt-speed-round {
+  width: 36px;
+  height: 36px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--theater-ink);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+}
+.btn.btn-ghost.yt-speed-round:disabled {
+  opacity: 0.4;
+}
+/* The slider: a line taller to press than it looks, white up to its round white knob, grey after it. */
+.yt-speed-slider {
+  display: block;
 }
 .yt-speed-line {
   display: block;
-  padding: 9px 0;
+  padding: 12px 0;
   cursor: pointer;
   touch-action: none;
 }
@@ -802,7 +1319,7 @@
   display: block;
   height: 4px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--theater-ink) 25%, transparent);
+  background: rgba(255, 255, 255, 0.3);
 }
 .yt-speed-track i {
   position: absolute;
@@ -813,64 +1330,91 @@
 .yt-speed-track b {
   position: absolute;
   top: 50%;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--theater-ink);
   transform: translate(-50%, -50%);
   transition: transform 0.1s;
 }
 .yt-speed-line.is-pulling .yt-speed-track b {
-  transform: translate(-50%, -50%) scale(1.2);
-}
-.yt-speed-marks {
-  position: relative;
-  height: 12px;
-  color: color-mix(in srgb, var(--theater-ink) 60%, transparent);
-  font: 400 11px/12px "Roboto", "Arial", var(--font);
-  font-variant-numeric: tabular-nums;
-}
-.yt-speed-marks span {
-  position: absolute;
-  transform: translateX(-50%);
-}
-.yt-speed-marks span:first-child {
-  transform: none;
-}
-.yt-speed-marks span:last-child {
-  transform: translateX(-100%);
+  transform: translate(-50%, -50%) scale(1.15);
 }
 .yt-speed-presets {
   display: flex;
-  gap: 4px;
+  gap: 10px;
+  margin-top: 22px;
+  padding: 0 20px;
+}
+.yt-speed-preset {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.yt-speed-preset small {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
 }
 .yt-speed-pop .btn.btn-chip.yt-speed-chip {
-  flex: 1;
-  height: 30px;
+  width: 100%;
+  height: 36px;
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--theater-ink) 10%, transparent);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.1);
   color: var(--theater-ink);
-  font: 500 13px/1 "Roboto", "Arial", var(--font);
+  font-size: 15px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 .yt-speed-pop .btn.btn-chip.yt-speed-chip[aria-pressed="true"] {
-  background: var(--theater-ink);
-  color: var(--theater);
+  background: rgba(255, 255, 255, 0.3);
 }
-/* When the video will end (ui/EndTime.tsx, a YouTube utility): right after the player's own time, in its own white type,
-   a little quieter than the time itself. */
+/* The panel's buttons hover as its menu's do: a lighter glass. */
+@media (hover: hover) {
+  .btn.btn-ghost.yt-speed-close:hover,
+  .btn.btn-ghost.yt-speed-round:hover:not(:disabled),
+  .yt-speed-pop .btn.btn-chip.yt-speed-chip:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--theater-ink);
+  }
+}
+/* When the video will end (ui/EndTime.tsx, a YouTube utility): right after the player's own time, in the time's own
+   type (`--yt-bar-*`, as the speed button is), a little quieter than the time itself. */
 .yt-end {
   padding: 0 8px 0 2px;
-  color: var(--theater-ink);
-  font: 400 13px/1 "Roboto", "Arial", var(--font);
+  color: var(--yt-bar-ink, var(--theater-ink));
+  font-family: var(--yt-bar-family, "Roboto", "Arial", sans-serif);
+  font-size: var(--yt-bar-size, 15px);
+  font-weight: var(--yt-bar-weight, 400);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   opacity: 0.75;
 }
+/* One of Panki's buttons among the player's own (content/playerBar.ts: Theatre mode), of their kind: as tall as the bar,
+   its icon white on the picture, lit while what it switches is on. */
+.btn.btn-ghost.yt-bar-button {
+  height: 100%;
+  min-width: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--theater-ink);
+}
+.btn.btn-ghost.yt-bar-button .icon {
+  width: 24px;
+  height: 24px;
+}
+.btn.btn-ghost.yt-bar-button[aria-pressed="true"],
+.btn.btn-ghost.yt-bar-button[aria-pressed="true"]:hover {
+  color: var(--accent);
+}
+/* Its hover, pressed and keyboard looks are the site's own, with the speed button's, below. */
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
   display: inline-flex;
@@ -1217,17 +1761,7 @@
   height: 100%;
   object-fit: cover;
 }
-/* The corner of a card's picture: how much is left, or the video's length, as the site's own badge. */
-.yc-time {
-  position: absolute;
-  right: 4px;
-  bottom: 7px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--theater) 80%, transparent);
-  color: var(--theater-ink);
-  font: 500 11px/1 var(--yh-font);
-}
+/* The corner of a card's picture, `.yc-time`, is the app's (app.css): the explainers' video site draws it too. */
 .yc-bar {
   position: absolute;
   left: 0;
@@ -1459,6 +1993,200 @@
   cursor: grab;
   touch-action: none;
 }
+/* Whose a part is, after its name (the player bar's YouTube / Panki): quiet, as a dropdown choice's note is. */
+.pill-row-note {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 13px;
+}
+/* The options page's preview of the player's control bar (options/PlayerBar.tsx): the foot of a made-up video, its
+   picture a soft light one as the site's videos often are, so the bar's glass reads as it does over a real video. */
+.bar-preview {
+  padding: 44px 0 0;
+  border-radius: 14px;
+  background:
+    radial-gradient(90% 140% at 20% 0%, color-mix(in srgb, var(--site-dark-ink) 70%, transparent), transparent 70%),
+    radial-gradient(80% 120% at 85% 30%, color-mix(in srgb, var(--mark-yellow) 35%, transparent), transparent 65%),
+    var(--site-dark-muted);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theater) 10%, transparent);
+}
+/* Greyed with the panel's switch off, as a disabled row is: YouTube's own bar, to look at only. */
+.bar-preview.is-off {
+  opacity: 0.5;
+}
+/* The player's bar as the site's 2025 player draws it (options/BarControls.tsx), at a player's real width and scaled to
+   the room it has (`.ytb-fit` holds the scaled height): the seek bar along its top, a thin grey line with the played
+   part red and its red dot; under it the left's round glass pills and the time's long one, and the right's one glass
+   strip of bare icons. The site's own colours, which aren't Panki's tokens: its red and its dark glass. */
+.ytb-fit {
+  position: relative;
+  width: 100%;
+}
+.ytb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  grid-template-rows: 20px 1fr;
+  padding: 0 12px 10px;
+  box-sizing: border-box;
+  transform-origin: top left;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--theater) 35%, transparent));
+  color: var(--site-dark-ink);
+  font-family: "Roboto", "Arial", var(--font);
+}
+.ytb-progress {
+  position: relative;
+  align-self: center;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--site-dark-ink) 40%, transparent);
+}
+.ytb-progress i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: #f03;
+}
+.ytb-progress b {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin: -6.5px 0 0 -6.5px;
+  border-radius: 50%;
+  background: #f03;
+}
+.ytb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.ytb-left,
+.ytb-strip {
+  display: flex;
+  align-items: center;
+  height: 48px;
+}
+.ytb-left {
+  gap: 12px;
+}
+/* The site's dark glass: its pills and its strip over the picture. */
+.ytb-round,
+.ytb-pill,
+.ytb-strip {
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(16px);
+}
+.ytb-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+.ytb-round .icon {
+  width: 24px;
+  height: 24px;
+}
+.ytb-speaker .icon path:first-child {
+  fill: currentColor;
+}
+.ytb-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ytb-strip {
+  padding: 0 8px;
+  border-radius: 24px;
+}
+.ytb-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 48px;
+}
+.ytb-icon .icon {
+  width: 24px;
+  height: 24px;
+}
+/* The autoplay switch: a short grey track, its knob a white disc holding the pause mark. */
+.ytb-autoplay {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 14px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--site-dark-ink) 45%, transparent);
+}
+.ytb-autoplay i {
+  position: absolute;
+  top: 50%;
+  left: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  border-radius: 50%;
+  background: var(--site-dark-ink);
+  color: var(--site-dark);
+}
+.ytb-autoplay .icon {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3.5;
+}
+/* Each control as tall as the bar, so Panki's own (the speed button, the end time) stand as they do on a video. */
+.ytb-control {
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+}
+.ytb .yt-end {
+  font-size: 15px;
+  opacity: 0.9;
+}
+/* In the Player bar's explainer: a control coming onto the bar pops in where its row puts it, one going shrinks away. */
+.ytb-control.is-coming {
+  animation: intro-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+.ytb-control.is-going {
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+/* The bar along the explainer's player, in place of its made-up controls. */
+.ex-player .ytb-fit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+/* A side's rows under its name, Left then Right. */
+.bar-side {
+  display: grid;
+  gap: 6px;
+}
+.bar-side-title {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
 /* Going on from where the video was stopped, offered on the picture for a few seconds as it opens: the shape Netflix
    gives Skip Intro (the owner, 2026-10-21), in the player's bottom right corner above its controls. White on the
    picture whatever the theme, as words on a picture are; it slides in from its edge and is gone as soon as it's taken
@@ -1602,61 +2330,6 @@
   }
 }
 
-/* Something that opens and closes by its height, fading as it goes (ui/Fold.tsx), so what's around it is moved aside
-   and let back instead of jumping. One row of a grid, taken from nothing to the height of what's in it; how long that
-   takes is handed in by the component, its one home. While it moves, what's in it is cut off at its edge; at rest
-   nothing is, so a shadow or a focus ring can reach out of it. The easing is the app's own (the opening moment's). */
-.fold {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 1fr;
-}
-.fold > .fold-body {
-  min-height: 0;
-  overflow: hidden;
-}
-.fold.is-still > .fold-body {
-  overflow: visible;
-}
-.fold.is-away {
-  grid-template-rows: 0fr;
-  visibility: hidden;
-}
-.fold.is-in {
-  animation: fold-in var(--fold-in) cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.fold.is-out {
-  animation: fold-out var(--fold-out) cubic-bezier(0.4, 0, 0.7, 1) both;
-}
-@keyframes fold-in {
-  from {
-    grid-template-rows: 0fr;
-    opacity: 0;
-  }
-  to {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-}
-@keyframes fold-out {
-  from {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-  to {
-    grid-template-rows: 0fr;
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-/* Asked for less motion: it's simply there, and simply gone. (Not `none`: whoever waits for it to end still hears so.) */
-@media (prefers-reduced-motion: reduce) {
-  .fold.is-in,
-  .fold.is-out {
-    animation-duration: 1ms;
-  }
-}
-
 /* A small dot that breathes: something is going on by itself, and will stop by itself. */
 .live-dot {
   flex: none;
@@ -1664,12 +2337,8 @@
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
+  /* The keyframes are the app's (app.css), which the AI's status breathes by too. */
   animation: live-dot 1.2s ease-in-out infinite;
-}
-@keyframes live-dot {
-  50% {
-    opacity: 0.3;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .live-dot {
@@ -1677,11 +2346,8 @@
   }
 }
 
-/* The capture drawer: the app's panel, lifted off a page that isn't the app's. Top to bottom: the card as a review
-   will show it, what's typed about the word, the sentence, the clip, Add. */
-.capture {
-  box-shadow: var(--shadow);
-}
+/* The capture drawer. Its frame, its head and its first row (Touch up and Add) are the app's (app.css, "Panki AI on a
+   page"): Settings → Panki AI's explainer draws them too. What only the extension draws of it is here. */
 /* The room between the drawer and what it stands beside on the page is inside what folds, so it opens and closes with
    the drawer and nothing is left to jump at the end. Whoever puts the drawer on a page says how much, on its place. */
 .capture-fold > .fold-body {
@@ -1716,19 +2382,6 @@
   border-width: 1px;
   border-style: solid;
   border-radius: var(--radius-sm);
-}
-.capture-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.capture-head .panel-title {
-  margin: 0;
-}
-/* Nothing in the drawer is ever wider than the drawer: a long word breaks, it doesn't push the column out. */
-.capture .add-form > * {
-  min-width: 0;
 }
 /* The card is the app's own review card, standing on the app's own ground so it reads as a look into the app. Here
    a press turns it over and another turns it back, so it stays something to press once it's turned. */
@@ -2268,15 +2921,6 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-/* The drawer's last row: Discard, and Add taking the rest of it. One height, so the two stand as a pair. */
-.capture-ends {
-  display: flex;
-  gap: 8px;
-}
-.btn.capture-add {
-  flex: 1;
-  min-width: 0;
-}
 .capture-progress {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2355,33 +2999,8 @@
   font-family: var(--font-ja), var(--font);
 }
 
-/* Looking a word up: the popup over the page, and the word it's for, lit. Both stand in a place of Panki's laid over
-   the whole window that lets every press through but the ones on the popup itself. */
-.look-lit {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-.look {
-  position: absolute;
-  pointer-events: auto;
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 12px 14px;
-  font-size: 15px;
-  line-height: 1.5;
-  /* Its own ink, whatever it stands on: inside a page of another colour (an explainer's news page) it read dark on dark. */
-  color: var(--fg);
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
+/* Looking a word up. The pop-up's frame, its word's head and a dictionary's meanings are the app's (app.css, "Panki AI
+   on a page"): Settings → Panki AI's explainer draws them too. What only the extension draws of it is here. */
 .look-split {
   display: flex;
   flex-wrap: wrap;
@@ -2430,51 +3049,6 @@
 .look-split .btn-chip.look-split-reading[aria-pressed="true"] {
   color: var(--accent);
 }
-.look-dict-name {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.look-word {
-  display: grid;
-  gap: 6px;
-}
-.look-word + .look-word {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.look-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 4px 12px;
-}
-.look-term {
-  font-family: var(--font-ja), var(--font);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-.look-term rt {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-}
-/* A reading with its pitch in the popup: the app's own drawing (`.pitch-accent`), small and quiet here. */
-.look-pitch {
-  padding-bottom: 4px;
-  font-family: var(--font-ja), var(--font);
-  font-size: 14px;
-  color: var(--muted);
-}
-.btn.look-add {
-  margin-left: auto;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: 13px;
-}
 .look-tags {
   display: flex;
   flex-wrap: wrap;
@@ -2520,24 +3094,15 @@
   height: 1.5px;
   background: var(--line-strong);
 }
-.look-dict {
-  display: grid;
-  gap: 2px;
+/* The meaning Explain proposes (Lookup.tsx → `ProposedRow`): one more row after the dictionaries', the spark where a
+   meaning's tags sit. */
+.look-proposed {
+  margin-top: 3px;
 }
-.look-senses {
-  display: grid;
-  gap: 3px;
-  margin: 0;
-  padding-left: 20px;
-}
-.look-senses > li::marker {
-  font-weight: 700;
-  color: var(--muted);
-}
-.look-senses .look-tags {
-  display: inline-flex;
+.look-proposed-spark {
   margin-right: 6px;
-  vertical-align: 1px;
+  vertical-align: -2px;
+  color: var(--accent);
 }
 /* A formatted definition, drawn from the few pieces it's allowed. */
 .gloss-structured ul,
@@ -2634,6 +3199,8 @@
   width: 14px;
   height: 14px;
 }
+/* Explain, Touch up and what runs them (`ai-explain-*`, `touch-up-*`, `ai-split`, `ai-run-ask`) are the app's
+   (app.css, "Panki AI on a page"): the components are the web's, which Settings → Panki AI's explainers draw too. */
 @media (prefers-reduced-motion: reduce) {
   .btn.look-fold .icon {
     transition: none;
@@ -3198,23 +3765,11 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
 }
 
-/* ---------- What a panel's feature is, shown (explainerScenes.tsx) ----------
-   The (?), its window and the browser with a page in it are the app's (`@web/components/Explainer`, `app.css` →
-   `.explain-*`, since 2026-11-02); what follows is what only the extension's scenes draw on their made-up sites. */
-/* A video's thumbnail (the owner's picks, bundled: options/thumbs/), cropped to its box as the site crops it. */
-.ex-thumb,
-.ex-frame {
-  display: block;
-  width: 100%;
-  object-fit: cover;
-  background: var(--site-dark-raised);
-}
-/* The picture of the video being watched, filling the player. */
-.ex-frame {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-}
+/* ---------- The options page's explainers (options/explainerScenes.tsx) ----------
+   The explainer itself (`explain-*`, `@web/components/Explainer`, since 2026-11-02) and the video site the scenes play
+   on (`.ex-yt`, `.ex-video`, `.ex-thumb`, the drawer's place, the band over the video) are the app's (app.css):
+   Settings → Panki AI and Keybinds have explainers too. What only the options page's scenes draw is here: the news
+   site, the Panki panel, the player's controls, YouTube's home. */
 
 /* A news site, in its own colours */
 .ex-news {
@@ -3302,55 +3857,7 @@
   font: 400 13px var(--font-ja, var(--font));
 }
 
-/* A video site, dark, in its own colours: what Panki draws there reads them as it does on the site (--yt-spec-*). */
-.ex-yt {
-  position: absolute;
-  inset: 0;
-  background: var(--site-dark);
-  color: var(--site-dark-ink);
-  --yt-spec-text-primary: var(--site-dark-ink);
-  --yt-spec-text-secondary: var(--site-dark-muted);
-  --yt-spec-badge-chip-background: var(--site-dark-raised);
-  --yt-spec-10-percent-layer: var(--site-dark-line);
-  --yt-spec-base-background: var(--site-dark);
-}
-.ex-yt-top {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  height: 56px;
-  padding: 0 24px;
-}
-.ex-yt-menu {
-  flex: none;
-  width: 22px;
-  height: 15px;
-  background: repeating-linear-gradient(var(--site-dark-ink) 0 2px, transparent 2px 6.5px);
-  opacity: 0.85;
-}
-.ex-yt-mark {
-  flex: none;
-  width: 90px;
-  height: 22px;
-  border-radius: 5px;
-  background: var(--site-dark-raised);
-}
-.ex-yt-search {
-  flex: 0 1 420px;
-  height: 38px;
-  margin-left: 80px;
-  border: 1px solid var(--site-dark-line);
-  border-radius: 19px;
-  background: var(--site-dark);
-}
-.ex-yt-avatar {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  margin-left: auto;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--mark-blue), var(--mark-violet));
-}
+/* Panki's pill in the video site's header bar (app.css → `.ex-yt-top`), coming in. */
 .ex-pill {
   margin-left: auto;
   opacity: 0;
@@ -3366,104 +3873,21 @@
 .ex-pill + .ex-yt-avatar {
   margin-left: 14px;
 }
-.ex-yt-left {
-  position: absolute;
-  left: 24px;
-  top: 64px;
-  width: 680px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.ex-video {
-  position: relative;
-  flex: none;
-  overflow: hidden;
-  aspect-ratio: 16 / 9;
-  border-radius: 12px;
-  background: var(--theater);
-}
-.ex-video.is-paused .ex-frame {
-  filter: brightness(0.75);
-}
-.ex-yt-title {
-  margin: 0;
-  font: 700 20px/1.35 var(--font-ja, var(--font));
-}
-.ex-yt-channel {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.ex-yt-face,
+/* A card's channel on YouTube's home, as the video's page has its own (app.css → `.ex-yt-face`), a little smaller. */
 .ex-card-face {
   flex: none;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   object-fit: cover;
   background: var(--site-dark-raised);
-}
-.ex-card-face {
-  width: 34px;
-  height: 34px;
 }
 .ex-card-info {
   display: flex;
   align-items: flex-start;
   gap: 10px;
 }
-.ex-yt-name {
-  display: grid;
-  font: 700 15px var(--font);
-}
-.ex-yt-name small {
-  color: var(--site-dark-muted);
-  font: 500 12px var(--font);
-}
-.ex-yt-sub {
-  margin-left: 16px;
-  padding: 9px 16px;
-  border-radius: 18px;
-  background: var(--site-dark-ink);
-  color: var(--site-dark);
-  font: 700 14px var(--font);
-}
-.ex-yt-side {
-  position: absolute;
-  right: 24px;
-  top: 64px;
-  width: 360px;
-  display: grid;
-  gap: 10px;
-}
-.ex-rec {
-  display: grid;
-  grid-template-columns: 168px 1fr;
-  gap: 10px;
-}
-.ex-rec-pic {
-  position: relative;
-  overflow: hidden;
-  aspect-ratio: 16 / 9;
-  border-radius: 8px;
-}
-.ex-rec-pic .ex-thumb {
-  height: 100%;
-}
-.ex-rec-words {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-}
-.ex-rec-words b {
-  font: 600 14px/1.35 var(--font-ja, var(--font));
-}
-.ex-rec-words small {
-  color: var(--site-dark-muted);
-  font: 500 12px var(--font);
-}
-/* The Panki panel on that page, as the video page puts it under the player; and its drawer beside, sliding in. */
+/* The Panki panel on that page, as the video page puts it under the player. */
 .ex-strip {
   transition:
     opacity 0.45s,
@@ -3472,29 +3896,6 @@
 .ex-strip.is-away {
   opacity: 0;
   transform: translateY(8px);
-}
-.ex-drawer {
-  position: absolute;
-  right: 16px;
-  top: 64px;
-  width: 380px;
-  transform: translateX(110%);
-  transition: transform 0.45s cubic-bezier(0.3, 0.1, 0.2, 1);
-}
-.ex-drawer.is-open {
-  transform: none;
-}
-.ex-over {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 8%;
-  display: flex;
-  justify-content: center;
-}
-.ex-over .sub-band {
-  margin-left: 0;
-  transform: none;
 }
 /* The player's own controls, and the speed button and end time among them */
 .ex-player {

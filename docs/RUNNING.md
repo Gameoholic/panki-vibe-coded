@@ -27,7 +27,7 @@ Under 2 GB left on the disk, every signed-in user sees a warning on their home s
 
 Data lives under `apps/api/data/`: `auth.sqlite` (accounts and signed-in devices), `shared.sqlite` (what everyone shares: the keys, the dictionaries kept on Panki, the transcription settings and every transcript) with `shared/dictionaries/` holding the dictionary zips, and `users/<account id>/`, one folder per account: its `panki.sqlite` and a `media` folder with the files its cards hold. A backup is the whole folder.
 
-`PANKI_DATA_DIR` puts the data elsewhere, `PANKI_BACKUP_DIR` the backups (default: a `backups` folder beside the data), `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` is only the clock for an account never opened yet (each account's day turns over in its own zone, set in its Settings; default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio and `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, each used when none is typed in Settings → Admin.
+`PANKI_DATA_DIR` puts the data elsewhere, `PANKI_BACKUP_DIR` the backups (default: a `backups` folder beside the data), `PORT` moves the API, `PANKI_WEB_PORT` / `PANKI_API_PORT` move the web dev server and its proxy target, `PANKI_TIME_ZONE` is only the clock for an account never opened yet (each account's day turns over in its own zone, set in its Settings; default: the machine's), `PANKI_FORVO_KEY` is a Forvo key for word audio, `PANKI_ELEVENLABS_KEY` an ElevenLabs key for transcribing, and `PANKI_ANTHROPIC_KEY`, `PANKI_OPENAI_KEY`, `PANKI_GOOGLE_KEY` a key for each Panki AI provider, each used when none is typed in Settings → Admin.
 
 ## A scratch Panki
 

@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, type TranscribeMode, type WholeJob } from "@panki/contracts";
+import { AiSpark } from "@web/components/AiWaiting";
+import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, soundCostMicros, type TranscribeMode, type WholeJob } from "@panki/contracts";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
+import { Fold } from "@web/components/Fold";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { MODE_ICONS, ModeChip } from "@web/components/ModeChip";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
-import { aboutWords, clock, dollarWords, hmsWords, tookWords } from "@web/words";
+import { aboutWords, clock, estimateWords, hmsWords, tookWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { engineWanted, SUBTITLE_SOURCES } from "../subtitles";
 import type { SilentPage, SilentReport, SilentStage } from "../transcribe/silent";
 import { logText, timeOfDay, wholeSeconds, type LogPart, type TranscribeDetail, type TranscribeState, type TranscribeStatus } from "../transcribe/transcriber";
-import { Fold } from "./Fold";
 
 /**
  * The strip's menu: everything about transcribing this video, in one place at the right of the head (the owner,
@@ -32,6 +33,20 @@ import { Fold } from "./Fold";
 
 /** A stretch of the video, in seconds. */
 export type Seconds = { start: number; end: number };
+
+/**
+ * Panki AI's part of the menu (AI step 6, A of the owner's preview, Sections): its head once it has run, and the
+ * question before a run over the account's Ask before a run is over (`head`); Proofread the entire video (`whole`, its
+ * own button, in its `TemplateMenu` once the account has two templates); and Proofread a part, typed as Re-transcribe's
+ * From and To, widened to whole lines. The strip runs it all; the menu only lays it out.
+ */
+export type AiPart = {
+  head: ReactNode;
+  /** The head is there (a run has been made): it is the part's heading, its name at the left, and the label gives way (the owner, 2026-11-03: "having Panki AI twice there is kinda wack"). */
+  headed: boolean;
+  whole: ReactNode;
+  part: { disabled: boolean; why: string | null; widen: (stretch: Seconds) => Seconds | null; costOf: (stretch: Seconds) => string | null; onRun: (stretch: Seconds) => void };
+};
 
 type Props = {
   state: TranscribeState;
@@ -54,6 +69,10 @@ type Props = {
   onAnswer: (yes: boolean) => void;
   /** How it stands in full, this moment (`Transcriber.detail`), asked for while Details are open. */
   detail: () => TranscribeDetail;
+  /** Panki AI's part (AI step 6, Proofread): drawn by the strip, which runs it; none where the transcript isn't Panki's. */
+  ai: AiPart | null;
+  /** Edit the transcript (AI step 6): the rows under the player open for editing until Done; none where they can't be. */
+  editing: { on: boolean; disabled: boolean; why: string | null; onToggle: () => void } | null;
   // Whether this video counted toward the watch time (Immersion / Just watching) was a row here until the owner had it
   // out, 2026-10-21: Panki's own on / off switch is what says whether a video is noted.
 };
@@ -367,16 +386,15 @@ function costWords(state: TranscribeState, seconds: number): string {
   if (!state.settings) return "";
   const engine = ENGINES[state.settings.engine];
   const minutes = seconds / 60;
-  const cents = Math.round((minutes / 60) * engine.centsPerHour);
-  return `${Math.round(engine.creditsPerMinute * minutes).toLocaleString("en")} credits · ${dollarWords(cents)}`;
+  return `${Math.round(engine.creditsPerMinute * minutes).toLocaleString("en")} credits · ${estimateWords(soundCostMicros(engine.centsPerHour, seconds * 1000))}`;
 }
 
 /** Which question is open under the items, if any. */
-type Asking = "redo" | "forgetAll" | null;
+type Asking = "redo" | "proofread" | "forgetAll" | null;
 /** Which of the two folds under the status is open, if either. */
 type Unfolded = "details" | "log" | null;
 
-export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail }: Props) {
+export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail, ai, editing }: Props) {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<Asking>(null);
   /** Whether Details or Log is unfolded: kept while the menu is closed, so it's there at the next look. */
@@ -503,78 +521,123 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
               ) : null}
             </p>
           ) : null}
-          {transcribing || showStart ? (
+          {/* Three parts, each named (AI step 6, A of the owner's preview, Sections): Panki AI, the transcript, the settings. Step 7's rules (proofreading by itself, transcribing's own) land as rows under Settings, the parts above them unmoved. */}
+          {ai && hasAny ? (
             <div className="strip-menu-items">
+              {ai.headed ? null : (
+                <p className="strip-menu-label">
+                  <AiSpark />
+                  Panki AI
+                </p>
+              )}
+              {ai.head}
+              {ai.whole}
+              <Button variant="item" aria-pressed={asking === "proofread"} disabled={ai.part.disabled} onClick={() => ask("proofread")}>
+                <AiSpark />
+                Proofread a part…
+                {ai.part.why ? <span className="strip-menu-why">{ai.part.why}</span> : null}
+              </Button>
+              {asking === "proofread" && !ai.part.disabled ? (
+                <StretchForm
+                  key="proofread"
+                  id="panki-proofread"
+                  at={at}
+                  duration={duration}
+                  action="Proofread"
+                  lead={<AiSpark />}
+                  widen={(stretch) => Promise.resolve(ai.part.widen(stretch))}
+                  beside={(stretch) => (stretch ? ai.part.costOf(stretch) : null)}
+                  onDone={(stretch) => {
+                    // The menu stays open: the run's head comes up in it.
+                    setAsking(null);
+                    ai.part.onRun(ai.part.widen(stretch) ?? stretch);
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {transcribing || showStart || hasAny ? (
+            <div className="strip-menu-items">
+              <p className="strip-menu-label">Transcript</p>
               {transcribing ? (
                 <Button variant="item" onClick={() => done(onStop)}>
                   <Icon name="stop" />
                   Stop
                 </Button>
-              ) : (
+              ) : showStart ? (
                 // Over the limit, the menu stays open: the question the press asks comes up in it.
                 <Button variant="item" disabled={refusedHere} onClick={() => (state.limitPending ? onStart() : done(onStart))}>
                   <Icon name="subtitles" />
                   {startWords(state.status, way)}
                   {refusedHere ? <span className="strip-menu-why">not allowed over the limit</span> : null}
                 </Button>
-              )}
-            </div>
-          ) : null}
-          {settings && mode ? (
-            <div className="strip-menu-row">
-              <span>Mode</span>
-              <Dropdown
-                id="panki-transcribe-mode"
-                label="Mode"
-                value={mode}
-                disabled={on.length < 2}
-                options={TRANSCRIBE_MODE_IDS.map((id) => ({
-                  id,
-                  label: TRANSCRIBE_MODES[id].name,
-                  icon: MODE_ICONS[id],
-                  disabled: !on.includes(id),
-                  // Which one is everyone's default isn't said here (the owner, 2026-10-20: "remove the default text here").
-                  ...(on.includes(id) ? {} : { note: "off" }),
-                }))}
-                onChange={onMode}
-              />
-            </div>
-          ) : null}
-          <div className="strip-menu-row">
-            <span>Auto transcribe</span>
-            <Toggle id="panki-transcribe-auto" says={{ on: "On", off: "Off" }} on={state.prefs.trigger === "auto"} onChange={onAuto} />
-          </div>
-          {/* A part is transcribed again, never forgotten on its own (the owner, 2026-10-20). */}
-          {hasAny ? (
-            <div className="strip-menu-items">
-              {canStart ? (
+              ) : null}
+              {/* Editing by hand made plain (the owner, 2026-11-03: "I have no clue how to edit it myself"): the rows open for editing until Done. */}
+              {editing && hasAny ? (
+                <Button variant="item" aria-pressed={editing.on} disabled={editing.disabled} onClick={() => done(editing.onToggle)}>
+                  <Icon name={editing.on ? "check" : "edit"} />
+                  {editing.on ? "Done editing" : "Edit the transcript"}
+                  {editing.why ? <span className="strip-menu-why">{editing.why}</span> : null}
+                </Button>
+              ) : null}
+              {/* A part is transcribed again, never forgotten on its own (the owner, 2026-10-20). */}
+              {hasAny && canStart ? (
                 <Button variant="item" aria-pressed={asking === "redo"} onClick={() => ask("redo")}>
                   <Icon name="again" />
                   Re-transcribe a part…
                 </Button>
               ) : null}
-              <Button variant="item" className="is-danger" aria-pressed={asking === "forgetAll"} onClick={() => ask("forgetAll")}>
-                <Icon name="trash" />
-                Forget the transcript…
-              </Button>
+              {asking === "redo" ? (
+                <StretchForm key="redo" id="panki-redo" at={at} duration={duration} action="Re-transcribe" lead={<Icon name="again" />} widen={widen} onDone={(stretch) => done(() => onRetranscribe(stretch))} />
+              ) : null}
+              {hasAny ? (
+                <Button variant="item" className="is-danger" aria-pressed={asking === "forgetAll"} onClick={() => ask("forgetAll")}>
+                  <Icon name="trash" />
+                  Forget the transcript…
+                </Button>
+              ) : null}
+              {asking === "forgetAll" ? (
+                <div className="strip-menu-ask">
+                  <Ask
+                    idPrefix="panki-transcript-forget"
+                    question={MESSAGES.forgetAll}
+                    go={{ words: "Forget", busy: "Forgetting…" }}
+                    busy={false}
+                    failure={null}
+                    onKeep={() => setAsking(null)}
+                    onGo={() => done(onForget)}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
-          {asking === "redo" ? (
-            <StretchForm key="redo" id="panki-redo" at={at} duration={duration} action="Re-transcribe" widen={widen} onDone={(stretch) => done(() => onRetranscribe(stretch))} />
-          ) : null}
-          {asking === "forgetAll" ? (
-            <div className="strip-menu-ask">
-              <Ask
-                idPrefix="panki-transcript-forget"
-                question={MESSAGES.forgetAll}
-                go={{ words: "Forget", busy: "Forgetting…" }}
-                busy={false}
-                failure={null}
-                onKeep={() => setAsking(null)}
-                onGo={() => done(onForget)}
-              />
+          <div className="strip-menu-items">
+            <p className="strip-menu-label">Settings</p>
+            {settings && mode ? (
+              <div className="strip-menu-row">
+                <span>Mode</span>
+                <Dropdown
+                  id="panki-transcribe-mode"
+                  label="Mode"
+                  value={mode}
+                  disabled={on.length < 2}
+                  options={TRANSCRIBE_MODE_IDS.map((id) => ({
+                    id,
+                    label: TRANSCRIBE_MODES[id].name,
+                    icon: MODE_ICONS[id],
+                    disabled: !on.includes(id),
+                    // Which one is everyone's default isn't said here (the owner, 2026-10-20: "remove the default text here").
+                    ...(on.includes(id) ? {} : { note: "off" }),
+                  }))}
+                  onChange={onMode}
+                />
+              </div>
+            ) : null}
+            <div className="strip-menu-row">
+              <span>Auto transcribe</span>
+              <Toggle id="panki-transcribe-auto" says={{ on: "On", off: "Off" }} on={state.prefs.trigger === "auto"} onChange={onAuto} />
             </div>
-          ) : null}
+          </div>
         </div>
       ) : null}
     </div>
@@ -587,8 +650,12 @@ type StretchProps = {
   duration: number | null;
   /** What the button says, before the stretch it will do. */
   action: string;
-  /** The stretch the times typed will really come to (Panki widens a part to whole chunks), or null when it can't be said. */
+  /** The stretch the times typed will really come to (Panki widens a part to whole chunks, Proofread to whole lines), or null when it can't be said. */
   widen: (stretch: Seconds) => Promise<Seconds | null>;
+  /** The button's icon, before its words. */
+  lead: ReactNode;
+  /** What's said under the button for the stretch it comes to (Proofread's "Up to"), or nothing. */
+  beside?: (exact: Seconds | null) => string | null;
   onDone: (stretch: Seconds) => void;
 };
 
@@ -600,7 +667,7 @@ const WIDEN_MS = 250;
  * a few minutes on; the button says the stretch they really come to, asked a moment after they stop changing, so the
  * times typed are the times done (the owner, 2026-10-20: "it says ahead of time").
  */
-function StretchForm({ id, at, duration, action, widen, onDone }: StretchProps) {
+function StretchForm({ id, at, duration, action, widen, lead, beside, onDone }: StretchProps) {
   const here = Math.max(0, Math.floor(at ?? 0));
   const [from, setFrom] = useState(clock(here));
   const [to, setTo] = useState(clock(Math.floor(duration === null ? here + PART_SECONDS : Math.min(duration, here + PART_SECONDS))));
@@ -645,9 +712,10 @@ function StretchForm({ id, at, duration, action, widen, onDone }: StretchProps) 
       <TextField id={`${id}-from`} label="From" value={from} onChange={setFrom} error={errors.from ?? undefined} />
       <TextField id={`${id}-to`} label="To" value={to} onChange={setTo} error={errors.to ?? undefined} />
       <Button type="submit" variant="primary">
-        <Icon name="again" />
+        {lead}
         {exact ? `${action} ${clock(exact.start)}–${clock(exact.end)}` : action}
       </Button>
+      {beside?.(exact) ? <p className="strip-menu-form-note">{beside(exact)}</p> : null}
     </Form>
   );
 }

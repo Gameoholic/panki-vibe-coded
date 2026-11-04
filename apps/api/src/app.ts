@@ -1,7 +1,9 @@
 import express, { type Response } from "express";
-import type { EngineId, Space, StorageReport, WordAudioSourceId } from "@panki/contracts";
+import type { AiProviderId, EngineId, Space, StorageReport, WordAudioSourceId } from "@panki/contracts";
 import type { AuthDb } from "./authDb";
 import type { Db } from "./db";
+import type { AiClient } from "./ai";
+import { aiRouter, readsOwnBody } from "./routes/ai";
 import { accountRouter, loginRouter } from "./routes/auth";
 import type { Forvo } from "./forvo";
 import { cardsRouter } from "./routes/cards";
@@ -17,6 +19,7 @@ import { statsRouter } from "./routes/stats";
 import { transcriptionRouter } from "./routes/transcription";
 import { transcriptsRouter } from "./routes/transcripts";
 import { typesRouter } from "./routes/types";
+import { usageRouter } from "./routes/usage";
 import { videosRouter } from "./routes/videos";
 import { watchingRouter } from "./routes/watching";
 import { wordAudioRouter } from "./routes/wordAudio";
@@ -48,6 +51,9 @@ export type AppDeps = {
   engineKeys: Record<EngineId, string | null>;
   /** Whole-video downloads, run in the background with the same engines and keys. */
   jobs: Jobs;
+  /** Panki AI's providers, and the server's own key for each (the environment's), used when none was typed in Settings. */
+  ai: AiClient;
+  aiKeys: Record<AiProviderId, string | null>;
   now?: () => number;
 };
 
@@ -55,12 +61,15 @@ export type AppDeps = {
 export type DbOf = (res: Response) => Db;
 
 /** `now` is passed in so time can be pinned in tests; the API, never the browser, stamps it. */
-export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, extensionDir, space, storage, forvo, wordAudioKeys, engines, engineKeys, jobs, now = Date.now }: AppDeps) {
+export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, extensionDir, space, storage, forvo, wordAudioKeys, engines, engineKeys, jobs, ai, aiKeys, now = Date.now }: AppDeps) {
   const app = express();
   app.disable("x-powered-by");
   // nginx sits in front on the VPS: its X-Forwarded-* headers are believed from loopback only, so `req.secure` and `req.ip` are the browser's.
   app.set("trust proxy", "loopback");
-  app.use(express.json({ limit: "64kb" }));
+  // Every JSON body is 64 KB at most but a call to Panki AI's and a template's, which their own routes read once the
+  // sender is signed in. A path that only resembles one (another case) is read here and held to 64 KB, which is no harm.
+  const json = express.json({ limit: "64kb" });
+  app.use((req, res, next) => (readsOwnBody(req.path) ? next() : json(req, res, next)));
   // Every answer is for the one signed in, as things stand now: a browser keeps none of it, and reads it as the type it
   // says. A file served (`/api/media`, a dictionary's zip) sets its own caching over this: it never changes under its id.
   app.use("/api", (_req, res, next) => {
@@ -91,6 +100,8 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
   app.use("/api/transcripts", transcriptsRouter(dbOf, shared, engines, engineKeys, jobs, now));
   app.use("/api/videos", videosRouter(dbOf, shared, now));
   app.use("/api/watching", watchingRouter(dbOf, auth, shared, now));
+  app.use("/api/ai", aiRouter(dbOf, shared, aiKeys, ai, now));
+  app.use("/api/usage", usageRouter(shared, auth));
   app.use("/api/stats", statsRouter(dbOf, now));
   app.use("/api/space", spaceRouter(space, storage));
   app.use("/api", (_req, res) => {

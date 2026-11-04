@@ -4,7 +4,8 @@ import "@web/app.css";
 import "../ui/extension.css";
 import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Login, type CardType, type Deck } from "@panki/contracts";
+import { APP_LANGUAGES, Login, type AppLanguage, type CardType, type Deck } from "@panki/contracts";
+import { Skeleton } from "@web/components/Skeleton";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
@@ -17,18 +18,20 @@ import { VIDEO_TRACKING_WHY } from "@web/words";
 import { Setting } from "@web/components/Setting";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
+import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
-import { PankiError, panki } from "../panki";
+import { AFTER_ADD, AFTER_ADD_IDS, BESIDE_RECS, BESIDE_RECS_IDS, SKIP_SECONDS_MAX, STAGE_SIDES, STAGE_SIDE_IDS, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
+import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
 import { setVideoTracking, videoTrackingOn } from "../watch/tracking";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
-import { ExplainedTitle } from "./explainerScenes";
+import { SceneTitle } from "./explainerScenes";
 import { PopupLayoutPanel } from "./PopupLayout";
 import { PillParts } from "./PillPanel";
+import { PlayerBarPanel } from "./PlayerBar";
 import { SeekBarPanel } from "./SeekBar";
 import { UpdateBanner, VersionPanel, useUpdate } from "./Updates";
 
@@ -198,6 +201,53 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
   );
 }
 
+/**
+ * The Account panel, under Profiles (the owner, 2026-10-30): the settings of the profile in use's account that are for
+ * all of Panki, set in Panki and shown here. Signed out, there's no account, and no panel.
+ */
+function AccountPanel({ door }: { door: Door }) {
+  return (
+    <section className="panel" aria-labelledby="account-title">
+      <h2 id="account-title" className="panel-title">
+        Account
+      </h2>
+      <LinkedLanguage door={door} />
+    </section>
+  );
+}
+
+/**
+ * The account's Language, the one Panki speaks to it in (Panki's Settings → General → Display), greyed with the link
+ * sign: set in Panki alone (the owner, 2026-10-30), as Video tracking is set here alone and shown in Panki.
+ */
+function LinkedLanguage({ door }: { door: Door }) {
+  /** As Panki says it; null while it's asked; or why it couldn't be. */
+  const [language, setLanguage] = useState<AppLanguage | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const { address, token } = door;
+  useEffect(() => {
+    let alive = true;
+    setFailure(null);
+    panki
+      .settings({ address, token })
+      .then((settings) => alive && setLanguage(settings.appLanguage))
+      .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
+    return () => {
+      alive = false;
+    };
+  }, [address, token]);
+  if (failure) {
+    return (
+      <p className="load-error" role="alert">
+        {failure}
+      </p>
+    );
+  }
+  if (language === null) return <Skeleton shape="settings" count={1} />;
+  const option = { id: language, label: `${APP_LANGUAGES[language]} · Set in Panki`, icon: "link" as const };
+  return <Setting id="account-language" label="Language" control={<Dropdown id="account-language-in" label="Language" options={[option]} value={language} disabled onChange={() => undefined} />} />;
+}
+
 /** The Account tab: the profiles kept, and the sign-in form, by itself while there's none, or opened under them to add another. */
 function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const [adding, setAdding] = useState(false);
@@ -220,6 +270,7 @@ function AccountTab({ store, onChanged }: { store: Stored; onChanged: () => void
           </Button>
         </div>
       )}
+      {store.address && store.token ? <AccountPanel door={{ address: store.address, token: store.token }} /> : null}
     </>
   );
 }
@@ -260,6 +311,8 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
 // Whether it starts by itself is switched in the strip's menu alone (Auto transcribe); its row here went at the owner's word, 2026-10-17.
 // While paused went to Panki's Settings → Admin the same way, 2026-10-27 ("should be an admin setting").
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
+const BESIDE_RECS_OPTIONS = BESIDE_RECS_IDS.map((id) => ({ id, label: BESIDE_RECS[id] }));
+const STAGE_SIDE_OPTIONS = STAGE_SIDE_IDS.map((id) => ({ id, label: STAGE_SIDES[id] }));
 // What the choice made does, under it (the owner, 2026-10-27: "not clear what this does, add description").
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
@@ -271,13 +324,32 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
   const off = !store.modulePanel;
   return (
     <section className="panel" aria-labelledby="transcribing-title">
-      <ExplainedTitle id="panel" titleId="transcribing-title" store={store} />
+      <SceneTitle id="panel" titleId="transcribing-title" store={store} />
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
+      {/* The view itself is picked on the panel (`PanelView`); what Beside the video does with the site's recommendations is set here. */}
+      <Setting
+        id="beside-recs"
+        label="Beside the video"
+        control={<Segmented idPrefix="beside-recs" label="Beside the video" options={BESIDE_RECS_OPTIONS} value={store.besideRecs} disabled={off} onChange={(besideRecs) => void writeStore({ besideRecs }).then(onChanged)} />}
+        why="Where the Panki panel stands when its view is Beside the video."
+      />
+      <Setting
+        id="stage-side"
+        label="Theatre mode"
+        control={<Segmented idPrefix="stage-side" label="Theatre mode" options={STAGE_SIDE_OPTIONS} value={store.stageSide} disabled={off} onChange={(stageSide) => void writeStore({ stageSide }).then(onChanged)} />}
+        why="Where the Panki panel stands in Theatre mode."
+      />
+      {/* The owner, 2026-11-04: "whether Theatre full-screens (on by default)". Off, Theatre mode fills the window. */}
+      <Setting
+        id="stage-full"
+        label="Full screen in Theatre mode"
+        control={<Toggle id="stage-full-on" says={{ on: "On", off: "Off" }} on={store.stageFull} disabled={off} onChange={(stageFull) => void writeStore({ stageFull }).then(onChanged)} />}
+      />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
-        why="While the Panki panel shows Panki subtitles, they're shown on the video too, in place of YouTube subtitles."
+        why="The subtitles picked in the Panki panel replace YouTube's subtitles on the video."
       />
       <Setting
         id="after-add"
@@ -295,13 +367,31 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
  * not"), the account's on Panki until then. Turning it off asks first, saying what stops and what stays. The panel
  * was Immersion until the owner renamed it, 2026-10-28.
  */
-function VideoTracking({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
   const [asking, setAsking] = useState(false);
   const on = store.videoTracking;
+  /** How close to its end a video counts as finished, as Panki has it (the account's own); null until it's said, or signed out. */
+  const [finished, setFinished] = useState<number | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   // Not settled yet (the worker couldn't reach Panki as it started): settled now, as the worker would.
   useEffect(() => {
     if (on === null) void videoTrackingOn().then(onChanged);
   }, [on, onChanged]);
+  const address = door?.address ?? null;
+  const token = door?.token ?? null;
+  useEffect(() => {
+    setFinished(null);
+    setFailure(null);
+    if (address === null || token === null) return;
+    let alive = true;
+    panki
+      .settings({ address, token })
+      .then((settings) => alive && setFinished(settings.finishedWithinSec))
+      .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
+    return () => {
+      alive = false;
+    };
+  }, [address, token]);
   async function change(next: boolean) {
     await setVideoTracking(next);
     setAsking(false);
@@ -357,7 +447,48 @@ function VideoTracking({ store, onChanged }: { store: Stored; onChanged: () => v
           onGo={() => void change(false)}
         />
       ) : null}
+      {door && finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
     </section>
+  );
+}
+
+/**
+ * How close to its end a video played counts as finished: the account's own, kept on Panki (`Settings.finishedWithinSec`;
+ * the owner, 2026-10-30: "move it into per-user settings… extension right?", it was an admin's in Settings → Admin →
+ * Watching), saved a moment after it's changed. Greyed while Video tracking is off, when nothing is marked finished.
+ */
+function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: boolean }) {
+  const [current, patch, failure] = useSavedSoon<{ finishedWithinSec: number }>({ finishedWithinSec: saved }, async (change) => ({
+    finishedWithinSec: (await panki.updateSettings(door, change)).finishedWithinSec,
+  }));
+  return (
+    <Setting
+      id="finished-within"
+      label="Video counts as finished in its last"
+      control={
+        <NumberField
+          id="finished-within-sec"
+          label="Video counts as finished in its last, in seconds"
+          value={current.finishedWithinSec}
+          min={0}
+          max={600}
+          suffix="s"
+          disabled={off}
+          onChange={(finishedWithinSec) => patch({ finishedWithinSec })}
+        />
+      }
+    >
+      {failure ? (
+        <p className="form-failure" role="alert">
+          {failure}
+        </p>
+      ) : null}
+    </Setting>
   );
 }
 
@@ -372,7 +503,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
   return (
     <section className="panel" aria-labelledby="current-word-title">
       {/* The two places, named as everywhere else (2026-10-28): the Panki panel under the player, and Panki subtitles on the video. */}
-      <ExplainedTitle id="underline" titleId="current-word-title" store={store} />
+      <SceneTitle id="underline" titleId="current-word-title" store={store} />
       <Setting id="mark-under" label="Panki panel" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
       <Setting
         id="mark-over"
@@ -403,7 +534,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
   );
   return (
     <section className="panel" aria-labelledby="home-title">
-      <ExplainedTitle id="home" titleId="home-title" store={store} />
+      <SceneTitle id="home" titleId="home-title" store={store} />
       <Setting id="module-home" label="YouTube home add-ons" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
@@ -419,24 +550,16 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
 
 /**
  * What makes YouTube nicer whether or not Panki is in use (the owner, 2026-10-21: "regardless of Panki, just nice to
- * have"): nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here.
+ * have"): nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here. The player's
+ * control bar, laid out, is a panel of its own after this one (`PlayerBarPanel`).
  */
 function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="utilities-title">
-      <ExplainedTitle id="utilities" titleId="utilities-title" store={store} />
+      <SceneTitle id="utilities" titleId="utilities-title" store={store} />
       {/* Shown or hidden as its neighbours say it (2026-10-28; "Hide Shorts", On / Off, until then), Shown to begin with. */}
       <Setting id="shorts" label="Shorts" control={<Toggle id="shorts-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleShorts} onChange={(moduleShorts) => void writeStore({ moduleShorts }).then(onChanged)} />} />
-      <Setting
-        id="speed-control"
-        label="Speed button in the player"
-        control={<Toggle id="speed-control-on" says={{ on: "Shown", off: "Hidden" }} on={store.speedControl} onChange={(speedControl) => void writeStore({ speedControl }).then(onChanged)} />}
-      />
-      <Setting
-        id="end-time"
-        label="Video end time in the player"
-        control={<Toggle id="end-time-on" says={{ on: "Shown", off: "Hidden" }} on={store.endTime} onChange={(endTime) => void writeStore({ endTime }).then(onChanged)} />}
-      />
+      {/* The speed button and the video's end time had a switch each here until they became rows of the player bar, a panel of its own after this one (2026-11-04). */}
       {/* One group, its switch and the two rows it greys (the owner, 2026-10-28: they read as three settings apart). */}
       <div className="seek-group">
         <h3 className="seek-group-title">Short skip with the arrow keys</h3>
@@ -684,12 +807,13 @@ function Options() {
           </div>
           <div className="options-tab" hidden={tab !== "youtube"}>
             {/* Data tracking first: what's recorded of the videos watched (the owner, 2026-10-28). */}
-            <VideoTracking store={store} onChanged={refresh} />
+            <VideoTracking store={store} onChanged={refresh} door={door} />
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
             <HomePanel store={store} onChanged={refresh} />
             <UtilitiesPanel store={store} onChanged={refresh} />
+            <PlayerBarPanel store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
             <AccountTab store={store} onChanged={refresh} />

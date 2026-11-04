@@ -1,10 +1,13 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { z } from "zod";
 import {
+  AiTemplate,
   BURNED_PLACE,
   CALLED_CARDS_MAX,
   CARD_TIME_MAX_MS,
+  CaptureFacts,
   Card,
   CardField,
   CardPlace,
@@ -12,7 +15,6 @@ import {
   DEFAULT_DECK_SETTINGS,
   DEFAULT_SETTINGS,
   DEFAULT_STARTER,
-  DEFAULT_WATCHING_SETTINGS,
   Deck,
   DeckSettings,
   Flow,
@@ -21,10 +23,12 @@ import {
   MediaRecording,
   SRS_STARTER_IDS,
   NEW_PLACE,
+  OWNER,
   ReviewSession,
   Settings,
   SrsType,
   Stats,
+  ValueSource,
   WATCH,
   SAVED_MAX,
   SavedVideo,
@@ -36,6 +40,7 @@ import {
   isBurned,
   isNew,
   layoutOf,
+  legacySourceOf,
   mainAnswers,
   makeStarter,
   resolve,
@@ -48,6 +53,7 @@ import {
   upgradeFlow,
   wordsFieldOf,
   youtubeLinkOf,
+  type AiTemplateUpdate,
   type ApartValue,
   type CalledCard,
   type CardAnswer,
@@ -59,6 +65,7 @@ import {
   type CardTypeUpdate,
   type CardUpdate,
   type DeckUpdate,
+  type NewAiTemplate,
   type NewCard,
   type NewCardType,
   type NewDeck,
@@ -70,6 +77,7 @@ import {
   type SrsLadder,
   type SrsStarterId,
   type SrsTypeUpdate,
+  type ValueSources,
   type VideoCard,
   type WatchBatch,
   type WatchMarkKind,
@@ -81,6 +89,16 @@ import {
 import { addDays, checkTimeZone, dayReader, dayStartAt, daysBetween, streakOf, type Day } from "./time";
 
 export type Db = ReturnType<typeof openDb>;
+
+/** Some kept JSON read as a shape; null when it no longer reads as one, so a row that's gone stale never fails what holds it. */
+function jsonOr<T>(raw: string, shape: z.ZodType<T>): T | null {
+  try {
+    const read = shape.safeParse(JSON.parse(raw));
+    return read.success ? read.data : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Each migration runs once, in order, inside a transaction; SQLite's `user_version` records how far we got.
@@ -765,7 +783,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       FROM watch_stretches s JOIN watch_videos v ON v.video_id = s.video_id
       WHERE s.forgotten_at IS NULL AND s.to_ms >= v.length_ms - ?
       GROUP BY s.video_id
-    `).run(DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000);
+    `).run(20_000);
   },
   (db) => {
     // 37. An answer taken back in a review with Undo (the owner, 2026-10-26) is never deleted: its row keeps everything
@@ -818,6 +836,98 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE card_holds ADD COLUMN listen_ms INTEGER");
     db.exec("ALTER TABLE review_sessions ADD COLUMN left_phase TEXT");
   },
+  (db) => {
+    // 40. A value remembers where it came from (AI step 3; the owner, 2026-10-30: "separate the AI generated stuff from
+    // the true data"): the owner, the subtitles or page, a dictionary, the video, Forvo, or Panki AI, as JSON (the
+    // contracts' `ValueSource`), on a card's values and an example's, and the source each change took a value to. No row
+    // is touched: one kept before reads as the owner's or as its capture says (`legacySourceOf`), worked out on read.
+    db.exec("ALTER TABLE card_values ADD COLUMN source TEXT");
+    db.exec("ALTER TABLE card_example_values ADD COLUMN source TEXT");
+    db.exec("ALTER TABLE card_value_changes ADD COLUMN to_source TEXT");
+    db.exec("ALTER TABLE card_example_value_changes ADD COLUMN to_source TEXT");
+  },
+  (db) => {
+    // 41. Panki AI's templates, each account's own (AI step 5; the owner, 2026-11-01: "each account's own, plus there
+    // are default ones that we cannot remove but can duplicate and edit, like SRS types"). A row a template: the action
+    // it belongs to (fixed once made), its name, its prompt, its Follow-up prompt, and whether it judges the meanings.
+    // Panki's own starters are never rows (the contracts' `aiTemplates.ts`). Deleting one stamps `removed_at`, never
+    // destroys it; every save that changed one keeps it whole before and after, as an SRS type's does.
+    db.exec(`
+      CREATE TABLE ai_templates (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        follow_up TEXT NOT NULL,
+        judges INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        removed_at INTEGER
+      )
+    `);
+    db.exec(`
+      CREATE TABLE ai_template_changes (
+        id INTEGER PRIMARY KEY,
+        template_id TEXT NOT NULL REFERENCES ai_templates(id),
+        "before" TEXT NOT NULL,
+        "after" TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX ai_template_changes_template_id ON ai_template_changes (template_id)");
+  },
+  (db, now) => {
+    // 42. Prompt context's `{Field}` renamed `{Follow-up field}` (the owner, 2026-11-01: "rename {Field} to
+    // follow-up-field so it's clear"): every template kept says the new name, so none reads as a variable Panki doesn't
+    // know. Its tag as Panki wrote it, `<field>{Field}</field>`, becomes `<follow_up_field>{Follow-up field}</follow_up_field>`
+    // whole; any other `{Field}` the new name alone. Each template changed keeps the change whole before and after, as
+    // a save does; one with neither is left as it is.
+    const rename = (text: string) =>
+      text.replaceAll("<field>{Field}</field>", "<follow_up_field>{Follow-up field}</follow_up_field>").replaceAll("{Field}", "{Follow-up field}");
+    const rows = db.prepare("SELECT id, action, name, prompt, follow_up AS followUp, judges FROM ai_templates").all() as {
+      id: string;
+      action: AiTemplate["action"];
+      name: string;
+      prompt: string;
+      followUp: string;
+      judges: number;
+    }[];
+    const update = db.prepare("UPDATE ai_templates SET prompt = ?, follow_up = ?, updated_at = ? WHERE id = ?");
+    const change = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+    for (const row of rows) {
+      const was: AiTemplate = { id: row.id, action: row.action, name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
+      const is: AiTemplate = { ...was, prompt: rename(was.prompt), followUp: rename(was.followUp) };
+      if (is.prompt === was.prompt && is.followUp === was.followUp) continue;
+      update.run(is.prompt, is.followUp, now, row.id);
+      change.run(row.id, aiTemplateSnapshot(was), aiTemplateSnapshot(is), now);
+    }
+  },
+  (db, now) => {
+    // 43. `{Question}` renamed `{Follow-up question}` the same way (the owner, 2026-11-01, right after 42: "same for
+    // {Question}"): its tag, `<question>{Question}</question>`, whole, any other `{Question}` the new name alone, each
+    // template changed keeping the change whole before and after. Its own step, 42 having run already.
+    const rename = (text: string) =>
+      text
+        .replaceAll("<question>{Question}</question>", "<follow_up_question>{Follow-up question}</follow_up_question>")
+        .replaceAll("{Question}", "{Follow-up question}");
+    const rows = db.prepare("SELECT id, action, name, prompt, follow_up AS followUp, judges FROM ai_templates").all() as {
+      id: string;
+      action: AiTemplate["action"];
+      name: string;
+      prompt: string;
+      followUp: string;
+      judges: number;
+    }[];
+    const update = db.prepare("UPDATE ai_templates SET prompt = ?, follow_up = ?, updated_at = ? WHERE id = ?");
+    const change = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+    for (const row of rows) {
+      const was: AiTemplate = { id: row.id, action: row.action, name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
+      const is: AiTemplate = { ...was, prompt: rename(was.prompt), followUp: rename(was.followUp) };
+      if (is.prompt === was.prompt && is.followUp === was.followUp) continue;
+      update.run(is.prompt, is.followUp, now, row.id);
+      change.run(row.id, aiTemplateSnapshot(was), aiTemplateSnapshot(is), now);
+    }
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -837,12 +947,16 @@ function migrate(db: DatabaseSync, now: number) {
 }
 
 type FieldRow = { id: string; name: string; kind: string; side: string; required: number; tellsApart: number; perExample: number };
-/** `mediaKind` is what the file a value names is; null for a value that names none. `cues` is what's said in it, as kept (JSON), when it was recorded with its words. */
-type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null };
+/**
+ * `mediaKind` is what the file a value names is; null for a value that names none. `cues` is what's said in it, as kept
+ * (JSON), when it was recorded with its words. `source` is where the value came from, as kept (JSON, `ValueSource`;
+ * null before migration 40), and `capture` its card's capture facts, what a source from before is worked out from.
+ */
+type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null; source: string | null; capture: string | null };
 /** A living example added to a card (`card_examples`); `url` is null for one typed, with its title. */
 type ExampleRow = { id: string; cardId: string; createdAt: number; url: string | null; title: string | null };
-/** One of an example's values, its file's kind and cues as a card's own (`ValueRow`). */
-type ExampleValueRow = { exampleId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null };
+/** One of an example's values, its file's kind, cues, source and its example's capture as a card's own (`ValueRow`). */
+type ExampleValueRow = { exampleId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null; source: string | null; capture: string | null };
 /** What a card is read with, beside its row. */
 type CardReads = { values: ValueRow[]; examples: ExampleRow[]; exampleValues: ExampleValueRow[] };
 type StageRow = { id: string; name: string; n: number; unit: string };
@@ -877,6 +991,20 @@ type DictionaryMoveRow = { id: string; title: string; revision: string; descript
 /** A stretch watched, with its video as YouTube showed it; the video's columns are null when its words never came. */
 type WatchStretchRow = { videoId: string; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
 type WatchMarkRow = { videoId: string; kind: string; at: number };
+type AiTemplateRow = { id: string; action: string; name: string; prompt: string; followUp: string; judges: number };
+
+/**
+ * A kept template as the contracts' shape, the account's own; null for one that no longer reads as a template (an
+ * action Panki no longer has, a bound tightened since): left in its row, never rewritten, and offered to nothing.
+ */
+function aiTemplateOf(row: AiTemplateRow): AiTemplate | null {
+  const read = AiTemplate.safeParse({ ...row, judges: row.judges === 1, builtin: false });
+  return read.success ? read.data : null;
+}
+/** A template as its change log keeps it: everything a save can change. */
+function aiTemplateSnapshot({ name, prompt, followUp, judges }: AiTemplate): string {
+  return JSON.stringify(canonical({ name, prompt, followUp, judges }));
+}
 
 type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean; finishedAt: number | null };
 /**
@@ -953,17 +1081,8 @@ function syncList<T extends { id: string }>(
   for (const [id, removedAt] of known) if (!kept.has(id) && removedAt === null) write.hide(id);
 }
 
-/**
- * An account's own Panki. `finishedWithinMs` is how close to its end a video played counts as finished: an admin's
- * setting for everyone, read afresh each time it's wanted (`WatchingSettings`, kept in the shared store), and told to the
- * extension with each video, which sees it played there and says so (a finish mark).
- */
-export function openDb(
-  dataDir: string,
-  now: () => number = Date.now,
-  timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
-  finishedWithinMs: () => number = () => DEFAULT_WATCHING_SETTINGS.finishedWithinSec * 1000,
-) {
+/** An account's own Panki. */
+export function openDb(dataDir: string, now: () => number = Date.now, timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone) {
   checkTimeZone(timeZone);
   mkdirSync(dataDir, { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, "panki.sqlite"));
@@ -1050,6 +1169,15 @@ export function openDb(
   const selectSettings = db.prepare("SELECT key, value FROM settings");
   const upsertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value");
   const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES (?, ?, ?, ?)");
+
+  // Panki AI's templates, the account's own (migration 41); a removed one is seen by nothing but remove itself.
+  const aiTemplateColumns = "id, action, name, prompt, follow_up AS followUp, judges";
+  const selectAiTemplates = db.prepare(`SELECT ${aiTemplateColumns} FROM ai_templates WHERE removed_at IS NULL ORDER BY created_at ASC, rowid ASC`);
+  const selectAiTemplate = db.prepare(`SELECT ${aiTemplateColumns} FROM ai_templates WHERE id = ? AND removed_at IS NULL`);
+  const insertAiTemplate = db.prepare("INSERT INTO ai_templates (id, action, name, prompt, follow_up, judges, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateAiTemplateRow = db.prepare("UPDATE ai_templates SET name = ?, prompt = ?, follow_up = ?, judges = ?, updated_at = ? WHERE id = ? AND removed_at IS NULL");
+  const insertAiTemplateChange = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+  const removeAiTemplate = db.prepare("UPDATE ai_templates SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
   // Today's allowances, each deck's own: its new cards are used up by the cards started in it (an answer given from new).
   const countStartedSince = db.prepare(
     "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND undone_at IS NULL AND stage_from IS NULL AND burned_from = 0 AND node_from = '[]' AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
@@ -1094,15 +1222,18 @@ export function openDb(
   const selectCard = db.prepare(`SELECT ${cardColumns} ${cardsWithPlace} WHERE c.id = ?`);
   const selectDeckCard = db.prepare(`SELECT ${cardColumns} ${cardsWithPlace} WHERE c.deck_id = ? AND c.id = ? AND c.removed_at IS NULL`);
   // A value that names a file comes with what that file is, so a card can say which of its values are clips, sounds or pictures.
-  const valueColumns = "v.card_id AS cardId, v.field_id AS fieldId, v.value, m.kind AS mediaKind, c.cues AS cues";
-  const valuesWithMedia = "FROM card_values v LEFT JOIN media m ON m.id = v.value AND m.removed_at IS NULL LEFT JOIN media_cues c ON c.media_id = m.id";
+  const valueColumns = "v.card_id AS cardId, v.field_id AS fieldId, v.value, m.kind AS mediaKind, c.cues AS cues, v.source AS source, s.capture AS capture";
+  const valuesWithMedia =
+    "FROM card_values v LEFT JOIN media m ON m.id = v.value AND m.removed_at IS NULL LEFT JOIN media_cues c ON c.media_id = m.id LEFT JOIN card_sources s ON s.card_id = v.card_id";
   const selectDeckValues = db.prepare(`SELECT ${valueColumns} ${valuesWithMedia} WHERE v.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL)`);
   const removeCard = db.prepare("UPDATE cards SET removed_at = COALESCE(removed_at, ?) WHERE id = ? AND deck_id = ?");
   const selectCardValues = db.prepare(`SELECT ${valueColumns} ${valuesWithMedia} WHERE v.card_id = ?`);
   const insertCard = db.prepare("INSERT OR IGNORE INTO cards (id, deck_id, created_at) VALUES (?, ?, ?)");
-  const insertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?)");
-  const upsertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (card_id, field_id) DO UPDATE SET value = excluded.value");
-  const insertValueChange = db.prepare("INSERT INTO card_value_changes (card_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
+  const insertValue = db.prepare("INSERT INTO card_values (card_id, field_id, value, source) VALUES (?, ?, ?, ?)");
+  const upsertValue = db.prepare(
+    "INSERT INTO card_values (card_id, field_id, value, source) VALUES (?, ?, ?, ?) ON CONFLICT (card_id, field_id) DO UPDATE SET value = excluded.value, source = excluded.source",
+  );
+  const insertValueChange = db.prepare("INSERT INTO card_value_changes (card_id, field_id, from_value, to_value, at, to_source) VALUES (?, ?, ?, ?, ?, ?)");
   const insertSource = db.prepare(
     "INSERT OR IGNORE INTO card_sources (card_id, url, title, text, start_ms, end_ms, channel_name, channel_url, client, created_at, capture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
@@ -1112,18 +1243,33 @@ export function openDb(
   const exampleColumns = "e.id, e.card_id AS cardId, e.created_at AS createdAt, e.url, e.title";
   const selectDeckExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL) ORDER BY e.created_at ASC, e.id ASC`);
   const selectCardExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id = ? ORDER BY e.created_at ASC, e.id ASC`);
-  const exampleValueColumns = "x.example_id AS exampleId, x.field_id AS fieldId, x.value, m.kind AS mediaKind, c.cues AS cues";
+  const exampleValueColumns = "x.example_id AS exampleId, x.field_id AS fieldId, x.value, m.kind AS mediaKind, c.cues AS cues, x.source AS source, e.capture AS capture";
   const exampleValuesWithMedia = "FROM card_example_values x JOIN card_examples e ON e.id = x.example_id LEFT JOIN media m ON m.id = x.value AND m.removed_at IS NULL LEFT JOIN media_cues c ON c.media_id = m.id";
   const selectDeckExampleValues = db.prepare(`SELECT ${exampleValueColumns} ${exampleValuesWithMedia} WHERE e.removed_at IS NULL AND e.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL)`);
   const selectCardExampleValues = db.prepare(`SELECT ${exampleValueColumns} ${exampleValuesWithMedia} WHERE e.removed_at IS NULL AND e.card_id = ?`);
   const selectExampleCard = db.prepare("SELECT card_id AS cardId, removed_at AS removedAt FROM card_examples WHERE id = ?");
-  const selectExampleValues = db.prepare("SELECT field_id AS fieldId, value FROM card_example_values WHERE example_id = ?");
+  const selectExampleValues = db.prepare("SELECT field_id AS fieldId, value, source FROM card_example_values WHERE example_id = ?");
   const insertExample = db.prepare(
     "INSERT OR IGNORE INTO card_examples (id, card_id, created_at, client, url, title, text, start_ms, end_ms, channel_name, channel_url, capture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
-  const insertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value) VALUES (?, ?, ?)");
-  const upsertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value) VALUES (?, ?, ?) ON CONFLICT (example_id, field_id) DO UPDATE SET value = excluded.value");
-  const insertExampleValueChange = db.prepare("INSERT INTO card_example_value_changes (example_id, field_id, from_value, to_value, at) VALUES (?, ?, ?, ?, ?)");
+  const insertExampleValue = db.prepare("INSERT INTO card_example_values (example_id, field_id, value, source) VALUES (?, ?, ?, ?)");
+  const upsertExampleValue = db.prepare(
+    "INSERT INTO card_example_values (example_id, field_id, value, source) VALUES (?, ?, ?, ?) ON CONFLICT (example_id, field_id) DO UPDATE SET value = excluded.value, source = excluded.source",
+  );
+  const insertExampleValueChange = db.prepare("INSERT INTO card_example_value_changes (example_id, field_id, from_value, to_value, at, to_source) VALUES (?, ?, ?, ?, ?, ?)");
+  /**
+   * Where a value came from, as it's kept: the source sent with it, or the owner's (a value sent with none is typed or
+   * picked by hand). Always written out, so only a row from before migration 40 is ever null.
+   */
+  const sourceJson = (sources: ValueSources | undefined, fieldId: string): string => JSON.stringify(sources?.[fieldId] ?? OWNER);
+  /** A value's source as read: what's kept, or, for a row from before (or one that no longer reads), what its capture says. */
+  const sourceFrom = (raw: string | null, capture: string | null, fieldId: string): ValueSource => {
+    if (raw !== null) {
+      const kept = jsonOr(raw, ValueSource);
+      if (kept) return kept;
+    }
+    return legacySourceOf(capture === null ? null : jsonOr(capture, CaptureFacts), fieldId);
+  };
   const removeExample = db.prepare("UPDATE card_examples SET removed_at = COALESCE(removed_at, ?) WHERE id = ? AND card_id = ?");
   // Where in a video the living cards were taken from. A source keeps the video's address, not its id: the id written
   // in it narrows the rows here, and the contracts' reader of an address says for certain which video it names.
@@ -1230,7 +1376,7 @@ export function openDb(
   const selectScopeSessions = db.prepare(`
     SELECT s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow, s.left_shown_ms AS leftShownMs FROM review_sessions s
     JOIN decks d ON d.id = s.deck_id WHERE ${scopeWhere}`);
-  const selectValue = db.prepare("SELECT value FROM card_values WHERE card_id = ? AND field_id = ?");
+  const selectValue = db.prepare("SELECT value, source FROM card_values WHERE card_id = ? AND field_id = ?");
 
   // What's watched. A video's words are the latest the page told, but for a title or a channel it didn't have yet (a
   // page still loading says nothing rather than wiping what was known). A forgotten stretch or mark is out of every read.
@@ -1319,11 +1465,21 @@ export function openDb(
       return known.get(typeId) ?? null;
     };
   }
-  /** What a card holds that tells it apart from one called the same (the contracts' `apartOf`), in its type's fields that do. */
+  /**
+   * What a card holds that tells it apart from one called the same (the contracts' `apartOf`), in its type's fields that
+   * do: only the true values, a value Panki AI wrote left out. A source from before reads as kept then, never the AI's.
+   */
   function apartOfCard(cardId: string, type: CardType | null): ApartValue[] {
     if (!type) return [];
-    const values = Object.fromEntries(type.fields.filter((f) => f.tellsApart).map((f) => [f.id, wordsOf(cardId, f.id)]));
-    return apartOf(type, values);
+    const values: Record<string, string> = {};
+    const sources: ValueSources = {};
+    for (const f of type.fields.filter((each) => each.tellsApart)) {
+      const row = selectValue.get(cardId, f.id) as { value: string; source: string | null } | undefined;
+      values[f.id] = row?.value ?? "";
+      const kept = row?.source ? jsonOr(row.source, ValueSource) : null;
+      if (kept) sources[f.id] = kept;
+    }
+    return apartOf(type, values, sources);
   }
 
   function srsTypeFrom(row: unknown): SrsType {
@@ -1430,10 +1586,10 @@ export function openDb(
    * review of any example draws its files.
    */
   function cardsFrom(rows: CardRow[], read: CardReads, type: SrsType, today: Today): Card[] {
-    type Held = { values: Record<string, string>; files: Record<string, string>; cues: Record<string, MediaCues>; examples: CardExample[] };
+    type Held = { values: Record<string, string>; sources: ValueSources; files: Record<string, string>; cues: Record<string, MediaCues>; examples: CardExample[] };
     const byCard = new Map<string, Held>();
     const heldOf = (cardId: string): Held => {
-      const held = byCard.get(cardId) ?? { values: {}, files: {}, cues: {}, examples: [] };
+      const held = byCard.get(cardId) ?? { values: {}, sources: {}, files: {}, cues: {}, examples: [] };
       byCard.set(cardId, held);
       return held;
     };
@@ -1446,24 +1602,36 @@ export function openDb(
     for (const v of read.values) {
       const held = heldOf(v.cardId);
       held.values[v.fieldId] = v.value;
+      held.sources[v.fieldId] = sourceFrom(v.source, v.capture, v.fieldId);
       noteFile(held, v);
     }
-    const examples = new Map<string, { cardId: string; values: Record<string, string> }>();
+    const examples = new Map<string, { cardId: string; values: Record<string, string>; sources: ValueSources }>();
     for (const e of read.examples) {
       const values: Record<string, string> = {};
-      examples.set(e.id, { cardId: e.cardId, values });
-      heldOf(e.cardId).examples.push({ id: e.id, values, source: e.url === null ? null : { url: e.url, title: e.title ?? "" }, createdAt: e.createdAt });
+      const sources: ValueSources = {};
+      examples.set(e.id, { cardId: e.cardId, values, sources });
+      heldOf(e.cardId).examples.push({ id: e.id, values, sources, source: e.url === null ? null : { url: e.url, title: e.title ?? "" }, createdAt: e.createdAt });
     }
     for (const v of read.exampleValues) {
       const example = examples.get(v.exampleId);
       if (!example) continue;
       example.values[v.fieldId] = v.value;
+      example.sources[v.fieldId] = sourceFrom(v.source, v.capture, v.fieldId);
       noteFile(heldOf(example.cardId), v);
     }
     return rows.map((row) => {
       const place = placeFrom(row);
       const held = byCard.get(row.id);
-      return Card.parse({ ...row, values: held?.values ?? {}, files: held?.files ?? {}, cues: held?.cues ?? {}, examples: held?.examples ?? [], place, ...scheduleOf(type, row, place, today) });
+      return Card.parse({
+        ...row,
+        values: held?.values ?? {},
+        sources: held?.sources ?? {},
+        files: held?.files ?? {},
+        cues: held?.cues ?? {},
+        examples: held?.examples ?? [],
+        place,
+        ...scheduleOf(type, row, place, today),
+      });
     });
   }
   /** Everything a card is read with, for one card. */
@@ -1733,6 +1901,42 @@ export function openDb(
         return settingsFrom(selectSettings.all() as SettingRow[]);
       });
     },
+    /** The account's own Panki AI templates, every action's, in the order they were made; Panki's starters are the contracts'. */
+    listAiTemplates(): AiTemplate[] {
+      return (selectAiTemplates.all() as AiTemplateRow[]).flatMap((row) => aiTemplateOf(row) ?? []);
+    },
+    /** One of the account's own templates; null for a starter's id, a removed one, or one that never was. */
+    getAiTemplate(id: string): AiTemplate | null {
+      const row = selectAiTemplate.get(id) as AiTemplateRow | undefined;
+      return row ? aiTemplateOf(row) : null;
+    },
+    /** A template made, its id minted here: never a starter's (`starter:`), so a starter is never written. */
+    insertAiTemplate(template: NewAiTemplate, now: number): AiTemplate {
+      const id = `t_${crypto.randomUUID()}`;
+      insertAiTemplate.run(id, template.action, template.name, template.prompt, template.followUp, template.judges ? 1 : 0, now, now);
+      const made = api.getAiTemplate(id);
+      if (!made) throw new Error("A template just made didn't read back.");
+      return made;
+    },
+    /**
+     * A template saved whole: written, with its change log a row, only when something differs, so a save of the same
+     * thing again changes nothing. Null when it isn't the account's own and living.
+     */
+    updateAiTemplate(id: string, update: AiTemplateUpdate, now: number): AiTemplate | null {
+      return transaction(() => {
+        const before = api.getAiTemplate(id);
+        if (!before) return null;
+        const [was, is] = [aiTemplateSnapshot(before), aiTemplateSnapshot({ ...before, ...update })];
+        if (was === is) return before;
+        updateAiTemplateRow.run(update.name, update.prompt, update.followUp, update.judges ? 1 : 0, now, id);
+        insertAiTemplateChange.run(id, was, is, now);
+        return api.getAiTemplate(id);
+      });
+    },
+    /** Hides the template, kept with the time it went; hiding twice keeps the first time. False when the account never had one by that id (a starter's among them). */
+    removeAiTemplate(id: string, now: number): boolean {
+      return removeAiTemplate.run(now, id).changes > 0;
+    },
     listDecks(now: number): Deck[] {
       const today = todayAt(now);
       // The decks on one SRS type share one reading of it: a type's own counts are the heavier part of each deck's read.
@@ -1836,7 +2040,7 @@ export function openDb(
       return transaction(() => {
         const inserted = insertCard.run(card.id, deckId, now).changes > 0;
         if (inserted) {
-          for (const [fieldId, value] of Object.entries(card.values)) insertValue.run(card.id, fieldId, value);
+          for (const [fieldId, value] of Object.entries(card.values)) insertValue.run(card.id, fieldId, value, sourceJson(card.sources, fieldId));
           const from = card.source;
           if (from) insertSource.run(card.id, from.url, from.title, from.text, from.startMs ?? null, from.endMs ?? null, from.channel?.name ?? null, from.channel?.url ?? null, from.client, now, captureOf(from));
         }
@@ -1847,19 +2051,21 @@ export function openDb(
       });
     },
     /**
-     * Changes some of a card's values. Each one given is stored when it differs from what the card has (a field never
-     * filled reads as empty), with a row of what it changed from and to; the rest keep what they have. Null when the
-     * card isn't in that deck.
+     * Changes some of a card's values. Each one given is stored when it, or where it came from, differs from what the
+     * card has (a field never filled reads as empty), with a row of what it changed from and to and the source it took;
+     * the rest keep what they have. Null when the card isn't in that deck.
      */
     updateCard(deckId: string, cardId: string, update: CardUpdate, now: number): Card | null {
       return transaction(() => {
         if (!selectDeckCard.get(deckId, cardId)) return null;
-        const had = new Map((selectCardValues.all(cardId) as ValueRow[]).map((v) => [v.fieldId, v.value]));
+        const had = new Map((selectCardValues.all(cardId) as ValueRow[]).map((v) => [v.fieldId, v]));
         for (const [fieldId, value] of Object.entries(update.values)) {
-          const from = had.get(fieldId) ?? "";
-          if (from === value) continue;
-          upsertValue.run(cardId, fieldId, value);
-          insertValueChange.run(cardId, fieldId, from, value, now);
+          const was = had.get(fieldId);
+          const from = was?.value ?? "";
+          const source = sourceJson(update.sources, fieldId);
+          if (from === value && was?.source === source) continue;
+          upsertValue.run(cardId, fieldId, value, source);
+          insertValueChange.run(cardId, fieldId, from, value, now, source);
         }
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
@@ -1880,7 +2086,7 @@ export function openDb(
             example.id, cardId, now, from?.client ?? null, from?.url ?? null, from?.title ?? null, from?.text ?? null,
             from?.startMs ?? null, from?.endMs ?? null, from?.channel?.name ?? null, from?.channel?.url ?? null, captureOf(from),
           );
-          for (const [fieldId, value] of Object.entries(example.values)) insertExampleValue.run(example.id, fieldId, value);
+          for (const [fieldId, value] of Object.entries(example.values)) insertExampleValue.run(example.id, fieldId, value, sourceJson(example.sources, fieldId));
         }
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         const card = cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
@@ -1897,12 +2103,14 @@ export function openDb(
         if (!selectDeckCard.get(deckId, cardId)) return null;
         const owner = selectExampleCard.get(exampleId) as { cardId: string; removedAt: number | null } | undefined;
         if (!owner || owner.cardId !== cardId || owner.removedAt !== null) return null;
-        const had = new Map((selectExampleValues.all(exampleId) as { fieldId: string; value: string }[]).map((v) => [v.fieldId, v.value]));
+        const had = new Map((selectExampleValues.all(exampleId) as { fieldId: string; value: string; source: string | null }[]).map((v) => [v.fieldId, v]));
         for (const [fieldId, value] of Object.entries(update.values)) {
-          const from = had.get(fieldId) ?? "";
-          if (from === value) continue;
-          upsertExampleValue.run(exampleId, fieldId, value);
-          insertExampleValueChange.run(exampleId, fieldId, from, value, now);
+          const was = had.get(fieldId);
+          const from = was?.value ?? "";
+          const source = sourceJson(update.sources, fieldId);
+          if (from === value && was?.source === source) continue;
+          upsertExampleValue.run(exampleId, fieldId, value, source);
+          insertExampleValueChange.run(exampleId, fieldId, from, value, now, source);
         }
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
@@ -2220,9 +2428,11 @@ export function openDb(
     },
     /**
      * One video as the extension asks of it when it opens: where it was stopped, whether it counts, whether it's
-     * finished, and how close to its end that is. Whether it's noted at all is the browser's to say.
+     * finished, and how close to its end that is (the account's own `finishedWithinSec`), which the extension sees it
+     * played into and says so with a finish mark. Whether it's noted at all is the browser's to say.
      */
     watchedVideo(videoId: string): WatchedVideo {
+      const { finishedWithinSec } = settingsFrom(selectSettings.all() as SettingRow[]);
       const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
       const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
       const finished = said?.finished ?? false;
@@ -2230,7 +2440,7 @@ export function openDb(
         stoppedAtMs: last ? stopOf(last.toMs, last.lengthMs, finished) : null,
         counted: said?.counted ?? true,
         finished,
-        finishedWithinMs: finishedWithinMs(),
+        finishedWithinMs: finishedWithinSec * 1000,
       };
     },
     /**

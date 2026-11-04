@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CardFieldId, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind } from "@panki/contracts";
+import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
 import { DATA_KINDS } from "./dataKinds";
 
 /**
@@ -24,6 +24,8 @@ export const ROLE_IDS = [
   "wordAudio",
   "forvoAudio",
   "source",
+  "explanation",
+  "examples",
 ] as const;
 export type RoleId = (typeof ROLE_IDS)[number];
 
@@ -48,11 +50,11 @@ export type Cut = "clip" | "word";
 
 /**
  * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video itself,
- * or Forvo (word audio recorded by people, fetched with the owner's key: `forvo.ts`).
+ * or Forvo (word audio recorded by people, fetched with the owner's key: `forvo.ts`). The contracts' own, with how each
+ * is said, since Panki AI's Prompt context says the same (`prompt.ts`): one name for each, wherever it's shown.
  */
-export type Source = "text" | "dictionary" | "video" | "forvo";
-/** How the field mapping says each source, beside every piece. */
-export const SOURCE_WORDS: Record<Source, string> = { text: "Subtitles or page", dictionary: "Dictionary", video: "YouTube", forvo: "Forvo" };
+export type Source = PieceSource;
+export { SOURCE_WORDS };
 
 type Role = {
   name: string;
@@ -78,8 +80,12 @@ const holdsAccent = (field: CardField) => holdsPitch(field.kind);
 /** A kind of the dictionary's data as a piece, called what the kind is called: words, or a pitch accent. */
 const fromDictionary = (kind: DataKind): Role => ({ name: DATA_KINDS[kind].name, from: "dictionary", takes: kind === "pitch" ? holdsAccent : holdsText, dictionary: kind });
 
+/**
+ * The pieces that are words go by Prompt context's names (`PIECE_NAMES`), the one name each has in the field mapping
+ * and in a Panki AI prompt alike; the dictionary's go by their kind's, which are the same names.
+ */
 export const ROLES: Record<RoleId, Role> = {
-  word: { name: "Selected word", from: "text", takes: holdsText },
+  word: { name: PIECE_NAMES.word, from: "text", takes: holdsText },
   // What the dictionary says of the selected word (2026-10-14): the word as it's written there (探す for 探していた),
   // its reading, its meaning; and since 2026-10-16 every other kind of its data too. Their ids aren't "reading" and
   // "meaning": those were pieces once, typed by hand, and a map from then may still name them; they're let go (below)
@@ -91,7 +97,7 @@ export const ROLES: Record<RoleId, Role> = {
   dictWordType: fromDictionary("wordType"),
   dictFrequency: fromDictionary("frequency"),
   dictPitch: fromDictionary("pitch"),
-  sentence: { name: "Sentence", from: "text", takes: holdsText },
+  sentence: { name: PIECE_NAMES.sentence, from: "text", takes: holdsText },
   // The four things recorded off the video: either stretch, either way. (`clip` was the only one, and is the id kept
   // maps already hold: the sentence with its picture.)
   clip: { name: "Sentence video", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
@@ -104,8 +110,16 @@ export const ROLES: Record<RoleId, Role> = {
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
   // (the video's name, the channel's name and address) is kept beside the card as its `source` (the owner, 2026-10-17:
   // "it should all be a part of source", in place of a title piece and a channel piece that lived an hour).
-  source: { name: "Video metadata", from: "video", takes: (field) => holdsLink(field.kind) },
+  source: { name: PIECE_NAMES.source, from: "video", takes: (field) => holdsLink(field.kind) },
+  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself (the owner,
+  // 2026-10-30): the word in general, and a few made-up sentences with their scenes. Two fields, not one, so the layout
+  // places each on its own. Nothing fills them as the drawer opens; their names are Touch up's (`TOUCH_UP`).
+  explanation: { name: TOUCH_UP.explanation.name, from: "ai", takes: holdsText },
+  examples: { name: TOUCH_UP.examples.name, from: "ai", takes: holdsText },
 };
+
+/** The role a Touch up key's proposal goes to (`TOUCH_UP`, by the same id). */
+export const roleOfKey = (key: TouchUpKey): RoleId | null => ROLE_IDS.find((role) => role === TOUCH_UP[key].role) ?? null;
 
 /** The pieces the dictionaries give: what they can fill a card's fields with. */
 export const DICTIONARY_ROLES = ROLE_IDS.filter((role): role is DictionaryRoleId => ROLES[role].dictionary !== undefined);
@@ -158,14 +172,14 @@ export function withRole(map: FieldMap, fieldId: string, role: RoleId | null): F
 
 /**
  * A card's values as they'd be sent: in each field, the piece it takes when that piece is words (`taken`), and what
- * was typed into it when it takes none (`typed`, by field id). A clip follows its card, so a field that takes one has
- * no value here.
+ * was typed into it when it takes none, or takes one only Panki AI fills (`typed`, by field id: what Touch up wrote
+ * there once accepted, or the owner's words). A clip follows its card, so a field that takes one has no value here.
  */
 export function valuesFor(type: CardType, map: FieldMap, taken: Partial<Record<RoleId, string>>, typed: Readonly<Record<string, string>>): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of type.fields) {
     const role = roleOf(map, field.id);
-    const text = (role === null ? (isTyped(field.kind) ? typed[field.id] : undefined) : taken[role])?.trim();
+    const text = (role === null || ROLES[role].from === "ai" ? (isTyped(field.kind) ? typed[field.id] : undefined) : taken[role])?.trim();
     if (text) values[field.id] = text;
   }
   return values;

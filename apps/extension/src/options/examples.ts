@@ -1,22 +1,17 @@
-import type { CalledCard } from "@panki/contracts";
+import { EXAMPLE_ANSWERS, IN_DECKS } from "@web/explainers/examples";
+import type { ExplainExamples } from "../ui/Explain";
 import type { CardsSource } from "../ui/Lookup";
 
 /**
- * A word that stands for one already in the decks wherever the options page shows the pop-up dictionary at work (the
- * Pop-up dictionary layout's sentences, the panels' explainers): on the pop-up it's a card of an example deck, whose
- * Open in Panki opens nothing. Never one of the owner's own cards (the owner, 2026-10-28: "so that I can see it in
- * green… and the 'already in your deck' message").
+ * The options page's own ways of showing the pop-up dictionary at work, made of the examples' one home (the web's
+ * `explainers/examples.ts`, which Settings → Panki AI's explainers draw from too).
  */
-export const IN_DECKS: CalledCard = {
-  cardId: "00000000-0000-4000-8000-000000000001",
-  deckId: "00000000-0000-4000-8000-000000000002",
-  deck: "Example deck",
-  words: "喫茶店",
-  apart: [],
-};
 
-/** Where the pop-up learns which cards a word already is, on the options page: that one example, and nothing else. */
+/** Where the pop-up learns which cards a word already is, on the options page: the example word, and nothing else. */
 export const EXAMPLE_CARDS: CardsSource = {
   ask: async (words) => (words.includes(IN_DECKS.words) ? [IN_DECKS] : []),
   open: () => undefined,
 };
+
+/** What Panki AI's Explain answers on the options page: the made-up answers, never asked of anyone. A word with none shows Explain's button. */
+export const EXAMPLE_EXPLAIN: ExplainExamples = { kind: "example", answers: EXAMPLE_ANSWERS };

@@ -8,9 +8,9 @@ import { EngineError, type Engines } from "../transcribe/engines";
 const NO_KEY = "Add a key for the engine in Settings → Admin.";
 
 /**
- * How transcribing runs, for everyone: the settings, whose key the chosen engine has (the key itself to an admin), how
- * much sound has been sent so far, what a whole-video download takes and costs as measured so far, and the engine's
- * account behind the key. Read by anyone signed in but the account; changed by an admin alone.
+ * How transcribing runs, for everyone: the settings, whose key the chosen engine has (the key itself to an admin), what
+ * a whole-video download takes as measured so far, and the engine's account behind the key (what's been sent and what
+ * it cost is the usage ledger's, `routes/usage.ts`). Read by anyone signed in but the account; changed by an admin alone.
  */
 export function transcriptionRouter(dbOf: DbOf, shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, now: () => number) {
   const router = Router();
@@ -25,7 +25,6 @@ export function transcriptionRouter(dbOf: DbOf, shared: Shared, engines: Engines
       settings,
       key,
       ...(saved !== null && signedIn(res).user.admin ? { saved } : {}),
-      seconds: shared.secondsTranscribed(),
       estimate: shared.estimate(settings.engine, now()),
       own: dbOf(res).getSettings().language,
     };

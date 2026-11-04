@@ -12,14 +12,20 @@ import { wordsOf, type Forced } from "./split";
  */
 const lattices = new Map<string, Lattice>();
 const asking = new Set<string>();
-const KEEP = 400;
+/**
+ * How many lines' words are kept, the oldest let go first. A whole transcript is listed beside the video (the panel's
+ * Beside the video view), so it's more than a long video's lines: at 400, cleared whole, such a list was asked about
+ * over and over.
+ */
+const KEEP = 5000;
 /** How long a line must stay as it is before it's asked about. */
 const SETTLE_MS = 120;
+/** How many lines are asked about at once: a whole transcript listed asks about every line, in turn, never all together. */
+const AT_ONCE = 4;
+const waiting: string[] = [];
 
-let version = 0;
 const followers = new Set<() => void>();
 const told = () => {
-  version++;
   for (const follower of followers) follower();
 };
 const subscribe = (follower: () => void) => {
@@ -28,18 +34,33 @@ const subscribe = (follower: () => void) => {
     followers.delete(follower);
   };
 };
-const snapshot = () => version;
 
 function want(text: string) {
-  if (text === "" || lattices.has(text) || asking.has(text)) return;
-  asking.add(text);
-  void askLattice(text).then((answer) => {
-    asking.delete(text);
-    if (!answer.ok) return;
-    if (lattices.size >= KEEP) lattices.clear();
-    lattices.set(text, answer.lattice);
-    told();
-  });
+  if (text === "" || lattices.has(text) || asking.has(text) || waiting.includes(text)) return;
+  waiting.push(text);
+  next();
+}
+
+/** The next line waiting asked about, while fewer than `AT_ONCE` are on their way. */
+function next() {
+  while (asking.size < AT_ONCE) {
+    const text = waiting.shift();
+    if (text === undefined) return;
+    if (lattices.has(text)) continue;
+    asking.add(text);
+    void askLattice(text).then((answer) => {
+      asking.delete(text);
+      if (answer.ok) {
+        if (lattices.size >= KEEP) {
+          const oldest = lattices.keys().next();
+          if (!oldest.done) lattices.delete(oldest.value);
+        }
+        lattices.set(text, answer.lattice);
+        told();
+      }
+      next();
+    });
+  }
 }
 
 /** The dictionaries changed (the worker says so in its `lookState` answer): every line is asked about again. */
@@ -60,13 +81,15 @@ export function wordsNow(text: string, forced: readonly Forced[] = []): Token[] 
 
 /** A line's words, split again whenever the worker has said more about them. */
 export function useWords(text: string, forced: readonly Forced[] = []): Token[] {
-  const known = useSyncExternalStore(subscribe, snapshot);
+  // This line's own words, so an answer about another line draws nothing here: a whole transcript listed is a line each.
+  const lattice = useSyncExternalStore(subscribe, () => lattices.get(text) ?? null);
   useEffect(() => {
-    if (lattices.has(text)) return;
+    if (lattice) return;
     const soon = setTimeout(() => want(text), SETTLE_MS);
     return () => clearTimeout(soon);
-  }, [text, known]);
+  }, [text, lattice]);
   // `forcedKey` says when `forced` has really changed; the list itself is new on every draw.
   const forcedKey = forced.map((f) => `${f.from}-${f.to}`).join(",");
-  return useMemo(() => wordsNow(text, forced), [text, known, forcedKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => wordsOf(text, lattice, forced), [text, lattice, forcedKey]);
 }

@@ -1,5 +1,5 @@
 import "../setup";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { knownAs, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
@@ -13,19 +13,22 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { inEndZone, momentWanted, youtubeMetaValue, youtubeUrl, type CaptureFacts, type WatchMarkSource } from "@panki/contracts";
+import { defaultTemplateOf, inEndZone, momentWanted, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiRunWhy, type AiTemplate, type CaptureFacts, type PromptPieces, type WatchMarkSource } from "@panki/contracts";
+import { AiStatus } from "@web/components/AiStatus";
+import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
+import { RUN_WORDS, RunAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
+import { clock } from "@web/words";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
-import { Form } from "@web/components/Form";
-import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askFix, askForget, askGlance, askLine, askModules, askOpenPanki, askOptions, askPankiOn, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askOpenPanki, askOptions, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, resumeTo, switchInPill, type Modules, type SkipKey } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANEL_VIEWS, PANEL_VIEW_IDS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
+import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { SubtitleMenu } from "../ui/SubtitleMenu";
 import type { Cut } from "../roles";
@@ -33,16 +36,18 @@ import { paintCss } from "../seekLook";
 import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, engineWanted, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
+import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
 import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
 import { inPanki, makePlace, mount } from "../ui/mount";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
+import type { PieceLimits } from "../ui/Explain";
 import { SpeedControl } from "../ui/SpeedControl";
 import { SeekMark, markOf, type ClipMark, type Pinned } from "../ui/SeekMark";
-import { Stamp } from "../ui/Stamp";
-import { TranscribeMenu, type Seconds } from "../ui/TranscribeMenu";
+import { TranscribeMenu, type AiPart, type Seconds } from "../ui/TranscribeMenu";
+import { OverLineEditor, StripEditor, type EditorActions, type EditorLine } from "../ui/TranscriptEditor";
 import type { ClipEnd, MoveBy } from "../ui/Trim";
 
 /**
@@ -61,6 +66,11 @@ const UNDER_PLAYER = "ytd-watch-flexy #below";
 const BESIDE_PLAYER = "ytd-watch-flexy #secondary";
 /** That column is used only while it's there and at least this wide; a narrow window has none, and the drawer goes under the line instead. */
 const BESIDE_MIN = 300;
+/**
+ * The site's recommendations in that column: hidden while the Panki panel stands beside the video in their place (the
+ * options page's Beside the video), shown again the moment it doesn't. Nothing else of the column is touched.
+ */
+const RECOMMENDATIONS = "ytd-watch-flexy #secondary #related";
 /** The player's own seek bar: the whole video from its left end to its right. The clip is marked on it. */
 const SEEK_BAR = "#movie_player .ytp-progress-bar";
 /**
@@ -71,6 +81,11 @@ const SEEK_BAR = "#movie_player .ytp-progress-bar";
 const CHANNEL_NAME = "ytd-watch-flexy #owner ytd-channel-name a[href], ytd-watch-flexy ytd-video-owner-renderer a[href]";
 /** The channel's picture beside its name, under the player: Panki keeps it with the card's video (`askPictures`). */
 const CHANNEL_PICTURE = "ytd-watch-flexy #owner #avatar img, ytd-watch-flexy ytd-video-owner-renderer #avatar img";
+/**
+ * The video's description under the player, for Panki AI's Explain (`videoPieces`): the whole of it as it unfolds, then
+ * the box it's in (folded, it may hold less), then the older layout's. Tried in this order; the first with words is it.
+ */
+const DESCRIPTION = ["ytd-watch-metadata #description-inline-expander #expanded", "ytd-watch-metadata #description-inline-expander", "ytd-watch-metadata #description"] as const;
 
 /**
  * A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a
@@ -101,6 +116,8 @@ const ROOM_USED = 0.78;
 
 /** Where the line stands: under the player. */
 const UNDER = "display: block; margin: 12px 0 0;";
+/** Where the panel stands in its Beside the video view: first in the column beside the player (after the drawer, while that's open there), as tall as the player (`--panki-beside-h`). */
+const BESIDE_PANEL = "display: block; margin: 0 0 16px;";
 /**
  * Where the drawer stands: at the top of the column beside the player; under the line, no wider than a drawer, when
  * there's no such column; over a player that fills the screen. The room between it and its neighbours is handed to
@@ -129,12 +146,7 @@ const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; botto
  * intro, that style UI and UX"). Over the subtitles' band and under the player's own controls.
  */
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
-/** The player's own row of buttons at the right of its controls (settings, theater, full screen): the speed button goes first among them. */
-const RIGHT_CONTROLS = "#movie_player .ytp-right-controls";
-/** The player's own time ("3:12 / 12:34") among its left-hand controls: when the video will end goes right after it. */
-const TIME_DISPLAY = "#movie_player .ytp-time-display";
-/** Where the speed button stands: one of the player's controls, as tall as they are, its row of speeds opening above it. The end time stands the same way. */
-const AMONG_CONTROLS = "display: inline-flex; align-items: center; height: 100%; vertical-align: top; position: relative;";
+// The player's control bar, and the speed button, the end time and Theatre mode among its controls, are `playerBar.ts`'s.
 /** How often the transcriber looks at the viewer's player. The lines are looked at every frame (`followLines`). */
 const FOLLOW_MS = 250;
 
@@ -190,15 +202,13 @@ over.ground.classList.add("over-ground");
 /** The offer to go on from where the video was stopped, on the picture. */
 const resume = makePlace(siteTheme());
 resume.host.style.cssText = OVER_CORNER;
-/** The speed button among the player's own controls (a YouTube utility). */
-const speed = makePlace(siteTheme());
-speed.host.style.cssText = AMONG_CONTROLS;
-/** When the video will end, after the player's own time (a YouTube utility). */
-const endTime = makePlace(siteTheme());
-endTime.host.style.cssText = AMONG_CONTROLS;
+/** The player's control bar as the options page lays it out, Panki's own controls among it (a YouTube utility). */
+const playerBar = createPlayerBar();
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
 const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
+/** Panki AI's Proofread on this video's transcript (AI step 6): its runs, read by the menu and the rows alike. */
+const proofreader = createProofreader(transcriber, () => lines.transcriptLines(), (limits) => videoPieces(limits));
 /** Whether the transcript is over the video right now (the site's own captions give way to it). */
 const showingOver = cell(false);
 /** The account's cards taken from this video, each its clip's stretch in ms and its words: marked on the seek bar. */
@@ -281,6 +291,44 @@ function aboutVideo() {
   const link = owner instanceof HTMLAnchorElement && /^https?:\/\//i.test(owner.href) ? owner.href.slice(0, 2000) : "";
   return { title, channel: name && link ? { name, url: link } : null };
 }
+/** The video's description as the page has it, its spacing tidied; empty when it isn't found. */
+function descriptionText(): string {
+  for (const selector of DESCRIPTION) {
+    const text = (document.querySelector(selector)?.textContent ?? "")
+      .replace(/[ \t ]+/g, " ")
+      .replace(/ ?\n ?/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (text !== "") return text;
+  }
+  return "";
+}
+
+/**
+ * What Explain sends of a video besides the word and its sentence (AI step 2): the video's title, channel and link at
+ * the moment it stands at, as text; the lines the strip is reading (Panki's transcript or YouTube's subtitles, as
+ * shown) within `aiSurroundingSeconds` either side of that moment, one a line; and its description, cut to
+ * `aiMaxDescriptionChars`. Nothing off a video's own page. The drawer's Touch up asks the same, as its card is made.
+ */
+function videoPieces(limits: PieceLimits): PromptPieces {
+  const id = videoId();
+  if (!id || !video || location.pathname !== "/watch") return {};
+  const at = video.currentTime;
+  const { title, channel } = aboutVideo();
+  const source = [title, channel ? `on ${channel.name}` : "", youtubeUrl({ videoId: id, seconds: Math.floor(at) })].filter((part) => part !== "").join(", ");
+  const reach = limits.aiSurroundingSeconds;
+  const surrounding =
+    reach > 0
+      ? lines
+          .snapshot()
+          .filter((line) => line.start <= at + reach && (line.end ?? line.start) >= at - reach)
+          .map((line) => line.text)
+          .join("\n")
+      : "";
+  const description = descriptionText().slice(0, limits.aiMaxDescriptionChars);
+  return { source, surrounding, description };
+}
+
 /** Panki on YouTube's pages beyond a video's: the shelf over its home's videos, the marks on every thumbnail (`feed.tsx`). */
 const feed = createFeed({
   modules: () => active(),
@@ -472,15 +520,23 @@ const listening = createListening({
   },
   theme: () => siteTheme(),
   parent: () => document.fullscreenElement ?? document.documentElement,
+  aiContext: (_pointed, limits) => videoPieces(limits),
 });
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
 const inPlace = cell(false);
+/**
+ * Which of the panel's views it stands in right now (`modules.ts` → `PanelView`): the one picked, or under the player
+ * where the column beside it isn't (theater mode, a narrow window), as the page is laid out this moment.
+ */
+const placedAs = cell<PanelView | "stage">("under");
+/**
+ * Theatre mode, switched in the panel's head while it stands beside the video (the owner, 2026-11-04: "an easier, more
+ * built-in way to switch between theatre mode and whatever was on before… only supported when it's beside the video,
+ * so it's less of a mode"). This page's alone: it lasts from one video to the next in this tab, and a page opened
+ * afresh never fills the screen by itself, so it's never something to find a way out of.
+ */
+const theatre = cell(false);
 const showing = cell(false);
-/** Whether the player's video stands still: a line under it is fixed with the pencil only then. */
-const stillNow = cell(true);
-const noteStill = (e: Event) => {
-  if (e.target instanceof HTMLVideoElement) stillNow.set(e.target.paused);
-};
 
 /** The player's video, as last found. */
 let video: HTMLVideoElement | null = null;
@@ -540,7 +596,7 @@ const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: 
 function active(): Modules {
   const now = modules.get();
   if (now.on && !updateNeeded()) return now;
-  const utilities = { shorts: now.shorts, speedControl: now.speedControl, endTime: now.endTime, shortSkip: now.shortSkip, shortSkipKey: now.shortSkipKey, shortSkipSeconds: now.shortSkipSeconds };
+  const utilities = { shorts: now.shorts, playerBar: now.playerBar, bar: now.bar, barKept: now.barKept, shortSkip: now.shortSkip, shortSkipKey: now.shortSkipKey, shortSkipSeconds: now.shortSkipSeconds };
   return { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, ...utilities };
 }
 
@@ -550,6 +606,14 @@ function setPankiOn(on: boolean) {
   void askPankiOn(on);
   // Turned back on, the video playing is noted again from now (off, `look` closed and sent what was open).
   if (on) void readSeen();
+}
+
+/** The panel's view picked on the panel: on the page at once, and kept for every video from now on. */
+function setPanelView(view: PanelView) {
+  // Theatre mode is the Beside view's own: another view picked ends it.
+  if (view !== "beside") theatre.set(false);
+  modules.set({ ...modules.get(), panelView: view });
+  void askPanelView(view);
 }
 
 /**
@@ -666,23 +730,269 @@ function stopMark(): number | null {
   return on.seek && on.markStop && now?.on && now.videoId === watching ? now.stoppedAt : null;
 }
 
-/** Puts Panki's two places where they belong right now: the line under the player; the drawer beside it, or under the line, or floating over a player that fills the screen. */
+/**
+ * The column beside the player, as the page is laid out this moment: there, as wide as a panel needs, and really
+ * beside the player (its left edge at the player's right, its top above the player's foot). Theater mode puts the
+ * site's column under the player and a narrow window under everything, so neither counts: read off where things are
+ * drawn rather than off the site's own attributes for those modes, which it renames.
+ */
+function columnBeside(player: Element | null): HTMLElement | null {
+  const column = document.querySelector(BESIDE_PLAYER);
+  if (!(column instanceof HTMLElement) || !player || column.offsetWidth < BESIDE_MIN) return null;
+  const p = player.getBoundingClientRect();
+  const c = column.getBoundingClientRect();
+  return p.width > 0 && c.left >= p.right - 1 && c.top < p.bottom ? column : null;
+}
+
+/**
+ * The Stage (`PanelView` "stage", phase 2, 2026-11-04): the video filling the screen but for the panel's column at the
+ * right or the left. It can't be the player's own full screen, which is the site's and holds the player alone, so it's
+ * a layer of Panki's over the page: the site's theater mode turned on (its own button, as the viewer's press would),
+ * which puts the player in the full-width container at the page's top, and that container held to the screen beside
+ * the panel by a few lines of CSS on the page (`STAGE_CSS`); the player's node is never moved. The panel and the drawer
+ * stand in a column of Panki's own fixed at the other side. The site's names it leans on are these four, together here:
+ * when the site renames them, this is where to look.
+ */
+const WATCH_PAGE = "ytd-watch-flexy";
+/** The player's own theater button (its "t"). */
+const THEATER_BUTTON = "#movie_player .ytp-size-button";
+const STAGE_CLASS = "panki-stage";
+const STAGE_LEFT_CLASS = "panki-stage-left";
+/**
+ * What the Stage changes of the page, only while `html` carries `STAGE_CLASS` (taken off at once on leaving, and while
+ * the site's own full screen is up without Theatre): the page doesn't scroll, its header bar is hidden, and the
+ * full-bleed container is fixed to the screen beside the panel's column (`--panki-stage-w`), black around the picture.
+ * The player stands in that container in the site's theater mode and in its full screen alike (the owner's reading,
+ * 2026-11-04: in full screen `ytd-watch-flexy` carries `fullscreen` and `full-bleed-player`), so the Stage is the same
+ * lines in both.
+ */
+const STAGED_PAGE = `${WATCH_PAGE}:is([theater], [fullscreen])`;
+const STAGE_CSS = `
+html.${STAGE_CLASS} { --panki-stage-w: min(420px, 38vw); }
+html.${STAGE_CLASS}, html.${STAGE_CLASS} body { overflow: hidden !important; }
+html.${STAGE_CLASS} #masthead-container { display: none !important; }
+html.${STAGE_CLASS} ${STAGED_PAGE} #full-bleed-container {
+  position: fixed !important; top: 0 !important; bottom: 0 !important; left: 0 !important; right: var(--panki-stage-w) !important;
+  width: auto !important; height: 100vh !important; min-height: 0 !important; max-height: none !important; margin: 0 !important;
+  z-index: 2100 !important; background: #000 !important;
+}
+html.${STAGE_CLASS}.${STAGE_LEFT_CLASS} ${STAGED_PAGE} #full-bleed-container { left: var(--panki-stage-w) !important; right: 0 !important; }
+html.${STAGE_CLASS} ${STAGED_PAGE} #player-full-bleed-container { height: 100% !important; max-height: none !important; }
+`;
+/** The stage's column of Panki's own: the drawer (while it's open) over the panel, fixed at one side of the screen, over the page. */
+const stageColumn = document.createElement("div");
+const STAGE_COLUMN = "position: fixed; top: 0; bottom: 0; width: var(--panki-stage-w); z-index: 2101; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; background: var(--yt-spec-base-background, #0f0f0f);";
+/** How the panel stands in the stage's column: as tall as the screen at least, the drawer over it scrolling the column. */
+const STAGE_PANEL = "display: block; flex: 1 0 auto;";
+let stageStyle: HTMLStyleElement | null = null;
+/** Whether the stage's layer is up this moment. */
+let staged = false;
+/** Theater mode was turned on by Panki for the stage, so it's turned off again on leaving; one the viewer had on stays. */
+let theaterByPanki = false;
+/** When Panki last pressed theater on, and how often for this stage: given up on after a few (the button gone, the site changed). */
+let theaterAskedAt = 0;
+let theaterTries = 0;
+const THEATER_TRIES = 3;
+const THEATER_WAIT_MS = 2500;
+/** Theater mode was seen on during this stage: seen off again after that (the viewer's own "t"), the stage goes with it. */
+let sawTheater = false;
+/** Until when theater mode coming and going is the site's own redrawing (a full screen left, another video), not the viewer. */
+let stageSettleUntil = 0;
+/** Where the page was scrolled to as Theatre mode was switched on: put back once it's left, so the page is as it stood. */
+let scrollBefore: number | null = null;
+
+/** The stage's layer up or down: the page's few lines of CSS, the side, and the player told its room changed. */
+function setStaged(up: boolean, left: boolean) {
+  const html = document.documentElement;
+  if (up && !stageStyle) {
+    stageStyle = document.createElement("style");
+    stageStyle.textContent = STAGE_CSS;
+    document.head.append(stageStyle);
+  }
+  html.classList.toggle(STAGE_LEFT_CLASS, up && left);
+  const changed = staged !== up;
+  staged = up;
+  html.classList.toggle(STAGE_CLASS, up);
+  // The player sizes itself to its container on the window's resize: told so once its container has moved.
+  if (changed) requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+}
+
+/**
+ * Theatre mode in the browser's own full screen (`Modules.stageFull`, the owner, 2026-11-04). The site's own full
+ * screen (its F, its button) is the page's root as the full screen element (the owner's reading, the same day), so
+ * Panki asking for the root's is asking for the site's: the site lays its full screen out (`ytd-watch-flexy[fullscreen]`,
+ * its theater mode dropped) and Theatre stands in that, its CSS keyed on it as on theater mode (`STAGED_PAGE`), the
+ * panel's column beside the player. Theatre and its full screen never disagree: leaving Theatre leaves it, and leaving
+ * it the browser's way (Esc, the player's own full screen button) leaves Theatre.
+ */
+const pankiFull = () => document.fullscreenElement === document.documentElement;
+/** Theatre mode asked for the full screen, and it's still to be left with it. */
+let fullByTheatre = false;
+/** The site's own full screen, its player alone filling the screen: not while it's Theatre's. */
+const siteFull = (): Element | null => (fullByTheatre ? null : document.fullscreenElement);
+
+/** Theatre mode switched on from the panel beside the video, or the player's bar: where the page was scrolled to is kept to go back to. */
+function enterTheatre() {
+  if (theatre.get()) return;
+  scrollBefore = window.scrollY;
+  // Asked in the press itself, which a browser only allows then; refused, Theatre fills the window through the site's
+  // theater mode, as it does without.
+  if (modules.get().stageFull && !document.fullscreenElement) {
+    fullByTheatre = true;
+    document.documentElement.requestFullscreen().catch(() => {
+      fullByTheatre = false;
+      place();
+    });
+  }
+  theatre.set(true);
+}
+// Theatre left by any way (its button, Esc, another view picked, the site's theater mode turned off): its full screen with it.
+theatre.subscribe(() => {
+  if (theatre.get() || !fullByTheatre) return;
+  fullByTheatre = false;
+  if (pankiFull()) void document.exitFullscreen().catch(() => undefined);
+});
+
+/**
+ * Theatre mode left (its switch again, Esc, the ×, the site's theater mode turned off by hand): back to exactly what
+ * stood before, the panel beside the video, the site's theater mode off again if Panki turned it on (as the stage
+ * comes down, `stageNow`), and the page scrolled where it was once its layout is back (it moves as theater mode goes).
+ */
+function leaveStage() {
+  if (!theatre.get()) return;
+  theatre.set(false);
+  const y = scrollBefore;
+  scrollBefore = null;
+  if (y === null) return;
+  const back = () => window.scrollTo({ top: y, behavior: "instant" });
+  requestAnimationFrame(back);
+  setTimeout(back, 400);
+}
+
+/** The player's own theater button pressed, as the viewer's press would. */
+function pressTheater() {
+  const button = document.querySelector(THEATER_BUTTON);
+  if (button instanceof HTMLElement) button.click();
+}
+
+/**
+ * Whether the stage stands this moment, its layer put up or down to match. Switched on (Theatre mode, while the view is
+ * Beside the video, on a watch page with its video), it waits for theater mode, pressing it on (a few tries, a while apart); with it on, the layer goes up. Under
+ * the site's own full screen the layer is down and the stage waits for it to be left (the owner's F is the site's).
+ * Theater mode turned off by the viewer while it stands leaves the stage. Not picked, it's down, and theater mode goes
+ * back off if Panki turned it on. With Theatre's own full screen (`fullByTheatre`) none of that: it stands in the
+ * site's full screen layout instead of theater mode.
+ */
+function stageNow(placeable: boolean, isFull: boolean, on: Modules): boolean {
+  const picked = theatre.get() && on.panel && on.panelView === "beside" && video !== null && location.pathname === "/watch";
+  const theater = document.querySelector(WATCH_PAGE)?.hasAttribute("theater") ?? false;
+  if (!picked) {
+    setStaged(false, false);
+    // Only on a watch page, its player the page's own (elsewhere it may be the site's small player in a corner).
+    if (!isFull && location.pathname === "/watch") {
+      if (theaterByPanki && theater) pressTheater();
+      theaterByPanki = false;
+    }
+    theaterTries = 0;
+    sawTheater = false;
+    return false;
+  }
+  // Theatre in its full screen, the site's own: up once the page is in it, theater mode neither pressed nor watched
+  // (the site drops it for its full screen and puts it back after, its own business); it's left with the full screen.
+  if (fullByTheatre) {
+    const up = pankiFull() && placeable;
+    setStaged(up, on.stageSide === "left");
+    return up;
+  }
+  if (isFull || !placeable) {
+    setStaged(false, false);
+    return false;
+  }
+  if (!theater) {
+    setStaged(false, false);
+    const now = Date.now();
+    if (sawTheater && now > stageSettleUntil && now - theaterAskedAt > THEATER_WAIT_MS) {
+      // The viewer's own "t": the stage goes with theater mode, left as the next thing done (`place` is under way).
+      sawTheater = false;
+      theaterByPanki = false;
+      setTimeout(leaveStage, 0);
+    } else if (theaterTries < THEATER_TRIES && now - theaterAskedAt > THEATER_WAIT_MS) {
+      theaterAskedAt = now;
+      theaterTries++;
+      theaterByPanki = true;
+      pressTheater();
+    }
+    return false;
+  }
+  sawTheater = true;
+  setStaged(true, on.stageSide === "left");
+  return true;
+}
+
+/** The site's recommendations as Panki hid them, to be shown again: only ever the one element it hid itself. */
+let hiddenRecommendations: HTMLElement | null = null;
+function showRecommendations() {
+  if (!hiddenRecommendations) return;
+  hiddenRecommendations.style.removeProperty("display");
+  hiddenRecommendations = null;
+}
+
+/** Puts Panki's two places where they belong right now: the line under the player or beside it; the drawer beside it, or under the line, or floating over a player that fills the screen. */
 let laidOut = "";
+let stripLaid = "";
 function place() {
   const theme = siteTheme();
   strip.host.dataset.theme = theme;
   drawer.host.dataset.theme = theme;
   seek.host.dataset.theme = theme;
-  const full = document.fullscreenElement;
+  // The site's own full screen; Theatre's, the whole page's, lays Panki out as Theatre does.
+  const full = siteFull();
   const on = active();
   // The Panki panel switched off: nothing of it is on the page, the line, the drawer or the transcript over the video.
   // Panki switched off altogether: the line's head alone stays, with the switch to turn it back on. An update needed:
   // the head alone too, saying so.
-  const under = full || !video || !(on.panel || !modules.get().on || updateNeeded()) ? null : document.querySelector(UNDER_PLAYER);
-  inPlace.set(under !== null);
+  const placeable = !full && video !== null && (on.panel || !modules.get().on || updateNeeded());
+  const under = placeable ? document.querySelector(UNDER_PLAYER) : null;
+  // Beside the video, picked on the panel (`PanelView`): in the column beside the player while there is one; under it
+  // as always where there isn't (theater mode, a narrow window), back beside it as soon as there is again. The
+  // player's own node is never moved, only Panki's place.
+  const playerBox = video ? document.querySelector(PLAYER) : null;
+  const stage = stageNow(placeable, full !== null, on);
+  const side = !stage && placeable && on.panel && on.panelView === "beside" ? columnBeside(playerBox) : null;
+  const home = stage ? stageColumn : (side ?? under);
+  inPlace.set(home !== null);
+  placedAs.set(stage ? "stage" : side ? "beside" : "under");
+  // The stage's column, at its side, over the page; taken off the page the moment the stage is down.
+  if (stage) {
+    const at = on.stageSide === "left" ? "left: 0; border-right: 1px solid var(--yt-spec-10-percent-layer, #303030);" : "right: 0; border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
+    const columnLayout = STAGE_COLUMN + at;
+    if (stageColumn.style.cssText !== columnLayout) stageColumn.style.cssText = columnLayout;
+    if (stageColumn.parentElement !== document.documentElement) document.documentElement.append(stageColumn);
+  }
   // Each is moved only when it isn't there already: moving it takes the cursor out of whatever is being typed in it.
-  if (!under) strip.host.remove();
-  else if (strip.host.parentElement !== under) under.prepend(strip.host);
+  if (!home) strip.host.remove();
+  else if (strip.host.parentElement !== home) home.prepend(strip.host);
+  if (!stage) stageColumn.remove();
+  const stripLayout = stage ? STAGE_PANEL : side ? BESIDE_PANEL : UNDER;
+  if (stripLayout !== stripLaid) {
+    stripLaid = stripLayout;
+    strip.host.style.cssText = stripLayout;
+  }
+  // Beside the video, as tall as the player; on the stage, as tall as the screen: the transcript scrolls inside it.
+  const tall = stage ? stageColumn.clientHeight : side && playerBox ? playerBox.getBoundingClientRect().height : 0;
+  if (tall > 0) {
+    const height = `${Math.round(tall)}px`;
+    if (strip.host.style.getPropertyValue("--panki-beside-h") !== height) strip.host.style.setProperty("--panki-beside-h", height);
+  }
+  // In the recommendations' place, as the options page says: hidden while the panel stands there, shown again otherwise.
+  const recommendations = side && on.besideRecs === "replace" ? document.querySelector(RECOMMENDATIONS) : null;
+  if (recommendations instanceof HTMLElement) {
+    if (hiddenRecommendations !== recommendations) {
+      showRecommendations();
+      recommendations.style.setProperty("display", "none");
+      hiddenRecommendations = recommendations;
+    }
+  } else showRecommendations();
   // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's
   // work, a card or where the video was stopped to mark, and the marks are switched on; the player keeps its bar when it
   // fills the screen.
@@ -707,17 +1017,13 @@ function place() {
   if (!offering) resume.host.remove();
   else if (resume.host.parentElement !== offering) offering.append(resume.host);
   resume.host.dataset.theme = theme;
-  resume.host.toggleAttribute("data-full", document.fullscreenElement !== null);
-  // The speed button among the player's controls: a utility of the site's own, there with Panki on or off.
-  const controls = modules.get().speedControl && video ? document.querySelector(RIGHT_CONTROLS) : null;
-  if (!controls) speed.host.remove();
-  else if (speed.host.parentElement !== controls) controls.prepend(speed.host);
-  speed.host.dataset.theme = theme;
-  // When the video will end, right after the player's own time: a utility too, taken off while an ad plays (its time isn't the video's).
-  const time = modules.get().endTime && video && !adPlaying() ? document.querySelector(TIME_DISPLAY) : null;
-  if (!time) endTime.host.remove();
-  else if (time.nextElementSibling !== endTime.host) time.after(endTime.host);
-  endTime.host.dataset.theme = theme;
+  resume.host.toggleAttribute("data-full", full !== null);
+  // The player's control bar as laid out: a utility of the site's own, there with Panki on or off. The speed button
+  // with a video; when it will end too, but not while an ad plays (its time isn't the video's); Theatre mode only where
+  // it can be had, the panel standing beside the video (or filling the screen with it).
+  const ad = adPlaying();
+  const barShows: Record<PankiBarControl, boolean> = { speed: video !== null, endTime: video !== null && !ad, pankiTheatre: video !== null && on.panel && (stage || side !== null) };
+  playerBar.apply({ on: on.playerBar, layout: on.bar, kept: on.barKept, shows: (id) => barShows[id], adPlaying: ad, theme });
 
   if (!showing.get() || !on.panel) {
     drawer.host.remove();
@@ -725,15 +1031,20 @@ function place() {
   }
   const column = full || !video ? null : document.querySelector(BESIDE_PLAYER);
   const beside = column instanceof HTMLElement && column.offsetWidth >= BESIDE_MIN ? column : null;
-  if (beside) {
+  if (stage) {
+    // On the stage, the drawer stands over the panel in the stage's own column.
+    if (drawer.host.nextElementSibling !== strip.host) strip.host.before(drawer.host);
+  } else if (beside) {
     if (drawer.host.parentElement !== beside) beside.prepend(drawer.host);
+    // With the panel beside the video too, the drawer stands over it: the card being made first, the transcript under it.
+    if (side === beside && drawer.host.nextElementSibling !== strip.host) drawer.host.after(strip.host);
   } else if (under) {
     if (drawer.host.previousElementSibling !== strip.host) strip.host.after(drawer.host);
   } else {
     const over = full ?? document.documentElement;
     if (drawer.host.parentElement !== over) over.append(drawer.host);
   }
-  const layout = beside ? BESIDE : under ? BELOW : FLOATING;
+  const layout = stage || beside ? BESIDE : under ? BELOW : FLOATING;
   if (layout !== laidOut) {
     laidOut = layout;
     drawer.host.style.cssText = layout;
@@ -745,14 +1056,6 @@ function look() {
   const player = document.querySelector(PLAYER);
   const found = player?.querySelector("video") ?? null;
   const next = found instanceof HTMLVideoElement ? found : null;
-  // Whether it stands still is heard from the video itself, so the pencil wakes the moment it's paused.
-  if (next !== video) {
-    for (const type of ["play", "playing", "pause", "ended"] as const) {
-      video?.removeEventListener(type, noteStill);
-      next?.addEventListener(type, noteStill);
-    }
-    stillNow.set(next?.paused ?? true);
-  }
   video = next;
   const now = videoId();
   if (now !== watching) {
@@ -777,6 +1080,7 @@ function look() {
   }
   // With the Panki panel switched off nothing is transcribed: the transcriber has no video (a no-op while that's unchanged).
   transcriber.video(active().panel ? now : null);
+  proofreader.video(active().panel ? now : null);
   // Switched off altogether, whatever was being noted of this video is closed and sent, and nothing more is.
   if (!modules.get().on) watcher.video(now, false);
   captions.attach(video, player?.querySelector(CAPTION_AREA) ?? null);
@@ -1061,6 +1365,11 @@ function inside(word: Ends, clip: Ends): Ends {
 
 /** A clip is being recorded right now: its ends are what they were when that began, and can't be pulled about under it. */
 let recording = false;
+/** Panki AI is working on the drawer's card: its clip's ends and the words picked for it hold still until it answers. */
+let touching = false;
+const holdForAi = (on: boolean) => {
+  touching = on;
+};
 
 /**
  * Records a cut (the clip, or the word's own) as it stands when it's asked for, with how it was made. `read` gives its
@@ -1110,13 +1419,23 @@ function recordingOf(cut: Cut, start: number, end: number, facts: RecordFacts): 
  * subtitles the line was, whether the clip's ends were put by hand (said only for words picked: a stretch's are always
  * put), and the picked word's own stretch.
  */
-function takenFacts(taken: "caption" | "stretch", clipByHand: boolean | null, word: (Ends & { byHand: boolean }) | null): CaptureFacts {
+function takenFacts(taken: "caption" | "stretch", clipByHand: boolean | null, word: (Ends & { byHand: boolean }) | null, clip: { start: number; end: number | null }): CaptureFacts {
   const mode = lines.get().mode;
+  const endMs = (clip.end ?? clip.start) * 1000;
+  // The words of the clip's stretch Panki AI's Proofread edited (AI step 6): kept, since the Sentence carries no spark for them.
+  const proofread =
+    mode === "transcript"
+      ? (transcriber.state().transcript?.words ?? [])
+          .filter((w) => w.fix?.by === "ai" && w.startMs < endMs && w.endMs > clip.start * 1000)
+          .map((w) => ({ heard: (w.heard ?? w.fix?.from ?? "").slice(0, 100), text: w.text.slice(0, 100) }))
+          .slice(0, 200)
+      : [];
   return {
     taken,
     ...(mode === "transcript" ? { subtitles: "panki" as const } : mode === "captions" ? { subtitles: "youtube" as const } : {}),
     ...(clipByHand === null ? {} : { clipByHand }),
     ...(word ? { word: { startMs: msOf(word.start), ...(word.end === null ? {} : { endMs: msOf(word.end) }), byHand: word.byHand } } : {}),
+    ...(proofread.length > 0 ? { proofread } : {}),
   };
 }
 
@@ -1187,6 +1506,9 @@ function pickOf(taken: Taken): SentenceChars | null {
 
 const sameIds = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((id, i) => id === b[i]);
 
+/** The Transcription menu's run of Proofread over the whole transcript, as it's named there and in Details' Ran because. */
+const WHOLE_WORDS = "Proofread the entire video";
+
 /**
  * One row under the player: a stretch of the captions' text, as words to press. `at` is where the row begins in
  * everything under the player read as one text, which is how a pick is said (a sentence runs across rows); `chars` is
@@ -1202,14 +1524,15 @@ type RowProps = {
   onTake: (chars: Chars) => void;
   /** Which caption line, and which letter of it, a letter of what's under the player is: what a word pointed at is kept as. */
   placeOf: (at: number) => { lineId: number; offset: number } | null;
-  /** A word double-clicked, to be fixed: only a transcript's words can be. */
+  /** A word double-clicked: the transcript's line opened to edit there, in the strip's editor or over the video (AI step 6). */
   onFix?: ((chars: Chars) => void) | null;
-  /** The pencil at the row's end, to fix the whole row by hand (a transcript's rows under the player only); `editable` is whether it can be pressed now. */
-  onEdit?: (() => void) | null;
-  editable?: boolean;
+  /** Which letters of everything under the player are a word Panki AI's Proofread edited (AI step 6): those words carry the spark. */
+  editedAt?: ((at: number) => boolean) | null;
+  /** This row is being proofread: its words dimmed under the sweep. */
+  waiting?: boolean;
 };
 
-function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEdit = null, editable = false }: RowProps) {
+function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, editedAt = null, waiting = false }: RowProps) {
   const tokens = useWords(text, forced);
   // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`).
   const known = useKnown();
@@ -1226,6 +1549,11 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
       id: `line:${place.lineId}:${place.offset}`,
       text: text.slice(token.start, token.start + 32),
       measure: () => button.getBoundingClientRect(),
+      // The same button can be drawn again with another word in it as the line moves on.
+      alive: (() => {
+        const was = button.textContent;
+        return () => button.isConnected && button.textContent === was;
+      })(),
       context: { text, at: token.start },
       where: { of: "line", lineId: place.lineId, offset: place.offset, length: token.end - token.start },
     };
@@ -1273,19 +1601,21 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, onEd
             }
           : null
       }
+      edited={
+        editedAt
+          ? (i) => {
+              const token = tokens[i];
+              if (!token) return false;
+              for (let c = token.start; c < token.end; c++) if (editedAt(at + c)) return true;
+              return false;
+            }
+          : null
+      }
     />
   );
-  if (!onEdit) return line;
-  // The pencil (the owner, 2026-10-19: "add a pencil icon somewhere to enter edit for that specific sentence, only works
-  // while we're paused, as in the buttons disable otherwise"): at the row's end, dim and still while it can't be pressed.
-  return (
-    <div className="strip-row">
-      {line}
-      <Button className="btn-icon strip-row-edit" aria-label="Edit this line" disabled={!editable} onClick={onEdit}>
-        <Icon name="edit" />
-      </Button>
-    </div>
-  );
+  // The row's pencil and spark went with the old way of editing (AI step 6, the owner's B and C): a row is its words
+  // alone, edited in the strip's editor or over the video; while it's proofread, its words wait under the sweep.
+  return waiting ? <AiWaiting label="Panki AI is proofreading">{line}</AiWaiting> : line;
 }
 
 /**
@@ -1314,6 +1644,186 @@ function useNow(beats: readonly Beat[]): Chars | null {
   return beat ? { from: beat.from, to: beat.to } : null;
 }
 
+/** How many lines either side of a pick a capture beside the video takes: a sentence runs across a few. */
+const AROUND = 3;
+/** Beside the video, a press on the list's scroll (a wheel, a finger, its bar) lets the line being said go by unfollowed for this long, so reading back isn't pulled away. */
+const FOLLOW_HELD_MS = 4000;
+
+/**
+ * The line the video is at among some lines: the last to have begun by now, looked at every frame and told only when it
+ * changes. None for no lines. The list beside the video lights it.
+ */
+function useLineAt(list: readonly CaptionLine[] | null): number | null {
+  const [id, setId] = useState<number | null>(null);
+  const held = useRef(list);
+  useEffect(() => {
+    held.current = list;
+  });
+  const on = list !== null;
+  useEffect(() => {
+    if (!on) {
+      setId(null);
+      return;
+    }
+    let frame = 0;
+    const look = () => {
+      frame = requestAnimationFrame(look);
+      const time = video?.currentTime;
+      let at: CaptionLine | null = null;
+      if (time !== undefined) for (const line of held.current ?? []) if (line.start <= time && (at === null || line.start >= at.start)) at = line;
+      const next = at?.id ?? null;
+      setId((was) => (was === next ? was : next));
+    };
+    look();
+    return () => cancelAnimationFrame(frame);
+  }, [on]);
+  return id;
+}
+
+/** What a line in the list beside the video does when pressed: the screen's, read when it happens, so a line drawn once is never stale. */
+type ListHandlers = {
+  onTake: (chars: Chars) => void;
+  placeOf: (at: number) => { lineId: number; offset: number } | null;
+  onFix: (chars: Chars) => void;
+  onGo: (line: CaptionLine) => void;
+};
+/** A stretch of a line's own letters. */
+type LetterRange = { from: number; to: number };
+const NO_RANGES: readonly LetterRange[] = [];
+const NO_AI_LINES: ReadonlyMap<number, readonly LetterRange[]> = new Map();
+
+type ListLineProps = {
+  line: CaptionLine;
+  /** Where the line begins in the whole list read as one text: how a pick is said. */
+  at: number;
+  lit: boolean;
+  chars: Chars | null;
+  now: Chars | null;
+  forced: readonly Forced[];
+  fixable: boolean;
+  /** The words Panki AI edited in it, in its own letters: they carry the spark, and so does its time. */
+  ai: readonly LetterRange[];
+  waiting: boolean;
+  hand: { current: ListHandlers };
+};
+
+const sameChars = (a: Chars | null, b: Chars | null) => a === b || (a !== null && b !== null && a.from === b.from && a.to === b.to);
+const forcedKeyOf = (forced: readonly Forced[]) => forced.map((f) => `${f.from}-${f.to}`).join(",");
+
+/** One line of the list beside the video: its time, pressed to go there, then its words as the rows have them. Drawn again only when something of its own changes. */
+const ListLine = memo(
+  function ListLine({ line, at, lit, chars, now, forced, fixable, ai, waiting, hand }: ListLineProps) {
+    return (
+      <div className={`strip-list-line ${lit ? "is-now" : ""}`.trim()} data-line={line.id}>
+        <Button className="strip-list-time" aria-label={`Go to ${clock(line.start)}`} onClick={() => hand.current.onGo(line)}>
+          {clock(line.start)}
+          {ai.length > 0 ? <AiSpark /> : null}
+        </Button>
+        <Row
+          text={line.text}
+          at={at}
+          chars={chars}
+          now={now}
+          forced={forced}
+          onTake={(picked) => hand.current.onTake(picked)}
+          placeOf={(offset) => hand.current.placeOf(offset)}
+          onFix={fixable ? (picked) => hand.current.onFix(picked) : null}
+          editedAt={ai.length > 0 ? (offset) => ai.some((range) => offset - at >= range.from && offset - at < range.to) : null}
+          waiting={waiting}
+        />
+      </div>
+    );
+  },
+  (a, b) =>
+    a.line === b.line &&
+    a.at === b.at &&
+    a.lit === b.lit &&
+    sameChars(a.chars, b.chars) &&
+    sameChars(a.now, b.now) &&
+    forcedKeyOf(a.forced) === forcedKeyOf(b.forced) &&
+    a.fixable === b.fixable &&
+    a.ai === b.ai &&
+    a.waiting === b.waiting,
+);
+
+type BesideListProps = {
+  /** Every line, each where it begins in the whole read as one text. */
+  parts: Parts;
+  lit: number | null;
+  picked: Chars | null;
+  now: Chars | null;
+  /** The stretches taken as one word by hand that fall in a line, in its own letters. */
+  forcedOf: (at: number, length: number) => readonly Forced[];
+  fixable: boolean;
+  /** Panki AI's words, line by line (`LetterRange`s in each line's own letters). */
+  aiLines: ReadonlyMap<number, readonly LetterRange[]>;
+  waitingLines: ReadonlySet<number>;
+  handlers: ListHandlers;
+};
+
+/**
+ * The Panki panel beside the video (`PanelView` "beside"; the owner, 2026-11-03): every line with its time, the line
+ * being said lit and kept in view as the video plays, scrolled inside the panel and never the page. Scrolled by hand,
+ * it lets the video go on unfollowed for a moment (`FOLLOW_HELD_MS`); a time pressed goes there and follows again.
+ * A word pressed is a pick, as under the player; double-clicked, the editor opens there.
+ */
+function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waitingLines, handlers }: BesideListProps) {
+  const list = useRef<HTMLDivElement>(null);
+  /** Until when the list isn't followed: it was scrolled by hand. */
+  const heldUntil = useRef(0);
+  const hand = useRef(handlers);
+  hand.current = {
+    ...handlers,
+    onGo: (line) => {
+      heldUntil.current = 0;
+      handlers.onGo(line);
+    },
+  };
+  /** Until when a scroll is the list's own following, not the viewer's. */
+  const ownUntil = useRef(0);
+  const first = useRef(true);
+  useEffect(() => {
+    const box = list.current;
+    if (!box || lit === null || Date.now() < heldUntil.current) return;
+    const row = box.querySelector(`[data-line="${lit}"]`);
+    if (!(row instanceof HTMLElement)) return;
+    // Kept a third of the way down, so what was just said stays in sight above it.
+    const want = Math.max(0, row.offsetTop - box.clientHeight / 3);
+    const inView = row.offsetTop >= box.scrollTop && row.offsetTop + row.offsetHeight <= box.scrollTop + box.clientHeight * 0.8;
+    if (!first.current && inView) return;
+    ownUntil.current = Date.now() + 900;
+    const still = first.current || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    box.scrollTo({ top: want, behavior: still ? "auto" : "smooth" });
+    first.current = false;
+  }, [lit]);
+  const onScroll = () => {
+    if (Date.now() > ownUntil.current) heldUntil.current = Date.now() + FOLLOW_HELD_MS;
+  };
+  const end = (at: number, line: CaptionLine) => at + line.text.length;
+  return (
+    <div ref={list} className="strip-list" onScroll={onScroll}>
+      {parts.map(({ line, at }) => {
+        const mine = (chars: Chars | null) => (chars && chars.from < end(at, line) && chars.to > at ? chars : null);
+        return (
+          <ListLine
+            key={line.id}
+            line={line}
+            at={at}
+            lit={line.id === lit}
+            chars={mine(picked)}
+            now={mine(now)}
+            forced={forcedOf(at, line.text.length)}
+            fixable={fixable}
+            ai={aiLines.get(line.id) ?? NO_RANGES}
+            waiting={waitingLines.has(line.id)}
+            hand={hand}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 /** The marks on the seek bar, following the pointer on it themselves, so the whole screen isn't drawn again as it comes and goes. */
 function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "onReach" | "onPeek">) {
   const hover = useSyncExternalStore(onBar.subscribe, onBar.get);
@@ -1328,6 +1838,15 @@ function App() {
   const picked = tx.source;
   const engineOn = tx.settings !== null && engineWanted(picked);
   const placed = useSyncExternalStore(inPlace.subscribe, inPlace.get);
+  /** Whether the panel stands beside the video right now: its view, where the page has the column for it. */
+  const placedView = useSyncExternalStore(placedAs.subscribe, placedAs.get);
+  /** The whole transcript is listed beside the video and on the stage alike. */
+  const besideNow = placedView !== "under";
+  const stageNowHere = placedView === "stage";
+  const theatreOn = useSyncExternalStore(theatre.subscribe, theatre.get);
+  const stageLeft = useSyncExternalStore(modules.subscribe, () => modules.get().stageSide === "left");
+  /** The view picked on the panel, kept for every video. */
+  const viewPicked = useSyncExternalStore(modules.subscribe, () => modules.get().panelView);
   const pankiOn = useSyncExternalStore(modules.subscribe, () => modules.get().on);
   /** Panki's own switch is the strip's only while it isn't the pill's in the header bar: it stands in one place (`switchInPill`). */
   const switchHere = useSyncExternalStore(modules.subscribe, () => !switchInPill(modules.get()));
@@ -1368,7 +1887,7 @@ function App() {
     const watcher = new ResizeObserver(measure);
     watcher.observe(el);
     return () => watcher.disconnect();
-  }, [placed]);
+  }, [placed, besideNow]);
 
   // Under the player: the talk being written, in rows of Panki's own, as wide as there's room for. A pick is kept as
   // its place in all of it read as one text.
@@ -1376,12 +1895,24 @@ function App() {
   const rowWidth = view.mode === "transcript" ? Math.max(PLAYER_ROW, view.widest) : longestRow;
   const perRow = room === null ? 1 : Math.max(1, Math.floor(room / rowWidth));
   const current = view.current;
-  const under = current ? rowsUnder(view.lines, current, perRow) : [];
-  const underLines = under.flatMap((row) => row.lines);
+  /**
+   * Beside the video (the panel's view, `PanelView`), every line is listed: the whole transcript, whatever moment the
+   * video is at (a part not transcribed yet is a gap in it), or every line of the site's captions seen so far. Under
+   * the player, the two rows as always. Either way it's "what's under the player" to everything that reads it, a pick
+   * and a sentence among them.
+   */
+  const listed: readonly CaptionLine[] | null = besideNow ? (engineOn && tx.transcript ? lines.transcriptLines() : view.lines) : null;
+  /** Whether what's shown is Panki's transcript: what can be edited and proofread. */
+  const showsTranscript = listed !== null ? engineOn && tx.transcript !== null && listed.length > 0 : view.mode === "transcript";
+  const under = listed === null && current ? rowsUnder(view.lines, current, perRow) : [];
+  const underLines = useMemo(() => listed ?? under.flatMap((row) => row.lines), [listed, under]);
   const underIds = underLines.map((line) => line.id);
-  const underText = transcriptOf(underLines);
+  const underText = useMemo(() => transcriptOf(underLines), [underLines]);
+  /** The line the video is at, in the list beside it: lit and kept in view. */
+  const litLine = useLineAt(listed);
   /** Where the video is in what's under the player: the words being said this moment, wherever it was put or played back to. */
-  const nowUnder = useNow(beatsOf(underText.parts));
+  const underBeats = useMemo(() => beatsOf(underText.parts), [underText]);
+  const nowUnder = useNow(underBeats);
 
   const clip = taking?.of === "caption" ? clipOf(taking.lineIds, taking.chars, taking.trim) : taking?.of === "stretch" ? stretchOf(taking.trim.start, taking.trim.end) : null;
   const sentence = clip?.sentence ?? "";
@@ -1403,88 +1934,267 @@ function App() {
   /** Every word that's been heard and is still kept, with when: the ticks on the clip's bar, and where an end stops when it's set to stop at words. */
   const heard = clip ? beatsOf(transcriptOf(view.lines).parts) : [];
 
-  /** A transcript's word being fixed by hand: which, what it says now as typed, and what it said. */
-  const [fixing, setFixing] = useState<{ wordId: number; text: string; was: string } | null>(null);
-  const [fixFailure, setFixFailure] = useState<string | null>(null);
-  const [fixBusy, setFixBusy] = useState(false);
-  /** A word double-clicked under the player or over the video: the transcript's word there, opened to fix. */
-  function fixAt(chars: Chars) {
-    const there = lineAt(underText.parts, chars.from);
-    const word = there && there.line.id < 0 ? lines.wordAt(there.line.id, there.offset) : null;
-    if (!word) return;
-    setFixing({ wordId: word.id, text: word.text, was: word.text });
-    setFixFailure(null);
+  /** The transcript's words by id, as it stands: which words Panki AI edited, and the editors' lines. */
+  const wordsById = useMemo(() => new Map((tx.transcript?.words ?? []).map((w) => [w.id, w])), [tx.transcript]);
+  /** Editing by hand begins by pausing the video (AI step 6; the pencil refused while it played until then). */
+  function pauseToEdit(what: string) {
+    if (!video || video.paused) return;
+    video.pause();
+    transcriber.note(`paused the video to edit ${what}`);
   }
-  async function saveFix() {
-    const id = videoId();
-    if (!fixing || !id) return;
-    const text = fixing.text.trim();
-    if (text === "" || text === fixing.was) {
-      setFixing(null);
-      return;
+  /** Which letters of what's under the player are words Panki AI edited: they carry the spark. */
+  const editedAt = (at: number): boolean => {
+    const there = lineAt(underText.parts, at);
+    const word = there && there.line.id < 0 ? lines.wordAt(there.line.id, there.offset) : null;
+    return word ? wordsById.get(word.id)?.fix?.by === "ai" : false;
+  };
+
+  /**
+   * The transcript's lines as the editors take them (AI step 6, the owner's B and C): each by its first word's id, its
+   * times, its text, its words as they read now, and those Panki AI edited last with what was heard and why.
+   */
+  const editorLines = useMemo((): EditorLine[] => {
+    if (!tx.transcript) return [];
+    return lines.transcriptLines().flatMap((line) => {
+      const first = line.words[0];
+      if (!first) return [];
+      const words = line.words.flatMap((placed) => {
+        const word = wordsById.get(placed.id);
+        return word ? [{ id: word.id, text: word.text.trim(), startMs: word.startMs, endMs: word.endMs }] : [];
+      });
+      const ai = line.words.flatMap((placed) => {
+        const word = wordsById.get(placed.id);
+        return word?.fix?.by === "ai" ? [{ wordId: word.id, text: word.text.trim(), heard: word.heard ?? word.fix.from, reason: word.fix.reason ?? "" }] : [];
+      });
+      return [{ key: first.id, lineId: line.id, start: line.start, end: line.end ?? line.start, text: line.text, words, ai }];
+    });
+  }, [tx.transcript, wordsById]);
+  /**
+   * The words Panki AI edited, line by line, in each line's own letters: worked out once per transcript, so the list
+   * beside the video lights them (and sparks the line's time) without looking a letter up at a time.
+   */
+  const aiLines = useMemo(() => {
+    const found = new Map<number, readonly LetterRange[]>();
+    for (const line of lines.transcriptLines()) {
+      const edited = line.words.filter((placed) => wordsById.get(placed.id)?.fix?.by === "ai").map((placed) => ({ from: placed.from, to: placed.to }));
+      if (edited.length > 0) found.set(line.id, edited);
     }
-    setFixBusy(true);
-    const answer = await askFix(id, { wordId: fixing.wordId, text });
-    setFixBusy(false);
-    if (!answer.ok) {
-      setFixFailure(answer.message);
-      return;
-    }
-    transcriber.take(answer.transcript);
-    setFixing(null);
+    return found;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx.transcript, wordsById]);
+
+  /** B: the strip open as the editor, and where it was asked to begin (a word double-clicked under the player). */
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorStart, setEditorStart] = useState<{ key: number; caret: number; n: number } | null>(null);
+  /** C: the subtitle over the video being edited where it stands: its line and the caret's place to begin. */
+  const [overEditing, setOverEditing] = useState<{ key: number; caret: number; n: number } | null>(null);
+  const editTurn = useRef(0);
+  /** The line of the transcript a letter under the player or over the video is in, and the caret's place in it. */
+  function lineAtChars(chars: Chars): { key: number; caret: number } | null {
+    const there = lineAt(underText.parts, chars.from);
+    if (!there || there.line.id >= 0) return null;
+    const line = editorLines.find((l) => l.lineId === there.line.id);
+    return line ? { key: line.key, caret: there.offset } : null;
+  }
+  function openEditor(at: { key: number; caret: number } | null) {
+    // The pop-up a hover opened on the word double-clicked goes: the line is being edited now, not looked up.
+    listening.looker.close();
+    pauseToEdit("the transcript");
+    setOverEditing(null);
+    setEditorOpen(true);
+    setEditorStart(at ? { ...at, n: ++editTurn.current } : null);
+  }
+  /** A word double-clicked over the video: its line edited where it stands. */
+  function editOver(chars: Chars) {
+    const at = lineAtChars(chars);
+    if (!at) return;
+    listening.looker.close();
+    pauseToEdit("a line on the video");
+    setOverEditing({ ...at, n: ++editTurn.current });
+  }
+
+  /** Panki AI's Proofread (AI step 6): how it stands, the template its buttons run, and what each run can cost. */
+  const pr = useSyncExternalStore(proofreader.subscribe, proofreader.get);
+  /** The transcript's lines a Proofread run is working on: their words wait under the sweep. */
+  const waitingLines = useMemo(() => {
+    const found = new Set<number>();
+    const going = pr.going;
+    if (going) for (const line of lines.transcriptLines()) if (line.words.some((placed) => going.words.has(placed.id))) found.add(line.id);
+    return found;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pr.going, tx.transcript]);
+  const gate = useAskFirst();
+  const transcriptVideo = tx.transcript?.videoId ?? null;
+  useEffect(() => {
+    if (transcriptVideo) void proofreader.readAi();
+  }, [transcriptVideo]);
+  const aiShown = pr.ai.known ? pr.ai.shown : null;
+  const ownTemplates = aiShown?.templates ?? [];
+  const preferredProofread = defaultTemplateOf("proofread", aiShown?.defaults ?? {}, ownTemplates);
+  /** The template picked from the menu's arrow on this page: the buttons' from then on, the account's default untouched. */
+  const [proofChosen, setProofChosen] = useState<string | null>(null);
+  const pickedProofread = proofChosen ? templateById(proofChosen, ownTemplates) : null;
+  const proofTemplate = pickedProofread && pickedProofread.action === "proofread" ? pickedProofread : preferredProofread;
+  const proofWhy = proofreader.why();
+  const proofCost = (scope: ProofreadScope, using: AiTemplate = proofTemplate): string | null => {
+    const micros = aiShown ? proofreader.ceiling(scope, using) : null;
+    return micros === null || !aiShown ? null : RUN_WORDS.upTo(micros, aiShown.showCostOverMicros);
+  };
+  // The entire video's "Up to" is worked out over every line: once per transcript and template, not each frame.
+  const wholeCosts = useMemo(
+    () => new Map(templatesOf("proofread", ownTemplates).map((t) => [t.id, proofCost({ kind: "all" }, t)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tx.transcript, aiShown, ownTemplates],
+  );
+  /** A press: run at once, or ask first when it can cost more than the account's Ask before a run is over. */
+  function pressProofread(scope: ProofreadScope, why: AiRunWhy, where: string, using: AiTemplate = proofTemplate) {
+    if (!aiShown || proofreader.why() !== null) return;
+    const micros = proofreader.ceiling(scope, using) ?? 0;
+    gate.press(aiShown.askOverMicros, where, micros, RUN_WORDS.runFor(using.name, micros), () => void proofreader.run(scope, using, why));
+  }
+  /** The words of the latest run still standing: what Undo all takes back. */
+  const lastEdited = pr.lastRun === null ? 0 : (tx.transcript?.words ?? []).filter((w) => w.fix?.by === "ai" && w.fix.run === pr.lastRun).length;
+  async function undoRun() {
+    const failure = await proofreader.undo("run");
+    if (failure) transcriber.note(`couldn't undo Panki AI's edits · ${failure}`);
   }
   /**
-   * A row of the transcript being fixed by hand with its pencil (the owner, 2026-10-19 and 20): its words, what it says
-   * as typed, and where it starts and ends as set (seconds), each end a `Stamp`. Saved, the typed words are laid back
-   * onto the row's own by Panki, each keeping its place in the row as the ends move. Only while the video stands still
-   * and no whole video is on its way (whose words would replace it: "the latest one overwrites").
+   * Panki AI's part of the Transcription menu (AI step 6): the question before a run over the account's threshold, the
+   * head once it has run (every call of this video's, with Undo all while the latest run's edits stand), Proofread the
+   * entire video (its template arrow once the account has two Proofread templates), and Proofread a part.
    */
-  const [editing, setEditing] = useState<{ wordIds: number[]; text: string; start: number; end: number } | null>(null);
-  const [editFailure, setEditFailure] = useState<string | null>(null);
-  const [editBusy, setEditBusy] = useState(false);
-  const still = useSyncExternalStore(stillNow.subscribe, stillNow.get);
-  const editable = still && view.mode === "transcript" && tx.transcript?.job?.state !== "running";
-  /** Whether Panki's subtitles can be fixed by hand at all: an admin's, for everyone (`Transcription.fixes`). */
+  function proofreadPart(): AiPart {
+    const blocked = proofWhy !== null;
+    const again = pr.calls.some((call) => call.why.kind === "pressed" && call.why.action === WHOLE_WORDS);
+    const wholeCost = wholeCosts.get(proofTemplate.id) ?? null;
+    const button = (
+      <Button variant="item" disabled={blocked} onClick={() => pressProofread({ kind: "all" }, { kind: "pressed", action: WHOLE_WORDS }, "menu")}>
+        <AiSpark />
+        {again ? `${WHOLE_WORDS} again` : WHOLE_WORDS}
+        {(proofWhy ?? wholeCost) ? <span className="strip-menu-why">{proofWhy ?? wholeCost}</span> : null}
+      </Button>
+    );
+    const templates = templatesOf("proofread", ownTemplates);
+    const whole =
+      templates.length > 1 ? (
+        <TemplateMenu
+          id="panki-proofread"
+          rows={templates.map((template) => ({ template, cost: wholeCosts.get(template.id) ?? null }))}
+          defaultId={preferredProofread.id}
+          chosenId={proofTemplate.id}
+          disabled={blocked}
+          onPick={(template) => {
+            setProofChosen(template.id);
+            pressProofread({ kind: "all" }, { kind: "pressed", action: WHOLE_WORDS }, "menu", template);
+          }}
+          onOpen={() => void proofreader.readAi(true)}
+        >
+          {button}
+        </TemplateMenu>
+      ) : (
+        button
+      );
+    const head = (
+      <>
+        <RunAsk id="panki-proofread-menu" asked={gate.at("menu")} onCancel={gate.cancel} />
+        {pr.calls.length > 0 ? <AiStatus calls={pr.calls} burst={pr.burst} /> : null}
+        {lastEdited > 0 && pr.going === null ? (
+          <div className="strip-menu-undo">
+            <span>
+              {lastEdited} word{lastEdited === 1 ? "" : "s"} edited by Panki AI
+            </span>
+            <Button onClick={() => void undoRun()}>
+              <Icon name="undo" />
+              Undo all
+            </Button>
+          </div>
+        ) : null}
+      </>
+    );
+    return {
+      head,
+      headed: pr.calls.length > 0,
+      whole,
+      part: {
+        disabled: blocked,
+        why: null,
+        widen: widenToLines,
+        costOf: (stretch) => proofCost({ kind: "part", start: stretch.start, end: stretch.end }),
+        onRun: (stretch) => pressProofread({ kind: "part", start: stretch.start, end: stretch.end }, { kind: "pressed", action: `Proofread ${clock(stretch.start)}–${clock(stretch.end)}` }, "menu"),
+      },
+    };
+  }
+  /** A stretch typed, widened to the transcript's whole lines it reaches into: what Proofread a part does. */
+  function widenToLines(stretch: Seconds): Seconds | null {
+    const reached = lines.transcriptLines().filter((line) => line.start < stretch.end && (line.end ?? line.start) > stretch.start);
+    const first = reached[0];
+    const last = reached.at(-1);
+    return first && last ? { start: first.start, end: last.end ?? first.start } : null;
+  }
+  /** Whether Panki's subtitles can be edited by hand at all: an admin's, for everyone (`Transcription.fixes`). */
   const fixesOn = tx.settings?.fixes ?? false;
-  function editRow(lineIds: readonly number[]) {
-    const row = lines.linesAsOne(lineIds);
-    if (!row) return;
-    setFixing(null);
-    setEditing(row);
-    setEditFailure(null);
-  }
-  /** An end of the row moved: kept inside the video and on its side of the other end. */
-  function moveRowEnd(which: "start" | "end", to: number) {
-    if (!editing) return;
-    const limit = video && Number.isFinite(video.duration) ? video.duration : Infinity;
-    if (which === "start") setEditing({ ...editing, start: Math.min(Math.max(0, to), editing.end - 0.1) });
-    else setEditing({ ...editing, end: Math.max(Math.min(limit, to), editing.start + 0.1) });
-  }
-  async function saveRow() {
-    const id = videoId();
-    if (!editing || !id) return;
-    setEditBusy(true);
-    const answer = await askLine(id, { wordIds: editing.wordIds, text: editing.text.trim(), startMs: Math.round(editing.start * 1000), endMs: Math.round(editing.end * 1000) });
-    setEditBusy(false);
-    if (!answer.ok) {
-      setEditFailure(answer.message);
-      return;
-    }
-    transcriber.take(answer.transcript);
-    setEditing(null);
-  }
-  // Another video, or the transcript gone from under the player: nothing to fix any more.
+  // Another video, or the transcript gone from under the player: nothing to edit any more.
   useEffect(() => {
-    if (view.mode !== "transcript") {
-      setFixing(null);
-      setEditing(null);
+    if (!showsTranscript) {
+      setEditorOpen(false);
+      setOverEditing(null);
     }
-  }, [view.mode]);
-  // The whole video coming in replaces the words being fixed: the row's fixing gives way.
+  }, [showsTranscript]);
+  // The whole video coming in replaces every word ("the latest one overwrites"): the editors give way.
   const downloadingNow = tx.transcript?.job?.state === "running";
   useEffect(() => {
-    if (downloadingNow) setEditing(null);
+    if (downloadingNow) {
+      setEditorOpen(false);
+      setOverEditing(null);
+    }
   }, [downloadingNow]);
+
+  /**
+   * What the two editors do (AI step 6): a line kept as typed, laid back on its words by Panki (`askLine`,
+   * `realignLine`) with its ends where they're set; a line split or joined at a word (`askLineMark`); the line heard;
+   * the video paused at a line; Proofread this line; Panki AI's edit of a word undone. Each said in the Log.
+   */
+  const editorActions: EditorActions = {
+    async save(line, draft) {
+      const id = videoId();
+      if (!id) return "This video isn't open any more.";
+      const startMs = Math.round(draft.start * 1000);
+      const answer = await askLine(id, { wordIds: line.words.map((w) => w.id), text: draft.text.trim(), startMs, endMs: Math.max(startMs + 100, Math.round(draft.end * 1000)) });
+      if (!answer.ok) return answer.message;
+      transcriber.take(answer.transcript);
+      transcriber.note(draft.text.trim() === "" ? `you deleted the ${clock(line.start)} line` : `you edited the ${clock(line.start)} line`);
+      return null;
+    },
+    async mark(wordId, mark) {
+      const id = videoId();
+      if (!id) return "This video isn't open any more.";
+      const answer = await askLineMark(id, { wordId, mark });
+      if (!answer.ok) return answer.message;
+      transcriber.take(answer.transcript);
+      transcriber.note(mark === "break" ? "you split a line" : "you joined two lines");
+      return null;
+    },
+    play(draft) {
+      if (video) replay.play(video, { from: draft.start, to: draft.end }, "once");
+    },
+    goTo(seconds) {
+      if (!video) return;
+      pauseToEdit("the transcript");
+      video.currentTime = seconds;
+    },
+    proofread:
+      aiShown !== null && aiShown.settings.aiOn
+        ? {
+            onPress: (line) => pressProofread({ kind: "row", key: `line:${line.key}`, lineIds: [line.lineId] }, { kind: "pressed", action: "Proofread this line" }, `row:line:${line.key}`),
+            busy: (line) => pr.going?.words.has(line.key) ?? false,
+            why: proofWhy,
+            costOf: (line) => proofCost({ kind: "row", key: `line:${line.key}`, lineIds: [line.lineId] }),
+          }
+        : null,
+    undoAi: (wordId, at) => proofreader.undo({ wordId, at }),
+  };
+  const nowKey = editorLines.find((line) => line.lineId === (listed ? litLine : view.current?.id))?.key ?? null;
+  const overLineEditing = overEditing ? editorLines.find((line) => line.key === overEditing.key) ?? null : null;
 
   /**
    * Whether the transcript stands in for the site's captions on the picture: the engine is the pick, and the settings
@@ -1613,9 +2323,32 @@ function App() {
   }
   /** A word pressed under the player. While a capture is open on lines that are still there, it's another pick in that capture; otherwise it starts one on what's there now. */
   function takeUnder(chars: Chars) {
+    if (touching) return;
     const inOpen = taking?.of === "caption" && !taking.added && clip ? reread(chars, underText.parts, clip.base) : null;
     if (taking?.of === "caption" && inOpen) takeCaption(taking.lineIds, inOpen);
-    else takeCaption(underIds, chars);
+    else if (listed) {
+      const around = aroundPick(chars);
+      if (around) takeCaption(around.ids, around.chars);
+    } else takeCaption(underIds, chars);
+  }
+  /**
+   * Beside the video a pick is in the whole list: the capture takes the lines around it (a sentence can run across a
+   * few), read as one text of their own, the pick said again in it, as under the player it takes the two rows.
+   */
+  function aroundPick(chars: Chars): { ids: number[]; chars: Chars } | null {
+    const there = lineAt(underText.parts, chars.from);
+    const i = there ? underLines.findIndex((line) => line.id === there.line.id) : -1;
+    if (i < 0) return null;
+    const ids = underLines.slice(Math.max(0, i - AROUND), i + AROUND + 1).map((line) => line.id);
+    const own = transcriptOf(ids.flatMap((id) => lines.byId(id) ?? []));
+    const again = reread(chars, underText.parts, own.parts);
+    return again ? { ids, chars: again } : null;
+  }
+  /** The lines a capture with no word picked takes: under the player, the rows; beside the video, the line it's at and the few before it, as the rows would have them. */
+  function linesNow(): readonly number[] {
+    if (!listed) return underIds;
+    const at = underLines.findIndex((line) => line.id === litLine);
+    return at < 0 ? [] : underLines.slice(Math.max(0, at - AROUND), at + 1).map((line) => line.id);
   }
   /** Words selected, or pointed at, somewhere else on the page: the drawer opens on them in their sentence. */
   function takeTaken(selected: Taken, prefer: Found | null) {
@@ -1677,7 +2410,7 @@ function App() {
   /** An end is moved: exactly where it's put, or to the nearest word's edge. Never past the other end, nor out of the video (the word's: nor out of the clip), nor to a cut too long to keep. And not at all while something is being recorded. */
   function moveEnd(cut: Cut, which: ClipEnd, to: number, by: MoveBy) {
     const now = ends.current[cut];
-    if (recording || !video || !clip || !now || now.end === null) return;
+    if (recording || touching || !video || !clip || !now || now.end === null) return;
     const around = ends.current.clip;
     const limit = cut === "word" && around && around.end !== null ? { from: around.start, to: around.end } : limitOf(video);
     if (which === "start") {
@@ -1727,8 +2460,9 @@ function App() {
       // With the Panki panel switched off there's no drawer to open on this page.
       if (!active().panel) return;
       const selected = takeSelection();
+      const ids = linesNow();
       if (selected) takeTaken(selected, null);
-      else if (underIds.length > 0) takeCaption(underIds, null);
+      else if (ids.length > 0) takeCaption(ids, null);
       // No words to go by (captions off, or nothing said yet): the last few seconds of the video itself.
       else if (video) takeStretch();
       else setTaking({ of: "nothing", fresh: taking === null });
@@ -1740,7 +2474,8 @@ function App() {
       replay.forget();
       setTaking(null);
       setSplits([]);
-      setEditing(null);
+      setEditorOpen(false);
+      setOverEditing(null);
     };
     fromPopup.add = ({ found, pointed }) => {
       if (active().panel) takeFound(found, pointed);
@@ -1799,9 +2534,9 @@ function App() {
     const moved = taking.of === "caption" ? taking.moved : 0;
     const facts =
       taking.of === "caption"
-        ? takenFacts("caption", taking.trim.start !== null, wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null)
-        : takenFacts("stretch", null, null);
-    const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts };
+        ? takenFacts("caption", taking.trim.start !== null, wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null, clip)
+        : takenFacts("stretch", null, null, clip);
+    const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts, more: videoPieces };
     const player = video;
     /** A cut as the drawer is handed it: where it stands, and what can be asked of it. */
     const offerOf = (cut: Cut, now: Ends, anchor: number): ClipOffer | null =>
@@ -1852,6 +2587,7 @@ function App() {
           // The new card's word is one of the cards' now.
           void refreshKnown();
         }}
+        onTouching={holdForAi}
       />
     );
   }
@@ -1933,6 +2669,58 @@ function App() {
   }
   /** The clip as it's marked on the player's seek bar, once it has both ends. */
   const clipMark: ClipMark | null = clip && clip.end !== null && !taking?.added ? { start: clip.start, end: clip.end, onMove: (which, to, by) => moveEnd("clip", which, to, by), onSettle: (which) => hearCut("clip", which) } : null;
+  /** The strip open as the editor (B). */
+  const editing = editorOpen && showsTranscript && fixesOn;
+  /** Nothing to show where the words would be: why, and the press that changes it when there is one. */
+  const emptyHere =
+    tx.status.kind === "running" ? null : picked === "youtube" ? ( // The menu's button says it's transcribing; a word here too was one too many (the owner, 2026-10-17).
+      <p className="empty">Turn on captions to enable.</p>
+    ) : picked === "none" ? (
+      // The owner, 2026-10-17, at an empty strip with None picked: "make sure this says to enable subtitles if they're disabled", then "what about showing 'turn on subtitles'": the press that does it.
+      <p className="empty strip-empty">
+        Subtitles are off.
+        <Button className="capture-tool" onClick={() => pickSource(DEFAULT_SOURCE)}>
+          <Icon name="subtitles" />
+          Turn on subtitles
+        </Button>
+      </p>
+    ) : null;
+  /** Each of Panki's controls on the player's bar, as it's drawn there (`modules.ts` → `BAR_CONTROLS`; the type holds it to one per control). */
+  const barDrawn: Record<PankiBarControl, ReactNode> = {
+    speed: video ? <SpeedControl key={watching ?? ""} video={video} /> : null,
+    endTime: video ? <EndTime video={video} /> : null,
+    // Theatre mode among the player's own controls, as the panel's head has it: one press each way.
+    pankiTheatre: (
+      <Button className="yt-bar-button" aria-label={theatreOn ? "Leave Theatre mode" : "Theatre mode"} aria-pressed={theatreOn} onClick={() => (theatreOn ? leaveStage() : enterTheatre())}>
+        <Icon name="panelStage" />
+      </Button>
+    ),
+  };
+  /** Panki itself, its settings, and leaving Theatre mode: the head's three small buttons, at the far end of its first line. */
+  const corner = (
+    <>
+      {/* Panki itself, the one the profile in use is signed in to, in a tab of its own (the owner, 2026-10-17). */}
+      <Button className="capture-tool btn-icon" aria-label="Open Panki" onClick={() => void askOpenPanki()}>
+        <Icon name="out" />
+      </Button>
+      {/* The extension's own settings, on their YouTube tab (the owner, 2026-10-17: "a button for the settings"). */}
+      <Button className="capture-tool btn-icon" aria-label="Panki settings" onClick={() => void askOptions("youtube")}>
+        <Icon name="settings" />
+      </Button>
+      {/* Theatre mode, the Beside view's own switch: one press fills the screen with the video but for this column, one more puts the page back as it stood. */}
+      {listed !== null ? (
+        <Button className="capture-tool btn-icon strip-theatre" aria-label="Theatre mode" aria-pressed={theatreOn} onClick={() => (theatreOn ? leaveStage() : enterTheatre())}>
+          <Icon name="panelStage" />
+        </Button>
+      ) : null}
+      {/* Theatre mode left, as Esc and its switch do: back to the panel beside the video, the page as it stood. */}
+      {stageNowHere ? (
+        <Button className="capture-tool btn-icon" aria-label="Leave Theatre mode" onClick={leaveStage}>
+          <Icon name="close" />
+        </Button>
+      ) : null}
+    </>
+  );
 
   return (
     <>
@@ -1959,7 +2747,7 @@ function App() {
           </div>
         </div>
       ) : placed ? (
-        <div className="strip">
+        <div className={`strip ${listed !== null ? "is-beside" : ""} ${stageNowHere ? `is-stage ${stageLeft ? "is-left" : ""}` : ""}`.replace(/\s+/g, " ").trim()}>
           <div className="strip-head">
             <span className="strip-name">Panki</span>
             {/* Where the words come from, picked here and kept for the next video; with the engine picked, the site's captions never stand in for it. */}
@@ -1968,6 +2756,18 @@ function App() {
                 <Dropdown id="panki-subtitles" label="Subtitles" options={SUBTITLE_SOURCE_IDS.map((id) => ({ id, label: SUBTITLE_SOURCES[id].name }))} value={picked} onChange={pickSource} />
               </span>
             ) : null}
+            {/* Where the panel stands, picked on the panel itself and kept for every video (`PanelView`; the owner, 2026-11-03), at the left beside the source since the owner, 2026-11-04. */}
+            <span className="strip-pick strip-view">
+              <Dropdown
+                id="panki-panel-view"
+                label="View"
+                options={PANEL_VIEW_IDS.map((id) => ({ id, label: PANEL_VIEWS[id].name, icon: PANEL_VIEWS[id].icon }))}
+                value={viewPicked}
+                onChange={setPanelView}
+              />
+            </span>
+            {/* Beside the video and in Theatre mode the column is narrow: the small buttons end the first line, the rest of the tools take a line of their own under it. */}
+            {listed !== null ? <span className="strip-corner">{corner}</span> : null}
             {/* A sentence taken before it was all said: the video is let run to its end (and started, if it stood
                 still), which would look like a fault if nothing said so. */}
             {taking?.of === "caption" && clip && clip.end === null ? (
@@ -2004,6 +2804,7 @@ function App() {
                   {savedNow.saved ? "Saved" : "Save for later"}
                 </Button>
               ) : null}
+              {/* Editing the transcript (AI step 6, B) opens from the Transcription menu's item or a double-click on a word: an Edit button stood here too until the owner, 2026-11-04 ("it's enough to have it inside the Transcribe button"). */}
               {/* Everything about transcribing this video, in one place; room beside it for what comes next (a "Clip the last 5 seconds" button stood here until the owner had it taken out, 2026-10-17; the toolbar's way in still cuts that clip). */}
               {menuOn ? (
                 <TranscribeMenu
@@ -2019,46 +2820,48 @@ function App() {
                   onMode={setMode}
                   onAnswer={(yes) => transcriber.answer(yes, duration)}
                   detail={transcriber.detail}
+                  ai={engineOn ? proofreadPart() : null}
+                  editing={
+                    engineOn && fixesOn
+                      ? { on: editorOpen, disabled: downloadingNow, why: downloadingNow ? "the entire video is coming in" : null, onToggle: () => (editorOpen ? setEditorOpen(false) : openEditor(null)) }
+                      : null
+                  }
                 />
               ) : null}
               {/* How the transcript looks over the video, set right here (the owner, 2026-10-17: "edit the subtitles directly in YouTube"). */}
               {overVideo ? <SubtitleMenu style={tx.prefs.style} onChange={setStyle} onOpen={setStyling} /> : null}
-              {/* Panki itself, the one the profile in use is signed in to, in a tab of its own (the owner, 2026-10-17). */}
-              <Button className="capture-tool btn-icon" aria-label="Open Panki" onClick={() => void askOpenPanki()}>
-                <Icon name="out" />
-              </Button>
-              {/* The extension's own settings, on their YouTube tab (the owner, 2026-10-17: "a button for the settings"). */}
-              <Button className="capture-tool btn-icon" aria-label="Panki settings" onClick={() => void askOptions("youtube")}>
-                <Icon name="settings" />
-              </Button>
+              {listed === null ? corner : null}
             </div>
           </div>
-          {/* A row of the transcript fixed with its pencil stands in the rows' place while it's being fixed: the row become a field between its two ends. */}
-          {editing ? (
-            <Form onSubmit={() => void saveRow()} className="strip-edit">
-              <Stamp id="panki-edit-start" name="Where the line starts" at={editing.start} disabled={editBusy} onSet={(to) => moveRowEnd("start", to)} />
-              <TextField
-                id="panki-edit-line"
-                label="Line"
-                lang="ja"
-                autoFocus
-                value={editing.text}
-                onChange={(text) => setEditing({ ...editing, text })}
-                error={editFailure ?? undefined}
+          {/* B (AI step 6): the strip opened as the editor stands in the rows' place, the lines around the moment each its own text; beside the video, every line. */}
+          {editing ? <StripEditor lines={editorLines} nowKey={nowKey} start={editorStart} actions={editorActions} whole={listed !== null} onDone={() => setEditorOpen(false)} /> : null}
+          {listed !== null ? (
+            // Beside the video: the whole transcript, a line each with its time, the one being said lit and kept in view.
+            editing ? null : listed.length > 0 ? (
+              <BesideList
+                parts={underText.parts}
+                lit={litLine}
+                picked={pickedUnder}
+                now={tx.prefs.markUnder ? nowUnder : null}
+                forcedOf={(at, length) => forcedIn(at, length)}
+                fixable={showsTranscript && fixesOn}
+                aiLines={showsTranscript ? aiLines : NO_AI_LINES}
+                waitingLines={waitingLines}
+                handlers={{
+                  onTake: takeUnder,
+                  placeOf,
+                  onFix: (chars) => openEditor(lineAtChars(chars)),
+                  onGo: (line) => {
+                    if (video) video.currentTime = line.start;
+                  },
+                }}
               />
-              <Stamp id="panki-edit-end" name="Where the line ends" at={editing.end} disabled={editBusy} onSet={(to) => moveRowEnd("end", to)} />
-              <span className="strip-edit-actions">
-                <Button type="submit" variant="primary" disabled={editBusy}>
-                  {editBusy ? "Saving…" : "Save"}
-                </Button>
-                <Button disabled={editBusy} onClick={() => setEditing(null)}>
-                  Cancel
-                </Button>
-              </span>
-            </Form>
-          ) : null}
-          {/* A row is only let break in two when there's no room for even one of the player's own rows across. */}
-          <div ref={rowsEl} className={`strip-rows ${room !== null && room < longestRow ? "is-narrow" : ""}`.trim()} hidden={editing !== null}>
+            ) : (
+              <div className="strip-list is-empty">{emptyHere}</div>
+            )
+          ) : (
+          /* A row is only let break in two when there's no room for even one of the player's own rows across. */
+          <div ref={rowsEl} className={`strip-rows ${room !== null && room < longestRow ? "is-narrow" : ""}`.trim()} hidden={editing}>
             {under.length > 0 ? (
               under.map((row) => {
                 const first = underText.parts.find((part) => part.line.id === row.lines[0]?.id);
@@ -2066,6 +2869,9 @@ function App() {
                 if (!first || !last) return null;
                 const text = underText.text.slice(first.at, last.at + last.line.text.length);
                 const fixable = view.mode === "transcript" && fixesOn;
+                const lineIds = row.lines.map((line) => line.id);
+                const going = pr.going;
+                const waiting = going !== null && view.mode === "transcript" && (lines.linesAsOne(lineIds)?.wordIds.some((id) => going.words.has(id)) ?? false);
                 return (
                   <Row
                     key={row.key}
@@ -2076,53 +2882,66 @@ function App() {
                     forced={forcedIn(first.at, text.length)}
                     onTake={takeUnder}
                     placeOf={placeOf}
-                    onFix={fixable ? fixAt : null}
-                    onEdit={fixable ? () => editRow(row.lines.map((line) => line.id)) : null}
-                    editable={editable}
+                    // A word double-clicked opens the strip's editor at it (B).
+                    onFix={fixable ? (chars) => openEditor(lineAtChars(chars)) : null}
+                    editedAt={view.mode === "transcript" ? editedAt : null}
+                    waiting={waiting}
                   />
                 );
               })
-            ) : tx.status.kind === "running" ? null : picked === "youtube" ? ( // The menu's button says it's transcribing; a word here too was one too many (the owner, 2026-10-17).
-              <p className="empty">Turn on captions to enable.</p>
-            ) : picked === "none" ? (
-              // The owner, 2026-10-17, at an empty strip with None picked: "make sure this says to enable subtitles if they're disabled", then "what about showing 'turn on subtitles'": the press that does it.
-              <p className="empty strip-empty">
-                Subtitles are off.
-                <Button className="capture-tool" onClick={() => pickSource(DEFAULT_SOURCE)}>
-                  <Icon name="subtitles" />
-                  Turn on subtitles
-                </Button>
-              </p>
-            ) : null}
+            ) : (
+              emptyHere
+            )}
           </div>
-          {/* A transcript's word heard wrong, fixed by hand for everyone: double-clicked, typed over, saved. */}
-          {fixing ? (
-            <Form onSubmit={() => void saveFix()} className="strip-fix">
-              <TextField id="panki-fix-word" label="Word" lang="ja" autoFocus value={fixing.text} onChange={(text) => setFixing({ ...fixing, text })} error={fixFailure ?? undefined} />
-              <Button type="submit" variant="primary" disabled={fixBusy}>
-                {fixBusy ? "Saving…" : "Save"}
-              </Button>
-              <Button disabled={fixBusy} onClick={() => setFixing(null)}>
-                Cancel
-              </Button>
-            </Form>
-          ) : null}
+          )}
+          {/* A line's Proofread waiting on its question (the editor's, the subtitle's), under the strip (the menu's waits in the menu). */}
+          {gate.asked?.where.startsWith("row:") ? <RunAsk id="panki-proofread-row" asked={gate.asked} onCancel={gate.cancel} /> : null}
         </div>
       ) : null}
       {/* The transcript over the video, the line being said: the same words as under the player, to press and to fix. */}
+      {/* C (AI step 6): a word double-clicked there, the line is edited where it stands, the video paused. */}
       {createPortal(
-        overLine && overPart ? (
+        overEditing && overLineEditing && fixesOn ? (
+          <div className="sub-band over-line is-editing" lang="ja">
+            <OverLineEditor
+              line={overLineEditing}
+              start={{ caret: overEditing.caret, n: overEditing.n }}
+              actions={editorActions}
+              onDone={(how) => {
+                setOverEditing(null);
+                if (how === "play") void video?.play().catch(() => undefined);
+              }}
+              onMove={(by) => {
+                const at = editorLines.findIndex((line) => line.key === overEditing.key);
+                const next = editorLines[at + by];
+                if (!next) return;
+                editorActions.goTo(next.start);
+                setOverEditing({ key: next.key, caret: 0, n: ++editTurn.current });
+              }}
+            />
+          </div>
+        ) : overLine && overPart ? (
           <div className={`sub-band over-line ${styling ? "is-dragging" : ""}`.trim()} lang="ja" onPointerDown={styling ? dragSubtitles : undefined}>
-            <Row key={overLine.id} text={overLine.text} at={overPart.at} chars={pickedUnder} now={tx.prefs.markOver ? nowUnder : null} forced={forcedIn(overPart.at, overLine.text.length)} onTake={takeUnder} placeOf={placeOf} onFix={fixesOn ? fixAt : null} />
+            <Row
+              key={overLine.id}
+              text={overLine.text}
+              at={overPart.at}
+              chars={pickedUnder}
+              now={tx.prefs.markOver ? nowUnder : null}
+              forced={forcedIn(overPart.at, overLine.text.length)}
+              onTake={takeUnder}
+              placeOf={placeOf}
+              onFix={fixesOn ? editOver : null}
+              editedAt={editedAt}
+            />
           </div>
         ) : null,
         over.ground,
       )}
       {/* Where the video was stopped the time before, offered on the picture for a few seconds as it opens, as Netflix offers to skip an intro (the owner, 2026-10-21). */}
       {createPortal(offer !== null ? <ResumeOffer at={offer.at} jumped={offer.jumped} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
-      {/* The player's speed, among its own controls: a YouTube utility, drawn for whichever player the page has. */}
-      {createPortal(video ? <SpeedControl key={watching ?? ""} video={video} /> : null, speed.ground)}
-      {createPortal(video ? <EndTime video={video} /> : null, endTime.ground)}
+      {/* Panki's own controls on the player's bar, each in its place there (`playerBar.ts` puts them where the layout says): a YouTube utility, drawn for whichever player the page has. */}
+      {PANKI_BAR_IDS.map((id) => createPortal(barDrawn[id], playerBar.places[id].ground, id))}
       {/* The drawer is drawn into its own place on the page; it's one screen with the line, so they share what's picked. */}
       {createPortal(panel(), drawer.ground)}
       {/* And on the player's own seek bar: how far the transcript reaches, where cards were taken from, and the clip, where its ends can be pulled too. */}
@@ -2239,11 +3058,30 @@ document.addEventListener("yt-navigate-finish", () => {
   feed.refresh();
   look();
 });
-document.addEventListener("fullscreenchange", place);
+document.addEventListener("fullscreenchange", () => {
+  // The site redraws its theater mode as its full screen comes and goes: not the viewer leaving the stage.
+  stageSettleUntil = Date.now() + 1500;
+  // Theatre's full screen left the browser's way (Esc, the player's own full screen button or F, which leave the same
+  // full screen since it's the site's own): Theatre goes with it, and the page is back as it stood.
+  if (fullByTheatre && document.fullscreenElement === null) leaveStage();
+  place();
+});
+document.addEventListener("yt-navigate-start", () => {
+  stageSettleUntil = Date.now() + 3000;
+});
+// The stage is left with Esc (the site's own full screen takes Esc first, and leaves the stage be). Not while typing,
+// nor from inside Panki's own places, whose keys stop there: a line being edited, a menu, take their own Esc.
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || placedAs.get() !== "stage" || siteFull() || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  const at = e.target;
+  if (inPanki(e) || (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select")))) return;
+  leaveStage();
+});
 // The player's size changes with the window (and the site's theatre view): the words over it keep their share of it.
 window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
+theatre.subscribe(place);
 carded.subscribe(place);
 // A part switched on or off, and where the video was stopped known: what's on the page follows.
 modules.subscribe(() => {

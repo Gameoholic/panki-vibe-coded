@@ -2,8 +2,12 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type R
 import type { VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
+import { ExplainedTitle, Stage, type Site, type Spot, type Tools } from "@web/components/Explainer";
 import { Icon } from "@web/components/Icon";
 import { TextField } from "@web/components/TextField";
+import { IN_DECKS } from "@web/explainers/examples";
+import { SiteTop, WATCH, WATCHED, WatchPage, videoAt } from "@web/explainers/site";
+import newsPicture from "@web/explainers/thumbs/news-picture.png";
 import { hourWords } from "@web/words";
 import { tintOf, type KnownMoment } from "../capture/known";
 import { HOVER_KEEP } from "../capture/look";
@@ -13,39 +17,21 @@ import type { DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
 import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
-import { resumeTo } from "../modules";
+import { barShows, barSide, isPankiBar, resumeTo, type BarControl, type BarLayout } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
 import { paintCss } from "../seekLook";
-import type { Stored } from "../storage";
+import { barOf, type Stored } from "../storage";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
 import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
 import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { SpeedControl } from "../ui/SpeedControl";
-import { EXAMPLE_CARDS, IN_DECKS } from "./examples";
-import { Explainer, Stage, type Site, type Spot, type Tools } from "@web/components/Explainer";
-import thumbMinecraft113 from "./thumbs/o7Kj73TQ3CU.jpg";
-import thumbMinecraft111 from "./thumbs/1V029k8jaGY.jpg";
-import thumbGuardman from "./thumbs/ssm_RZv9PDc.jpg";
-import thumbJarujaru from "./thumbs/XrLtQqseSv8.jpg";
-import thumbHikakinClip from "./thumbs/78IdbiNak-M.jpg";
-import thumbViolinSamurai from "./thumbs/EjlG-dMzm3s.jpg";
-import thumbHiroyuki from "./thumbs/I6mScxP5UMA.jpg";
-import thumbOnePiece from "./thumbs/06PeLyzcnJk.jpg";
-import thumbHajime from "./thumbs/gzESogpdOfg.jpg";
-import thumbSplatoon from "./thumbs/pq5CscA1Anc.jpg";
-import faceHikakinGames from "./thumbs/channel-hikakingames.jpg";
-import faceGuardman from "./thumbs/channel-guardman.jpg";
-import faceJarujaru from "./thumbs/channel-jarujaru.jpg";
-import faceHikakinClip from "./thumbs/channel-hikakinclip.jpg";
-import faceViolinSamurai from "./thumbs/channel-violinsamurai.jpg";
-import faceHiroyuki from "./thumbs/channel-hiroyuki.jpg";
-import faceOnePiece from "./thumbs/channel-onepiece.jpg";
-import faceHajime from "./thumbs/channel-hajime.jpg";
-import newsPicture from "./thumbs/news-picture.png";
+import { BarControls, YOUTUBE_OWN } from "./BarControls";
+import { EXAMPLE_CARDS } from "./examples";
 
 /**
- * What each explainer plays (`Explainer.tsx`): one entry per panel, the feature being used on a page as it really is.
+ * What each explainer plays (the web's `components/Explainer.tsx`): one entry per panel, the feature being used on a
+ * page as it really is. The video site is the web's (`explainers/site.tsx`), which Settings → Panki AI's plays on too.
  * Panki's own parts are its real components (the pop-up dictionary is `LookupBody` with this browser's dictionaries and
  * pop-up layout; the Panki panel's line is `Line`; the header bar's pill is `PankiPill`; the speed button is
  * `SpeedControl`), so a change to them shows here too. What only exists inside a page's script (the strip's frame, the
@@ -56,7 +42,6 @@ import newsPicture from "./thumbs/news-picture.png";
 const nothing = () => undefined;
 
 const NEWS: Site = { tab: "駅前に新しい喫茶店がオープン｜日曜ニュース", url: "www.nichiyo-news.jp/articles/20261027/kurashi-cafe", icon: "news" };
-const WATCH: Site = { tab: "【マインクラフト】未来のマイクラ!?やってみた！ - YouTube", url: "www.youtube.com/watch?v=o7Kj73TQ3CU", icon: "video" };
 const HOME: Site = { tab: "YouTube", url: "www.youtube.com", icon: "video" };
 
 /** The words of the news article that are pointed at, and what stands in for each when no dictionary is there to look them up in. */
@@ -309,82 +294,6 @@ function KnownScene({ store }: { store: Stored }) {
 
 const SENTENCE = "新しい喫茶店を見つけました";
 const PICKED = { from: SENTENCE.indexOf(IN_DECKS.words), to: SENTENCE.indexOf(IN_DECKS.words) + IN_DECKS.words.length };
-
-/**
- * Real videos for the video site, picked by the owner (2026-10-28): their thumbnails bundled with the extension, so
- * nothing is fetched from the options page; their titles, channels and channels' icons as YouTube gives them. The
- * first is the one being watched.
- */
-type Video = { picture: string; title: string; channel: string; face: string; length: string };
-const VIDEOS: readonly Video[] = [
-  { picture: thumbMinecraft113, title: "【マインクラフト】未来のマイクラ!?やってみた！エイプリルフールアプデ！【ヒカキンのマイクラ実況 Part113】【ヒカクラ】", channel: "HikakinGames", face: faceHikakinGames, length: "18:40" },
-  { picture: thumbMinecraft111, title: "【マインクラフト】めっちゃ遠出してみたらついにあれを発見!?!?【ヒカキンのマイクラ実況 Part111】【ヒカクラ】", channel: "HikakinGames", face: faceHikakinGames, length: "21:07" },
-  { picture: thumbGuardman, title: "旅行中にがーどまんを雪山で下ろして置き去りにしてみたドッキリ【復讐の１週間】", channel: "Guardmanチャンネルがーどまん", face: faceGuardman, length: "15:32" },
-  { picture: thumbJarujaru, title: "第一声で不採用確定させる就活生の奴", channel: "ジャルジャルアイランド JARUJARU ISLAND", face: faceJarujaru, length: "3:58" },
-  { picture: thumbHikakinClip, title: "やぎゅう先輩によってTikTokアカBANされるヒカキン【イナイレ・柳生先輩】", channel: "HikakinClipTV", face: faceHikakinClip, length: "9:14" },
-  { picture: thumbViolinSamurai, title: "アメリカの警察にポケモンバトル仕掛けたら逮捕になるのか！？【バイオリニスト】", channel: "ViolinSamuraiバイオリン侍とポケモンマスターしずく社長", face: faceViolinSamurai, length: "12:26" },
-  { picture: thumbHiroyuki, title: "【ひろゆき】240円のスパチャした質問者にガチ説教するひろゆき。240円をバカにする人は成功しません【切り抜き/論破】", channel: "ひろゆきの部屋【ひろゆき, hiroyuki】切り抜き", face: faceHiroyuki, length: "8:03" },
-  { picture: thumbOnePiece, title: "『ワンピース・オン・アイス』ナミ役 本田望結", channel: "ONE PIECE公式YouTubeチャンネル", face: faceOnePiece, length: "1:12" },
-  { picture: thumbHajime, title: "［戦慄］激辛ペヤングにデスソースをかけるドッキリ", channel: "はじめしゃちょー（hajime）", face: faceHajime, length: "10:48" },
-  { picture: thumbSplatoon, title: "8年前のおしり実況してみた【スプラトゥーン1】", channel: "HikakinGames", face: faceHikakinGames, length: "16:55" },
-];
-const videoAt = (i: number): Video => VIDEOS[i % VIDEOS.length] ?? (VIDEOS[0] as Video);
-const WATCHED = videoAt(0);
-
-/** The site's header bar: its menu, its mark, its search, and what's at its right (Panki's pill, on the home). */
-function SiteTop({ right }: { right?: ReactNode }) {
-  return (
-    <header className="ex-yt-top">
-      <span className="ex-yt-menu" />
-      <span className="ex-yt-mark" />
-      <span className="ex-yt-search" />
-      {right}
-      <span className="ex-yt-avatar" />
-    </header>
-  );
-}
-
-/** A video's own page: the video, what's under it, its title and channel, and what's beside it. */
-function WatchPage({ video, under, side, paused = false, children }: { video?: ReactNode; under?: ReactNode; side?: ReactNode; paused?: boolean; children?: ReactNode }) {
-  return (
-    <div className="ex-yt">
-      <SiteTop />
-      <div className="ex-yt-left">
-        <div className={`ex-video ${paused ? "is-paused" : ""}`.trim()}>
-          <img className="ex-frame" src={WATCHED.picture} alt="" />
-          {video}
-        </div>
-        {under}
-        <h1 className="ex-yt-title" lang="ja">
-          {WATCHED.title}
-        </h1>
-        <div className="ex-yt-channel">
-          <img className="ex-yt-face" src={WATCHED.face} alt="" />
-          <span className="ex-yt-name" lang="ja">
-            {WATCHED.channel}
-          </span>
-          <span className="ex-yt-sub">Subscribe</span>
-        </div>
-      </div>
-      <div className="ex-yt-side">
-        {side ??
-          [1, 2, 3, 4, 5].map(videoAt).map((v) => (
-            <div key={v.title} className="ex-rec">
-              <span className="ex-rec-pic">
-                <img className="ex-thumb" src={v.picture} alt="" />
-                <span className="yc-time">{v.length}</span>
-              </span>
-              <span className="ex-rec-words">
-                <b lang="ja">{v.title}</b>
-                <small lang="ja">{v.channel}</small>
-              </span>
-            </div>
-          ))}
-      </div>
-      {children}
-    </div>
-  );
-}
 
 /** The Panki panel under the player, as the video page draws it: its head and its line of words. */
 function Strip({ tokens, now, picked, shown = true, line }: { tokens: readonly Token[]; now: Span | null; picked: Span | null; shown?: boolean; line?: (el: HTMLDivElement | null) => void }) {
@@ -738,19 +647,23 @@ function UtilitiesScene({ store }: { store: Stored }) {
     return () => video.removeEventListener("ratechange", read);
   }, [video]);
   const LENGTH = 18 * 60 + 40;
+  // The speed button and the end time as the player bar lays them out (`modules.ts` → `barShows`).
+  const bar = barOf(store);
+  const speedShown = barShows(store.playerBar, bar, "speed");
+  const endShown = barShows(store.playerBar, bar, "endTime");
   const script = async (t: Tools) => {
     video.playbackRate = 1;
     setEnds(false);
     setSkip(null);
     setAt(17.1);
     t.frame(player.current);
-    if (store.speedControl) {
+    if (speedShown) {
       const speedButton = () => player.current?.querySelector<HTMLButtonElement>(".yt-speed-button") ?? null;
       await t.move(speedButton());
       await t.click();
       speedButton()?.click();
       await t.wait(350);
-      const chip = [...(player.current?.querySelectorAll<HTMLButtonElement>(".yt-speed-chip") ?? [])].find((b) => b.textContent === "1.5×") ?? null;
+      const chip = [...(player.current?.querySelectorAll<HTMLButtonElement>(".yt-speed-chip") ?? [])].find((b) => b.textContent === "1.5") ?? null;
       await t.move(chip, 350);
       await t.click();
       chip?.click();
@@ -761,7 +674,7 @@ function UtilitiesScene({ store }: { store: Stored }) {
       speedButton()?.click();
       await t.wait(300);
     }
-    if (store.endTime) {
+    if (endShown) {
       await t.move(player.current?.querySelector(".ex-time") ?? null, 400);
       setEnds(true);
       await t.wait(1000);
@@ -811,7 +724,7 @@ function UtilitiesScene({ store }: { store: Stored }) {
               </span>
               {ends ? <span className="yt-end">Ends {hourWords(Date.now() + ((LENGTH - played) / rate) * 1000)}</span> : null}
               <span className="ex-grow" />
-              {store.speedControl ? <SpeedControl video={video} /> : null}
+              {speedShown ? <SpeedControl video={video} /> : null}
               <Icon name="settings" />
             </span>
           </div>
@@ -960,6 +873,94 @@ function SeekScene({ store }: { store: Stored }) {
   );
 }
 
+/** A control shown on the bar, or not. */
+const withShown = (layout: BarLayout, id: BarControl, shown: boolean): BarLayout => layout.map((control) => (control.id === id ? { ...control, shown } : control));
+/** A control moved to stand right after another of its side. */
+const movedAfter = (layout: BarLayout, id: BarControl, after: BarControl): BarLayout => {
+  const moving = layout.find((control) => control.id === id);
+  const rest = layout.filter((control) => control.id !== id);
+  const at = rest.findIndex((control) => control.id === after);
+  return moving && at >= 0 ? [...rest.slice(0, at + 1), moving, ...rest.slice(at + 1)] : layout;
+};
+
+/**
+ * The player bar, as it's laid out (the real `BarControls`, the options page's preview): the bar framed, then Panki's
+ * own controls coming onto it one by one where their rows put them, the speed button moved to after the settings, and
+ * one of YouTube's own hidden and brought back (its theatre mode, or the last of the right's shown). Off, the bar is
+ * YouTube's own and nothing changes on it.
+ */
+function PlayerBarScene({ store }: { store: Stored }) {
+  const on = store.playerBar;
+  const layout = on ? barOf(store) : YOUTUBE_OWN;
+  const video = useMemo(() => document.createElement("video"), []);
+  const pankiShown = layout.filter((control) => control.shown && isPankiBar(control.id)).map((control) => control.id);
+  const start = pankiShown.reduce((bar, id) => withShown(bar, id, false), layout);
+  const [drawn, setDrawn] = useState(start);
+  const [coming, setComing] = useState<BarControl | null>(null);
+  const [going, setGoing] = useState<BarControl | null>(null);
+  const player = useRef<HTMLDivElement | null>(null);
+  const find = (id: BarControl) => player.current?.querySelector(`[data-control="${id}"]`) ?? null;
+  const rightYouTube = barSide(layout, "right").filter((control) => control.shown && !isPankiBar(control.id));
+  const hiding = rightYouTube.find((control) => control.id === "theater")?.id ?? rightYouTube[rightYouTube.length - 1]?.id ?? null;
+  const settingsShown = layout.some((control) => control.id === "settings" && control.shown);
+  const script = async (t: Tools) => {
+    let bar = start;
+    const show = (next: BarLayout, id: BarControl | null) => {
+      bar = next;
+      setDrawn(next);
+      setComing(id);
+    };
+    show(start, null);
+    setGoing(null);
+    t.frame(player.current?.querySelector(".ytb-fit") ?? null);
+    await t.wait(700);
+    if (!on) {
+      await t.wait(1200);
+      t.frame();
+      await t.wait(400);
+      return;
+    }
+    for (const id of pankiShown) {
+      show(withShown(bar, id, true), id);
+      await t.wait(60);
+      await t.move(find(id), 450);
+      await t.wait(450);
+    }
+    if (pankiShown.includes("speed") && settingsShown) {
+      await t.move(find("speed"), 400);
+      show(movedAfter(bar, "speed", "settings"), "speed");
+      await t.wait(60);
+      await t.move(find("speed"), 450);
+      await t.wait(500);
+    }
+    if (hiding) {
+      setComing(null);
+      await t.move(find(hiding), 450);
+      await t.click();
+      setGoing(hiding);
+      await t.wait(320);
+      show(withShown(bar, hiding, false), null);
+      setGoing(null);
+      await t.wait(700);
+      show(withShown(bar, hiding, true), hiding);
+      await t.wait(700);
+    }
+    t.frame();
+    await t.wait(500);
+  };
+  return (
+    <Stage site={WATCH} script={script}>
+      <WatchPage
+        video={
+          <div ref={player} className="ex-player">
+            <BarControls layout={drawn} video={video} classOf={(id) => (id === going ? "is-going" : id === coming ? "is-coming" : "")} />
+          </div>
+        }
+      />
+    </Stage>
+  );
+}
+
 /** The panels with a (?), each by what the panel is called. A new one is an entry here and a case in `ExplainerScene`. */
 export const EXPLAINER_NAMES = {
   popup: "Pop-up dictionary",
@@ -969,20 +970,16 @@ export const EXPLAINER_NAMES = {
   seek: "Seek bar marks",
   home: "YouTube home add-ons",
   utilities: "YouTube utilities",
+  playerBar: "Player bar",
 } as const;
 export type ExplainerId = keyof typeof EXPLAINER_NAMES;
 
-/** A panel's title, with its (?) beside it. */
-export function ExplainedTitle({ id, titleId, store }: { id: ExplainerId; titleId: string; store: Stored }) {
+/** A panel's title, with its (?) beside it playing the panel's scene, as this browser has its settings. */
+export function SceneTitle({ id, titleId, store }: { id: ExplainerId; titleId: string; store: Stored }) {
   return (
-    <div className="explain-head">
-      <h2 id={titleId} className="panel-title">
-        {EXPLAINER_NAMES[id]}
-      </h2>
-      <Explainer name={EXPLAINER_NAMES[id]}>
-        <ExplainerScene id={id} store={store} />
-      </Explainer>
-    </div>
+    <ExplainedTitle name={EXPLAINER_NAMES[id]} titleId={titleId}>
+      <ExplainerScene id={id} store={store} />
+    </ExplainedTitle>
   );
 }
 
@@ -1003,5 +1000,7 @@ function ExplainerScene({ id, store }: { id: ExplainerId; store: Stored }) {
       return <HomeScene store={store} />;
     case "utilities":
       return <UtilitiesScene store={store} />;
+    case "playerBar":
+      return <PlayerBarScene store={store} />;
   }
 }

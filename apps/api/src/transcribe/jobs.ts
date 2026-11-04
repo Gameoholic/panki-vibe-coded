@@ -63,6 +63,8 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
     const startedAt = now();
     try {
       const heard = await engine.transcribeVideo(key, youtubeUrl({ videoId: job.videoId, seconds: null }), job.language, deadline);
+      // Paid for once the engine has answered: the whole video, a row of the usage ledger, for whoever asked for it.
+      shared.meterSound(job.engine, "whole", job.id, job.userId, job.lengthMs, now());
       const after = await engine.account(key).then(
         (account) => account.used,
         () => null,

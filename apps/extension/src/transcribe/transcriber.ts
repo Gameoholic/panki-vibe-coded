@@ -1076,6 +1076,8 @@ export function createTranscriber() {
       tell();
     },
     running: () => run !== null,
+    /** Something done to this video's transcript from outside the run, written in the menu's Log with the rest (Proofread's runs and Undo, AI step 6). */
+    note,
     /** How it stands in full, this moment: the menu's Details. */
     detail(): TranscribeDetail {
       const silent = run?.silent.report() ?? null;

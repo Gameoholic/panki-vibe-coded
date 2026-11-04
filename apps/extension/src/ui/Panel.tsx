@@ -1,9 +1,57 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { CaptureFacts, NEW_PLACE, NewCard, NewCardExample, VALUE_MAX, apartOf, cardProblems, comparedOf, exampleFieldsOf, isTyped, pitchValue, wordsFieldOf, type CardField, type ForvoVoice, type MediaCues } from "@panki/contracts";
+import {
+  APP_LANGUAGES,
+  CaptureFacts,
+  NEW_PLACE,
+  NewCard,
+  NewCardExample,
+  OWNER,
+  PIECE_MAX,
+  TOUCH_UP_KEYS,
+  TRANSCRIBE_LANGUAGES,
+  VALUE_MAX,
+  answeredCall,
+  apartOf,
+  cardPiece,
+  cardProblems,
+  comparedOf,
+  defaultTemplateOf,
+  exampleFieldsOf,
+  failedCall,
+  isTyped,
+  meaningsPiece,
+  fieldVerdictOf,
+  isError,
+  LOOK_OF,
+  meaningVerdictOf,
+  startCall,
+  templateById,
+  templatesOf,
+  wordsFieldOf,
+  type AiCall,
+  type AiRunWhy,
+  type AiTemplate,
+  type AiVerdict,
+  type CardField,
+  type ExplainMessage,
+  type ForvoVoice,
+  type MediaCues,
+  type FieldKey,
+  type PromptGaps,
+  type PromptPieces,
+  type TouchUpAnswer,
+  type TouchUpKey,
+  type TouchUpNow,
+  type ValueSource,
+  type ValueSources,
+} from "@panki/contracts";
+import { FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
+import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
+import { Fold } from "@web/components/Fold";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import type { VideoPictures } from "@web/components/LinkView";
@@ -11,20 +59,36 @@ import { MediaView } from "@web/components/MediaView";
 import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
+import {
+  FollowTurns,
+  TOUCH_UP_WORDS,
+  Tied,
+  TouchUpBar,
+  TouchUpButton,
+  TouchUpCost,
+  fieldMarks,
+  fieldShown,
+  meaningShown,
+  proposes,
+  touchUpReason,
+  touchUpVerdicts,
+  type FollowTurn,
+  type Shown,
+} from "@web/components/TouchUp";
 import { FIELD_KINDS } from "@web/fieldKinds";
 import { useCalled } from "@web/hooks/useCalled";
-import { count, langOf } from "@web/words";
+import { count, langOf, wordFor } from "@web/words";
 import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
 import { pick, spanOver, textOf } from "../capture/words";
 import { CLIENT } from "../client";
-import { wordKey, type Found, type Tag } from "../dictionary/found";
+import { wordKey, type Found } from "../dictionary/found";
+import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askAddExample, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askUpload, askVoice, askVoices, type RecordingAsk, type State } from "../messages";
-import { bandOf } from "../popupKinds";
-import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
+import { askAdd, askAddExample, askAiState, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
+import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, roleOfKey, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { uuid } from "../uuid";
 import { ClipPlayer } from "./ClipPlayer";
-import { Fold } from "./Fold";
+import { gapsOf, type PieceLimits } from "./Explain";
 import { glossaryText } from "./Glossary";
 import { Stamp } from "./Stamp";
 import { Trim, type ClipEnd, type MoveBy } from "./Trim";
@@ -51,27 +115,10 @@ const LOOKUP_SETTLE_MS = 200;
 
 const isDictRole = (role: RoleId | null): role is DictionaryRoleId => role !== null && ROLES[role].dictionary !== undefined;
 
-/** Names once each, in the order first met, joined. */
-const listed = (names: readonly string[]) => [...new Set(names)].join(", ");
-
-/** A tag as a card says it: what the dictionary says it means, or its code when it says nothing. */
-const tagWords = (tag: Tag) => tag.notes || tag.name;
-
-/** How common the word is, as a card says it: the band from the best rank, then each list's number. */
-function frequencyText(found: Found): string {
-  const ranks = found.frequencies.flatMap((f) => (f.rank === null ? [] : [f.rank]));
-  const lists = found.frequencies.map((f) => `${f.dict} ${f.display}`).join(", ");
-  return [ranks.length > 0 ? bandOf(Math.min(...ranks)) : "", lists].filter((part) => part !== "").join(" · ");
-}
-
-/** The meanings that go on a card, as one value: one line each in a box of several lines, numbered when there's more than one; or one after another on a single line. */
-function meaningOf(texts: readonly string[], lines: boolean): string {
-  if (!lines) return texts.join("; ");
-  return texts.length === 1 ? (texts[0] ?? "") : texts.map((text, i) => `${i + 1}. ${text}`).join("\n");
-}
-
 /** What the meanings' dropdown says: how many of the word's meanings are ticked. */
-const meaningsSaid = (ticked: number, of: number) => `${ticked} of ${of} meanings`;
+const meaningsSaid = (ticked: number, of: number) => `${ticked} of ${of} ${wordFor(of, "meaning", "meanings")}`;
+/** The Meaning list's choice for the meaning Touch up proposed, past every dictionary meaning's place. */
+const PROPOSED = -1;
 
 /** A file that came through a message, as a file again. */
 function blobOf(base64: string, mime: string): Blob {
@@ -98,7 +145,68 @@ export type Capture = {
   video: { id: string; avatar: string | null } | null;
   /** What the page knows of how it was taken (the contracts' `CaptureFacts`), kept with the card for a backfill; the drawer adds what it knows. */
   facts?: CaptureFacts;
+  /** What the page adds to Touch up's prompt, read as it's pressed: on a video, its metadata, the subtitles around the moment and its description. */
+  more?: (limits: PieceLimits) => PromptPieces;
 };
+
+/** What a Touch up run sent: its pieces (`{Card}` among them), why each empty one is empty, every meaning in `{Meaning}`'s order, and the card as it stood. */
+type TouchRead = { pieces: PromptPieces; gaps: PromptGaps; meanings: string[]; now: TouchUpNow };
+
+/**
+ * Touch up as the drawer holds it: its calls, whether one is on its way, how the last run came out, its answer as its
+ * follow-ups have changed it, which of its proposals have been decided; and since AI step 5 its conversation, one per
+ * run: the template it runs, what the run sent (its follow-ups send the same first prompt), everything said as it was
+ * sent, and the follow-ups with their replies.
+ */
+type Touch = {
+  calls: readonly AiCall[];
+  /** A call on its way: a run (every field it can change dimmed while it works), or a follow-up. */
+  busy: false | "run" | "follow";
+  /** Why the run gave no answer; a follow-up's failure is its own turn's. */
+  failure: { message: string; retry: boolean } | null;
+  /** Each key's part as it stands: the run's, a follow-up's change in place of it. */
+  answer: TouchUpAnswer | null;
+  /** The meanings the run was sent, in `{Meaning}`'s order: what a number in its answer is. */
+  meanings: readonly string[];
+  /** Proposals accepted or dismissed: gone from under their fields, until a follow-up changes them again. */
+  decided: Partial<Record<TouchUpKey, true>>;
+  /**
+   * The card each part is drawn against (`fieldVerdictOf`, `meaningVerdictOf`): as the run sent it, and for a part a
+   * follow-up changed, as the card stood when it was asked.
+   */
+  now: TouchUpNow;
+  /** Notes put away by Accept all or Dismiss all, the positive ones and the error's too, until something new comes for them. */
+  hidden: Partial<Record<TouchUpKey, true>>;
+  /** How many runs it has made: Touch up's own spark blinks once for each. */
+  runs: number;
+  template: AiTemplate | null;
+  first: TouchRead | null;
+  said: readonly ExplainMessage[];
+  turns: readonly FollowTurn[];
+};
+const NO_TOUCH: Touch = {
+  calls: [],
+  busy: false,
+  failure: null,
+  answer: null,
+  meanings: [],
+  decided: {},
+  hidden: {},
+  now: { values: {}, ticked: [] },
+  runs: 0,
+  template: null,
+  first: null,
+  said: [],
+  turns: [],
+};
+/** Where a follow-up is asked under the head, beside the fields' own (by their ids). */
+const BAR = "bar";
+/** Where Touch up's own run asks first: under the button row. */
+const RUN = "run";
+/** Where a follow-up is asked from a field's note. */
+const whereOf = (fieldId: string) => `field:${fieldId}`;
+/** A value Panki AI wrote into a field, once accepted: the words, and its source. It stays the AI's while the field holds exactly these words. */
+type AiWrote = { value: string; source: ValueSource };
 
 /** A cut as recorded: the file, and how it was made off the video (null where that can't be said). */
 export type Made = { file: Blob; recording: RecordingAsk | null };
@@ -230,6 +338,8 @@ type Props = {
   onClose: () => void;
   /** A card was added from it: a video's page marks where in the video it was taken from. */
   onAdded?: () => void;
+  /** Panki AI is working on the card, or no longer: a video's page holds the clip's ends and the picked words still meanwhile. */
+  onTouching?: (on: boolean) => void;
 };
 
 const nothing = () => undefined;
@@ -244,9 +354,9 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
 }
 
 /**
- * The capture drawer. From the top: the clip with its two ends, the deck, the card's fields in the card's own order
- * (what the extension fills is filled, the rest is typed; the sentence is one of them), the card as a review will show
- * it (the app's own card, turned by a press), Add. A clip and a word's audio, when the deck takes them, are recorded
+ * The capture drawer. From the top: Touch up and Add, then the clip with its two ends, the deck, the card's
+ * fields in the card's own order (what the extension fills is filled, the rest is typed; the sentence is one of them),
+ * the card as a review will show it (the app's own card, turned by a press). A clip and a word's audio, when the deck takes them, are recorded
  * first and kept on Panki as files; then the card is made, naming them, so a field that must be filled is filled as
  * the card is made. (The card came first and the recordings followed it until 2026-10-17, when a Required clip field
  * couldn't be satisfied at all: the owner, with a clip right there, "Clip is Required, and a recording can only follow
@@ -266,7 +376,7 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
  * written exactly so, endings undone). Which of their words it is (when there's more than one) and, if the meanings
  * are picked by hand, which meanings, are chosen just above the first such field; anything filled can be typed over.
  */
-export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, arrives, onClose, onAdded }: Props) {
+export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, arrives, onClose, onAdded, onTouching }: Props) {
   // Minted once for the panel, so pressing Add again after a lost connection is the same card, not a second one.
   const [cardId] = useState(uuid);
   const [state, setState] = useState<State | null>(lastKnown);
@@ -307,8 +417,24 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [heard, setHeard] = useState<{ mediaId: string; url: string } | { problem: string } | null>(null);
   /** The video's pictures as Panki keeps them, shown on the card's video metadata from their bytes. */
   const [pictures, setPictures] = useState<{ videoId: string; shown: VideoPictures } | null>(null);
+  /** Panki AI as the worker keeps it: unknown until it answers; null signed out; or why it couldn't be told. */
+  const [ai, setAi] = useState<{ known: boolean; ai: AiShown | null; failure: string | null }>({ known: false, ai: null, failure: null });
+  const [touch, setTouch] = useState<Touch>(NO_TOUCH);
+  /** The Touch up template picked from its menu in this drawer, by its id: the button's from then on, the account's default untouched. */
+  const [touchChosen, setTouchChosen] = useState<string | null>(null);
+  /** The follow-up questions being typed, by where they're asked (`BAR`, or a field's `whereOf`), and why one can't be asked. */
+  const [follows, setFollows] = useState<Record<string, { text: string; error?: string }>>({});
+  /** Ask before a run over: Touch up's run and its follow-ups, each asked where its answer would go. */
+  const touchGate = useAskFirst();
+  /** How many runs each template has had in this drawer: its calls named "Touch up", then "Touch up 2". */
+  const touchRuns = useRef(new Map<string, number>());
+  /** What Panki AI wrote into each field, by field id, once accepted. */
+  const [aiWrote, setAiWrote] = useState<Record<string, AiWrote>>({});
   const frame = useRef<HTMLElement>(null);
 
+  /** Panki AI as it stands, what Touch up's button says it can cost or why it can't run; asked as the drawer opens and after each call. */
+  const readAi = (fresh = false) =>
+    void askAiState(fresh).then((answer) => setAi(answer.ok ? { known: true, ai: answer.ai, failure: null } : { known: true, ai: null, failure: answer.message }));
   useEffect(() => {
     let alive = true;
     const load = () =>
@@ -317,6 +443,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         if (alive) setState(answer);
       });
     load();
+    readAi();
     const waited = setTimeout(() => setSlow(true), SLOW_MS);
     // Back from the options page (signed in, a deck set up): what the panel knows is asked for afresh.
     window.addEventListener("focus", load);
@@ -386,10 +513,23 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const busy = phase.at !== "idle";
   /** Something is still under way that closing would cut short. */
   const working = busy && phase.at !== "done";
+  /** Panki AI is working on the card: a Touch up run, its Try again, a follow-up. */
+  const touching = touch.busy !== false;
+  /**
+   * Nothing on the card can be changed: it's on its way, or Panki AI is working on it (the owner, 2026-11-02: "make sure
+   * we can't edit any of the fields while Panki AI is working"), so an answer is never drawn against a card that moved
+   * under it. Playing a clip changes nothing and stays; Accept, Dismiss and × are Touch up's and the drawer's own.
+   */
+  const still = busy || touching;
+  // The page holds what it hands the drawer (the clip's ends, the words picked under the player) still meanwhile too.
+  useEffect(() => {
+    onTouching?.(touching);
+    return () => onTouching?.(false);
+  }, [touching, onTouching]);
   /** There's something to show: Panki's answer, or, when that's slow in coming, the wait for it. */
   const shown = state !== null || slow;
 
-  /** Discard is asking first, above the foot. */
+  /** Leaving is asking first ("Discard this card?"), under the buttons at the top. */
   const [discarding, setDiscarding] = useState(false);
   /**
    * Something here was typed by hand (the word, a field nothing fills, a dictionary's value typed over, the sentence
@@ -398,9 +538,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    */
   const typedAny = (wordTyped && word.trim() !== "") || Object.values(typed).some((text) => text.trim() !== "") || Object.keys(dictTyped).length > 0 || (written !== null && written !== capture.sentence);
   /**
-   * The drawer asked to go, by ×, Escape or Discard (the owner, 2026-10-29: taking something away asks first): with
-   * something typed it asks first, in place above the foot, and Cancel there takes the focus so the question is in view
-   * whichever end of the drawer was pressed; with nothing typed, or a card on its way or added, it goes at once.
+   * The drawer asked to go, by × or Escape (the owner, 2026-10-29: taking something away asks first; a Discard button
+   * did the same until 2026-10-31, "we shouldn't have a discard button since we already have X"): with something typed
+   * it asks first, in place near the top, and Cancel there takes the focus; with nothing typed, or a card on its way or
+   * added, it goes at once.
    */
   function leave() {
     if (busy || !typedAny) {
@@ -426,20 +567,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const meaningField = fieldOf("dictMeaning");
   // The meanings ticked, in the dictionary's order whatever order they were ticked in.
   const tickedSenses = chosen ? [...ticked].sort((a, b) => a - b).flatMap((i) => chosen.senses[i] ?? []) : [];
-  const meaningTexts = tickedSenses.map((sense) => glossaryText(sense.glossary));
-  const reading = chosen ? chosen.reading || chosen.term : "";
-  /** What the dictionary fills each of its pieces with, before anything is typed over it: every kind of its data. */
-  const fromDictionary: Record<DictionaryRoleId, string> = {
-    dictForm: chosen?.term ?? "",
-    dictReading: reading,
-    dictMeaning: meaningOf(meaningTexts, meaningField !== null && FIELD_KINDS[meaningField.kind].multiline),
-    // The word's own tags, then those of the meanings ticked.
-    dictTags: chosen ? listed([...chosen.tags, ...tickedSenses.flatMap((sense) => sense.tags)].map(tagWords)) : "",
-    dictWordType: chosen ? listed(chosen.wordTypes.map(tagWords)) : "",
-    dictFrequency: chosen ? frequencyText(chosen) : "",
-    // As a Pitch accent field keeps it ("たべる 2"), which the card draws as the line over the reading.
-    dictPitch: chosen ? pitchValue(chosen.pitches.flatMap((pitch) => pitch.positions.map((position) => ({ reading, position })))) : "",
-  };
+  /** The same, as their numbers in the dictionary's list (`{Meaning}`'s, from 1): what Touch up judges the Meaning by. */
+  const tickedNumbers = chosen ? [...ticked].sort((a, b) => a - b).filter((i) => chosen.senses[i] !== undefined).map((i) => i + 1) : [];
+  /** What the dictionary fills each of its pieces with, before anything is typed over it: every kind of its data, its meanings the ones ticked. */
+  const fromDictionary: Record<DictionaryRoleId, string> = chosen ? dictionaryPieces(chosen, tickedSenses, meaningField !== null && FIELD_KINDS[meaningField.kind].multiline) : NO_PIECES;
   /** The first of the card's fields the dictionary fills: what it found stands above it. */
   const firstDictField = type?.fields.find((f) => isDictRole(roleOf(map, f.id))) ?? null;
   /** A dictionary's piece as it stands in its field: typed over, or as the dictionary has it. */
@@ -470,6 +601,456 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const anyway = useAddAnyway(called, mine, compared);
   /** One already there is the same, and nothing has resolved it yet: Add waits. */
   const unresolved = anyway.duplicate && !asExample && !anyway.on;
+
+  // Touch up (AI step 3): what it can propose is what the deck has a field for, by the field mapping.
+  const keyField = (key: TouchUpKey): CardField | null => {
+    const role = roleOfKey(key);
+    const field = role ? fieldOf(role) : null;
+    return field && isTyped(field.kind) ? field : null;
+  };
+  const touchKeys = TOUCH_UP_KEYS.filter((key) => keyField(key) !== null);
+  const keyOfField = (fieldId: string): TouchUpKey | null => touchKeys.find((key) => keyField(key)?.id === fieldId) ?? null;
+  const aiSettings = ai.ai?.settings ?? null;
+  /** Whether a field holds, right now, exactly what Panki AI wrote there: the spark beside it, and its source the AI's. */
+  const aiHolds = (fieldId: string) => {
+    const wrote = aiWrote[fieldId];
+    return wrote !== undefined && (values[fieldId] ?? "").trim() === wrote.value;
+  };
+  // What was proposed was for this word in this dictionary entry: another word, or another of its entries, and it's let go.
+  const touchFor = `${looked}\u0000${chosen ? wordKey(chosen) : ""}`;
+  useEffect(() => {
+    setTouch(NO_TOUCH);
+    setFollows({});
+    touchGate.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [touchFor]);
+
+  /**
+   * What Touch up sends: the word, every kind of the dictionary's data (every meaning, as the one meanings list), the sentence as it stands, what the page adds on a video, the account's two languages, and the card as it
+   * stands (`{Card}`), each of its fields with the key a proposal for it comes under.
+   */
+  function touchPieces(limits: PieceLimits): { pieces: PromptPieces; gaps: PromptGaps; meanings: string[]; now: TouchUpNow } {
+    const meanings = chosen ? chosen.senses.map((sense) => glossaryText(sense.glossary)) : [];
+    const video = capture.more?.(limits) ?? {};
+    // The card as it stands, what the answer is held against: each key's field, and the Meaning by the numbers of the
+    // dictionary's meanings ticked for it (none once it's typed over), so the model judges it by number.
+    const ticked = chosen && meaningField && dictTyped[meaningField.id] === undefined ? tickedNumbers : [];
+    const now: TouchUpNow = {
+      values: Object.fromEntries(touchKeys.flatMap((key) => {
+        const field = keyField(key);
+        return field ? [[key, values[field.id] ?? ""]] : [];
+      })),
+      ticked,
+    };
+    const card = type
+      ? cardPiece(
+          type.fields
+            .filter((f) => isTyped(f.kind))
+            .map((f) => ({ name: f.name, key: keyOfField(f.id), value: values[f.id] ?? "", ...(f.id === meaningField?.id ? { ticked } : {}) })),
+        )
+      : "";
+    const languages = ai.ai ? { learningLanguage: TRANSCRIBE_LANGUAGES[ai.ai.learningLanguage], language: APP_LANGUAGES[ai.ai.language] } : {};
+    const all: PromptPieces = {
+      word: word.trim(),
+      ...(chosen ? dictionaryPieces(chosen, chosen.senses, true) : {}),
+      // The one meanings list, what's ticked never in it (the server makes it the same way).
+      dictMeaning: meaningsPiece(meanings),
+      sentence,
+      ...video,
+      ...languages,
+      card,
+    };
+    const pieces: PromptPieces = Object.fromEntries(Object.entries(all).flatMap(([id, text]) => (text?.trim() ? [[id, text.slice(0, PIECE_MAX)]] : [])));
+    return { pieces, gaps: gapsOf(pieces, video.source !== undefined), meanings, now };
+  }
+  const canTouch = aiSettings !== null && aiSettings.aiOn && ai.ai?.key !== null && touchKeys.length > 0;
+  const ownTemplates = ai.ai?.templates ?? [];
+  /** The account's default Touch up template: what the drawer opens on. */
+  const touchDefault = defaultTemplateOf("touchUp", ai.ai?.defaults ?? {}, ownTemplates);
+  /** What Touch up's button runs, and says: the one picked from its menu in this drawer, else the default; never kept anywhere. */
+  const touchPicked = touchChosen ? templateById(touchChosen, ownTemplates) : null;
+  const touchPreferred = touchPicked && touchPicked.action === "touchUp" ? touchPicked : touchDefault;
+  /** From what a run's cost is said: the account's Show the cost when a run is over. */
+  const showCostOver = ai.ai ? ai.ai.showCostOverMicros : 0;
+  /** The card as it stands right now, as a run or a follow-up would send it. */
+  const touchNow = canTouch && aiSettings ? touchPieces(aiSettings) : null;
+  /** The most a run of a template can cost on the card as it stands, at the model's listed prices. */
+  const runCeiling = (using: AiTemplate) => (aiSettings && touchNow ? ceilingOf(aiSettings, using, touchNow.pieces, [], {}, aiSettings.aiMaxTouchUpTokens) : 0);
+  /** What stands beside the button: why it can't run, or the most it can cost. */
+  const touchBeside = touchUpReason(ai.known, ai.ai, ai.failure) ?? (touchNow ? RUN_WORDS.upTo(runCeiling(touchPreferred), showCostOver) : null);
+
+  /**
+   * Touch up answered: a video's sentence is locked as it stands (the owner, 2026-11-02), so the clip's ends pulled after
+   * can't rewrite what Panki AI just judged or proposed against. Unlocking it by hand is still a press.
+   */
+  const lockSentence = () => {
+    if (clip !== null && sentenceField !== null) setWritten((was) => was ?? capture.sentence);
+  };
+
+  /**
+   * Touch up, asked: one call on the card as it stands (what was accepted before is the card's now), its answer's
+   * proposals under their fields in place of whatever the last run left standing, each waiting on a press. Every run is
+   * a call of its own in Details, named by its template ("Touch up", the next "Touch up 2" and on), and a conversation
+   * of its own: what the last one said is let go.
+   */
+  async function runTouchUp(using: AiTemplate, why: AiRunWhy) {
+    if (!aiSettings || !canTouch || touch.busy) return;
+    const read = touchPieces(aiSettings);
+    const times = (touchRuns.current.get(using.id) ?? 0) + 1;
+    touchRuns.current.set(using.id, times);
+    const call = startCall({
+      label: times === 1 ? using.name : `${using.name} ${times}`,
+      why,
+      settings: aiSettings,
+      template: using,
+      pieces: read.pieces,
+      gaps: read.gaps,
+      said: [],
+      now: Date.now(),
+      maxAnswerTokens: aiSettings.aiMaxTouchUpTokens,
+    });
+    setTouch((was) => ({
+      ...was,
+      calls: [...was.calls, call],
+      busy: "run",
+      failure: null,
+      answer: null,
+      meanings: read.meanings,
+      decided: {},
+      hidden: {},
+      now: read.now,
+      runs: was.runs + 1,
+      template: using,
+      first: read,
+      said: [],
+      turns: [],
+    }));
+    setFollows({});
+    const answer = await askTouchUp({ templateId: using.id, pieces: read.pieces, meanings: read.meanings, keys: touchKeys, now: read.now, said: [] });
+    const now = Date.now();
+    const finished = answer.ok
+      ? answeredCall(call, { ...answer.touchUp, cut: false }, now, touchUpVerdicts(answer.touchUp.answer, read.now, read.meanings))
+      : failedCall(call, answer.message, now, answer.unread);
+    setTouch((was) => ({
+      ...was,
+      calls: was.calls.map((each) => (each === call ? finished : each)),
+      busy: false,
+      answer: answer.ok ? answer.touchUp.answer : null,
+      failure: answer.ok ? null : { message: answer.message, retry: answer.problem === "provider" },
+      // The model reads its own turn back as it wrote it, its JSON.
+      said: answer.ok ? [{ role: "assistant", text: answer.touchUp.raw || JSON.stringify(answer.touchUp.answer) }] : [],
+    }));
+    if (answer.ok) lockSentence();
+    // The worker keeps Panki AI as this answer said it stands: what's said beside the button follows any change.
+    readAi();
+  }
+
+  /**
+   * A follow-up's own pieces: the question, the field it was asked from by its name on the card, and the card as it
+   * stands now (the owner: "it sends back the entire Card"), whatever was accepted or typed since the run.
+   */
+  function askingOf(fieldId: string | null, question: string, now: TouchRead): PromptPieces {
+    const field = fieldId ? type?.fields.find((f) => f.id === fieldId) : undefined;
+    return { question, ...(field ? { field: field.name } : {}), ...(now.pieces.card ? { card: now.pieces.card } : {}) };
+  }
+  /** The follow-ups answered so far: one that failed is let go as the next is asked. */
+  const followsKept = touch.turns.filter((turn) => turn.reply !== null);
+  /** Whether a follow-up can be asked now: the run answered, nothing on its way, and Max follow-ups not reached. */
+  const canFollow = canTouch && touch.answer !== null && touch.template !== null && touch.busy === false && aiSettings !== null && followsKept.length < aiSettings.aiMaxFollowUps;
+  /** The most a follow-up can cost: the run's prompt, the conversation so far, and this one's Follow-up prompt. */
+  const followCeiling = (fieldId: string | null, question: string) =>
+    aiSettings && touchNow && touch.template && touch.first
+      ? ceilingOf(aiSettings, touch.template, touch.first.pieces, touch.said, askingOf(fieldId, question, touchNow), aiSettings.aiMaxTouchUpTokens)
+      : 0;
+
+  /**
+   * A follow-up, asked under the head or from a field's note: the run's conversation sent whole, with the card as it
+   * stands now. Its reply stands where it was asked; what it changes replaces that key's part (a proposal still waiting
+   * replaced, a decided one shown again as the new proposal), drawn against what the field holds now; the rest stays.
+   */
+  async function followUp(fieldId: string | null, question: string, why: AiRunWhy) {
+    if (!aiSettings || !canTouch || touch.busy || !touch.template || !touch.first) return;
+    const using = touch.template;
+    const first = touch.first;
+    const current = touchPieces(aiSettings);
+    const asking = askingOf(fieldId, question, current);
+    const said = [...touch.said];
+    const call = startCall({
+      label: `Follow-up ${followsKept.length + 1}`,
+      why,
+      settings: aiSettings,
+      template: using,
+      pieces: first.pieces,
+      gaps: first.gaps,
+      said,
+      asking,
+      now: Date.now(),
+      maxAnswerTokens: aiSettings.aiMaxTouchUpTokens,
+    });
+    const pending: FollowTurn = { field: fieldId, question, reply: null, failure: null };
+    setTouch((was) => ({ ...was, calls: [...was.calls, call], busy: "follow", turns: [...followsKept, pending] }));
+    const answer = await askTouchUp({ templateId: using.id, pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: current.now, said, asking });
+    const now = Date.now();
+    if (!answer.ok) {
+      const failed = failedCall(call, answer.message, now, answer.unread);
+      setTouch((was) => ({
+        ...was,
+        calls: was.calls.map((each) => (each === call ? failed : each)),
+        busy: false,
+        turns: [...followsKept, { ...pending, failure: { message: answer.message, retry: answer.problem === "provider" } }],
+      }));
+      readAi();
+      return;
+    }
+    const followed = answer.touchUp;
+    const reply: AiVerdict = { name: "Answer", tag: null, value: followed.reply, reason: "" };
+    const finished = answeredCall(call, { ...followed, cut: false }, now, [reply, ...touchUpVerdicts(followed.answer, current.now, first.meanings)]);
+    const changed = TOUCH_UP_KEYS.filter((key) => followed.answer[key] !== undefined);
+    const without = (keys: Partial<Record<TouchUpKey, true>>) => Object.fromEntries(Object.entries(keys).filter(([key]) => !changed.some((each) => each === key)));
+    setTouch((was) => ({
+      ...was,
+      calls: was.calls.map((each) => (each === call ? finished : each)),
+      busy: false,
+      answer: { ...was.answer, ...followed.answer },
+      // A change is drawn against the field as it stood when it was asked; the rest as they were.
+      now: {
+        values: { ...was.now.values, ...Object.fromEntries(changed.flatMap((key) => (key === "meaning" ? [] : [[key, current.now.values[key] ?? ""]]))) },
+        ticked: followed.answer.meaning ? current.now.ticked : was.now.ticked,
+      },
+      decided: without(was.decided),
+      hidden: without(was.hidden),
+      said: [...said, { role: "user", text: followed.asked || question }, { role: "assistant", text: followed.raw || followed.reply }],
+      turns: [...followsKept, { ...pending, reply: followed.reply }],
+    }));
+    lockSentence();
+    readAi();
+  }
+
+  /** Touch up pressed (its button, a template from its arrow, Try again): run at once, or ask first over the account's Ask before a run over. */
+  function pressTouchUp(using: AiTemplate, why: AiRunWhy) {
+    if (!ai.ai || !canTouch) return;
+    const micros = runCeiling(using);
+    touchGate.press(ai.ai.askOverMicros, RUN, micros, RUN_WORDS.runFor(using.name, micros), () => void runTouchUp(using, why));
+  }
+  /** A follow-up asked, here or again after a failure: the same, its question asked where its reply would go. `then` once it goes. */
+  function pressFollowUp(fieldId: string | null, question: string, why: AiRunWhy, then?: () => void) {
+    if (!ai.ai || !canTouch) return;
+    const micros = followCeiling(fieldId, question);
+    touchGate.press(ai.ai.askOverMicros, fieldId === null ? BAR : whereOf(fieldId), micros, RUN_WORDS.askFor(micros), () => {
+      then?.();
+      void followUp(fieldId, question, why);
+    });
+  }
+  /** The question typed where it's asked, checked, then asked; it stays in its box until it really goes. */
+  function askFollow(fieldId: string | null) {
+    const where = fieldId === null ? BAR : whereOf(fieldId);
+    const text = (follows[where]?.text ?? "").trim();
+    const problem = aiSettings ? questionProblem(text, aiSettings.aiMaxQuestionChars) : null;
+    if (problem !== null) {
+      setFollows((was) => ({ ...was, [where]: { text: was[where]?.text ?? "", error: problem } }));
+      return;
+    }
+    const field = fieldId ? type?.fields.find((f) => f.id === fieldId) : undefined;
+    pressFollowUp(fieldId, text, field ? { kind: "followUp", field: field.name } : { kind: "followUp" }, () => setFollows((was) => ({ ...was, [where]: { text: "" } })));
+  }
+  /**
+   * Touch up's button, running the template chosen in this drawer (the account's default until another is picked) and
+   * saying its name; with an arrow joined to it once the account has two or more Touch up templates, every one of them
+   * under it with what it can cost here.
+   */
+  function touchButton(): ReactNode {
+    const off = still;
+    const button = (
+      <TouchUpButton
+        name={touchPreferred.name}
+        canRun={canTouch}
+        busy={off}
+        thinking={touch.busy === "run"}
+        burst={touch.runs}
+        onRun={() => pressTouchUp(touchPreferred, { kind: "pressed", action: touchPreferred.name })}
+      />
+    );
+    const templates = templatesOf("touchUp", ownTemplates);
+    if (templates.length < 2) return button;
+    return (
+      <TemplateMenu
+        id="panki-touch-up"
+        rows={templates.map((each) => ({ template: each, cost: touchNow ? RUN_WORDS.upTo(runCeiling(each), showCostOver) : null }))}
+        defaultId={touchDefault.id}
+        chosenId={touchPreferred.id}
+        disabled={!canTouch || off}
+        onPick={(picked) => {
+          setTouchChosen(picked.id);
+          pressTouchUp(picked, { kind: "pressed", action: picked.name });
+        }}
+        onOpen={() => readAi(true)}
+      >
+        {button}
+      </TemplateMenu>
+    );
+  }
+
+  /**
+   * What stands where follow-ups are asked, under the head or under a field's note: those asked there with their
+   * replies, the question before one over Ask before a run over, and the box to ask the next.
+   */
+  function followBlock(fieldId: string | null): ReactNode {
+    if (touch.answer === null || touch.template === null) return null;
+    const where = fieldId === null ? BAR : whereOf(fieldId);
+    const here = touch.turns.filter((turn) => turn.field === fieldId);
+    const typed = follows[where] ?? { text: "" };
+    return (
+      <>
+        <FollowTurns
+          turns={here}
+          canRun={canTouch && touch.busy === false}
+          onRetry={(turn) => pressFollowUp(turn.field, turn.question, { kind: "retry" })}
+        />
+        <RunAsk id={`panki-${where.replace(":", "-")}`} asked={touchGate.at(where)} onCancel={touchGate.cancel} />
+        {canFollow ? (
+          <FollowUp
+            id={`panki-follow-${where.replace(":", "-")}`}
+            nested
+            small={fieldId !== null}
+            value={typed.text}
+            error={typed.error}
+            disabled={busy}
+            beside={RUN_WORDS.upTo(followCeiling(fieldId, typed.text.trim()), showCostOver)}
+            onChange={(text) => setFollows((was) => ({ ...was, [where]: { text } }))}
+            onAsk={() => askFollow(fieldId)}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  const lastCall = touch.calls[touch.calls.length - 1];
+  /** Where a value the AI wrote came from: Touch up, on the model the call ran on. */
+  const aiSourceOf = (): Extract<ValueSource, { by: "ai" }> | null => (lastCall ? { by: "ai", action: "touchUp", provider: lastCall.provider, model: lastCall.model } : null);
+  /** What Panki makes of a text field's answer, against what it held as it was sent (`fieldVerdictOf`); none when it wasn't answered. */
+  const fieldVerdict = (key: FieldKey) => {
+    const part = touch.answer?.[key];
+    return part ? fieldVerdictOf(part, touch.now.values[key] ?? "") : null;
+  };
+  /** What Panki makes of the Meaning's answer, its rows against what was ticked as it was sent (`meaningVerdictOf`). */
+  const meaningVerdict = () => (touch.answer?.meaning ? meaningVerdictOf(touch.answer.meaning, touch.now.ticked) : null);
+  /** Whether a key's proposal still waits under its field: only a proposal does (never Nothing to change, nor the error), until it's decided. */
+  function waiting(key: TouchUpKey): boolean {
+    if (touch.decided[key] || keyField(key) === null) return false;
+    const verdict = key === "meaning" ? meaningVerdict() : fieldVerdict(key);
+    return verdict !== null && proposes(verdict);
+  }
+  const decide = (key: TouchUpKey) => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true } }));
+  /** A value of the AI's written into its field, as typing there would, and remembered as the AI's while it stands. */
+  function writeAi(field: CardField, text: string) {
+    const role = roleOf(map, field.id);
+    const ai = aiSourceOf();
+    // A field only Touch up fills is its own; any other it corrected (the owner, 2026-11-04: only the first's name is sparked).
+    const source = ai && (role === null || ROLES[role].from !== "ai") ? { ...ai, corrected: true } : ai;
+    if (role === "sentence") setWritten(text);
+    else if (isDictRole(role)) setDictTyped((was) => ({ ...was, [field.id]: text }));
+    else setTyped((was) => ({ ...was, [field.id]: text }));
+    if (source) setAiWrote((was) => ({ ...was, [field.id]: { value: text.trim(), source } }));
+  }
+  /** A meaning's own words by its number, as the field holds them. */
+  const meaningWordsOf = (n: number) => (chosen?.senses[n - 1] ? glossaryText(chosen.senses[n - 1]?.glossary ?? []) : (touch.meanings[n - 1] ?? ""));
+  /** The Meaning back to the meanings ticked: what was typed over it, the AI's words among it, let go. */
+  function meaningToTicks(fieldId: string) {
+    setDictTyped((was) => {
+      const rest = { ...was };
+      delete rest[fieldId];
+      return rest;
+    });
+  }
+  /**
+   * A proposal accepted: a change of ticks is the ticks set to the good rows, the dictionary's own meanings written in
+   * the field as the list writes them (no spark: an orange tick goes as a red one does); a proposed meaning and any other
+   * field's value is the AI's words, sparked.
+   */
+  function accept(key: TouchUpKey) {
+    const field = keyField(key);
+    if (!field) return;
+    if (key === "meaning") {
+      const verdict = meaningVerdict();
+      if (verdict?.kind === "change") {
+        setTicked(verdict.good.map((n) => n - 1));
+        meaningToTicks(field.id);
+      } else if (verdict?.kind === "propose" && verdict.proposed) {
+        writeAi(field, verdict.proposed);
+      }
+    } else {
+      const verdict = fieldVerdict(key);
+      if (verdict && "proposed" in verdict) writeAi(field, verdict.proposed);
+    }
+    decide(key);
+  }
+  const pendingKeys = touchKeys.filter(waiting);
+  // Accept all and Dismiss all close every note under the fields, "Nothing to change." and the error's among them (the
+  // owner, 2026-10-31: a note left standing looked as if nothing happened); the head stays, and the next run, or a
+  // follow-up's change to a field, brings its note back.
+  const allHidden = () => Object.fromEntries(touchKeys.map((key) => [key, true]));
+  const acceptAll = () => {
+    for (const key of pendingKeys) accept(key);
+    setTouch((was) => ({ ...was, hidden: allHidden() }));
+  };
+  const dismissAll = () => setTouch((was) => ({ ...was, hidden: allHidden(), decided: { ...was.decided, ...Object.fromEntries(pendingKeys.map((key) => [key, true])) } }));
+
+  /**
+   * What Touch up says under a field it has something for, as Panki draws it (`fieldShown`, `meaningShown`), and under
+   * the note, once the run has answered, the field's own follow-ups (AI step 5: the same follow-up, asked from here).
+   */
+  function touchShown(field: CardField): Shown | null {
+    const key = keyOfField(field.id);
+    if (!key || !touch.answer || touch.hidden[key]) return null;
+    const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key) };
+    const meaning = key === "meaning" ? meaningVerdict() : null;
+    const verdict = key === "meaning" ? null : fieldVerdict(key);
+    const shown = meaning ? meaningShown(meaning, meaningWordsOf, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;
+    if (!shown) return null;
+    return {
+      ...shown,
+      note: (
+        <>
+          {shown.note}
+          {followBlock(field.id)}
+        </>
+      ),
+    };
+  }
+  /**
+   * A field and what Touch up says about it as one shape (the owner, 2026-10-31: a proposal must be plainly its field's),
+   * in its verdict's colour, the field's box the diff while a proposal waits (`Tied`). Every field the same way.
+   */
+  function tied(field: CardField | null, box: ReactNode): ReactNode {
+    const shown = field ? touchShown(field) : null;
+    return shown ? <Tied shown={shown}>{box}</Tied> : box;
+  }
+  /** A field Touch up's run is reworking: its words where they stand, dimmed under the sweep. A follow-up's head is its wait. */
+  const reworked = (fieldId: string | null, inside: ReactNode): ReactNode =>
+    touch.busy === "run" && fieldId !== null && keyOfField(fieldId) !== null ? <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting> : inside;
+  /** The mark after a field's name: the spark while the AI's words stand in it. */
+  const marksOf = (field: CardField) => fieldMarks(aiHolds(field.id));
+
+  /**
+   * Where each value came from, as it's sent with the card: the AI's while a field holds what Touch up wrote; else by
+   * the role that filled it, the owner's once typed over; the owner's for what nothing fills.
+   */
+  function sourcesOf(fieldIds: readonly string[], filled: Readonly<Record<string, string>>): ValueSources {
+    const dictionaries = [...new Set(tickedSenses.map((sense) => sense.dict.slice(0, 200)))].slice(0, 50);
+    const subtitles = capture.facts?.subtitles;
+    const sourceOf = (fieldId: string): ValueSource => {
+      const wrote = aiWrote[fieldId];
+      if (wrote && (filled[fieldId] ?? "").trim() === wrote.value) return wrote.source;
+      const role = roleOf(map, fieldId);
+      if (role === null || ROLES[role].from === "ai") return OWNER;
+      if (role === "word") return wordTyped ? OWNER : { by: "text", ...(subtitles ? { subtitles } : {}) };
+      if (role === "sentence") return written !== null && written !== capture.sentence ? OWNER : { by: "text", ...(subtitles ? { subtitles } : {}) };
+      if (isDictRole(role)) return dictTyped[fieldId] !== undefined ? OWNER : { by: "dictionary", dictionaries };
+      if (role === "forvoAudio") return { by: "forvo" };
+      return { by: "video" };
+    };
+    return Object.fromEntries(fieldIds.filter((id) => (filled[id] ?? "") !== "").map((id) => [id, sourceOf(id)]));
+  }
 
   // The word said on Forvo, when the deck takes it: asked for once the dictionaries have answered, as the dictionary
   // has it (探す, not 探していた, which no one records), or as it's typed when they don't know it. Panki's server asks
@@ -585,7 +1166,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   async function add() {
-    if (!deck || !type || phase.at !== "idle" || unresolved) return;
+    if (!deck || !type || still || unresolved) return;
     // An example is only the fields that go with one, and the recordings for them; the card's own are as they are on it.
     const fields = asExample ? exampleFieldsOf(type) : type.fields;
     const toSend: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, values[f.id] ?? ""])) : values;
@@ -666,8 +1247,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       ),
     });
     const source = capture.source ? { source: { ...capture.source, text: sentence, client: CLIENT, ...(facts.success ? { capture: facts.data } : {}) } } : {};
+    // Where each value came from goes with it: the spark follows every value Panki AI wrote (AI step 3).
+    const sources = sourcesOf(
+      fields.map((f) => f.id),
+      filled,
+    );
     if (asExample && target) {
-      const example = NewCardExample.safeParse({ id: cardId, values: filled, ...source });
+      const example = NewCardExample.safeParse({ id: cardId, values: filled, sources, ...source });
       if (!example.success) {
         setFailure("That can't be made into an example.");
         setPhase({ at: "idle" });
@@ -684,7 +1270,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       setPhase({ at: "done", deck: target.deck, note });
       return;
     }
-    const card = NewCard.safeParse({ id: cardId, values: filled, ...source });
+    const card = NewCard.safeParse({ id: cardId, values: filled, sources, ...source });
     if (!card.success) {
       setFailure("That can't be made into a card.");
       setPhase({ at: "idle" });
@@ -709,7 +1295,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    */
   function pickInSentence(e: MouseEvent<HTMLDivElement>) {
     const box = e.target;
-    if (busy || !(box instanceof HTMLTextAreaElement)) return;
+    if (still || !(box instanceof HTMLTextAreaElement)) return;
     const all = wordsNow(sentence);
     const at = all.findIndex((token) => token.word && box.selectionStart >= token.start && box.selectionStart < token.end);
     if (at < 0) return;
@@ -738,7 +1324,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       <div className="field capture-dict">
         <div className="chips" role="group" aria-label="Which word">
           {found.map((f) => (
-            <Button key={wordKey(f)} variant="chip" lang="ja" aria-pressed={chosen !== null && wordKey(f) === wordKey(chosen)} disabled={busy} onClick={() => choose(wordKey(f))}>
+            <Button key={wordKey(f)} variant="chip" lang="ja" aria-pressed={chosen !== null && wordKey(f) === wordKey(chosen)} disabled={still} onClick={() => choose(wordKey(f))}>
               {f.reading && f.reading !== f.term ? `${f.term} · ${f.reading}` : f.term}
             </Button>
           ))}
@@ -747,28 +1333,61 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     );
   }
 
-  /** The word's meanings, when it has more than one: each ticked on or off in a dropdown under the field they go in. */
+  /**
+   * The word's meanings, when it has more than one or Touch up proposed one of its own: each ticked on or off in a
+   * dropdown under the field they go in. Once Touch up has judged them, exactly the pop-up's way (the owner,
+   * 2026-10-31): each a `JudgedRow` (the row its own size, lit in its judgement's look, good green, meh orange, bad red,
+   * its why under a chevron, closed to begin with; unmarked when the Meaning came back as the error), and the meaning
+   * Panki AI proposed as one more choice at the end, numbered after them, the spark where a meaning's dictionary is,
+   * green; ticking it accepts it (the field takes its words, the AI's), unticking it lets them go. How the verdict is
+   * seen; acting on it is the proposal under the field, as ever.
+   */
   function meaningsBlock() {
-    if (!meaningField || !chosen || chosen.senses.length < 2) return null;
-    const { id } = meaningField;
+    const part = touch.answer?.meaning;
+    const judged = part && !isError(part) ? part : null;
+    const judgedRows = judged?.meanings ?? [];
+    const proposed = judged?.proposed ? { meaning: judged.proposed, reason: judged.why } : null;
+    if (!meaningField || !chosen || (chosen.senses.length < 2 && !proposed)) return null;
+    const field = meaningField;
+    const markOf = (i: number) => judgedRows.find((row) => row.meaning === i + 1);
+    const proposedOn = proposed !== null && aiHolds(field.id);
+    const options = [
+      // Each says which dictionary it's from, so it's plain where a card's meaning came from.
+      ...chosen.senses.map((sense, i) => {
+        const mark = markOf(i);
+        return {
+          id: i,
+          label: `${i + 1}. ${glossaryText(sense.glossary)}`,
+          note: sense.dict,
+          ...(mark ? { judged: { accuracy: LOOK_OF[mark.judgement], reason: mark.why } } : {}),
+        };
+      }),
+      ...(proposed
+        ? [{ id: PROPOSED, label: `${chosen.senses.length + 1}. ${proposed.meaning}`, note: <AiSpark className="touch-up-mark" />, judged: { accuracy: "fits" as const, reason: proposed.reason } }]
+        : []),
+    ];
     return (
       <Dropdown
         id="panki-meanings"
-        label={meaningField.name}
+        label={field.name}
         wide
-        disabled={busy}
-        // Each says which dictionary it's from, so it's plain where a card's meaning came from.
-        options={chosen.senses.map((sense, i) => ({ id: i, label: `${i + 1}. ${glossaryText(sense.glossary)}`, note: sense.dict }))}
-        values={ticked}
-        summary={meaningsSaid(ticked.length, chosen.senses.length)}
+        disabled={still}
+        options={options}
+        values={proposedOn ? [PROPOSED] : ticked}
+        summary={proposedOn ? TOUCH_UP_WORDS.meaningProposed : meaningsSaid(ticked.length, chosen.senses.length)}
         onToggle={(i) => {
+          if (i === PROPOSED) {
+            if (proposedOn) {
+              meaningToTicks(field.id);
+            } else if (proposed) {
+              writeAi(field, proposed.meaning);
+              decide("meaning");
+            }
+            return;
+          }
           setTicked((was) => (was.includes(i) ? was.filter((n) => n !== i) : [...was, i]));
           // The meaning is the ticked ones again: what was typed over it is let go.
-          setDictTyped((was) => {
-            const rest = { ...was };
-            delete rest[id];
-            return rest;
-          });
+          meaningToTicks(field.id);
         }}
       />
     );
@@ -783,18 +1402,25 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const lockable = clip !== null && sentenceField !== null;
     return (
       <div className="capture-sentence" onDoubleClick={pickInSentence}>
-        <TextField
-          id="panki-sentence"
-          label={sentenceField ? (sentenceField.required ? sentenceField.name : `${sentenceField.name} · optional`) : "The line"}
-          multiline
-          readOnly={!sentenceField || busy}
-          lang={langOf(sentence)}
-          autoComplete="off"
-          value={sentence}
-          // Typing in it locks it: what's typed stays, however the clip's ends are pulled.
-          onChange={setWritten}
-          mark={lit}
-        />
+        {tied(
+          sentenceField,
+          reworked(
+            sentenceField?.id ?? null,
+            <TextField
+              id="panki-sentence"
+              label={sentenceField ? (sentenceField.required ? sentenceField.name : `${sentenceField.name} · optional`) : "The line"}
+              lead={sentenceField ? marksOf(sentenceField) : null}
+              multiline
+              readOnly={!sentenceField || still}
+              lang={langOf(sentence)}
+              autoComplete="off"
+              value={sentence}
+              // Typing in it locks it: what's typed stays, however the clip's ends are pulled.
+              onChange={setWritten}
+              mark={lit}
+            />,
+          ),
+        )}
         {lockable ? (
           <div className="capture-tools">
             <Toggle
@@ -803,7 +1429,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               icon="lock"
               says={{ on: "Locked", off: "Unlocked" }}
               on={written !== null}
-              disabled={busy}
+              disabled={still}
               onChange={(on) => setWritten(on ? capture.sentence : null)}
             />
           </div>
@@ -815,6 +1441,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** A cut of the video: its bar with the two ends, playing it, and where it begins and ends, each to be typed over. */
   function cutBlock(what: Cut, offer: ClipOffer, name: string) {
     const off = busy || offer.end === null;
+    /** The ends held as they are: Panki AI working on the card holds them too, though the cut can still be played. */
+    const held = still || offer.end === null;
     const set = (which: ClipEnd) => (seconds: number) => {
       offer.move(which, seconds, "exact");
       offer.settle(which);
@@ -829,7 +1457,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           end={offer.end}
           limit={offer.limit}
           ticks={offer.ticks}
-          disabled={off}
+          disabled={held}
           anchor={offer.anchor}
           within={offer.within}
           onMove={offer.move}
@@ -849,9 +1477,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             </span>
           ) : (
             <span className="capture-stamp">
-              <Stamp id={`panki-${what}-start`} name="Where it starts" at={offer.start} disabled={busy} onSet={set("start")} />
+              <Stamp id={`panki-${what}-start`} name="Where it starts" at={offer.start} disabled={still} onSet={set("start")} />
               to
-              <Stamp id={`panki-${what}-end`} name="Where it ends" at={offer.end} disabled={busy} onSet={set("end")} />
+              <Stamp id={`panki-${what}-end`} name="Where it ends" at={offer.end} disabled={still} onSet={set("end")} />
               <span className="capture-length">{(offer.end - offer.start).toFixed(2)} s</span>
             </span>
           )}
@@ -892,7 +1520,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               id="panki-voice"
               label="Who says it"
               wide
-              disabled={busy}
+              disabled={still}
               options={voices.list.map((v) => ({ id: v.id, label: voiceWords(v), note: count(v.votes, "vote", "votes") }))}
               value={now.id}
               onChange={setVoiceId}
@@ -965,7 +1593,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const chooser = (
       <div className="field capture-deck">
         <span className="field-label">Deck</span>
-        <Dropdown id="panki-deck" label="Deck" options={state.decks.map((d) => ({ id: d.id, label: d.name }))} value={deck?.id ?? ""} placeholder="Choose a deck" disabled={busy} onChange={choose} />
+        <Dropdown id="panki-deck" label="Deck" options={state.decks.map((d) => ({ id: d.id, label: d.name }))} value={deck?.id ?? ""} placeholder="Choose a deck" disabled={still} onChange={choose} />
       </div>
     );
     if (!deck) {
@@ -1003,8 +1631,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       );
     }
     const clipNames = namesOf("clip");
-    const sending = phase.at === "recording" || phase.at === "sending";
-    const share = phase.at === "recording" ? Math.min(1, phase.seconds / (phase.of ?? CLIP_MAX_SECONDS)) : phase.at === "sending" ? 1 : 0;
     // Only where the deck keeps the sentence: with none on the card there's nothing for the word to be missing from.
     const stray = lit === null && said !== "" && sentence.trim() !== "" && sentenceField !== null;
     /** A card already called what this one would be, said under the field it's called by, with a way to it in Panki. */
@@ -1016,6 +1642,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           compared={compared}
           openWords="Open in Panki"
           onOpen={(card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId })}
+          disabled={still}
           // The two ways past the warning are one or the other: pressing one lets the other go.
           example={
             target
@@ -1058,24 +1685,31 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       return (
         <>
           {field.id === firstDictField?.id ? dictionaryBlock() : null}
-          <TextField
-            id={`panki-field-${field.id}`}
-            label={field.required ? field.name : `${field.name} · optional`}
-            multiline={FIELD_KINDS[field.kind].multiline}
-            lang={langOf(value)}
-            autoComplete="off"
-            readOnly={busy}
-            value={value}
-            onChange={(text) => {
-              if (isWord) {
-                setWord(text);
-                setWordTyped(true);
-              } else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
-              else setTyped((t) => ({ ...t, [field.id]: text }));
-              if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
-            }}
-            error={errors[field.id] || (isWord && stray ? MESSAGES.stray : undefined)}
-          />
+          {tied(
+            field,
+            reworked(
+              field.id,
+              <TextField
+                id={`panki-field-${field.id}`}
+                label={field.required ? field.name : `${field.name} · optional`}
+                lead={marksOf(field)}
+                multiline={FIELD_KINDS[field.kind].multiline}
+                lang={langOf(value)}
+                autoComplete="off"
+                readOnly={still}
+                value={value}
+                onChange={(text) => {
+                  if (isWord) {
+                    setWord(text);
+                    setWordTyped(true);
+                  } else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
+                  else setTyped((t) => ({ ...t, [field.id]: text }));
+                  if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
+                }}
+                error={errors[field.id] || (isWord && stray ? MESSAGES.stray : undefined)}
+              />,
+            ),
+          )}
           {already(field)}
           {/* The word's sound stands under the word, and the meanings to tick under where they go. */}
           {isWord ? wordBlock() : null}
@@ -1107,7 +1741,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return (
       // While the card is on its way everything but what says so goes quiet, and nothing in it answers a press.
       <Form onSubmit={() => void add()} className={`add-form ${busy ? "is-working" : ""}`.trim()}>
-        {/* The clip comes first: it's what stands level with the video it's cut from. */}
+        {top(deck.name)}
+        {/* The clip comes first of the card: it's what stands level with the video it's cut from. */}
         {clip && clipNames !== "" ? cutBlock("clip", clip, clipNames) : null}
         {chooser}
         {/* With no field for the word, its sound still belongs up here with the rest that's cut from the video. */}
@@ -1128,11 +1763,15 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         {/* The card last, as everything above has made it: looked over, then added. */}
         {srsType ? (
           <div className="field capture-card">
-            <span className="field-label">The card</span>
+            <span className="field-label">Card preview</span>
             <div className="capture-card-ground">
               <ReviewCard
                 type={type}
                 values={values}
+                sources={sourcesOf(
+                  type.fields.map((f) => f.id),
+                  values,
+                )}
                 srsType={srsType}
                 place={NEW_PLACE}
                 revealed={turned}
@@ -1144,7 +1783,37 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             </div>
           </div>
         ) : null}
-        {/* It opens above Add as the recording begins, and what's below is moved down, not knocked down. */}
+      </Form>
+    );
+  }
+
+  /**
+   * The drawer's top, right under its head (the owner, 2026-10-31: "maybe just move the buttons… to the TOP"; they
+   * stood at its foot until then, a long drawer's scroll away): Touch up with what it can cost under it, and Add; then
+   * what's under way, what went wrong, leaving asking first, and Touch up's head once it has run, each opening under the
+   * buttons and moving the card down rather than knocking it.
+   */
+  function top(deckName: string): ReactNode {
+    const sending = phase.at === "recording" || phase.at === "sending";
+    const share = phase.at === "recording" ? Math.min(1, phase.seconds / (phase.of ?? CLIP_MAX_SECONDS)) : phase.at === "sending" ? 1 : 0;
+    return (
+      <>
+        <div className="capture-live capture-ends">
+          {/* Touch up, for a deck with a field it can propose for, always in its place so the row keeps one shape (the
+              owner, 2026-10-31): greyed once it has run, Touch up's head under the row taking over; before that, what it
+              can cost or why it can't run right under it. */}
+          {touchKeys.length > 0 ? (
+            <div className="capture-touch">
+              {/* Pressable again whenever it isn't thinking (the owner, 2026-10-31: "I want to be able to rerun Touch up"): a new call on the card as it stands now. */}
+              {touchButton()}
+              {touch.busy ? null : <TouchUpCost beside={touchBeside} />}
+            </div>
+          ) : null}
+          <Button type="submit" variant="primary" className="capture-add" disabled={still || unresolved}>
+            {phase.at === "done" ? <Icon name="check" /> : busy ? null : <Icon name="add" />}
+            {phase.at === "done" ? "Added" : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deckName}`}
+          </Button>
+        </div>
         <Fold open={sending} className="capture-live capture-progress-fold">
           <div className="capture-progress" role="status">
             <span className="media-track" aria-hidden="true">
@@ -1158,7 +1827,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             {failure}
           </p>
         ) : null}
-        {/* Leaving with something typed asks here, by the foot, whichever way out was taken; a card on its way puts the question away. */}
+        {/* Leaving with something typed asks here, just under the head's × (or Escape); a card on its way puts the question away. */}
         <Fold open={discarding && !busy} className="capture-live capture-ask-fold">
           <div className="capture-ask panel-alarm">
             <Ask
@@ -1172,18 +1841,25 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             />
           </div>
         </Fold>
-        {/* The way out is down here too, beside the way on: the × is a drawer's height up, and out of sight once the page has been scrolled. */}
-        <div className="capture-live capture-ends">
-          <Button size="lg" className="is-danger" aria-pressed={discarding} disabled={busy} onClick={() => (discarding ? setDiscarding(false) : leave())}>
-            <Icon name="trash" />
-            Discard
-          </Button>
-          <Button type="submit" variant="primary" size="lg" className="capture-add" disabled={busy || unresolved}>
-            {phase.at === "done" ? <Icon name="check" /> : busy ? null : <Icon name="add" />}
-            {phase.at === "done" ? "Added" : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deck.name}`}
-          </Button>
-        </div>
-      </Form>
+        {/* Over the account's Ask before a run over, a run waits on its question here, where its head will be. */}
+        <RunAsk id="panki-touch-up" asked={touchGate.at(RUN)} onCancel={touchGate.cancel} />
+        {/* Touch up once it has run, under the buttons: its head, Accept all and Dismiss all (AI step 3), then its follow-ups (step 5). */}
+        {touchKeys.length > 0 ? (
+          <TouchUpBar
+            calls={touch.calls}
+            busy={still}
+            canRun={canTouch}
+            pending={pendingKeys.length}
+            failure={touch.failure}
+            burst={touch.calls.length - touch.runs}
+            onRun={() => pressTouchUp(touch.template ?? touchPreferred, { kind: "retry" })}
+            onAcceptAll={acceptAll}
+            onDismissAll={dismissAll}
+          >
+            {followBlock(null)}
+          </TouchUpBar>
+        ) : null}
+      </>
     );
   }
 

@@ -23,6 +23,7 @@ export function SubtitleMenu({ style, onChange, onOpen }: { style: SubtitleStyle
   return (
     <div ref={rootRef} className="strip-menu-wrap">
       <Button className="capture-tool" aria-expanded={open} aria-controls="panki-subtitle-menu" onClick={() => setOpen((was) => !was)}>
+        <Icon name="subtitles" />
         Subtitles
         <Icon name="down" />
       </Button>

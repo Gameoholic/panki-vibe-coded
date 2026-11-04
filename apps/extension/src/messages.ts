@@ -8,6 +8,11 @@ import {
   CardsCalled,
   Deck,
   DeckId,
+  ExplainAsk,
+  ExplainProblem,
+  Explained,
+  AiUnread,
+  PankiAiStatus,
   ExtensionBuild,
   ExtensionBuildFile,
   FORVO_WORD_MAX,
@@ -20,16 +25,22 @@ import {
   NewCardExample,
   PIECE_MAX_BYTES,
   PieceId,
+  Proofread,
+  ProofreadAsk,
   Redo,
   RedoAsk,
   SrsType,
   Stretch,
   SubtitleStyle,
+  TouchUpAsk,
+  TouchedUp,
   TranscribeEstimate,
   TranscribeLanguage,
   Transcript,
   TranscriptFix,
   TranscriptLineFix,
+  TranscriptUndo,
+  TranscriptLineMark,
   Transcription,
   VideoCard,
   VideoId,
@@ -48,7 +59,7 @@ import {
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { LookKey } from "./lookSettings";
-import { Modules } from "./modules";
+import { Modules, PanelView } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { MarkPaint } from "./seekLook";
@@ -101,8 +112,7 @@ export const Ask = z.discriminatedUnion("kind", [
   /** What the panel needs to open: the decks, their card types and SRS types (to show the card as a review will), what fills each deck's fields, the deck it opens on. */
   z.object({ kind: z.literal("state") }),
   /** A deck was chosen in the drawer: it's the one the drawer opens on from now. */
-  z.object({ kind: z.literal("deck"), deckId: DeckId }),
-  z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
+  z.object({ kind: z.literal("deck"), deckId: DeckId }),  z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
   /** What the drawer holds, given as another example to a card that's already there, in its deck. */
   z.object({ kind: z.literal("addExample"), deckId: DeckId, cardId: CardId, example: NewCardExample }),
   /** A recorded clip, kept as a file on Panki before the card that names it is made, with what's said in it and how it was recorded. */
@@ -117,7 +127,11 @@ export const Ask = z.discriminatedUnion("kind", [
   }),
   /** Open the options page: to sign in, or to say what fills a deck's fields. */
   z.object({ kind: z.literal("options"), tab: OptionsTab.optional() }),
-  /** Open Panki itself in a tab: the address of the profile in use, at one of its cards when one is given (open in its deck's list). Nobody signed in, it opens the options page to sign in instead. */
+  /**
+   * Open Panki itself in a tab: the address of the profile in use, at one of its cards when one is given (open in its
+   * deck's list), never an address the page writes. Nobody signed in, it
+   * opens the options page to sign in instead.
+   */
   z.object({ kind: z.literal("open"), card: z.object({ deckId: DeckId, cardId: CardId }).optional() }),
   /** The account's cards already called by the words a card is about to be added with: the drawer says so. */
   z.object({ kind: z.literal("called"), words: CardsCalled.shape.word }),
@@ -183,6 +197,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("home") }),
   /** Panki switched on or off altogether, from the strip's head. */
   z.object({ kind: z.literal("pankiOn"), on: z.boolean() }),
+  /** Where the Panki panel stands on a video's page, picked on the panel itself. */
+  z.object({ kind: z.literal("panelView"), view: PanelView }),
   /** Videos as their thumbnails are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   z.object({ kind: z.literal("glance"), videoIds: GlanceAsk.shape.videoIds }),
   /** A video saved for later with its name and channel as the page shows them (`about`), or its save taken back (null). */
@@ -197,8 +213,30 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("showFolder") }),
   /** The extension reloaded from its folder, where Update Panki has put the new files; `reopen`, its own page opened again once it's back (asked from that page, which the reload closes). */
   z.object({ kind: z.literal("reloadPanki"), reopen: z.boolean().optional() }),
+  /**
+   * Panki AI as it stands for everyone, as the worker keeps it: what the pop-up's Explain says it can cost, or why it
+   * can't run. `fresh` asks Panki again first (a template menu opened: one made in Panki a moment ago is in it).
+   */
+  z.object({ kind: z.literal("aiState"), fresh: z.boolean().optional() }),
+  /** A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation so far. */
+  z.object({ kind: z.literal("explain"), ask: ExplainAsk }),
+  /** The card being added in the drawer touched up by Panki AI: its pieces, the dictionary's meanings and the keys it has fields for. */
+  z.object({ kind: z.literal("touchUp"), ask: TouchUpAsk }),
+  /** Lines of a video's Panki subtitles proofread by Panki AI (AI step 6): the lines by their words' ids, and the pieces only the page has. */
+  z.object({ kind: z.literal("proofread"), ask: ProofreadAsk }),
+  /** Panki AI's edits on a video's transcript taken back, a word's or a run's, one step each. */
+  z.object({ kind: z.literal("undoFixes"), videoId: VideoId, undo: TranscriptUndo }),
+  /** A line of a video's transcript split or joined by hand at a word. */
+  z.object({ kind: z.literal("lineMark"), videoId: VideoId, mark: TranscriptLineMark }),
 ]);
 export type Ask = z.infer<typeof Ask>;
+
+/** Panki AI as a page is told it: its settings and whose key it has, never the key itself (`saved`, an admin's). */
+export const AiShown = PankiAiStatus.omit({ saved: true });
+export type AiShown = z.infer<typeof AiShown>;
+/** Panki AI as it stands; null signed out. */
+const AiState = z.union([z.object({ ok: z.literal(true), ai: AiShown.nullable() }), z.object({ ok: z.literal(false), message: z.string() })]);
+export type AiState = z.infer<typeof AiState>;
 
 const LookState = z.union([
   z.object({
@@ -302,6 +340,28 @@ export type Redone = z.infer<typeof Redone>;
 /** What a part typed would widen to. */
 const Stretched = z.union([z.object({ ok: z.literal(true), stretch: Stretch }), Failed]);
 export type Stretched = z.infer<typeof Stretched>;
+/**
+ * A Panki AI action refused by Panki with its reason (`problem`), and an answer that came back unusable, for Details'
+ * Log (`unread`). Explain's and Touch up's alike: one family.
+ */
+const AiRefusal = z.object({ ok: z.literal(false), message: z.string(), problem: ExplainProblem, unread: AiUnread.nullable().default(null) });
+/** Explain answered, refused by Panki, or failed as any ask can (signed out, Panki not reached). */
+const ExplainAnswer = z.union([z.object({ ok: z.literal(true), explain: Explained }), AiRefusal, Failed]);
+export type ExplainAnswer = z.input<typeof ExplainAnswer>;
+/** A Panki AI action that didn't answer, as the page reads it: why, signed out among the reasons; null for a failure with no reason of Panki's. */
+type AiFailed = { ok: false; message: string; problem: ExplainProblem | "signedOut" | null; unread: AiUnread | null };
+/** Explain as the pop-up reads it: the answer, or why there's none. */
+export type Explanation = { ok: true; explain: Explained } | AiFailed;
+/** Touch up answered, refused by Panki, or failed as any ask can. */
+const TouchUpAnswered = z.union([z.object({ ok: z.literal(true), touchUp: TouchedUp }), AiRefusal, Failed]);
+export type TouchUpAnswered = z.input<typeof TouchUpAnswered>;
+/** Touch up as the drawer reads it: the answer, or why there's none. */
+export type TouchUpResult = { ok: true; touchUp: TouchedUp } | AiFailed;
+/** Proofread answered (its edits and the transcript after), refused by Panki, or failed as any ask can. */
+const ProofreadAnswered = z.union([z.object({ ok: z.literal(true), proofread: Proofread, transcript: Transcript }), AiRefusal, Failed]);
+export type ProofreadAnswered = z.input<typeof ProofreadAnswered>;
+/** Proofread as the strip reads it: the edits and the transcript after, or why there are none. */
+export type ProofreadResult = { ok: true; proofread: Proofread; transcript: Transcript } | AiFailed;
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */
 export const Trigger = z.object({ kind: z.literal("capture") });
@@ -339,8 +399,7 @@ export async function askState(): Promise<State> {
 }
 export async function askDeck(deckId: string): Promise<void> {
   await ask({ kind: "deck", deckId });
-}
-export async function askAdd(add: Omit<Extract<Ask, { kind: "add" }>, "kind">): Promise<Done> {
+}export async function askAdd(add: Omit<Extract<Ask, { kind: "add" }>, "kind">): Promise<Done> {
   const answer = Done.safeParse(await ask({ kind: "add", ...add }));
   return answer.success ? answer.data : failed(answer.error);
 }
@@ -483,6 +542,10 @@ export async function askHome(): Promise<Homed> {
 export async function askPankiOn(on: boolean): Promise<void> {
   await ask({ kind: "pankiOn", on });
 }
+/** The Panki panel's view, picked on the panel, kept for every video from now on. */
+export async function askPanelView(view: PanelView): Promise<void> {
+  await ask({ kind: "panelView", view });
+}
 /** Videos as their thumbnails are marked; none of them when it can't be asked. */
 export async function askGlance(videoIds: readonly string[]): Promise<Glanced> {
   const answer = Glanced.safeParse(await ask({ kind: "glance", videoIds: videoIds.slice(0, GLANCE_MAX) }));
@@ -519,6 +582,48 @@ export async function askShowFolder(): Promise<void> {
 /** The extension reloaded from its folder, and with `reopen` its own page opened again after. Nothing comes back: everything of this extension's on the page stops with it. */
 export async function askReloadPanki(reopen = false): Promise<void> {
   await ask({ kind: "reloadPanki", reopen });
+}
+/** Panki AI as the worker keeps it (null signed out), for the pop-up's Explain; `fresh`, asked of Panki again first. */
+export async function askAiState(fresh = false): Promise<AiState> {
+  const answer = AiState.safeParse(await ask({ kind: "aiState", fresh }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A word explained by Panki AI, or a follow-up asked: its answer, or why there's none. */
+export async function askExplain(explain: ExplainAsk): Promise<Explanation> {
+  const answer = ExplainAnswer.safeParse(await ask({ kind: "explain", ask: explain }));
+  if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
+  const got = answer.data;
+  if (got.ok) return got;
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** The drawer's card touched up by Panki AI: its proposals, or why there are none. */
+export async function askTouchUp(touchUp: TouchUpAsk): Promise<TouchUpResult> {
+  const answer = TouchUpAnswered.safeParse(await ask({ kind: "touchUp", ask: touchUp }));
+  if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
+  const got = answer.data;
+  if (got.ok) return got;
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** Lines of a video's transcript proofread by Panki AI: its edits and the transcript after, or why there are none. */
+export async function askProofread(proofread: ProofreadAsk): Promise<ProofreadResult> {
+  const answer = ProofreadAnswered.safeParse(await ask({ kind: "proofread", ask: proofread }));
+  if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
+  const got = answer.data;
+  if (got.ok) return got;
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** Panki AI's edits taken back, a word's or a run's; the transcript as it stands then comes back. */
+export async function askUndoFixes(videoId: string, undo: TranscriptUndo): Promise<Transcripted> {
+  const answer = Transcripted.safeParse(await ask({ kind: "undoFixes", videoId, undo }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A line split or joined by hand at a word, for everyone; the transcript as it stands then comes back. */
+export async function askLineMark(videoId: string, mark: TranscriptLineMark): Promise<Transcripted> {
+  const answer = Transcripted.safeParse(await ask({ kind: "lineMark", videoId, mark }));
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** A video left out of the count, counted again, put away, finished or not (by the viewer unless said); the video as it stands then comes back. */
 export async function askWatchMark(videoId: string, mark: WatchMarkKind, source: WatchMarkSource = "viewer"): Promise<Watched> {

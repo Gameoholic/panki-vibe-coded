@@ -5,6 +5,7 @@ import { Icon } from "@web/components/Icon";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { useDragOrder } from "@web/hooks/useDragOrder";
+import { IN_DECKS } from "@web/explainers/examples";
 import { useUndoable } from "@web/hooks/useUndoable";
 import { SAVE_WORDS, type SaveState } from "@web/unsaved";
 import { listWords } from "@web/words";
@@ -24,7 +25,7 @@ import { tintOf } from "../capture/known";
 import { paintCss, type MarkPaint } from "../seekLook";
 import { KindChips } from "./DataKinds";
 import { pointWords } from "./Dictionary";
-import { EXAMPLE_CARDS, IN_DECKS } from "./examples";
+import { EXAMPLE_CARDS, EXAMPLE_EXPLAIN } from "./examples";
 
 /** What this says when something's wrong. One home. */
 const MESSAGES = {
@@ -273,6 +274,8 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
    * 2026-10-16: where each part came from was a black box.
    */
   function shows(): ReactNode {
+    // Panki AI's words, not a dictionary's nor Panki's own: what it's for says all there is (`PART_ABOUT`).
+    if (picked === "explain") return null;
     const kinds = kindsIn(picked);
     if (kinds.length === 0) return <p className="layout-note">Panki&apos;s own: nothing in it comes from a dictionary.</p>;
     const own = dictionaryOf(picked);
@@ -372,6 +375,7 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
                   layout={layout}
                   onAdd={() => undefined}
                   cards={EXAMPLE_CARDS}
+                  explain={EXAMPLE_EXPLAIN}
                   {...(editing ? { edit: { picked, onPick: setPicked, order, nameOf, unprovided } } : {})}
                 />
               </div>
@@ -395,7 +399,7 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
               place is taken away when it closes); only the popup itself takes presses. */}
           {live ? (
             <div ref={over} className="look-over">
-              <Lookup key={live.pointed.id} view={live} layout={layout} cards={EXAMPLE_CARDS} onKeep={() => looker.current?.lock()} onAdd={() => looker.current?.close()} />
+              <Lookup key={live.pointed.id} view={live} layout={layout} cards={EXAMPLE_CARDS} explain={EXAMPLE_EXPLAIN} onKeep={() => looker.current?.lock()} onAdd={() => looker.current?.close()} />
             </div>
           ) : null}
           {saveFailed ? (

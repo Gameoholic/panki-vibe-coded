@@ -134,11 +134,24 @@ export function tagRowOf(row: unknown, dict: string): TagRecord | null {
 }
 
 /**
- * The kinds of data Panki reads from a dictionary, by id. What each is called and what it is are the extension's
- * (`dataKinds.ts`); a new kind is one id here, one count in `tallyTerm` or `tallyMeta`, and its entry there.
+ * The kinds of data Panki reads from a dictionary, by id. What each is is the extension's (`dataKinds.ts`); a new
+ * kind is one id here, its name below, one count in `tallyTerm` or `tallyMeta`, and its entry there.
  */
 export const DATA_KIND_IDS = ["form", "reading", "meaning", "tags", "wordType", "frequency", "pitch"] as const;
 export type DataKind = (typeof DATA_KIND_IDS)[number];
+/**
+ * What each kind is called, the one word for it everywhere: a dictionary's Provides, the popup's layout, the field
+ * mapping, and a prompt's variables (`prompt.ts`), which the API fills and so must know by name.
+ */
+export const DATA_KIND_NAMES: Record<DataKind, string> = {
+  form: "Dictionary form",
+  reading: "Reading",
+  meaning: "Meaning",
+  tags: "Tags",
+  wordType: "Word type",
+  frequency: "Frequency",
+  pitch: "Pitch accent",
+};
 
 const tally = z.number().int().nonnegative();
 /** How many of a dictionary's entries carry each kind: counted from its rows, never guessed. */

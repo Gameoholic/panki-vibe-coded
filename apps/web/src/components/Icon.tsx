@@ -1,3 +1,14 @@
+/** A gear's outline of `teeth` flat teeth round the middle of the grid: worked out once, its points being many. */
+function gearOf(teeth: number): string {
+  const steps = teeth * 4;
+  const points = Array.from({ length: steps }, (_, i) => {
+    const angle = ((i - 0.5) / steps) * Math.PI * 2;
+    const r = i % 4 < 2 ? 9.5 : 7;
+    return `${(12 + r * Math.sin(angle)).toFixed(2)} ${(12 - r * Math.cos(angle)).toFixed(2)}`;
+  });
+  return `M${points.join("L")}z`;
+}
+
 /** The app's icons, one registry: a name and the strokes that draw it on a 24-unit grid. */
 const ICONS = {
   home: ["M3 11l9-8 9 8", "M5 10v10h14V10"],
@@ -54,12 +65,32 @@ const ICONS = {
   swap: ["M4 8h14", "M14 4l4 4-4 4", "M20 16H6", "M10 12l-4 4 4 4"],
   /** A screen with lines of words along its foot: a clip's subtitles, shown or hidden from its player's bar. */
   subtitles: ["M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "M7 12h4", "M13 12h4", "M7 15.5h7", "M16 15.5h1"],
+  /** Where the Panki panel stands on a video's page (the extension's `PANEL_VIEWS`): under the player, a frame with lines under it; beside the video, a frame with a column at its right. */
+  panelUnder: ["M3 4h18v10H3z", "M3 18h18", "M3 21h12"],
+  panelBeside: ["M3 5h12v9H3z", "M18 5h3v14h-3z", "M3 18h12"],
+  /** The Stage: the video filling the screen but for the panel's column. */
+  panelStage: ["M2 4h14v16H2z", "M18 4h4v16h-4z"],
+  /** A video player's own controls, as the extension's player bar names and draws them (`modules.ts` → `BAR_CONTROLS`), in the shapes the site's 2025 player has. */
+  /** When the video will end: a clock with an arrow running on from it. */
+  ends: ["M14 3.2A9 9 0 1 0 20.8 14", "M12 7v5l3 2", "M17 7h5", "M19.5 4.5L22 7l-2.5 2.5"],
+  speed: ["M4 18a8 8 0 1 1 16 0", "M12 18l4-6"],
+  autoplay: ["M7 7h10a5 5 0 0 1 0 10H7A5 5 0 0 1 7 7z", "M16 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 1 0 0-5z"],
+  /** A wide frame with its two sides pointing out: the player made wider. */
+  theater: ["M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M8 10l-2 2 2 2", "M16 10l2 2-2 2"],
+  /** Two arrows out to opposite corners: full screen, as the site's player draws it (`full` is Panki's own player's). */
+  expand: ["M14 4h6v6", "M20 4l-6 6", "M10 20H4v-6", "M4 20l6-6"],
+  /** A gear: the player's settings (`settings`, the sliders, is Panki's own). */
+  gear: [gearOf(8), "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z"],
   /** An eye: a card seen as a review would show it (`CardPreview`). */
   eye: ["M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z"],
   /** A magnifying glass: looking at something without changing it, a card already there opened (`AlreadyIn`). */
   search: ["M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13z", "M15.5 15.5L20 20"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],
+  /** An i in a circle: a note of Panki's own, beside what someone or something else said (under an AI answer, "Cut short at the answer limit."). */
+  info: ["M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z", "M12 11v5.5", "M12 7.5h.01"],
+  /** The AI: a four-point spark, filled (`className="is-solid"`; the owner's pick, 2026-10-30, "Spark, solid"). Every button the assistant or a touch-up offers carries it, and anything the AI wrote on a card is marked with it (CONVENTIONS: generated content is marked and kept apart from the true data). */
+  ai: ["M12 3.5Q13.28 10.73 20.5 12Q13.28 13.28 12 20.5Q10.73 13.28 3.5 12Q10.73 10.73 12 3.5Z"],
   // Every action carries its icon (the owner, 2026-10-29; the audit page's section 4): what each of these is for.
   signIn: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4", "M3 12h11", "M10 8l4 4-4 4"],
   signOut: ["M10 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4", "M9 12h11", "M16 8l4 4-4 4"],

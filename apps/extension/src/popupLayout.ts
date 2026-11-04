@@ -12,15 +12,21 @@ import { z } from "zod";
 export const PartShow = z.enum(["shown", "folded", "hidden"]);
 export type PartShow = z.infer<typeof PartShow>;
 
-/** What's under the word besides the dictionaries' meanings: its tags, how common it is, its type, the endings undone. */
-export const BODY_KINDS = ["tags", "frequency", "wordType", "endings"] as const;
+/**
+ * What's under the word besides the dictionaries' meanings: its tags, how common it is, its type, the endings undone;
+ * and Explain, Panki AI saying what the word means where it was pointed at (`ui/Explain.tsx`).
+ */
+export const BODY_KINDS = ["tags", "frequency", "wordType", "endings", "explain"] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];
 export const isBodyKind = (id: string): id is BodyKind => (BODY_KINDS as readonly string[]).includes(id);
 /**
  * How a kind first stands in a layout. The word's type came after the rest (2026-10-16, so every kind of a
  * dictionary's data has a part of its own name) and starts hidden: a popup laid out before doesn't change by itself.
+ * Explain starts shown (AI step 2, 2026-10-30), in a layout kept before too.
  */
 const firstShow = (kind: BodyKind): PartShow => (kind === "wordType" ? "hidden" : "shown");
+/** The part that stands last, after every dictionary's meanings, when it's first placed: Explain reads them, so it comes after them. */
+const LAST: BodyKind = "explain";
 
 const DICTIONARY = "dict:";
 /** A dictionary's meanings as a part: "dict:" and the dictionary's id. */
@@ -87,7 +93,8 @@ const DEFAULT: PopupLayout = {
   pitch: "shown",
   add: "shown",
   cards: "shown",
-  body: BODY_KINDS.map((id): BodyPart => ({ id, show: firstShow(id), meanings: 0 })),
+  // Explain is placed after the dictionaries' meanings, as they're filled out (`popupLayoutOf`).
+  body: BODY_KINDS.filter((id) => id !== LAST).map((id): BodyPart => ({ id, show: firstShow(id), meanings: 0 })),
   others: "hidden",
   tagWords: "codes",
   frequencyWords: "both",
@@ -95,9 +102,10 @@ const DEFAULT: PopupLayout = {
 
 /**
  * The layout as it stands: what was kept (the default when nothing was), with each of the kinds under the word and
- * each dictionary that has meanings in it once, in the dictionaries' order. One not placed yet goes at the end, open
- * when no dictionary is open already and folded otherwise (the first open, the rest folded, as the owner saw it on the
- * popup page); one no longer there is left out.
+ * each dictionary that has meanings in it once, in the dictionaries' order. One not placed yet goes at the end (before
+ * Explain while that stands last), open when no dictionary is open already and folded otherwise (the first open, the
+ * rest folded, as the owner saw it on the popup page); one no longer there is left out. Explain, when it isn't placed
+ * yet, goes after all of them.
  */
 export function popupLayoutOf(kept: PopupLayout | null, dictionaries: readonly { id: string }[]): PopupLayout {
   const base = kept ?? DEFAULT;
@@ -109,13 +117,17 @@ export function popupLayoutOf(kept: PopupLayout | null, dictionaries: readonly {
     seen.add(part.id);
     body.push(part);
   }
-  for (const kind of BODY_KINDS) if (!seen.has(kind)) body.push({ id: kind, show: firstShow(kind), meanings: 0 });
+  for (const kind of BODY_KINDS) if (kind !== LAST && !seen.has(kind)) body.push({ id: kind, show: firstShow(kind), meanings: 0 });
   for (const dictionary of dictionaries) {
     const id = dictionaryPart(dictionary.id);
     if (seen.has(id)) continue;
     const open = body.some((p) => dictionaryOf(p.id) !== null && p.show === "shown");
-    body.push({ id, show: open ? "folded" : "shown", meanings: 0 });
+    const part: BodyPart = { id, show: open ? "folded" : "shown", meanings: 0 };
+    // A dictionary imported after Explain was placed last still comes before it.
+    if (body.at(-1)?.id === LAST) body.splice(body.length - 1, 0, part);
+    else body.push(part);
   }
+  if (!seen.has(LAST)) body.push({ id: LAST, show: firstShow(LAST), meanings: 0 });
   return { ...base, body, others: base.others === "folded" ? "hidden" : base.others };
 }
 

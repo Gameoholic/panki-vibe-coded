@@ -61,7 +61,9 @@ export function linesOf(words: readonly TranscriptWord[]): TranscriptLine[] {
       const width = widthOf(open.text);
       const last = open.text;
       const pause = start - open.end;
-      if (ENDS.test(last) || pause >= PAUSE_LONG || (pause >= PAUSE && width >= ENOUGH) || width >= LONG || (width >= LONG_AT_COMMA && COMMA.test(last))) close();
+      // A line split or joined by hand at this word (AI step 6, `LineMark`) decides before anything else.
+      if (word.line === "break") close();
+      else if (word.line !== "join" && (ENDS.test(last) || pause >= PAUSE_LONG || (pause >= PAUSE && width >= ENOUGH) || width >= LONG || (width >= LONG_AT_COMMA && COMMA.test(last)))) close();
     }
     if (!open) open = { text: "", start, end, marks: [], placed: [] };
     const at = open.text.length;

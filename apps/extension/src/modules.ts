@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { IconName } from "@web/components/Icon";
 
 /**
  * Which of Panki's parts are on in this browser, each switched on the options page's Modules tab (the owner,
@@ -51,6 +52,34 @@ export type AfterAdd = z.infer<typeof AfterAdd>;
 export const AFTER_ADD: Record<AfterAdd, string> = { before: "As before", pause: "Pause", play: "Play" };
 export const AFTER_ADD_IDS = AfterAdd.options;
 
+/**
+ * How the Panki panel stands on a video's page, picked on the panel itself (the owner, 2026-11-03: "maybe it can just
+ * be the Panki tab we have now, and just have a setting (like a view rather) on the tab itself to change how it looks…
+ * anchored to the RIGHT of the page"): under the player, two rows following the video, as it always was; or beside the
+ * video, in the watch page's right column, the whole transcript listed with its times (phase 1, 2026-11-04). One
+ * registry. Under the player to begin with, so nothing of before changes until it's picked. Theatre mode (the Stage in
+ * the code: the video filling the screen but for the panel's column) was a third view for a day, then a switch of the
+ * Beside view's own (the owner, 2026-11-04: "theatre mode should only be supported when it's 'beside the video', so
+ * it's less of a mode"); a browser that kept "stage" reads as beside the video (`storage.ts`).
+ */
+export const PanelView = z.enum(["under", "beside"]);
+export type PanelView = z.infer<typeof PanelView>;
+export const PANEL_VIEWS: Record<PanelView, { name: string; icon: "panelUnder" | "panelBeside" }> = {
+  under: { name: "Under the player", icon: "panelUnder" },
+  beside: { name: "Beside the video", icon: "panelBeside" },
+};
+export const PANEL_VIEW_IDS = PanelView.options;
+/** In Theatre mode, which side of the screen the panel's column stands at. The right to begin with, where the column beside the video is. */
+export const StageSide = z.enum(["left", "right"]);
+export type StageSide = z.infer<typeof StageSide>;
+export const STAGE_SIDES: Record<StageSide, string> = { left: "Panel on the left", right: "Panel on the right" };
+export const STAGE_SIDE_IDS = StageSide.options;
+/** Beside the video, the panel stands above the site's recommendations or in their place. Above them to begin with: nothing of the site's is taken away unasked. */
+export const BesideRecs = z.enum(["above", "replace"]);
+export type BesideRecs = z.infer<typeof BesideRecs>;
+export const BESIDE_RECS: Record<BesideRecs, string> = { above: "Above recommendations", replace: "Instead of recommendations" };
+export const BESIDE_RECS_IDS = BesideRecs.options;
+
 // Chips sifting YouTube's home feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them
 // out, 2026-10-21 ("in the home page remove this line"); a browser that kept `feedFilter` or `homeChips` keeps them unread.
 
@@ -83,6 +112,109 @@ export function pillLayoutOf(kept: PillLayout): PillLayout {
 export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: true }]);
 
 /**
+ * The player's control bar, every control of it one entry (the owner, 2026-11-04: "the ability to hide/show and maybe
+ * even put custom stuff there like the speed controller or theatre mode… ONE switch… and if it's enabled then I can play
+ * around with it and add/remove stuff like an editor"): YouTube's own and Panki's alike, each with its name, the
+ * cluster it stands in (the bar's left or its right, two boxes of the site's own, so a control is moved only within
+ * its own), whose it is, and how it's found: a YouTube control by its CSS selector inside its cluster (the site's own
+ * class names, as they were when this was written: when the site renames one, this is where to look), a Panki control
+ * by its place, drawn by the page (`content/youtube.tsx` → `barDrawn`) and on the options page (`options/PlayerBar.tsx`).
+ * The order here is YouTube's own, Speed first among the right-hand controls and the end time after the time, as they
+ * stood before they could be laid out; `shown` is each one's to begin with. A new control is one entry.
+ *
+ * Only the controls that stand on the owner's player (YouTube's 2025 bar, their screenshot of 2026-11-04): Previous,
+ * Next, Chapter, Miniplayer and Play on TV were entries for an hour, from memory of the site's older player rather than
+ * read off the page, and went at the owner's word ("there's no previous and next buttons"). A control a page adds now
+ * and then (a playlist's Previous and Next) is left exactly as the site draws it; one kept in a layout reads as gone.
+ */
+export type BarSide = "left" | "right";
+type BarEntry = { name: string; side: BarSide; icon: IconName; shown: boolean } & ({ from: "youtube"; find: string } | { from: "panki" });
+export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "speed", "autoplay", "captions", "settings", "pankiTheatre", "theater", "fullscreen"] as const;
+export const BarControl = z.enum(BAR_CONTROL_IDS);
+export type BarControl = z.infer<typeof BarControl>;
+export const BAR_CONTROLS = {
+  play: { name: "Play / pause", side: "left", icon: "play", shown: true, from: "youtube", find: ".ytp-play-button" },
+  volume: { name: "Volume", side: "left", icon: "quiet", shown: true, from: "youtube", find: ".ytp-volume-area" },
+  time: { name: "Time", side: "left", icon: "clock", shown: true, from: "youtube", find: ".ytp-time-display" },
+  endTime: { name: "Video end time", side: "left", icon: "ends", shown: true, from: "panki" },
+  speed: { name: "Speed button", side: "right", icon: "speed", shown: true, from: "panki" },
+  // The autoplay switch is a button of the site's holding its own toggle: found by what it holds.
+  autoplay: { name: "Autoplay", side: "right", icon: "autoplay", shown: true, from: "youtube", find: ".ytp-button:has(.ytp-autonav-toggle-button)" },
+  captions: { name: "Captions", side: "right", icon: "subtitles", shown: true, from: "youtube", find: ".ytp-subtitles-button" },
+  settings: { name: "Settings", side: "right", icon: "gear", shown: true, from: "youtube", find: ".ytp-settings-button" },
+  // Panki's Theatre mode (the panel beside the video filling the screen), new with the editor: hidden to begin with, so the bar is as it was.
+  pankiTheatre: { name: "Theatre mode with the Panki panel", side: "right", icon: "panelStage", shown: false, from: "panki" },
+  theater: { name: "Theatre mode", side: "right", icon: "theater", shown: true, from: "youtube", find: ".ytp-size-button" },
+  fullscreen: { name: "Full screen", side: "right", icon: "expand", shown: true, from: "youtube", find: ".ytp-fullscreen-button" },
+} as const satisfies Record<BarControl, BarEntry>;
+/** Panki's own controls on the bar: each drawn by the page into a place of its own. */
+export type PankiBarControl = { [Id in BarControl]: (typeof BAR_CONTROLS)[Id]["from"] extends "panki" ? Id : never }[BarControl];
+export const isPankiBar = (id: BarControl): id is PankiBarControl => BAR_CONTROLS[id].from === "panki";
+export const PANKI_BAR_IDS: readonly PankiBarControl[] = BAR_CONTROL_IDS.filter(isPankiBar);
+/** Whose a control is, as its row on the options page says it. */
+export const BAR_FROM: Record<BarEntry["from"], string> = { youtube: "YouTube", panki: "Panki" };
+/** The player's own two boxes of controls, the bar's left and its right. */
+export const BAR_SIDES: Record<BarSide, { name: string; find: string }> = {
+  left: { name: "Left", find: ".ytp-left-controls" },
+  right: { name: "Right", find: ".ytp-right-controls" },
+};
+export const BAR_SIDE_IDS: readonly BarSide[] = ["left", "right"];
+/** The bar as kept: every control once, in the order chosen (each side's its own), each shown or not. */
+export const BarLayout = z.array(z.object({ id: BarControl, shown: z.boolean() })).max(BAR_CONTROL_IDS.length);
+export type BarLayout = z.infer<typeof BarLayout>;
+/**
+ * A bar as this browser kept it, read whatever it names: a control that's gone (Previous, Next, Chapter, Miniplayer,
+ * Play on TV) is let go, Captions kept as "subtitles" for its first hour is Captions, and the rest made whole.
+ */
+export const KeptBar = z
+  .array(z.object({ id: z.string(), shown: z.boolean() }))
+  .max(64)
+  .transform((kept) =>
+    barLayoutOf(
+      kept.flatMap((control) => {
+        const id = BarControl.safeParse(control.id === "subtitles" ? "captions" : control.id);
+        return id.success ? [{ id: id.data, shown: control.shown }] : [];
+      }),
+    ),
+  );
+/**
+ * A kept bar made whole: a control named twice counts once, and one it doesn't name (added since) goes where it stands
+ * in YouTube's own order, after the last control that comes before it here, shown as it is to begin with.
+ */
+export function barLayoutOf(kept: BarLayout): BarLayout {
+  const seen = new Set<BarControl>();
+  const whole = kept.filter((control) => !seen.has(control.id) && seen.add(control.id));
+  BAR_CONTROL_IDS.forEach((id, rank) => {
+    if (seen.has(id)) return;
+    let after = -1;
+    whole.forEach((control, i) => {
+      if (BAR_CONTROL_IDS.indexOf(control.id) < rank) after = i;
+    });
+    whole.splice(after + 1, 0, { id, shown: BAR_CONTROLS[id].shown });
+    seen.add(id);
+  });
+  return whole;
+}
+/** The bar as it stood before it could be laid out: YouTube's own, Speed first on the right, the end time after the time. */
+export const DEFAULT_BAR: BarLayout = barLayoutOf([]);
+/** One side's controls, in the order chosen. */
+export const barSide = (layout: BarLayout, side: BarSide): BarLayout => layout.filter((control) => BAR_CONTROLS[control.id].side === side);
+/** Whether a control is on the bar as laid out: the bar laid out by Panki, and the control shown there. */
+export const barShows = (on: boolean, layout: BarLayout, id: BarControl): boolean => on && layout.some((control) => control.id === id && control.shown);
+/**
+ * Whether YouTube's own controls stand in another order than YouTube's: only then are they moved on the page, so a
+ * bar never reordered leaves every node of the site's exactly where the site put it.
+ */
+export const barReordered = (layout: BarLayout): boolean => {
+  const youtubeOn = (ids: readonly BarControl[], side: BarSide) => ids.filter((id) => BAR_CONTROLS[id].from === "youtube" && BAR_CONTROLS[id].side === side);
+  const ids = layout.map((control) => control.id);
+  return BAR_SIDE_IDS.some((side) => {
+    const own = youtubeOn(BAR_CONTROL_IDS, side);
+    return youtubeOn(ids, side).some((id, i) => id !== own[i]);
+  });
+};
+
+/**
  * How many videos the Continue watching shelf on YouTube's home carries: always 5 (the owner, 2026-10-22; it was a
  * choice, 4 / 8 / 12 and then 5 / 10 / 15, until the same day). A browser that kept `shelfMax` keeps it unread.
  */
@@ -107,6 +239,19 @@ export const Modules = z.object({
   on: z.boolean(),
   /** The Panki panel on a video's page: the line under the player, the drawer, the transcript over the video, transcribing. */
   panel: z.boolean(),
+  /** Where the panel stands on a video's page (`PanelView`), and beside the video, whether it takes the recommendations' place. */
+  panelView: PanelView,
+  besideRecs: BesideRecs,
+  /** In Theatre mode, the side the panel's column stands at. */
+  stageSide: StageSide,
+  /**
+   * Whether Theatre mode takes the page into the browser's own full screen, the panel's column with it (the owner,
+   * 2026-11-04: "whether Theatre full-screens (on by default)"); off, it fills the window, as it did before. The site's
+   * own full screen is the page's root too, so the two are one: Theatre lives in it (`content/youtube.tsx` →
+   * `stageNow`), never fighting it (it was off to begin with for a few hours that day, when the site's full screen
+   * dropping its theater mode took Theatre down with it).
+   */
+  stageFull: z.boolean(),
   /** Looking a word up by pointing at it, on every site. */
   lookup: z.boolean(),
   /** Panki's marks on a video's seek bar, all of them (each mark's own Shown / Hidden is under Seek bar). */
@@ -140,13 +285,20 @@ export const Modules = z.object({
   thumbSave: z.boolean(),
   /** Whether Shorts stay on YouTube's pages: their shelves and their videos among the rest. Shown to begin with: nothing of the site's is taken away unasked. A YouTube utility, the owner's word (2026-10-21): it holds whether or not Panki is on. */
   shorts: z.boolean(),
-  /** The player's speed changed from a button among its own controls (a YouTube utility, 2026-10-21): there whether or not Panki is on. */
-  speedControl: z.boolean(),
-  /** When the video will end on this device's clock, after the player's own time (a YouTube utility, 2026-10-25): on to begin with, as the speed button is (the owner's word). */
-  endTime: z.boolean(),
+  /**
+   * The player's control bar laid out by Panki (a YouTube utility, 2026-11-04: there whether or not Panki is on): its
+   * controls shown, hidden and ordered as `bar` says, Panki's among them (the speed button, 2026-10-21, and when the
+   * video will end, 2026-10-25, each a switch of its own until they became rows of the bar). Off, the bar is YouTube's
+   * own, with nothing of Panki's in it. On to begin with, laid out as it always stood.
+   */
+  playerBar: z.boolean(),
+  bar: BarLayout,
+  /** With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after the pointer rests (the owner, 2026-11-04: "never disappear, default off"). */
+  barKept: z.boolean(),
   /**
    * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube utility,
-   * the owner, 2026-10-26: "holding shift/ctrl/alt… will instead do a (customizable) 1s back/after"): on, Shift, 1 s to begin with.
+   * the owner, 2026-10-26: "holding shift/ctrl/alt… will instead do a (customizable) 1s back/after"): on, Shift, 2.5 s to begin with
+   * (1 s until the owner, 2026-11-04).
    */
   shortSkip: z.boolean(),
   shortSkipKey: SkipKey,
@@ -156,6 +308,10 @@ export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
   on: true,
   panel: true,
+  panelView: "under",
+  besideRecs: "above",
+  stageSide: "right",
+  stageFull: true,
   lookup: true,
   seek: true,
   resume: "offer",
@@ -171,11 +327,12 @@ export const DEFAULT_MODULES: Modules = {
   homeRecent: true,
   thumbSave: true,
   shorts: true,
-  speedControl: true,
-  endTime: true,
+  playerBar: true,
+  bar: DEFAULT_BAR,
+  barKept: false,
   shortSkip: true,
   shortSkipKey: "shift",
-  shortSkipSeconds: 1,
+  shortSkipSeconds: 2.5,
 };
 
 /**

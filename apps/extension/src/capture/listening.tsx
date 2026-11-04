@@ -4,6 +4,7 @@ import type { Found } from "../dictionary/found";
 import type { LookKey } from "../lookSettings";
 import { askLookState } from "../messages";
 import { popupLayoutOf, type PopupLayout } from "../popupLayout";
+import type { MorePieces } from "../ui/Explain";
 import { Lookup } from "../ui/Lookup";
 import { makePlace } from "../ui/mount";
 import { createLooker, listenOnPage, type Pointed, type View, type Where } from "./look";
@@ -21,6 +22,8 @@ type Options = {
   parent?: () => Element;
   /** Whether a point on the page is on Panki subtitles drawn by the page itself (a card's clip in Panki), where the key to hold is theirs. */
   subtitlesAt?: (target: EventTarget | null) => boolean;
+  /** What the page adds to what Explain sends of a word pointed at (a video's metadata, the subtitles around it, its description); none anywhere else. */
+  aiContext?: MorePieces;
 };
 
 export type Listening = ReturnType<typeof createListening>;
@@ -63,6 +66,7 @@ export function createListening(options: Options) {
         view={view}
         layout={settings.layout}
         split={split}
+        explain={{ kind: "panki", more: options.aiContext ?? null }}
         onKeep={looker.lock}
         onAdd={(found) => {
           looker.close();

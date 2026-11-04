@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { NEW_PLACE, exampleShownOf, valuesWithExample, type Card, type CardField, type CardType, type Deck, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { NEW_PLACE, exampleShownOf, sourcesWithExample, valuesWithExample, type Card, type CardField, type CardType, type Deck, type SrsType, type SubtitleStyle, type ValueSources } from "@panki/contracts";
 import { api } from "../api";
 import { waveOf } from "../waveform";
 import { Button } from "./Button";
@@ -30,11 +30,27 @@ const MESSAGES = { missing: "That deck's card type or SRS type is missing." };
  * same name and kind (names compared as written, ignoring case and the space around them), and is empty without one.
  */
 function carried(from: CardType, to: CardType, values: Readonly<Record<string, string>>): Record<string, string> {
-  const named = (field: CardField) => field.name.trim().toLowerCase();
   const out: Record<string, string> = {};
   for (const field of to.fields) {
-    const source = from.fields.find((f) => named(f) === named(field) && f.kind === field.kind);
+    const source = carriedFrom(from, field);
     out[field.id] = source ? (values[source.id] ?? "") : "";
+  }
+  return out;
+}
+
+/** The field of the card's own type a field of another type takes its value from: the same name and kind. */
+function carriedFrom(from: CardType, field: CardField): CardField | undefined {
+  const named = (f: CardField) => f.name.trim().toLowerCase();
+  return from.fields.find((f) => named(f) === named(field) && f.kind === field.kind);
+}
+
+/** Where each carried value came from, the way `carried` carries the values, so what Panki AI wrote stays marked. */
+function carriedSources(from: CardType, to: CardType, sources: ValueSources): ValueSources {
+  const out: ValueSources = {};
+  for (const field of to.fields) {
+    const source = carriedFrom(from, field);
+    const kept = source ? sources[source.id] : undefined;
+    if (kept) out[field.id] = kept;
   }
   return out;
 }
@@ -81,6 +97,8 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
           key={deckId}
           type={shownType}
           values={values}
+          // What Panki AI wrote stays marked: in its own card type's deck by field, carried into another with its value.
+          sources={shownType.id === type.id ? sourcesWithExample(type, card, exampleId) : carriedSources(type, shownType, card.sources)}
           files={card.files}
           srsType={srsType}
           place={deckId === card.deckId ? card.place : NEW_PLACE}

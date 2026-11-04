@@ -8,8 +8,9 @@ import { KeyCap } from "./KeyCap";
  * beside the panel's title opens a window, under it, playing the feature being used on a page as it would really be,
  * round and round, Panki's own components doing it. Pointed at it opens; let go of, it closes; a click keeps it open
  * until a press elsewhere or Escape. What each panel plays is its scene's: the extension's options page has its own
- * (`apps/extension/src/options/explainerScenes.tsx`), and the app's Settings → Keybinds the Hold button's
- * (`views/HoldButtonScene.tsx`). It was the extension's alone until 2026-11-02.
+ * (`apps/extension/src/options/explainerScenes.tsx`), the app's Settings → Keybinds the Hold button's
+ * (`views/HoldButtonScene.tsx`), and Settings → Panki AI's are in `explainers/aiScenes.tsx` (the owner, 2026-11-01: "we
+ * should have it for Explain and Touch up in Panki AI too"). It was the extension's alone until 2026-11-02.
  */
 
 /** The page a picture is drawn on, at a real page's size: a scene lays itself out in these pixels, Panki's components at their own size, and the whole is scaled to the window. */
@@ -266,5 +267,17 @@ export function Explainer({ name, children }: { name: string; children: ReactNod
         </div>
       ) : null}
     </span>
+  );
+}
+
+/** A panel's title with its (?) beside it, the window playing `children`, the panel's scene. */
+export function ExplainedTitle({ name, titleId, children }: { name: string; titleId: string; children: ReactNode }) {
+  return (
+    <div className="explain-head">
+      <h2 id={titleId} className="panel-title">
+        {name}
+      </h2>
+      <Explainer name={name}>{children}</Explainer>
+    </div>
   );
 }

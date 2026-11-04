@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsAnswer, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsAnswer, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -1166,6 +1166,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           key={`${card.id}-${exampleId ?? ""}`}
           type={type}
           values={valuesWithExample(type, card, onScreen)}
+          sources={sourcesWithExample(type, card, onScreen)}
           files={card.files}
           srsType={srsType}
           place={card.place}

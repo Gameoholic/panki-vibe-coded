@@ -1,4 +1,4 @@
-import { DATA_KIND_IDS, type DataKind, type Provides } from "@panki/contracts";
+import { DATA_KIND_IDS, DATA_KIND_NAMES, type DataKind, type Provides } from "@panki/contracts";
 import { dictionaryOf } from "./popupLayout";
 import type { NamedPart } from "./popupKinds";
 
@@ -9,11 +9,13 @@ import type { NamedPart } from "./popupKinds";
  * dictionary gives names its kind (`roles.ts`). The owner, 2026-10-16: a dictionary should say "we provide this
  * data", in data Panki accepts, each explained where it's named, rather than one list of the fields it fills and
  * another of where it shows in the popup. The kinds' ids and their counting are the contracts' (`dictionaryRows.ts`:
- * `DATA_KIND_IDS`, `Provides`), so Panki's server counts a dictionary it keeps the same way; a new kind is an id and
- * a count there and one entry here.
+ * `DATA_KIND_IDS`, `Provides`), so Panki's server counts a dictionary it keeps the same way; and so are their names
+ * (`DATA_KIND_NAMES`), which a Panki AI prompt names them by too. A new kind is an id, a name and a count there and one
+ * entry here.
  */
 
 type Kind = {
+  /** The kind's one name, the contracts' (`DATA_KIND_NAMES`). */
   name: string;
   /** What it is, in a sentence or two. */
   about: string;
@@ -27,31 +29,31 @@ type Kind = {
 
 export const DATA_KINDS: Record<DataKind, Kind> = {
   form: {
-    name: "Dictionary form",
+    name: DATA_KIND_NAMES.form,
     about: "The word as a dictionary lists it, before any endings: 食べる for 食べました.",
     parts: ["split", "word", "others"],
     perEntry: true,
   },
-  reading: { name: "Reading", about: "How the word is read, written in kana.", parts: ["reading", "split", "others"], perEntry: true },
-  meaning: { name: "Meaning", about: "What the word means, in the dictionary's own words.", parts: [], ownPart: true, perEntry: true },
+  reading: { name: DATA_KIND_NAMES.reading, about: "How the word is read, written in kana.", parts: ["reading", "split", "others"], perEntry: true },
+  meaning: { name: DATA_KIND_NAMES.meaning, about: "What the word means, in the dictionary's own words.", parts: [], ownPart: true, perEntry: true },
   tags: {
-    name: "Tags",
+    name: DATA_KIND_NAMES.tags,
     about: "Short labels on a word or one of its meanings, each explained by the dictionary itself: what kind of word it is, how it's used, whether it's usually written in kana.",
     parts: ["tags"],
     perEntry: true,
   },
   wordType: {
-    name: "Word type",
+    name: DATA_KIND_NAMES.wordType,
     about: "Which kind of verb or adjective a word is: what lets the endings on it be taken off, so 食べました is found as 食べる. Only words that change their endings have one.",
     parts: ["wordType", "endings"],
     perEntry: true,
   },
   frequency: {
-    name: "Frequency",
+    name: DATA_KIND_NAMES.frequency,
     about: "How common a word is, by what the list counted. A list that counts by rank also decides which word found comes first, and how Panki's line under a video is split into words.",
     parts: ["frequency"],
   },
-  pitch: { name: "Pitch accent", about: "Where the voice falls in the word, drawn as a line over its reading.", parts: ["pitch"] },
+  pitch: { name: DATA_KIND_NAMES.pitch, about: "Where the voice falls in the word, drawn as a line over its reading.", parts: ["pitch"] },
 };
 
 /** The kinds a part of the popup shows; none for one that's Panki's own (Add). */
