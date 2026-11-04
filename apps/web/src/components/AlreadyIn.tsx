@@ -25,6 +25,8 @@ type Props = {
   example?: { card: CalledCard; on: boolean; onToggle: () => void } | null;
   /** Add anyway, beside it while one is the same: pressed, a second card is added after all (`useAddAnyway`). */
   anyway?: { on: boolean; onToggle: () => void } | null;
+  /** Those two can't be pressed just now: the form is adding, or Panki AI is working on the card. Open still opens. */
+  disabled?: boolean;
 };
 
 /** The words for adding to a card that's already there, one home: the button, and what the form's own button says then. */
@@ -74,7 +76,7 @@ const decksOf = (cards: readonly CalledCard[]) => listWords([...new Set(cards.ma
  * puts what's being added onto the card that's there, and Add anyway. The app's form, the extension's drawer and its
  * popup are all this.
  */
-export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compared = [], example = null, anyway = null }: Props) {
+export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compared = [], example = null, anyway = null, disabled = false }: Props) {
   const first = cards[0];
   if (!first) return null;
   const rows = cards.map((card) => ({ card, like: likenessOf(mine, card.apart, compared) }));
@@ -130,13 +132,13 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
       {toExample || addAnyway ? (
         <div className="already-resolve">
           {toExample ? (
-            <Button className="already-pick" aria-pressed={toExample.on} onClick={toExample.onToggle}>
+            <Button className="already-pick" aria-pressed={toExample.on} disabled={disabled} onClick={toExample.onToggle}>
               <Icon name="add" />
               {EXAMPLE_WORDS.add}
             </Button>
           ) : null}
           {addAnyway ? (
-            <Button className="already-pick" aria-pressed={addAnyway.on} onClick={addAnyway.onToggle}>
+            <Button className="already-pick" aria-pressed={addAnyway.on} disabled={disabled} onClick={addAnyway.onToggle}>
               <Icon name="add" />
               {ANYWAY_WORDS}
             </Button>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type R
 import {
   DEFAULT_SUBTITLE_STYLE,
   MediaId,
+  aiOwns,
   byAi,
   holdsFile,
   holdsLink,
@@ -191,7 +192,10 @@ type Props = {
    * whatever the layout; at the card's end when none is drawn. None by default.
    */
   examplePager?: ReactNode;
-  /** Where each value came from (`Card.sources`): a value Panki AI wrote carries the spark before its words. None by default. */
+  /**
+   * Where each value came from (`Card.sources`): a value Panki AI wrote is drawn in the AI's ink, its name (when the
+   * layout shows it) carries the spark, and the spark stands once in the card's corner. None by default.
+   */
   sources?: Readonly<Record<string, ValueSource>>;
 };
 
@@ -291,7 +295,8 @@ export function ReviewCard({
     if (!text && !edit) return null;
     if (reading.held) return <span className="is-later">{text}</span>;
     // Its words in one box, the same size covered or not, so nothing moves when a spoiler opens.
-    const said = <span className="review-ruby-text">{text || reading.field.name}</span>;
+    // A reading Panki AI wrote is in the AI's ink, as any of its words are.
+    const said = <span className={`review-ruby-text ${text && byAi(sources, reading.field.id) ? "is-ai" : ""}`.trim()}>{text || reading.field.name}</span>;
     if (edit) {
       // A spoiler on the side shown looks it on the card being laid out, its words faint under the cover.
       const covering = reading.part[side] === "spoiler";
@@ -400,16 +405,21 @@ export function ReviewCard({
   /** Words as their part has them: their name over them when it's to be shown, and a reading over them when one is set to be. */
   function words(part: LayoutPart, field: CardField, value: ReactNode, blank = false, text = String(value)) {
     const reading = readingOver(field.id);
-    // What Panki AI wrote carries its spark wherever it's shown (AI.md): before the words, never in them.
-    const ai = !blank && byAi(sources, field.id) ? <AiSpark className="review-ai" /> : null;
+    // What Panki AI wrote is in the AI's ink, its own field or one it corrected; a field that's its own carries the spark
+    // on its name, when the layout shows it (the owner, 2026-11-04); the spark itself stands once in the card's corner,
+    // never in the words.
+    const ai = !blank && byAi(sources, field.id);
+    const own = ai && aiOwns(sources, field.id);
     return (
-      <div className={`review-words ${kindClass(field.kind)} ${blank ? "review-blank" : ""}`.trim()} lang={blank ? undefined : langOf(text)}>
-        {part.label ? <span className="review-label">{field.name}</span> : null}
+      <div className={`review-words ${kindClass(field.kind)} ${blank ? "review-blank" : ""} ${ai ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()} lang={blank ? undefined : langOf(text)}>
+        {part.label ? (
+          <span className={`review-label ${own ? "is-ai" : ""}`.trim()}>
+            {own ? <AiSpark className="review-label-ai" /> : null}
+            {field.name}
+          </span>
+        ) : null}
         {reading === null ? (
-          <>
-            {ai}
-            {value}
-          </>
+          value
         ) : (
           // On a line of its own with room above it for the reading, clear of the field name over it; in the reading's own colour.
           <span className="review-ruby-line">
@@ -611,11 +621,18 @@ export function ReviewCard({
   }
   const pressable = edit || !onPress ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
 
+  // The spark once in the card's corner while the side shown holds anything Panki AI wrote (the owner, 2026-11-04: its
+  // words in the AI's ink, the spark out of the text), in the top corner the stage tag leaves free; on a card being laid
+  // out the tag stands in its corner even hidden, so the spark keeps clear of it there too, and follows it as it's moved.
+  const aiShown = drawn.some((d) => !d.held && (values[d.field.id] ?? "") !== "" && byAi(sources, d.field.id));
+  const sparkCorner = (tag.shown || edit) && tag.corner === "top-right" ? "top-left" : "top-right";
+
   return (
     <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
       <StageTagSpot tag={tag} edit={edit} card={card}>
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
+      {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
       {blocks}
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>

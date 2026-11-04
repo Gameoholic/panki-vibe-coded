@@ -5,7 +5,7 @@ import { createDbs } from "./dbs";
 import { env } from "./env";
 import { createForvo } from "./forvo";
 import { sharedDictionaryDir } from "./mediaFiles";
-import { countDictionaries, gatherShared, openShared } from "./shared";
+import { carryPrompts, countDictionaries, gatherShared, openShared } from "./shared";
 import { spaceOf, storageReport } from "./space";
 import { checkTimeZone } from "./time";
 import { createEngines } from "./transcribe/engines";
@@ -19,6 +19,8 @@ const shared = openShared(env.dataDir);
 const dbs = createDbs(env.dataDir, Date.now, env.timeZone);
 // What accounts held before the shared store existed (a Forvo key, dictionaries) moves over, once, before anyone's served.
 gatherShared(shared, env.dataDir, auth, dbs.dbFor, Date.now);
+// The Panki AI prompts an admin edited for everyone become templates in each admin's own account, once (AI step 5).
+carryPrompts(shared, auth, dbs.dbFor, Date.now);
 // What a kept dictionary not counted yet provides is counted while the API serves.
 void countDictionaries(shared, sharedDictionaryDir(env.dataDir));
 const space = () => spaceOf(env.dataDir, env.lowSpaceBytes);

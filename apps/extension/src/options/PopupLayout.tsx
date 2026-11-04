@@ -5,6 +5,7 @@ import { Icon } from "@web/components/Icon";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { useDragOrder } from "@web/hooks/useDragOrder";
+import { IN_DECKS } from "@web/explainers/examples";
 import { useUndoable } from "@web/hooks/useUndoable";
 import { SAVE_WORDS, type SaveState } from "@web/unsaved";
 import { listWords } from "@web/words";
@@ -24,7 +25,7 @@ import { tintOf } from "../capture/known";
 import { paintCss, type MarkPaint } from "../seekLook";
 import { KindChips } from "./DataKinds";
 import { pointWords } from "./Dictionary";
-import { EXAMPLE_CARDS, EXAMPLE_EXPLAIN, IN_DECKS } from "./examples";
+import { EXAMPLE_CARDS, EXAMPLE_EXPLAIN } from "./examples";
 
 /** What this says when something's wrong. One home. */
 const MESSAGES = {

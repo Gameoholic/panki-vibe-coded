@@ -38,13 +38,12 @@ const OVER_ALL = "position: fixed; inset: 0; z-index: 2147483647; pointer-events
  * The video page and any other page both start one; the video page also points at its own line's words through it.
  */
 export function createListening(options: Options) {
-  let settings: { on: boolean; key: LookKey; subtitlesOn: boolean; subtitleKey: LookKey; layout: PopupLayout; explainOnOpen: boolean } = {
+  let settings: { on: boolean; key: LookKey; subtitlesOn: boolean; subtitleKey: LookKey; layout: PopupLayout } = {
     on: false,
     key: "shift",
     subtitlesOn: false,
     subtitleKey: "shift",
     layout: popupLayoutOf(null, []),
-    explainOnOpen: false,
   };
   const place = makePlace(options.theme?.() ?? "light");
   place.host.style.cssText = OVER_ALL;
@@ -67,7 +66,7 @@ export function createListening(options: Options) {
         view={view}
         layout={settings.layout}
         split={split}
-        explain={{ kind: "panki", more: options.aiContext ?? null, auto: settings.explainOnOpen }}
+        explain={{ kind: "panki", more: options.aiContext ?? null }}
         onKeep={looker.lock}
         onAdd={(found) => {
           looker.close();
@@ -87,7 +86,7 @@ export function createListening(options: Options) {
   async function refresh() {
     const state = await askLookState();
     if (!state.ok) return;
-    settings = { on: state.on, key: state.key, subtitlesOn: state.subtitlesOn, subtitleKey: state.subtitleKey, layout: state.layout, explainOnOpen: state.explainOnOpen };
+    settings = { on: state.on, key: state.key, subtitlesOn: state.subtitlesOn, subtitleKey: state.subtitleKey, layout: state.layout };
     dictionariesAre(state.signature);
     if (!settings.on && !settings.subtitlesOn) looker.close();
   }

@@ -1,6 +1,6 @@
-import { AI_PROVIDERS, aiModelOf, type AiProviderId, type AiRanOn, type PankiAi } from "./ai";
+import { AI_PROVIDERS, aiModelOf, type AiProviderId, type AiRanOn, type AiTemplate, type PankiAi } from "./ai";
 import type { PromptPieceId } from "./pieces";
-import { ceilingMicros, fillTemplate, variablesIn, type AiUnread, type ExplainMessage, type MeaningAccuracyId, type PromptPieces } from "./prompt";
+import { aiSent, ceilingMicros, variablesIn, type AiUnread, type ExplainMessage, type MeaningAccuracyId, type PromptPieces } from "./prompt";
 
 /**
  * One call to Panki AI as the page that made it tells of it (the AI's status, the owner, 2026-10-30: "kind of a black
@@ -62,10 +62,10 @@ export function piecesUsed(template: string, pieces: PromptPieces, gaps: PromptG
 }
 
 /**
- * Why a call ran: pressed (`action` is the button's word, "Explain"), a follow-up asked, Try again after a failure, or
- * by itself because a setting says so (`setting`, its name on screen, "Explain as the pop-up opens").
+ * Why a call ran: pressed (`action` is the button's word, "Explain"), a follow-up asked, or Try again after a failure.
+ * (A run by itself, "Explain as the pop-up opens", went at the owner's word, 2026-11-02: running by itself is AI step 7's.)
  */
-export type AiRunWhy = { kind: "pressed"; action: string } | { kind: "followUp" } | { kind: "retry" } | { kind: "auto"; setting: string };
+export type AiRunWhy = { kind: "pressed"; action: string } | { kind: "followUp"; field?: string } | { kind: "retry" };
 
 /**
  * One part of what an answer said, as Details' Conversation shows Panki AI's answer (the owner's pick, 2026-10-31: a
@@ -92,6 +92,8 @@ export type AiCall = {
   /** What it is, as Details name it among a conversation's calls: "Explain", "Follow-up 1". */
   label: string;
   why: AiRunWhy;
+  /** The template it ran, by name (AI step 5): Details' Template row. */
+  templateName: string;
   provider: AiProviderId;
   /** The model's id: as the settings this page knew had it while the call was on its way, then the one the server says it ran on (`AiRanOn`, `answeredCall`, `failedCall`). */
   model: string;
@@ -115,32 +117,41 @@ type Start = {
   why: AiRunWhy;
   /** Panki AI's settings as this call runs with them. */
   settings: PankiAi;
-  template: string;
+  /** The template it runs (AI step 5): its prompt, its Follow-up prompt and its name. */
+  template: Pick<AiTemplate, "name" | "prompt" | "followUp">;
   pieces: PromptPieces;
   gaps?: PromptGaps;
-  /** The conversation going with it, after the prompt. */
+  /** The conversation going with it, after the prompt, as it was sent (`Said`): none for a first ask. */
   said: readonly ExplainMessage[];
+  /** A follow-up's own pieces (`{Follow-up question}`, `{Follow-up field}`, Touch up's `{Card}` as it stands now), laid over `pieces` for its Follow-up prompt. */
+  asking?: PromptPieces;
   now: number;
   /** The action's own Max answer length, when it isn't Explain's (Touch up's). */
   maxAnswerTokens?: number;
 };
 
-/** A call as it's sent: everything said of it before an answer, thinking. */
-export function startCall({ label, why, settings, template, pieces, gaps, said, now, maxAnswerTokens = settings.aiMaxAnswerTokens }: Start): AiCall {
+/**
+ * A call as it's sent: everything said of it before an answer, thinking. A follow-up's `said` ends with its Follow-up
+ * prompt as it'll be filled (the server's `asked` is the same text); its pieces are the Follow-up prompt's.
+ */
+export function startCall({ label, why, settings, template, pieces, gaps, said, asking = {}, now, maxAnswerTokens = settings.aiMaxAnswerTokens }: Start): AiCall {
   const sent = piecesAsSent(pieces, settings);
-  const prompt = fillTemplate(template, sent);
+  const [prompt = "", ...rest] = aiSent(template, sent, said, piecesAsSent(asking, settings));
+  const followUp = said.length > 0;
   const model = aiModelOf(settings);
+  const asked = followUp ? rest[rest.length - 1] ?? "" : "";
   return {
     label,
     why,
+    templateName: template.name,
     provider: settings.aiProvider,
     model: model.id,
     sentAt: now,
-    ceilingMicros: ceilingMicros(model, [prompt, ...said.map((m) => m.text)], maxAnswerTokens),
+    ceilingMicros: ceilingMicros(model, [prompt, ...rest], maxAnswerTokens),
     maxAnswerTokens,
-    pieces: piecesUsed(template, sent, gaps),
+    pieces: followUp ? piecesUsed(template.followUp, { ...sent, ...piecesAsSent(asking, settings) }, gaps) : piecesUsed(template.prompt, sent, gaps),
     prompt,
-    said,
+    said: followUp ? [...said, { role: "user", text: asked }] : said,
     outcome: { kind: "thinking" },
   };
 }

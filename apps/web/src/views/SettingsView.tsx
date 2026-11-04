@@ -1,31 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AI_ACTIONS,
   AI_ACTION_IDS,
   AI_LIMITS,
-  ANSWER_FIXED,
   APP_LANGUAGES,
   AppLanguage,
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
   AiKeyUpdate,
-  DEFAULT_EXPLAIN_PROMPT,
-  DEFAULT_TOUCH_UP_PROMPT,
-  PIECE_NAMES,
-  PIECE_SOURCES,
-  PROMPT_MAX,
-  PROMPT_PIECE_IDS,
   PankiAi,
-  SOURCE_WORDS,
   aiModelOf,
-  answerShapesOf,
-  answerWordsUnsent,
-  pieceAbout,
   type AiActionId,
   type AiModel,
-  type AnswerPart,
+  type AiTemplate,
   type PankiAiStatus,
-  type PromptPieceId,
   type UsageKind,
   type UsageReport,
   type UsageTotals,
@@ -69,19 +57,17 @@ import { Icon } from "../components/Icon";
 import { ModeChip } from "../components/ModeChip";
 import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
-import { Fold } from "../components/Fold";
-import { PromptField, type PromptFieldHandle } from "../components/PromptField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Skeleton } from "../components/Skeleton";
 import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
+import { AiTemplatesTab } from "./AiTemplatesView";
 import { KeysPanels } from "./KeysSettings";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
-import type { UnsavedGuard } from "../unsaved";
 import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, tokenWords } from "../words";
 
 type Props = {
@@ -92,6 +78,10 @@ type Props = {
   /** Signs one device out; this one, and the sign-in screen follows. */
   onSignOut: (sessionId: string) => Promise<void>;
   onSignOutAll: () => Promise<void>;
+  /** Panki AI as it stands, with the account's own templates, for the Panki AI tab; null while it loads. */
+  ai: PankiAiStatus | null;
+  onOpenTemplate: (template: AiTemplate) => void;
+  onNewTemplate: (action: AiActionId) => void;
 };
 
 /** An hour of the day as the clock shows it: "4:00", "23:00". */
@@ -99,15 +89,17 @@ const clock = (hour: number) => `${hour}:00`;
 
 /**
  * The page's tabs, as the extension's own page has them (the owner, 2026-10-17: "more organized, similar to the
- * extension settings page"): the look and what every deck shares, the keys, the extension, and the account. The tab
- * is in the address, so a reload stays on it; every tab is drawn and the others hidden, so a key half typed on one
- * survives a look at another. What an admin alone changes was a tab here until the owner gave it a screen of its own,
- * at the bar's far end (2026-10-29; `AdminView`).
+ * extension settings page"): the look and what every deck shares, the keys, Panki AI's templates (AI step 5), the
+ * extension, and the account. The tab is in the address, so a reload stays on it (and the extension opens Panki at
+ * `/settings#ai` for the templates); every tab is drawn and the others hidden, so a key half typed on one survives a
+ * look at another. What an admin alone changes was a tab here until the owner gave it a screen of its own, at the
+ * bar's far end (2026-10-29; `AdminView`).
  */
-type SettingsTab = "general" | "keys" | "extension" | "account";
+export type SettingsTab = "general" | "keys" | "ai" | "extension" | "account";
 const TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "keys", label: "Keybinds" },
+  { id: "ai", label: "Panki AI" },
   { id: "extension", label: "Extension" },
   { id: "account", label: "Account" },
 ];
@@ -180,6 +172,21 @@ const USAGE_WORDS: Record<UsageKind, (used: UsageTotals) => string> = {
   ai: (used) => (used.calls === 0 ? "No usage" : `${count(used.calls, "call", "calls")} · ${tokenWords(used.inputTokens)} tokens in · ${tokenWords(used.outputTokens)} out`),
   transcription: (used) => (used.soundMs === 0 ? "Nothing transcribed" : used.soundMs < 60_000 ? "Under a minute transcribed" : `${durationWords(used.soundMs / 1000)} transcribed`),
   wordAudio: (used) => (used.requests === 0 ? "No requests" : count(used.requests, "request", "requests")),
+};
+/**
+ * What a kind's calls were, as a second line of small print, where that's worth saying (AI step 6): Panki AI's by
+ * action, in `AI_ACTIONS`' order, "Explain 44 · Touch up 14 · Proofread 3", one with none left out; null for nothing.
+ */
+const USAGE_WHAT: Record<UsageKind, ((used: UsageTotals) => string | null) | null> = {
+  ai: (used) => {
+    const done = AI_ACTION_IDS.flatMap((id) => {
+      const calls = used.byWhat[id] ?? 0;
+      return calls > 0 ? [`${AI_ACTIONS[id].name} ${calls.toLocaleString("en")}`] : [];
+    });
+    return done.length > 0 ? done.join(" · ") : null;
+  },
+  transcription: null,
+  wordAudio: null,
 };
 
 /** The zone this device is in, by its name in the time zone database: what an account's zone starts as (`App.tsx` writes it the first time the account opens Panki). */
@@ -473,15 +480,19 @@ function UsageSection({ kind }: { kind: UsageKind }) {
       alive = false;
     };
   }, [kind, period]);
-  const row = (key: string, name: string, used: UsageTotals, all = false) => (
-    <div key={key} className={`kept-row ${all ? "is-all" : ""}`.trim()}>
-      <span className="kept-name">
-        {name}
-        <span className="row-sub">{USAGE_WORDS[kind](used)}</span>
-      </span>
-      {used.costMicros !== null ? <span className="kept-size">{estimateWords(used.costMicros)}</span> : null}
-    </div>
-  );
+  const row = (key: string, name: string, used: UsageTotals, all = false) => {
+    const what = USAGE_WHAT[kind]?.(used) ?? null;
+    return (
+      <div key={key} className={`kept-row ${all ? "is-all" : ""}`.trim()}>
+        <span className="kept-name">
+          {name}
+          <span className="row-sub">{USAGE_WORDS[kind](used)}</span>
+          {what ? <span className="row-sub">{what}</span> : null}
+        </span>
+        {used.costMicros !== null ? <span className="kept-size">{estimateWords(used.costMicros)}</span> : null}
+      </div>
+    );
+  };
   return (
     <section className="panel-section" aria-labelledby={`${kind}-usage-title`}>
       <div className="usage-head">
@@ -755,8 +766,6 @@ type PankiAiProps = {
   status: PankiAiStatus;
   /** Every answer from Panki carries the key's state with it; the panel keeps the latest. */
   onStatus: (status: PankiAiStatus) => void;
-  /** Hands the app the prompt's unsaved work, so leaving Admin with it asks first. */
-  onGuard: (guard: UnsavedGuard | null) => void;
 };
 
 /** Panki AI's limits as rows, in the order they're read (Admin → Panki AI → Limits): each a number its words follow, stepped by a sensible amount. */
@@ -764,311 +773,12 @@ const LIMIT_ROWS: readonly { key: keyof typeof AI_LIMITS; label: string; suffix?
   { key: "aiMaxRequestChars", label: "Max request length", suffix: "characters", step: 1_000 },
   { key: "aiMaxAnswerTokens", label: "Max answer length", suffix: "tokens", step: 100 },
   { key: "aiMaxTouchUpTokens", label: "Max Touch up answer length", suffix: "tokens", step: 100 },
+  { key: "aiMaxProofreadTokens", label: "Max Proofread answer length", suffix: "tokens", step: 100 },
   { key: "aiMaxFollowUps", label: "Max follow-ups", step: 1 },
   { key: "aiMaxQuestionChars", label: "Max follow-up length", suffix: "characters", step: 100 },
   { key: "aiMaxDescriptionChars", label: "Max video description length", suffix: "characters", step: 100 },
   { key: "aiSurroundingSeconds", label: "Surrounding video subtitles", suffix: "seconds before and after", step: 5 },
 ];
-
-/** A variable as a prompt names it: its piece's name in braces, "{Reading}". */
-const variableOf = (id: PromptPieceId) => `{${PIECE_NAMES[id]}}`;
-
-/** Each action's prompt, one registry: the setting it's kept in, its box's label and Panki's own default. A new action's prompt is one entry. */
-const ACTION_PROMPTS = {
-  explain: { setting: "aiExplainPrompt", label: `${AI_ACTIONS.explain.name} prompt`, fallback: DEFAULT_EXPLAIN_PROMPT },
-  touchUp: { setting: "aiTouchUpPrompt", label: `${AI_ACTIONS.touchUp.name} prompt`, fallback: DEFAULT_TOUCH_UP_PROMPT },
-} as const satisfies Record<AiActionId, { setting: keyof PankiAi; label: string; fallback: string }>;
-type PromptSetting = (typeof ACTION_PROMPTS)[AiActionId]["setting"];
-
-type ActionPromptProps = {
-  action: AiActionId;
-  /** The provider the prompt goes to, by name: what What Panki AI answers says is never shown its descriptions. */
-  provider: string;
-  /** The prompt as Panki keeps it. */
-  saved: string;
-  /** Panki AI on: off, every row of this greyed. */
-  on: boolean;
-  field: Ref<PromptFieldHandle>;
-  /** Keeps the prompt, answering it as Panki now keeps it. */
-  onSave: (setting: PromptSetting, prompt: string) => Promise<string>;
-  /** Whether it holds changes not saved, and how to save them, for the one question on leaving Admin. */
-  onDirty: (action: AiActionId, save: (() => Promise<boolean>) | null) => void;
-};
-
-/** One action's prompt, saved on purpose: Save, off while nothing's changed; Reset to default puts Panki's own back in the box, still to be saved. */
-function ActionPrompt({ action, provider, saved, on, field, onSave, onDirty }: ActionPromptProps) {
-  const { setting, label, fallback } = ACTION_PROMPTS[action];
-  const [prompt, setPrompt] = useState(saved);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const [failure, setFailure] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  /** Saves what's in the box; whether it went in (the app's question on leaving needs to know). */
-  async function save(): Promise<boolean> {
-    if (!PankiAi.shape[setting].safeParse(prompt).success) {
-      setError(prompt.trim() === "" ? "Write the prompt." : `At most ${PROMPT_MAX.toLocaleString("en")} characters.`);
-      return false;
-    }
-    setBusy(true);
-    setFailure(null);
-    try {
-      // As Panki keeps it (trimmed), so Save is off again once it's in.
-      setPrompt(await onSave(setting, prompt));
-      return true;
-    } catch (e) {
-      setFailure(said(e));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-  const dirty = prompt !== saved;
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  useEffect(() => {
-    onDirty(action, dirty ? () => saveRef.current() : null);
-  }, [action, dirty, onDirty]);
-
-  return (
-    <Form onSubmit={() => void save()} className="add-form">
-      <PromptField
-        id={`ai-${action}-prompt`}
-        label={label}
-        ref={field}
-        value={prompt}
-        disabled={!on}
-        error={error}
-        onChange={(typed) => {
-          setPrompt(typed);
-          setError(undefined);
-        }}
-      />
-      <div className="add-actions add-actions-start">
-        {failure ? (
-          <span className="form-failure" role="alert">
-            {failure}
-          </span>
-        ) : null}
-        <Button
-          id={`ai-${action}-prompt-reset`}
-          disabled={!on || busy || prompt === fallback}
-          onClick={() => {
-            setPrompt(fallback);
-            setError(undefined);
-          }}
-        >
-          <Icon name="reset" />
-          Reset to default
-        </Button>
-        <Button id={`ai-${action}-prompt-save`} type="submit" variant="primary" disabled={!on || busy || prompt === saved}>
-          Save
-        </Button>
-      </div>
-      <AnswerParts action={action} provider={provider} />
-    </Form>
-  );
-}
-
-/** An answer's parts as a list, each key's own parts indented under it. */
-function PartsList({ parts }: { parts: readonly AnswerPart[] }) {
-  return (
-    <ul className="answer-parts-list">
-      {parts.map((part) => (
-        <li key={part.key}>
-          <code>{part.key}</code>: {part.words}
-          {part.parts.length > 0 ? <PartsList parts={part.parts} /> : null}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/**
- * What an action's answers hold, folded under its prompt and read-only (the owner, 2026-10-31, who feared that editing a
- * prompt could break the app): a line a key, read off each fixed shape it answers in (`answerShapesOf`), headed by which
- * call answers in it where there's more than one (Explain's first answer and a follow-up), and that the shape is
- * Panki's whatever the prompt says.
- */
-function AnswerParts({ action, provider }: { action: AiActionId; provider: string }) {
-  const [open, setOpen] = useState(false);
-  const id = `ai-${action}-answer`;
-  return (
-    <div className="answer-parts">
-      <Button className={`ai-details-more${open ? " is-open" : ""}`} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
-        What Panki AI answers
-        <Icon name="down" />
-      </Button>
-      <Fold open={open} arrives={false}>
-        <div id={id} className="answer-parts-body">
-          {answerShapesOf(action).map((shape) => (
-            <div key={shape.title ?? "answer"} className="answer-parts-shape">
-              {shape.title ? <p className="answer-parts-title">{shape.title}</p> : null}
-              <PartsList parts={shape.parts} />
-            </div>
-          ))}
-          {[ANSWER_FIXED, answerWordsUnsent(provider)].map((note) => (
-            <p key={note} className="answer-parts-fixed">
-              <Icon name="info" />
-              {note}
-            </p>
-          ))}
-        </div>
-      </Fold>
-    </div>
-  );
-}
-
-/**
- * Every action's prompt (Explain's, Touch up's), each in its own box with its own Save, and under them Prompt context:
- * what a prompt can use, one row a piece of the one registry, each variable pressed to go in at the caret of the box
- * last in use, or copied. Greyed while Panki AI is off, as its other rows are. A prompt changed and not saved stops
- * leaving Admin with the app's one question (the owner, 2026-10-30: "yes"), whichever box it's in.
- */
-type ActionPromptsProps = {
-  saved: Pick<PankiAi, PromptSetting>;
-  provider: string;
-  on: boolean;
-  /** The limits as they're set, which Prompt context's descriptions say. */
-  limits: PieceLimits;
-  onSave: (setting: PromptSetting, prompt: string) => Promise<string>;
-  onGuard: (guard: UnsavedGuard | null) => void;
-};
-type PieceLimits = Pick<PankiAi, "aiMaxDescriptionChars" | "aiSurroundingSeconds">;
-
-function ActionPrompts({ saved, provider, on, limits, onSave, onGuard }: ActionPromptsProps) {
-  const fields = { explain: useRef<PromptFieldHandle>(null), touchUp: useRef<PromptFieldHandle>(null) };
-  /** The box a variable pressed goes into: the one last in use, Explain's to begin with. */
-  const [last, setLast] = useState<AiActionId>("explain");
-  /** Each box's save while it holds changes. */
-  const [dirty, setDirty] = useState<Partial<Record<AiActionId, () => Promise<boolean>>>>({});
-  const onDirty = useCallback((action: AiActionId, save: (() => Promise<boolean>) | null) => {
-    setDirty((was) => {
-      const next = { ...was };
-      if (save) next[action] = save;
-      else delete next[action];
-      return next;
-    });
-  }, []);
-  const saves = Object.values(dirty);
-  const any = saves.length > 0;
-  const savesRef = useRef(saves);
-  savesRef.current = saves;
-  useEffect(() => {
-    onGuard(
-      any
-        ? {
-            name: "Panki AI prompts",
-            save: async () => {
-              for (const save of savesRef.current) if (!(await save())) return false;
-              return true;
-            },
-          }
-        : null,
-    );
-  }, [any, onGuard]);
-  useEffect(() => () => onGuard(null), [onGuard]);
-  // A reload or a closed tab gets the browser's own question, the one place a page can't draw its own.
-  useEffect(() => {
-    if (!any) return;
-    const onUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onUnload);
-    return () => window.removeEventListener("beforeunload", onUnload);
-  }, [any]);
-
-  return (
-    <section className="panel-section" aria-labelledby="ai-context-title">
-      {AI_ACTION_IDS.map((action) => (
-        <div key={action} onFocus={() => setLast(action)}>
-          <ActionPrompt action={action} provider={provider} saved={saved[ACTION_PROMPTS[action].setting]} on={on} field={fields[action]} onSave={onSave} onDirty={onDirty} />
-        </div>
-      ))}
-      <h3 id="ai-context-title" className="panel-subtitle">
-        Prompt context
-      </h3>
-      <PromptContext on={on} limits={limits} onInsert={(text) => fields[last].current?.insert(text)} />
-    </section>
-  );
-}
-
-/**
- * Every piece a prompt can use, drawn from the registry (`PROMPT_PIECE_IDS`), never typed out here: the variable, pressed
- * to go in at the prompt's caret, with Copy beside it; what it holds, its numbers read from the limits as they're set;
- * and where it comes from, in the field mapping's own words.
- */
-function PromptContext({ on, limits, onInsert }: { on: boolean; limits: PieceLimits; onInsert: (text: string) => void }) {
-  return (
-    <div className="prompt-context" role="table" aria-label="Prompt context">
-      <div className="prompt-context-row is-head" role="row">
-        <span role="columnheader">Variable</span>
-        <span role="columnheader">Description</span>
-        <span role="columnheader">Source</span>
-      </div>
-      {PROMPT_PIECE_IDS.map((id) => (
-        <div key={id} className="prompt-context-row" role="row">
-          <span className="prompt-context-var" role="cell">
-            <Button id={`ai-variable-${id}`} variant="chip" className="prompt-var-chip" disabled={!on} onClick={() => onInsert(variableOf(id))}>
-              {variableOf(id)}
-            </Button>
-            <CopyButton id={`ai-variable-${id}-copy`} text={variableOf(id)} disabled={!on} />
-          </span>
-          <span role="cell">{pieceAbout(id, limits)}</span>
-          <span className="prompt-context-source" role="cell">
-            {SOURCE_WORDS[PIECE_SOURCES[id]]}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** What pressing Copy came to, said on the button until the pointer leaves it or it loses the focus (never on a timer). */
-type Copied = "copied" | "failed" | null;
-const COPY_LOOKS: Record<"copy" | "copied" | "failed", { icon: "copy" | "check" | "alert"; words: string }> = {
-  copy: { icon: "copy", words: "Copy" },
-  copied: { icon: "check", words: "Copied" },
-  failed: { icon: "alert", words: "Couldn't copy" },
-};
-
-/** Some words to the clipboard: Copy, then Copied with a tick. Its words are stacked, so it's as wide in every state. */
-function CopyButton({ id, text, disabled }: { id: string; text: string; disabled: boolean }) {
-  const [copied, setCopied] = useState<Copied>(null);
-  const now = copied ?? "copy";
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied("copied");
-    } catch {
-      setCopied("failed");
-    }
-  }
-  return (
-    <Button
-      id={id}
-      variant="ghost"
-      className="prompt-context-copy"
-      disabled={disabled}
-      onClick={() => void copy()}
-      // A finger "leaves" as it lifts, so on a touch screen only the focus moving on says it's done.
-      onPointerLeave={(e) => {
-        if (e.pointerType === "mouse") setCopied(null);
-      }}
-      onBlur={() => setCopied(null)}
-    >
-      <Icon name={COPY_LOOKS[now].icon} />
-      <span className="copy-words" role="status">
-        {/* Copy and Copied hold the width; the rare Couldn't copy is let widen it rather than every button stand that wide. */}
-        {(now === "failed" ? (["failed"] as const) : (["copy", "copied"] as const)).map((look) => (
-          <span key={look} aria-hidden={look === now ? undefined : true}>
-            {COPY_LOOKS[look].words}
-          </span>
-        ))}
-      </span>
-    </Button>
-  );
-}
 
 /**
  * Panki AI's limits, everyone's, held by the server (the owner, 2026-10-30: "just so I know it's there… and maybe even
@@ -1111,10 +821,11 @@ function AiLimits({ current, on, patch }: { current: PankiAi; on: boolean; patch
 /**
  * Panki AI, for everyone (2026-10-30, the AI's first step): whether it's on, the provider and its model (greyed while
  * it's off, as a panel's switch greys its rows), each saved a moment after it's changed; the model's listed price under
- * it; the provider's key; Explain's prompt with Prompt context, and the limits (step 2, greyed while it's off too); and
- * what it's been used for.
+ * it; the provider's key; the limits (step 2, greyed while it's off too); and what it's been used for. The prompts stood
+ * here, everyone's, with Prompt context and What Panki AI answers, until AI step 5 made them each account's templates
+ * (Settings → Panki AI, `AiTemplateView`).
  */
-function PankiAiSection({ status, onStatus, onGuard }: PankiAiProps) {
+function PankiAiSection({ status, onStatus }: PankiAiProps) {
   const [current, patch, failure] = useSavedSoon<PankiAi>(status.settings, async (change) => {
     const next = await api.updateAi(change);
     onStatus(next);
@@ -1157,18 +868,6 @@ function PankiAiSection({ status, onStatus, onGuard }: PankiAiProps) {
         why={`${priceWords(model)}, per million tokens.`}
       />
       <KeyPanel id="ai-key" title={provider.name} from={provider.vendor} label="API key" status={status.key} saved={status.saved} schema={AiKeyUpdate} onSave={async (key) => onStatus(await api.setAiKey(current.aiProvider, key))} />
-      <ActionPrompts
-        saved={status.settings}
-        provider={provider.name}
-        on={current.aiOn}
-        limits={current}
-        onSave={async (setting, prompt) => {
-          const next = await api.updateAi({ [setting]: prompt });
-          onStatus(next);
-          return next.settings[setting];
-        }}
-        onGuard={onGuard}
-      />
       <AiLimits current={current} on={current.aiOn} patch={patch} />
       <UsageSection kind="ai" />
     </section>
@@ -1358,7 +1057,7 @@ function ExtensionPanel() {
  * read, what it all takes on the disk. Every tab is drawn and the others hidden, as Settings' are, so a key half typed
  * on one survives a look at another; each loads as the screen opens.
  */
-function AdminPanel({ tab, onGuard }: { tab: AdminTab; onGuard: (guard: UnsavedGuard | null) => void }) {
+function AdminPanel({ tab }: { tab: AdminTab }) {
   const [transcription, setTranscription] = useState<TranscriptionStatus | null>(null);
   const [wordAudio, setWordAudio] = useState<WordAudioStatus | null>(null);
   const [ai, setAi] = useState<PankiAiStatus | null>(null);
@@ -1410,8 +1109,8 @@ function AdminPanel({ tab, onGuard }: { tab: AdminTab; onGuard: (guard: UnsavedG
         {wordAudio ? <WordAudioSection status={wordAudio} onStatus={setWordAudio} /> : failure ? null : <LoadingPanel id="word-audio" title="Word audio" rows={8} />}
       </div>
       <div className="settings-tab" hidden={tab !== "ai"}>
-        {/* The rows its height comes to with Explain's prompt, Prompt context and Limits under the key, worked out from a setting row's height, not measured. */}
-        {ai ? <PankiAiSection status={ai} onStatus={setAi} onGuard={onGuard} /> : failure ? null : <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={47} />}
+        {/* The rows its height comes to with the key, Limits and Usage under it (the prompts went to the templates, AI step 5), worked out from a setting row's height, not measured. */}
+        {ai ? <PankiAiSection status={ai} onStatus={setAi} /> : failure ? null : <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={20} />}
       </div>
       <div className="settings-tab" hidden={tab !== "dictionaries"}>
         <DictionariesPanel />
@@ -1429,7 +1128,7 @@ function AdminPanel({ tab, onGuard }: { tab: AdminTab; onGuard: (guard: UnsavedG
  * `.settings-tab`s, so it stands as wide as Settings does. Its pieces are Settings' own (`Setting`, `KeyPanel`), so it
  * stays in this file.
  */
-export function AdminView({ onGuard }: { onGuard: (guard: UnsavedGuard | null) => void }) {
+export function AdminView() {
   const [tab, setTab] = useState<AdminTab>(() => tabOfAddress(ADMIN_TABS) ?? "transcription");
   function choose(next: AdminTab) {
     setTab(next);
@@ -1438,7 +1137,7 @@ export function AdminView({ onGuard }: { onGuard: (guard: UnsavedGuard | null) =
   return (
     <>
       <Segmented idPrefix="admin-tab" label="Admin" options={ADMIN_TABS} value={tab} wraps onChange={choose} />
-      <AdminPanel tab={tab} onGuard={onGuard} />
+      <AdminPanel tab={tab} />
     </>
   );
 }
@@ -1599,7 +1298,7 @@ function DictionariesPanel() {
  * it's made. Last, the devices signed in and the watch history. (What every account shares is an admin's own screen,
  * `AdminView`.)
  */
-export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }: Props) {
+export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, ai, onOpenTemplate, onNewTemplate }: Props) {
   const [current, patch, failure] = useSavedSoon<Settings>(settings, onChange);
   const zones = useMemo(() => zoneOptions(current.timeZone), [current.timeZone]);
   const [theme, setTheme] = useState<ThemeId>(readTheme);
@@ -1634,7 +1333,8 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
 
   return (
     <>
-      <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} onChange={choose} />
+      {/* Five tabs since Panki AI joined them: on a phone, rows of three, as Admin's are. */}
+      <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} wraps onChange={choose} />
       <div className="settings-tab" hidden={shown !== "general"}>
         {failure ? (
           <p className="load-error" role="alert">
@@ -1722,6 +1422,20 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll }
       {/* The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"). */}
       <div className="settings-tab" hidden={shown !== "keys"}>
         <KeysPanels />
+      </div>
+
+      {/* Panki AI's templates, each account's own, when a run asks first and when its cost is shown (AI step 5, 2026-11-01). */}
+      <div className="settings-tab" hidden={shown !== "ai"}>
+        <AiTemplatesTab
+          ai={ai}
+          defaults={current.aiDefaults}
+          askOver={current.aiAskOverMicros}
+          onAskOver={(aiAskOverMicros) => patch({ aiAskOverMicros })}
+          showCostOver={current.aiShowCostOverMicros}
+          onShowCostOver={(aiShowCostOverMicros) => patch({ aiShowCostOverMicros })}
+          onOpen={onOpenTemplate}
+          onNew={onNewTemplate}
+        />
       </div>
 
       {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}

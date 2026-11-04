@@ -2913,14 +2913,50 @@ mark.review-mark {
   color: inherit;
   background: var(--accent-soft);
 }
-/* What Panki AI wrote, on a review card and a card's row: its spark before the words, sized by them (AI.md). */
-.ai-spark.review-ai,
-.ai-spark.card-ai,
+/* What Panki AI wrote (the owner, 2026-11-04): its words in the AI's ink wherever a value is shown, whatever the part's
+   own colour; the spark out of the text, once: in the review card's free top corner, at a card row's top right, inside
+   a drawer field's box before its value, and before its name when the layout shows the name. */
+.review-card .review-part .review-words.is-ai,
+.review-card .review-ruby-text.is-ai,
+.card-row :is(.card-word, .card-front, .card-back).is-ai,
+.field.has-lead:has(.field-ai) .field-input {
+  color: var(--ai-ink);
+}
+.review-label.is-ai {
+  color: var(--accent);
+}
+.ai-spark.review-label-ai {
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.4em;
+  vertical-align: -0.1em;
+}
+.ai-spark.review-ai-corner {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+.ai-spark.review-ai-corner.is-top-left {
+  right: auto;
+  left: 18px;
+}
+.ai-spark.card-ai {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+}
+.card-state-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .ai-spark.field-ai {
   width: 0.7em;
   height: 0.7em;
-  margin-right: 0.3em;
-  vertical-align: 0.05em;
   color: var(--accent);
 }
 
@@ -3784,7 +3820,7 @@ mark.sub-mark {
     padding-inline: 4px;
     font-size: 13px;
   }
-  /* Admin's five tabs don't fit a phone in one row: rows of three. */
+  /* Admin's five tabs, and Settings' since Panki AI joined them, don't fit a phone in one row: rows of three. */
   .segmented.is-wrapping {
     grid-auto-flow: row;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3882,8 +3918,44 @@ mark.sub-mark {
    than other pages, a little less than the editors (`.app.is-wide`): on every tab alike, so changing tabs never
    changes its width (it widened for Admin alone until the owner, 2026-10-21: "clicking admin changes the size of it all"). */
 .app:has(.settings-tab) .main,
-.app:has(.settings-tab) .subhead {
+.app:has(.settings-tab) .subhead,
+.app.is-settings .main,
+.app.is-settings .subhead {
   max-width: 1000px;
+}
+
+/* Panki AI's templates (Settings → Panki AI, AI step 5). In a list, the one an action's button runs says so after its
+   name, in the accent with the star; one of Panki's own carries the lock before its name in the editor's header. */
+.template-default {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+.template-row .template-default .icon {
+  width: 12px;
+  height: 12px;
+}
+.title-locked .icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: -1px;
+  color: var(--muted);
+}
+.ai-template-editor {
+  display: grid;
+  gap: 18px;
+}
+/* A setting that's shown, not set: what a run of the template can cost. */
+.setting-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* A transcription mode named in a sentence (components/ModeChip.tsx): its icon and its name on a soft highlight. */
@@ -6363,5 +6435,1018 @@ mark.sub-mark {
   }
   .w-ring {
     width: 88px;
+  }
+}
+
+/* ---------- Panki AI on a page: Explain in the pop-up, Touch up in the drawer ----------
+   The extension draws them on someone else's page and Settings → Panki AI's explainers draw them at work
+   (components/AiRun.tsx, components/TouchUp.tsx, explainers/aiScenes.tsx), so their looks are the app's: the pop-up's
+   frame and its word, the drawer's frame and its first row, and every AI part in them. What only the extension draws
+   of the pop-up and the drawer stays in its extension.css. */
+
+/* The pop-up over a page, and the word it's for, lit. On a page both stand in a place of Panki's laid over the whole
+   window that lets every press through but the ones on the pop-up itself. */
+.look-lit {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.look {
+  position: absolute;
+  pointer-events: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  /* Its own ink, whatever it stands on: inside a page of another colour (an explainer's news page) it read dark on dark. */
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.look-dict-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.look-word {
+  display: grid;
+  gap: 6px;
+}
+.look-word + .look-word {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.look-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 12px;
+}
+.look-term {
+  font-family: var(--font-ja), var(--font);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.look-term rt {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* A reading with its pitch in the pop-up: the app's own drawing (`.pitch-accent`), small and quiet here. */
+.look-pitch {
+  padding-bottom: 4px;
+  font-family: var(--font-ja), var(--font);
+  font-size: 14px;
+  color: var(--muted);
+}
+.btn.look-add {
+  margin-left: auto;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.look-dict {
+  display: grid;
+  gap: 2px;
+}
+.look-senses {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 20px;
+}
+.look-senses > li::marker {
+  font-weight: 700;
+  color: var(--muted);
+}
+.look-senses .look-tags {
+  display: inline-flex;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+/* A meaning Explain judged (the extension's Lookup.tsx → `SenseRow`, `JudgedRow`, `.judged`): its number in its
+   accuracy's colour. */
+.look-senses > li.ai-accuracy::marker {
+  color: var(--accuracy);
+}
+
+/* The capture drawer: the app's panel, lifted off a page that isn't the app's. Top to bottom: Touch up and Add, the
+   clip, the deck, the card's fields, the card as a review will show it. */
+.capture {
+  box-shadow: var(--shadow);
+}
+.capture-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.capture-head .panel-title {
+  margin: 0;
+}
+/* Nothing in the drawer is ever wider than the drawer: a long word breaks, it doesn't push the column out. */
+.capture .add-form > * {
+  min-width: 0;
+}
+/* The drawer's first row, right under its head (its last until 2026-10-31; Discard went the same day, the × being the
+   way out): Touch up, then Add, the primary, taking the rest. Both the drawer's own button size. Add takes a row of its
+   own only where the two can't share one. */
+.capture-ends {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.btn.capture-add {
+  flex: 1 1 auto;
+}
+/* Touch up with what it can cost, or why it can't run, right under it, as a setting's line stands under its row. */
+.capture-touch {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+.capture-touch .btn.touch-up-go {
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: inherit;
+}
+.capture-touch .btn.ai-split-arrow {
+  padding: 8px 9px;
+}
+.touch-up-cost {
+  max-width: 16em;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Explain (the extension's ui/Explain.tsx): Panki AI under the word shown. Before it runs, its button with the most it
+   can cost (or why it can't run) beside it; then the spark's head, each answer as plain paragraphs rising in as it
+   lands (the app's `intro-rise`), each follow-up a quiet bubble at the right, Panki's own note under an answer cut
+   short, and the follow-up asked under the last. It scrolls with the pop-up; nothing in it moves the pop-up. The head is
+   `AiStatus`. Its classes are `ai-explain-*`: `explain-*` are the explainers (`components/Explainer.tsx`). */
+.ai-explain-start,
+.ai-explain-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.btn.ai-explain-button {
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.btn.ai-explain-button > .ai-spark {
+  color: var(--accent);
+}
+.btn.ai-explain-button:disabled > .ai-spark {
+  color: inherit;
+}
+.ai-explain-beside {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ai-explain {
+  display: grid;
+  gap: 10px;
+}
+.ai-explain-turn {
+  display: grid;
+  gap: 8px;
+}
+.ai-explain-answer {
+  display: grid;
+  gap: 8px;
+  animation: intro-rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+/* The model's words as it wrote them: its single line breaks kept, nothing of it read as markup. */
+.ai-explain-answer > p {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.ai-explain-question {
+  justify-self: end;
+  max-width: 85%;
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 14px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* Panki's own word on an answer, never the AI's: the app's muted look on its second surface, the info sign, no spark. */
+.ai-explain-cut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ai-explain-cut > .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Touch up in the drawer (AI step 3): its head over the card's fields, a proposal under each field it's for. */
+.touch-up.ai-explain {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.touch-up-all {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* A field and what Touch up says about it, one shape (the owner, 2026-10-31: a proposal must be plainly its field's;
+   TouchUp.tsx → `Tied`), in Panki's verdict's colour: `--accuracy`, the meanings' own (`.ai-accuracy.is-…`: good green,
+   meh orange, bad red), or the accent where nothing is wrong but something is offered. The field's box in it, its foot
+   squared, and the note hanging straight from it, the box's sides carried on down round the note to one rounded end. */
+.touch-up-tied {
+  display: grid;
+}
+.touch-up-tied.is-accent {
+  --accuracy: var(--accent);
+}
+/* The field's own box, never the follow-up's in the note under it (`:not(.touch-up-foot)`). */
+.touch-up-tied > :not(.touch-up-foot) .field-input:not(.field-behind) {
+  border-color: var(--accuracy);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* While a proposal waits, the field's box is the diff in its place (`.touch-up-diff`): the box itself hidden, its label
+   kept, and it's back as the proposal's decided. */
+.touch-up-tied.is-diffing > :not(.touch-up-foot) :is(.field-input, .field-marked, .field-lead) {
+  display: none;
+}
+.touch-up-diff {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--accuracy);
+  border-radius: 10px 10px 0 0;
+  background: var(--surface);
+  font-size: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.touch-up-foot {
+  display: grid;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--accuracy);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
+  animation: intro-rise 0.32s ease-out both;
+}
+.touch-up-note {
+  display: grid;
+  gap: 6px;
+}
+/* A note's line, the spark and its words in the verdict's colour, with the chevron at its end that folds its why
+   (TouchUp.tsx → `WithReason`, the meaning rows' `WhyButton`, whose colour is `--accuracy` too). */
+.touch-up-why-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.touch-up-why-row > .btn.judged-why {
+  margin-left: auto;
+}
+.touch-up-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accuracy);
+}
+.touch-up-reason {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.touch-up-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* The diff, git's way (TouchUp.tsx → `Mark`): what goes struck in its verdict's colour, what comes in green, each on
+   its colour's faint tint (`.ai-accuracy-lit`); only the tint's shape and the strike are set here. */
+.touch-up-d {
+  padding: 0 3px;
+  border-radius: 4px;
+  color: var(--accuracy);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.touch-up-d.is-out {
+  text-decoration: line-through;
+  text-decoration-color: var(--accuracy);
+}
+.touch-up-d.is-block {
+  display: block;
+  width: fit-content;
+  margin-top: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .touch-up-foot {
+    animation: none;
+  }
+}
+.ai-explain-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.ai-explain-failure > .form-failure {
+  margin: 0;
+}
+.ai-explain-ask {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+/* A field's own follow-up, under its note (AI step 5): the same, a little quieter. */
+.ai-explain-ask.is-small {
+  padding-top: 8px;
+  border-top-color: color-mix(in srgb, var(--accuracy, var(--line)) 30%, var(--line));
+}
+.ai-explain-ask.is-small .field-label {
+  font-size: 12.5px;
+}
+/* An action's button and its arrow, one shape (AiRun.tsx → `TemplateMenu`): the arrow joined to the button's end, the
+   templates' menu under both. */
+.ai-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+.ai-split > .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.ai-split > .btn.ai-split-arrow {
+  margin-left: -1px;
+  padding-inline: 6px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.ai-split > .btn.ai-split-arrow .icon {
+  width: 14px;
+  height: 14px;
+}
+/* Placed in the window by `useAnchored`, under the button or over it, so the pop-up's scroll never cuts it off. */
+.menu.ai-templates {
+  position: fixed;
+  z-index: 20;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(320px, 86vw);
+  padding: 4px;
+  gap: 2px;
+}
+/* Ask before a run over (AiRun.tsx → `RunAsk`): a question about money, not a loss, so tinted in the accent rather
+   than the danger colours a question that takes something away has. */
+.ai-run-ask {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  animation: intro-rise 0.32s ease-out both;
+}
+.ai-run-ask .question {
+  margin: 0;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-run-ask,
+  .ai-explain-answer {
+    animation: none;
+  }
+}
+
+/* ---------- What a feature is, shown (components/Explainer.tsx) ----------
+   A (?) beside a panel's title; its window holds a browser with a page in it, the feature being used there. The page
+   is drawn at a real page's size (CANVAS) and scaled to the window, so Panki's components keep their own sizes. The
+   extension's options page and Settings → Panki AI both have them. */
+/* The title and its (?) on one line, centred on each other: the title's own space under it is the row's. */
+.explain-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.explain-head .panel-title {
+  margin: 0;
+}
+.explain {
+  position: relative;
+  display: inline-flex;
+  z-index: 20;
+}
+/* Open, over everything after it on the page, the other panels' (?) among them. */
+.explain.is-open {
+  z-index: 40;
+}
+.btn.explain-q {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font: 800 12px/1 var(--font);
+  cursor: help;
+}
+/* A (?) with words after a setting's label (components/HintMark.tsx): the same mark, its Tip placed over it. */
+.hint-mark {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+.hint-mark .tip {
+  max-width: 300px;
+  white-space: normal;
+}
+.btn.explain-q:hover,
+.btn.explain-q[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.explain-window {
+  position: absolute;
+  left: -12px;
+  top: calc(100% + 10px);
+  width: min(760px, calc(100vw - 48px));
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--theater) 30%, transparent);
+  animation: explain-in 0.16s ease-out;
+}
+@keyframes explain-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* On a phone the window hangs from the whole title row, as wide as the panel, never past the screen's edge (the page in
+   it scales to fit, as it does in any width). */
+@media (max-width: 640px) {
+  .explain-head {
+    position: relative;
+    z-index: 40;
+  }
+  .explain-head > .explain {
+    position: static;
+  }
+  .explain-window {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}
+.explain-stage {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.explain-chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--surface-2);
+}
+.explain-dots {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.explain-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.explain-dots i:nth-child(1) {
+  background: var(--mark-red);
+}
+.explain-dots i:nth-child(2) {
+  background: var(--mark-yellow);
+}
+.explain-dots i:nth-child(3) {
+  background: var(--mark-green);
+}
+.explain-tab {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 34%;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9px 9px 0 0;
+  background: var(--surface);
+  font: 600 12px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.explain-tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.explain-favicon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+}
+.explain-favicon.is-news {
+  background: var(--mark-red);
+}
+.explain-favicon.is-video {
+  background: var(--mark-red);
+  border-radius: 4px;
+}
+.explain-address {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 500 12px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.explain-lock {
+  flex: none;
+  width: 9px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.6;
+}
+.explain-view {
+  position: relative;
+  overflow: hidden;
+  background: var(--page);
+}
+/* The camera framing what a moment is about, slowly (the owner, 2026-10-28: "subtle and smooth… make sure it doesn't cut off"). */
+.explain-camera {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  transition: transform 0.95s cubic-bezier(0.4, 0.1, 0.2, 1);
+}
+.explain-page {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  font-family: var(--font);
+}
+.explain-pointer {
+  position: absolute;
+  z-index: 60;
+  width: 18px;
+  pointer-events: none;
+  transition:
+    left 0.5s cubic-bezier(0.45, 0.05, 0.25, 1),
+    top 0.5s cubic-bezier(0.45, 0.05, 0.25, 1),
+    transform 0.12s;
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--theater) 35%, transparent));
+}
+.explain-pointer svg {
+  display: block;
+  width: 100%;
+}
+.explain-pointer path {
+  fill: var(--theater-ink);
+  stroke: var(--theater);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+.explain-pointer.is-down {
+  transform: scale(0.86);
+}
+.explain-ripple {
+  position: absolute;
+  z-index: 59;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: explain-ripple 0.55s ease-out forwards;
+}
+@keyframes explain-ripple {
+  from {
+    transform: scale(0.2);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+/* The keys being held, at the window's corner, as the review draws keys (`.key`). */
+.explain-keys {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 70;
+  display: flex;
+  gap: 6px;
+}
+.explain-keys > span {
+  display: inline-flex;
+  animation: explain-in 0.16s ease-out;
+}
+.explain-keys .key {
+  min-width: 34px;
+  height: 30px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--theater) 25%, transparent);
+  transition:
+    transform 0.12s,
+    border-bottom-width 0.12s,
+    background 0.12s;
+}
+.explain-keys .is-down .key {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .explain-camera,
+  .explain-pointer {
+    transition: none;
+  }
+}
+
+/* A video's thumbnail (the owner's picks, bundled: explainers/thumbs/), cropped to its box as the site crops it. */
+.ex-thumb,
+.ex-frame {
+  display: block;
+  width: 100%;
+  object-fit: cover;
+  background: var(--site-dark-raised);
+}
+/* The picture of the video being watched, filling the player. */
+.ex-frame {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+/* The corner of a card's picture: how much is left, or the video's length, as the site's own badge (the extension's
+   YouTube home draws it on its shelves too). */
+.yc-time {
+  position: absolute;
+  right: 4px;
+  bottom: 7px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theater) 80%, transparent);
+  color: var(--theater-ink);
+  font: 500 11px/1 var(--yh-font);
+}
+/* A video site, dark, in its own colours (explainers/site.tsx): what Panki draws there reads them as it does on the
+   site (--yt-spec-*). */
+.ex-yt {
+  position: absolute;
+  inset: 0;
+  background: var(--site-dark);
+  color: var(--site-dark-ink);
+  --yt-spec-text-primary: var(--site-dark-ink);
+  --yt-spec-text-secondary: var(--site-dark-muted);
+  --yt-spec-badge-chip-background: var(--site-dark-raised);
+  --yt-spec-10-percent-layer: var(--site-dark-line);
+  --yt-spec-base-background: var(--site-dark);
+}
+.ex-yt-top {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 56px;
+  padding: 0 24px;
+}
+.ex-yt-menu {
+  flex: none;
+  width: 22px;
+  height: 15px;
+  background: repeating-linear-gradient(var(--site-dark-ink) 0 2px, transparent 2px 6.5px);
+  opacity: 0.85;
+}
+.ex-yt-mark {
+  flex: none;
+  width: 90px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--site-dark-raised);
+}
+.ex-yt-search {
+  flex: 0 1 420px;
+  height: 38px;
+  margin-left: 80px;
+  border: 1px solid var(--site-dark-line);
+  border-radius: 19px;
+  background: var(--site-dark);
+}
+.ex-yt-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--mark-blue), var(--mark-violet));
+}
+.ex-yt-left {
+  position: absolute;
+  left: 24px;
+  top: 64px;
+  width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ex-video {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: var(--theater);
+}
+.ex-video.is-paused .ex-frame {
+  filter: brightness(0.75);
+}
+.ex-yt-title {
+  margin: 0;
+  font: 700 20px/1.35 var(--font-ja, var(--font));
+}
+.ex-yt-channel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ex-yt-face {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--site-dark-raised);
+}
+.ex-yt-name {
+  display: grid;
+  font: 700 15px var(--font);
+}
+.ex-yt-name small {
+  color: var(--site-dark-muted);
+  font: 500 12px var(--font);
+}
+.ex-yt-sub {
+  margin-left: 16px;
+  padding: 9px 16px;
+  border-radius: 18px;
+  background: var(--site-dark-ink);
+  color: var(--site-dark);
+  font: 700 14px var(--font);
+}
+.ex-yt-side {
+  position: absolute;
+  right: 24px;
+  top: 64px;
+  width: 360px;
+  display: grid;
+  gap: 10px;
+}
+.ex-rec {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  gap: 10px;
+}
+.ex-rec-pic {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+}
+.ex-rec-pic .ex-thumb {
+  height: 100%;
+}
+.ex-rec-words {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.ex-rec-words b {
+  font: 600 14px/1.35 var(--font-ja, var(--font));
+}
+.ex-rec-words small {
+  color: var(--site-dark-muted);
+  font: 500 12px var(--font);
+}
+/* The capture drawer on that page, beside the video, sliding in. */
+.ex-drawer {
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  width: 380px;
+  transform: translateX(110%);
+  transition: transform 0.45s cubic-bezier(0.3, 0.1, 0.2, 1);
+}
+.ex-drawer.is-open {
+  transform: none;
+}
+/* Taller than the page has room for (a card Touch up has spoken to), it scrolls inside itself, as the scene reads on. */
+.ex-drawer > .capture {
+  max-height: 540px;
+  overflow: hidden;
+}
+/* Panki subtitles over the video, the app's subtitle band. */
+.ex-over {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8%;
+  display: flex;
+  justify-content: center;
+}
+.ex-over .sub-band {
+  margin-left: 0;
+  transform: none;
+}
+/* The Panki panel under the player, as Proofread's explainer draws it (explainers/aiScenes.tsx → `ProofreadScene`): its
+   head with the source and the Transcription menu's button (the AI status's own look, `.ai-status-button`, a size up),
+   the menu of the app's menu rows opening over the video (the page has no room under it), and the rows of Panki
+   subtitles, each with its pencil. The extension's own panel (`.strip`, extension.css) is drawn on a video's page alone,
+   so the scene's shapes are these, sized as its are. */
+.ex-under {
+  display: grid;
+  gap: 4px;
+  padding: 8px 14px 10px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.ex-under-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ex-under-name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.ex-under-head .btn-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.ex-under-tools {
+  position: relative;
+  margin-left: auto;
+}
+.btn.ai-status-button.ex-under-status {
+  gap: 7px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.menu.ex-under-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 6px);
+  width: 340px;
+  max-height: none;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg);
+}
+.ex-under-covered {
+  margin: 0;
+  padding: 2px 10px;
+  font-weight: 700;
+}
+.ex-under-covered .is-all {
+  color: var(--good);
+}
+/* A part of the menu: its title (Panki AI's the spark's own head, `AiStatus` once it has run), then its items. */
+.ex-under-part {
+  display: grid;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.ex-under-part > .ai-status-name,
+.ex-under-part > .ai-status {
+  padding: 2px 10px 4px;
+}
+.ex-under-part .btn-item > .ai-spark {
+  color: var(--accent);
+}
+.ex-under-rows {
+  display: grid;
+  font-size: 20px;
+  line-height: 1.5;
+}
+.ex-under-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ex-under-row > .ai-waiting,
+.ex-under-line {
+  flex: 1;
+  min-width: 0;
+}
+.ex-under-line {
+  display: block;
+  font-family: var(--font-ja), var(--font);
+  white-space: nowrap;
+}
+/* The pencil at a row's end, always shown; while Proofread works, the spark turning in its place, the same size. */
+.btn.ex-under-pencil,
+.ex-under-pencil {
+  flex: none;
+  padding: 4px;
+  border-color: transparent;
+}
+span.ex-under-pencil {
+  display: inline-grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  color: var(--accent);
+}
+.ex-under-pencil .icon {
+  width: 15px;
+  height: 15px;
+}
+/* A word Proofread put right: lit in the accent, a small spark after it, rising in as it lands. */
+.ex-under-ai {
+  display: inline-block;
+  padding: 0 2px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  animation: intro-rise 0.35s ease-out both;
+}
+.ai-spark.ex-under-spark {
+  width: 0.45em;
+  height: 0.45em;
+  margin-left: 0.08em;
+  vertical-align: 0.7em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ex-under-ai {
+    animation: none;
   }
 }

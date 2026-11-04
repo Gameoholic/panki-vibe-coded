@@ -12,6 +12,8 @@ type Props = {
   error?: string | undefined;
   /** Shown, greyed, while what it belongs to is switched off. */
   disabled?: boolean;
+  /** Shown, not edited: one of Panki's own templates, to read and copy from. */
+  readOnly?: boolean;
   ref?: Ref<PromptFieldHandle>;
 };
 
@@ -26,9 +28,10 @@ const within = (known: readonly Variable[], at: number) => known.find((v) => at 
  * a box can't colour part of its own text, so the text is drawn once more under it, in the same type and the same room,
  * and the box's own text is see-through, its caret showing. The copy under it is what gives the field its height, so
  * it grows with its text, never scrolling. A known variable is one thing: Backspace or Delete next to it takes it
- * whole, the arrow keys step over it, and the caret never rests inside one. Admin → Panki AI's Explain prompt is this.
+ * whole, the arrow keys step over it, and the caret never rests inside one. A template's Prompt and Follow-up prompt are
+ * this (Settings → Panki AI).
  */
-export function PromptField({ id, label, value, onChange, error, disabled = false, ref }: Props) {
+export function PromptField({ id, label, value, onChange, error, disabled = false, readOnly = false, ref }: Props) {
   const box = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
   const variables = useMemo(() => variablesIn(value), [value]);
@@ -39,7 +42,7 @@ export function PromptField({ id, label, value, onChange, error, disabled = fals
     () => ({
       insert(text: string) {
         const el = box.current;
-        if (!el || el.disabled) return;
+        if (!el || el.disabled || el.readOnly) return;
         el.focus();
         // Typed in as if by hand, so the box's own undo takes it back; the browser's own way, where it still has it.
         if (document.execCommand("insertText", false, text)) return;
@@ -114,6 +117,7 @@ export function PromptField({ id, label, value, onChange, error, disabled = fals
           className="field-input prompt-input"
           value={value}
           disabled={disabled}
+          readOnly={readOnly}
           spellCheck={false}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}

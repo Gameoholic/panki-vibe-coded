@@ -448,6 +448,24 @@ export const Settings = z.object({
    * settings… extension right?"); an admin's for everyone from 2026-10-25 until then. 20 to begin with.
    */
   finishedWithinSec: z.number().int().min(0).max(600),
+  /**
+   * Above what a Panki AI run asks first, with its cost, in micro-dollars (AI step 5, Settings → Panki AI → Ask before a
+   * run over; the choices are `aiTemplates.ts` → `ASK_OVER`): null never asks, 0 always does. $0.01 to begin with, so
+   * Explain on Claude Haiku 5.5 never asks and on Claude Opus 5.5 does. A new key, so no migration.
+   */
+  aiAskOverMicros: z.number().int().nonnegative().max(100_000_000).nullable(),
+  /**
+   * From what a Panki AI run's cost ("Up to $0.0006 (est.)") is shown beside it, in micro-dollars (Settings → Panki AI →
+   * Show the cost when a run is over; the owner, 2026-11-01: "don't display it if it's lower than X"; the same choices,
+   * `ASK_OVER`): null never shows it, 0 always does, as to begin with. A new key, so no migration.
+   */
+  aiShowCostOverMicros: z.number().int().nonnegative().max(100_000_000).nullable(),
+  /**
+   * Each Panki AI action's default template, by the action's id (`AiActionId`; a plain string here, `ai.ts` reading
+   * this file) and the template's: what its button runs. One left out, or naming a template that's gone, is the
+   * action's first starter (`aiTemplates.ts` → `defaultTemplateIdOf`).
+   */
+  aiDefaults: z.record(z.string().max(32), z.string().min(1).max(64)),
   // `dailyGoal` (minutes a day that kept the watch streak) went with the streak, 2026-10-21. A row kept of it is read by nothing.
   // `shareWatching` (Off, Minutes and streak, Also what I watch) went the same day: "either we share all or nothing". A row kept of it is read by nothing.
 });
@@ -460,6 +478,9 @@ export const DEFAULT_SETTINGS: Settings = {
   appLanguage: "eng",
   videoTracking: false,
   finishedWithinSec: 20,
+  aiAskOverMicros: 10_000,
+  aiShowCostOverMicros: 0,
+  aiDefaults: {},
 };
 export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;

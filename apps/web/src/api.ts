@@ -11,8 +11,12 @@ import {
   EngineAccountResponse,
   ExtensionBuildResponse,
   PankiAiResponse,
+  AiTemplateResponse,
   UsageResponse,
   type AiProviderId,
+  type AiTemplate,
+  type AiTemplateUpdate,
+  type NewAiTemplate,
   type PankiAiStatus,
   type PankiAiUpdate,
   type UsageKind,
@@ -130,6 +134,7 @@ const dictionaryPath = (id: string) => `/api/dictionaries/${encodeURIComponent(i
 const TRANSCRIPTION_PATH = "/api/transcription";
 const WORD_AUDIO_PATH = "/api/word-audio";
 const engineKeyPath = (engineId: EngineId) => `${TRANSCRIPTION_PATH}/keys/${encodeURIComponent(engineId)}`;
+const templatePath = (templateId: string) => `/api/ai/templates/${encodeURIComponent(templateId)}`;
 const EVENTS_PATH = "/api/events";
 const WATCHING_PATH = "/api/watching";
 
@@ -213,13 +218,19 @@ export const api = {
   setEngineKey: (engineId: EngineId, key: string | null): Promise<TranscriptionStatus> => request(engineKeyPath(engineId), send("PUT", { key }), (b) => TranscriptionResponse.parse(b).transcription),
   /** The engine's account behind the key, as the engine tells of it: the plan, the credits, the pay-as-you-go so far. An admin's to read. */
   engineAccount: (): Promise<EngineAccount> => request(`${TRANSCRIPTION_PATH}/account`, undefined, (b) => EngineAccountResponse.parse(b).account),
-  /** Panki AI for everyone: whether it's on, the provider and its model, and whose key the provider has (the key itself to an admin). */
+  /** Panki AI for everyone: whether it's on, the provider and its model, and whose key the provider has (the key itself to an admin); and the account's own templates. */
   getAi: (): Promise<PankiAiStatus> => request("/api/ai", undefined, (b) => PankiAiResponse.parse(b).ai),
   /** Changes some of Panki AI's settings; an admin's alone. */
   updateAi: (patch: PankiAiUpdate): Promise<PankiAiStatus> => request("/api/ai", send("PATCH", patch), (b) => PankiAiResponse.parse(b).ai),
   /** Keeps a provider's key for everyone, or forgets it (null); an admin's alone. */
   setAiKey: (providerId: AiProviderId, key: string | null): Promise<PankiAiStatus> =>
     request(`/api/ai/keys/${encodeURIComponent(providerId)}`, send("PUT", { key }), (b) => PankiAiResponse.parse(b).ai),
+  /** Makes one of the account's own Panki AI templates (a copy, or empty); Panki gives it its id. Its action is fixed from here on. */
+  addAiTemplate: (template: NewAiTemplate): Promise<AiTemplate> => request("/api/ai/templates", send("POST", template), (b) => AiTemplateResponse.parse(b).template),
+  /** Saves one of the account's own templates; Panki's own starters can't be. */
+  updateAiTemplate: (templateId: string, update: AiTemplateUpdate): Promise<AiTemplate> => request(templatePath(templateId), send("PUT", update), (b) => AiTemplateResponse.parse(b).template),
+  /** Takes one of the account's own templates away; when it was an action's default, the action's first starter is again. */
+  removeAiTemplate: (templateId: string): Promise<void> => request(templatePath(templateId), send("DELETE"), () => undefined),
   /** One kind of paid call, added up per account and for everyone, from a moment on (null: all of it); an admin's to read. */
   usage: (kind: UsageKind, since: number | null): Promise<UsageReport> =>
     request(`/api/usage?kind=${encodeURIComponent(kind)}${since === null ? "" : `&since=${since}`}`, undefined, (b) => UsageResponse.parse(b).usage),

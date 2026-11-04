@@ -20,16 +20,17 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, BESIDE_RECS, BESIDE_RECS_IDS, SKIP_SECONDS_MAX, STAGE_SIDES, STAGE_SIDE_IDS, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
-import { ExplainedTitle } from "./explainerScenes";
+import { SceneTitle } from "./explainerScenes";
 import { PopupLayoutPanel } from "./PopupLayout";
 import { PillParts } from "./PillPanel";
+import { PlayerBarPanel } from "./PlayerBar";
 import { SeekBarPanel } from "./SeekBar";
 import { UpdateBanner, VersionPanel, useUpdate } from "./Updates";
 
@@ -309,6 +310,8 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
 // Whether it starts by itself is switched in the strip's menu alone (Auto transcribe); its row here went at the owner's word, 2026-10-17.
 // While paused went to Panki's Settings → Admin the same way, 2026-10-27 ("should be an admin setting").
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
+const BESIDE_RECS_OPTIONS = BESIDE_RECS_IDS.map((id) => ({ id, label: BESIDE_RECS[id] }));
+const STAGE_SIDE_OPTIONS = STAGE_SIDE_IDS.map((id) => ({ id, label: STAGE_SIDES[id] }));
 // What the choice made does, under it (the owner, 2026-10-27: "not clear what this does, add description").
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
@@ -320,13 +323,32 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
   const off = !store.modulePanel;
   return (
     <section className="panel" aria-labelledby="transcribing-title">
-      <ExplainedTitle id="panel" titleId="transcribing-title" store={store} />
+      <SceneTitle id="panel" titleId="transcribing-title" store={store} />
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
+      {/* The view itself is picked on the panel (`PanelView`); what Beside the video does with the site's recommendations is set here. */}
+      <Setting
+        id="beside-recs"
+        label="Beside the video"
+        control={<Segmented idPrefix="beside-recs" label="Beside the video" options={BESIDE_RECS_OPTIONS} value={store.besideRecs} disabled={off} onChange={(besideRecs) => void writeStore({ besideRecs }).then(onChanged)} />}
+        why="Where the Panki panel stands when its view is Beside the video."
+      />
+      <Setting
+        id="stage-side"
+        label="Theatre mode"
+        control={<Segmented idPrefix="stage-side" label="Theatre mode" options={STAGE_SIDE_OPTIONS} value={store.stageSide} disabled={off} onChange={(stageSide) => void writeStore({ stageSide }).then(onChanged)} />}
+        why="Where the Panki panel stands in Theatre mode."
+      />
+      {/* The owner, 2026-11-04: "whether Theatre full-screens (on by default)". Off, Theatre mode fills the window. */}
+      <Setting
+        id="stage-full"
+        label="Full screen in Theatre mode"
+        control={<Toggle id="stage-full-on" says={{ on: "On", off: "Off" }} on={store.stageFull} disabled={off} onChange={(stageFull) => void writeStore({ stageFull }).then(onChanged)} />}
+      />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
-        why="While the Panki panel shows Panki subtitles, they're shown on the video too, in place of YouTube subtitles."
+        why="The subtitles picked in the Panki panel replace YouTube's subtitles on the video."
       />
       <Setting
         id="after-add"
@@ -489,7 +511,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
   return (
     <section className="panel" aria-labelledby="current-word-title">
       {/* The two places, named as everywhere else (2026-10-28): the Panki panel under the player, and Panki subtitles on the video. */}
-      <ExplainedTitle id="underline" titleId="current-word-title" store={store} />
+      <SceneTitle id="underline" titleId="current-word-title" store={store} />
       <Setting id="mark-under" label="Panki panel" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
       <Setting
         id="mark-over"
@@ -520,7 +542,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
   );
   return (
     <section className="panel" aria-labelledby="home-title">
-      <ExplainedTitle id="home" titleId="home-title" store={store} />
+      <SceneTitle id="home" titleId="home-title" store={store} />
       <Setting id="module-home" label="YouTube home add-ons" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
@@ -536,24 +558,16 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
 
 /**
  * What makes YouTube nicer whether or not Panki is in use (the owner, 2026-10-21: "regardless of Panki, just nice to
- * have"): nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here.
+ * have"): nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here. The player's
+ * control bar, laid out, is a panel of its own after this one (`PlayerBarPanel`).
  */
 function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="utilities-title">
-      <ExplainedTitle id="utilities" titleId="utilities-title" store={store} />
+      <SceneTitle id="utilities" titleId="utilities-title" store={store} />
       {/* Shown or hidden as its neighbours say it (2026-10-28; "Hide Shorts", On / Off, until then), Shown to begin with. */}
       <Setting id="shorts" label="Shorts" control={<Toggle id="shorts-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleShorts} onChange={(moduleShorts) => void writeStore({ moduleShorts }).then(onChanged)} />} />
-      <Setting
-        id="speed-control"
-        label="Speed button in the player"
-        control={<Toggle id="speed-control-on" says={{ on: "Shown", off: "Hidden" }} on={store.speedControl} onChange={(speedControl) => void writeStore({ speedControl }).then(onChanged)} />}
-      />
-      <Setting
-        id="end-time"
-        label="Video end time in the player"
-        control={<Toggle id="end-time-on" says={{ on: "Shown", off: "Hidden" }} on={store.endTime} onChange={(endTime) => void writeStore({ endTime }).then(onChanged)} />}
-      />
+      {/* The speed button and the video's end time had a switch each here until they became rows of the player bar, a panel of its own after this one (2026-11-04). */}
       {/* One group, its switch and the two rows it greys (the owner, 2026-10-28: they read as three settings apart). */}
       <div className="seek-group">
         <h3 className="seek-group-title">Short skip with the arrow keys</h3>
@@ -807,6 +821,7 @@ function Options() {
             <SeekBarPanel store={store} onChanged={refresh} />
             <HomePanel store={store} onChanged={refresh} />
             <UtilitiesPanel store={store} onChanged={refresh} />
+            <PlayerBarPanel store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
             <AccountTab store={store} onChanged={refresh} />

@@ -34,7 +34,7 @@ import { Pitch } from "../ui/Lookup";
 import { Rename } from "../ui/Rename";
 import { aboutOf, type About } from "./about";
 import { KindChips } from "./DataKinds";
-import { ExplainedTitle } from "./explainerScenes";
+import { SceneTitle } from "./explainerScenes";
 import { Swatches } from "./Swatches";
 
 /** What these say when something's wrong. One home. */
@@ -532,7 +532,7 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
 export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="known-title">
-      <ExplainedTitle id="known" titleId="known-title" store={store} />
+      <SceneTitle id="known" titleId="known-title" store={store} />
       <Setting
         id="known-pages"
         label="Highlight globally"
@@ -638,7 +638,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   const off = !store.moduleLookup;
   return (
     <section className="panel" aria-labelledby="looking-title">
-      <ExplainedTitle id="popup" titleId="looking-title" store={store} />
+      <SceneTitle id="popup" titleId="looking-title" store={store} />
       <Setting id="module-lookup" label="Pop-up dictionary" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
       {/* Where and the key held there are one setting's two halves (the owner, 2026-10-28: "link these settings"); Panki
           subtitles are a group of their own, Where never reaching them. Named as Words that are in your decks names its
@@ -709,12 +709,6 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           why="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
         />
       </div>
-      {/* Explain in the pop-up runs by itself once the pop-up is kept open, never on a passing hover (AI step 2). */}
-      <Setting
-        id="explain-on-open"
-        label="Explain as the pop-up opens"
-        control={<Toggle id="explain-on-open-on" says={{ on: "On", off: "Off" }} on={store.explainOnOpen} disabled={off} onChange={(explainOnOpen) => void writeStore({ explainOnOpen }).then(onChanged)} />}
-      />
     </section>
   );
 }

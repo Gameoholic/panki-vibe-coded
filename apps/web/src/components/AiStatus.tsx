@@ -48,11 +48,9 @@ function whyWords(why: AiRunWhy): string {
     case "pressed":
       return `You pressed ${why.action}`;
     case "followUp":
-      return "You asked a follow-up";
+      return why.field ? `You asked a follow-up on ${why.field}` : "You asked a follow-up";
     case "retry":
       return "You pressed Try again";
-    case "auto":
-      return `${why.setting} is on`;
   }
 }
 
@@ -218,6 +216,7 @@ function rowsOf(call: AiCall, now: number): Row[] {
   return [
     { name: "Status", words: status, ...(note !== undefined ? { note } : {}) },
     { name: "Ran because", words: whyWords(call.why) },
+    { name: "Template", words: call.templateName },
     { name: "Model", words: modelWords(call) },
     { name: "Sent", words: sentWords(call) },
     { name: "Tokens in", words: tokensIn },

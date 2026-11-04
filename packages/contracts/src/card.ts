@@ -33,6 +33,12 @@ export const CaptureFacts = z.object({
   dictionary: z.object({ term: z.string().max(200), reading: z.string().max(200), dictionaries: z.array(z.string().max(200)).max(50) }).optional(),
   fields: z.record(CardFieldId, z.string().max(40)).optional(),
   build: ExtensionFingerprint.optional(),
+  /**
+   * The words of Panki subtitles in the clip's stretch that Panki AI's Proofread edited (AI step 6): what the engine
+   * heard and what they read as when the card was taken. A card's Sentence carries no spark for them (the transcript is
+   * Panki's either way); this keeps that they were the AI's.
+   */
+  proofread: z.array(z.object({ heard: z.string().max(100), text: z.string().max(100) })).max(200).optional(),
 });
 export type CaptureFacts = z.infer<typeof CaptureFacts>;
 
@@ -70,15 +76,35 @@ export const ValueSource = z.discriminatedUnion("by", [
   z.object({ by: z.literal("dictionary"), dictionaries: z.array(z.string().max(200)).max(50).default([]) }),
   z.object({ by: z.literal("video") }),
   z.object({ by: z.literal("forvo") }),
-  z.object({ by: z.literal("ai"), action: AiActionId, provider: AiProviderId, model: z.string().min(1).max(80) }),
+  z.object({
+    by: z.literal("ai"),
+    action: AiActionId,
+    provider: AiProviderId,
+    model: z.string().min(1).max(80),
+    /**
+     * Whether it corrected a field the card fills otherwise (a Touch up proposal accepted on a Meaning, a Reading, a
+     * Sentence…), rather than writing a field only Panki AI fills (its Explanation and Example sentences). Left out, it's
+     * the second, as every value kept before this was told (the owner, 2026-11-04: both are in the AI's ink, but only the
+     * second's name carries the spark).
+     */
+    corrected: z.boolean().optional(),
+  }),
 ]);
 export type ValueSource = z.infer<typeof ValueSource>;
 /** Each value's source, by field id; a field left out is the owner's. */
 export const ValueSources = z.record(CardFieldId, ValueSource);
 export type ValueSources = z.infer<typeof ValueSources>;
 export const OWNER: ValueSource = { by: "owner" };
-/** Whether Panki AI wrote a field's value: what draws the spark beside it. */
+/** Whether Panki AI wrote a field's value, its own or a correction: what draws it in the AI's ink, and the spark once on the card. */
 export const byAi = (sources: Readonly<Record<string, ValueSource>> | undefined, fieldId: string): boolean => sources?.[fieldId]?.by === "ai";
+/**
+ * Whether a field is Panki AI's own, a value Touch up wrote into a field only it fills, not one it corrected: what puts
+ * the spark on the field's name where the layout shows it (the owner, 2026-11-04).
+ */
+export function aiOwns(sources: Readonly<Record<string, ValueSource>> | undefined, fieldId: string): boolean {
+  const source = sources?.[fieldId];
+  return source?.by === "ai" && source.corrected !== true;
+}
 
 /**
  * A value kept before sources were (migration 39): the owner's, or, on a card the extension made, what its capture

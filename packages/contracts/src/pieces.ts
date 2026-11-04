@@ -26,16 +26,22 @@ export const PROMPT_PIECE_IDS = [
   "learningLanguage",
   "language",
   "card",
+  "question",
+  "field",
+  "transcript",
+  "handEdited",
+  "unsure",
 ] as const;
 export const PromptPieceId = z.enum(PROMPT_PIECE_IDS);
 export type PromptPieceId = z.infer<typeof PromptPieceId>;
 
 /**
  * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video, Forvo,
- * the account's own settings, the card being added as it stands, or Panki AI (the field mapping's Explanation and
- * Example sentences, which only Touch up fills).
+ * the account's own settings, the card being added as it stands, Touch up (the field mapping's Explanation and
+ * Example sentences, which only it fills), a follow-up as it's asked (its question, and the field it was asked
+ * from: a template's Follow-up prompt's alone, AI step 5), or Panki's own transcript of a video (Proofread's, AI step 6).
  */
-export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings" | "card" | "ai";
+export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings" | "card" | "ai" | "followUp" | "transcript";
 /** How a source is said, beside every piece: the field mapping's Source column and Prompt context's alike. */
 export const SOURCE_WORDS: Record<PieceSource, string> = {
   text: "Subtitles or page",
@@ -44,7 +50,11 @@ export const SOURCE_WORDS: Record<PieceSource, string> = {
   forvo: "Forvo",
   settings: "Your settings",
   card: "The card",
-  ai: "Panki AI",
+  // The field mapping's Explanation and Example sentences, which only Touch up fills: named for it (the owner,
+  // 2026-11-04), as `AI_ACTIONS.touchUp` is (ai.ts reads this file, so the name can't be read from there).
+  ai: "Touch up",
+  followUp: "Your follow-up",
+  transcript: "Panki subtitles",
 };
 
 /** What each piece is called, the one name for it: the field mapping's, Prompt context's and a template's. */
@@ -69,6 +79,19 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   // The card being added, each of its fields by its own name (Touch up's): the owner's field names are their content,
   // so the card is one piece rather than a piece per field.
   card: "Card",
+  // A follow-up's (AI step 5): what was typed, and the field it was asked from, by the card's own name for it; empty
+  // on a first ask, so a Follow-up prompt's lines holding them drop there and a first prompt never meets them.
+  // "Question" until the owner, 2026-11-01: "same for {Question}" (account migration 42).
+  question: "Follow-up question",
+  // "Field" until the owner, 2026-11-01: "rename {Field} to follow-up-field so it's clear" (account migration 41
+  // rewrote every kept template).
+  field: "Follow-up field",
+  // Proofread's (AI step 6): the lines being proofread, numbered, and two lists of their words by line number, those a
+  // person edited last and those the engine was unsure of. Built from the stored transcript by the server alone
+  // (`proofread.ts` → `proofreadPieces`), never from text the page sends.
+  transcript: "Transcript",
+  handEdited: "Edited by hand",
+  unsure: "Unsure words",
 };
 export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   word: "text",
@@ -86,6 +109,11 @@ export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   learningLanguage: "settings",
   language: "settings",
   card: "card",
+  question: "followUp",
+  field: "followUp",
+  transcript: "transcript",
+  handEdited: "transcript",
+  unsure: "transcript",
 };
 
 /** A piece's name as a template's tag: lower case, spaces as underscores ("Dictionary form" → `dictionary_form`). The one way a tag is named. */

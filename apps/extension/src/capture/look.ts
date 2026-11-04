@@ -25,6 +25,11 @@ export type Pointed = {
   context: { text: string; at: number } | null;
   /** Where it was pointed at, in the words of whoever found it: what adding the word means there. */
   where: Where;
+  /**
+   * Whether what was pointed at is still on the screen as it was: its element still there and its words the same. A
+   * line under the pointer drawn again (subtitles moving on as the video plays) changes it with no pointer moving.
+   */
+  alive: () => boolean;
 };
 /**
  * Panki's own line under the player (the caption line and the letter of it the word begins at, and how long the word
@@ -41,6 +46,12 @@ export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; loc
 
 /** How far from its word the pointer may go before a popup opened by hover closes: the popup stands just under the word, and the pointer crosses the gap to it. */
 const HOVER_MARGIN = 24;
+/**
+ * How often a popup opened by hover looks again at its word, ms: the word gone or changed, or no longer under the
+ * pointer (the line moved on under a pointer that stood still), it closes. Moves alone never saw that (the owner,
+ * 2026-11-03: "the panel is kept when the subtitles change but as long as I don't move my mouse").
+ */
+const HOVER_LOOK_MS = 150;
 /** The key that keeps a popup opened by hover open, as `KeyboardEvent.key` names it and the options page says it. */
 export const HOVER_KEEP = "Shift";
 
@@ -84,8 +95,32 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
   let asked = 0;
   /** Whether the look-up on its way was asked by hover: the pointer drifting off before it's answered lets it go. */
   let askedByHover = false;
+  /** Where the pointer last was over words, and whether it's in the popup itself now (reading it: nothing under it is judged). */
+  let lastAt: At | null = null;
+  let inPopup = false;
+  /** The look again at a popup opened by hover, while one is open and not kept (`HOVER_LOOK_MS`). */
+  let watch: ReturnType<typeof setInterval> | null = null;
+  const stopWatch = () => {
+    if (watch !== null) clearInterval(watch);
+    watch = null;
+  };
+  /** A popup opened by hover whose word is gone, changed, or no longer under the pointer: the screen moved under a still pointer. */
+  const stale = (shown: View): boolean => {
+    if (inPopup) return false;
+    if (!shown.pointed.alive()) return true;
+    const first = shown.found[0];
+    const rect = first ? shown.pointed.measure(first.source.length) : null;
+    return rect !== null && lastAt !== null && !within(rect, lastAt.x, lastAt.y, HOVER_MARGIN);
+  };
   const tell = (next: View | null) => {
     view = next;
+    stopWatch();
+    if (next?.hovered && !next.locked) {
+      watch = setInterval(() => {
+        // A word pointed at afresh is being looked up: its answer takes this one's place, so it isn't closed under it.
+        if (view && view.hovered && !view.locked && pointedId === view.pointed.id && stale(view)) looker.close();
+      }, HOVER_LOOK_MS);
+    }
     onView(next);
   };
   const looker = {
@@ -93,10 +128,12 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     /**
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
      * is on a word where the key to hold is On hover. One that's kept open gives way only to another
-     * word: the pointer crossing nothing, or still on its own word, leaves it be.
+     * word with the key held: the pointer crossing nothing, still on its own word, or only hovering, leaves it be (the
+     * owner, 2026-11-02: kept with Shift, it stayed "until I hover over ANOTHER word… that's a bug").
      */
     point(pointed: Pointed | null, at?: At, hover = false) {
-      if (view?.locked && (pointed === null || (at && view.word && within(view.word, at.x, at.y)))) return;
+      if (at) lastAt = at;
+      if (view?.locked && (hover || pointed === null || (at && view.word && within(view.word, at.x, at.y)))) return;
       if (pointed === null) {
         looker.close();
         return;
@@ -109,6 +146,8 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
         .catch((): Found[] => [])
         .then((found) => {
           if (turn !== asked) return;
+          // Kept open while a hover's look-up was on its way: the kept one stays.
+          if (hover && view?.locked) return;
           const first = found[0];
           if (!first) {
             // Nothing there: a popup that's kept open stays.
@@ -123,6 +162,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      * from its word (not crossing to the popup under it), and one still being looked up by hover is let go.
      */
     drift(at?: At) {
+      if (at) lastAt = at;
       if (!view) {
         if (askedByHover) looker.close();
         return;
@@ -148,6 +188,10 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
         return;
       }
       looker.close();
+    },
+    /** Whether the pointer is in the popup itself: there, what it was opened on isn't judged (it's being read). */
+    inside(within: boolean) {
+      inPopup = within;
     },
     /** A click: it stays open now until a click somewhere else. */
     lock() {
@@ -228,11 +272,13 @@ export function pointedOnPage(x: number, y: number, where: Where): Pointed | nul
   for (let i = index + 1; i < nodes.length && after.length < AROUND; i++) after += nodes[i]?.data ?? "";
   const text = before + node.data + after;
   const start = before.length + at;
+  const data = node.data;
   return {
     id: `${idOf(node)}:${at}`,
     text: text.slice(start, start + 32),
     context: { text, at: start },
     where,
+    alive: () => node.isConnected && node.data === data,
     measure(length) {
       // From the letter on, across the nodes after it, as many letters as the word has.
       const range = document.createRange();
@@ -287,20 +333,42 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   let last: (() => Pointed | null) | null = null;
   /** The key to hold where the pointer last was: the page's, or Panki's subtitles' own (`pointedBy`). */
   let lastKey: LookKey | null = null;
+  /** The keys held, as the last move or key said; whether the pointer is on the page's own text (not Panki's, not the popup); and what it pointed at last there. */
+  let mods = { shiftKey: false, ctrlKey: false, altKey: false };
+  let onPage = false;
+  let lastId: string | null = null;
   const onMove = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
     // Where the pointer is, wherever it is: letting go of the key on the word keeps the popup, even on Panki's own line.
     x = e.clientX;
     y = e.clientY;
+    mods = { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
     // The popup's own room is the popup's, wherever it's drawn (on the options page it isn't in a place of Panki's).
-    if (inPanki(e) || look.inPopup(e)) return;
+    const inPopup = look.inPopup(e);
+    looker.inside(inPopup);
+    onPage = false;
+    if (inPanki(e) || inPopup) return;
     const where = look.on(e.target) ? look.whereAt(e.target) : null;
     last = where === null ? null : () => pointedOnPage(x, y, where);
     lastKey = look.key(e.target);
-    pointWith(looker, lastKey, e, last ? last() : null, { x, y });
+    onPage = last !== null;
+    const pointed = last ? last() : null;
+    lastId = pointed?.id ?? null;
+    pointWith(looker, lastKey, e, pointed, { x, y });
   };
+  // The page's own text changing under a pointer that stood still (the site's captions as the video plays): what now
+  // stands there is pointed at as a move onto it would, through the same `pointWith` (the owner, 2026-11-03: "is it
+  // hovering? then my mouse is hovering"). Panki's own lines do the same as they're drawn (`Line.tsx`).
+  const relook = setInterval(() => {
+    if (!onPage || !last) return;
+    const pointed = last();
+    if ((pointed?.id ?? null) === lastId) return;
+    lastId = pointed?.id ?? null;
+    pointWith(looker, lastKey ?? look.key(null), mods, pointed, { x, y });
+  }, HOVER_LOOK_MS);
   // Keys typed in Panki's own fields (the drawer's) are theirs: a capital letter isn't a look-up.
   const onDown = (e: KeyboardEvent) => {
+    mods = { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
     if (inPanki(e)) return;
     if (e.key === "Escape") looker.close();
     // A pop-up opened by hover is kept open by Shift, wherever it is: on Panki's line a click is a pick (the owner,
@@ -315,6 +383,7 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     if (!e.repeat && isKey(key, e.key) && last) looker.point(last(), { x, y });
   };
   const onUp = (e: KeyboardEvent) => {
+    mods = { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
     if (!inPanki(e) && isKey(lastKey ?? look.key(null), e.key)) looker.release({ x, y });
   };
   // A click anywhere but the popup and its word closes it, however it was kept open: in Panki's own places too (the
@@ -346,8 +415,10 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     pointedBy(pointed: () => Pointed | null, key: LookKey) {
       last = pointed;
       lastKey = key;
+      onPage = false;
     },
     stop() {
+      clearInterval(relook);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("keydown", onDown, true);
       document.removeEventListener("keyup", onUp, true);

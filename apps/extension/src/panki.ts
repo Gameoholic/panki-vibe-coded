@@ -6,6 +6,10 @@ import {
   ExplainResponse,
   PankiAiResponse,
   TouchUpResponse,
+  ProofreadResponse,
+  type ProofreadAsk,
+  type TranscriptUndo,
+  type TranscriptLineMark,
   type TouchUpAsk,
   type ExplainAsk,
   type ExplainProblem,
@@ -303,6 +307,20 @@ export const panki = {
       throw refusedOf(e);
     }
   },
+  /** Lines of a video's Panki subtitles proofread by Panki AI, for everyone (AI step 6): refused as Explain is; its edits and the transcript after. */
+  proofread: async ({ address, token }: Door, ask: ProofreadAsk): Promise<ProofreadResponse> => {
+    try {
+      return await call(address, token, "/api/ai/proofread", json("POST", ask), (b) => ProofreadResponse.parse(b));
+    } catch (e) {
+      throw refusedOf(e);
+    }
+  },
+  /** A line split or joined by hand at a word, for everyone. */
+  markLine: ({ address, token }: Door, videoId: string, mark: TranscriptLineMark): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/line-marks`, json("POST", mark), (b) => TranscriptResponse.parse(b).transcript),
+  /** Panki AI's edits taken back, a word's or a run's, one step each, for everyone. */
+  undoFixes: ({ address, token }: Door, videoId: string, undo: TranscriptUndo): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/undo`, json("POST", undo), (b) => TranscriptResponse.parse(b).transcript),
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */

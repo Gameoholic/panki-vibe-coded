@@ -24,7 +24,7 @@ export class EngineError extends Error {
 }
 
 /** What an engine heard in a piece, or a whole video: the language, and each word with its times from the sound's own start, in ms. */
-export type Heard = { language: HeardLanguage; words: { text: string; startMs: number; endMs: number }[] };
+export type Heard = { language: HeardLanguage; words: { text: string; startMs: number; endMs: number; logprob?: number | null }[] };
 
 /**
  * One engine: given a key, a piece's sound (a WAV) and the language it's in (always told, never asked), what it heard;

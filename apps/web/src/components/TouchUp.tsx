@@ -15,29 +15,30 @@ import {
   type MeaningAnswer,
   type MeaningMark,
   type MeaningVerdict,
+  type PankiAiStatus,
   type TouchUpAnswer,
   type TouchUpNow,
 } from "@panki/contracts";
-import { AiStatus } from "@web/components/AiStatus";
-import { AiSpark } from "@web/components/AiWaiting";
-import { Button } from "@web/components/Button";
-import { Fold } from "@web/components/Fold";
-import { WhyButton } from "@web/components/JudgedRow";
-import { Icon } from "@web/components/Icon";
-import { langOf } from "@web/words";
-import type { AiShown } from "../messages";
+import { langOf } from "../words";
+import { AnswerText } from "./AiRun";
+import { AiStatus } from "./AiStatus";
+import { AiSpark } from "./AiWaiting";
+import { Button } from "./Button";
+import { Fold } from "./Fold";
+import { Icon } from "./Icon";
+import { WhyButton } from "./JudgedRow";
 
 /**
  * Touch up in the capture drawer (AI step 3; the model of every outcome is the owner's, 2026-10-31, the Touch up
  * scenarios page): the one button over the card's fields, then the AI's head with Accept all and Dismiss all; under each
  * field what Panki made of the answer (`fieldVerdictOf`, `meaningVerdictOf`), joined to the field as one shape in its
  * verdict's colour, the field's box the diff while a proposal waits, accepted or dismissed by hand and nothing ever
- * written by itself. The drawer owns what's proposed and what's decided; these are only how it's drawn.
+ * written by itself. The drawer owns what's proposed and what's decided; these are only how it's drawn. The web's, since
+ * Settings → Panki AI's explainer draws the drawer at work with them too (`explainers/aiScenes.tsx`).
  */
 
 /** What this says, one home. */
 export const TOUCH_UP_WORDS = {
-  go: "Touch up",
   signedOut: "Sign in to Panki to touch up.",
   noKey: (provider: string) => `No key for ${provider}.`,
   /** Every positive line, a text field's and the Meaning's alike. */
@@ -62,7 +63,7 @@ export const TOUCH_UP_WORDS = {
 };
 
 /** Why the button can't run, when that can be put right from here; Panki AI switched off says nothing but the greyed button. */
-export function touchUpReason(known: boolean, ai: AiShown | null, failure: string | null): string | null {
+export function touchUpReason(known: boolean, ai: Pick<PankiAiStatus, "settings" | "key"> | null, failure: string | null): string | null {
   if (!known) return null;
   if (failure) return failure;
   if (ai === null) return TOUCH_UP_WORDS.signedOut;
@@ -76,12 +77,13 @@ export function touchUpReason(known: boolean, ai: AiShown | null, failure: strin
  * can cost, or why it can't run, stands right under it (`TouchUpCost`), and once it has run its head (`TouchUpBar`)
  * under the row. Pressable again whenever it isn't thinking (the owner, 2026-10-31), a new call each time.
  */
-export function TouchUpButton({ canRun, busy, thinking, burst, onRun }: { canRun: boolean; busy: boolean; thinking: boolean; burst: number; onRun: () => void }) {
+export function TouchUpButton({ name, canRun, busy, thinking, burst, onRun }: { name: string; canRun: boolean; busy: boolean; thinking: boolean; burst: number; onRun: () => void }) {
   return (
     <Button className="ai-explain-button touch-up-go" disabled={!canRun || busy} onClick={onRun}>
       {/* Turning while its call is on its way, and a burst for each press that made one (`burst`, the drawer's count; Try again's too): the button is where the work was asked for. */}
       <AiSpark working={thinking} burst={burst} />
-      {TOUCH_UP_WORDS.go}
+      {/* The template it runs, by name: "Touch up" until another is picked from its menu in this drawer. */}
+      {name}
     </Button>
   );
 }
@@ -97,17 +99,21 @@ type BarProps = {
   /** Proposals still waiting on a decision: Accept all and Dismiss all are there while there are any. */
   pending: number;
   failure: { message: string; retry: boolean } | null;
+  /** The follow-ups asked here, each pressed: the head's spark blinks once for each. */
+  burst: number;
   onRun: () => void;
   onAcceptAll: () => void;
   onDismissAll: () => void;
+  /** The conversation under the head (AI step 5): the follow-ups asked here, their replies, and the box to ask the next. */
+  children?: ReactNode;
 };
 
 /**
- * Under the drawer's button row at its top once Touch up has run: the AI's head (`AiStatus`, its Details the call's), with
- * Accept all and Dismiss all while proposals wait, or the failure and Try again. Nothing before the first call, when the
- * button in the row is the status.
+ * Under the drawer's button row at its top once Touch up has run: the AI's head (`AiStatus`, its Details the
+ * conversation's calls), with Accept all and Dismiss all while proposals wait, or the failure and Try again; then the
+ * follow-ups asked under it. Nothing before the first call, when the button in the row is the status.
  */
-export function TouchUpBar({ calls, busy, canRun, pending, failure, onRun, onAcceptAll, onDismissAll }: BarProps) {
+export function TouchUpBar({ calls, busy, canRun, pending, failure, burst, onRun, onAcceptAll, onDismissAll, children }: BarProps) {
   const button = (words: string) => (
     <Button className="ai-explain-button" disabled={!canRun || busy} onClick={onRun}>
       <AiSpark />
@@ -117,7 +123,7 @@ export function TouchUpBar({ calls, busy, canRun, pending, failure, onRun, onAcc
   if (calls.length === 0) return null;
   return (
     <section className="field touch-up ai-explain" aria-label="Panki AI" aria-busy={busy}>
-      <AiStatus calls={calls} />
+      <AiStatus calls={calls} burst={burst} />
       {failure ? (
         <div className="ai-explain-failure">
           <p className="form-failure" role="alert">
@@ -137,7 +143,46 @@ export function TouchUpBar({ calls, busy, canRun, pending, failure, onRun, onAcc
           </Button>
         </div>
       ) : null}
+      {children}
     </section>
+  );
+}
+
+/**
+ * A follow-up in Touch up's conversation (AI step 5): asked under the head (`field` null) or from a field's note (the
+ * field's id), what was asked, and the reply or why there's none. What it changes is a proposal under its field.
+ */
+export type FollowTurn = { field: string | null; question: string; reply: string | null; failure: { message: string; retry: boolean } | null };
+
+/**
+ * The follow-ups asked in one place, as Explain draws its own: the question a bubble at the right, the reply under it as
+ * plain paragraphs, or the failure with Try again. One on its way is its question alone: the head's spark and Thinking
+ * are the wait.
+ */
+export function FollowTurns({ turns, canRun, onRetry }: { turns: readonly FollowTurn[]; canRun: boolean; onRetry: (turn: FollowTurn) => void }) {
+  return (
+    <>
+      {turns.map((turn, i) => (
+        <div key={i} className="ai-explain-turn">
+          <p className="ai-explain-question">{turn.question}</p>
+          {turn.reply !== null ? (
+            <AnswerText text={turn.reply} />
+          ) : turn.failure ? (
+            <div className="ai-explain-failure">
+              <p className="form-failure" role="alert">
+                {turn.failure.message}
+              </p>
+              {turn.failure.retry ? (
+                <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn)}>
+                  <AiSpark />
+                  {TOUCH_UP_WORDS.tryAgain}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </>
   );
 }
 

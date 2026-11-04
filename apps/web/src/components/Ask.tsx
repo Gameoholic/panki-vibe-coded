@@ -10,8 +10,13 @@ type Props = {
   question: ReactNode;
   /** Under the question, in plain words: what doing it changes and what it leaves as it is, when that can't be guessed. */
   detail?: ReactNode;
-  /** The button that does it, and what it says while it's being done: "Delete card", "Deleting…"; its icon, the trash unless it's something else (signing out, turning off). */
-  go: { words: string; busy: string; icon?: IconName };
+  /**
+   * The button that does it, and what it says while it's being done: "Delete card", "Deleting…"; its icon, the trash
+   * unless it's something else (signing out, turning off). `spends` is a question about money rather than a loss (AI
+   * step 5: a Panki AI run over the amount it asks above): the button filled in the accent with the AI's spark,
+   * `lead`, in its icon's place.
+   */
+  go: { words: string; busy: string; icon?: IconName; spends?: { lead: ReactNode } };
   /**
    * What the button that leaves it as it is says: Cancel, as every way of backing out says (the owner, 2026-10-29: "all
    * say Cancel"; it was Keep until then), unless a question really needs another word.
@@ -56,8 +61,8 @@ export function Ask({ idPrefix, question, detail, go, cancel = "Cancel", busy, f
         <Button id={`${idPrefix}-cancel`} onClick={onKeep} disabled={busy}>
           {cancel}
         </Button>
-        <Button id={`${idPrefix}-go`} variant="danger" onClick={onGo} disabled={busy || !ready}>
-          <Icon name={go.icon ?? "trash"} />
+        <Button id={`${idPrefix}-go`} variant={go.spends ? "primary" : "danger"} onClick={onGo} disabled={busy || !ready}>
+          {go.spends ? go.spends.lead : <Icon name={go.icon ?? "trash"} />}
           {busy ? go.busy : go.words}
         </Button>
       </div>

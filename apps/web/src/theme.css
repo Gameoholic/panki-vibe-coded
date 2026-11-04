@@ -68,6 +68,9 @@
   --clip: var(--mid);
   --clip-soft: var(--mid-soft);
   --spoiler: color-mix(in srgb, var(--fg) 22%, var(--surface-2));
+  /* What Panki AI wrote, in its own ink wherever a value is shown (the owner, 2026-11-04): the text's colour leaning
+     to the accent, so it reads as words on any surface and is never the owner's own. Made of tokens like the three above. */
+  --ai-ink: color-mix(in srgb, var(--accent) 55%, var(--fg));
   /* The room a clip fills the screen in: black, whatever the theme, as a picture is watched; and words written over a
      picture, white on it whatever the theme (the transcript over a video). */
   --theater: #000000;

@@ -1,5 +1,6 @@
 export * from "./ai";
 export * from "./aiCall";
+export * from "./aiTemplates";
 export * from "./api";
 export * from "./auth";
 export * from "./card";
@@ -15,6 +16,7 @@ export * from "./media";
 export * from "./pieces";
 export * from "./pitch";
 export * from "./prompt";
+export * from "./proofread";
 export * from "./space";
 export * from "./srs";
 export * from "./srsStarters";

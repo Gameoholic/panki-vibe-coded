@@ -43,7 +43,7 @@ Before sharing with public:
 - Card type default that comes with Panki?
 
 
-- Holding space on a card for >0.5s: wil lreveal it, continuign to hold for 1 seocnd extr awill reveal the back, then for an extra 2 seconds will mark it as OK or something (needs to pick from the srs type)
+
 - Cards that appear green now should optionally appear greener the more examples we hafve for this card (ideally 3 examples per card (the 3 is customizable, can set it to 0))
 
 - disconnect wanikani+ from wanikani. make my own grading.

@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   copySrsType,
+  defaultTemplateOf,
   emptySrsType,
   exampleFieldsOf,
+  templateById,
+  templatesOf,
+  type AiActionId,
+  type AiTemplate,
+  type AiTemplateUpdate,
+  type PankiAiStatus,
   type CalledCard,
   type Card,
   type CardAnswer,
@@ -39,7 +46,10 @@ import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
 import { SAVE_WORDS, type UnsavedGuard } from "./unsaved";
 import { parsePath, routePath, type DeckTab, type Route, type TypeTab } from "./routes";
+import { draftTemplate, newTemplateName } from "./aiTemplateKinds";
 import { AddView } from "./views/AddView";
+import { AiNewView } from "./views/AiNewView";
+import { AiTemplateView } from "./views/AiTemplateView";
 import { CardsView } from "./views/CardsView";
 import { DeckSettingsView } from "./views/DeckSettingsView";
 import { DecksView } from "./views/DecksView";
@@ -48,7 +58,7 @@ import { LayoutView } from "./views/LayoutView";
 import { LoginView } from "./views/LoginView";
 import { ReviewPickView } from "./views/ReviewPickView";
 import { ReviewView, type ReviewBegin } from "./views/ReviewView";
-import { AdminView, DEVICE_ZONE, SettingsView } from "./views/SettingsView";
+import { AdminView, DEVICE_ZONE, SettingsView, type SettingsTab } from "./views/SettingsView";
 import { SrsNewView } from "./views/SrsNewView";
 import { SrsTypeView, type SaveStatus } from "./views/SrsTypeView";
 import { SrsTypesView } from "./views/SrsTypesView";
@@ -82,11 +92,17 @@ type Screen =
   | { kind: "srs" }
   | { kind: "srsNew" }
   | { kind: "srsEdit"; type: SrsType; isNew: boolean }
-  | { kind: "settings" }
+  /** `tab`: opened at one of its tabs (`#ai`), coming back from a template; left out, at the tab the address has. */
+  | { kind: "settings"; tab?: SettingsTab | undefined }
+  /** A Panki AI template, the account's own or one of Panki's; `key` stays one through a new one's first Save, which gives it Panki's id. */
+  | { kind: "aiTemplate"; template: AiTemplate; isNew: boolean; key: string }
+  | { kind: "aiNew"; action: AiActionId }
   | { kind: "admin" }
   | { kind: "stats" };
 
 const HOME: Screen = { kind: "home" };
+/** Settings at its Panki AI tab, where the templates are listed: where a template's screens go back to. */
+const AI_SETTINGS: Screen = { kind: "settings", tab: "ai" };
 
 /** What each screen looks like while what it needs is loading (`Skeleton`): its own shape, never "Loading…" in words. */
 const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
@@ -102,6 +118,8 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   srsNew: "rows",
   srsEdit: "editor",
   settings: "panels",
+  aiTemplate: "editor",
+  aiNew: "rows",
   admin: "panels",
   stats: "board",
 };
@@ -119,17 +137,29 @@ function routeOf(screen: Screen): Route {
       return { kind: "type", id: screen.type?.id ?? null, tab: screen.tab };
     case "srsEdit":
       return { kind: "srsEdit", id: screen.type.id };
+    case "settings":
+      return { kind: "settings" };
+    case "aiTemplate":
+      return { kind: "aiTemplate", id: screen.template.id };
     default:
       return screen;
   }
 }
-/** The lists a route's ids are looked up in; null while they load. */
-type Lists = { decks: Deck[] | null; types: CardType[] | null; srsTypes: SrsType[] | null };
+/**
+ * A screen's whole address: its route's path, and for Settings opened at a tab, the tab (`#ai`), which `SettingsView`
+ * reads as it opens. Compared with the path alone, so a tab picked on Settings itself (its hash) is left as it is.
+ */
+function addressOf(screen: Screen): string {
+  const path = routePath(routeOf(screen));
+  return screen.kind === "settings" && screen.tab ? `${path}#${screen.tab}` : path;
+}
+/** The lists a route's ids are looked up in; null while they load. `ai` holds the account's own Panki AI templates. */
+type Lists = { decks: Deck[] | null; types: CardType[] | null; srsTypes: SrsType[] | null; ai: PankiAiStatus | null };
 /**
  * The screen an address names, once what it names is loaded (null until then). A deck or a type that's gone lands on
  * the list it was in.
  */
-function screenOf(route: Route, { decks, types, srsTypes }: Lists): Screen | null {
+function screenOf(route: Route, { decks, types, srsTypes, ai }: Lists): Screen | null {
   switch (route.kind) {
     case "deck":
     case "review": {
@@ -150,6 +180,12 @@ function screenOf(route: Route, { decks, types, srsTypes }: Lists): Screen | nul
       // One never saved has nothing behind its address: a reload or a way back to it lands on the list.
       return type ? { kind: "srsEdit", type, isNew: false } : { kind: "srs" };
     }
+    case "aiTemplate": {
+      if (!ai) return null;
+      const template = templateById(route.id, ai.templates);
+      // One never saved, or deleted, has nothing behind its address: it lands on the list, Settings' Panki AI tab.
+      return template ? { kind: "aiTemplate", template, isNew: false, key: template.id } : AI_SETTINGS;
+    }
     default:
       return route;
   }
@@ -169,13 +205,17 @@ const TABS: readonly { id: TabId; label: string; to: Screen; admin?: true }[] = 
 ];
 /** The tab a screen lights: its own for the fixed places, Home for everything behind the hub. */
 function tabOf(screen: Screen): TabId {
+  if (screen.kind === "aiTemplate" || screen.kind === "aiNew") return "settings";
   return screen.kind === "settings" || screen.kind === "stats" || screen.kind === "admin" ? screen.kind : "home";
 }
+/** The screens Panki AI's templates are needed on: Settings, which lists them, and theirs. */
+const AI_KINDS: readonly Screen["kind"][] = ["settings", "aiTemplate", "aiNew"];
 
 /** The screen's own header: where back goes, what it's called, what you can do here. The home has no title: only its action, when it has one. */
 type Head = {
   back?: { label: string; to: Screen };
-  title?: string;
+  /** Words, or words with a sign before them (the lock on one of Panki's own templates). */
+  title?: ReactNode;
   action?: ReactNode;
 };
 
@@ -214,6 +254,8 @@ export function App() {
   const [types, setTypes] = useState<CardType[] | null>(null);
   const [srsTypes, setSrsTypes] = useState<SrsType[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  /** Panki AI as it stands, with the account's own templates: asked for on the screens that list or edit them (`AI_KINDS`). */
+  const [ai, setAi] = useState<PankiAiStatus | null>(null);
   const [cards, setCards] = useState<Card[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // How many rows each list really drew, remembered so its skeleton fits exactly next time (`skeletonMemory.ts`).
@@ -266,6 +308,7 @@ export function App() {
     setTypes(null);
     setSrsTypes(null);
     setSettings(null);
+    setAi(null);
     setCards(null);
     setStats(null);
     setSpace(null);
@@ -352,6 +395,25 @@ export function App() {
     loadLists();
   }, [userId, screen.kind, loadLists]);
 
+  // Panki AI's templates, asked for as Settings or a template's screen is reached (an address arriving at one too) and
+  // kept while moving between them: a template saved or deleted there changes them in place.
+  const needsAi = AI_KINDS.includes(arriving?.kind ?? screen.kind);
+  useEffect(() => {
+    if (userId === null || !needsAi) return;
+    let cancelled = false;
+    api
+      .getAi()
+      .then((next) => {
+        if (!cancelled) setAi(next);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) fail(e, "Couldn't load Panki AI's templates.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, needsAi, fail]);
+
   /** Asks for the home's stats again without leaving it: a tile changed something they're made of (a video put away). */
   const [statsTurn, setStatsTurn] = useState(0);
   const refreshStats = useCallback(() => setStatsTurn((n) => n + 1), []);
@@ -417,8 +479,8 @@ export function App() {
     }
     guard.current = null;
     setLeaving(null);
-    const path = routePath(routeOf(next));
-    if (path !== window.location.pathname) window.history.pushState(null, "", path);
+    const address = addressOf(next);
+    if (address !== window.location.pathname) window.history.pushState(null, "", address);
     setArriving(null);
     show(next);
   }
@@ -433,8 +495,8 @@ export function App() {
 
   // Back and forward (the browser's buttons, a mouse's side buttons, a phone's back) change the address; the screen
   // follows. With unsaved work on screen the address is put back and the question asked instead.
-  const here = useRef({ screen, lists: { decks, types, srsTypes } });
-  here.current = { screen, lists: { decks, types, srsTypes } };
+  const here = useRef({ screen, lists: { decks, types, srsTypes, ai } });
+  here.current = { screen, lists: { decks, types, srsTypes, ai } };
   useEffect(() => {
     const onPop = () => {
       const route = parsePath(window.location.pathname);
@@ -443,7 +505,7 @@ export function App() {
         return;
       }
       const next = screenOf(route, here.current.lists);
-      window.history.pushState(null, "", routePath(routeOf(here.current.screen)));
+      window.history.pushState(null, "", addressOf(here.current.screen));
       setLeaveFailure(null);
       setLeaving(next ?? HOME);
     };
@@ -453,14 +515,14 @@ export function App() {
   // Before the browser paints, so a screen whose lists are already loaded never flashes "Loading…" on the way back to it.
   useLayoutEffect(() => {
     if (!arriving) return;
-    const next = screenOf(arriving, { decks, types, srsTypes });
+    const next = screenOf(arriving, { decks, types, srsTypes, ai });
     if (!next) return;
     // What the address named is gone: the address becomes the screen shown instead.
-    const path = routePath(routeOf(next));
-    if (path !== window.location.pathname) window.history.replaceState(null, "", path);
+    const address = addressOf(next);
+    if (address !== window.location.pathname) window.history.replaceState(null, "", address);
     setArriving(null);
     show(next);
-  }, [arriving, decks, types, srsTypes]);
+  }, [arriving, decks, types, srsTypes, ai]);
 
   function openDeck(deck: Deck, tab: DeckTab = "cards") {
     go({ kind: "deck", deck, tab });
@@ -590,6 +652,42 @@ export function App() {
     setSettings(answer.settings);
     return answer.settings;
   }, []);
+
+  /**
+   * A new Panki AI template starts as a copy of another of its action's, or empty, on the screen only: nothing is sent
+   * until its first Save, as a new SRS type's isn't.
+   */
+  function startTemplate(action: AiActionId, base: AiTemplate | null) {
+    const template = draftTemplate(
+      action,
+      base,
+      templatesOf(action, ai?.templates ?? []).map((t) => t.name),
+    );
+    go({ kind: "aiTemplate", template, isNew: true, key: template.id });
+  }
+  /** A template saved: a new one is made by its first Save, Panki giving it its id, and stays open at its own address. */
+  const saveTemplate = useCallback(async (key: string, action: AiActionId, id: string | null, update: AiTemplateUpdate) => {
+    if (id !== null) {
+      const saved = await api.updateAiTemplate(id, update);
+      setAi((prev) => (prev ? { ...prev, templates: prev.templates.map((t) => (t.id === saved.id ? saved : t)) } : prev));
+      return saved;
+    }
+    const saved = await api.addAiTemplate({ action, ...update });
+    setAi((prev) => (prev ? { ...prev, templates: [...prev.templates, saved] } : prev));
+    setScreen((s) => (s.kind === "aiTemplate" && s.key === key ? { ...s, template: saved, isNew: false } : s));
+    window.history.replaceState(null, "", routePath({ kind: "aiTemplate", id: saved.id }));
+    return saved;
+  }, []);
+  async function removeTemplate(id: string) {
+    await api.removeAiTemplate(id);
+    setAi((prev) => (prev ? { ...prev, templates: prev.templates.filter((t) => t.id !== id) } : prev));
+    // Deleted on purpose: what was changed in it but not saved goes with it, unasked.
+    go(AI_SETTINGS, true);
+  }
+  /** What an action's button runs from now on: the account's own setting, kept as the rest are. */
+  async function makeDefault(action: AiActionId, id: string) {
+    await updateSettings({ aiDefaults: { ...(settings?.aiDefaults ?? {}), [action]: id } });
+  }
 
   async function addCard(card: NewCard) {
     if (screen.kind !== "deck") return;
@@ -784,6 +882,27 @@ export function App() {
         };
       case "settings":
         return { title: "Settings" };
+      case "aiTemplate":
+        // One of Panki's own is only shown: Duplicate stands where Save would, the way to make it yours.
+        return at.template.builtin
+          ? {
+              back: { label: "Settings", to: AI_SETTINGS },
+              title: (
+                <span className="title-locked">
+                  <Icon name="lock" />
+                  {at.template.name}
+                </span>
+              ),
+              action: (
+                <Button id="ai-template-copy" variant="primary" onClick={() => startTemplate(at.template.action, at.template)}>
+                  <Icon name="copy" />
+                  Duplicate
+                </Button>
+              ),
+            }
+          : { back: { label: "Settings", to: AI_SETTINGS }, title: editStatus?.name ?? at.template.name, action: saveAction("ai-template") };
+      case "aiNew":
+        return { back: { label: "Settings", to: AI_SETTINGS }, title: newTemplateName(at.action) };
       case "admin":
         return { title: "Admin" };
       case "stats":
@@ -1077,15 +1196,52 @@ export function App() {
           settings === null || me === null ? (
             loading
           ) : (
-            <SettingsView settings={settings} onChange={updateSettings} me={me} onSignOut={signOut} onSignOutAll={signOutAll} />
+            <SettingsView
+              settings={settings}
+              onChange={updateSettings}
+              me={me}
+              onSignOut={signOut}
+              onSignOutAll={signOutAll}
+              ai={ai}
+              onOpenTemplate={(template) => go({ kind: "aiTemplate", template, isNew: false, key: template.id })}
+              onNewTemplate={(action) => go({ kind: "aiNew", action })}
+            />
           );
         break;
+      case "aiNew": {
+        const { action } = screen;
+        body = ai === null ? loading : <AiNewView action={action} own={ai.templates} onPick={(base) => startTemplate(action, base)} />;
+        break;
+      }
+      case "aiTemplate": {
+        const { template, isNew, key } = screen;
+        const own = ai?.templates ?? [];
+        body =
+          ai === null || settings === null ? (
+            loading
+          ) : (
+            <AiTemplateView
+              key={key}
+              template={template}
+              isNew={isNew}
+              ai={ai}
+              isDefault={!isNew && defaultTemplateOf(template.action, settings.aiDefaults, own).id === template.id}
+              onSave={(update, id) => saveTemplate(key, template.action, id, update)}
+              onRemove={removeTemplate}
+              onDuplicate={(base) => startTemplate(base.action, base)}
+              onMakeDefault={(id) => makeDefault(template.action, id)}
+              onStatus={setEditStatus}
+              onGuard={setGuard}
+            />
+          );
+        break;
+      }
       case "admin":
         body =
           me === null ? (
             loading
           ) : me.user.admin ? (
-            <AdminView onGuard={setGuard} />
+            <AdminView />
           ) : (
             <p className="load-error" role="alert">
               Only an admin can open this page.
@@ -1107,6 +1263,8 @@ export function App() {
   const kindNow = arriving?.kind ?? screen.kind;
   const layoutTab = arriving !== null ? (arriving.kind === "type" ? arriving.tab : null) : screen.kind === "type" ? screen.tab : null;
   const wide = kindNow === "srsEdit" || (kindNow === "type" && layoutTab === "layout") || kindNow === "home" || kindNow === "stats";
+  // A template's screens stand as wide as Settings, whose tab lists them, so going between them never changes the width.
+  const settingsWide = kindNow === "aiTemplate" || kindNow === "aiNew";
   // Before the sign-in is known, and while signed out, the bar is the brand alone: no tabs, no screen header. While
   // it's only not known yet, the tabs' room is held as their shape, so the bar doesn't grow the moment it is.
   const bare = me === null;
@@ -1115,7 +1273,7 @@ export function App() {
   const bareLook = bare && !checking;
 
   return (
-    <div className={`app ${kindNow === "home" ? "is-home" : ""} ${kindNow === "review" ? "is-review" : ""} ${wide ? "is-wide" : ""} ${bareLook ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
+    <div className={`app ${kindNow === "home" ? "is-home" : ""} ${kindNow === "review" ? "is-review" : ""} ${wide ? "is-wide" : ""} ${settingsWide ? "is-settings" : ""} ${bareLook ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
       <header className="brand">Panki</header>
       {bare && !checking ? null : (
         <nav className="tabs" aria-label="Sections">

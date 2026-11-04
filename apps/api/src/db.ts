@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { z } from "zod";
 import {
+  AiTemplate,
   BURNED_PLACE,
   CALLED_CARDS_MAX,
   CARD_TIME_MAX_MS,
@@ -51,6 +52,7 @@ import {
   upgradeFlow,
   wordsFieldOf,
   youtubeLinkOf,
+  type AiTemplateUpdate,
   type ApartValue,
   type CalledCard,
   type CardAnswer,
@@ -62,6 +64,7 @@ import {
   type CardTypeUpdate,
   type CardUpdate,
   type DeckUpdate,
+  type NewAiTemplate,
   type NewCard,
   type NewCardType,
   type NewDeck,
@@ -830,6 +833,88 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE card_value_changes ADD COLUMN to_source TEXT");
     db.exec("ALTER TABLE card_example_value_changes ADD COLUMN to_source TEXT");
   },
+  (db) => {
+    // 40. Panki AI's templates, each account's own (AI step 5; the owner, 2026-11-01: "each account's own, plus there
+    // are default ones that we cannot remove but can duplicate and edit, like SRS types"). A row a template: the action
+    // it belongs to (fixed once made), its name, its prompt, its Follow-up prompt, and whether it judges the meanings.
+    // Panki's own starters are never rows (the contracts' `aiTemplates.ts`). Deleting one stamps `removed_at`, never
+    // destroys it; every save that changed one keeps it whole before and after, as an SRS type's does.
+    db.exec(`
+      CREATE TABLE ai_templates (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        follow_up TEXT NOT NULL,
+        judges INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        removed_at INTEGER
+      )
+    `);
+    db.exec(`
+      CREATE TABLE ai_template_changes (
+        id INTEGER PRIMARY KEY,
+        template_id TEXT NOT NULL REFERENCES ai_templates(id),
+        "before" TEXT NOT NULL,
+        "after" TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX ai_template_changes_template_id ON ai_template_changes (template_id)");
+  },
+  (db, now) => {
+    // 41. Prompt context's `{Field}` renamed `{Follow-up field}` (the owner, 2026-11-01: "rename {Field} to
+    // follow-up-field so it's clear"): every template kept says the new name, so none reads as a variable Panki doesn't
+    // know. Its tag as Panki wrote it, `<field>{Field}</field>`, becomes `<follow_up_field>{Follow-up field}</follow_up_field>`
+    // whole; any other `{Field}` the new name alone. Each template changed keeps the change whole before and after, as
+    // a save does; one with neither is left as it is.
+    const rename = (text: string) =>
+      text.replaceAll("<field>{Field}</field>", "<follow_up_field>{Follow-up field}</follow_up_field>").replaceAll("{Field}", "{Follow-up field}");
+    const rows = db.prepare("SELECT id, action, name, prompt, follow_up AS followUp, judges FROM ai_templates").all() as {
+      id: string;
+      action: AiTemplate["action"];
+      name: string;
+      prompt: string;
+      followUp: string;
+      judges: number;
+    }[];
+    const update = db.prepare("UPDATE ai_templates SET prompt = ?, follow_up = ?, updated_at = ? WHERE id = ?");
+    const change = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+    for (const row of rows) {
+      const was: AiTemplate = { id: row.id, action: row.action, name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
+      const is: AiTemplate = { ...was, prompt: rename(was.prompt), followUp: rename(was.followUp) };
+      if (is.prompt === was.prompt && is.followUp === was.followUp) continue;
+      update.run(is.prompt, is.followUp, now, row.id);
+      change.run(row.id, aiTemplateSnapshot(was), aiTemplateSnapshot(is), now);
+    }
+  },
+  (db, now) => {
+    // 42. `{Question}` renamed `{Follow-up question}` the same way (the owner, 2026-11-01, right after 41: "same for
+    // {Question}"): its tag, `<question>{Question}</question>`, whole, any other `{Question}` the new name alone, each
+    // template changed keeping the change whole before and after. Its own step, 41 having run already.
+    const rename = (text: string) =>
+      text
+        .replaceAll("<question>{Question}</question>", "<follow_up_question>{Follow-up question}</follow_up_question>")
+        .replaceAll("{Question}", "{Follow-up question}");
+    const rows = db.prepare("SELECT id, action, name, prompt, follow_up AS followUp, judges FROM ai_templates").all() as {
+      id: string;
+      action: AiTemplate["action"];
+      name: string;
+      prompt: string;
+      followUp: string;
+      judges: number;
+    }[];
+    const update = db.prepare("UPDATE ai_templates SET prompt = ?, follow_up = ?, updated_at = ? WHERE id = ?");
+    const change = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+    for (const row of rows) {
+      const was: AiTemplate = { id: row.id, action: row.action, name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
+      const is: AiTemplate = { ...was, prompt: rename(was.prompt), followUp: rename(was.followUp) };
+      if (is.prompt === was.prompt && is.followUp === was.followUp) continue;
+      update.run(is.prompt, is.followUp, now, row.id);
+      change.run(row.id, aiTemplateSnapshot(was), aiTemplateSnapshot(is), now);
+    }
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -893,6 +978,20 @@ type DictionaryMoveRow = { id: string; title: string; revision: string; descript
 /** A stretch watched, with its video as YouTube showed it; the video's columns are null when its words never came. */
 type WatchStretchRow = { videoId: string; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
 type WatchMarkRow = { videoId: string; kind: string; at: number };
+type AiTemplateRow = { id: string; action: string; name: string; prompt: string; followUp: string; judges: number };
+
+/**
+ * A kept template as the contracts' shape, the account's own; null for one that no longer reads as a template (an
+ * action Panki no longer has, a bound tightened since): left in its row, never rewritten, and offered to nothing.
+ */
+function aiTemplateOf(row: AiTemplateRow): AiTemplate | null {
+  const read = AiTemplate.safeParse({ ...row, judges: row.judges === 1, builtin: false });
+  return read.success ? read.data : null;
+}
+/** A template as its change log keeps it: everything a save can change. */
+function aiTemplateSnapshot({ name, prompt, followUp, judges }: AiTemplate): string {
+  return JSON.stringify(canonical({ name, prompt, followUp, judges }));
+}
 
 type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean; finishedAt: number | null };
 /**
@@ -1056,6 +1155,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectSettings = db.prepare("SELECT key, value FROM settings");
   const upsertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value");
   const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES (?, ?, ?, ?)");
+
+  // Panki AI's templates, the account's own (migration 40); a removed one is seen by nothing but remove itself.
+  const aiTemplateColumns = "id, action, name, prompt, follow_up AS followUp, judges";
+  const selectAiTemplates = db.prepare(`SELECT ${aiTemplateColumns} FROM ai_templates WHERE removed_at IS NULL ORDER BY created_at ASC, rowid ASC`);
+  const selectAiTemplate = db.prepare(`SELECT ${aiTemplateColumns} FROM ai_templates WHERE id = ? AND removed_at IS NULL`);
+  const insertAiTemplate = db.prepare("INSERT INTO ai_templates (id, action, name, prompt, follow_up, judges, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateAiTemplateRow = db.prepare("UPDATE ai_templates SET name = ?, prompt = ?, follow_up = ?, judges = ?, updated_at = ? WHERE id = ? AND removed_at IS NULL");
+  const insertAiTemplateChange = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
+  const removeAiTemplate = db.prepare("UPDATE ai_templates SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
   // Today's allowances, each deck's own: its new cards are used up by the cards started in it (an answer given from new).
   const countStartedSince = db.prepare(
     "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND undone_at IS NULL AND stage_from IS NULL AND burned_from = 0 AND node_from = '[]' AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
@@ -1778,6 +1886,42 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         }
         return settingsFrom(selectSettings.all() as SettingRow[]);
       });
+    },
+    /** The account's own Panki AI templates, every action's, in the order they were made; Panki's starters are the contracts'. */
+    listAiTemplates(): AiTemplate[] {
+      return (selectAiTemplates.all() as AiTemplateRow[]).flatMap((row) => aiTemplateOf(row) ?? []);
+    },
+    /** One of the account's own templates; null for a starter's id, a removed one, or one that never was. */
+    getAiTemplate(id: string): AiTemplate | null {
+      const row = selectAiTemplate.get(id) as AiTemplateRow | undefined;
+      return row ? aiTemplateOf(row) : null;
+    },
+    /** A template made, its id minted here: never a starter's (`starter:`), so a starter is never written. */
+    insertAiTemplate(template: NewAiTemplate, now: number): AiTemplate {
+      const id = `t_${crypto.randomUUID()}`;
+      insertAiTemplate.run(id, template.action, template.name, template.prompt, template.followUp, template.judges ? 1 : 0, now, now);
+      const made = api.getAiTemplate(id);
+      if (!made) throw new Error("A template just made didn't read back.");
+      return made;
+    },
+    /**
+     * A template saved whole: written, with its change log a row, only when something differs, so a save of the same
+     * thing again changes nothing. Null when it isn't the account's own and living.
+     */
+    updateAiTemplate(id: string, update: AiTemplateUpdate, now: number): AiTemplate | null {
+      return transaction(() => {
+        const before = api.getAiTemplate(id);
+        if (!before) return null;
+        const [was, is] = [aiTemplateSnapshot(before), aiTemplateSnapshot({ ...before, ...update })];
+        if (was === is) return before;
+        updateAiTemplateRow.run(update.name, update.prompt, update.followUp, update.judges ? 1 : 0, now, id);
+        insertAiTemplateChange.run(id, was, is, now);
+        return api.getAiTemplate(id);
+      });
+    },
+    /** Hides the template, kept with the time it went; hiding twice keeps the first time. False when the account never had one by that id (a starter's among them). */
+    removeAiTemplate(id: string, now: number): boolean {
+      return removeAiTemplate.run(now, id).changes > 0;
     },
     listDecks(now: number): Deck[] {
       const today = todayAt(now);

@@ -7,7 +7,7 @@ import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { AiShown, Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { AiShown, Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
@@ -106,7 +106,6 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
       dictionaries: on.length,
       signature: on.map((d) => d.id).join(","),
       layout: popupLayoutOf(store.popupLayout, withMeanings(dictionaries)),
-      explainOnOpen: store.explainOnOpen,
     };
   } catch (e) {
     console.error("Panki:", e);
@@ -255,24 +254,36 @@ const KeptAi = z.object({ who: z.string(), ai: AiShown });
 /** Whose Panki AI it is: the Panki and the account signed in to it. */
 const whoOf = (store: Stored) => `${store.address ?? ""}\n${store.userName ?? ""}`;
 async function keepAi(store: Stored, ai: PankiAiStatus): Promise<AiShown> {
-  const shown: AiShown = { settings: ai.settings, key: ai.key, learningLanguage: ai.learningLanguage, language: ai.language };
+  const shown: AiShown = {
+    settings: ai.settings,
+    key: ai.key,
+    learningLanguage: ai.learningLanguage,
+    language: ai.language,
+    templates: ai.templates,
+    defaults: ai.defaults,
+    askOverMicros: ai.askOverMicros,
+    showCostOverMicros: ai.showCostOverMicros,
+  };
   await chrome.storage.session.set({ [AI_KEPT]: { who: whoOf(store), ai: shown } satisfies z.infer<typeof KeptAi> });
   return shown;
 }
-async function keptAi(door: Door, store: Stored): Promise<AiShown> {
-  const kept = KeptAi.safeParse((await chrome.storage.session.get(AI_KEPT))[AI_KEPT]);
-  if (kept.success && kept.data.who === whoOf(store)) return kept.data.ai;
+async function keptAi(door: Door, store: Stored, fresh: boolean): Promise<AiShown> {
+  const kept = fresh ? null : KeptAi.safeParse((await chrome.storage.session.get(AI_KEPT))[AI_KEPT]);
+  if (kept?.success && kept.data.who === whoOf(store)) return kept.data.ai;
   return keepAi(store, await panki.ai(door));
 }
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && ("address" in changes || "token" in changes || "userName" in changes)) void chrome.storage.session.remove(AI_KEPT);
 });
 
-/** Panki AI as the pop-up is told it: null signed out, or when the sign-in turns out to be no good any more (forgotten here too). */
-async function aiState(store: Stored): Promise<AiState> {
+/**
+ * Panki AI as the pop-up is told it: null signed out, or when the sign-in turns out to be no good any more (forgotten
+ * here too). `fresh` asks Panki first: the account's templates change in Panki, which tells the worker nothing.
+ */
+async function aiState(store: Stored, fresh = false): Promise<AiState> {
   if (!store.address || !store.token) return { ok: true, ai: null };
   try {
-    return { ok: true, ai: await keptAi({ address: store.address, token: store.token }, store) };
+    return { ok: true, ai: await keptAi({ address: store.address, token: store.token }, store, fresh) };
   } catch (e) {
     if (e instanceof PankiError && e.status === 401) {
       await forgetSignIn();
@@ -311,7 +322,7 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -371,8 +382,12 @@ async function answer(
     await writeStore({ pankiOn: ask.on });
     return { ok: true };
   }
+  if (ask.kind === "panelView") {
+    await writeStore({ panelView: ask.view });
+    return { ok: true };
+  }
   // Signed out is an answer here, not a failure: the pop-up greys Explain and says why.
-  if (ask.kind === "aiState") return aiState(await readStore());
+  if (ask.kind === "aiState") return aiState(await readStore(), ask.fresh === true);
   const store = await readStore();
   if (!store.address || !store.token) return { ok: false, message: SIGN_IN_FIRST, signedOut: true };
   const door: Door = { address: store.address, token: store.token };
@@ -455,6 +470,26 @@ async function answer(
         await keepAi(store, e.ai);
         return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
       }
+    }
+    // Proofread (AI step 6): its edits are the transcript's, so the answer carries the transcript after them.
+    if (ask.kind === "proofread") {
+      try {
+        const answered = await panki.proofread(door, ask.ask);
+        await keepAi(store, answered.ai);
+        return { ok: true, proofread: answered.proofread, transcript: answered.transcript };
+      } catch (e) {
+        if (!(e instanceof ExplainRefused)) throw e;
+        await keepAi(store, e.ai);
+        return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
+      }
+    }
+    if (ask.kind === "undoFixes") {
+      await panki.undoFixes(door, ask.videoId, ask.undo);
+      return transcripted(door, ask.videoId, store);
+    }
+    if (ask.kind === "lineMark") {
+      await panki.markLine(door, ask.videoId, ask.mark);
+      return transcripted(door, ask.videoId, store);
     }
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.

@@ -1,3 +1,5 @@
+import { AiActionId } from "@panki/contracts";
+
 /**
  * Every screen's address. A route is a screen by ids alone, so it can be written as a path and read back from one:
  * the browser's back and forward (and a mouse's side buttons) walk the screens, and a reload lands where you were.
@@ -20,11 +22,26 @@ export type Route =
   | { kind: "srsNew" }
   | { kind: "srsEdit"; id: string }
   | { kind: "settings" }
+  /** A Panki AI template, the account's own or one of Panki's starters (`starter:grammar`), from Settings → Panki AI. */
+  | { kind: "aiTemplate"; id: string }
+  /** A new template of an action, picking what it starts from. */
+  | { kind: "aiNew"; action: AiActionId }
   /** What everyone shares and an admin alone changes: its own screen, at the bar's far end (the owner, 2026-10-29). */
   | { kind: "admin" }
   | { kind: "stats" };
 
 const NEW = "new";
+/** Where Panki AI's templates live in the addresses: under Settings, whose Panki AI tab lists them. */
+const AI_TEMPLATES = "/settings/ai";
+
+/** A part of a path as it was written into it; null when it's no part a path of Panki's could hold. */
+function decoded(part: string): string | null {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return null;
+  }
+}
 
 export function routePath(route: Route): string {
   switch (route.kind) {
@@ -53,6 +70,11 @@ export function routePath(route: Route): string {
       return `/srs/${route.id}`;
     case "settings":
       return "/settings";
+    // A starter's id holds a colon, so ids are written encoded here (and read back decoded).
+    case "aiTemplate":
+      return `${AI_TEMPLATES}/templates/${encodeURIComponent(route.id)}`;
+    case "aiNew":
+      return `${AI_TEMPLATES}/${NEW}/${route.action}`;
     case "admin":
       return "/admin";
     case "stats":
@@ -79,8 +101,15 @@ export function parsePath(path: string): Route {
     case "srs":
       if (!id) return { kind: "srs" };
       return id === NEW ? { kind: "srsNew" } : { kind: "srsEdit", id };
-    case "settings":
-      return { kind: "settings" };
+    case "settings": {
+      if (id !== "ai" || !more) return { kind: "settings" };
+      if (rest === "templates") {
+        const templateId = decoded(more);
+        return templateId ? { kind: "aiTemplate", id: templateId } : { kind: "settings" };
+      }
+      const action = AiActionId.safeParse(more);
+      return rest === NEW && action.success ? { kind: "aiNew", action: action.data } : { kind: "settings" };
+    }
     case "admin":
       return { kind: "admin" };
     case "stats":

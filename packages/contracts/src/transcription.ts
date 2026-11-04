@@ -263,15 +263,49 @@ export type EngineKeyUpdate = z.infer<typeof EngineKeyUpdate>;
 export const Stretch = z.object({ startMs: z.number().int().nonnegative(), endMs: z.number().int().nonnegative() });
 export type Stretch = z.infer<typeof Stretch>;
 
-/** One word the engine heard, with when. `text` is what stands now; `heard` is the engine's own word when a fix changed it. */
+/**
+ * A line of the transcript split or joined by hand (AI step 6, the editors): a line is a run of words the extension
+ * cuts by pauses, full stops and length (`linesOf`), so where one is split or two are joined is kept on the word it
+ * happens at, `break` a line starting there and `join` never one starting there, whatever else would cut it. The
+ * latest for a word stands; everyone's, like an edit, held to Editing Panki subtitles.
+ */
+export const LineMark = z.enum(["break", "join"]);
+export type LineMark = z.infer<typeof LineMark>;
+export const TranscriptLineMark = z.object({ wordId: z.number().int(), mark: LineMark });
+export type TranscriptLineMark = z.infer<typeof TranscriptLineMark>;
+
+/**
+ * Who made a word's latest edit (AI step 6): a person by hand, or Panki AI's Proofread. Whichever came later wins (the
+ * owner, 2026-11-03); an AI edit undone stands aside and the word reads as it did before it.
+ */
+export const WordFixBy = z.enum(["hand", "ai"]);
+export type WordFixBy = z.infer<typeof WordFixBy>;
+/**
+ * A word's latest edit as it's told of: who made it, what the word read as before it (a hand edit's text or the
+ * engine's), and for the AI's, why and which run made it (`ProofreadAsk.run`, what Undo all takes back).
+ */
+export const WordFix = z.object({ by: WordFixBy, from: z.string(), reason: z.string().optional(), run: z.string().optional() });
+export type WordFix = z.infer<typeof WordFix>;
+
+/**
+ * One word the engine heard, with when. `text` is what stands now; `heard` is the engine's own word when a fix changed
+ * it, and `fix` that latest edit. `unsure` is a word the engine itself was unsure of (its own confidence under
+ * `UNSURE_BELOW`, kept from AI step 6 on; none on a word heard before).
+ */
 export const TranscriptWord = z.object({
   id: z.number().int(),
   text: z.string(),
   heard: z.string().optional(),
+  fix: WordFix.optional(),
+  unsure: z.boolean().optional(),
+  /** A line split or joined by hand at this word (`LineMark`): its latest, which the lines are cut by before anything else. */
+  line: LineMark.optional(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().nonnegative(),
 });
 export type TranscriptWord = z.infer<typeof TranscriptWord>;
+/** How sure the engine must be of a word, as a share, for it not to count as one it was unsure of: Proofread looks at those first. Unproven, a first guess. */
+export const UNSURE_BELOW = 0.5;
 
 /** The longest video Panki believes it's told of, for a whole-video download: twelve hours. */
 export const WHOLE_MAX_MS = 12 * 60 * 60 * 1000;

@@ -29,8 +29,11 @@ const ACCOUNT_TIMEOUT_MS = 20_000;
 /** The call didn't come back: cut by the deadline (not tried again: the engine may have done the work, and charged for it), or never reached (passing). */
 const unreached = (e: unknown) => (timedOut(e) ? new EngineError("ElevenLabs took too long to answer.") : new EngineError("Couldn't reach ElevenLabs.", 502, true));
 
-/** One row of the answer's `words`: a word, a space, or a sound that isn't speech; only the words are kept. */
-const Row = z.object({ text: z.string(), start: z.number(), end: z.number(), type: z.string() });
+/**
+ * One row of the answer's `words`: a word, a space, or a sound that isn't speech; only the words are kept, each with how
+ * sure Scribe was of it (`logprob`, the log of its probability: kept from AI step 6 on, for Proofread; unproven).
+ */
+const Row = z.object({ text: z.string(), start: z.number(), end: z.number(), type: z.string(), logprob: z.number().nullable().optional().catch(null) });
 const Answer = z.object({
   language_code: z.string(),
   language_probability: z.number(),
@@ -74,7 +77,7 @@ function heardOf(body: unknown): Heard {
   if (!answer.success) throw new EngineError("ElevenLabs' answer couldn't be read.");
   const words: Heard["words"] = answer.data.words.flatMap((raw) => {
     const row = Row.safeParse(raw);
-    return row.success && row.data.type === "word" ? [{ text: row.data.text, startMs: toMs(row.data.start), endMs: toMs(row.data.end) }] : [];
+    return row.success && row.data.type === "word" ? [{ text: row.data.text, startMs: toMs(row.data.start), endMs: toMs(row.data.end), logprob: row.data.logprob ?? null }] : [];
   });
   // How sure it was is read as a share, whatever it sends: a number outside 0 to 1 would refuse the whole piece.
   const probability = Math.min(1, Math.max(0, answer.data.language_probability));

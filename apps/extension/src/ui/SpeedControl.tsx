@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Button } from "@web/components/Button";
+import { Icon } from "@web/components/Icon";
 import { usePull } from "@web/components/MediaView";
 import { useDismiss } from "@web/hooks/useDismiss";
 
@@ -16,8 +17,12 @@ const MIN = 0.1;
 const MAX = 10;
 /** The common speeds, pressed in one go under the slider. */
 const PRESETS = [0.5, 1, 1.25, 1.5, 2, 3] as const;
-/** Where the slider's marks stand, and say what they are. */
-const MARKS = [0.1, 0.5, 1, 2, 5, 10] as const;
+/** The site's player (its name, as it was when this was written). */
+const PLAYER = ".html5-video-player";
+/** The class Panki puts on the player while its speed panel is open: its bar held shown. */
+export const BAR_HELD = "panki-bar-held";
+/** The speed the site calls Standard, said under its preset as the site's own panel says it. */
+const STANDARD = 1;
 /** How far − and + move the speed from where it stands: fine near the speeds watched at, coarser far from them. */
 const BANDS = [
   { below: 2, step: 0.05 },
@@ -27,7 +32,11 @@ const BANDS = [
 /** How close the slider has to come to a common speed (a share of its length) to rest on it. */
 const SNAP = 0.015;
 
-const speedWords = (rate: number) => `${Number(rate.toFixed(2))}×`;
+// The speed written as the site writes it (the owner, 2026-11-04): "1.1x" on the bar, "1.10x" over the panel's
+// slider, its presets "1.0", "1.25", "2.0".
+const speedWords = (rate: number) => `${Number(rate.toFixed(2))}x`;
+const headWords = (rate: number) => `${rate.toFixed(2)}x`;
+const presetWords = (rate: number) => (Number.isInteger(rate) ? rate.toFixed(1) : String(rate));
 const stepAt = (rate: number) => (BANDS.find((band) => rate < band.below - 1e-9) ?? BANDS[2]).step;
 /** A speed as one Panki plays at: within its bounds, on its band's step. */
 const settled = (rate: number) => {
@@ -59,6 +68,17 @@ export function SpeedControl({ video }: { video: HTMLVideoElement }) {
     video.addEventListener("ratechange", read);
     return () => video.removeEventListener("ratechange", read);
   }, [video]);
+  // While the panel is open the player's bar stays shown whatever the pointer does, as it stays while the site's own gear
+  // menu is open (the owner, 2026-11-04: "the settings panel of YouTube native makes the entire playback bar… stay open
+  // even if I move my mouse away… same for our speed"): the player carries `BAR_HELD` while it's open, which the player
+  // bar's stylesheet holds shown (`content/playerBar.ts` → `HOLD_SHOWN`). The panel closes by its ×, Esc, a press outside
+  // it or the speed again. A video in no player (the options page's) has nothing to hold.
+  useEffect(() => {
+    const player = open ? video.closest(PLAYER) : null;
+    if (!player) return;
+    player.classList.add(BAR_HELD);
+    return () => player.classList.remove(BAR_HELD);
+  }, [open, video]);
   function play(at: number) {
     try {
       video.playbackRate = at;
@@ -84,14 +104,35 @@ export function SpeedControl({ video }: { video: HTMLVideoElement }) {
         +
       </Button>
       {open ? (
+        // The site's own Playback speed panel, piece for piece (the owner, 2026-11-04, its picture: "use the same look
+        // that YouTube uses"): its head with its name and ×, the speed big, − the slider +, the presets as
+        // its round pills with Standard under 1. Panki's wider range stays on the slider.
         <div className="yt-speed-pop" role="group" aria-label="Playback speed">
-          <span className="yt-speed-read">{speedWords(rate)}</span>
-          <SpeedSlider rate={rate} onRate={play} />
+          {/* Its name at the head's left, × at its right closing it (the owner, 2026-11-04: in place of the site's way back, which here has nowhere to go back to). */}
+          <div className="yt-speed-head">
+            <span className="yt-speed-title">Playback speed</span>
+            <Button className="yt-speed-close" aria-label="Close" onClick={() => setOpen(false)}>
+              <Icon name="close" />
+            </Button>
+          </div>
+          <span className="yt-speed-read">{headWords(rate)}</span>
+          <div className="yt-speed-row">
+            <Button className="yt-speed-round" aria-label="Slower" disabled={rate <= MIN + 0.001} onClick={() => play(stepped(rate, -1))}>
+              −
+            </Button>
+            <SpeedSlider rate={rate} onRate={play} />
+            <Button className="yt-speed-round" aria-label="Faster" disabled={rate >= MAX - 0.001} onClick={() => play(stepped(rate, 1))}>
+              +
+            </Button>
+          </div>
           <div className="yt-speed-presets">
             {PRESETS.map((speed) => (
-              <Button key={speed} variant="chip" className="yt-speed-chip" aria-pressed={same(rate, speed)} onClick={() => play(speed)}>
-                {speedWords(speed)}
-              </Button>
+              <span key={speed} className="yt-speed-preset">
+                <Button variant="chip" className="yt-speed-chip" aria-pressed={same(rate, speed)} onClick={() => play(speed)}>
+                  {presetWords(speed)}
+                </Button>
+                {speed === STANDARD ? <small>Standard</small> : null}
+              </span>
             ))}
           </div>
         </div>
@@ -100,7 +141,7 @@ export function SpeedControl({ video }: { video: HTMLVideoElement }) {
   );
 }
 
-/** The speed as a line pressed, pulled or moved with the arrow keys (− and +'s steps), its marks under it. */
+/** The speed as a line pressed, pulled or moved with the arrow keys (− and +'s steps), as the site draws its own. */
 function SpeedSlider({ rate, onRate }: { rate: number; onRate: (rate: number) => void }) {
   const { line, pulling, handlers } = usePull((share) => onRate(rateAt(share)));
   const share = Math.min(1, Math.max(0, shareOf(rate)));
@@ -130,13 +171,6 @@ function SpeedSlider({ rate, onRate }: { rate: number; onRate: (rate: number) =>
           <b style={{ left: `${share * 100}%` }} />
         </span>
       </span>
-      <div className="yt-speed-marks" aria-hidden="true">
-        {MARKS.map((mark) => (
-          <span key={mark} style={{ left: `${shareOf(mark) * 100}%` }}>
-            {speedWords(mark)}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

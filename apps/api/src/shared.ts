@@ -4,8 +4,21 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
+  AI_ACTIONS,
+  AI_ACTION_IDS,
+  DEFAULT_EXPLAIN_PROMPT,
+  DEFAULT_FOLLOW_UPS,
   DEFAULT_PANKI_AI,
+  DEFAULT_PROOFREAD_PROMPT,
+  DEFAULT_TOUCH_UP_PROMPT,
+  UNSURE_BELOW,
+  expectedGot,
+  type ProofreadWord,
+  type TranscriptUndo,
   DEFAULT_TRANSCRIPTION,
+  EXPLAIN_PROMPT_BEFORE_TEMPLATES,
+  TOUCH_UP_PROMPT_BEFORE_TEMPLATES,
+  type AiActionId,
   ENGINES,
   PankiAi,
   soundCostMicros,
@@ -67,7 +80,7 @@ export type NewUsage = {
   costMicros: number | null;
 };
 /** One account's usage added up, as the ledger is read; `userId` null for calls from before they were counted per account. */
-export type UsageRow = { userId: string | null } & Omit<UsageTotals, "costMicros"> & { costMicros: number | null };
+export type UsageRow = { userId: string | null } & Omit<UsageTotals, "costMicros" | "byWhat"> & { costMicros: number | null; byWhat: Record<string, number> };
 
 /**
  * A piece as the route hands it in: where its sound is in the video, the language the engine was told and what it
@@ -93,7 +106,7 @@ export type NewPiece = {
   redoId: string | null;
 };
 /** A word the engine heard, with its times in the video's own ms. */
-export type NewWord = { text: string; startMs: number; endMs: number };
+export type NewWord = { text: string; startMs: number; endMs: number; logprob?: number | null };
 /** A stretch the silent player listened through and found nothing to send: heard, with nothing said. Its id is the extension's, as a piece's is; `redoId` as a piece's. */
 export type NewQuiet = { id: string; videoId: string; startMs: number; endMs: number; userId: string; redoId: string | null };
 type RedoRow = { id: string; videoId: string; askedStart: number; askedEnd: number; startMs: number; endMs: number; state: "running" | "done" | "cancelled" };
@@ -135,8 +148,29 @@ type Group<T extends Record<string, unknown>> = { shape: Record<string, { safePa
 const TRANSCRIPTION: Group<Transcription> = { shape: Transcription.shape, parse: (value) => Transcription.parse(value), defaults: DEFAULT_TRANSCRIPTION };
 const WORD_AUDIO: Group<WordAudio> = { shape: WordAudio.shape, parse: (value) => WordAudio.parse(value), defaults: DEFAULT_WORD_AUDIO };
 const PANKI_AI: Group<PankiAi> = { shape: PankiAi.shape, parse: (value) => PankiAi.parse(value), defaults: DEFAULT_PANKI_AI };
-/** A living word: the engine's own, and its latest fix's text and times, when it has one (a fix to "" took it out of the line). */
-type WordRow = { id: number; heard: string; startMs: number; endMs: number; fixed: string | null; fixedStart: number | null; fixedEnd: number | null };
+/** The setting that says the prompts kept for everyone were carried into the admins' templates, and when (`carryPrompts`): no group's, so no group reads it. */
+const PROMPTS_CARRIED = "aiPromptsCarriedAt";
+/**
+ * A living word: the engine's own, how sure the engine was of it (null before AI step 6), and its latest fix that isn't
+ * undone, when it has one (a fix to "" took it out of the line): its text and times, what the word read as before it,
+ * and whose it is (`source` 'ai' for Panki AI's, with why and its run; null a person's).
+ */
+type WordRow = {
+  id: number;
+  heard: string;
+  startMs: number;
+  endMs: number;
+  logprob: number | null;
+  fixed: string | null;
+  fixedStart: number | null;
+  fixedEnd: number | null;
+  fromText: string | null;
+  source: string | null;
+  reason: string | null;
+  runId: string | null;
+  /** A line split ('break') or joined ('join') by hand at this word, the latest (AI step 6). */
+  lineMark: "break" | "join" | null;
+};
 type StretchRow = { startMs: number; endMs: number };
 /** A living word of another piece, with that piece's own edges. */
 type InsideRow = { id: number; startMs: number; pieceStart: number; pieceEnd: number };
@@ -485,6 +519,38 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
       SELECT 'wordAudio', service, 'request', 1, at FROM service_calls ORDER BY at, id
     `);
   },
+  (db) => {
+    // Proofread (AI step 6, 2026-11-03): Panki AI's edits are fixes like a person's, kept beside the engine's word, and
+    // whichever came later wins (the owner). `source` says whose ('ai'; null a person's, as every fix before), with the
+    // run it was part of (`ProofreadAsk.run`, what Undo all takes back), the model and template that made it and why.
+    // Undone, a fix stands aside (`undone_at`, by whom), never deleted, and the word reads as its latest fix still
+    // standing, or the engine's. And how sure the engine was of each word (ElevenLabs' `logprob`, the log of its
+    // probability), kept from now on: Proofread is told the words it was unsure of. Null on every word heard before.
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN source TEXT");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN run_id TEXT");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN model TEXT");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN template_id TEXT");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN reason TEXT");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN undone_at INTEGER");
+    db.exec("ALTER TABLE transcript_fixes ADD COLUMN undone_by TEXT");
+    db.exec("CREATE INDEX transcript_fixes_run_id ON transcript_fixes (run_id)");
+    db.exec("ALTER TABLE transcript_words ADD COLUMN logprob REAL");
+  },
+  (db) => {
+    // Lines split and joined by hand (AI step 6, the editors, 2026-11-03): a line is cut by the extension from its
+    // words, so a split or a join is kept on the word it happens at, the latest one standing ('break': a line starts
+    // here; 'join': none does). Who and when, as every edit; never deleted. A word that stands aside takes its with it.
+    db.exec(`
+      CREATE TABLE transcript_line_marks (
+        id INTEGER PRIMARY KEY,
+        word_id INTEGER NOT NULL REFERENCES transcript_words(id),
+        mark TEXT NOT NULL CHECK (mark IN ('break', 'join')),
+        user_id TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX transcript_line_marks_word_id ON transcript_line_marks (word_id, id)");
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -543,6 +609,12 @@ function dictionaryOf(row: unknown): ServerDictionary {
 
 /** A word as it reads now: its latest fix's text and times, or the engine's. */
 const wordOf = (w: WordRow): LineWord => ({ id: w.id, text: w.fixed ?? w.heard, startMs: w.fixedStart ?? w.startMs, endMs: w.fixedEnd ?? w.endMs });
+/** A line fixed by hand, or why not: a word of it no longer living, or its ends over the line before or after (`detail`, expected against got). */
+export type LineFixed = { ok: true } | { ok: false; problem: "gone" } | { ok: false; problem: "overlap"; detail: string };
+/** A moment of a video as the refusal says it, to a tenth of a second: "1:05.3". */
+const msWords = (ms: number): string => `${Math.floor(ms / 60_000)}:${((ms % 60_000) / 1000).toFixed(1).padStart(4, "0")}`;
+/** Whether the engine was unsure of a word: its own probability for it under `UNSURE_BELOW`; never for one heard before it was kept. */
+const unsureOf = (w: WordRow): boolean => w.logprob !== null && Math.exp(w.logprob) < UNSURE_BELOW;
 
 /** A download as the extension is told of it. */
 const wholeJobOf = (job: JobRow): WholeJob =>
@@ -604,6 +676,7 @@ export function openShared(dataDir: string) {
     SELECT user_id AS userId, COUNT(*) AS calls, COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
       COALESCE(SUM(sound_ms), 0) AS soundMs, COALESCE(SUM(requests), 0) AS requests, SUM(cost_micros) AS costMicros
     FROM usage WHERE kind = ? AND at >= ? GROUP BY user_id`);
+  const selectUsageWhat = db.prepare("SELECT user_id AS userId, what, COUNT(*) AS calls FROM usage WHERE kind = ? AND at >= ? GROUP BY user_id, what");
 
   const dictionaryColumns = "id, title, revision, description, bytes, provides, uploaded_at AS uploadedAt";
   const selectDictionaryFiles = db.prepare(`SELECT ${dictionaryColumns} FROM dictionary_files WHERE removed_at IS NULL ORDER BY uploaded_at ASC, id ASC`);
@@ -627,9 +700,11 @@ export function openShared(dataDir: string) {
   const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
   const touchTranscript = db.prepare("UPDATE transcripts SET updated_at = ? WHERE video_id = ?");
   // A word reads as its latest fix, when it has one: its text and, since 2026-10-20, where it stands (a fix from before
-  // that keeps where it was heard); the engine's own word and times stay beside it.
-  const wordColumns = `w.id, w.text AS heard, w.start_ms AS startMs, w.end_ms AS endMs, f.to_text AS fixed, f.start_ms AS fixedStart, f.end_ms AS fixedEnd
-    FROM transcript_words w LEFT JOIN transcript_fixes f ON f.id = (SELECT MAX(x.id) FROM transcript_fixes x WHERE x.word_id = w.id)`;
+  // that keeps where it was heard), its latest that isn't undone since AI step 6; the engine's own word and times stay beside it.
+  const wordColumns = `w.id, w.text AS heard, w.start_ms AS startMs, w.end_ms AS endMs, w.logprob AS logprob, f.to_text AS fixed, f.start_ms AS fixedStart, f.end_ms AS fixedEnd,
+    f.from_text AS fromText, f.source AS source, f.reason AS reason, f.run_id AS runId,
+    (SELECT m.mark FROM transcript_line_marks m WHERE m.word_id = w.id ORDER BY m.id DESC LIMIT 1) AS lineMark
+    FROM transcript_words w LEFT JOIN transcript_fixes f ON f.id = (SELECT MAX(x.id) FROM transcript_fixes x WHERE x.word_id = w.id AND x.undone_at IS NULL)`;
   const selectWords = db.prepare(`SELECT ${wordColumns} WHERE w.video_id = ? AND w.removed_at IS NULL ORDER BY COALESCE(f.start_ms, w.start_ms) ASC, w.id ASC`);
   const selectLivingWord = db.prepare(`SELECT ${wordColumns} WHERE w.id = ? AND w.video_id = ? AND w.removed_at IS NULL`);
   // What's covered: the kept pieces' sound, and the quiet listened through.
@@ -686,7 +761,7 @@ export function openShared(dataDir: string) {
     "SELECT start_ms AS startMs, end_ms AS endMs FROM transcript_pieces WHERE video_id = ? AND kept = 1 AND removed_at IS NULL AND id != ? AND start_ms <= ? AND end_ms >= ?",
   );
   const removeWord = db.prepare("UPDATE transcript_words SET removed_at = ? WHERE id = ?");
-  const insertWord = db.prepare("INSERT INTO transcript_words (video_id, piece_id, text, start_ms, end_ms, removed_at) VALUES (?, ?, ?, ?, ?, ?)");
+  const insertWord = db.prepare("INSERT INTO transcript_words (video_id, piece_id, text, start_ms, end_ms, removed_at, logprob) VALUES (?, ?, ?, ?, ?, ?, ?)");
   // A part transcribed again: its pieces, quiet and words written standing aside as they come (`redo_id`), and stood in
   // when it's done, one piece at a time in order.
   const insertRedoPiece = db.prepare(
@@ -724,6 +799,19 @@ export function openShared(dataDir: string) {
     }
   }
   const insertFix = db.prepare("INSERT INTO transcript_fixes (word_id, from_text, to_text, start_ms, end_ms, user_id, at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  // Panki AI's (AI step 6): who asked for the run, and the run, model, template and why.
+  const insertAiFix = db.prepare(
+    "INSERT INTO transcript_fixes (word_id, from_text, to_text, start_ms, end_ms, user_id, at, source, run_id, model, template_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, 'ai', ?, ?, ?, ?)",
+  );
+  // A living word's latest fix still standing; a run's fixes still standing.
+  const selectLatestFix = db.prepare(`
+    SELECT f.id, f.source FROM transcript_fixes f JOIN transcript_words w ON w.id = f.word_id
+    WHERE f.word_id = ? AND w.video_id = ? AND w.removed_at IS NULL AND f.undone_at IS NULL ORDER BY f.id DESC LIMIT 1`);
+  const selectRunFixes = db.prepare(`
+    SELECT f.id, f.word_id AS wordId FROM transcript_fixes f JOIN transcript_words w ON w.id = f.word_id
+    WHERE f.run_id = ? AND w.video_id = ? AND w.removed_at IS NULL AND f.undone_at IS NULL`);
+  const undoFixRow = db.prepare("UPDATE transcript_fixes SET undone_at = ?, undone_by = ? WHERE id = ? AND undone_at IS NULL");
+  const insertLineMark = db.prepare("INSERT INTO transcript_line_marks (word_id, mark, user_id, at) VALUES (?, ?, ?, ?)");
   const selectPicture = db.prepare("SELECT mime, bytes FROM video_pictures WHERE video_id = ? AND picture = ?");
   const selectHasWords = db.prepare(`
     SELECT 1 FROM transcript_words w JOIN transcript_pieces p ON p.id = w.piece_id
@@ -814,7 +902,12 @@ export function openShared(dataDir: string) {
     },
     /** One kind's usage from a moment on, added up per account (null: from before calls were counted per account). */
     usageOf(kind: UsageKind, since: number): UsageRow[] {
-      return selectUsage.all(kind, since) as UsageRow[];
+      // With how many of each account's calls were each thing done (AI step 6: Explain, Touch up and Proofread apart).
+      const whats = selectUsageWhat.all(kind, since) as { userId: string | null; what: string; calls: number }[];
+      return (selectUsage.all(kind, since) as Omit<UsageRow, "byWhat">[]).map((row) => ({
+        ...row,
+        byWhat: Object.fromEntries(whats.filter((w) => w.userId === row.userId).map((w) => [w.what, w.calls])),
+      }));
     },
 
     /** Which of these videos Panki has subtitles for: a word heard in it that still stands, from a piece kept and standing. */
@@ -911,6 +1004,32 @@ export function openShared(dataDir: string) {
     updateAi(patch: PankiAiUpdate, now: number, userId: string): PankiAi {
       return updateGroup(PANKI_AI, patch, now, userId);
     },
+    /**
+     * Explain's and Touch up's prompts as an admin kept them for everyone until AI step 5 made every prompt an account's
+     * template; null for one never changed. Their rows stay as they are: read here alone, by `carryPrompts`.
+     */
+    promptsBeforeTemplates(): Record<AiActionId, string | null> {
+      const stored = new Map((selectSettings.all() as SettingRow[]).map((row) => [row.key, row.value]));
+      const read = (key: string): string | null => {
+        const raw = stored.get(key);
+        const parsed = raw === undefined ? null : z.string().safeParse(JSON.parse(raw));
+        return parsed?.success ? parsed.data : null;
+      };
+      return { explain: read("aiExplainPrompt"), touchUp: read("aiTouchUpPrompt"), proofread: null };
+    },
+    /** When those prompts were carried into the admins' templates (`carryPrompts`); null until they have been. */
+    promptsCarriedAt(): number | null {
+      const row = (selectSettings.all() as SettingRow[]).find((r) => r.key === PROMPTS_CARRIED);
+      const parsed = row ? z.number().int().safeParse(JSON.parse(row.value)) : null;
+      return parsed?.success ? parsed.data : null;
+    },
+    /** That they have been, kept as a setting of its own with its change, by nobody: Panki did it. */
+    markPromptsCarried(now: number): void {
+      transaction(() => {
+        upsertSetting.run(PROMPTS_CARRIED, JSON.stringify(now));
+        insertSettingChange.run(PROMPTS_CARRIED, JSON.stringify(null), JSON.stringify(now), now, null);
+      });
+    },
 
     /**
      * A video's transcript as it stands: the living words in order, each as its latest fix (one fixed to nothing left
@@ -920,7 +1039,15 @@ export function openShared(dataDir: string) {
       const row = selectTranscript.get(videoId) as { language: string | null } | undefined;
       const words: TranscriptWord[] = (selectWords.all(videoId) as WordRow[]).flatMap((w) => {
         const now = wordOf(w);
-        return now.text === "" ? [] : [{ ...now, ...(w.fixed === null ? {} : { heard: w.heard }) }];
+        if (now.text === "") return [];
+        const fix =
+          w.fixed === null
+            ? {}
+            : {
+                heard: w.heard,
+                fix: { by: w.source === "ai" ? ("ai" as const) : ("hand" as const), from: w.fromText ?? w.heard, ...(w.reason ? { reason: w.reason } : {}), ...(w.runId ? { run: w.runId } : {}) },
+              };
+        return [{ ...now, ...fix, ...(unsureOf(w) ? { unsure: true } : {}), ...(w.lineMark ? { line: w.lineMark } : {}) }];
       });
       const job = selectLatestJob.get(videoId) as JobRow | undefined;
       return Transcript.parse({
@@ -982,7 +1109,7 @@ export function openShared(dataDir: string) {
           );
           if (staged.changes === 0) return;
           if (piece.heardFrom < piece.startMs) insertRedoQuiet.run(piece.id, piece.videoId, piece.heardFrom, piece.startMs, piece.userId, now, piece.redoId, now);
-          for (const v of words) insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, now);
+          for (const v of words) insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, now, v.logprob ?? null);
           return;
         }
         const added = insertPiece.run(
@@ -1010,7 +1137,7 @@ export function openShared(dataDir: string) {
         const stretch: Stretch = { startMs: piece.startMs, endMs: piece.endMs };
         outdo(piece.videoId, piece.id, stretch, now);
         const others = selectPiecesOver.all(piece.videoId, piece.id, piece.endMs, piece.startMs) as StretchRow[];
-        for (const v of words) insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, beaten(others, v.startMs, stretch) ? now : null);
+        for (const v of words) insertWord.run(piece.videoId, piece.id, v.text, v.startMs, v.endMs, beaten(others, v.startMs, stretch) ? now : null, v.logprob ?? null);
       });
     },
     /**
@@ -1108,16 +1235,30 @@ export function openShared(dataDir: string) {
      * place in the line as its ends move, and every word that changed in text or time a fix of its own, kept beside the
      * engine's. False when one of the words isn't a living word of the video's.
      */
-    fixLine(videoId: string, fix: TranscriptLineFix, userId: string, now: number): boolean {
-      return transaction(() => {
+    fixLine(videoId: string, fix: TranscriptLineFix, userId: string, now: number): LineFixed {
+      return transaction((): LineFixed => {
         const words: LineWord[] = [];
         for (const id of new Set(fix.wordIds)) {
           const row = selectLivingWord.get(id, videoId) as WordRow | undefined;
           const current = row ? wordOf(row) : null;
-          if (!current || current.text === "") return false;
+          if (!current || current.text === "") return { ok: false, problem: "gone" };
           words.push({ ...current, text: current.text.trim() });
         }
         words.sort((a, b) => a.startMs - b.startMs || a.id - b.id);
+        // Lines never overlap (the owner, 2026-11-03): the ends may move up to the words before and after the line, never
+        // over them. Words that already stood inside the line's own span (a transcript from before) don't hold it back.
+        const lineStart = Math.min(...words.map((w) => w.startMs));
+        const lineEnd = Math.max(...words.map((w) => w.endMs));
+        const own = new Set(words.map((w) => w.id));
+        let floor = 0;
+        let ceiling = Number.MAX_SAFE_INTEGER;
+        for (const other of (selectWords.all(videoId) as WordRow[]).map(wordOf)) {
+          if (own.has(other.id) || other.text.trim() === "") continue;
+          if (other.endMs <= lineStart) floor = Math.max(floor, other.endMs);
+          else if (other.startMs >= lineEnd) ceiling = Math.min(ceiling, other.startMs);
+        }
+        if (fix.startMs < Math.min(floor, lineStart)) return { ok: false, problem: "overlap", detail: expectedGot(`the line to start at ${msWords(floor)} or later, where the line before it ends`, msWords(fix.startMs)) };
+        if (fix.endMs > Math.max(ceiling, lineEnd)) return { ok: false, problem: "overlap", detail: expectedGot(`the line to end by ${msWords(ceiling)}, where the line after it begins`, msWords(fix.endMs)) };
         const fixed = realignLine(words, fix.text, fix.startMs, fix.endMs);
         fixed.forEach((after, i) => {
           const before = words[i];
@@ -1125,7 +1266,98 @@ export function openShared(dataDir: string) {
           insertFix.run(after.id, before.text, after.text, after.startMs, after.endMs, userId, now);
         });
         touchTranscript.run(now, videoId);
+        return { ok: true };
+      });
+    },
+    /**
+     * The lines a Proofread call is to send, each as its words read now (AI step 6): its text, whether a person edited
+     * it last, whether the engine was unsure of it. Null when one of the words isn't a living word of the video's (the
+     * transcript changed under the page). A word taken out of its line is passed over.
+     */
+    proofreadLines(videoId: string, lines: readonly (readonly number[])[]): ProofreadWord[][] | null {
+      const read: ProofreadWord[][] = [];
+      for (const ids of lines) {
+        const words: ProofreadWord[] = [];
+        for (const id of ids) {
+          const row = selectLivingWord.get(id, videoId) as WordRow | undefined;
+          if (!row) return null;
+          const now = wordOf(row);
+          if (now.text.trim() === "") continue;
+          words.push({ text: now.text, hand: row.fixed !== null && row.source !== "ai", unsure: unsureOf(row) });
+        }
+        read.push(words);
+      }
+      return read;
+    },
+    /**
+     * A Proofread call's corrected lines laid onto their words (AI step 6), in one transaction: each line's text as it
+     * reads now laid back onto its words (`realignLine`, the pencil's own), its ends where they are, and every word whose
+     * text changed a fix of Panki AI's, with its run, model, template and the line's reason. Whichever came later wins:
+     * a word a person edited is changed as any other. Answers how many words changed; a line one of whose words is no
+     * longer living is passed over.
+     */
+    proofreadFix(videoId: string, lines: readonly { wordIds: readonly number[]; text: string; reason: string }[], by: { run: string; model: string; templateId: string; userId: string }, now: number): number {
+      return transaction(() => {
+        let changed = 0;
+        for (const line of lines) {
+          const words: LineWord[] = [];
+          let gone = false;
+          for (const id of new Set(line.wordIds)) {
+            const row = selectLivingWord.get(id, videoId) as WordRow | undefined;
+            if (!row) {
+              gone = true;
+              break;
+            }
+            const current = wordOf(row);
+            if (current.text.trim() !== "") words.push({ ...current, text: current.text.trim() });
+          }
+          if (gone || words.length === 0) continue;
+          words.sort((a, b) => a.startMs - b.startMs || a.id - b.id);
+          const startMs = Math.min(...words.map((w) => w.startMs));
+          const endMs = Math.max(...words.map((w) => w.endMs));
+          realignLine(words, line.text, startMs, endMs).forEach((after, i) => {
+            const before = words[i];
+            if (!before || after.text === before.text) return;
+            insertAiFix.run(after.id, before.text, after.text, before.startMs, before.endMs, by.userId, now, by.run, by.model, by.templateId, line.reason);
+            changed++;
+          });
+        }
+        if (changed > 0) touchTranscript.run(now, videoId);
+        return changed;
+      });
+    },
+    /**
+     * A line split or joined by hand at a word (AI step 6, the editors): kept as the word's latest mark. False when no
+     * living word with that id is the video's; the same mark again changes nothing.
+     */
+    markLine(videoId: string, wordId: number, mark: "break" | "join", userId: string, now: number): boolean {
+      return transaction(() => {
+        const row = selectLivingWord.get(wordId, videoId) as WordRow | undefined;
+        if (!row) return false;
+        if (row.lineMark !== mark) {
+          insertLineMark.run(wordId, mark, userId, now);
+          touchTranscript.run(now, videoId);
+        }
         return true;
+      });
+    },
+    /**
+     * Panki AI's edits taken back, one step each (AI step 6): one word's latest fix, when it's the AI's, or every fix a
+     * run made that's still its word's latest. Each stands aside (`undone_at`, by whom), and the word reads as it did
+     * before: a person's edit, or the engine's word. Answers how many were taken back.
+     */
+    undoFixes(videoId: string, undo: TranscriptUndo, userId: string, now: number): number {
+      return transaction(() => {
+        const fixes =
+          "wordId" in undo
+            ? [selectLatestFix.get(undo.wordId, videoId) as { id: number; source: string | null } | undefined].flatMap((f) => (f && f.source === "ai" ? [f.id] : []))
+            : (selectRunFixes.all(undo.run, videoId) as { id: number; wordId: number }[]).flatMap((f) => {
+                const latest = selectLatestFix.get(f.wordId, videoId) as { id: number } | undefined;
+                return latest?.id === f.id ? [f.id] : [];
+              });
+        for (const id of fixes) undoFixRow.run(now, userId, id);
+        if (fixes.length > 0) touchTranscript.run(now, videoId);
+        return fixes.length;
       });
     },
 
@@ -1177,7 +1409,7 @@ export function openShared(dataDir: string) {
         for (const piece of piecesOfVideo(heard.words, job.lengthMs)) {
           const pieceId = randomUUID();
           insertJobPiece.run(pieceId, job.videoId, piece.startMs, piece.endMs, job.engine, heard.language.code, heard.language.probability, job.userId, now, job.id);
-          for (const w of piece.words) insertWord.run(job.videoId, pieceId, w.text, w.startMs, w.endMs, null);
+          for (const w of piece.words) insertWord.run(job.videoId, pieceId, w.text, w.startMs, w.endMs, null, w.logprob ?? null);
         }
         if (heard.words.length > 0) tellTranscriptLanguage.run(job.language, now, job.videoId, job.language);
         else touchTranscript.run(now, job.videoId);
@@ -1258,6 +1490,56 @@ export function gatherShared(shared: Shared, dataDir: string, auth: AuthDb, dbFo
       console.error(`Couldn't move what ${user.name} held into the shared store; the API starts without it.`, e);
     }
   }
+}
+
+/** Panki's own text of each action's prompt, as Admin's default had it before templates and as its starter has it now: a kept prompt that's one of these was never edited. */
+const PANKI_PROMPTS: Record<AiActionId, readonly string[]> = {
+  explain: [EXPLAIN_PROMPT_BEFORE_TEMPLATES, DEFAULT_EXPLAIN_PROMPT],
+  touchUp: [TOUCH_UP_PROMPT_BEFORE_TEMPLATES, DEFAULT_TOUCH_UP_PROMPT],
+  // Never a setting of everyone's: it came with the templates (AI step 6).
+  proofread: [DEFAULT_PROOFREAD_PROMPT],
+};
+
+/**
+ * Until AI step 5 (2026-11-01) Explain's and Touch up's prompts were one setting each, everyone's, edited in Admin; now
+ * every prompt is a template of an account's own. One an admin edited (it differs from Panki's own text, as it was and
+ * as it is) becomes a template in every admin's account, "Explain (edited)" or "Touch up (edited)", and that account's
+ * default for its action: an edited prompt is never lost. Done at startup until it has been once, then marked in the
+ * shared store and never again; the old rows stay where they are, read by nothing else. An account already holding the
+ * same prompt for the action is passed over, so a run cut short and run again makes no second copy. One account's
+ * trouble is said, and the mark left off so the next start tries again; the API starts all the same.
+ */
+export function carryPrompts(shared: Shared, auth: AuthDb, dbFor: (userId: string) => Db, now: () => number): void {
+  if (shared.promptsCarriedAt() !== null) return;
+  const kept = shared.promptsBeforeTemplates();
+  const edited = AI_ACTION_IDS.flatMap((action) => {
+    const prompt = kept[action]?.trim();
+    if (!prompt || PANKI_PROMPTS[action].some((text) => text.trim() === prompt)) return [];
+    return [{ action, prompt }];
+  });
+  const admins = auth.listUsers().filter((user) => user.admin);
+  if (edited.length > 0 && admins.length === 0) {
+    // Only an admin could edit them; with none now, they wait in the shared store for the next start that has one.
+    console.log("An edited Panki AI prompt waits for an admin's account to be kept in.");
+    return;
+  }
+  let failed = false;
+  for (const user of admins) {
+    try {
+      const db = dbFor(user.id);
+      for (const { action, prompt } of edited) {
+        if (db.listAiTemplates().some((t) => t.action === action && t.prompt === prompt)) continue;
+        const name = `${AI_ACTIONS[action].name} (edited)`;
+        const made = db.insertAiTemplate({ action, name, prompt, followUp: DEFAULT_FOLLOW_UPS[action], judges: true }, now());
+        db.updateSettings({ aiDefaults: { ...db.getSettings().aiDefaults, [action]: made.id } }, now());
+        console.log(`Kept the edited ${AI_ACTIONS[action].name} prompt as ${user.name}'s template "${name}", their default.`);
+      }
+    } catch (e) {
+      failed = true;
+      console.error(`Couldn't keep the edited Panki AI prompts in ${user.name}'s account; the next start tries again.`, e);
+    }
+  }
+  if (!failed) shared.markPromptsCarried(now());
 }
 
 /** The first key found becomes everyone's; a second account's, when it's another key, is left where it is and said. */

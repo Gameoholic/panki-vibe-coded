@@ -7,6 +7,7 @@ import {
   NewCardExample,
   VALUE_MAX,
   apartOf,
+  byAi,
   cardProblems,
   comparedOf,
   exampleFieldsOf,
@@ -36,6 +37,7 @@ import { Form } from "./Form";
 import { Icon } from "./Icon";
 import { MediaField } from "./MediaField";
 import { TextField } from "./TextField";
+import { fieldMarks } from "./TouchUp";
 
 const MB = 1024 * 1024;
 
@@ -152,7 +154,7 @@ function OtherExamples({
           <CardForm
             key={example.id}
             type={exampleType}
-            card={{ ...card, values: example.values, examples: [] }}
+            card={{ ...card, values: example.values, sources: example.sources, examples: [] }}
             heading="Edit example"
             deleting={DELETE_EXAMPLE}
             subtitleStyle={subtitleStyle}
@@ -399,12 +401,15 @@ export function CardForm(props: Props) {
             );
           } else {
             const value = draft[field.id] ?? "";
+            // What Panki AI wrote is marked as the drawer marks it while it stands as written; changed, it's the owner's.
+            const aiWrote = card !== undefined && value !== "" && value === (card.values[field.id] ?? "") && byAi(card.sources, field.id);
             shown = (
               <>
                 <TextField
                   id={inputId(field.id)}
                   data-field={field.name}
                   label={label}
+                  lead={fieldMarks(aiWrote)}
                   multiline={FIELD_KINDS[field.kind].multiline}
                   lang={langOf(value)}
                   autoComplete="off"

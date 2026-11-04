@@ -113,6 +113,8 @@ export function createLineSource(captions: Captions, transcriber: Transcriber, n
     },
     /** The lines of what's read right now. */
     snapshot: (): readonly Line[] => view.lines,
+    /** The transcript's lines, whatever's read right now: what Proofread sends (AI step 6). */
+    transcriptLines: (): readonly TranscriptLine[] => ofTranscript(),
     /** A line by its id, from either source. */
     byId(id: number | null): Line | null {
       if (id === null) return null;

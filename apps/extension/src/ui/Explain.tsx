@@ -5,16 +5,18 @@ import {
   DEFAULT_PANKI_AI,
   PIECE_MAX,
   TRANSCRIBE_LANGUAGES,
-  aiModelOf,
   answeredCall,
-  ceilingMicros,
-  explainSent,
   ACCURACY_NAMES,
+  defaultTemplateOf,
   failedCall,
+  firstStarterOf,
   meaningsPiece,
   startCall,
+  templateById,
+  templatesOf,
   type AiCall,
   type AiRunWhy,
+  type AiTemplate,
   type AiVerdict,
   type ExplainMessage,
   type MeaningAccuracy,
@@ -27,15 +29,14 @@ import {
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark } from "@web/components/AiWaiting";
 import { Button } from "@web/components/Button";
-import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
-import { TextField } from "@web/components/TextField";
-import { estimateWords } from "@web/words";
+import type { ExampleAnswer } from "@web/explainers/examples";
 import type { Pointed } from "../capture/look";
 import { sentenceAround } from "../capture/selection";
 import type { Found } from "../dictionary/found";
 import { dictionaryPieces } from "../dictionary/pieces";
 import { askAiState, askExplain, type AiShown } from "../messages";
+import { AnswerText, FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
 import { glossaryText } from "./Glossary";
 
 /**
@@ -43,16 +44,17 @@ import { glossaryText } from "./Glossary";
  * shown means where it was pointed at. On a press (or by itself once the pop-up is kept open, with Explain as the
  * pop-up opens on), the word, what the dictionaries say of it, its sentence and, on a video, what's around it go to
  * Panki through the worker; the answer stands under the spark as plain paragraphs, and a follow-up can be asked under
- * it, the conversation so far going with it. Before it runs, it says the most it can cost. Nothing is kept: the
- * conversation is this component's, and the pop-up closing, or another word shown, forgets it.
+ * it, the conversation so far going with it. Before it runs, it says the most it can cost, and over the account's Ask
+ * before a run over it asks first (AI step 5). The button runs the account's default template; the arrow beside it
+ * every other, each starting a fresh conversation. Nothing is kept: the conversation is this component's, and the
+ * pop-up closing, or another word shown, forgets it.
  */
 
 /** What this says, one home. */
 const MESSAGES = {
+  go: "Explain",
   signedOut: "Sign in to Panki to explain.",
   noKey: (provider: string) => `No key for ${provider}.`,
-  empty: "Type a question.",
-  long: (max: number) => `Keep the question under ${max.toLocaleString("en")} characters.`,
   /** Panki's own note under an answer the provider stopped at Max answer length: never the AI's words. */
   cut: "Cut short at the answer limit.",
   /** An answer with nothing in it: the provider's failure, as good as. */
@@ -66,13 +68,13 @@ const MESSAGES = {
   noneFits: "None of the dictionary's meanings fits here.",
 };
 /**
- * What Details say an answer came to: its explanation, then every meaning as it judged it, in the list's order (its
- * number, its accuracy, the dictionary's words and name, the reason), drawn in the accuracy's look as the pop-up draws
- * it, and the meaning it proposed when it proposed one, numbered after them as the pop-up numbers it. A follow-up's
- * answer is its one key, `answer` (`FollowUpShape`).
+ * What Details say an answer came to: its words (the explanation, or a plain template's and a follow-up's answer), then
+ * every meaning as it judged it, in the list's order (its number, its accuracy, the dictionary's words and name, the
+ * reason), drawn in the accuracy's look as the pop-up draws it, and the meaning it proposed when it proposed one,
+ * numbered after them as the pop-up numbers it. A follow-up that left the verdicts standing has no rows.
  */
-const explainVerdicts = (found: Found, { text, meanings, proposedMeaning }: Pick<Answered, "text" | "meanings" | "proposedMeaning">, followUp: boolean): AiVerdict[] => [
-  { name: followUp ? "Answer" : "Explanation", tag: null, value: text, reason: "" },
+const explainVerdicts = (found: Found, { text, meanings, proposedMeaning }: Pick<Answered, "text" | "meanings" | "proposedMeaning">, name: string): AiVerdict[] => [
+  { name, tag: null, value: text, reason: "" },
   ...meanings.map((row): AiVerdict => {
     const sense = found.senses[row.meaning - 1];
     return {
@@ -100,30 +102,29 @@ const sameJudging = (a: Pick<Answered, "meanings" | "proposedMeaning">, b: Pick<
   a.proposedMeaning?.meaning === b.proposedMeaning?.meaning &&
   a.meanings.length === b.meanings.length &&
   a.meanings.every((row, i) => row.meaning === b.meanings[i]?.meaning && row.accuracy === b.meanings[i]?.accuracy);
-const upTo = (micros: number) => `Up to ${estimateWords(micros)}`;
 
 /** The limits that shape what's read off a video for a prompt (Admin → Panki AI → Limits). */
 export type PieceLimits = Pick<PankiAi, "aiSurroundingSeconds" | "aiMaxDescriptionChars">;
 /** What the page knows besides the pop-up: on a video, its metadata, the subtitles around the moment and its description. */
 export type MorePieces = (pointed: Pointed, limits: PieceLimits) => PromptPieces;
 
-/** A made-up answer for the options page, by the dictionary form of the word it's about (`options/examples.ts`), with how it judges each meaning. */
-export type ExampleAnswer = { term: string; text: string; meanings: readonly MeaningAccuracy[]; proposedMeaning: ProposedMeaning | null };
-/** Explain on the options page: made-up answers, drawn as an answer is, answering no press, never asking anyone. */
+/** Explain on the options page (the made-up answers are the web's `explainers/examples.ts`): made-up answers, drawn as an answer is, answering no press, never asking anyone. */
 export type ExplainExamples = { kind: "example"; answers: readonly ExampleAnswer[] };
 /**
- * Explain on a page: Panki AI through the worker, about the word pointed at. `more` is what the page adds (a video's);
- * `auto` is Explain as the pop-up opens with the pop-up kept open, and `onAuto` says it ran so, once a pop-up.
+ * Explain on a page: Panki AI through the worker, about the word pointed at, run by its button alone (Explain as the
+ * pop-up opens went at the owner's word, 2026-11-02: running by itself is AI step 7's). `more` is what the page adds (a video's).
  */
-export type ExplainLive = { kind: "panki"; pointed: Pointed; more: MorePieces | null; auto: boolean; onAuto: () => void };
+export type ExplainLive = { kind: "panki"; pointed: Pointed; more: MorePieces | null };
 export type ExplainSource = ExplainExamples | ExplainLive;
 
 /**
- * An answer: its words, how it judged each meaning (one row for each, in the list's order; none from a Panki from
- * before), the meaning it proposes when none fits, whether it was cut short, and the answer exactly as it came back
- * (its JSON), which is what goes back with a follow-up: the model reads its own turn as it wrote it.
+ * An answer: its words, how it judged each meaning (one row for each, in the list's order; none from a template that
+ * doesn't judge, nor from a follow-up that left them standing), the meaning it proposes when none fits, whether it
+ * judged them at all (`judged`: a first answer with rows, a follow-up that judged again), whether it was cut short, the
+ * answer exactly as it came back (its JSON), which is what goes back with a follow-up (the model reads its own turn as
+ * it wrote it), and for a follow-up its Follow-up prompt as Panki filled and sent it (`asked`), which goes back too.
  */
-type Answered = { text: string; meanings: readonly MeaningAccuracy[]; proposedMeaning: ProposedMeaning | null; cut: boolean; raw: string };
+type Answered = { text: string; meanings: readonly MeaningAccuracy[]; proposedMeaning: ProposedMeaning | null; judged: boolean; cut: boolean; raw: string; asked: string };
 /** What's sent, read once: the pieces, why each empty one is empty, and every meaning in the order `{Meaning}` indexes them. */
 type Read = { pieces: PromptPieces; gaps: PromptGaps; meanings: string[] };
 /** One exchange: the question (none for the first, the word itself), then its answer, or why there's none. */
@@ -156,18 +157,19 @@ export function gapsOf(pieces: PromptPieces, onVideo: boolean): PromptGaps {
   return gaps;
 }
 
-const AUTO: AiRunWhy = { kind: "auto", setting: "Explain as the pop-up opens" };
-const PRESSED: AiRunWhy = { kind: "pressed", action: "Explain" };
+const PRESSED: AiRunWhy = { kind: "pressed", action: MESSAGES.go };
 
-/** The conversation so far, as the model is sent it: each answer, the question that came before it, and a new question last. */
-function saidOf(turns: readonly Turn[], asked: string | null): ExplainMessage[] {
+/**
+ * The conversation so far, as it was sent (`Said`): the first answer, then each follow-up as its Follow-up prompt went
+ * and its answer, in turn, ending with an answer. The new question isn't in it: it goes as `asking`.
+ */
+function saidOf(turns: readonly Turn[]): ExplainMessage[] {
   const said: ExplainMessage[] = [];
   for (const turn of turns) {
     if (!turn.answer) continue;
-    if (turn.question !== null) said.push({ role: "user", text: turn.question });
+    if (turn.question !== null) said.push({ role: "user", text: turn.answer.asked || turn.question });
     said.push({ role: "assistant", text: turn.answer.raw || turn.answer.text });
   }
-  if (asked !== null) said.push({ role: "user", text: asked });
   return said;
 }
 
@@ -179,18 +181,10 @@ function saidOf(turns: readonly Turn[], asked: string | null): ExplainMessage[] 
  * answer length.
  */
 function Answer({ answer, before }: { answer: Answered; before: Answered | null }) {
-  const paragraphs = answer.text
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== "");
-  const judged = (before === null || !sameJudging(answer, before)) && answer.meanings.length > 0;
+  const judged = answer.judged && answer.meanings.length > 0 && (before === null || !sameJudging(answer, before));
   return (
     <>
-      <div className="ai-explain-answer">
-        {paragraphs.map((paragraph, i) => (
-          <p key={i}>{paragraph}</p>
-        ))}
-      </div>
+      <AnswerText text={answer.text} />
       {judged && answer.proposedMeaning === null && !answer.meanings.some((row) => row.accuracy === "fits") ? (
         <p className="ai-explain-cut">
           <Icon name="info" />
@@ -207,23 +201,18 @@ function Answer({ answer, before }: { answer: Answered; before: Answered | null 
   );
 }
 
-type FollowUpProps = { id: string; value: string; error?: string | undefined; disabled: boolean; beside: string | null; onChange: (value: string) => void; onAsk: () => void };
-
-/** A follow-up asked under the last answer, with the most it can cost beside Ask, the conversation so far included. */
-function FollowUp({ id, value, error, disabled, beside, onChange, onAsk }: FollowUpProps) {
+/** Explain's own button: the spark and the name of the template it runs ("Explain", "Grammar"). */
+function ExplainButton({ name, disabled, onPress }: { name: string; disabled: boolean; onPress: () => void }) {
   return (
-    <Form className="ai-explain-ask" onSubmit={onAsk}>
-      <TextField id={`${id}-question`} label="Ask a follow-up" value={value} onChange={onChange} error={error} autoComplete="off" />
-      <div className="ai-explain-go">
-        <Button type="submit" className="ai-explain-button" disabled={disabled}>
-          <AiSpark />
-          Ask
-        </Button>
-        {beside ? <span className="ai-explain-beside">{beside}</span> : null}
-      </div>
-    </Form>
+    <Button className="ai-explain-button" disabled={disabled} onClick={onPress}>
+      <AiSpark />
+      {name}
+    </Button>
   );
 }
+
+/** Where a run's question is asked: under the button for a first ask, after the conversation for a follow-up. */
+type Where = "start" | "end";
 
 /** Explain as a page has it: Panki AI asked through the worker. */
 function LiveExplain({ found, source, onJudged }: { found: Found; source: ExplainLive; onJudged: Judged }) {
@@ -233,30 +222,35 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
   /** What's sent, read once as Panki AI is first told: the word as it was pointed at, whatever the video does since. */
   const [read, setRead] = useState<Read | null>(null);
   const pieces = read?.pieces ?? null;
+  /** The template the conversation runs, its first ask's: its follow-ups go by its Follow-up prompt. */
+  const [template, setTemplate] = useState<AiTemplate | null>(null);
+  /** The template picked from the menu in this pop-up, by its id: the button's from then on, the account's default untouched. */
+  const [chosen, setChosen] = useState<string | null>(null);
   const [turns, setTurns] = useState<readonly Turn[]>([]);
   /** Every call this Explain made, oldest first, as the AI's status tells of them: never sent, gone with the pop-up. */
   const [calls, setCalls] = useState<readonly AiCall[]>([]);
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState("");
   const [questionError, setQuestionError] = useState<string | undefined>(undefined);
-  /** The presses that made a call (Explain, Ask, Try again): the head's spark blinks once for each, where the button was. Never one run by itself. */
+  /** The presses that made a call (Explain, Ask, Try again): the head's spark blinks once for each, where the button was. */
   const [burst, setBurst] = useState(0);
-  /** A call on its way: a second press (the auto run and the press that kept the pop-up open, together) waits for it. */
+  const gate = useAskFirst();
+  /** A call on its way: a second press waits for it. */
   const running = useRef(false);
-  /** It has run, by a press or by itself: Explain as the pop-up opens runs it once at most. */
-  const started = useRef(false);
+  /** How many first asks each template has had here: its calls named "Grammar", then "Grammar 2". */
+  const ran = useRef(new Map<string, number>());
   const alive = useRef(true);
   const latest = useRef<HTMLDivElement>(null);
 
-  // The meanings lit as the latest answer that judged them did; none until one has.
+  // The meanings lit as the latest answer that judged them did; none until one has, nor once a conversation begins afresh.
   useEffect(() => {
-    const latest = turns.filter((turn) => turn.answer && (turn.answer.meanings.length > 0 || turn.answer.proposedMeaning !== null)).at(-1)?.answer;
+    const latest = turns.filter((turn) => turn.answer?.judged).at(-1)?.answer;
     onJudged({ meanings: latest?.meanings ?? [], proposed: latest?.proposedMeaning ?? null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turns]);
 
-  const readAi = async () => {
-    const answer = await askAiState();
+  const readAi = async (fresh = false) => {
+    const answer = await askAiState(fresh);
     if (!alive.current) return null;
     setAi(answer.ok ? { known: true, ai: answer.ai, failure: null } : { known: true, ai: null, failure: answer.message });
     return answer.ok ? answer.ai : null;
@@ -278,37 +272,55 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
   const canRun = settings !== null && settings.aiOn && shown?.key !== null && pieces !== null;
   /** Why it can't run, when that can be put right from here; Panki AI switched off says nothing but the greyed button. */
   const reason = !ai.known ? null : ai.failure ? ai.failure : shown === null ? MESSAGES.signedOut : !shown.settings.aiOn ? null : shown.key === null ? MESSAGES.noKey(AI_PROVIDERS[shown.settings.aiProvider].name) : null;
-  /** The most a call with this conversation can cost, at the model's listed prices. */
-  const costOf = (said: ExplainMessage[]) => (canRun && settings && pieces ? upTo(ceilingMicros(aiModelOf(settings), explainSent(settings.aiExplainPrompt, { pieces, said }), settings.aiMaxAnswerTokens)) : null);
+  const own = shown?.templates ?? [];
+  /** The account's default Explain template: what this pop-up opens on. */
+  const preferred = defaultTemplateOf("explain", shown?.defaults ?? {}, own);
+  /** What the button runs, and says: the one picked from the menu in this pop-up, else the default; never kept anywhere. */
+  const picked = chosen ? templateById(chosen, own) : null;
+  const current = picked && picked.action === "explain" ? picked : preferred;
+  /** The most a run can cost at the model's listed prices: a template's first ask, or a follow-up with the conversation so far. */
+  const ceiling = (run: AiTemplate, asked: string | null, before: readonly Turn[]) =>
+    settings && pieces ? ceilingOf(settings, run, pieces, asked === null ? [] : saidOf(before), asked === null ? {} : { question: asked }, settings.aiMaxAnswerTokens) : 0;
+  const costOf = (run: AiTemplate, asked: string | null, before: readonly Turn[]) => (canRun && shown ? RUN_WORDS.upTo(ceiling(run, asked, before), shown.showCostOverMicros) : null);
 
-  async function run(asked: string | null, before: readonly Turn[], why: AiRunWhy) {
+  async function run(using: AiTemplate, asked: string | null, before: readonly Turn[], why: AiRunWhy) {
     if (!read || !settings || running.current) return;
     running.current = true;
-    started.current = true;
-    if (why.kind !== "auto") setBurst((was) => was + 1);
-    // What failed before a new question is let go: only answers go back with it.
-    const kept = before.filter((turn) => turn.answer !== null);
+    setBurst((was) => was + 1);
+    // A first ask begins afresh; a follow-up goes on from the answers so far, what failed before it let go.
+    const kept = asked === null ? [] : before.filter((turn) => turn.answer !== null);
     const pending: Turn = { question: asked, answer: null, failure: null };
-    const said = saidOf(kept, asked);
-    // The first answer is Explain's; each question after it a follow-up, numbered as they're asked.
-    const label = asked === null ? "Explain" : `Follow-up ${kept.length}`;
-    const call = startCall({ label, why, settings, template: settings.aiExplainPrompt, pieces: read.pieces, gaps: read.gaps, said, now: Date.now() });
+    const said = saidOf(kept);
+    const asking = asked === null ? undefined : { question: asked };
+    // A first ask is named by its template, numbered when it ran here before; each question after it a follow-up, numbered as they're asked.
+    let label = `Follow-up ${kept.length}`;
+    if (asked === null) {
+      const times = (ran.current.get(using.id) ?? 0) + 1;
+      ran.current.set(using.id, times);
+      label = times === 1 ? using.name : `${using.name} ${times}`;
+      setTemplate(using);
+    }
+    const call = startCall({ label, why, settings, template: using, pieces: read.pieces, gaps: read.gaps, said, asking, now: Date.now() });
     setTurns([...kept, pending]);
     setCalls((was) => [...was, call]);
     setBusy(true);
-    const answer = await askExplain({ pieces: read.pieces, meanings: read.meanings, said });
+    const answer = await askExplain({ templateId: using.id, pieces: read.pieces, meanings: read.meanings, said, asking });
     running.current = false;
     if (!alive.current) return;
     const empty = answer.ok && answer.explain.text.trim() === "" ? (answer.explain.cut ? MESSAGES.used : MESSAGES.nothing) : null;
-    const done: Turn = answer.ok
-      ? empty !== null
-        ? { ...pending, failure: { message: empty, retry: true } }
-        : { ...pending, answer: { text: answer.explain.text, meanings: answer.explain.meanings, proposedMeaning: answer.explain.proposedMeaning, cut: answer.explain.cut, raw: answer.explain.raw } }
-      : { ...pending, failure: { message: answer.message, retry: answer.problem === "provider" } };
+    const answered = (): Turn => {
+      if (!answer.ok) return { ...pending, failure: { message: answer.message, retry: answer.problem === "provider" } };
+      if (empty !== null) return { ...pending, failure: { message: empty, retry: true } };
+      const { text, meanings, proposedMeaning, cut, raw, judgedAgain } = answer.explain;
+      // A first answer judged them when it has rows; a follow-up only when it says it judged them again.
+      const judged = asked === null ? meanings.length > 0 || proposedMeaning !== null : judgedAgain;
+      return { ...pending, answer: { text, meanings, proposedMeaning, judged, cut, raw, asked: answer.explain.asked } };
+    };
+    const done = answered();
     // An empty answer was still a call the provider billed: Details say what it took, and why there's nothing.
     const finished = answer.ok
       ? empty === null
-        ? answeredCall(call, answer.explain, Date.now(), explainVerdicts(found, answer.explain, asked !== null))
+        ? answeredCall(call, answer.explain, Date.now(), explainVerdicts(found, answer.explain, asked === null && using.judges ? "Explanation" : "Answer"))
         : failedCall(call, empty, Date.now())
       : failedCall(call, answer.message, Date.now(), answer.unread);
     setTurns([...kept, done]);
@@ -318,13 +330,15 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     void readAi();
   }
 
-  // Explain as the pop-up opens: once it's kept open (never on a passing hover), and once a pop-up.
-  useEffect(() => {
-    if (!source.auto || started.current || !canRun) return;
-    source.onAuto();
-    void run(null, [], AUTO);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source.auto, canRun]);
+  /** A press: run at once, or ask first when it can cost more than the account's Ask before a run over (`then` once it goes). */
+  function press(using: AiTemplate, asked: string | null, before: readonly Turn[], why: AiRunWhy, where: Where, then?: () => void) {
+    if (!shown || !canRun) return;
+    const micros = ceiling(using, asked, before);
+    gate.press(shown.askOverMicros, where, micros, asked === null ? RUN_WORDS.runFor(using.name, micros) : RUN_WORDS.askFor(micros), () => {
+      then?.();
+      void run(using, asked, before, why);
+    });
+  }
 
   // A new question and its wait come into view inside the pop-up, which scrolls; nothing outside it moves.
   useEffect(() => {
@@ -338,37 +352,57 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
 
   function askMore() {
     const text = question.trim();
-    if (text === "") {
-      setQuestionError(MESSAGES.empty);
+    const problem = settings ? questionProblem(text, settings.aiMaxQuestionChars) : null;
+    if (problem !== null) {
+      setQuestionError(problem);
       return;
     }
-    if (settings && text.length > settings.aiMaxQuestionChars) {
-      setQuestionError(MESSAGES.long(settings.aiMaxQuestionChars));
-      return;
-    }
-    setQuestion("");
+    if (!template) return;
     setQuestionError(undefined);
-    void run(text, turns, { kind: "followUp" });
+    // The question stays in its box until it's really sent: a question asked first and cancelled keeps it.
+    press(template, text, turns, { kind: "followUp" }, "end", () => setQuestion(""));
   }
 
+  const rows = templatesOf("explain", own).map((each) => ({ template: each, cost: costOf(each, null, []) }));
+  // The button keeps its place once it has run (every action's rule 14: run again at will), a press starting afresh.
+  const start = (
+    <div className="ai-explain-start">
+      <TemplateMenu
+        id={id}
+        rows={rows}
+        defaultId={preferred.id}
+        chosenId={current.id}
+        disabled={!canRun || busy}
+        onPick={(picked) => {
+          setChosen(picked.id);
+          press(picked, null, [], { kind: "pressed", action: picked.name }, "start");
+        }}
+        onOpen={() => void readAi(true)}
+      >
+        <ExplainButton name={current.name} disabled={!canRun || busy} onPress={() => press(current, null, [], { kind: "pressed", action: current.name }, "start")} />
+      </TemplateMenu>
+      {busy ? null : (reason ?? costOf(current, null, [])) ? <span className="ai-explain-beside">{reason ?? costOf(current, null, [])}</span> : null}
+    </div>
+  );
+  const runAsk = (where: Where) => <RunAsk id={`${id}-${where}`} asked={gate.at(where)} onCancel={gate.cancel} />;
+
   if (turns.length === 0) {
-    const beside = reason ?? costOf([]);
     return (
-      <div className="ai-explain-start">
-        <Button className="ai-explain-button" disabled={!canRun} onClick={() => void run(null, [], PRESSED)}>
-          <AiSpark />
-          Explain
-        </Button>
-        {beside ? <span className="ai-explain-beside">{beside}</span> : null}
-      </div>
+      <section className="ai-explain" aria-label="Panki AI">
+        {start}
+        {runAsk("start")}
+      </section>
     );
   }
 
   const answered = turns.filter((turn) => turn.answer !== null).length;
   // The first answer isn't a follow-up; what's left of Max follow-ups is.
   const left = settings ? settings.aiMaxFollowUps - Math.max(0, answered - 1) : 0;
+  const asked = question.trim();
   return (
     <section className="ai-explain" aria-label="Panki AI" aria-busy={busy}>
+      {start}
+      {runAsk("start")}
       <AiStatus calls={calls} burst={burst} />
       {/* A turn on its way is its question alone, or nothing: the head's turning spark and Thinking are the wait (the owner, 2026-10-31). */}
       {turns.map((turn, i) =>
@@ -376,14 +410,14 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
         <div key={i} ref={i === turns.length - 1 ? latest : undefined} className="ai-explain-turn">
           {turn.question !== null ? <p className="ai-explain-question">{turn.question}</p> : null}
           {turn.answer ? (
-            <Answer answer={turn.answer} before={turns.slice(0, i).filter((each) => each.answer !== null).at(-1)?.answer ?? null} />
+            <Answer answer={turn.answer} before={turns.slice(0, i).filter((each) => each.answer?.judged).at(-1)?.answer ?? null} />
           ) : turn.failure ? (
             <div className="ai-explain-failure">
               <p className="form-failure" role="alert">
                 {turn.failure.message}
               </p>
-              {turn.failure.retry ? (
-                <Button className="ai-explain-button" disabled={!canRun} onClick={() => void run(turn.question, turns.slice(0, i), { kind: "retry" })}>
+              {turn.failure.retry && template ? (
+                <Button className="ai-explain-button" disabled={!canRun || busy} onClick={() => press(template, turn.question, turns.slice(0, i), { kind: "retry" }, "end")}>
                   <AiSpark />
                   Try again
                 </Button>
@@ -393,13 +427,14 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
         </div>
         ),
       )}
-      {!busy && answered > 0 && left > 0 ? (
+      {runAsk("end")}
+      {!busy && answered > 0 && left > 0 && template ? (
         <FollowUp
           id={id}
           value={question}
           error={questionError}
           disabled={!canRun}
-          beside={reason ?? costOf(saidOf(turns, question.trim()))}
+          beside={reason ?? costOf(template, asked, turns)}
           onChange={(text) => {
             setQuestion(text);
             setQuestionError(undefined);
@@ -415,7 +450,8 @@ const nothing = () => undefined;
 
 /**
  * Explain on the options page: the made-up answer for the word shown, drawn as an answer is, with its follow-up under
- * it; for a word with none, the button. Nothing in it answers a press, and nothing is ever asked.
+ * it; for a word with none, the button alone. Nothing in it answers a press, and nothing is ever asked: the head's
+ * template is Panki's own Explain.
  */
 function ExampleExplain({ found, answers, onJudged }: { found: Found; answers: readonly ExampleAnswer[]; onJudged: Judged }) {
   const id = useId();
@@ -426,27 +462,35 @@ function ExampleExplain({ found, answers, onJudged }: { found: Found; answers: r
     onJudged({ meanings, proposed: answer?.proposedMeaning ?? null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answer]);
+  const start = (
+    <div className="ai-explain-start">
+      <span className="ai-split">
+        <ExplainButton name={firstStarterOf("explain").name} disabled={false} onPress={nothing} />
+        <Button className="ai-explain-button ai-split-arrow" aria-label={RUN_WORDS.templates}>
+          <Icon name="down" />
+        </Button>
+      </span>
+    </div>
+  );
   if (!answer) {
     return (
-      <div className="ai-explain-start" inert>
-        <Button className="ai-explain-button">
-          <AiSpark />
-          Explain
-        </Button>
-      </div>
+      <section className="ai-explain" aria-label="Panki AI" inert>
+        {start}
+      </section>
     );
   }
   // The head as an answered call has it, made of Panki's defaults and nothing measured: inert, its Details never open.
   const call = answeredCall(
-    startCall({ label: "Explain", why: PRESSED, settings: DEFAULT_PANKI_AI, template: DEFAULT_PANKI_AI.aiExplainPrompt, pieces: { dictForm: found.term, learningLanguage: TRANSCRIBE_LANGUAGES.jpn, language: APP_LANGUAGES.eng }, said: [], now: 0 }),
+    startCall({ label: MESSAGES.go, why: PRESSED, settings: DEFAULT_PANKI_AI, template: firstStarterOf("explain"), pieces: { dictForm: found.term, learningLanguage: TRANSCRIBE_LANGUAGES.jpn, language: APP_LANGUAGES.eng }, said: [], now: 0 }),
     { inputTokens: 0, outputTokens: 0, costMicros: 0, cut: false },
     0,
   );
   return (
     <section className="ai-explain" aria-label="Panki AI" inert>
+      {start}
       <AiStatus calls={[call]} />
       <div className="ai-explain-turn">
-        <Answer answer={{ text: answer.text, meanings, proposedMeaning: answer.proposedMeaning, cut: false, raw: "" }} before={null} />
+        <Answer answer={{ text: answer.text, meanings, proposedMeaning: answer.proposedMeaning, judged: true, cut: false, raw: "", asked: "" }} before={null} />
       </div>
       <FollowUp id={id} value="" disabled={false} beside={null} onChange={nothing} onAsk={nothing} />
     </section>

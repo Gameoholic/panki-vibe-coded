@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { AiRanOn, PankiAiStatus, type AiActionId } from "./ai";
+import { AiRanOn, PankiAiStatus, TemplateId, type AiActionId } from "./ai";
 import { DATA_KIND_NAMES } from "./dictionaryRows";
 import { PIECE_NAMES } from "./pieces";
-import { AI_TEXT_MAX, ExplainShape, FollowUpShape, PromptPieces, meaningsWhole, type MeaningAccuracyId } from "./prompt";
+import { AI_TEXT_MAX, ExplainFollowUpShape, ExplainShape, PlainShape, PromptPieces, Said, meaningsWhole, type MeaningAccuracyId } from "./prompt";
+import { ProofreadShape } from "./proofread";
 import { VALUE_MAX } from "./type";
 import { expectedGot } from "./unread";
 
@@ -251,7 +252,7 @@ export function meaningVerdictOf(part: MeaningAnswer, ticked: readonly number[])
 /** That an answer's shape is Panki's, whatever its prompt says, in the owner's words (the owner, 2026-10-31, who feared editing a prompt could break the app). */
 export const ANSWER_FIXED = "The shape of the answer is fixed by Panki. The prompt changes what goes in it, never its form.";
 /**
- * That the descriptions of What Panki AI answers never reach the provider (`schemaFor` strips every description),
+ * That the descriptions of Panki's answer format never reach the provider (`schemaFor` strips every description),
  * naming the provider they'd go to, the one set in Admin (the owner, 2026-10-31: more accurate than "Panki AI").
  */
 export const answerWordsUnsent = (provider: string): string => `For your reference only: ${provider} isn't shown these descriptions, just the keys and their types.`;
@@ -276,16 +277,19 @@ function partsOf(shape: Record<string, Schema>): AnswerPart[] {
 /** One fixed shape an action answers in, as Admin heads it ("First answer", "A follow-up"; none for an action with one shape), and its keys. */
 export type AnswerShape = { title: string | null; parts: AnswerPart[] };
 /**
- * What an action's answers hold, read off each fixed shape it answers in by walking it, a plain tree of the shape as it
- * is (the owner, 2026-10-31: "a nested shape, for my own sanity"): each key and its description, and under it the keys
- * of what it holds with theirs, in the shape's order. Every word comes from a `describe` on the schema, nothing is
- * added by hand. Explain answers in two, its first answer and a follow-up's.
+ * What a template's answers hold, read off each fixed shape it answers in by walking it, a plain tree of the shape as
+ * it is (the owner, 2026-10-31: "a nested shape, for my own sanity"): each key and its description, and under it the
+ * keys of what it holds with theirs, in the shape's order. Every word comes from a `describe` on the schema, nothing
+ * is added by hand. Explain judging the meanings answers in two, its first answer and a follow-up's; not judging, in
+ * the plain one throughout; Touch up in its keys' shapes, then a follow-up's.
  */
-export function answerShapesOf(action: AiActionId): AnswerShape[] {
+export function answerShapesOf(action: AiActionId, judges = true): AnswerShape[] {
+  if (action === "proofread") return [{ title: null, parts: partsOf(ProofreadShape.shape) }];
   if (action === "explain") {
+    if (!judges) return [{ title: null, parts: partsOf(PlainShape.shape) }];
     return [
       { title: "First answer", parts: partsOf(ExplainShape.shape) },
-      { title: "A follow-up", parts: partsOf(FollowUpShape.shape) },
+      { title: "A follow-up", parts: partsOf(ExplainFollowUpShape.shape) },
     ];
   }
   // Touch up's keys, then each shape a key can be asked in, once (the owner, 2026-10-31: both shapes of a field, not per field).
@@ -295,6 +299,7 @@ export function answerShapesOf(action: AiActionId): AnswerShape[] {
     { title: "A field sent empty", parts: partsOf(EmptyFieldWire.shape) },
     { title: "The Meaning", parts: partsOf(MeaningWire.shape) },
     { title: "The Meaning, when the dictionary has none", parts: partsOf(EmptyMeaningWire.shape) },
+    { title: "A follow-up", parts: partsOf(FOLLOW_WORDS.shape) },
   ];
 }
 
@@ -380,23 +385,106 @@ export function touchUpProblem(answer: TouchUpAnswer, meanings: readonly string[
   return null;
 }
 
+/*
+ * A follow-up (AI step 5, the owner: "follow-up should be for Touch up as well… so I can have a conversation about it
+ * further and ask it to make changes"): it answers in its own fixed shape, its reply and only what it changes, never
+ * the whole touch-up again (cheaper, and nothing not asked about moves). Every key required and plain, as the first
+ * answer's wire: `changes` a list of the text fields it changes, `meaning` empty while the Meaning stands.
+ */
+/** One text field a follow-up changes, on the wire. */
+const changeOf = (keys: readonly [FieldKey, ...FieldKey[]]) =>
+  z.object({
+    key: z.enum(keys).describe("the field's key, as <card> marks it"),
+    proposed: Proposed.describe("its new value, whole, as the field would hold it"),
+    why: Why.describe("why, in one short sentence; shown open under the field"),
+  });
+/** The Meaning as a follow-up answers it, on the wire: [] and "" while it stands. */
+export const MeaningFollowWire = z.object({
+  meanings: z.array(MeaningRow).max(MEANINGS_MAX).describe("[] while the Meaning stands; otherwise one row for every meaning in <meaning> again, as the first answer's"),
+  proposed: Proposed.describe('"" while it stands or a row is good; otherwise a meaning of its own, as the first answer\'s'),
+  why: Why.describe('"" while it stands; otherwise the Meaning\'s own why, as the first answer\'s'),
+});
+export type MeaningFollowWire = z.infer<typeof MeaningFollowWire>;
+/** A Touch up follow-up on the wire: its reply, the text fields it changes, and the Meaning. */
+export type TouchUpFollowWire = { answer: string; changes?: { key: FieldKey; proposed: string; why: string }[]; meaning?: MeaningFollowWire };
+/** The follow-up's shape with every key described, for a template's Panki's answer format (`answerShapesOf`): every field key among `changes`' keys. */
+const FOLLOW_WORDS = z.object({
+  answer: z.string().describe("the reply to the follow-up; Panki shows it under the question"),
+  changes: z.array(changeOf(FIELD_KEYS as unknown as [FieldKey, ...FieldKey[]])).describe("only the fields the follow-up changes, each once; [] when nothing changes. Each is a proposal under its field, Accept or Dismiss"),
+  meaning: MeaningFollowWire.describe("the Meaning, judged again only when the follow-up changes it"),
+});
 /**
- * What Touch up sends: the pieces of the card being added (`{Card}` among them, `cardPiece`), every meaning of the
- * dictionaries in the order `{Meaning}` numbers them (so a number in the answer is checked against the real list), the
- * keys whose roles have a field on the deck, and the card as it stands, what the answer is held to.
+ * The fixed shape a follow-up is asked to answer in, built for this card as the first answer's is: `changes`' keys
+ * only the text fields asked (none when only the Meaning was), `meaning` only when it was.
+ */
+export function touchUpFollowShape(keys: readonly TouchUpKey[]): z.ZodType<TouchUpFollowWire> {
+  const fields = keys.filter((key): key is FieldKey => key !== "meaning");
+  const [first, ...rest] = fields;
+  return z.object({
+    answer: z.string().max(AI_TEXT_MAX),
+    ...(first !== undefined ? { changes: z.array(changeOf([first, ...rest])).max(fields.length) } : {}),
+    ...(keys.includes("meaning") ? { meaning: MeaningFollowWire } : {}),
+  }) as unknown as z.ZodType<TouchUpFollowWire>;
+}
+/**
+ * A follow-up's answer as Panki reads it: its reply, and in `answer` only what it changes, each as a first answer's
+ * part (a changed text field a judgement null with its proposal, drawn as "Panki AI proposes", or "Nothing to change."
+ * when it's what the field holds: `fieldVerdictOf`), the Meaning when it was judged again.
+ */
+export function followOfWire(wire: TouchUpFollowWire): { reply: string; answer: TouchUpAnswer } {
+  const answer: TouchUpAnswer = {};
+  for (const change of wire.changes ?? []) answer[change.key] = { judgement: null, proposed: change.proposed, why: change.why };
+  const meaning = wire.meaning;
+  if (meaning && (meaning.meanings.length > 0 || meaning.proposed.trim() !== "")) answer.meaning = { meanings: meaning.meanings, proposed: orNull(meaning.proposed), why: meaning.why };
+  return { reply: wire.answer, answer };
+}
+/**
+ * What's wrong with a follow-up's answer, as expected against got, or null: a reply written; each change a key once,
+ * a value and a why, Example sentences in pairs; a Meaning judged again by the first answer's rules (and no rows at all
+ * for a dictionary with none).
+ */
+export function touchUpFollowProblem(wire: TouchUpFollowWire, meanings: readonly string[]): string | null {
+  if (wire.answer.trim() === "") return expectedGot("an answer", "an empty one");
+  const seen = new Set<FieldKey>();
+  for (const change of wire.changes ?? []) {
+    if (seen.has(change.key)) return expectedGot(`${change.key} once among the changes`, "it twice");
+    seen.add(change.key);
+    const broken = fieldProblem(change.key, { judgement: null, proposed: change.proposed, why: change.why }, "");
+    if (broken) return broken;
+  }
+  const meaning = wire.meaning;
+  if (!meaning || (meaning.meanings.length === 0 && meaning.proposed.trim() === "")) return null;
+  if (meanings.length === 0 && meaning.meanings.length > 0) return expectedGot("no rows at meaning, the dictionary having no meanings", `${meaning.meanings.length}`);
+  if (meanings.length > 0 && meaning.meanings.length === 0) return expectedGot(`one row per meaning (${meanings.length}) beside a proposed meaning`, "0");
+  return meaningProblem({ meanings: meaning.meanings, proposed: orNull(meaning.proposed), why: meaning.why }, meanings.length);
+}
+
+/**
+ * What Touch up sends: the template to run, the pieces of the card being added (`{Card}` among them, `cardPiece`),
+ * every meaning of the dictionaries in the order `{Meaning}` numbers them (so a number in the answer is checked
+ * against the real list), the keys whose roles have a field on the deck, and the card as it stands, what the answer is
+ * held to; for a follow-up, the conversation so far (`Said`) and its own pieces (`asking`: `{Follow-up question}`, `{Follow-up field}`, and
+ * `{Card}` as the card stands now, the owner: "it sends back the entire Card").
  */
 export const TouchUpAsk = z.object({
+  templateId: TemplateId,
   pieces: PromptPieces,
   meanings: z.array(z.string().max(VALUE_MAX)).max(MEANINGS_MAX),
   keys: z.array(TouchUpKey).min(1).max(TOUCH_UP_KEYS.length),
   now: TouchUpNow,
+  said: Said.default([]),
+  asking: PromptPieces.optional(),
 });
 export type TouchUpAsk = z.infer<typeof TouchUpAsk>;
 
 /** The answer, the tokens in and out as the provider counted them and what they came to, and Panki AI as it stood. */
 export const TouchedUp = z.object({
-  /** The answer as the model gave it, nothing in it changed but the Meaning's rows in the list's order. */
+  /** The answer as the model gave it, nothing in it changed but the Meaning's rows in the list's order; a follow-up's, only what it changes. */
   answer: TouchUpAnswer,
+  /** A follow-up's reply; "" for a first ask. */
+  reply: z.string().default(""),
+  /** A follow-up's Follow-up prompt as it was filled and sent, what the page keeps in `Said`; "" for a first ask. */
+  asked: z.string().default(""),
   /** The answer exactly as it came back, its JSON: Details' Log shows it. */
   raw: z.string().default(""),
   inputTokens: z.number().int().nonnegative(),

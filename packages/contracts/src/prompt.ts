@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AiRanOn, PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
+import { AiRanOn, PankiAiStatus, TemplateId, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
 import { PIECE_NAMES, PROMPT_PIECE_IDS, PromptPieceId } from "./pieces";
 import { expectedGot } from "./unread";
 
@@ -44,6 +44,16 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
       return "The language Panki speaks to you in, as your Settings → General → Language says";
     case "card":
       return "The card being added: each of its fields by name, with what it holds now";
+    case "question":
+      return "What you asked in a follow-up";
+    case "field":
+      return "The field a follow-up was asked on, by its name on the card";
+    case "transcript":
+      return "The lines of Panki subtitles being proofread, numbered, each as it reads now";
+    case "handEdited":
+      return "The words of those lines a person edited last, by line number";
+    case "unsure":
+      return "The words of those lines the engine was unsure of, by line number, from its own confidence";
   }
 }
 
@@ -157,24 +167,41 @@ export const ExplainMessage = z.object({ role: z.enum(["assistant", "user"]), te
 export type ExplainMessage = z.infer<typeof ExplainMessage>;
 
 /**
- * What Explain sends: the pieces of the word pointed at and, for a follow-up, the conversation so far (an answer
- * first, then a question and an answer in turn, ending with the new question). The server holds every limit.
+ * The conversation so far after the prompt, as it was sent (AI step 5): the first answer, then each follow-up as its
+ * template's Follow-up prompt filled it and its answer, in turn, ending with an answer. The new follow-up isn't in it:
+ * it's `asking` (`{Follow-up question}`, and Touch up's `{Follow-up field}` and `{Card}` as the card stands now), which the server fills
+ * into the template's Follow-up prompt and hands back as `asked`, so the page keeps exactly what went. The first
+ * prompt is filled from `pieces` as they were first sent, every time, so it reads as it went.
+ */
+export const Said = z
+  .array(ExplainMessage)
+  .max(200)
+  .refine((said) => said.every((m, i) => m.role === (i % 2 === 0 ? "assistant" : "user")) && (said.length === 0 || said.length % 2 === 1), {
+    message: "The conversation doesn't read in turns.",
+  });
+
+/**
+ * What Explain sends: the template to run, the pieces of the word pointed at and, for a follow-up, the conversation so
+ * far (`Said`) with the question in `asking` (`{Follow-up question}`). The server holds every limit.
  */
 export const ExplainAsk = z.object({
+  templateId: TemplateId,
   pieces: PromptPieces,
-  /** Every meaning of the dictionaries, in `{Meaning}`'s order (`meaningsPiece`): the answer's rows are checked against it, one for each. None from an extension from before. */
+  /** Every meaning of the dictionaries, in `{Meaning}`'s order (`meaningsPiece`): the answer's rows are checked against it, one for each. */
   meanings: z.array(z.string().max(PIECE_MAX)).max(200).default([]),
-  said: z
-    .array(ExplainMessage)
-    .max(200)
-    .refine((said) => said.every((m, i) => m.role === (i % 2 === 0 ? "assistant" : "user")) && (said.length === 0 || said.length % 2 === 0), {
-      message: "The conversation doesn't read in turns.",
-    }),
+  said: Said,
+  /** A follow-up's own pieces (`{Follow-up question}`), laid over `pieces` for its Follow-up prompt; none for a first ask. */
+  asking: PromptPieces.optional(),
 });
 export type ExplainAsk = z.infer<typeof ExplainAsk>;
+/** Whether an ask is a follow-up with a question in it, which the server holds every follow-up to. */
+export const isFollowUp = (ask: { said: readonly unknown[] }): boolean => ask.said.length > 0;
 
-/** Why Explain didn't answer, for the pop-up to say: Panki AI off, no key, too long, too many follow-ups, the provider's own failure. */
-export const ExplainProblem = z.enum(["off", "noKey", "tooLong", "followUps", "provider"]);
+/**
+ * Why an action didn't answer, for the page to say: Panki AI off, no key, too long, too many follow-ups, the provider's
+ * own failure; for Proofread, editing Panki subtitles switched off (Admin's), or the transcript changed under the page.
+ */
+export const ExplainProblem = z.enum(["off", "noKey", "tooLong", "followUps", "provider", "editingOff", "gone"]);
 export type ExplainProblem = z.infer<typeof ExplainProblem>;
 /**
  * An answer the provider gave that couldn't be used, as Details' Log tells of it (the owner, 2026-10-31: "it shows what
@@ -212,17 +239,35 @@ export const ExplainShape = z.object({
 export type ExplainShape = z.infer<typeof ExplainShape>;
 
 /**
- * A follow-up's fixed shape (the owner, 2026-10-31): the answer to the question and nothing else. The verdicts on the
- * meanings and the proposed meaning stand from the first answer for the whole conversation (judging again is pressing
- * Explain again), so a follow-up can't fail on them; read by the same one reader, a cut, a refusal or broken JSON are
- * caught as any answer's are.
+ * A plain answer's fixed shape: the answer and nothing else. What a template that doesn't judge the meanings answers in,
+ * first and in every follow-up (AI step 5: Grammar, Conjugation, Nuance); read by the same one reader, a cut, a refusal
+ * or broken JSON caught as any answer's are. Explain's follow-ups answered in it alone until step 5 (`FollowUpShape`).
  */
-export const FollowUpShape = z.object({
-  answer: z.string().max(AI_TEXT_MAX).describe("the answer to the follow-up question; Panki shows it under the question"),
+export const PlainShape = z.object({
+  answer: z.string().max(AI_TEXT_MAX).describe("the answer; Panki shows it as it is, under the question for a follow-up"),
 });
-export type FollowUpShape = z.infer<typeof FollowUpShape>;
-/** Whether a follow-up's answer holds anything, said as expected against got for the Log, or null. */
-export const followUpRuleBroken = (answer: FollowUpShape): string | null => (answer.answer.trim() === "" ? expectedGot("an answer", "an empty one") : null);
+export type PlainShape = z.infer<typeof PlainShape>;
+/** Whether a plain answer holds anything, said as expected against got for the Log, or null. */
+export const plainRuleBroken = (answer: PlainShape): string | null => (answer.answer.trim() === "" ? expectedGot("an answer", "an empty one") : null);
+
+/**
+ * A follow-up's fixed shape on a template that judges the meanings (AI step 5, the owner: "follow-ups being able to
+ * modify the fields again"): the answer, and the meanings judged again only when the question changes them. `meanings`
+ * empty is the verdicts standing as they were, and then no proposed meaning; otherwise a row for every meaning again,
+ * by the first answer's rules (`meaningsRuleBroken`), and Panki marks the rows afresh where they stand.
+ */
+export const ExplainFollowUpShape = z.object({
+  answer: z.string().max(AI_TEXT_MAX).describe("the answer to the follow-up question; Panki shows it under the question"),
+  meanings: z.array(MeaningAccuracy).max(200).describe("[] when the verdicts stand; otherwise one row for every meaning in <meaning> again, each index once, and Panki marks them afresh"),
+  proposedMeaning: ProposedMeaning.nullable().describe("null when the verdicts stand or a row fits; the meaning it proposes when it judged again and none fits"),
+});
+export type ExplainFollowUpShape = z.infer<typeof ExplainFollowUpShape>;
+/** Which of Panki's rules an Explain follow-up's answer breaks, as expected against got, or null. */
+export function explainFollowUpRuleBroken(answer: ExplainFollowUpShape, count: number): string | null {
+  if (answer.answer.trim() === "") return expectedGot("an answer", "an empty one");
+  if (answer.meanings.length === 0) return answer.proposedMeaning === null ? null : expectedGot("no proposed meaning while the verdicts stand (meanings [])", "one");
+  return meaningsRuleBroken(answer.meanings, answer.proposedMeaning, count);
+}
 
 /**
  * An answer: its words, a verdict on each meaning sent (none from a Panki from before), whether it was cut short (always
@@ -237,6 +282,13 @@ export const Explained = z.object({
   meanings: z.array(MeaningAccuracy).default([]),
   /** The meaning Panki AI proposes, in its own words with why, when no row fits; null when one does (and from a Panki from before). */
   proposedMeaning: ProposedMeaning.nullable().default(null),
+  /**
+   * For a follow-up, whether it judged the meanings again (`meanings` then the new verdicts, `proposedMeaning` with
+   * them); false for a first answer and for a follow-up that left them standing.
+   */
+  judgedAgain: z.boolean().default(false),
+  /** For a follow-up, the template's Follow-up prompt as it was filled and sent: what the page keeps in `Said`. "" for a first ask. */
+  asked: z.string().default(""),
   cut: z.boolean(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
@@ -265,8 +317,13 @@ export function ceilingMicros(model: Pick<AiModel, "inCentsPerMTok" | "outCentsP
   return tokenCostMicros(model, tokensIn, maxAnswerTokens);
 }
 
-/** The whole of what a call sends: the filled prompt, then the conversation so far; how long it is is what Max request length holds. */
-export function explainSent(template: string, ask: Pick<ExplainAsk, "pieces" | "said">): string[] {
-  return [fillTemplate(template, ask.pieces), ...ask.said.map((m) => m.text)];
+/**
+ * The whole of what a call sends: the template's prompt filled, then the conversation so far, then for a follow-up its
+ * Follow-up prompt filled from the pieces with `asking` laid over them; how long it is is what Max request length
+ * holds. The server sends this, and the page works out "Up to" from it. A first ask never holds a follow-up's pieces.
+ */
+export function aiSent(template: { prompt: string; followUp: string }, pieces: PromptPieces, said: readonly ExplainMessage[], asking: PromptPieces = {}): string[] {
+  const first = fillTemplate(template.prompt, { ...pieces, question: "", field: "" });
+  return said.length === 0 ? [first] : [first, ...said.map((m) => m.text), fillTemplate(template.followUp, { ...pieces, ...asking })];
 }
 export const sentLength = (sent: readonly string[]): number => sent.reduce((sum, text) => sum + text.length, 0);

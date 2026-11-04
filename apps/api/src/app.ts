@@ -3,7 +3,7 @@ import type { AiProviderId, EngineId, Space, StorageReport, WordAudioSourceId } 
 import type { AuthDb } from "./authDb";
 import type { Db } from "./db";
 import type { AiClient } from "./ai";
-import { AI_CALL_PATHS, aiRouter } from "./routes/ai";
+import { aiRouter, readsOwnBody } from "./routes/ai";
 import { accountRouter, loginRouter } from "./routes/auth";
 import type { Forvo } from "./forvo";
 import { cardsRouter } from "./routes/cards";
@@ -66,10 +66,10 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
   app.disable("x-powered-by");
   // nginx sits in front on the VPS: its X-Forwarded-* headers are believed from loopback only, so `req.secure` and `req.ip` are the browser's.
   app.set("trust proxy", "loopback");
-  // Every JSON body is 64 KB at most but a call to Panki AI's, which its own route reads once its sender is signed in.
-  // A path that only resembles one (another case, a trailing slash) is read here and held to 64 KB, which is no harm.
+  // Every JSON body is 64 KB at most but a call to Panki AI's and a template's, which their own routes read once the
+  // sender is signed in. A path that only resembles one (another case) is read here and held to 64 KB, which is no harm.
   const json = express.json({ limit: "64kb" });
-  app.use((req, res, next) => (AI_CALL_PATHS.has(req.path) ? next() : json(req, res, next)));
+  app.use((req, res, next) => (readsOwnBody(req.path) ? next() : json(req, res, next)));
   // Every answer is for the one signed in, as things stand now: a browser keeps none of it, and reads it as the type it
   // says. A file served (`/api/media`, a dictionary's zip) sets its own caching over this: it never changes under its id.
   app.use("/api", (_req, res, next) => {

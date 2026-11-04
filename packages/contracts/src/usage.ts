@@ -29,6 +29,8 @@ export const UsageTotals = z.object({
   soundMs: amount,
   requests: amount,
   costMicros: amount.nullable(),
+  /** How many of the calls were each thing done (the ledger's `what`: an AI action's id, a chunk, a whole video…), so Panki AI's Usage says Explain, Touch up and Proofread apart (AI step 6). */
+  byWhat: z.record(z.string(), amount).default({}),
 });
 export type UsageTotals = z.infer<typeof UsageTotals>;
 

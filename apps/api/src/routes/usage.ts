@@ -4,10 +4,12 @@ import type { AuthDb } from "../authDb";
 import { requireAdmin } from "../session";
 import type { Shared, UsageRow } from "../shared";
 
-const NONE: UsageTotals = { calls: 0, inputTokens: 0, outputTokens: 0, soundMs: 0, requests: 0, costMicros: null };
+const NONE: UsageTotals = { calls: 0, inputTokens: 0, outputTokens: 0, soundMs: 0, requests: 0, costMicros: null, byWhat: {} };
 
 /** Two totals added; a cost stays null only while neither side has one. */
 function plus(a: UsageTotals, b: UsageTotals): UsageTotals {
+  const byWhat = { ...a.byWhat };
+  for (const [what, calls] of Object.entries(b.byWhat)) byWhat[what] = (byWhat[what] ?? 0) + calls;
   return {
     calls: a.calls + b.calls,
     inputTokens: a.inputTokens + b.inputTokens,
@@ -15,6 +17,7 @@ function plus(a: UsageTotals, b: UsageTotals): UsageTotals {
     soundMs: a.soundMs + b.soundMs,
     requests: a.requests + b.requests,
     costMicros: a.costMicros === null && b.costMicros === null ? null : (a.costMicros ?? 0) + (b.costMicros ?? 0),
+    byWhat,
   };
 }
 

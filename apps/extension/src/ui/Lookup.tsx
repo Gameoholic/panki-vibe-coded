@@ -524,11 +524,8 @@ type Props = {
   split?: Split | null;
   /** Where it learns which cards a word already is; Panki, unless the layout editor gives its example. */
   cards?: CardsSource;
-  /**
-   * What Explain asks: Panki AI, with what the page adds and whether it runs by itself once the pop-up is kept open
-   * (Explain as the pop-up opens); or the options page's made-up answers.
-   */
-  explain?: ExplainExamples | { kind: "panki"; more: MorePieces | null; auto: boolean };
+  /** What Explain asks: Panki AI, with what the page adds; or the options page's made-up answers. */
+  explain?: ExplainExamples | { kind: "panki"; more: MorePieces | null };
 };
 
 /**
@@ -539,14 +536,9 @@ type Props = {
 export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, explain }: Props) {
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
   const [lit, setLit] = useState<DOMRect | null>(null);
-  /** Explain has run by itself in this pop-up: another word shown in it doesn't run it again. */
-  const [explained, setExplained] = useState(false);
   const anchor = view.word;
   if (!anchor) return null;
-  const asks: ExplainSource | undefined =
-    explain?.kind === "panki"
-      ? { kind: "panki", pointed: view.pointed, more: explain.more, auto: explain.auto && view.locked && !explained, onAuto: () => setExplained(true) }
-      : explain;
+  const asks: ExplainSource | undefined = explain?.kind === "panki" ? { kind: "panki", pointed: view.pointed, more: explain.more } : explain;
   const mark = lit ?? anchor;
   const width = Math.min(WIDTH, window.innerWidth - EDGE * 2);
   const left = Math.max(EDGE, Math.min(anchor.left, window.innerWidth - width - EDGE));
