@@ -915,7 +915,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         return;
       }
       // The Hold button's Back to start, while it's on: its own key (Space pressed twice to begin with), heard beside the
-      // Hold button's, which shares it; done, this press holds nothing.
+      // Hold button's, which shares it; done, this press holds nothing. Until it's done (the first press of its double
+      // press), the press goes on to whatever else its key is in another shape (Done listening's Space held), as every key
+      // shared by shape is (`keys.ts` → `clash`): it went no further until 2026-11-04, so a hold of Back to start's key
+      // did nothing on the review.
       const resetting = chainOn ? keyIn(binds.holdReset, key) : null;
       let reset = false;
       if (resetting) {
@@ -932,7 +935,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         if (!busy && !reset) chain.keyDown(e, key);
         return;
       }
-      if (resetting) return;
+      if (reset) return;
       // Enter shows the answer too, at a press, whatever the keys are (the card, while it's listened to); on a button
       // it's that button's own.
       if (enter) {
