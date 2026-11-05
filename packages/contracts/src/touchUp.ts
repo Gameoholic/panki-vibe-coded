@@ -192,22 +192,18 @@ const plain = (words: string) => words.trim().replace(/\s+/g, " ").toLowerCase()
 
 /**
  * A text field's answer as Panki draws it, the one place it's decided: the error; good (the green line, its why
- * closed), a good or a follow-up's change proposing what the field already holds among them; unchanged, a meh or bad
- * whose proposal is what the field already holds (its judgement's colour and title, the why open, nothing to accept:
- * there's nothing to apply); meh or bad (the value struck in orange or red, the proposal under it in green); written,
- * for a field that was empty (the proposal in green under "Panki AI proposes").
+ * closed), a proposed value that's what the field already holds among them (never drawn as a proposal); meh or bad (the
+ * value struck in orange or red, the proposal under it in green); written, for a field that was empty (the proposal in
+ * green under "Panki AI proposes").
  */
 export type FieldVerdict =
   | { kind: "error"; error: TouchUpErrorId; why: string }
   | { kind: "good"; why: string }
-  | { kind: "unchanged"; judgement: "meh" | "bad"; why: string }
   | { kind: "meh" | "bad" | "written"; proposed: string; why: string };
 export function fieldVerdictOf(part: FieldAnswer, held: string): FieldVerdict {
   if (isError(part)) return { kind: "error", error: part.error, why: part.why };
   const proposed = part.proposed?.trim() ?? "";
-  const same = held.trim() !== "" && plain(proposed) === plain(held);
-  if ((part.judgement === "meh" || part.judgement === "bad") && same) return { kind: "unchanged", judgement: part.judgement, why: part.why };
-  if (part.judgement === "good" || proposed === "" || same) return { kind: "good", why: part.why };
+  if (part.judgement === "good" || proposed === "" || (held.trim() !== "" && plain(proposed) === plain(held))) return { kind: "good", why: part.why };
   return { kind: part.judgement ?? "written", proposed, why: part.why };
 }
 
