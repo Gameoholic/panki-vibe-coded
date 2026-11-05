@@ -1,7 +1,6 @@
 #!/bin/bash
-# Update Panki on a Mac (the owner, 2026-11-05: the .cmd was Windows' alone): update.ps1's twin, double-clicked in
-# Finder. The extension in the folder this script is in, replaced with the build the Panki it was set up with carries.
-# Chrome won't let an extension change its own files, so this does it from outside; Reload Panki finishes it.
+# Update Panki: the extension in the folder this script is in, replaced with the build the Panki it was set up with
+# carries. Chrome won't let an extension change its own files, so this does it from outside; Reload Panki finishes it.
 #
 # It only ever downloads from that one Panki, over HTTPS (or from this computer itself, for a dev server), writes only
 # into this folder, and runs nothing it downloads. Where Panki is, is in update-from.txt beside it: the Panki the zip
