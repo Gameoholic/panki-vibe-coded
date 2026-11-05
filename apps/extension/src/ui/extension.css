@@ -2364,19 +2364,6 @@
 .capture-progress-fold .capture-progress {
   padding-top: 12px;
 }
-/* Discard asking first, above the foot, with something typed (`Panel.tsx` → `leave`): the app's `Ask` in a box tinted
-   as every question about something that hurts is (`.panel-alarm` gives the colours). It folds over the gap above it
-   as the line under it does. */
-.capture-ask-fold {
-  margin-top: -12px;
-}
-.capture-ask {
-  margin-top: 12px;
-  padding: 12px;
-  border-width: 1px;
-  border-style: solid;
-  border-radius: var(--radius-sm);
-}
 /* The card is the app's own review card, standing on the app's own ground so it reads as a look into the app. Here
    a press turns it over and another turns it back, so it stays something to press once it's turned. */
 .capture-card-ground {

@@ -48,7 +48,6 @@ import {
 import { FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
-import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Fold } from "@web/components/Fold";
@@ -543,26 +542,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** There's something to show: Panki's answer, or, when that's slow in coming, the wait for it. */
   const shown = state !== null || slow;
 
-  /** Leaving is asking first ("Discard this card?"), under the buttons at the top. */
-  const [discarding, setDiscarding] = useState(false);
   /**
-   * Something here was typed by hand (the word, a field nothing fills, a dictionary's value typed over, the sentence
-   * written over): the one thing in the drawer that can't be had again by taking the same words, so it's what makes
-   * leaving ask first. A deck chosen, a meaning ticked or the sentence locked as it stands are had again in a press.
-   */
-  const typedAny = (wordTyped && word.trim() !== "") || Object.values(typed).some((text) => text.trim() !== "") || Object.keys(dictTyped).length > 0 || (written !== null && written !== capture.sentence);
-  /**
-   * The drawer asked to go, by × or Escape, the one way to discard it (taking something away asks first): with
-   * something typed it asks first, in place near the top, and Cancel there takes the focus; with nothing typed, or a card on its way or
-   * added, it goes at once.
+   * The drawer asked to go, by × or Escape, the one way to discard it: it goes at once, whatever was typed. Nothing
+   * is asked first, the owner's call: the words are had again by taking the same lines, and a question on every
+   * close of a card half-made got in the way.
    */
   function leave() {
-    if (busy || !typedAny) {
-      setLeaving(true);
-      return;
-    }
-    setDiscarding(true);
-    requestAnimationFrame(() => frame.current?.querySelector<HTMLElement>("#panki-discard-cancel")?.focus());
+    setLeaving(true);
   }
 
   const loaded = state?.ok ? state : null;
@@ -1868,20 +1854,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             {failure}
           </p>
         ) : null}
-        {/* Leaving with something typed asks here, just under the head's × (or Escape); a card on its way puts the question away. */}
-        <Fold open={discarding && !busy} className="capture-live capture-ask-fold">
-          <div className="capture-ask panel-alarm">
-            <Ask
-              idPrefix="panki-discard"
-              question="Discard this card?"
-              go={{ words: "Discard", busy: "Discarding…" }}
-              busy={false}
-              failure={null}
-              onKeep={() => setDiscarding(false)}
-              onGo={() => setLeaving(true)}
-            />
-          </div>
-        </Fold>
         {/* Over the account's Ask before a run over, a run waits on its question here, where its head will be. */}
         <RunAsk id="panki-touch-up" asked={touchGate.at(RUN)} onCancel={touchGate.cancel} />
         {/* Touch up once it has run, under the buttons: its head, Accept all and Dismiss all (AI step 3), then its follow-ups (step 5). */}

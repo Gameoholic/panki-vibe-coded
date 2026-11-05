@@ -220,7 +220,7 @@ What each field holds:
 - reading: the dictionary form's reading, in kana, as it is read where it has this meaning (for 思います, おもう; never the inflected form's).
 - pitchAccent: the dictionary form's accent: its reading and the number of the mora after which the voice falls, 0 for never, as <pitch_accent> writes it (for example: くう 1).
 ${sentenceRule}
-- explanation: so the learner understands the word in this sentence. One or two sentences, in {Language}: what the word does here, and, if it's a grammar pattern or serves the rest of the sentence (a nuance, a tone, a construction it's part of), how or why. A word of general nuance or register only where it helps read this sentence. Never its meaning said again.
+- explanation: what the word means in this exact sentence, beyond the dictionary's words: the sense it has here and the nuance it carries in this context, in {Language}, one or two sentences, under 40 words. Leave out the grammar around it, the word's form, its register and the rest of the sentence; the learner asks a follow-up for those. Never the dictionary meaning said again.
 - examples: six lines: for each of three short made-up sentences using the word in whatever form fits it, first a line in {Language} that sets its scene, then the sentence in {Learning language}.
 
 meaning answers in four parts, every part always there (when <meaning> is empty, there are no rows: "proposed", "why" and "error" alone, "proposed" the meaning you propose):
