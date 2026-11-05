@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { EXTENSION_HEADER, EXTENSION_PROTOCOL, ExtensionBuildFile, UPDATE_NEEDED_STATUS, type ExtensionBuildFile as BuildFile } from "@panki/contracts";
-import { entriesOf, zipOf } from "../zipWrite";
+import { EXECUTABLE, entriesOf, zipOf } from "../zipWrite";
 
 const NO_BUILD = "There's no build of the extension on this Panki.";
 /** Under `/api`, the two routes an outdated extension is still answered on: how to update, and the update. */
@@ -64,8 +64,11 @@ export function extensionRouter(dir: string) {
     const key = `${build.fingerprint} ${origin ?? ""}`;
     if (made?.key !== key) {
       const chrome = path.join(dir, "chrome");
-      // A file of this name in the build itself never stands in for this Panki's.
-      const files = entriesOf(chrome).filter((entry) => entry.name !== ADDRESS_FILE);
+      // A file of this name in the build itself never stands in for this Panki's. A Mac's Update Panki is run, so it
+      // carries the executable bit (2026-11-05: Finder won't open it without).
+      const files = entriesOf(chrome)
+        .filter((entry) => entry.name !== ADDRESS_FILE)
+        .map((entry) => (entry.name.endsWith(".command") ? { ...entry, mode: EXECUTABLE } : entry));
       const address = origin ? [{ name: ADDRESS_FILE, data: Buffer.from(`${origin}\r\n`, "ascii") }] : [];
       made = { key, bytes: zipOf([...files, ...address], statSync(path.join(chrome, "build.json")).mtime) };
     }

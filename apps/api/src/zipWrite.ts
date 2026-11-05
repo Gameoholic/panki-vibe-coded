@@ -9,8 +9,17 @@ import { crc32, deflateRawSync } from "node:zlib";
  * zip64, so under 4 GB and 65,535 files, which an extension is far below.
  */
 
-/** A file in a zip: its path inside it, with forward slashes, and its bytes. */
-export type ZipEntry = { name: string; data: Buffer };
+/**
+ * A file in a zip: its path inside it, with forward slashes, its bytes, and its Unix mode (a plain file's, readable by
+ * all, to begin with; `EXECUTABLE` for one that's run, as a Mac's Archive Utility keeps it, Finder refusing to open a
+ * script without it; Windows reads none of it).
+ */
+export type ZipEntry = { name: string; data: Buffer; mode?: number };
+/** A plain file's mode, and one that's run. */
+export const PLAIN_FILE = 0o100644;
+export const EXECUTABLE = 0o100755;
+/** "Version made by": Unix (3), so the external attributes' high half is read as a mode, and the spec's 2.0. */
+const MADE_BY_UNIX = (3 << 8) | 20;
 
 /** Every file under a folder, as paths from it with forward slashes, in one fixed order. */
 export function filesUnder(dir: string, from = dir): string[] {
@@ -42,7 +51,7 @@ export function zipOf(entries: readonly ZipEntry[], at: Date): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
-  for (const { name, data } of entries) {
+  for (const { name, data, mode = PLAIN_FILE } of entries) {
     const packed = deflateRawSync(data, { level: 9 });
     const nameBytes = Buffer.from(name, "utf8");
     const crc = crc32(data);
@@ -62,7 +71,7 @@ export function zipOf(entries: readonly ZipEntry[], at: Date): Buffer {
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(MADE_BY_UNIX, 4);
     central.writeUInt16LE(20, 6);
     central.writeUInt16LE(0x0800, 8);
     central.writeUInt16LE(8, 10);
@@ -72,7 +81,9 @@ export function zipOf(entries: readonly ZipEntry[], at: Date): Buffer {
     central.writeUInt32LE(packed.length, 20);
     central.writeUInt32LE(data.length, 24);
     central.writeUInt16LE(nameBytes.length, 28);
-    // Extra field, comment, disk number, internal and external attributes: none.
+    // Extra field, comment, disk number and internal attributes: none. The external attributes: the Unix mode in the
+    // high half (the low half, MS-DOS's, none).
+    central.writeUInt32LE(mode * 0x10000, 38);
     central.writeUInt32LE(offset, 42);
     centrals.push(central, nameBytes);
     offset += local.length + nameBytes.length + packed.length;

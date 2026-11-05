@@ -115,6 +115,9 @@ const updater = path.join(root, "update");
 // A batch file is read by Windows' own rules: lines that end the Windows way, whatever the checkout gave.
 writeFileSync(path.join(out, "Update Panki.cmd"), readFileSync(path.join(updater, "Update Panki.cmd"), "utf8").replace(/\r?\n/g, "\r\n"));
 cpSync(path.join(updater, "update.ps1"), path.join(out, "update.ps1"));
+// The Mac's (2026-11-05): bash reads a \r as part of the line, so its lines end the Unix way, whatever the checkout
+// gave. Its executable bit is the zip's to carry (`apps/api/src/routes/extension.ts`).
+writeFileSync(path.join(out, "Update Panki.command"), readFileSync(path.join(updater, "Update Panki.command"), "utf8").replace(/\r\n/g, "\n"));
 
 /** Every file under a folder, as paths from it with forward slashes, in one fixed order. */
 function filesUnder(dir, from = dir) {

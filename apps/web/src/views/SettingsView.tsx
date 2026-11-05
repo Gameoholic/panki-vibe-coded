@@ -1078,7 +1078,7 @@ function ExtensionPanel() {
         </h2>
         <ol className="setup-steps">
           <li>
-            Download it above and extract it to a folder you'll keep, such as <code>C:\Panki</code>.
+            Download it above and extract it to a folder you'll keep, such as <code>C:\Panki</code> on Windows or <code>~/Panki</code> on a Mac.
           </li>
           <li>
             In Chrome, open <code>chrome://extensions</code> and switch on Developer mode.
@@ -1086,6 +1086,8 @@ function ExtensionPanel() {
           <li>Press Load unpacked and choose that folder.</li>
           <li>Sign in on the page that opens.</li>
           <li>To update it later, open Update Panki in that folder, then press Reload Panki.</li>
+          {/* Gatekeeper holds back a script downloaded from the internet the first time: Open from its menu lets it run (2026-11-05). */}
+          <li>On a Mac, the first time, right-click Update Panki and choose Open.</li>
         </ol>
       </section>
     </>

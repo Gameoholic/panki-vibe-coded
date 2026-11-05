@@ -6,13 +6,13 @@
 # came from writes its own address there as it hands the zip out, and an update never touches it. Without it (a zip
 # from before), it's asked for.
 #
-# It never replaces itself: this script and Update Panki.cmd are left as they are, whatever the
-# zip holds. Someone who took over the repository or the server could change the extension, which Chrome keeps boxed
+# It never replaces itself: this script, Update Panki.cmd and the Mac's Update Panki.command are left as they are,
+# whatever the zip holds. Someone who took over the repository or the server could change the extension, which Chrome keeps boxed
 # in, but never what runs on this computer outside it. A new version of the script is put here by hand, from the zip.
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $kept = Join-Path $here 'update-from.txt'
-$itself = @('update.ps1', 'Update Panki.cmd', 'update-from.txt')
+$itself = @('update.ps1', 'Update Panki.cmd', 'Update Panki.command', 'update-from.txt')
 
 try {
   if (Test-Path $kept) {
