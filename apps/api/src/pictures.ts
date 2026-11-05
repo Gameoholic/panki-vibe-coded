@@ -3,8 +3,8 @@ import { timedOut } from "./outbound";
 
 /**
  * A YouTube video's pictures, fetched from YouTube's own image servers and only from there, then kept by Panki for
- * everyone (`shared.ts` → `video_pictures`), so a card's video shows them even once the video or the channel is gone
- * (the owner, 2026-10-18: "can we maybe actually save the thumbnail too?", then the channel's picture). The thumbnail
+ * everyone (`shared.ts` → `video_pictures`), so a card's video shows them even once the video or the channel is gone.
+ * The thumbnail
  * is the 16:9 one at 320 by 180, which every video has; the channel's picture is the one its page shows, asked for at
  * 88 pixels. A card shows both small, and each weighs a few kilobytes.
  */
@@ -20,7 +20,7 @@ const TIMEOUT_MS = 15_000;
 /** What's kept: a picture, as its first bytes say. */
 const PICTURES = new Set(["image/jpeg", "image/webp", "image/png"]);
 
-/** What went wrong, in the owner's words, with the answer it gets: YouTube's fault (502), no picture there (404), or an address that isn't YouTube's (400). */
+/** What went wrong, in plain words, with the answer it gets: YouTube's fault (502), no picture there (404), or an address that isn't YouTube's (400). */
 export class PictureError extends Error {
   constructor(
     message: string,

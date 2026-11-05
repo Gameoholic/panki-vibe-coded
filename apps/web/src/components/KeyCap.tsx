@@ -35,8 +35,7 @@ const CLOCK_GAP = 0.012;
 const turn = (share: number) => `${share.toFixed(4)}turn`;
 
 /**
- * The Hold button's key as one clock face for every stage of a card (the owner, 2026-11-02, drawing A of
- * https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA): a ring cut into its stretches, each in its own colour, filling
+ * The Hold button's key as one clock face for every stage of a card: a ring cut into its stretches, each in its own colour, filling
  * round from the top as far as the card has got (`--hold-from`) and the stage held fills on (`--hold`, `useHold`'s, over
  * `--hold-span`), the key's name in its middle (none while keybinds are off). `tone` is the answer's colour class
  * (`answerClass`), which its stretch is drawn in. The keycap's clock grown to the button it stands for: never a second

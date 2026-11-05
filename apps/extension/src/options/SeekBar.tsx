@@ -62,7 +62,7 @@ const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
 ).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false }));
 
 /**
- * A made-up video for the preview, ten minutes long, never the owner's: most of it transcribed and a little more on
+ * A made-up video for the preview, ten minutes long, never one of the account's: most of it transcribed and a little more on
  * its way, a few cards taken from it (two close enough that their words stand in two lanes), a clip open, and where it
  * has played to. Its words are only there to be seen on the pins.
  */
@@ -83,8 +83,7 @@ const PREVIEW_STOP = 440;
 const PREVIEW_AGAIN_MS = 1800;
 
 /**
- * The bar as it will look, live, one preview for everything on it (the owner, 2026-10-21: "make them use the same
- * preview window"): the pointer on it raises the cards' words as it would on the video, a pin pressed (or anywhere on
+ * The bar as it will look, live, one preview for everything on it: the pointer on it raises the cards' words as it would on the video, a pin pressed (or anywhere on
  * the bar) moves where it has played to, the clip's ends can be pulled; and where the made-up video was stopped last,
  * the white tag while its mark is on, with what opening the video does. With the button, the real offer over the
  * picture, its line filling; pressed, the video goes to the stop and the offer fades, as it does on a video; closed,
@@ -173,10 +172,10 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
 
 /**
  * A mark's words on pins over it: when they stand, how they come in, what pressing one does. The cards' rows, and the
- * same for the words that are in the decks (the owner, 2026-10-25: "same settings as Cards").
+ * same for the words that are in the decks.
  */
 function WordsRows({ id, look, off, onChange }: { id: WordsMarkId; look: WordsLook; off: boolean; onChange: (patch: Partial<WordsLook>) => void }) {
-  // "Words" for both: the group's title already says whose (2026-10-28; the cards' were "Card words").
+  // "Words" for both: the group's title already says whose.
   const label = "Words";
   const still = off || !look.shown || look.words === "off";
   return (
@@ -197,14 +196,13 @@ function WordsRows({ id, look, off, onChange }: { id: WordsMarkId; look: WordsLo
 }
 
 /**
- * How Panki's marks on a video's seek bar look (the owner, 2026-10-19: "make the segments customizable, both for colour
- * and other stuff"), each its own: shown or not, its colour, how thick; and for the cards, when their words stand over
+ * How Panki's marks on a video's seek bar look, each its own: shown or not, its colour, how thick; and for the cards, when their words stand over
  * them, how they come in and what pressing one does. The preview at the top is the real thing, with a made-up video.
  * Kept the moment it's changed; a video page reads it again as it gets the focus.
  */
 export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const look = store.seekLook;
-  // All of Panki's marks on the bar at once, the row that heads the panel since the Modules tab went (2026-10-21); off, every mark's own rows are greyed.
+  // All of Panki's marks on the bar at once, the row that heads the panel; off, every mark's own rows are greyed.
   const off = !store.moduleSeek;
   function change<K extends SeekMarkId>(id: K, patch: Partial<SeekLook[K]>) {
     const next: SeekLook = { ...look };
@@ -219,7 +217,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
       {MARKS.map(({ id, name }) => {
         const mark: MarkLook = look[id];
         return (
-          // Each mark a block of its own, its name led by a stroke of the mark as it's drawn (the owner, 2026-10-19: "they're all clumped together").
+          // Each mark a block of its own, its name led by a stroke of the mark as it's drawn, so they don't read as one clump.
           <div key={id} className="seek-group">
             <h3 className="seek-group-title">
               <span
@@ -240,7 +238,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
           </div>
         );
       })}
-      {/* Where a video watched before was stopped: what happens as it opens again, and whether the bar marks it. A panel of its own until the owner had it here, 2026-10-21. Nothing while this browser's Video tracking is off. */}
+      {/* Where a video watched before was stopped: what happens as it opens again, and whether the bar marks it. Nothing while this browser's Video tracking is off. */}
       <div className="seek-group">
         <h3 className="seek-group-title">
           <span className={`seek-group-sample is-stop ${store.moduleSeek && store.markStop ? "" : "is-off"}`.trim()} aria-hidden="true" />

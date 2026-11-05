@@ -75,8 +75,7 @@
 }
 
 /* A line as words. Each word is a button drawn as text until it's pointed at or picked. It keeps its colour however
-   long ago it was said: the rows went grey once the talk stopped for a few seconds, until the owner asked why
-   (2026-10-17: "I don't want that"). */
+   long ago it was said: rows never go grey once the talk stops. */
 .line {
   font-size: 22px;
   line-height: 1.6;
@@ -88,8 +87,7 @@
   border-radius: 10px;
   background: var(--surface-2);
 }
-/* Each word in a box of its own, so where one ends and the next begins can be seen (the owner liked it on the
-   dictionary's plan page, 2026-10-14). The box is a drawn line inside the word, not a border: when the dictionary's
+/* Each word in a box of its own, so where one ends and the next begins can be seen. The box is a drawn line inside the word, not a border: when the dictionary's
    split comes in and two pieces become one word, nothing after them moves more than the hair between two words. */
 .btn.tok {
   display: inline;
@@ -138,7 +136,7 @@
 .btn.tok.is-known:not([aria-pressed="true"]) {
   background: var(--known);
 }
-/* One only suspended cards are, in their own tint (the owner, 2026-10-30). */
+/* One only suspended cards are, in their own tint. */
 .btn.tok.is-known.is-suspended:not([aria-pressed="true"]) {
   background: var(--known-suspended);
 }
@@ -150,8 +148,7 @@
   gap: 6px;
   margin-left: auto;
 }
-/* The strip's menu (ui/TranscribeMenu.tsx): its button is the status, a dot and a word lightly in the status's colour
-   (the owner, 2026-10-17: "lightly light in different colours based on status… a small dot in the button"), going in
+/* The strip's menu (ui/TranscribeMenu.tsx): its button is the status, a dot and a word lightly in the status's colour, going in
    the accent with the dot breathing, ready in the good colour, trouble in the danger colour, nothing going plain; and
    a panel of its own under it: how much is transcribed and how it stands, then the items, a switch, and forgetting,
    which asks in place. */
@@ -163,7 +160,7 @@
   position: relative;
 }
 /* A video over the length limit, in Full or Hybrid: a "!" on the button until the menu is opened, where the question
-   is (the owner, 2026-10-20, option A of https://claude.ai/artifact/TekT3GfdJxV97jN8tpKbC2). */
+   is. */
 .btn.strip-menu-button.is-flagged {
   box-shadow: inset 0 0 0 1px var(--flag);
 }
@@ -363,7 +360,7 @@
   color: var(--muted);
 }
 /* The status and, at its right, Details: how it stands in full, unfolded under it as rows of a name and what it is,
-   the numbers in even widths so they hold still as they're read afresh (the owner, 2026-10-19). */
+   the numbers in even widths so they hold still as they're read afresh. */
 .strip-menu-state-row {
   display: flex;
   align-items: center;
@@ -582,7 +579,7 @@
 .strip-rows[hidden] {
   display: none;
 }
-/* The panel beside the video (`PanelView` "beside"; the owner, 2026-11-03): in the column beside the player and as tall
+/* The panel beside the video (`PanelView` "beside"): in the column beside the player and as tall
    as it (`--panki-beside-h`, written by the page as the player's height), its head on top and the whole transcript
    under it, scrolled inside the panel, never the page. */
 .strip.is-beside {
@@ -712,7 +709,7 @@
   font-size: 17px;
   padding-right: 6px;
 }
-/* Proofread (AI step 6). The menu in three parts, each named (A of the owner's preview, Sections): a part's label, set
+/* Proofread. The menu in three parts, each named: a part's label, set
    in as an item is; a row inside a part takes the part's own line, never one of its own. */
 .strip-menu-label {
   display: flex;
@@ -738,7 +735,7 @@
   margin: 2px 0 4px;
 }
 /* Once a run is made, the AI's head is the Panki AI part's heading: its name in the label's place and look, the status
-   and the cost at its right (the owner, 2026-11-03: "having Panki AI twice there is kinda wack"). */
+   and the cost at its right, so Panki AI isn't named twice. */
 .strip-menu-items > .ai-status {
   margin-bottom: 4px;
 }
@@ -1076,8 +1073,8 @@
 /* The transcript over the video (the line being said): the same words as under the player, on a dark band that
    sits over the picture whatever the theme, each word still a box to press. */
 /* Its ground lays the band out as a row, so where it sits across the picture is a flex alignment and never depends
-   on what the page or the player inherits into the host (centred by text-align, it drifted when the player filled the
-   screen, 2026-10-17). The size, font, height, alignment and the band's darkness are the account's subtitle style
+   on what the page or the player inherits into the host (centred by text-align, it would drift when the player fills the
+   screen). The size, font, height, alignment and the band's darkness are the account's subtitle style
    (the contracts' `subtitleStyle.ts` → `subtitleVars`, written on the host). */
 .over-ground {
   display: flex;
@@ -1124,7 +1121,7 @@
 /* The player's speed among its own controls (ui/SpeedControl.tsx, a YouTube utility): − and + of the player's own kind,
    white on the picture, round the speed; the speed pressed, the site's own Playback speed panel above it. Its words,
    and the end time's, are in the player's own time's type, read off the page as it stands (`content/playerBar.ts` →
-   `--yt-bar-*`; the owner, 2026-11-04: "the font of the 1.1× I think is wrong"); on the options page, as it was read
+   `--yt-bar-*`); on the options page, as it was read
    when this was written. */
 .yt-speed {
   position: relative;
@@ -1157,7 +1154,7 @@
   opacity: 0.3;
 }
 /* Panki's buttons on the player's bar (the speed's −, its speed and +, Theatre mode with the Panki panel) hover as the
-   site's own do (the owner, 2026-11-04: "the hover CSS is a little different on ours"): the icon or words stay white,
+   site's own do: the icon or words stay white,
    and a lighter glass disc comes up behind them, as big as the button's room, a pill round words; pressed, a shade
    more; with the keyboard, the disc and a ring. They stand in Panki's closed shadow roots, where the site's own
    stylesheet can't reach, so the site's look is said again here, as it draws it. */
@@ -1220,7 +1217,7 @@
   background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
   box-shadow: 0 0 0 2px var(--theater-ink);
 }
-/* The site's own Playback speed panel, as its gear opens it (the owner's picture, 2026-11-04): a wide panel of the
+/* The site's own Playback speed panel, as its gear opens it: a wide panel of the
    player's dark glass with soft corners, above the bar's seek line; its head (the way back, the name) over a hairline;
    the speed big in the middle; a round glass − and +, the white slider between; the presets as round glass pills in a
    row, Standard small and quiet under 1. They stand in Panki's shadow root, where the site's stylesheet doesn't reach,
@@ -1444,8 +1441,7 @@
   display: grid;
   gap: 20px;
 }
-/* One line over the recommendations, where the site puts a shelf's heading (the owner's pick of seven, Shelves, 2026-10-21):
-   the day, today's minutes against the goal, the streak, who else watched today, a dot between each; Review at its end. */
+/* One line over the recommendations, where the site puts a shelf's heading: the day, today's minutes against the goal, the streak, who else watched today, a dot between each; Review at its end. */
 .yh-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1496,14 +1492,12 @@
   font: 500 14px/1 var(--yh-font);
   color: var(--yh-muted);
 }
-/* Continue watching's first, as the owner picked it on the artifact ("Hero and the rest", 2026-10-21; built first at
-   two of the site's own videos wide, which on a wide window took two thirds of the page): its picture exactly two of
-   the cards under it and the gap between (half the shelf), its words beside it. On a narrow page it stands over them. */
-/* Sized small and fixed, never from the page's width (the owner, 2026-10-21, at half the shelf: "way too big, I can't
-   see my normal homepage"): a small card is `--yh-small`, the big picture two of them and the gap between, so the
-   whole shelf is about as tall as one row of the site's own videos and the feed starts right under it. */
+/* Continue watching's first, "Hero and the rest": its picture exactly two of the cards under it and the gap between
+   (half the shelf), its words beside it. On a narrow page it stands over them. */
+/* Sized small and fixed, never from the page's width (from the page's width it grows to hide the site's own home): a
+   small card is `--yh-small`, the big picture two of them and the gap between, so the whole shelf is about as tall as
+   one row of the site's own videos and the feed starts right under it. */
 .yt-home {
-  /* 176 px until the owner's "slightly bigger", 2026-10-21. */
   --yh-small: 216px;
   --yh-gap: 16px;
 }
@@ -1522,7 +1516,7 @@
 .yh-lead-pic-wrap {
   min-width: 0;
 }
-/* What's left, in the accent, as the artifact had it. */
+/* What's left, in the accent. */
 .yh-lead-left {
   font: 500 14px/1.3 var(--yh-font);
   color: var(--accent);
@@ -1574,7 +1568,7 @@
 .yh-shelves > * {
   min-width: 0;
 }
-/* Saved for later's cards: as many as fit its row, the rest under Show more ("Fits the row", the owner's pick). */
+/* Saved for later's cards: as many as fit its row, the rest under Show more. */
 .yh-cards.is-wrap {
   grid-auto-flow: row;
   grid-template-columns: repeat(auto-fill, var(--yh-small));
@@ -1655,7 +1649,7 @@
   font: 400 14px/1.4 var(--yh-font);
   color: var(--yh-muted);
 }
-/* An empty shelf holds the room its videos would (the owner, 2026-10-29): a row of cards is a thumbnail and, under it,
+/* An empty shelf holds the room its videos would: a row of cards is a thumbnail and, under it,
    two lines of title and one of what's under them; Continue watching's picture is its own `.yh-lead-pic`, left blank. */
 .yh-empty.is-slot {
   display: grid;
@@ -2188,7 +2182,7 @@
   font-weight: 600;
 }
 /* Going on from where the video was stopped, offered on the picture for a few seconds as it opens: the shape Netflix
-   gives Skip Intro (the owner, 2026-10-21), in the player's bottom right corner above its controls. White on the
+   gives Skip Intro, in the player's bottom right corner above its controls. White on the
    picture whatever the theme, as words on a picture are; it slides in from its edge and is gone as soon as it's taken
    or the video gets there by itself. Its room from the corner is the player's controls' height, so it never sits on
    them, and it keeps the player's own typeface. */
@@ -2423,7 +2417,7 @@
   color: var(--accent);
   font-weight: 600;
 }
-/* Finished or not, among the strip's tools (the owner's pick, D, 2026-10-25): how far along in the tools' own quiet
+/* Finished or not, among the strip's tools: how far along in the tools' own quiet
    shape, the good colour once finished, its tick popping in as it turns (the app's one way of arriving). */
 .btn.capture-tool.strip-finish {
   font-variant-numeric: tabular-nums;
@@ -2437,7 +2431,7 @@
 .strip-finish.is-finished .icon {
   animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
-/* A switch among the strip's tools (Panki on / off) or the sentence's in the drawer (Locked / Unlocked), the tools' own shape and size, its track scaled to them (the owner, 2026-10-21: "doesn't match the rest of the UI and buttons"). */
+/* A switch among the strip's tools (Panki on / off) or the sentence's in the drawer (Locked / Unlocked), the tools' own shape and size, its track scaled to them, so it matches the buttons beside it. */
 .btn.btn-switch.capture-tool.strip-switch {
   padding: 4px 7px 4px 9px;
   border-color: var(--line);
@@ -2587,13 +2581,13 @@
   border-radius: 2px;
   background: var(--transcript-colour);
 }
-/* …and what a run has heard that isn't back from the engine yet, the same line faint: being transcribed this moment
-   (the owner, 2026-10-17, asked for it pulsing, then "the yellow glowing is too much… make its opacity really quite low"). */
+/* …and what a run has heard that isn't back from the engine yet, the same line faint: being transcribed this moment,
+   quite faint so it never draws the eye. */
 .seek-working {
   opacity: 0.3;
 }
 /* Where a word that's in the decks is said (capture/known.ts → useKnownMoments), a tick centred on the same line, under
-   the cards' marks; hidden to begin with (the owner, 2026-10-25). */
+   the cards' marks; hidden to begin with. */
 .seek-known {
   position: absolute;
   bottom: calc(100% + 3.5px - var(--known-size) / 2);
@@ -2608,8 +2602,8 @@
   height: var(--suspended-size);
   background: var(--suspended-colour);
 }
-/* Where a card was taken from (each card's clip), centred on the same line (the owner, 2026-10-18: "orange or some
-   other color, parts of the video that have had cards built for them"); the one the video is at, glowing. */
+/* Where a card was taken from (each card's clip), centred on the same line, in a colour of
+   their own; the one the video is at, glowing. */
 .seek-card {
   position: absolute;
   bottom: calc(100% + 3.5px - var(--cards-size) / 2);
@@ -2624,15 +2618,12 @@
   height: var(--suspended-size);
   background: var(--suspended-colour);
 }
-/* A card's words on a pin over its mark (the owner, 2026-10-19: "show the actual word for the orange bits… something
-   that looks cool and non-average"): a small glass tag on the picture, edged in the cards' colour, a hairline stem
+/* A card's words on a pin over its mark: a small glass tag on the picture, edged in the cards' colour, a hairline stem
    down to its mark, one lane over another where they'd touch (SeekMark → PIN). They come in as the viewer's entrance
    says (`.is-sprout`, `.is-flap`, `.is-fade`, `.is-none`, from seekLook.ts → PinEntrance), each a beat after the one
    to its left, and drop away at once as the pointer leaves; the one under the pointer is edged.
 
-   How long each takes is written here once, as variables on `.seek-pins` (the owner, 2026-10-19, the first try being
-   so quick it read as no animation at all: "the animations are like 0.05 seconds long"): the times are the preview
-   page's at real speed, where the owner picked Sprout. */
+   How long each takes is written here once, as variables on `.seek-pins`, long enough to read as an animation at all. */
 .seek-pins {
   /* Each mark's pins in its own colour: the cards', or the words in the decks' (`.is-known`, laid under the cards'). */
   --pin-colour: var(--cards-colour);
@@ -2656,7 +2647,7 @@
   --pin-colour: var(--suspended-colour);
 }
 /* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words
-   in its way, never across them (the owner, 2026-10-19: "it looks kind of messy"). */
+   in its way, never across them. */
 .btn.btn-ghost.seek-pin {
   z-index: 1;
   position: absolute;
@@ -2696,7 +2687,7 @@
   text-overflow: ellipsis;
 }
 /* The stem, from the pin down to its mark on the line, the cards' colour fading up into the pin; two pixels across
-   (the owner, 2026-10-19: a hairline was "a little bit" too thin). */
+   (a hairline is a little too thin). */
 .seek-stem {
   position: absolute;
   left: var(--at);
@@ -2763,8 +2754,7 @@
   transition: none;
 }
 /* After the entrances, so a pin under the pointer is edged and darkened at once, whatever its place in the line: the
-   one thing that says it can be pressed. It stays where it stands (a lift went at the owner's word, 2026-10-19:
-   "that's unnecessary"). A pin set to do nothing (`:disabled`) isn't a thing to press, and shows nothing of the kind. */
+   one thing that says it can be pressed. It stays where it stands, never lifting. A pin set to do nothing (`:disabled`) isn't a thing to press, and shows nothing of the kind. */
 @media (hover: hover) {
   .seek-pins .btn.btn-ghost.seek-pin.is-up:not(:disabled):hover {
     transition-delay: 0s;
@@ -2814,8 +2804,8 @@
 .seek-end.is-end {
   left: 100%;
 }
-/* Where the video was stopped the last time (SeekMark's `stop`): not one more colour on the line but a shape of its own
-   (the owner, 2026-10-21: "something more distinct and visible"), white in every theme as words on a picture are: a
+/* Where the video was stopped the last time (SeekMark's `stop`): not one more colour on the line but a shape of its own,
+   to stand out, white in every theme as words on a picture are: a
    tick across the bar, and over it a tag with a clock and the time, a notch pointing down to the tick. A press on the
    tag goes there. It stands under the cards' words, which cover it while they're up. */
 .seek-stop-tick {
@@ -3450,7 +3440,7 @@
 .btn.dict-add-all {
   justify-self: start;
 }
-/* A name of the owner's own (a dictionary's, a profile's): the pencil after it, and the name being typed in its place (`ui/Rename.tsx`). */
+/* A name of the viewer's own (a dictionary's, a profile's): the pencil after it, and the name being typed in its place (`ui/Rename.tsx`). */
 .btn.btn-icon.rename {
   margin-left: 2px;
   padding: 3px;
@@ -3604,7 +3594,7 @@
   background: color-mix(in srgb, var(--theater-ink) 70%, transparent);
   pointer-events: none;
 }
-/* Each mark's settings a block of its own (the owner, 2026-10-19: "they're all clumped together"), set into the panel
+/* Each mark's settings a block of its own, so they don't clump together, set into the panel
    on the page's own ground (the segmented controls keep their well on it), its name led by a stroke of the mark in its
    colour and thickness, faint while it's hidden. */
 .seek-group {
@@ -3766,7 +3756,7 @@
 }
 
 /* ---------- The options page's explainers (options/explainerScenes.tsx) ----------
-   The explainer itself (`explain-*`, `@web/components/Explainer`, since 2026-11-02) and the video site the scenes play
+   The explainer itself (`explain-*`, `@web/components/Explainer`) and the video site the scenes play
    on (`.ex-yt`, `.ex-video`, `.ex-thumb`, the drawer's place, the band over the video) are the app's (app.css):
    Settings → Panki AI and Keybinds have explainers too. What only the options page's scenes draw is here: the news
    site, the Panki panel, the player's controls, YouTube's home. */
@@ -3843,7 +3833,7 @@
 .ex-news-fig {
   margin: 0;
 }
-/* The article's picture: the one the owner gave (2026-10-28), square, whole. */
+/* The article's picture: square, whole. */
 .ex-news-pic {
   display: block;
   width: 100%;

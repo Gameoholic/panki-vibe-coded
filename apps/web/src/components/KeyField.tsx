@@ -28,7 +28,7 @@ type Props = {
 /**
  * A key set by pressing it: its keycap on a chip; pressed, the chip says "Press a key" and takes the next key pressed
  * (but one the page keeps for itself), with Ctrl or Alt when either is held with it ("Ctrl+Z", `keys.ts` → `keyOf`);
- * Shift, Ctrl or Alt pressed and let go with nothing else is that key by itself (the owner, 2026-11-02); Escape, or a
+ * Shift, Ctrl or Alt pressed and let go with nothing else is that key by itself; Escape, or a
  * press anywhere else, leaves it as it was. The trash takes the key off, once the
  * row has asked: the question stands under the whole row, so the keys beside it stay where they are. Settings →
  * Keybinds is made of these.

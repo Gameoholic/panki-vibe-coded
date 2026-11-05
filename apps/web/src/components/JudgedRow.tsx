@@ -18,8 +18,7 @@ export function WhyButton({ open, label, onToggle }: { open: boolean; label: str
 }
 
 /**
- * A meaning Panki AI judged, wherever it's listed (the owner, 2026-10-31: "literally highlight the meanings themselves in
- * the colours, and have a small dropdown for each showing the why"): lit in its accuracy's look (`app.css` →
+ * A meaning Panki AI judged, wherever it's listed, the meaning itself highlighted and the why a small fold of its own: lit in its accuracy's look (`app.css` →
  * `.ai-accuracy`, the one home: green, orange, red and struck through, on what's in `.ai-accuracy-words`), a chevron at its
  * end unfolding the reason under it, closed to begin with. `children` is the row itself: the pop-up's meaning, or a
  * `Dropdown`'s choice. `as="li"` in a list, with `value` its number there where it isn't its place. The pop-up under

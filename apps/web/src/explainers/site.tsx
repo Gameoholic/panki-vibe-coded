@@ -28,7 +28,7 @@ import faceHajime from "./thumbs/channel-hajime.jpg";
 export const WATCH: Site = { tab: "【マインクラフト】未来のマイクラ!?やってみた！ - YouTube", url: "www.youtube.com/watch?v=o7Kj73TQ3CU", icon: "video" };
 
 /**
- * Real videos for the video site, picked by the owner (2026-10-28): their thumbnails bundled with Panki, so nothing is
+ * Real videos for the video site: their thumbnails bundled with Panki, so nothing is
  * fetched; their titles, channels and channels' icons as YouTube gives them. The first is the one being watched.
  */
 export type Video = { picture: string; title: string; channel: string; face: string; length: string };

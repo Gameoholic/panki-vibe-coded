@@ -11,7 +11,7 @@ type Props = {
 
 /**
  * The SRS types as rows you press: the name, what it says about itself, the ladder in one line, and how many decks
- * use it. One list, the owner's own first; the ones that come with the app follow under a thin line, drawn quieter
+ * use it. One list, the account's own first; the ones that come with the app follow under a thin line, drawn quieter
  * and with a lock, since they're for looking at and copying.
  */
 export function SrsTypesView({ types, onOpen }: Props) {

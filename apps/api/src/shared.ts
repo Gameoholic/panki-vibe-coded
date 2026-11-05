@@ -84,8 +84,8 @@ export type UsageRow = { userId: string | null } & Omit<UsageTotals, "costMicros
 
 /**
  * A piece as the route hands it in: where its sound is in the video, the language the engine was told and what it
- * said of the language as it answered (kept, deciding nothing). Every piece's words are kept: until 2026-10-18 the
- * engine was sometimes asked the language instead of told it, and a piece heard surely in another language wasn't.
+ * said of the language as it answered (kept, deciding nothing). Every piece's words are kept (once, the engine was
+ * sometimes asked the language instead of told it, and a piece heard surely in another language wasn't).
  */
 export type NewPiece = {
   id: string;
@@ -176,8 +176,7 @@ type StretchRow = { startMs: number; endMs: number };
 type InsideRow = { id: number; startMs: number; pieceStart: number; pieceEnd: number };
 
 /**
- * What every account shares lives in `shared.sqlite`, apart from `auth.sqlite` and from every account's own data (the
- * owner's decision of 2026-10-17, with the admin flag): the keys for the services Panki calls, the dictionaries kept on
+ * What every account shares lives in `shared.sqlite`, apart from `auth.sqlite` and from every account's own data: the keys for the services Panki calls, the dictionaries kept on
  * Panki, how transcribing runs, and every transcript. Same discipline as `db.ts`: migrations in order, `user_version`
  * records how far we got, nothing is ever deleted but a key, whose old values are secrets.
  */
@@ -288,7 +287,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
   },
   (db) => {
     // Every request Panki makes to a service that counts them (Forvo: 500 a day), with when, so an admin can see
-    // how much of the day's allowance is used; Forvo's API tells nothing of it itself (2026-10-17).
+    // how much of the day's allowance is used; Forvo's API tells nothing of it itself.
     db.exec(`
       CREATE TABLE service_calls (
         id INTEGER PRIMARY KEY,
@@ -299,7 +298,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("CREATE INDEX service_calls_service_at ON service_calls (service, at)");
   },
   (db) => {
-    // The first day, a video whose first piece the engine couldn't make out (a 3-second intro it heard as "eng", 12%
+    // Before this step, a video whose first piece the engine couldn't make out (a 3-second intro it heard as "eng", 12%
     // sure) counted as not Japanese, and was never transcribed by itself again. Now what the engine heard says
     // something only when it was at least half sure (`verdictOf`), and a video transcribed told Japanese (Transcribe
     // pressed) is Japanese by that word. Every video's language is read again by those rules, so none stays stuck.
@@ -313,8 +312,8 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
   (db) => {
     // A stretch of the video the silent player listened through and found nothing to send (the quiet between two
     // pieces, a jingle, music under nobody's voice): heard, with nothing said, so it counts as covered without a call
-    // to any engine. Until now such quiet was dropped, and the transcript had a hole wherever nobody spoke (the owner,
-    // 2026-10-17: "what are the pauses in between the yellow lines?"). The id is the extension's, as a piece's is: the
+    // to any engine. Before this step such quiet was dropped, and the transcript had a hole wherever nobody spoke. The
+    // id is the extension's, as a piece's is: the
     // same stretch again changes nothing; the quiet before a piece's sound carries that piece's id.
     db.exec(`
       CREATE TABLE transcript_quiet (
@@ -329,7 +328,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("CREATE INDEX transcript_quiet_video_id ON transcript_quiet (video_id)");
   },
   (db) => {
-    // A transcript forgotten, whole or a stretch of it, "to start from scratch" (the owner, 2026-10-17): nothing is
+    // A transcript forgotten, whole or a stretch of it, to start from scratch: nothing is
     // deleted; the pieces and the quiet of the stretch stand aside with `removed_at`, their words with them, and the
     // stretch is uncovered again, to be transcribed afresh when a run passes it. What was paid for stays counted.
     db.exec("ALTER TABLE transcript_pieces ADD COLUMN removed_at INTEGER");
@@ -337,7 +336,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
   },
   (db) => {
     // What everyone shares is changed by whichever admin, and a transcript forgotten by whoever asks: from here on the
-    // rows say who (2026-10-17; a row from before reads as nobody). And every ask to forget is kept as it came, whether
+    // rows say who (a row from before reads as nobody). And every ask to forget is kept as it came, whether
     // or not anything stood in the stretch, since the pieces' `removed_at` alone can't tell one ask from the next.
     db.exec("ALTER TABLE settings_changes ADD COLUMN user_id TEXT");
     db.exec("ALTER TABLE service_key_changes ADD COLUMN user_id TEXT");
@@ -355,7 +354,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("CREATE INDEX transcript_forgets_video_id ON transcript_forgets (video_id)");
   },
   (db) => {
-    // A video's pictures, kept once each for everyone (2026-10-18): its thumbnail and its channel's picture, which a
+    // A video's pictures, kept once each for everyone: its thumbnail and its channel's picture, which a
     // card's video metadata shows, and which stay when the video or the channel is gone. A few kilobytes each, so they're
     // kept in here, and go into every backup with the rest. Where each was fetched from, who asked first and when are
     // kept with it; it's never changed or removed.
@@ -371,8 +370,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
         PRIMARY KEY (video_id, picture)
       )
     `);
-    // Forvo's recordings, kept once for everyone (the owner, the same day: "I want Forvo… cached globally, not per
-    // account"): the first account to pick one fetches it from Forvo, and every account after gets a copy of these
+    // Forvo's recordings, kept once for everyone rather than per account: the first account to pick one fetches it from Forvo, and every account after gets a copy of these
     // bytes as its own card's file, with no request to Forvo. Each account's own files stay its own, as its cards name
     // them; those it held before are gathered in here at startup (`gatherShared`). A few dozen kilobytes each.
     db.exec(`
@@ -389,8 +387,8 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     `);
   },
   (db) => {
-    // A word's recordings on Forvo, as its list was the one time it was asked for (the owner, 2026-10-18: "saved on
-    // disk globally, cached forever so we never go to the API for a word we already asked for in the past"): the
+    // A word's recordings on Forvo, as its list was the one time it was asked for (kept on
+    // disk for everyone, forever, so Forvo is never asked for the same word twice): the
     // recordings kept with it (`forvo_recordings`), best liked first, as JSON. A word with none is kept as none.
     db.exec(`
       CREATE TABLE forvo_words (
@@ -402,7 +400,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     `);
   },
   (db) => {
-    // A whole video downloaded by the engine and transcribed in one call (2026-10-20): each download asked for, with
+    // A whole video downloaded by the engine and transcribed in one call: each download asked for, with
     // what it came to. Its words are kept as a chunk's are, under pieces of its own (`job_id`), about half a minute of
     // the video each, so a part of it can be forgotten as a chunk can. What was measured, to tell how long the next one
     // will take and what it will cost: the engine's credits counted across a download, and the sound they paid for (the
@@ -444,7 +442,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("CREATE INDEX transcript_fixes_word_id ON transcript_fixes (word_id, id)");
   },
   (db) => {
-    // A part of a video transcribed again (the owner, 2026-10-20: "Re-transcribe a part", in place of forgetting one):
+    // A part of a video transcribed again (Re-transcribe a part, in place of forgetting one):
     // each ask, with the stretch it widened to and what came of it. Its pieces and quiet (`redo_id`) are kept standing
     // aside as they come, so the transcript doesn't change while it runs; when it's done, what stood over the stretch
     // stands aside and they stand in its place, in one transaction. Cancelled, they stay aside, paid for and kept.
@@ -469,12 +467,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
   },
   (db) => {
     // What a kept dictionary provides, counted from its rows as the extension counts what it imports, so the options
-    // page can say so before it's added (the owner, 2026-10-25). JSON of the contracts' `Provides`; null until it's
+    // page can say so before it's added. JSON of the contracts' `Provides`; null until it's
     // counted: at upload, or at startup for one kept before (`countDictionaries`).
     db.exec("ALTER TABLE dictionary_files ADD COLUMN provides TEXT");
   },
   (db) => {
-    // The usage ledger (2026-10-30, Panki AI's first step): one row for every paid call Panki makes, so what each account
+    // The usage ledger: one row for every paid call Panki makes, so what each account
     // used and what it cost can be shown now and billed later. `kind` is the panel it's shown in (the contracts'
     // UsageKind), `service` a provider's, an engine's or a source's id, `what` what was done (a chunk, a whole video, a
     // word's list, a recording; an AI action), `ref` what it was done to. How much is whichever fits: tokens in and out,
@@ -520,8 +518,8 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     `);
   },
   (db) => {
-    // Proofread (AI step 6, 2026-11-03): Panki AI's edits are fixes like a person's, kept beside the engine's word, and
-    // whichever came later wins (the owner). `source` says whose ('ai'; null a person's, as every fix before), with the
+    // Proofread: Panki AI's edits are fixes like a person's, kept beside the engine's word, and whichever came later
+    // wins. `source` says whose ('ai'; null a person's, as every fix before), with the
     // run it was part of (`ProofreadAsk.run`, what Undo all takes back), the model and template that made it and why.
     // Undone, a fix stands aside (`undone_at`, by whom), never deleted, and the word reads as its latest fix still
     // standing, or the engine's. And how sure the engine was of each word (ElevenLabs' `logprob`, the log of its
@@ -537,7 +535,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     db.exec("ALTER TABLE transcript_words ADD COLUMN logprob REAL");
   },
   (db) => {
-    // Lines split and joined by hand (AI step 6, the editors, 2026-11-03): a line is cut by the extension from its
+    // Lines split and joined by hand in the editors: a line is cut by the extension from its
     // words, so a split or a join is kept on the word it happens at, the latest one standing ('break': a line starts
     // here; 'join': none does). Who and when, as every edit; never deleted. A word that stands aside takes its with it.
     db.exec(`
@@ -699,8 +697,8 @@ export function openShared(dataDir: string) {
   // Told a language and hearing words in it, the video is in that language by the teller's word, unless it's that already.
   const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
   const touchTranscript = db.prepare("UPDATE transcripts SET updated_at = ? WHERE video_id = ?");
-  // A word reads as its latest fix, when it has one: its text and, since 2026-10-20, where it stands (a fix from before
-  // that keeps where it was heard), its latest that isn't undone since AI step 6; the engine's own word and times stay beside it.
+  // A word reads as its latest fix that isn't undone, when it has one: its text and where it stands (a fix kept without
+  // times keeps where it was heard); the engine's own word and times stay beside it.
   const wordColumns = `w.id, w.text AS heard, w.start_ms AS startMs, w.end_ms AS endMs, w.logprob AS logprob, f.to_text AS fixed, f.start_ms AS fixedStart, f.end_ms AS fixedEnd,
     f.from_text AS fromText, f.source AS source, f.reason AS reason, f.run_id AS runId,
     (SELECT m.mark FROM transcript_line_marks m WHERE m.word_id = w.id ORDER BY m.id DESC LIMIT 1) AS lineMark
@@ -995,8 +993,8 @@ export function openShared(dataDir: string) {
     updateWordAudio(patch: WordAudioUpdate, now: number, userId: string): WordAudio {
       return updateGroup(WORD_AUDIO, patch, now, userId);
     },
-    // How watching was told for everyone (`WatchingSettings`, when a video counts as finished) stood here from 2026-10-25
-    // until it became each account's own, 2026-10-30 (`Settings.finishedWithinSec`). A row an admin kept stays, unread.
+    // When a video counts as finished is each account's own (`Settings.finishedWithinSec`); a `WatchingSettings` row an
+    // admin kept here stays, unread.
     /** Panki AI, for everyone: whether it's on, the provider and its model (`PankiAi`). */
     getAi(): PankiAi {
       return groupFrom(PANKI_AI, selectSettings.all() as SettingRow[]);
@@ -1245,7 +1243,7 @@ export function openShared(dataDir: string) {
           words.push({ ...current, text: current.text.trim() });
         }
         words.sort((a, b) => a.startMs - b.startMs || a.id - b.id);
-        // Lines never overlap (the owner, 2026-11-03): the ends may move up to the words before and after the line, never
+        // Lines never overlap: the ends may move up to the words before and after the line, never
         // over them. Words that already stood inside the line's own span (a transcript from before) don't hold it back.
         const lineStart = Math.min(...words.map((w) => w.startMs));
         const lineEnd = Math.max(...words.map((w) => w.endMs));
@@ -1387,13 +1385,13 @@ export function openShared(dataDir: string) {
       startJob.run(now, id);
       return (selectJob.get(id) as JobRow | undefined)?.attempts ?? 0;
     },
-    /** A download that came to nothing, and why, in the owner's words. What the video had stays as it was. */
+    /** A download that came to nothing, and why, in plain words. What the video had stays as it was. */
     failJob(id: string, message: string, now: number): void {
       failJob.run(now, message, id);
     },
     /**
-     * A download done: its words replace everything the video had (the owner, 2026-10-20: "the latest one overwrites"),
-     * in one transaction. Every chunk, every quiet and any earlier download's pieces stand aside with their words, and
+     * A download done: its words replace everything the video had, the latest one
+     * overwriting, in one transaction. Every chunk, every quiet and any earlier download's pieces stand aside with their words, and
      * with them the hand fixes on those words; the download's words are kept under pieces of its own, about half a
      * minute each (`piecesOfVideo`), covering the whole video. What it cost is kept with it: the credits the engine
      * counted across it, and the sound they paid for (the video, and the chunks sent to the same engine meanwhile).
@@ -1474,7 +1472,7 @@ export async function countDictionaries(shared: Shared, dir: string): Promise<vo
 }
 
 /**
- * Until 2026-10-17 the Forvo key and the dictionaries kept on Panki were each account's own. They're everyone's now, and
+ * The Forvo key and the dictionaries kept on Panki were once each account's own. They're everyone's now, and
  * what accounts held moves over here, once, at startup. Every row moved is marked, so running it again moves nothing;
  * one account's trouble is said and doesn't keep the API from starting.
  */
@@ -1501,7 +1499,7 @@ const PANKI_PROMPTS: Record<AiActionId, readonly string[]> = {
 };
 
 /**
- * Until AI step 5 (2026-11-01) Explain's and Touch up's prompts were one setting each, everyone's, edited in Admin; now
+ * Explain's and Touch up's prompts were once one setting each, everyone's, edited in Admin; now
  * every prompt is a template of an account's own. One an admin edited (it differs from Panki's own text, as it was and
  * as it is) becomes a template in every admin's account, "Explain (edited)" or "Touch up (edited)", and that account's
  * default for its action: an edited prompt is never lost. Done at startup until it has been once, then marked in the
@@ -1576,13 +1574,13 @@ function gatherForvoRecordings(shared: Shared, db: Db, fromDir: string, user: Us
   if (gathered > 0) console.log(`Copied ${gathered} of ${user.name}'s Forvo recordings to the shared store.`);
 }
 
-/** Each unmoved dictionary: its zip into the shared folder and its row into the shared store, or let go when the owner has it already. */
+/** Each unmoved dictionary: its zip into the shared folder and its row into the shared store, or let go when the shared store has it already. */
 function gatherDictionaries(shared: Shared, db: Db, fromDir: string, toDir: string, user: User, now: () => number): void {
   for (const file of db.dictionaryFilesToMove()) {
     const from = path.join(fromDir, file.id);
     const to = path.join(toDir, file.id);
     if (shared.dictionaryFileTitled(file.title)) {
-      // The owner has it already: the account's is a copy of a file they have, let go for the room.
+      // The shared store has it already: the account's is a copy, let go for the room.
       db.markDictionaryMoved(file.id, now());
       removeFile(fromDir, file.id);
       console.log(`${file.title} from ${user.name} is on Panki already; their copy was let go.`);

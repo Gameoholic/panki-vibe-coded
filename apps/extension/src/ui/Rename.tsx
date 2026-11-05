@@ -5,7 +5,7 @@ import { Icon } from "@web/components/Icon";
 import { TextField } from "@web/components/TextField";
 
 /**
- * A name of the owner's own on a row, and renaming it there: the name with a pencil after it, which becomes the
+ * A name of the viewer's own on a row, and renaming it there: the name with a pencil after it, which becomes the
  * app's field in its place, Save, Cancel, and Reset to default name while the name isn't the thing's own and the row
  * offers it (a dictionary's does, a profile's doesn't); saving it empty does the same. A dictionary's name and a
  * profile's are both this. `onKeep(null)` is the reset.

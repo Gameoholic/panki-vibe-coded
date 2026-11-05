@@ -1,7 +1,7 @@
 import type { z } from "zod";
 
 /**
- * Why a Panki AI answer couldn't be used, as Details' Log says it under its error (the owner, 2026-10-31): always what
+ * Why a Panki AI answer couldn't be used, as Details' Log says it under its error: always what
  * was expected against what came, "Expected one row per meaning (4). Got 0.", never a label of whose rule it was. The
  * one home for that wording: the API's reader for what didn't parse or wasn't the shape (`issueWords`, Zod's path and
  * what it wanted), each action's own rules (`explainRuleBroken`, `touchUpProblem`), a cut answer and a refusal.

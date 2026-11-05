@@ -28,8 +28,7 @@ import { Icon } from "./Icon";
 import { WhyButton } from "./JudgedRow";
 
 /**
- * Touch up in the capture drawer (AI step 3; the model of every outcome is the owner's, 2026-10-31, the Touch up
- * scenarios page): the one button over the card's fields, then the AI's head with Accept all and Dismiss all; under each
+ * Touch up in the capture drawer: the one button over the card's fields, then the AI's head with Accept all and Dismiss all; under each
  * field what Panki made of the answer (`fieldVerdictOf`, `meaningVerdictOf`), joined to the field as one shape in its
  * verdict's colour, the field's box the diff while a proposal waits, accepted or dismissed by hand and nothing ever
  * written by itself. The drawer owns what's proposed and what's decided; these are only how it's drawn. The web's, since
@@ -66,10 +65,9 @@ export function touchUpReason(known: boolean, ai: Pick<PankiAiStatus, "settings"
 }
 
 /**
- * Touch up itself, in the drawer's button row before Add, at the drawer's top under its head (the owner, 2026-10-31;
- * at the foot before, C of https://claude.ai/artifact/1wEsGSSpJ24sAFmPgSgWck), the drawer's own button size: what it
+ * Touch up itself, in the drawer's button row before Add, at the drawer's top under its head, the drawer's own button size: what it
  * can cost, or why it can't run, stands right under it (`TouchUpCost`), and once it has run its head (`TouchUpBar`)
- * under the row. Pressable again whenever it isn't thinking (the owner, 2026-10-31), a new call each time.
+ * under the row. Pressable again whenever it isn't thinking, a new call each time.
  */
 export function TouchUpButton({ name, canRun, busy, thinking, burst, onRun }: { name: string; canRun: boolean; busy: boolean; thinking: boolean; burst: number; onRun: () => void }) {
   return (
@@ -204,7 +202,7 @@ function Mark({ out, children, block }: { out?: "meh" | "bad"; children: string;
 export type Shown = { tone: Tone; diff: ReactNode | null; note: ReactNode };
 
 /**
- * A field and its note as one shape (the owner, 2026-10-31: a proposal must be plainly its field's): the field's box
+ * A field and its note as one shape, so a proposal is plainly its field's: the field's box
  * and the note's outline in the verdict's colour, the note hanging straight from the box's foot; while a proposal waits,
  * the box is the diff in the field's place (`.touch-up-tied.is-diffing`), and the field comes back as it's decided.
  */
@@ -219,8 +217,7 @@ export function Tied({ shown, children }: { shown: Shown; children: ReactNode })
 }
 
 /**
- * A note's why under its line, folded by the chevron a judged meaning's row has (`WhyButton`, the one piece; the owner,
- * 2026-10-31): open under a proposal and the error, closed under "Nothing to change.". Nothing when there's no why.
+ * A note's why under its line, folded by the chevron a judged meaning's row has (`WhyButton`, the one piece): open under a proposal and the error, closed under "Nothing to change.". Nothing when there's no why.
  */
 function WithReason({ head, reason, open: start }: { head: ReactNode; reason: string; open: boolean }) {
   const [open, setOpen] = useState(start);
@@ -257,7 +254,7 @@ function Line({ words, why, open }: { words: string; why: string; open: boolean 
   );
 }
 
-/** A proposal: its title, its why open, and the two ways out, always Accept and Dismiss (the owner, 2026-10-31). Nothing is written until one is pressed. */
+/** A proposal: its title, its why open, and the two ways out, always Accept and Dismiss. Nothing is written until one is pressed. */
 function Proposal({ title, why, onAccept, onDismiss }: { title: string; why: string; onAccept: () => void; onDismiss: () => void }) {
   return (
     <div className="touch-up-note">
@@ -360,8 +357,8 @@ export const proposes = (verdict: FieldVerdict | MeaningVerdict): boolean => ver
 
 /**
  * What a field's box carries before its value (`TextField`'s `lead`): the spark while Panki AI wrote what it holds, in
- * the accent, the look the deck's rows and the review card give an AI value (`.card-ai`, `.review-ai`, `.field-ai`; the
- * owner, 2026-10-31: in the box, not after the label).
+ * the accent, the look the deck's rows and the review card give an AI value (`.card-ai`, `.review-ai`, `.field-ai`): in
+ * the box, not after the label.
  */
 export function fieldMarks(ai: boolean): ReactNode {
   return ai ? <AiSpark className="field-ai" /> : null;

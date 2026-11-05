@@ -10,7 +10,7 @@ import { pressKind, type KeyBinds } from "../keys";
 import { answerClass } from "../srsKinds";
 
 /**
- * The Hold button's explainer (Settings → Keybinds, the owner, 2026-11-02): Panki's own review, a card of an example
+ * The Hold button's explainer (Settings → Keybinds): Panki's own review, a card of an example
  * deck held through its stages on the Hold button (its Listen phase ended, its back shown, the answer given and the
  * next card on), then held to its back again and taken back to its start on Back to start's key. Played as this device
  * has it: its keys, and each stage's hold. The answer is the type's best, a deck's own being set in that deck.

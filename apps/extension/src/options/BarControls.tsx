@@ -16,7 +16,7 @@ const BAR_WIDTH = 960;
 const BAR_HEIGHT = 80;
 
 /**
- * The player's control bar drawn as laid out, as the site's 2025 player draws it (the owner's screenshot, 2026-11-04):
+ * The player's control bar drawn as laid out, as the site's 2025 player draws it:
  * the red line along its top; at its left each control a round glass pill of its own (play, the speaker) and the time
  * in a long one; at its right one glass strip holding every control as a bare icon. It's drawn at a player's real
  * width (`BAR_WIDTH`) and scaled to the room it has, so it looks the same in a narrow column. Each control stands in a

@@ -4,9 +4,9 @@ import { DATA_KINDS } from "./dataKinds";
 
 /**
  * What the extension can fill in by itself, one registry: each piece of a capture, what the settings page calls it,
- * and which of a card type's fields can take it. The owner's card types are theirs, so nothing here knows a field by
- * its name: which field takes which piece is said once per deck (a `FieldMap`), by the field's id. A field that takes
- * no piece is the owner's to type into in the drawer. A new piece is one entry.
+ * and which of a card type's fields can take it. Card types are the account's own data, so nothing here knows a field
+ * by its name: which field takes which piece is said once per deck (a `FieldMap`), by the field's id. A field that
+ * takes no piece is typed into in the drawer. A new piece is one entry.
  */
 export const ROLE_IDS = [
   "word",
@@ -30,8 +30,8 @@ export const ROLE_IDS = [
 export type RoleId = (typeof ROLE_IDS)[number];
 
 /**
- * Every kind of data Panki reads from a dictionary is a piece a field can take (the owner, 2026-10-16: tags weren't
- * one, and "it should be there as an option automatically"). A kind added to `dataKinds.ts` doesn't build until it
+ * Every kind of data Panki reads from a dictionary is a piece a field can take, there as an option without being
+ * asked for. A kind added to `dataKinds.ts` doesn't build until it
  * has its piece here, and its piece's name is the kind's own.
  */
 export const DICTIONARY_ROLE: Record<DataKind, RoleId> = {
@@ -50,7 +50,7 @@ export type Cut = "clip" | "word";
 
 /**
  * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video itself,
- * or Forvo (word audio recorded by people, fetched with the owner's key: `forvo.ts`). The contracts' own, with how each
+ * or Forvo (word audio recorded by people, fetched with Panki's key: `forvo.ts`). The contracts' own, with how each
  * is said, since Panki AI's Prompt context says the same (`prompt.ts`): one name for each, wherever it's shown.
  */
 export type Source = PieceSource;
@@ -75,7 +75,7 @@ const holdsClip = (field: CardField) => {
 };
 /** A recording of a word is a sound, and goes only where a sound can. */
 const holdsSound = (field: CardField) => mediaKindsOf(field.kind).includes("audio");
-/** A pitch accent goes only where a pitch accent is drawn, and nothing else goes there but what's typed (the owner, 2026-10-16). */
+/** A pitch accent goes only where a pitch accent is drawn, and nothing else goes there but what's typed. */
 const holdsAccent = (field: CardField) => holdsPitch(field.kind);
 /** A kind of the dictionary's data as a piece, called what the kind is called: words, or a pitch accent. */
 const fromDictionary = (kind: DataKind): Role => ({ name: DATA_KINDS[kind].name, from: "dictionary", takes: kind === "pitch" ? holdsAccent : holdsText, dictionary: kind });
@@ -86,8 +86,8 @@ const fromDictionary = (kind: DataKind): Role => ({ name: DATA_KINDS[kind].name,
  */
 export const ROLES: Record<RoleId, Role> = {
   word: { name: PIECE_NAMES.word, from: "text", takes: holdsText },
-  // What the dictionary says of the selected word (2026-10-14): the word as it's written there (探す for 探していた),
-  // its reading, its meaning; and since 2026-10-16 every other kind of its data too. Their ids aren't "reading" and
+  // What the dictionary says of the selected word: the word as it's written there (探す for 探していた),
+  // its reading, its meaning, and every other kind of its data. Their ids aren't "reading" and
   // "meaning": those were pieces once, typed by hand, and a map from then may still name them; they're let go (below)
   // rather than coming back as these.
   dictForm: fromDictionary("form"),
@@ -103,16 +103,14 @@ export const ROLES: Record<RoleId, Role> = {
   clip: { name: "Sentence video", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
   clipAudio: { name: "Sentence audio", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: true } },
   wordVideo: { name: "Word video", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: false } },
-  // Named for where it's from, beside Forvo's (the owner, 2026-10-18).
+  // Named for where it's from, beside Forvo's.
   wordAudio: { name: "Word audio (YouTube)", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: true } },
-  // The word said by someone on Forvo (2026-10-15), beside the word cut from the video: the owner keeps both to choose from.
+  // The word said by someone on Forvo, beside the word cut from the video: both are kept to choose from.
   forvoAudio: { name: "Word audio (Forvo)", from: "forvo", takes: holdsSound },
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
-  // (the video's name, the channel's name and address) is kept beside the card as its `source` (the owner, 2026-10-17:
-  // "it should all be a part of source", in place of a title piece and a channel piece that lived an hour).
+  // (the video's name, the channel's name and address) is kept beside the card as its `source`, all one piece.
   source: { name: PIECE_NAMES.source, from: "video", takes: (field) => holdsLink(field.kind) },
-  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself (the owner,
-  // 2026-10-30): the word in general, and a few made-up sentences with their scenes. Two fields, not one, so the layout
+  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself: the word in general, and a few made-up sentences with their scenes. Two fields, not one, so the layout
   // places each on its own. Nothing fills them as the drawer opens; their names are Touch up's (`TOUCH_UP`).
   explanation: { name: TOUCH_UP.explanation.name, from: "ai", takes: holdsText },
   examples: { name: TOUCH_UP.examples.name, from: "ai", takes: holdsText },
@@ -149,7 +147,7 @@ export function cleanMap(map: FieldMap, type: CardType): FieldMap {
 
 /**
  * Whether a deck's field mapping is switched on: whether the extension adds cards to it. **Off until it's switched
- * on** (the owner, 2026-10-11: "field mapping is disabled by default and has to be enabled for the deck"). The one
+ * on**, deck by deck. The one
  * exception is a courtesy to what was set up before there was a switch: a deck that already has something mapped and
  * has never been switched counts as on, so it goes on working; the first press of its switch settles it either way.
  */
@@ -173,7 +171,7 @@ export function withRole(map: FieldMap, fieldId: string, role: RoleId | null): F
 /**
  * A card's values as they'd be sent: in each field, the piece it takes when that piece is words (`taken`), and what
  * was typed into it when it takes none, or takes one only Panki AI fills (`typed`, by field id: what Touch up wrote
- * there once accepted, or the owner's words). A clip follows its card, so a field that takes one has no value here.
+ * there once accepted, or the viewer's own words). A clip follows its card, so a field that takes one has no value here.
  */
 export function valuesFor(type: CardType, map: FieldMap, taken: Partial<Record<RoleId, string>>, typed: Readonly<Record<string, string>>): Record<string, string> {
   const values: Record<string, string> = {};

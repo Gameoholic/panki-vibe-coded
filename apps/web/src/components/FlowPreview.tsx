@@ -62,7 +62,7 @@ function Journey({ type, steps }: { type: SrsType; steps: JourneyStep[] }) {
 const NEW_CHOICES = [5, 10, 15, 20, 30, 50];
 const MONTH_CHOICES = [1, 3, 6, 12];
 const MONTH_DAYS = 30;
-/** How often the owner reviews, for the forecast: a card that comes due waits for the next sitting. */
+/** How often reviews are done, for the forecast: a card that comes due waits for the next sitting. */
 const SITTING_OPTIONS: readonly { id: number; label: string }[] = [
   { id: 1, label: "reviewing once a day" },
   { id: 2, label: "reviewing twice a day" },

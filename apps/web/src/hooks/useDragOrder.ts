@@ -5,8 +5,7 @@ type Drag = { from: number; to: number; dy: number; slot: number };
 /**
  * Where each row's middle is, top to bottom. A row with nothing on screen (a card's reading, written over its word and
  * with no row of its own) takes the middle of the next row that has one, or of the last: it's passed over with that
- * row. As a 0 it stood at the very top of the page, and nothing could be dragged past it (the owner, 2026-10-18: "the
- * word itself can't be reordered").
+ * row. As a 0 it would stand at the very top of the page, and nothing could be dragged past it.
  */
 function centresOf(rects: readonly (DOMRect | undefined)[]): number[] {
   const known = rects.map((r) => (r ? r.top + r.height / 2 : null));
@@ -63,7 +62,7 @@ export function useDragOrder(count: number, onMove: (from: number, to: number) =
       onPointerDown(e: PointerEvent<HTMLElement>) {
         if (e.button !== 0) return;
         // Every row's place by index, one for each: a row never drawn leaves a hole in the list of rows, and `map` skips
-        // holes, so the place it left was no place at all and nothing could be dragged past it (2026-10-18, twice).
+        // holes, so the place it left would be no place at all and nothing could be dragged past it.
         const rects = Array.from({ length: count }, (_, k) => rows.current[k]?.getBoundingClientRect());
         const mine = rects[i];
         if (!mine) return;

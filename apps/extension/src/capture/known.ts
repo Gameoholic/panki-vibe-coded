@@ -8,19 +8,17 @@ import { literalOf } from "../ui/styles";
 import type { Token } from "./words";
 
 /**
- * Words already in the account's cards, marked where they stand (the owner, 2026-10-25: "highlights words that are
- * already in my cards… both subtitles and everywhere… so they can be separate… make colour customizable"). What's
- * known is the words every card is called by, from Panki through the worker (`askKnown`), with the two switches and
+ * Words already in the account's cards, marked where they stand: in subtitles and on pages, each switched apart, in a
+ * colour that's chosen. What's known is the words every card is called by, from Panki through the worker (`askKnown`), with the two switches and
  * the colour (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`). A word in a line is one of them by the
- * pop-up's own check (the owner, 2026-10-29: "the same function, same shared logic so that they can't drift apart"):
+ * pop-up's own check, the same function, so the two can't drift apart:
  * the word the dictionary takes it as, chosen by the pop-up's own choice (`lookup.ts` → `wordsFound`: 食べました is
  * 食べる, あえて is 敢えて), is exactly a word a card is called by (the API's `wordsInCards`, what its `cardsCalled`
  * matches against). Lines are split into words the one way (`split.ts` → `wordsOf`): Panki's own lines under and over a video mark their word buttons (`ui/Line.tsx`'s
  * `known`), by the subtitles switch (Highlight in Panki subtitles); any other text, the site's own captions among it,
  * is marked on the browser's own highlight layer (the CSS Custom Highlight API), which draws over the page's text
  * without changing a node of it, by the pages switch (Highlight globally). A word whose every card is suspended is
- * marked in a colour of its own (`suspended`, `knownSuspendedColour`; the owner, 2026-10-30: it "appears green!! in
- * both subtitles and seekbar, why is that?!").
+ * marked in a colour of its own (`suspended`, `knownSuspendedColour`), so it never reads as a word being learned.
  */
 
 /** `suspended`: those of `words` whose every card is suspended. */
@@ -195,7 +193,7 @@ export function useKnownMoments(lines: readonly TimedLine[] | null): KnownMoment
 /**
  * Marks the known words in a page's own text, on the browser's highlight layer, by the pages switch (Highlight
  * globally): a site's own captions are a page's text like any other, as they go by Key to hold globally (the subtitles
- * switch is Panki's own lines alone; the owner, 2026-10-25, the two panels' words made one). Each line is split by the
+ * switch is Panki's own lines alone). Each line is split by the
  * dictionary once its words are in (asked a few at a time, each line once); until then the browser's own split stands
  * in. The page is read again where it changes, after it settles. A browser without the highlight layer marks nothing.
  */

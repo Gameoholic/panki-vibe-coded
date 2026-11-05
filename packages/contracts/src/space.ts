@@ -20,8 +20,8 @@ export const FilesOfKind = z.object({ kind: z.enum(["video", "audio", "image"]),
 export type FilesOfKind = z.infer<typeof FilesOfKind>;
 
 /**
- * What Panki's data takes on the disk, read-only, for an admin (the owner, 2026-10-17: "the current storage plus storage
- * allocated, so I know once the videos and audios take too much space"): each account's folder, its files on cards by
+ * What Panki's data takes on the disk, read-only, for an admin, so it's known when videos and sounds
+ * take too much room: each account's folder, its files on cards by
  * kind (null when they couldn't be told apart) and the rest (its cards and history), what everyone shares, the whole
  * of Panki, and the disk itself. Nothing here is a thing to do; what `pnpm space` prints, as a shape.
  */

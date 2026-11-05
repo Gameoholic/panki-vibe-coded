@@ -187,8 +187,8 @@ type Props = {
   canRedo: boolean;
   /**
    * For looking only (a type that comes with the app): the chart pans, zooms and shows any stage, and every box opens
-   * its card with what's set there and what else could be, nothing in it to be changed (the owner, 2026-10-21: "still
-   * read only, but now I can read the extra parameters that were set on it and what others are available").
+   * its card with what's set there and what else could be, nothing in it to be changed: read-only, but every
+   * setting on it and every other choice can still be read.
    */
   readOnly?: boolean;
   /**
@@ -259,8 +259,8 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  // Each scope has a view of its own: fitted to the frame the first time it shows, and after that wherever the owner
-  // left it. One view for all of them would leave a chart off in the dark after a look at one of another size.
+  // Each scope has a view of its own: fitted to the frame the first time it shows, and after that wherever it was
+  // left. One view for all of them would leave a chart off in the dark after a look at one of another size.
   useEffect(() => {
     if (!size || shownScope.current === scope) return;
     if (shownScope.current !== null) views.current.set(shownScope.current, view);

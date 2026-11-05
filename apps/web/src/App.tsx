@@ -194,8 +194,7 @@ function screenOf(route: Route, { decks, types, srsTypes, ai }: Lists): Screen |
 
 /**
  * The fixed places in the bar. A new one is a row here, nowhere else. `admin`: there for an admin alone, at the bar's
- * far end on a computer (the owner, 2026-10-29: the admin settings "in the most top right of the website"; they were a
- * tab of Settings until then).
+ * far end on a computer, the top right of the site.
  */
 type TabId = "home" | "settings" | "stats" | "admin";
 const TABS: readonly { id: TabId; label: string; to: Screen; admin?: true }[] = [
@@ -229,8 +228,7 @@ function messageOf(e: unknown, fallback: string) {
 const isSignedOut = (e: unknown) => e instanceof ApiError && e.status === 401;
 /**
  * Panki not answering as the app opens (the server restarting after a deploy, the network gone) isn't being signed
- * out: it's said, and asked again this often until it answers. Until 2026-10-20 any failure showed the sign-in screen,
- * and a deploy looked like a lost sign-in (the owner: "why is it asking me to sign in again on prod?").
+ * out: it's said, and asked again this often until it answers, so a deploy never looks like a lost sign-in.
  */
 const UNREACHED_RETRY_MS = 3000;
 const UNREACHED = "Can't reach Panki right now. Trying again…";
@@ -289,7 +287,7 @@ export function App() {
   const setGuard = useCallback((next: UnsavedGuard | null) => {
     guard.current = next;
   }, []);
-  /** Where the owner was going when unsaved work stopped them; the question is on screen while it's set. */
+  /** Where leaving was headed when unsaved work stopped it; the question is on screen while it's set. */
   const [leaving, setLeaving] = useState<Screen | null>(null);
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leaveFailure, setLeaveFailure] = useState<string | null>(null);
@@ -300,7 +298,7 @@ export function App() {
 
   /**
    * Signed out, by a sign-out here or by any call finding the sign-in gone: everything loaded is dropped, nothing
-   * more is recorded, and the address stays as it is, so signing in again lands where the owner was going.
+   * more is recorded, and the address stays as it is, so signing in again lands where it was going.
    */
   const signedOut = useCallback(() => {
     ledger.stop();
@@ -384,7 +382,7 @@ export function App() {
       .catch((e: unknown) => fail(e, "Couldn't load your SRS types."));
     api
       .getSettings()
-      // An account's zone is its own, the device's to begin with (the owner, 2026-10-21): the first time it's opened
+      // An account's zone is its own, the device's to begin with: the first time it's opened
       // with none, this device's is written, so its days turn over on its own clock from then on.
       .then((answer) => (answer.settings.timeZone === "" ? api.updateSettings({ timeZone: DEVICE_ZONE }) : answer))
       .then((answer) => setSettings(answer.settings))
@@ -912,7 +910,7 @@ export function App() {
   }
 
   /**
-   * The screen as its shape while what it needs loads, fitting exactly what will stand there (the owner, 2026-10-26):
+   * The screen as its shape while what it needs loads, fitting exactly what will stand there:
    * a list with as many rows as it really drew last time on this device (`skeletonMemory.ts`), a deck's cards as many
    * as it holds, a review what it opens on as its deck says (today's cards, as many as are due and new; the review
    * itself; or, with nothing to do, its end). While an address is still arriving only the route is known, so a deck's

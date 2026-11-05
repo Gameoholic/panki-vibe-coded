@@ -35,9 +35,8 @@ export const WAIT_UNIT_OPTIONS = WaitUnit.options.map((id) => ({ id, label: WAIT
 
 /**
  * New in words: every type's place before its first stage, where a card not learned yet stands (`LESSON_SCOPE`,
- * `LESSON_IDX` and `SrsType.lesson` in the code, where it was born as Lesson; the owner had it New on screen the same
- * day, 2026-10-21, "new cards also makes it explicit"). A card landing there is named by it alone: it has no wait to
- * say ("with the new cards" followed it for an hour, until the owner had it out).
+ * `LESSON_IDX` and `SrsType.lesson` in the code, where it's called Lesson; New on screen, which says plainly that these
+ * are new cards). A card landing there is named by it alone: it has no wait to say.
  */
 export const NEW_WORDS = { name: "New", note: "new cards" };
 
@@ -47,7 +46,7 @@ export const NEW_WORDS = { name: "New", note: "new cards" };
  * `holdAsks` and, on the chart, `holdNote`.
  */
 export const HOLD_KINDS: Record<HoldKind, { icon: IconName; state: string; lift: string }> = {
-  // Snooze on screen (the owner, 2026-10-21: "I think it makes more sense that way"); `bury` in what's kept, as it was.
+  // Snooze on screen, which says more plainly what it does; `bury` in what's kept.
   bury: { icon: "moon", state: "snoozed", lift: "Unsnooze" },
   suspend: { icon: "pause", state: "suspended", lift: "Unsuspend" },
 };
@@ -59,8 +58,7 @@ export function holdBack(step: HoldStep): string {
 }
 /**
  * The line under a box on the chart that puts a card aside, for a card at `place` (the stage it's shown for): "then
- * comes back as Guru 1", "skipped until unsuspended" (the button that brings it back, in its deck's list; it said "until
- * brought back" until the owner asked for a little more, 2026-10-21). Short enough for the box's one line.
+ * comes back as Guru 1", "skipped until unsuspended" (the button that brings it back, in its deck's list). Short enough for the box's one line.
  */
 export function holdNote(kind: HoldKind, place: string): string {
   return kind === "bury" ? `then comes back as ${place}` : "skipped until unsuspended";
@@ -78,7 +76,7 @@ export function holdAsks(step: HoldStep): string {
 export type StepOptionId = "up1" | "upX" | "stay" | "down1" | "downX" | "burn" | "lesson" | "retry" | "hidden" | HoldKind;
 /**
  * How far ↑ X and ↓ X go when first picked: two, as the far moves always did; then as many stages as are set beside them
- * (the owner, 2026-10-26: "it's not ↑1 and ↑2 anymore, it's ↑1 and ↑X, X being modifiable"), up to the contracts' `MOVE_MAX`.
+ * (↑ 1 and ↑ X, X being modifiable), up to the contracts' `MOVE_MAX`.
  */
 export const FAR_MOVE = 2;
 export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step; icon?: IconName; chip?: string }[] = [
@@ -91,7 +89,7 @@ export const STEP_OPTIONS: readonly { id: StepOptionId; step: Step; icon?: IconN
   // The one way back to New once a card has left it.
   { id: "lesson", step: { kind: "lesson" }, icon: "undo" },
   { id: "retry", step: { kind: "retry" } },
-  // The answer isn't offered at that point of the chart (the owner, 2026-10-17: no Bury inside an ask-again).
+  // The answer isn't offered at that point of the chart (no Bury inside an ask-again, say).
   { id: "hidden", step: { kind: "hidden" }, icon: "close" },
   { id: "bury", step: { kind: "bury", wait: BURY_WAIT }, icon: HOLD_KINDS.bury.icon, chip: "Snooze" },
   { id: "suspend", step: { kind: "suspend" }, icon: HOLD_KINDS.suspend.icon },
@@ -198,8 +196,7 @@ export function againWords(minutes: number): string {
 /**
  * When a card that has reached a stage comes back: the stage's wait, or "next review" for a stage with none. It's due
  * at once, but reaching a stage ends the card for the sitting under way; only an ask-again right away comes back in it,
- * and "right away" is that one's alone (the owner, 2026-10-18: "'Right away' should be reserved for the 'again right
- * away'").
+ * and "right away" is reserved for that one alone.
  */
 export function backWords(minutes: number): string {
   return minutes <= 0 ? "next review" : spanWords(minutes);
@@ -211,9 +208,9 @@ export function minutesAsWait(minutes: number): Wait {
   return { n: Math.max(1, Math.round(minutes)), unit: "min" };
 }
 /**
- * When a card comes back, beside it in a list: "due now", "next review in 3 h" (the owner, 2026-10-29: "in 1 h" alone
- * didn't say what), "next review in 2 d", "next review in 3 w", the end, or put aside ("snoozed"). Nothing for a new
- * card, whose place already says it (it said "new" under "Lesson" until the owner asked what that meant, 2026-10-21).
+ * When a card comes back, beside it in a list: "due now", "next review in 3 h" ("in 1 h" alone
+ * wouldn't say what), "next review in 2 d", "next review in 3 w", the end, or put aside ("snoozed"). Nothing for a new
+ * card, whose place already says it.
  */
 export function dueWords(type: Named, card: Pick<Card, "place" | "dueAt" | "hold">, now: number): string | null {
   if (card.hold) return HOLD_KINDS[card.hold.kind].state;

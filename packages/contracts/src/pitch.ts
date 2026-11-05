@@ -1,6 +1,6 @@
 /**
- * A pitch accent, as a card's Pitch accent field holds it and as the popup and a card draw it (the owner, 2026-10-16:
- * a field kind of its own, drawn as the line over the reading rather than shown as text). Each accent is a reading and
+ * A pitch accent, as a card's Pitch accent field holds it and as the popup and a card draw it (a field kind of its
+ * own, drawn as the line over the reading rather than shown as text). Each accent is a reading and
  * the number dictionaries give it: after which mora the voice falls, 0 for never. A field keeps it written
  * "たべる 2", several split by commas; it's read leniently, so one typed "たべる [2]", or written with its fall marked
  * "たべꜜる [2]" (Panki's way before the kind existed), reads the same.

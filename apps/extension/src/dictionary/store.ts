@@ -82,7 +82,7 @@ function open(): Promise<IDBDatabase> {
   return opened;
 }
 
-/** The dictionaries, in the owner's order; one that's being removed isn't among them. */
+/** The dictionaries, in the order they were put in; one that's being removed isn't among them. */
 export async function listDictionaries(): Promise<DictionaryRecord[]> {
   const db = await open();
   const all = await request<DictionaryRecord[]>(db.transaction("dictionaries").objectStore("dictionaries").getAll());
@@ -103,7 +103,7 @@ export async function setDictionaryOn(id: string, on: boolean): Promise<void> {
 export const DICTIONARY_NAME_MAX = 200;
 
 /**
- * Gives a dictionary a name of the owner's own, shown wherever it's named; null (or nothing typed) goes back to the
+ * Gives a dictionary a name of its own, typed on the options page, shown wherever it's named; null (or nothing typed) goes back to the
  * name its file gives it. Its file, its title and its id stay as they are.
  */
 export async function setDictionaryName(id: string, name: string | null): Promise<void> {
@@ -170,8 +170,8 @@ export async function orderDictionaries(ids: readonly string[]): Promise<void> {
 /**
  * Every row of one dictionary's in a store, deleted. An import writes a dictionary's rows one after another, so
  * they're one run of keys: when nothing of another dictionary's is among them, the run goes in one stroke (a few
- * seconds for JMdict's hundreds of thousands, where one at a time took minutes: the owner, 2026-10-16, "it feels as
- * if it's not deleting"). Otherwise they go a cursor at a time.
+ * seconds for JMdict's hundreds of thousands, where one at a time took minutes and looked as if
+ * nothing was being deleted). Otherwise they go a cursor at a time.
  */
 async function deleteRows(db: IDBDatabase, storeName: "terms" | "meta" | "tags", dict: string): Promise<void> {
   const own = IDBKeyRange.only(dict);

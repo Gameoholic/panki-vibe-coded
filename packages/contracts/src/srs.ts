@@ -18,7 +18,7 @@ export const Wait = z.object({ n: z.number().int().min(1).max(WAIT_MAX), unit: W
 export type Wait = z.infer<typeof Wait>;
 export const waitMinutes = (wait: Wait) => wait.n * MINUTES_PER_UNIT[wait.unit];
 
-/** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, but for the next review: reaching a stage is the end of the chart for that sitting, only an ask-again with no wait keeps a card in the one under way (the owner, 2026-10-17). */
+/** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, but for the next review: reaching a stage is the end of the chart for that sitting, only an ask-again with no wait keeps a card in the one under way. */
 export const StageWait = Wait.extend({ n: z.number().int().min(0).max(WAIT_MAX) });
 export const SrsStage = z.object({ id: SrsStageId, name: z.string().trim().max(60), wait: StageWait });
 export type SrsStage = z.infer<typeof SrsStage>;
@@ -43,11 +43,11 @@ export function mainAnswers<A extends { aside?: boolean | undefined }>(answers: 
  * only so switching it off brings the old wait back. `retry` asks the same thing again right away without moving
  * anywhere, not even deeper into the ask-again it's in: inside a right-away ask-again it keeps a card in the review
  * until another answer lets it out. `hidden` takes the answer away at that point: its button isn't offered at all
- * (the owner, 2026-10-17: no Bury inside an ask-again, "there's no reason to bury a card if I already failed it");
+ * (no Bury inside an ask-again: there's no reason to bury a card already failed);
  * sent all the same, it does nothing (`STAY`). `bury` and `suspend` put the card aside where it stands (`HoldKind`):
  * a bury for its `wait`, a suspend until it's brought back. `lesson` sends the card back to Lesson (New on screen), a
  * new card again that waits for a day's new cards: the one way back there once a card has left it. No type that comes
- * with the app takes it since Wanikani+'s Reset goes to the first stage instead (the owner, 2026-10-21).
+ * with the app takes it: Wanikani+'s Reset goes to the first stage instead.
  */
 export type Step =
   | { kind: "move"; by: number }
@@ -63,8 +63,8 @@ export type Step =
 export type Flow = Record<string, Step>;
 /**
  * How many stages one move goes up or down at most: as many as a ladder can have (`STAGES_MAX`), since the far move on
- * the chart is as many as you set (the owner, 2026-10-26: "↑1 and ↑X, X being modifiable"). It was two until that day,
- * when Wanikani+'s Easy of three made every built-in type fail its own rule as it was brought up to date.
+ * the chart is as many as you set (↑1 and ↑X, X set on the chart). A lower cap makes a built-in type whose move is
+ * longer, Wanikani+'s Easy of three, fail its own rule.
  */
 export const MOVE_MAX = 30;
 export const Step: z.ZodType<Step, Step> = z.lazy(() =>
@@ -82,12 +82,12 @@ export const Step: z.ZodType<Step, Step> = z.lazy(() =>
 );
 export const Flow: z.ZodType<Flow, Flow> = z.lazy(() => z.record(SrsAnswerId, Step));
 export const STAY: Step = { kind: "move", by: 0 };
-/** How long a Bury puts a card aside until it's set otherwise: the owner's default, 2026-10-21. */
+/** How long a Bury puts a card aside until it's set otherwise. */
 export const BURY_WAIT: Wait = { n: 24, unit: "h" };
 /**
- * Stored rules as they read today. "Back to the start" was a step of its own until 2026-10-10; "go to a stage" does
- * the same job, so a stored one reads as going to the first stage. A Bury had no wait for its first hours (it lasted
- * until the day turned); one saved then reads as `BURY_WAIT`. Run on what the database holds, before parsing.
+ * Stored rules as they read today. "Back to the start" was once a step of its own; "go to a stage" does the same job,
+ * so a stored one reads as going to the first stage. A Bury once had no wait (it lasted until the day turned); one
+ * saved so reads as `BURY_WAIT`. Run on what the database holds, before parsing.
  */
 export function upgradeFlow(raw: unknown, firstStageId: string | undefined): unknown {
   if (typeof raw !== "object" || raw === null) return raw;
@@ -104,13 +104,13 @@ export function upgradeFlow(raw: unknown, firstStageId: string | undefined): unk
 }
 
 /**
- * Putting a card aside, Anki's two (the owner, 2026-10-21): buried, it's out of reviews for as long as the step says
- * (24 hours to begin with; it was until the day turned for its first hours); suspended, until it's brought back from
+ * Putting a card aside, Anki's two: buried, it's out of reviews for as long as the step says (24 hours to begin
+ * with); suspended, until it's brought back from
  * its deck's list (where a buried one can be brought back early too). Neither moves it: its place and its schedule stay as they were, so a
  * card that fell due meanwhile is due the moment it's back. Neither is an answer the stats count, and a new card put
  * aside doesn't use up the day's new cards.
  */
-// A bury is Snooze on screen since 2026-10-21 (the owner's word); `bury` stays its id in every rule and row already kept.
+// A bury is Snooze on screen; `bury` stays its id in every rule and row already kept.
 export const HoldKind = z.enum(["bury", "suspend"]);
 export type HoldKind = z.infer<typeof HoldKind>;
 
@@ -119,7 +119,7 @@ export const SrsAfter = z.enum(["burn", "repeat", "grow"]);
 export type SrsAfter = z.infer<typeof SrsAfter>;
 
 export const STAGES_MAX = 30;
-/** How long a type's description can be: 500 since 2026-10-26, when Wanikani+'s own said a little more than 300 allowed. */
+/** How long a type's description can be: 500, room enough for Wanikani+'s own. */
 export const DESCRIPTION_MAX = 500;
 export const ANSWERS_MIN = 2;
 export const ANSWERS_MAX = 6;
@@ -129,7 +129,7 @@ export const GROW_MAX = 5;
 const SrsShape = z.object({
   id: SrsTypeId,
   name: z.string().trim().min(1).max(100),
-  /** What it is, in the owner's words, beside the line worked out from its stages; empty when there's nothing to say. */
+  /** What it is, in words typed for it, beside the line worked out from its stages; empty when there's nothing to say. */
   description: z.string().trim().max(DESCRIPTION_MAX).default(""),
   stages: z.array(SrsStage).min(1).max(STAGES_MAX),
   answers: z.array(SrsAnswer).min(ANSWERS_MIN).max(ANSWERS_MAX),
@@ -138,7 +138,7 @@ const SrsShape = z.object({
   /** A stage's own rules, by stage id, when it has them. */
   overrides: z.record(SrsStageId, Flow),
   /**
-   * Lesson's rules (New on screen, since the owner named it so, 2026-10-21): what each answer does to a new card, before
+   * Lesson's rules (New on screen): what each answer does to a new card, before
    * the first stage. Every type has them; Lesson is no stage, and nothing but a `lesson` step goes back to it (`resolve`).
    */
   lesson: Flow,
@@ -222,7 +222,7 @@ export const NEW_PLACE: CardPlace = { stageId: null, past: 0, node: [], burned: 
 export const BURNED_PLACE: CardPlace = { stageId: null, past: 0, node: [], burned: true };
 /**
  * In Lesson (New on screen): not learned yet. A new card is, and so is one a `lesson` step sent back: either waits for
- * a day's new cards (the owner, 2026-10-21: "it will literally be treated as a new card"). Its own history, kept in its
+ * a day's new cards, treated as a new card in every way. Its own history, kept in its
  * places, tells the two apart.
  */
 export const isNew = (place: CardPlace) => place.stageId === null && !place.burned;
@@ -279,7 +279,7 @@ export function flowOf(type: Pick<SrsLadder, "stages" | "flow" | "overrides" | "
 }
 
 /**
- * Lesson's rules for a type that has none of its own (one made before Lesson had rules, 2026-10-21): the first of
+ * Lesson's rules for a type that has none of its own (one made before Lesson had rules): the first of
  * the main answers, when there's more than one, asks again right away until another lets the card out; every other
  * main answer sends it to the first stage, learned; an answer set apart puts the card aside as it does on a stage, or
  * isn't offered in Lesson at all.
@@ -356,8 +356,8 @@ export function resolve(type: SrsLadder, place: CardPlace, answerId: string, flo
     const target = type.stages.findIndex((s) => s.id === step.stage);
     next = target < 0 ? idx : target;
   }
-  // Out of Lesson, the first stage is as low as a card goes: only a `lesson` step takes it back (the owner, 2026-10-21:
-  // "a card can never go back to Lesson… it will be rock bottom at Apprentice 1"). In Lesson, staying is staying there.
+  // Out of Lesson, the first stage is as low as a card goes: only a `lesson` step takes it back. In Lesson, staying is
+  // staying there.
   next = Math.max(idx < 0 ? LESSON_IDX : 0, next);
   const len = type.stages.length;
   if (next >= len) {
@@ -381,8 +381,7 @@ export function waitNow(type: SrsLadder, place: CardPlace): number | null {
 
 /**
  * When a card is next due, ms since epoch: its last answer plus the wait its place has now, exactly. Null when it never
- * is. (Each wait was spread ±10 % by a setting until the owner had it out, 2026-10-28: "I might add something back
- * similar later down the line if it turns out to be a problem.")
+ * is.
  */
 export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number | null {
   const wait = waitNow(type, place);
@@ -391,12 +390,12 @@ export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number
 }
 
 /**
- * The settings that run every review of every deck, in the Settings tab. One row of defaults, the owner changes them.
+ * The settings that run every review of every deck, in the Settings tab. One row of defaults, changed in Settings.
  * What differs from deck to deck (how many new cards, where they go, how a review is paced) is the deck's own
  * `DeckSettings`.
  */
 /**
- * The languages Panki can speak to an account in, one registry (the owner, 2026-10-30): English alone for now, so its
+ * The languages Panki can speak to an account in, one registry: English alone for now, so its
  * setting stays greyed until there's a second. A new language is one entry, its id the same three letters as
  * `TranscribeLanguage`'s.
  */
@@ -405,48 +404,42 @@ export type AppLanguage = z.infer<typeof AppLanguage>;
 export const APP_LANGUAGES: Record<AppLanguage, string> = { eng: "English" };
 
 export const Settings = z.object({
-  // `fuzz` (each wait spread ±10 %) went at the owner's word, 2026-10-28. A row kept of it is read by nothing.
+  // `fuzz` (each wait spread ±10 %) is gone: a row kept of it is read by nothing.
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
   dayStartHour: z.number().int().min(0).max(23),
   /**
    * How a card's clip's subtitles look in the app (`subtitleStyle.ts`), set in Settings. The app's own: the extension
-   * keeps its own for YouTube, in the browser (the owner, 2026-10-18: the two were one for a few hours, then "it's
-   * fine to have the subtitle settings separate between the app and the extension").
+   * keeps its own for YouTube, in the browser.
    */
   subtitleStyle: SubtitleStyle,
   /**
    * The zone the account's days turn over in, by its name in the time zone database ("Asia/Tokyo"). Each account's own,
-   * never Panki's (the owner, 2026-10-21: "each user defines their own time zone, default is their machine's"): empty
-   * only until the account first opens Panki or the extension, which write the device's own zone in its place. Until
+   * never Panki's, the device's to begin with: empty only until the account first opens Panki or the extension, which write the device's own zone in its place. Until
    * then the server's clock stands in.
    */
   timeZone: z.string().max(64).refine((zone) => zone === "" || isTimeZone(zone), { message: "That isn't a time zone." }),
   /**
-   * **Learning language** on screen (Transcription language until 2026-10-30, then Language for an hour): the language
-   * this account learns, its videos transcribed in it and a Panki AI prompt's {Learning language}. Each account's own,
-   * nothing Panki-wide (the owner, 2026-10-21: "transcription language is also per user and not per the entire app");
-   * English to begin with. An account from before keeps Japanese, the language every video was transcribed in until
+   * **Learning language** on screen: the language this account learns, its videos transcribed in it and a Panki AI
+   * prompt's {Learning language}. Each account's own, nothing Panki-wide; English to begin with. An account from before keeps Japanese, the language every video was transcribed in until
    * then (migration 29). The key is still `language`, where it was born, as `downloadLimit` and `lesson` are.
    */
   language: TranscribeLanguage,
   /**
-   * **Language** on screen (the owner, 2026-10-30): the language Panki speaks to this account in, the AI's answers now
+   * **Language** on screen: the language Panki speaks to this account in, the AI's answers now
    * (a prompt's {Language}) and the whole app later. English, the one choice there is yet. A new key, so an account
    * without it reads the default: no migration.
    */
   appLanguage: AppLanguage,
   /**
-   * Whether the account's watching was kept, when that was the account's to say (2026-10-21 to 2026-11-02; migration
-   * 30). Retired: Video tracking is each browser's own since 2026-11-02 (the owner: "I can want some devices sending
-   * and others not"), and this is read only by an extension that has no switch of its own yet, once, to start from
+   * Whether the account's watching was kept, when that was the account's to say (migration 30). Retired: Video
+   * tracking is each browser's own, so some devices can send and others not, and this is read only by an extension that has no switch of its own yet, once, to start from
    * (`apps/extension/src/watch/tracking.ts`). Never written again: `SettingsUpdate` leaves it out.
    */
   videoTracking: z.boolean(),
   /**
    * How close to its end, in seconds, a video played counts as finished (`watching.ts` → `inEndZone`): a flag kept on it
-   * until it's taken off by hand, so it leaves Continue watching and isn't offered to continue. Each account's own since
-   * 2026-10-30, set on the extension's YouTube tab beside Video tracking (the owner: "we can move it into per-user
-   * settings… extension right?"); an admin's for everyone from 2026-10-25 until then. 20 to begin with.
+   * until it's taken off by hand, so it leaves Continue watching and isn't offered to continue. Each account's own,
+   * set on the extension's YouTube tab beside Video tracking. 20 to begin with.
    */
   finishedWithinSec: z.number().int().min(0).max(600),
   /**
@@ -457,8 +450,7 @@ export const Settings = z.object({
   aiAskOverMicros: z.number().int().nonnegative().max(100_000_000).nullable(),
   /**
    * From what a Panki AI run's cost ("Up to $0.0006 (est.)") is shown beside it, in micro-dollars (Settings → Panki AI →
-   * Show the cost when a run is over; the owner, 2026-11-01: "don't display it if it's lower than X"; the same choices,
-   * `ASK_OVER`): null never shows it, 0 always does, as to begin with. A new key, so no migration.
+   * Show the cost when a run is over; the same choices, `ASK_OVER`): null never shows it, 0 always does, as to begin with. A new key, so no migration.
    */
   aiShowCostOverMicros: z.number().int().nonnegative().max(100_000_000).nullable(),
   /**
@@ -467,8 +459,8 @@ export const Settings = z.object({
    * action's first starter (`aiTemplates.ts` → `defaultTemplateIdOf`).
    */
   aiDefaults: z.record(z.string().max(32), z.string().min(1).max(64)),
-  // `dailyGoal` (minutes a day that kept the watch streak) went with the streak, 2026-10-21. A row kept of it is read by nothing.
-  // `shareWatching` (Off, Minutes and streak, Also what I watch) went the same day: "either we share all or nothing". A row kept of it is read by nothing.
+  // `dailyGoal` (minutes a day that kept the watch streak) is gone with the streak: a row kept of it is read by nothing.
+  // `shareWatching` (Off, Minutes and streak, Also what I watch) is gone too: a row kept of it is read by nothing.
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = {

@@ -21,11 +21,11 @@ function idOf(req: Request, res: Response): string | null {
 }
 
 /**
- * Dictionaries kept on Panki (the owner, 2026-10-16: "put all these zips in the server … and I can choose available
- * ones from there to download"): uploaded from Settings, listed, fetched whole by the extension's options page to be
- * imported there, and removed. Everyone's since 2026-10-17 (the shared store; `dir` is its folder): anyone signed in
- * reads them, an admin alone adds or removes one. Panki reads one only to say what it is and what it provides (its
- * index.json, and its rows counted by kind, 2026-10-25); looking words up in it is the extension's.
+ * Dictionaries kept on Panki, so each one's zip is on the server to be picked from there: uploaded from Settings,
+ * listed, fetched whole by the extension's options page to be imported there, and removed. Everyone's (the shared
+ * store; `dir` is its folder): anyone signed in reads them, an admin alone adds or removes one. Panki reads one only to
+ * say what it is and what it provides (its index.json, and its rows counted by kind); looking words up in it is the
+ * extension's.
  */
 export function dictionariesRouter(shared: Shared, dir: string, now: () => number) {
   const router = Router();
@@ -119,7 +119,7 @@ export function dictionariesRouter(shared: Shared, dir: string, now: () => numbe
     );
   });
 
-  // Off the list, its row kept with the time it went and who took it off; the zip, a copy of a file the owner has, is deleted for the room.
+  // Off the list, its row kept with the time it went and who took it off; the zip, a copy of a file kept elsewhere too, is deleted for the room.
   router.delete("/:id", requireAdmin, (req, res) => {
     const id = idOf(req, res);
     if (!id) return;

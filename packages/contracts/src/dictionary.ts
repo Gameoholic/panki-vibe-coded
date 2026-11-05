@@ -101,7 +101,7 @@ export async function providesOf(entries: readonly ZipEntry[], index: Dictionary
 export const DictionaryFileId = z.uuid();
 
 const MB = 1024 * 1024;
-/** The most a dictionary kept on Panki may weigh. The biggest the owner has is under 40 MB. */
+/** The most a dictionary kept on Panki may weigh: room for big ones, which run under 40 MB. */
 export const DICTIONARY_MAX_BYTES = 200 * MB;
 
 /** A dictionary kept on Panki's server, to be added to the extension from: what its index.json says it is, and how big its zip is. */

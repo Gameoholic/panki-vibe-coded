@@ -11,7 +11,7 @@ export type Volume = { level: number; muted: boolean };
 
 /**
  * How fast, as a share of as it was said: slower to catch a fast sentence, or as said, which it starts at. Never
- * faster (the owner, 2026-10-16: "no reason to speed it up").
+ * faster: a card's sentence has no reason to be sped up.
  */
 export const SPEEDS = [0.5, 0.75, 1] as const;
 export type Speed = (typeof SPEEDS)[number];
@@ -76,7 +76,7 @@ export const speedOf = (rate: unknown): Speed | null => SPEEDS.find((speed) => s
 
 const speed = shared<Speed>("panki.speed", AS_SAID, (raw) => speedOf(raw) ?? AS_SAID, (a, b) => a === b);
 
-/** Whether a clip's subtitles show over it (the owner, 2026-10-29: "make subtitles on card clip be toggleable"); shown to begin with. */
+/** Whether a clip's subtitles show over it, switched from the player's bar; shown to begin with. */
 const subtitles = shared<boolean>("panki.subtitles", true, (raw) => raw !== false, (a, b) => a === b);
 
 /**

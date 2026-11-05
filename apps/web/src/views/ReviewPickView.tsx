@@ -15,8 +15,7 @@ type Props = {
 
 /**
  * Review starts here when there's more than one deck: each deck folded to today's counts, as one deck's review opens
- * (`TodayBar`, the owner's pick, A of https://claude.ai/artifact/XVHRcYb8TKjrgrBdsUFtoG, 2026-10-27), with its own
- * Start. One deck at a time, by the owner's call.
+ * (`TodayBar`), with its own Start. One deck at a time.
  */
 export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
   const titleId = useId();

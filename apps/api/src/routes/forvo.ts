@@ -12,12 +12,12 @@ import type { MediaDirOf } from "./media";
 const NO_KEY = "Add a Forvo key in Panki's Settings.";
 
 /**
- * Word audio from Forvo: a word's recordings, and one of them kept as the account's file. The key is everyone's since
- * 2026-10-17 (the shared store, typed by an admin under Settings → Admin → Word audio: `routes/wordAudio.ts`); the
+ * Word audio from Forvo: a word's recordings, and one of them kept as the account's file. The key is everyone's (the
+ * shared store, typed by an admin under Settings → Admin → Word audio: `routes/wordAudio.ts`); the
  * server's own (`PANKI_FORVO_KEY`) is used when there's none.
  *
- * **What's asked of Forvo is kept on disk for everyone, for good** (the owner, 2026-10-18: "saved on disk globally,
- * cached forever so we never go to the API for a word we already asked for in the past"). The first time a word is
+ * **What's asked of Forvo is kept on disk for everyone, for good**, so Forvo is never asked again for a word it was
+ * asked for before. The first time a word is
  * asked for, its list is fetched and so are its best liked recordings (`KEPT_PER_WORD`) at once, while the list's
  * links still work, and all of it is kept in the shared store; every ask for that word after, by anyone, is answered
  * from there with no request to Forvo, whichever recording is picked. A recording picked becomes a copy in the
@@ -27,7 +27,7 @@ export function forvoRouter(dbOf: DbOf, mediaDirOf: MediaDirOf, forvo: Forvo, sh
   const router = Router();
 
   const keyOf = () => shared.key("forvo") ?? serverKey;
-  /** Forvo's trouble, in the owner's words; anything else is the error handler's. */
+  /** Forvo's trouble, in plain words; anything else is the error handler's. */
   function failed(res: Response, e: unknown) {
     if (!(e instanceof ForvoError)) throw e;
     res.status(e.status).json({ error: { message: e.message } });

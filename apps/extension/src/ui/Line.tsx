@@ -10,8 +10,8 @@ export type PointerAt = { pointerType: string; clientX: number; clientY: number;
 
 /**
  * The pointer's last known place and the keys held now, heard on the window (a press in a closed shadow root still
- * reaches it): what a line drawn again under a pointer that stood still points at (the owner, 2026-11-03: "is it
- * hovering? then my mouse is hovering"), On hover or a key held alike.
+ * reaches it): what a line drawn again under a pointer that stood still points at (a pointer
+ * resting on it is hovering it), On hover or a key held alike.
  */
 let lastPointer: PointerAt | null = null;
 if (typeof window !== "undefined") {

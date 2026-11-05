@@ -5,8 +5,8 @@ import type { Transcriber } from "./transcriber";
 
 /**
  * What the line under the player reads, by this browser's pick (`subtitles.ts`): an engine's transcript where it
- * covers this moment of the video and nothing where it doesn't yet (never the site's captions in its place: the
- * owner, 2026-10-17, "not even as a fallback"), the site's own captions when they're the pick and the site has shown
+ * covers this moment of the video and nothing where it doesn't yet (never the site's captions in its place, not even
+ * as a fallback), the site's own captions when they're the pick and the site has shown
  * any, nothing for "None". Both come in the same shape (`captions.ts` → `Line`), and the screen asks this one source,
  * so a pick, a sentence and a clip never know which they're reading. A transcript line's id is negative, a caption's
  * positive, so a line is found by its id whichever source it came from, and a drawer open on one keeps it while the

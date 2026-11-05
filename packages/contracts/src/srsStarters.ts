@@ -2,7 +2,7 @@ import { BURY_WAIT, type Flow, type NewSrsType, type SrsAfter, type Step, type W
 
 /**
  * The SRS types that come with the app. They are real types in the list, made by the API when it opens a database
- * that lacks one, and they can't be deleted; the owner edits them like any other, and a new type starts as a copy of
+ * that lacks one, and they can't be deleted; they're edited like any other, and a new type starts as a copy of
  * any type in the list (`copySrsType`). Here is only what each is made of.
  */
 export type SrsStarterId = "wanikaniPlus" | "wanikani" | "anki";
@@ -37,19 +37,14 @@ const now = (then: Flow): Step => ({ kind: "again", wait: { n: 1, unit: "d" }, n
 const id = (ids: string[], i: number): string => ids[i] ?? "";
 
 /**
- * Wanikani+: the owner's own rules on WaniKani's ladder. Forgot keeps the card in the review, asked again and again
+ * Wanikani+: WaniKani's ladder with rules of its own. Forgot keeps the card in the review, asked again and again
  * until it's got right; what happens then depends on the stage. On the early ones it drops a stage, never below
  * Apprentice 1. From `WK_CHANCE_FROM` on, where a stage is weeks of work, it gets one more chance first: asked again
  * tomorrow (never later than the stage), and only a second Forgot drops it, after it too has been asked until right.
  * The answers set apart work the same everywhere: Reset sends the card back to the first stage, Apprentice 1, to climb
- * again (it was Relearn, back to the first stage, then for a few hours back to New; the owner, 2026-10-21: "make it
- * Reset… puts it into the first stage after New"), Easy lifts it three, and two from `WK_CHANCE_FROM` on, the stages
- * of weeks and months (the owner, 2026-10-26: "go up 3 stages not 2… unless it's one of the higher tiers"; it was two
- * everywhere until then; it was called Bury until 2026-10-17; the owner
- * kept the sound of it in mind for a button that hides a card, which this one never did), and Snooze and Suspend put
- * the card aside where it stands (the owner, 2026-10-21). All four ask for confirmation (Easy, Snooze and Suspend went
- * without for a day, 2026-10-21, and came back to it at the owner's word). New (`wanikaniPlusLesson`): Ok or Easy learns it, and Forgot asks it again until it's got
- * right, then learns it.
+ * again, Easy lifts it three, and two from `WK_CHANCE_FROM` on, the stages of weeks and months, and Snooze and Suspend
+ * put the card aside where it stands. All four ask for confirmation. New (`wanikaniPlusLesson`): Ok or Easy learns it,
+ * and Forgot asks it again until it's got right, then learns it.
  */
 const WK_CHANCE_FROM = 4;
 /** How many stages Easy lifts a card: below `WK_CHANCE_FROM` (and from New), and from there on. */
@@ -59,8 +54,7 @@ function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
   const [forgot, ok, easy, bury, suspend, reset] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
   const apart = (): Flow => ({ [reset]: to(id(s, 0)), [easy]: move(chance ? WK_EASY_HIGH : WK_EASY), [bury]: { kind: "bury", wait: { ...BURY_WAIT } }, [suspend]: { kind: "suspend" } });
   // Once a card is forgotten, neither Easy nor Bury is offered until it leaves the ask-again: a card just forgotten is no
-  // card to skip ahead (the owner, 2026-10-18), nor to bury ("there's no reason to bury a card if I already failed it",
-  // 2026-10-17). Suspend stays: a card failed again and again is the one to take out and fix.
+  // card to skip ahead, nor to bury. Suspend stays: a card failed again and again is the one to take out and fix.
   const forgotten = (): Flow => ({ ...apart(), [easy]: { kind: "hidden" }, [bury]: { kind: "hidden" } });
   /** Kept in the review until it's got right, and then `then`. */
   const untilRight = (then: Step): Step => now({ [forgot]: { kind: "retry" }, [ok]: then, ...forgotten() });
@@ -69,8 +63,8 @@ function wanikaniPlusFlow(a: string[], s: string[], chance: boolean): Flow {
   return { [forgot]: untilRight(after), [ok]: move(1), ...apart() };
 }
 /**
- * Wanikani+ for a new card: WaniKani's lesson, where nothing is held against a card (the owner, 2026-10-21: asked
- * again until it's got right in the same review, "and then graduate to Apprentice 1"). Reset has nothing to do there.
+ * Wanikani+ for a new card: WaniKani's lesson, where nothing is held against a card: asked again until
+ * it's got right in the same review, and then on to Apprentice 1. Reset has nothing to do there.
  */
 function wanikaniPlusLesson(a: string[]): Flow {
   const [forgot, ok, easy, bury, suspend, reset] = [id(a, 0), id(a, 1), id(a, 2), id(a, 3), id(a, 4), id(a, 5)];
@@ -107,7 +101,7 @@ function wanikaniLesson(a: string[]): Flow {
   return { [forgot]: now({ [forgot]: { kind: "retry" }, [ok]: move(1) }), [ok]: move(1) };
 }
 
-// Lesson was the first of these until 2026-10-21, when it became every type's own, before the first stage (New on screen).
+// Lesson isn't among these: it's every type's own, before the first stage (New on screen).
 const WK_NAMES = ["Apprentice 1", "Apprentice 2", "Apprentice 3", "Apprentice 4", "Guru 1", "Guru 2", "Master", "Enlightened"];
 
 const STARTERS: Record<SrsStarterId, Starter> = {
@@ -116,10 +110,8 @@ const STARTERS: Record<SrsStarterId, Starter> = {
     description: "Wanikani with a forgiveness mechanism from Guru 1 up: a card you forget there is asked again the next day, and drops a stage only if you forget it again. Also adds Easy (three stages up, two from Guru 1), Snooze (back in 24 hours), Suspend (out until you bring it back) and Reset (back to Apprentice 1).",
     stages: [[4, "h"], [8, "h"], [1, "d"], [2, "d"], [1, "w"], [2, "w"], [1, "mo"], [4, "mo"]],
     after: "burn",
-    // Reset was Relearn and Snooze was Bury until the owner renamed them, 2026-10-21; Snooze's rule is still the `bury` step.
-    // Easy third and Reset last since 2026-10-22 (the owner: Easy on key 3), matched to what each account has by name.
-    // Every one set apart asks for confirmation (Easy, Snooze and Suspend again at the owner's word, 2026-10-21, once a
-    // held key could be the yes: held longer instead of asked, `keys.ts` → `askMs`).
+    // Snooze's rule is the `bury` step. Easy third, on key 3, and Reset last, matched to what each account has by name.
+    // Every one set apart asks for confirmation, a held key being the yes: held longer instead of asked, `keys.ts` → `askMs`.
     answers: ["Forgot", "Ok", ["Easy", "aside"], ["Snooze", "aside"], ["Suspend", "aside"], ["Reset", "aside"]],
     flow: (a, s) => wanikaniPlusFlow(a, s, false),
     overrides: (a, s) => Object.fromEntries(s.slice(WK_CHANCE_FROM).map((stageId) => [stageId, wanikaniPlusFlow(a, s, true)])),
@@ -142,8 +134,8 @@ const STARTERS: Record<SrsStarterId, Starter> = {
   // deck laid on one. A new card is Lesson, Anki's first learning step: asked again in the same review on Again or
   // Hard, on to the second step (ten minutes) on Good. Then a day, and each stage about 2.5 times the last, growing on
   // past the top. Again on a learned card sends it back to relearn (ten minutes, then a day); Hard keeps the stage, Good
-  // is the next, Easy skips one. While learning, Easy graduates straight to the stage nearest four days. (The first step
-  // was a stage of its own, Learning 1, until Lesson took its place, 2026-10-21; the second is Learning now.)
+  // is the next, Easy skips one. While learning, Easy graduates straight to the stage nearest four days. Lesson is the
+  // first learning step; Learning is the second.
   anki: {
     name: "Anki",
     description: "Ported from Anki.",
@@ -165,9 +157,9 @@ const STARTERS: Record<SrsStarterId, Starter> = {
 
 /**
  * Which of the answers already made each of the app's answers is: the one of the same name, so moving an answer in the
- * app's order keeps it the same answer (the owner, 2026-10-22: Easy moved to third, Reset to last, in Wanikani+), and
+ * app's order keeps it the same answer (Easy moved to third, Reset to last, in Wanikani+), and
  * every answer given in the past still reads as the one it was; failing that, the one in its place that no other has
- * taken, so a renamed answer stays itself (Relearn became Reset so, 2026-10-21); failing that, a new one.
+ * taken, so a renamed answer stays itself (Relearn became Reset so); failing that, a new one.
  */
 function answerIdsAs(names: readonly string[], made: readonly { id: string; name: string }[], mint: () => string): string[] {
   const byName = names.map((name) => made.find((a) => a.name === name)?.id);
@@ -221,7 +213,7 @@ export const starterStageCount = (starter: SrsStarterId): number => STARTERS[sta
 
 /**
  * A new type that starts from nothing at all: no stages, no answers, no rules. It can't be saved like that (a type
- * needs a stage and two answers); it's the blank page the owner builds on.
+ * needs a stage and two answers); it's a blank page to build on.
  */
 export function emptySrsType(mint: () => string): NewSrsType {
   return {
@@ -241,7 +233,7 @@ export function emptySrsType(mint: () => string): NewSrsType {
 
 /**
  * A new type that starts as another: the same stages, answers and rules under ids of its own (`mint`), so editing
- * one never touches the other. Its name says what it's a copy of until the owner gives it one.
+ * one never touches the other. Its name says what it's a copy of until it's given one.
  */
 export function copySrsType(base: Pick<NewSrsType, "name" | "description" | "stages" | "answers" | "flow" | "overrides" | "lesson" | "after" | "growBy" | "burnedName">, mint: () => string): NewSrsType {
   const stageIds = new Map(base.stages.map((s) => [s.id, mint()]));

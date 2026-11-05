@@ -55,7 +55,7 @@ export function momentWanted(address: string): boolean {
 }
 
 /**
- * What a YouTube metadata field holds (the owner, 2026-10-18, in place of a field that held the link alone): the
+ * What a YouTube metadata field holds (more than the link alone, which such a field once held): the
  * video, where in it, what it's called, and whose it is. Its value on a card is `youtubeMetaValue`'s JSON; a value
  * that's a bare address (every card from before) reads as the link with nothing else known.
  */
@@ -98,8 +98,7 @@ export function youtubeMetaValue(meta: YouTubeMeta): string {
 }
 
 /**
- * The pictures Panki keeps of a video, once, for everyone (the owner, 2026-10-18: the thumbnail, then "also save the
- * channel's icon"): its thumbnail, and its channel's picture as it was when a card was made from it. Each is served at
+ * The pictures Panki keeps of a video, once, for everyone: its thumbnail, and its channel's picture as it was when a card was made from it. Each is served at
  * `/api/videos/:videoId/:picture`; a card's video metadata shows them.
  */
 export const VideoPicture = z.enum(["thumbnail", "avatar"]);

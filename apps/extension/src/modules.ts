@@ -2,24 +2,18 @@ import { z } from "zod";
 import type { IconName } from "@web/components/Icon";
 
 /**
- * Which of Panki's parts are on in this browser, each switched on the options page's Modules tab (the owner,
- * 2026-10-21: "the entire Panki panel toggleable, enabled by default… the [Shift] panel toggleable, enabled by default…
- * the seek bar marks, ON by default"); what happens, on a video watched before, where it was stopped; and how Panki
- * reshapes YouTube's own pages. The shapes live here, apart from `storage.ts`, so a page's script carries no storage
- * code; the worker hands them to the page (`askModules`). Video tracking isn't here: it's about what's kept of the
- * account, so it's the account's, in Panki's Settings.
+ * Which of Panki's parts are on in this browser, each switched on the options page under the panel of what it's about,
+ * the Panki panel, the pop-up dictionary and the seek bar marks each on to begin with; what happens, on a video watched
+ * before, where it was stopped; and how Panki reshapes YouTube's own pages. The shapes live here, apart from
+ * `storage.ts`, so a page's script carries no storage code; the worker hands them to the page (`askModules`). Video
+ * tracking isn't here: it's this browser's own, `watch/tracking.ts`.
  */
 
 /**
- * Where a video was stopped, as it opens again: a button on the picture for a few seconds, or the video there by itself
- * (a third, only marked on the bar, went on 2026-10-21: the mark has its own switch). Named by what's seen, at the
- * owner's word the same day ("Offered and Continued are super abstract"); a browser that kept the third reads as the first.
- */
-/**
- * What opening a video watched before does with where it was stopped: offer it on a button; jump there, but never over
- * a time the link itself asked for (a `t=` the page was opened with, a card's moment); or jump there always, even over
- * that (the owner, 2026-10-22: "another one which will ALWAYS jump, even override the t=, but it needs to be clear that
- * the other one doesn't override it").
+ * What opening a video watched before does with where it was stopped: offer it on a button for a few seconds; jump
+ * there, but never over a time the link itself asked for (a `t=` the page was opened with, a card's moment); or jump
+ * there always, even over that, the words saying plainly which one overrides the link. Named by what's seen. A browser
+ * that kept the old third choice, only marked on the bar (the mark has its own switch), reads as the button.
  */
 export const ResumeHow = z.enum(["offer", "continue", "always"]);
 export type ResumeHow = z.infer<typeof ResumeHow>;
@@ -27,16 +21,14 @@ export const RESUME_HOW: Record<ResumeHow, string> = { offer: "Show a button", c
 export const RESUME_HOW_IDS = ResumeHow.options;
 /**
  * With "Jump, unless the link has a time", what a link with a time of its own does about where the video was stopped:
- * offer it on the button all the same, or nothing (the owner, 2026-10-22: "the settings need to be clear about it or
- * provide an option not to").
+ * offer it on the button all the same, or nothing.
  */
 export const ResumeTimed = z.enum(["offer", "nothing"]);
 export type ResumeTimed = z.infer<typeof ResumeTimed>;
 export const RESUME_TIMED: Record<ResumeTimed, string> = { offer: "Show a button", nothing: "Do nothing" };
 export const RESUME_TIMED_IDS = ResumeTimed.options;
 /**
- * How many seconds before where it was stopped a video goes back to (the owner, 2026-10-26: "optionally jump to X
- * seconds before"): by a jump, the button or the stop's tag on the bar. 0, exactly there, to begin with.
+ * How many seconds before where it was stopped a video goes back to: by a jump, the button or the stop's tag on the bar. 0, exactly there, to begin with.
  */
 export const RESUME_BACK_MAX = 60;
 export const ResumeBack = z.number().int().min(0).max(RESUME_BACK_MAX);
@@ -44,8 +36,8 @@ export const ResumeBack = z.number().int().min(0).max(RESUME_BACK_MAX);
 export const resumeTo = (stop: number, back: number): number => Math.max(0, stop - back);
 
 /**
- * What the video does once a card from it is in (the owner, 2026-10-27: "always pause, always unpause or depending"):
- * goes on as it was before the drawer held it, stays paused, or plays. As before to begin with, as it always did.
+ * What the video does once a card from it is in: goes on as it was before the drawer held it, stays paused, or plays.
+ * As before to begin with.
  */
 export const AfterAdd = z.enum(["before", "pause", "play"]);
 export type AfterAdd = z.infer<typeof AfterAdd>;
@@ -53,14 +45,11 @@ export const AFTER_ADD: Record<AfterAdd, string> = { before: "As before", pause:
 export const AFTER_ADD_IDS = AfterAdd.options;
 
 /**
- * How the Panki panel stands on a video's page, picked on the panel itself (the owner, 2026-11-03: "maybe it can just
- * be the Panki tab we have now, and just have a setting (like a view rather) on the tab itself to change how it looks…
- * anchored to the RIGHT of the page"): under the player, two rows following the video, as it always was; or beside the
- * video, in the watch page's right column, the whole transcript listed with its times (phase 1, 2026-11-04). One
- * registry. Under the player to begin with, so nothing of before changes until it's picked. Theatre mode (the Stage in
- * the code: the video filling the screen but for the panel's column) was a third view for a day, then a switch of the
- * Beside view's own (the owner, 2026-11-04: "theatre mode should only be supported when it's 'beside the video', so
- * it's less of a mode"); a browser that kept "stage" reads as beside the video (`storage.ts`).
+ * How the Panki panel stands on a video's page, picked on the panel itself as a view of it: under the player, two rows
+ * following the video; or beside the video, in the watch page's right column, the whole transcript listed with its
+ * times. One registry. Under the player to begin with. Theatre mode (the Stage in the code: the video filling the
+ * screen but for the panel's column) is a switch of the Beside view's own, so it's less of a mode; a browser that kept
+ * "stage" as a view reads as beside the video (`storage.ts`).
  */
 export const PanelView = z.enum(["under", "beside"]);
 export type PanelView = z.infer<typeof PanelView>;
@@ -80,12 +69,10 @@ export type BesideRecs = z.infer<typeof BesideRecs>;
 export const BESIDE_RECS: Record<BesideRecs, string> = { above: "Above recommendations", replace: "Instead of recommendations" };
 export const BESIDE_RECS_IDS = BesideRecs.options;
 
-// Chips sifting YouTube's home feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them
-// out, 2026-10-21 ("in the home page remove this line"); a browser that kept `feedFilter` or `homeChips` keeps them unread.
+// A browser that kept `feedFilter` or `homeChips`, the chips that once sifted YouTube's home feed, keeps them unread.
 
 /**
- * What Panki's pill in YouTube's header bar can say, one registry (the owner, 2026-10-21: "make it so I can completely
- * customize this widget, including what to put there"): each a number of the account's, drawn as its icon and value.
+ * What Panki's pill in YouTube's header bar can say, one registry, every part of it chosen: each a number of the account's, drawn as its icon and value.
  * The pill is the mark, then the parts picked, in the order picked. A new part is one entry here and one value in
  * `ui/PankiPill.tsx` → `pillValue`.
  */
@@ -112,9 +99,8 @@ export function pillLayoutOf(kept: PillLayout): PillLayout {
 export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: true }]);
 
 /**
- * The player's control bar, every control of it one entry (the owner, 2026-11-04: "the ability to hide/show and maybe
- * even put custom stuff there like the speed controller or theatre mode… ONE switch… and if it's enabled then I can play
- * around with it and add/remove stuff like an editor"): YouTube's own and Panki's alike, each with its name, the
+ * The player's control bar, every control of it one entry, shown, hidden and ordered as in an editor behind one
+ * switch: YouTube's own and Panki's alike, each with its name, the
  * cluster it stands in (the bar's left or its right, two boxes of the site's own, so a control is moved only within
  * its own), whose it is, and how it's found: a YouTube control by its CSS selector inside its cluster (the site's own
  * class names, as they were when this was written: when the site renames one, this is where to look), a Panki control
@@ -122,10 +108,9 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  * The order here is YouTube's own, Speed first among the right-hand controls and the end time after the time, as they
  * stood before they could be laid out; `shown` is each one's to begin with. A new control is one entry.
  *
- * Only the controls that stand on the owner's player (YouTube's 2025 bar, their screenshot of 2026-11-04): Previous,
- * Next, Chapter, Miniplayer and Play on TV were entries for an hour, from memory of the site's older player rather than
- * read off the page, and went at the owner's word ("there's no previous and next buttons"). A control a page adds now
- * and then (a playlist's Previous and Next) is left exactly as the site draws it; one kept in a layout reads as gone.
+ * Only the controls that always stand on YouTube's current player are entries (no Previous, Next, Chapter, Miniplayer
+ * or Play on TV). A control a page adds now and then (a playlist's Previous and Next) is left exactly as the site draws
+ * it; one kept in a layout reads as gone.
  */
 export type BarSide = "left" | "right";
 type BarEntry = { name: string; side: BarSide; icon: IconName; shown: boolean } & ({ from: "youtube"; find: string } | { from: "panki" });
@@ -215,8 +200,8 @@ export const barReordered = (layout: BarLayout): boolean => {
 };
 
 /**
- * How many videos the Continue watching shelf on YouTube's home carries: always 5 (the owner, 2026-10-22; it was a
- * choice, 4 / 8 / 12 and then 5 / 10 / 15, until the same day). A browser that kept `shelfMax` keeps it unread.
+ * How many videos the Continue watching shelf on YouTube's home carries: always 5. A browser that kept a `shelfMax`
+ * from when it was a choice keeps it unread.
  */
 export const SHELF_MAX = 5;
 
@@ -232,9 +217,9 @@ export const SkipSeconds = z.number().min(SKIP_SECONDS_MIN).max(SKIP_SECONDS_MAX
 export const Modules = z.object({
   /**
    * Panki at all, in this browser: switched on YouTube where `switchInPill` says (the pill in the header bar, or the
-   * strip's head) and on the options page (the owner, 2026-10-21: "disabling it disables everything including
-   * transcription, including for future videos, until I turn it back on, including the dictionary"). Off, every part
-   * below reads as off, whatever its own switch says; the switch's place stays, with only the switch to turn it back on.
+   * strip's head) and on the options page. Off, everything is off, transcribing and the dictionary included, on every
+   * video until it's turned back on: every part below reads as off, whatever its own switch says; the switch's place
+   * stays, with only the switch to turn it back on.
    */
   on: z.boolean(),
   /** The Panki panel on a video's page: the line under the player, the drawer, the transcript over the video, transcribing. */
@@ -245,11 +230,10 @@ export const Modules = z.object({
   /** In Theatre mode, the side the panel's column stands at. */
   stageSide: StageSide,
   /**
-   * Whether Theatre mode takes the page into the browser's own full screen, the panel's column with it (the owner,
-   * 2026-11-04: "whether Theatre full-screens (on by default)"); off, it fills the window, as it did before. The site's
-   * own full screen is the page's root too, so the two are one: Theatre lives in it (`content/youtube.tsx` →
-   * `stageNow`), never fighting it (it was off to begin with for a few hours that day, when the site's full screen
-   * dropping its theater mode took Theatre down with it).
+   * Whether Theatre mode takes the page into the browser's own full screen, the panel's column with it (on to begin
+   * with); off, it fills the window. The site's own full screen is the page's root too, so the two are one: Theatre
+   * lives in it (`content/youtube.tsx` → `stageNow`), never fighting it (the site's full screen dropping its theater
+   * mode would take Theatre down with it).
    */
   stageFull: z.boolean(),
   /** Looking a word up by pointing at it, on every site. */
@@ -264,41 +248,36 @@ export const Modules = z.object({
   /** Whether the video plays once a card from it is in. */
   afterAdd: AfterAdd,
   /**
-   * YouTube's home made Panki's (the owner, 2026-10-21: "redesign YouTube around our goals whilst still looking and
-   * feeling like YouTube… our own super deluxe premium YouTube"; of seven mock-ups they picked Shelves, with the
-   * Continue watching shelf alone, "but make it customizable in settings"): the master switch, and each part its own
-   * under it in the options page's YouTube home panel.
+   * YouTube's home made Panki's, shaped around learning while still looking and feeling like YouTube: the master
+   * switch, and each part its own under it in the options page's YouTube home panel.
    */
   home: z.boolean(),
   /** Panki in the site's own header bar: the mark and the parts picked (`pill`). */
   homePill: z.boolean(),
   pill: PillLayout,
-  // `pillPower` (Panki's switch at the pill's end, shown or not) went on 2026-10-22: the switch is the pill's whenever
-  // the pill is on (`switchInPill`).
+  // No `pillPower`: the switch is at the pill's end whenever the pill is on (`switchInPill`).
   /** The Continue watching shelf: the one left last big, the rest as the site's own kind of card under it. */
   homeShelf: z.boolean(),
   /** The Saved for later shelf under it: the videos saved with a thumbnail's save button. */
   homeSaved: z.boolean(),
-  /** The Recently watched shelf under them: the videos finished, the latest first (2026-10-25). */
+  /** The Recently watched shelf under them: the videos finished, the latest first. */
   homeRecent: z.boolean(),
   /** The save button on every thumbnail (on hover with a mouse; always without one). */
   thumbSave: z.boolean(),
-  /** Whether Shorts stay on YouTube's pages: their shelves and their videos among the rest. Shown to begin with: nothing of the site's is taken away unasked. A YouTube utility, the owner's word (2026-10-21): it holds whether or not Panki is on. */
+  /** Whether Shorts stay on YouTube's pages: their shelves and their videos among the rest. Shown to begin with: nothing of the site's is taken away unasked. A YouTube utility: it holds whether or not Panki is on. */
   shorts: z.boolean(),
   /**
-   * The player's control bar laid out by Panki (a YouTube utility, 2026-11-04: there whether or not Panki is on): its
-   * controls shown, hidden and ordered as `bar` says, Panki's among them (the speed button, 2026-10-21, and when the
-   * video will end, 2026-10-25, each a switch of its own until they became rows of the bar). Off, the bar is YouTube's
-   * own, with nothing of Panki's in it. On to begin with, laid out as it always stood.
+   * The player's control bar laid out by Panki (a YouTube utility: there whether or not Panki is on): its controls
+   * shown, hidden and ordered as `bar` says, Panki's among them (the speed button, and when the video will end). Off,
+   * the bar is YouTube's own, with nothing of Panki's in it. On to begin with, laid out as the site lays it out.
    */
   playerBar: z.boolean(),
   bar: BarLayout,
-  /** With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after the pointer rests (the owner, 2026-11-04: "never disappear, default off"). */
+  /** With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after the pointer rests. Off to begin with. */
   barKept: z.boolean(),
   /**
-   * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube utility,
-   * the owner, 2026-10-26: "holding shift/ctrl/alt… will instead do a (customizable) 1s back/after"): on, Shift, 2.5 s to begin with
-   * (1 s until the owner, 2026-11-04).
+   * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube
+   * utility): on, Shift, 2.5 s to begin with.
    */
   shortSkip: z.boolean(),
   shortSkipKey: SkipKey,
@@ -336,14 +315,14 @@ export const DEFAULT_MODULES: Modules = {
 };
 
 /**
- * Where Panki's own on / off switch is, in one place only (the owner, 2026-10-22): at the end of the pill in YouTube's
- * header bar while that's on (YouTube home's master switch and its Header bar), the pill then staying while Panki is
- * off as the mark and the switch alone; otherwise in the strip under a video, as it was. Read on what's switched, not
+ * Where Panki's own on / off switch is, in one place only: at the end of the pill in YouTube's header bar while that's
+ * on (YouTube home's master switch and its Header bar), the pill then staying while Panki is off as the mark and the
+ * switch alone; otherwise in the strip under a video. Read on what's switched, not
  * on what's on while Panki is off.
  */
 export const switchInPill = (raw: Pick<Modules, "home" | "homePill">): boolean => raw.home && raw.homePill;
 
-/** How long the button offering to continue stays on the picture, in ms, before it goes by itself (12 s until the owner, 2026-10-29: "make it 6 seconds"). */
+/** How long the button offering to continue stays on the picture, in ms, before it goes by itself. */
 export const OFFER_MS = 6_000;
 /** How long it takes to fade as it goes, in ms; the same as its CSS. */
 export const OFFER_AWAY_MS = 260;

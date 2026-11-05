@@ -87,8 +87,7 @@ const KIND_WORDS: Record<Kind, (n: number) => string> = {
   review: (n) => (n === 1 ? "review" : "reviews"),
 };
 /**
- * The counts left to right in the order their cards come (the owner, 2026-10-21: "it should display from left to
- * right in the order"): the new ones before or after the reviews as the deck puts them (scattered among them, first),
+ * The counts left to right in the order their cards come: the new ones before or after the reviews as the deck puts them (scattered among them, first),
  * and the ones asked again where they go back in: last at the end, between them anywhere.
  */
 function countOrder(settings: Deck["settings"]): readonly Kind[] {
@@ -100,10 +99,9 @@ function countOrder(settings: Deck["settings"]): readonly Kind[] {
 /**
  * Whether a card comes back in this same review after an answer: only an ask-again with no wait (or a retry) keeps
  * it in. Reaching an end of the chart (up, down, go to a stage, burned) is the end of the card for this sitting, even
- * where the stage it lands on has no wait: it's due again at once, but for the next review, as the home will say
- * (the owner, 2026-10-17, after Forgot → Ok sent a card "Down one → Lesson · no wait" and the review asked it again as
- * if the chart went on: "the moment we hit one of those end nodes, that's it for the card this session… for ALL SRS
- * logic").
+ * where the stage it lands on has no wait: it's due again at once, but for the next review, as the home will say. So
+ * a card sent "Down one → Lesson · no wait" isn't asked again in this review as if the chart went on; this holds for
+ * every SRS type.
  */
 const comesBack = (outcome: Outcome) => outcome.again && outcome.wait === 0;
 
@@ -134,7 +132,7 @@ function scatter(items: readonly string[], among: readonly string[]): string[] {
  * The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones
  * where the deck's settings put them. A card still inside an ask-again (an earlier review was left with it there) is
  * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, or
- * anywhere (the owner, 2026-10-21: it opened on one of those at random, shuffled in among the reviews). Not `capped`,
+ * anywhere, never shuffled in among the reviews at random. Not `capped`,
  * every card given is in it: the ones picked on the Today screen, new cards past today's count among them.
  */
 function buildQueue(cards: Card[], deck: Deck, capped = true): string[] {
@@ -189,8 +187,8 @@ function joinLine(line: Line, cardId: string, pool: number | null): Line {
 }
 
 /**
- * Where an answer sends the card, under its name: which way it goes (the owner, 2026-10-17, "so it's more clear
- * whether we're upgrading or downgrading"), by how many stages, and the words, "Apprentice 3 · 1 d", "again
+ * Where an answer sends the card, under its name: which way it goes (so it's clear whether it moves up or down), by
+ * how many stages, and the words, "Apprentice 3 · 1 d", "again
  * tomorrow", "Burned", or when a card put aside comes back, "back in 24 hours".
  */
 type Lead = { dir: "up" | "down" | "same" | "again" | "burn" | HoldKind; steps: number; words: string };
@@ -223,8 +221,7 @@ const CHEVRONS_MAX = 2;
 
 /**
  * The lead under an answer's name: its mark, then the words, all in the line's own colour, so it reads the same on a
- * plain answer and on the filled one (option A of https://claude.ai/artifact/ULVNozxP7qzrEvzi1cxWPE, the owner's
- * pick, 2026-10-18; a coloured pill with "+1" in it came first and looked out of place, a green box on the blue Ok).
+ * plain answer and on the filled one (a coloured pill would look out of place, a green box on the blue Ok).
  */
 function Lead({ lead }: { lead: Lead }) {
   const moves = lead.dir === "up" || lead.dir === "down";
@@ -253,12 +250,10 @@ function wordsOf(type: CardType, card: Card): string {
 type Today = { picked: ReadonlySet<string>; more: boolean };
 
 /**
- * Today's cards before the first one (the owner's pick, B of https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62,
- * 2026-10-26; a deck's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
+ * Today's cards before the first one (a deck's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
  * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
  * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`). Extra study at the
- * end is this too (the owner, 2026-10-28: "it should look similar… just have the selector for how many"): its new
- * cards past today's, under its name, with how many in the bar after Show cards.
+ * end is this too, with how many to pick added: its new cards past today's, under its name, with how many in the bar after Show cards.
  */
 function TodayCards({ id = "today", label, tools, available, type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
   /** What its ids and its Start's hold go by: `today` before a review, `extra` for extra study. */
@@ -269,7 +264,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
   tools?: ReactNode;
   /**
    * What the bar says, always, in place of its counts and what's left for later: extra study's "19 new cards available"
-   * (the owner, 2026-10-28, its number saying how many are picked).
+   * (its number saying how many are picked).
    */
   available?: string;
   type: CardType;
@@ -289,8 +284,8 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
   onStart: () => void;
 }) {
   const [open, setOpen] = useState(opened);
-  // New cards past today's count are extra study, which waits until the reviews are done (the owner, 2026-10-28: "it
-  // shouldn't do extra study before I finished all reviews"): before a review with reviews in it, they aren't offered.
+  // New cards past today's count are extra study, which waits until the reviews are done: before a review with
+  // reviews in it, they aren't offered.
   const locked = label === undefined && reviews.length > 0 && others.length > 0;
   const offered = today.more && !locked ? [...fresh, ...others] : fresh;
   const picked = (list: readonly Card[]) => list.filter((c) => today.picked.has(c.id));
@@ -400,13 +395,12 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
 }
 
 /**
- * The card on its chart (the owner, 2026-10-17: "show the flowchart for this stage, and highlight what node we're on,
- * and what node clicking this button will transfer it to"): which rules the card follows (its stage's own, or the
+ * The card on its chart, the box it's at and the box an answer would send it to: which rules the card follows (its stage's own, or the
  * default ones worked out for its stage), the box it's at (the root, or the ask-again it's inside, by its path), and
  * the box the answer under the mouse leads to (the same path one longer; "Keep asking" turns back into the box it
  * left, as its loop on the chart), none while no answer is under it. Shown under the answers while the Chart button
- * is on (a glance that popped up on hover lasted an evening: it was small, couldn't be moved, and came up uninvited
- * while the owner was only deciding, 2026-10-18).
+ * is on, never popped up on hover, where it would be small, couldn't be moved, and would come up uninvited while an
+ * answer is only being decided.
  */
 function chartOf(srsType: SrsType, card: Card, answerId: string | null): { scope: string; now: string; next: string | null; stage: number } {
   const idx = stageIndex(srsType, card.place);
@@ -456,13 +450,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const [answered, setAnswered] = useState(0);
   /** Each time a card is put on screen, by an answer or by Undo: a showing of its own, timed afresh, even the same card's. */
   const [turn, setTurn] = useState(0);
-  /** What Undo can take back, newest last (the owner, 2026-10-26): every answer of this sitting, until it's left. */
+  /** What Undo can take back, newest last: every answer of this sitting, until it's left. */
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
   /**
    * The showing (its `turn`) whose Listen phase is over: Done listening pressed, or its sound or clip begun the play that
    * shows it. A card's start is its Listen phase where it has one, its front otherwise: a new showing (an answer, Undo)
-   * and Back to start all put it there (the owner, 2026-11-02: Undo put it on its front until then).
+   * and Back to start all put it there.
    */
   const [listenedTurn, setListenedTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -516,7 +510,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     setExtraPick({ more, picked: more ? extraToday.picked : new Set([...extraToday.picked].filter((id) => extraOffered.includes(id))) });
   }
   /**
-   * The number is how many are picked (the owner, 2026-10-28: None sets it to 0, All to every one shown); typed, the
+   * The number is how many are picked (None sets it to 0, All to every one shown); typed, the
    * pick is the first that many again, as many offered when not every one is shown. 0 leaves the cards offered as
    * they were, none of them picked.
    */
@@ -572,17 +566,16 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   );
   /**
    * The card's examples in the order its arrows turn through them (its own first, then each added, as Rotate goes), and
-   * the one looked at by hand (the owner, 2026-10-26, A of https://claude.ai/artifact/NvKf27gK3s88efz7WeRjV2): none
-   * until an arrow is pressed, and none again on each showing. The answer counts for the one the review picked
+   * the one looked at by hand: none until an arrow is pressed, and none again on each showing. The answer counts for the one the review picked
    * (`exampleId`). Switching to another, each sound and clip that's One per example starts by itself where the one left
-   * was playing or had played to its end, and stays still otherwise (`ReviewCard`, the owner, 2026-11-04).
+   * was playing or had played to its end, and stays still otherwise (`ReviewCard`).
    */
   const exampleIds = card && exampleFieldsOf(type).length > 0 && card.examples.length > 0 ? [null, ...card.examples.map((e) => e.id)] : [];
   const [browsed, setBrowsed] = useState<{ id: string | null } | null>(null);
   useEffect(() => setBrowsed(null), [cardId, turn]);
   const onScreen = browsed ? browsed.id : exampleId;
   /**
-   * The card on screen is in its Listen phase (its type's Listen first, the owner, 2026-11-01): it has something to hear
+   * The card on screen is in its Listen phase (its type's Listen first): it has something to hear
    * in the example the review picked, and this showing hasn't gone on to its front yet.
    */
   const listening = card !== undefined && !revealed && listenedTurn !== turn && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
@@ -602,7 +595,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
    * The Hold button, while it's on (Settings → Keybinds): the card's stages from its start, Done listening on a card
    * that listens first, Show back of card, and the deck's answer (`holdAnswer`) where the chart offers it here, each held
    * for its own time; what's done is where the card stands. One more action with its own key, beside the review's own
-   * buttons and their keys (the owner, 2026-11-02).
+   * buttons and their keys.
    */
   const chainOn = binds.holdChain.on;
   const holdAnswer = card ? srsType.answers.find((a) => a.id === deck.settings.holdAnswer && offered(srsType, card.place, a.id)) : undefined;
@@ -864,7 +857,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       const key = keyOf(e);
       // Enter starts and shows as Start's and Show back of card's keys do, while keybinds are on.
       const enter = keysOn && key === "Enter";
-      // On today's cards, Start's own key starts the review (the owner, 2026-10-27: not Show answer's); Enter does too, but on a button.
+      // On today's cards, Start's own key starts the review, not Show answer's; Enter does too, but on a button.
       if (today) {
         if (enter && !(e.target instanceof HTMLButtonElement)) {
           e.preventDefault();
@@ -918,8 +911,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       // The Hold button's Back to start, while it's on: its own key (Space pressed twice to begin with), heard beside the
       // Hold button's, which shares it; done, this press holds nothing. Until it's done (the first press of its double
       // press), the press goes on to whatever else its key is in another shape (Done listening's Space held), as every key
-      // shared by shape is (`keys.ts` → `clash`): it went no further until 2026-11-04, so a hold of Back to start's key
-      // did nothing on the review.
+      // shared by shape is (`keys.ts` → `clash`), so a hold of Back to start's key still does what that hold is set to.
       const resetting = chainOn ? keyIn(binds.holdReset, key) : null;
       let reset = false;
       if (resetting) {
@@ -946,8 +938,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         else reveal();
         return;
       }
-      // Turned back to its front by Hide back of card's own key (the owner, 2026-10-29: Show answer's tap did it until Space
-      // tapped became the clip's), held as long as it's set to be; its hold drawn on the Hide back of card button showing.
+      // Turned back to its front by Hide back of card's own key (so Space tapped can be the clip's), held as long as it's set to be; its hold drawn on the Hide back of card button showing.
       const hiding = revealed ? keyIn(binds.hide, key) : null;
       if (hiding) {
         e.preventDefault();
@@ -956,7 +947,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         hold.begin(e, button, hiding.holdMs, hideAnswer);
         return;
       }
-      // Done listening's own key while the card is listened to (the owner, 2026-11-01), Show back of card's on its front.
+      // Done listening's own key while the card is listened to, Show back of card's on its front.
       const showing = keyIn(listening ? binds.showCard : binds.reveal, key);
       if (showing) {
         e.preventDefault();
@@ -1099,8 +1090,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
   const full = stage.screen.full;
   const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit";
-  // Undo and Chart: in the counts' row on a computer, under the answers on a phone (the owner's place for them,
-  // 2026-10-18), the CSS showing one of the two. Pinned over the counts' row, they covered "in play · waiting".
+  // Undo and Chart: in the counts' row on a computer, under the answers on a phone, the CSS showing one of the two.
+  // Pinned over the counts' row, they would cover "in play · waiting".
   const tools = (
     <>
       {/* While the answer shows: the card back to its front, its key's hold drawn on it. */}
@@ -1125,7 +1116,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   return (
     <section ref={place} className={`review ${look}`.trim()}>
       <div className="review-top">
-        {/* What's left, by kind, each count with its word ("2 + 0 + 9" said nothing, the owner, 2026-10-21), in the order they come; the kind of the card on screen underlined. */}
+        {/* What's left, by kind, each count with its word ("2 + 0 + 9" says nothing), in the order they come; the kind of the card on screen underlined. */}
         <span className="review-counts" role="status">
           {countOrder(deck.settings).map((kind) => (
             <span key={kind} className={`review-count is-${kind} ${kindOf(card) === kind ? "is-now" : ""}`.trim()}>
@@ -1139,7 +1130,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         {!full ? <span className="review-tools">{tools}</span> : null}
         {full ? (
           <span className="review-stage-tools">
-            {/* Its key beside it, as the Undo outside full screen has it (the owner, 2026-10-29: it didn't appear here). */}
+            {/* Its key beside it, as the Undo outside full screen has it. */}
             {revealed ? (
               <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={hideAnswer}>
                 <Icon name="eyeOff" />
@@ -1174,7 +1165,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           revealed={revealed}
           listening={listening}
           onListened={showCard}
-          // Turned by its key and Show answer alone: a press on the card does nothing (the owner, 2026-10-25).
+          // Turned by its key and Show answer alone: a press on the card does nothing.
           srcOf={api.mediaUrl}
           waveOf={waveOf}
           cues={card.cues}
@@ -1212,7 +1203,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           {failure}
         </p>
       ) : null}
-      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons and their keys (the owner, 2026-11-02). */}
+      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons and their keys. */}
       {chainOn ? (
         <div className="review-hold">
           <HoldButton view={chain.view} />
@@ -1274,7 +1265,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
               )}
             </div>
           ) : null}
-          {/* Under the answers on a phone (the owner's place for it, 2026-10-18): Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
+          {/* Under the answers on a phone: Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
           {full ? null : <div className="review-chart-row">{tools}</div>}
           {/* The card's chart, while the Chart button is on: its box lit, and the box the answer under the mouse leads to. */}
           {chartOpen && !full

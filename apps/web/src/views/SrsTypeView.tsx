@@ -207,7 +207,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
 
   /**
    * An answer's name with whether it sits apart and whether it asks first. `locked` shows them as they're set, to be
-   * read and not changed (a type that comes with the app; the owner, 2026-10-21: "answers too, everything").
+   * read and not changed (a type that comes with the app, which shows everything, its answers too).
    */
   const answerBlock = (answer: SrsType["answers"][number], i: number, locked: boolean) => (
     <div key={answer.id} className={`answer-name ${answerClass(draft.answers, i)} ${locked ? "is-locked" : ""} ${askingAnswer === answer.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}>
@@ -510,7 +510,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             onGo={() => void remove()}
           />
         ) : (
-          // Always there; greyed while a deck uses it, why beside it (the owner, 2026-11-05).
+          // Always there; greyed while a deck uses it, why beside it.
           <div className="add-actions add-actions-start">
             <Button id="srs-delete" className="is-danger" disabled={draft.deckCount > 0} onClick={() => setDeleting(true)}>
               <Icon name="trash" />

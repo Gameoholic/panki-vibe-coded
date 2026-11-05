@@ -39,7 +39,7 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   // Once today's limits are reached (the door no longer blue), what's still there past them, said small after the line.
   const newPast = decks?.reduce((sum, deck) => sum + deck.newAvailable - deck.newCount, 0) ?? 0;
   const duePast = decks?.reduce((sum, deck) => sum + deck.dueAvailable - deck.dueCount, 0) ?? 0;
-  // Said as extra study, which is where they're had (the owner, 2026-10-29: "so it's clear it's a part of extra study").
+  // Said as extra study, which is where they're had, so it's clear they're a part of it.
   const past = [newPast > 0 ? count(newPast, "new card", "new cards") : null, duePast > 0 ? count(duePast, "review", "reviews") : null].filter((p) => p !== null);
   const reviewNote = due + fresh > 0 || past.length === 0 ? null : `${past.join(" and ")} available as extra study`;
   const decksDetail = decks === null ? null : none ? "None yet" : count(decks.length, "deck", "decks");

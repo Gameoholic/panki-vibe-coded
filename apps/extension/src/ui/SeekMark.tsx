@@ -46,7 +46,7 @@ type Props = {
    * the pointer's moves over the words are kept from the bar, so the player doesn't preview where the pointer is.
    */
   onPeek?: (pinned: Pinned) => void;
-  /** Where the video was stopped the last time it was watched, in seconds: a white tag over the bar saying when (the owner, 2026-10-21: "not color but something more distinct and visible"); null for none. */
+  /** Where the video was stopped the last time it was watched, in seconds: a white tag over the bar saying when, a shape of its own rather than a colour, to stand out; null for none. */
   stop?: number | null;
   /** The tag pressed: the video goes there. */
   onStop?: () => void;
@@ -64,8 +64,8 @@ const PIN = { lanes: 3, gap: 6, pad: 18, wide: 13, narrow: 7.5, max: 168 } as co
 
 /**
  * How far above the bar the pointer counts as on it, in pixels (the page reads where the pointer is against this:
- * `content/youtube.tsx` → `follow`): as tall as the words stand, and `above` more, the same coming in as going out (the
- * owner, 2026-10-19: "right now I basically have to hug the seekbar"); `bare` with no words to show. Nothing is laid
+ * `content/youtube.tsx` → `follow`): as tall as the words stand, and `above` more, the same coming in as going out, so
+ * the pointer needn't hug the bar; `bare` with no words to show. Nothing is laid
  * over the picture for it, so a press there still reaches the player.
  */
 const REACH = { bare: 16, above: 8 } as const;
@@ -88,8 +88,8 @@ const wordsOnPin = (pinned: Pinned) => (pinned.of === "known" ? pinned.said.word
 
 /**
  * Which mark's settings a pin goes by, and which layer it's drawn in: its own, but for where a word only suspended
- * cards are is said, which is the Suspended cards mark's, red, its words up and pressed as that mark says (the owner,
- * 2026-10-30: its tick was red and its word "not popping up", going by Words that are in your decks' Hidden).
+ * cards are is said, which is the Suspended cards mark's, red, its words up and pressed as that mark says (its tick is
+ * red, so its word goes by that mark too, not by Words that are in your decks').
  */
 export const markOf = (pinned: Pinned): WordsMarkId => (pinned.of === "known" && pinned.said.suspended ? "suspended" : pinned.of);
 
@@ -132,13 +132,12 @@ function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
  * shows, or never); a pin is edged in the cards' colour only while the pointer is on it, and pressed it does what the
  * viewer set (`look.cards.click`: nothing, and then it isn't a thing to press at all, or the video to the card's
  * sentence or its word). The words that are in the decks have pins of their own the same way, with the same settings
- * of their own (`look.known`; the owner, 2026-10-25: "same settings as Cards"), laid in the same lanes after the cards'.
- * The suspended cards are a mark of their own while it's shown (`look.suspended`, its pins laid first; the owner,
- * 2026-10-29, to fix them from the video), the rest of the cards without them; hidden, they're cards like any. Nothing changes as the video plays through a card: the owner had the card it was at lit and
- * rising by itself taken out, 2026-10-19 ("no flash at all when it's being played"); and snapping, a press on the bar
- * near a card's mark landing on the card, the same day, the words doing that job. Only the pins and the clip's two
- * ends take a press. Everywhere else on the bar a press goes through to the player, which seeks as ever. (Panki's own
- * bar in the player's place, with these marks laid on it, lived a day before the owner had it taken out, 2026-10-19.)
+ * of their own (`look.known`, the same settings as the cards'), laid in the same lanes after the cards'.
+ * The suspended cards are a mark of their own while it's shown (`look.suspended`, its pins laid first, so they can be
+ * fixed from the video), the rest of the cards without them; hidden, they're cards like any. Nothing changes as the
+ * video plays through a card: no card lights or rises by itself as it's played, and a press on the bar near a card's
+ * mark doesn't snap to the card, the words doing that job. Only the pins and the clip's two ends take a press.
+ * Everywhere else on the bar a press goes through to the player, which seeks as ever.
  */
 export function SeekMark({ length, covered, working, cards, clip, inDecks = [], look, hover, onGo, onReach, onPeek, stop = null, onStop }: Props) {
   const whole = useRef<HTMLDivElement>(null);
@@ -147,7 +146,7 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
   const known = Number.isFinite(length) && length > 0;
   // Measured afresh whenever the bar is drawn again: nothing is drawn while the video's length isn't known (a page
   // still loading its video, or moving to the next), and the bar drawn after it is a new element. Measured only once,
-  // marks that came before the video's length never had their width, and the cards' words never stood (2026-10-19).
+  // marks that came before the video's length never had their width, and the cards' words never stood.
   useEffect(() => {
     const el = whole.current;
     if (!el) return;
@@ -271,7 +270,7 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
       {look.known.shown ? saidOthers.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
-      {/* Where a word only suspended cards are is said: the Suspended cards mark's (the owner, 2026-10-30). */}
+      {/* Where a word only suspended cards are is said: the Suspended cards mark's. */}
       {saidSuspended.map((said) => (
         <div key={said.startMs} className="seek-known is-suspended" style={across(said.startMs / 1000, said.endMs / 1000)} />
       ))}

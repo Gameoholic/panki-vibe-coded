@@ -1,6 +1,6 @@
 /**
- * The owner's day turns over at an hour of their own clock, not the server's: the VPS may run on UTC while they live
- * on another zone. The zone comes from the environment and the maths is Intl alone, no library.
+ * An account's day turns over at an hour of its own clock, not the server's: the VPS may run on UTC while the account
+ * lives on another zone. The zone comes from the environment and the maths is Intl alone, no library.
  */
 
 const DAY = 86_400_000;
@@ -48,14 +48,14 @@ export function dayStartAt(now: number, hour: number, timeZone: string): number 
   return start <= now ? start : instantOf(wall - DAY, timeZone);
 }
 
-/** A day on the owner's clock as "YYYY-MM-DD"; the keys compare as text, oldest first. */
+/** A day on the account's clock as "YYYY-MM-DD"; the keys compare as text, oldest first. */
 export type Day = string;
 
 function dayKey(wall: number): Day {
   return new Date(wall).toISOString().slice(0, 10);
 }
 
-/** The owner's day an instant falls in: the zone's calendar date once the clock is wound back by the hour the day turns over at. */
+/** The account's day an instant falls in: the zone's calendar date once the clock is wound back by the hour the day turns over at. */
 export function dayOf(instant: number, hour: number, timeZone: string): Day {
   return dayKey(wallAt(instant - hour * 3_600_000, timeZone));
 }

@@ -23,6 +23,7 @@ Treat this as a SaaS maintained by a large team. **Don't write quickly just to l
 - **Strict typing, no escape hatches.** `strict`, and no `any`. Ever. Cross a trust boundary with a Zod schema, not a cast.
 - **Match the existing style:** 2-space indentation, double-quoted strings, semicolons, in TS/TSX. Set with the first file, never drifts.
 - **Comments explain *why*, never *what*** — and only when the *why* is non-obvious: a trap, a decision.
+- **A code comment never says who decided, when, or what it was before** (the owner, 2026-11-05: "yes to all repo. docs files are different"). It says what a thing does and why, in plain words: no "(the owner, 2026-10-22: …)", no "the owner's pick", no "until 2026-10-28 it was X", no dates, no artifact links. Code that reads an older shape (a migration, a kept setting carried over) says what that shape is, plainly, without a date. History, dates and the owner's words live in the docs alone (`ARCHITECTURE.md`, `COMPONENTS.md`, `PRODUCT.md`, `CLAUDE.md`). Every code file, shipped or not.
 - Keep functions and components focused. If one is doing two jobs, split it.
 
 ## Build once — reuse relentlessly

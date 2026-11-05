@@ -8,9 +8,8 @@ import { VALUE_MAX } from "./type";
 import { expectedGot } from "./unread";
 
 /**
- * Touch up (AI step 3, the owner's name for it, 2026-10-30): Panki AI over the card being added, judging what each
- * field holds and proposing only where something's needed, each proposal accepted or dismissed by hand and nothing
- * written by itself. The model (the owner, 2026-10-31, the Touch up scenarios page): the AI judges, Panki types its
+ * Touch up: Panki AI over the card being added, judging what each field holds and proposing only where something's
+ * needed, each proposal accepted or dismissed by hand and nothing written by itself. The model: the AI judges, Panki types its
  * answer, rejects anything off the shape, and draws every outcome itself as a diff (`fieldVerdictOf`,
  * `meaningVerdictOf`). What it can judge is one registry of keys, each the field mapping's role it goes to and that
  * role's name: the answer's fixed shape has one entry per key whose role has a field on the deck. A new key is one
@@ -31,14 +30,14 @@ export const TOUCH_UP: Record<TouchUpKey, { role: string; name: string }> = {
   dictionaryForm: { role: "dictForm", name: DATA_KIND_NAMES.form },
   pitchAccent: { role: "dictPitch", name: DATA_KIND_NAMES.pitch },
   sentence: { role: "sentence", name: PIECE_NAMES.sentence },
-  // The word in general: nuance, register, what it's confused with; never Meaning said again (the owner, 2026-10-30).
+  // The word in general: nuance, register, what it's confused with; never Meaning said again.
   explanation: { role: "explanation", name: "Explanation" },
   // A few made-up sentences, each after a line that sets its scene.
   examples: { role: "examples", name: "Example sentences" },
 };
 
 /**
- * How a value stands, one registry (the owner, 2026-10-31): good is right as it is, meh could be better, bad is wrong.
+ * How a value stands, one registry: good is right as it is, meh could be better, bad is wrong.
  * Its look is the meanings' (`LOOK_OF`, `app.css` → `.ai-accuracy.is-…`): good green, meh orange, bad red.
  */
 export const JUDGEMENTS = ["good", "meh", "bad"] as const;
@@ -50,8 +49,8 @@ export const LOOK_OF: Record<Judgement, MeaningAccuracyId> = { good: "fits", meh
 const Why = z.string().max(2_000);
 
 /**
- * Why the model couldn't judge or write a field, one registry, each with Panki's own words for it (the code is Panki's,
- * never the owner's to read): no_context, not enough to go on. A second kind is one id and its words.
+ * Why the model couldn't judge or write a field, one registry, each with Panki's own words for it (the code is Panki's
+ * to read, never shown): no_context, not enough to go on. A second kind is one id and its words.
  */
 export const TOUCH_UP_ERROR_IDS = ["no_context"] as const;
 export const TouchUpErrorId = z.enum(TOUCH_UP_ERROR_IDS);
@@ -60,15 +59,14 @@ export const TOUCH_UP_ERRORS: Record<TouchUpErrorId, string> = { no_context: "Pa
 
 /*
  * The answer as the model sends it (the wire), and as Panki reads it (the answer). The wire has no union and nothing
- * optional or nullable anywhere (the owner, 2026-10-31): a provider's structured output holds a request to at most 16
- * parameters that are an `anyOf` or a type array such as ["string", "null"] (Anthropic's "Schema complexity limits"),
- * and a field that was "judged or the error", its judgement and its proposal each nullable, came to 20 and was refused
- * before the model ran. So every key is required and plain: "" for no proposal and no error, the error a code beside
- * the rest. And the wire is built for each request from the card (`touchUpShape`): a field Panki sent empty has no
- * judgement key at all, so the model can't call a filled one empty (the owner, 2026-10-31, after Haiku answered "empty"
- * for a filled Sentence about one call in five, when "empty" was a judgement it could pick). Panki translates it at once
- * (`answerOfWire`) into the owner's shapes, judgement null and the error a shape of its own, and every rule and every
- * drawing reads only those.
+ * optional or nullable anywhere: a provider's structured output holds a request to at most 16 parameters that are an
+ * `anyOf` or a type array such as ["string", "null"] (Anthropic's "Schema complexity limits"), and a field that was
+ * "judged or the error", its judgement and its proposal each nullable, came to 20 and was refused before the model ran.
+ * So every key is required and plain: "" for no proposal and no error, the error a code beside the rest. And the wire
+ * is built for each request from the card (`touchUpShape`): a field Panki sent empty has no judgement key at all, so
+ * the model can't call a filled one empty (a model given "empty" as a judgement it could pick picks it for a filled
+ * field too often). Panki translates it at once (`answerOfWire`) into its own shapes, judgement null and the error a
+ * shape of its own, and every rule and every drawing reads only those.
  */
 
 /** What the wire says in place of nothing: an empty string. */
@@ -114,7 +112,7 @@ export const EmptyMeaningWire = z.object({
 });
 export type EmptyMeaningWire = z.infer<typeof EmptyMeaningWire>;
 
-/** What each key holds and what Panki does with it, in the owner's words: said in Admin (`answerShapesOf`), never sent (`schemaFor` leaves descriptions out). */
+/** What each key holds and what Panki does with it, in plain words: said in Admin (`answerShapesOf`), never sent (`schemaFor` leaves descriptions out). */
 export const KEY_WORDS: Record<TouchUpKey, string> = {
   meaning: "the card's Meaning, judged meaning by meaning, or the error: Panki holds the rows against what's ticked and draws the difference",
   reading: "the dictionary form's reading: judged, written when it's empty, or the error",
@@ -249,11 +247,11 @@ export function meaningVerdictOf(part: MeaningAnswer, ticked: readonly number[])
   return { kind: "propose", tone, marks: tickedMarks, proposed: part.proposed?.trim() ?? "", why: part.why };
 }
 
-/** That an answer's shape is Panki's, whatever its prompt says, in the owner's words (the owner, 2026-10-31, who feared editing a prompt could break the app). */
+/** That an answer's shape is Panki's, whatever its prompt says, in plain words, so editing a prompt is plainly no way to break the app. */
 export const ANSWER_FIXED = "The shape of the answer is fixed by Panki. The prompt changes what goes in it, never its form.";
 /**
  * That the descriptions of Panki's answer format never reach the provider (`schemaFor` strips every description),
- * naming the provider they'd go to, the one set in Admin (the owner, 2026-10-31: more accurate than "Panki AI").
+ * naming the provider they'd go to, the one set in Admin (more accurate than "Panki AI").
  */
 export const answerWordsUnsent = (provider: string): string => `For your reference only: ${provider} isn't shown these descriptions, just the keys and their types.`;
 /** One part of an answer as Admin says it: its key, its description, and the keys inside it, each the same way. */
@@ -278,7 +276,7 @@ function partsOf(shape: Record<string, Schema>): AnswerPart[] {
 export type AnswerShape = { title: string | null; parts: AnswerPart[] };
 /**
  * What a template's answers hold, read off each fixed shape it answers in by walking it, a plain tree of the shape as
- * it is (the owner, 2026-10-31: "a nested shape, for my own sanity"): each key and its description, and under it the
+ * it is, nested as it nests: each key and its description, and under it the
  * keys of what it holds with theirs, in the shape's order. Every word comes from a `describe` on the schema, nothing
  * is added by hand. Explain judging the meanings answers in two, its first answer and a follow-up's; not judging, in
  * the plain one throughout; Touch up in its keys' shapes, then a follow-up's.
@@ -292,7 +290,7 @@ export function answerShapesOf(action: AiActionId, judges = true): AnswerShape[]
       { title: "A follow-up", parts: partsOf(ExplainFollowUpShape.shape) },
     ];
   }
-  // Touch up's keys, then each shape a key can be asked in, once (the owner, 2026-10-31: both shapes of a field, not per field).
+  // Touch up's keys, then each shape a key can be asked in, once (both shapes of a field, not per field).
   return [
     { title: "The answer, a key for each field asked", parts: TOUCH_UP_KEYS.map((key) => ({ key, words: KEY_WORDS[key], parts: [] })) },
     { title: "A field that holds a value", parts: partsOf(FieldWire.shape) },
@@ -304,7 +302,7 @@ export function answerShapesOf(action: AiActionId, judges = true): AnswerShape[]
 }
 
 /**
- * The fixed shape a provider is asked to answer in, built for this card (the owner, 2026-10-31): a key for each field
+ * The fixed shape a provider is asked to answer in, built for this card: a key for each field
  * asked, each required, a field sent empty with no judgement (`EmptyFieldWire`) and one holding a value with one
  * (`FieldWire`), the Meaning with rows when the dictionary has meanings (`MeaningWire`) and without when it has none
  * (`EmptyMeaningWire`). On the wire, read with `answerOfWire`.
@@ -340,8 +338,8 @@ function fieldProblem(key: FieldKey, part: FieldAnswer, held: string): string | 
   const proposed = part.proposed?.trim() ?? "";
   if (part.judgement === "good" && part.proposed !== null) return expectedGot(`proposed "" at ${key}, judged good`, "a value");
   if (part.judgement !== "good" && proposed === "") return expectedGot(part.judgement === null ? `a proposed value at ${key}, which was sent empty` : `a proposed value at ${key}, judged ${part.judgement}`, '""');
-  // Example sentences come as pairs, a line setting the scene before each sentence (the owner, 2026-10-31, after a bare
-  // list of sentences came back): a proposal of an odd count, or fewer than two, is refused.
+  // Example sentences come as pairs, a line setting the scene before each sentence, never a bare list of sentences: a
+  // proposal of an odd count, or fewer than two, is refused.
   if (key === "examples" && proposed !== "") {
     const lines = proposed.split("\n").filter((line) => line.trim() !== "").length;
     if (lines < 2 || lines % 2 !== 0) return expectedGot("an even number of lines at examples, a scene line before each sentence", `${lines}`);
@@ -366,8 +364,7 @@ function meaningProblem(part: MeaningAnswer, count: number): string | null {
   return null;
 }
 /**
- * What's wrong with an answer that read as its shape but doesn't hold against what was sent (the owner's rules,
- * 2026-10-31), said as expected against got for Details' Log (`unread.ts` → `expectedGot`), or null: every why
+ * What's wrong with an answer that read as its shape but doesn't hold against what was sent, said as expected against got for Details' Log (`unread.ts` → `expectedGot`), or null: every why
  * written; a field sent empty judged null and a filled one judged; a proposal with meh, bad and null, none with good;
  * the Meaning a row for each meaning sent, each index once, and a proposed meaning exactly when no row is good. Such an
  * answer fails whole, never shown in part. Its shape (two exactly, a judgement beside an error being neither) is Zod's.
@@ -386,8 +383,7 @@ export function touchUpProblem(answer: TouchUpAnswer, meanings: readonly string[
 }
 
 /*
- * A follow-up (AI step 5, the owner: "follow-up should be for Touch up as well… so I can have a conversation about it
- * further and ask it to make changes"): it answers in its own fixed shape, its reply and only what it changes, never
+ * A follow-up, a conversation about the touch-up that can ask it to make changes: it answers in its own fixed shape, its reply and only what it changes, never
  * the whole touch-up again (cheaper, and nothing not asked about moves). Every key required and plain, as the first
  * answer's wire: `changes` a list of the text fields it changes, `meaning` empty while the Meaning stands.
  */
@@ -464,7 +460,7 @@ export function touchUpFollowProblem(wire: TouchUpFollowWire, meanings: readonly
  * every meaning of the dictionaries in the order `{Meaning}` numbers them (so a number in the answer is checked
  * against the real list), the keys whose roles have a field on the deck, and the card as it stands, what the answer is
  * held to; for a follow-up, the conversation so far (`Said`) and its own pieces (`asking`: `{Follow-up question}`, `{Follow-up field}`, and
- * `{Card}` as the card stands now, the owner: "it sends back the entire Card").
+ * `{Card}`, the whole card as it stands now).
  */
 export const TouchUpAsk = z.object({
   templateId: TemplateId,
@@ -497,7 +493,7 @@ export type TouchedUp = z.infer<typeof TouchedUp>;
 export const TouchUpResponse = z.object({ touchUp: TouchedUp, ai: PankiAiStatus });
 
 /**
- * One of the card's fields as `{Card}` tells of it: its name, the key Touch up fills it by (none for the owner's own),
+ * One of the card's fields as `{Card}` tells of it: its name, the key Touch up fills it by (none for a field it doesn't fill),
  * what it holds now, and for the Meaning the dictionary meanings ticked for it, by their numbers in `{Meaning}`.
  */
 export type CardPieceRow = { name: string; key: TouchUpKey | null; value: string; ticked?: readonly number[] };

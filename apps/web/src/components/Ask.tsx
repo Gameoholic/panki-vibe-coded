@@ -18,16 +18,15 @@ type Props = {
    */
   go: { words: string; busy: string; icon?: IconName; spends?: { lead: ReactNode } };
   /**
-   * What the button that leaves it as it is says: Cancel, as every way of backing out says (the owner, 2026-10-29: "all
-   * say Cancel"; it was Keep until then), unless a question really needs another word.
+   * What the button that leaves it as it is says: Cancel, as every way of backing out says, unless a question really needs another word.
    */
   cancel?: string;
   busy: boolean;
   /** Why it didn't go through, when it didn't. */
   failure: string | null;
   /**
-   * Words to type before the button does it, for what can't be had back at all (forgetting the watch history: the
-   * owner, 2026-10-28, "force you to type 'I understand' or something like AWS does"). Left out, a press does it.
+   * Words to type before the button does it, for what can't be had back at all (forgetting the watch history: "I
+   * understand" typed first, as AWS does). Left out, a press does it.
    */
   typed?: string;
   /** Cancel pressed: nothing done. */
@@ -37,8 +36,7 @@ type Props = {
 
 /**
  * A question about something that hurts, asked in place, inside what owns the action: the question, Cancel (no icon, as
- * backing out never has one), and the filled danger button that does it, with its icon (the trash to begin with) (a line under the question saying what a card's deleting leaves behind went at
- * the owner's word, 2026-10-18). Never the browser's `confirm()`, never a pop-up. Whoever asks
+ * backing out never has one), and the filled danger button that does it, with its icon (the trash to begin with). Never the browser's `confirm()`, never a pop-up. Whoever asks
  * tints what it stands in (`.panel-alarm`, a card's row `is-asking`) while it's asked. Deleting a card (its row, its
  * form), a deck, a card type and an SRS type are all this.
  */

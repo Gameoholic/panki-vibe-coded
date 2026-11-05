@@ -8,8 +8,7 @@ import { stamp } from "../capture/words";
 import { LineText, type EditedRange } from "./LineText";
 
 /**
- * Editing Panki subtitles by hand (AI step 6, the owner's B and C of the editing preview, 2026-11-03: "I want editable
- * through subtitles and through panel"). One mechanism, two ways in: **the strip opens as the editor** (`StripEditor`:
+ * Editing Panki subtitles by hand, through the panel and through the subtitles over the video. One mechanism, two ways in: **the strip opens as the editor** (`StripEditor`:
  * the lines around the moment, each its own text with its time, click into one and type) and **the subtitle over the
  * video** (`OverLineEditor`: the line becomes text where it stands). Both type in a `LineText`; a line is kept as the
  * caret leaves it, laid back on its words by Panki (`realignLine`, the pencil's own: `actions.save`), no field and no
@@ -246,7 +245,7 @@ const EditorRow = memo(function EditorRow({ line, i, draft, focused, place, care
 });
 
 /**
- * B: the strip opened as the editor. A bar says so, with Done; under it the lines around the moment, each its time and
+ * The strip opened as the editor. A bar says so, with Done; under it the lines around the moment, each its time and
  * its text; the one being edited has its tools under it: Play line, Split at the caret, Merge with next, its two ends
  * nudged, Proofread this line, Delete line. Enter goes to the next line, Shift+Enter splits, Backspace at a line's start
  * merges it with the one before, ↑ and ↓ the line before or after, Ctrl+Enter plays it, Esc or Done shuts the editor.
@@ -346,8 +345,8 @@ export function StripEditor({ lines, nowKey, start, actions, whole = false, onDo
     if (!failure) setFocus(next ? { key: next.key, place: place(0) } : null);
   }
   /**
-   * An end moved a tenth of a second, never past the other end, and never into the line before or after (the owner,
-   * 2026-11-03: lines never overlap; the clip bar's two ends stop against each other the same way): the start stops at
+   * An end moved a tenth of a second, never past the other end, and never into the line before or after (lines
+   * never overlap; the clip bar's two ends stop against each other the same way): the start stops at
    * the previous line's end, the end at the next line's start, as they stand typed. An end that stood past one already
    * (a transcript from before) isn't pushed back by it, only kept from going further.
    */
@@ -509,10 +508,9 @@ type OverProps = {
 };
 
 /**
- * C: the subtitle over the video, edited where it stands: the line becomes text, the video paused; Enter saves it and
- * plays on, Esc discards what was typed, ↑ / ↓ save it and go to the line before or after, as in the strip's editor
- * (the owner, 2026-11-03: Alt+↑↓ until then). A word Panki AI edited
- * says what was heard over the line, with Undo. Its hint stands over it, with Proofread this line.
+ * The subtitle over the video, edited where it stands: the line becomes text, the video paused; Enter saves it and
+ * plays on, Esc discards what was typed, ↑ / ↓ save it and go to the line before or after, as in the strip's editor.
+ * A word Panki AI edited says what was heard over the line, with Undo. Its hint stands over it, with Proofread this line.
  */
 export function OverLineEditor({ line, start, actions, onDone, onMove }: OverProps) {
   const [typed, setTyped] = useState<Draft>(draftOf(line));

@@ -10,7 +10,7 @@ type Props = {
 
 /**
  * A question that can't wait, over the dimmed page: only for stopping something already under way, like leaving a
- * screen with unsaved changes. Anything the owner opens on purpose is a panel anchored to what opened it instead.
+ * screen with unsaved changes. Anything opened on purpose is a panel anchored to what opened it instead.
  */
 export function Modal({ labelledBy, onClose, children }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);

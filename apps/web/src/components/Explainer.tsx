@@ -4,20 +4,18 @@ import { Button } from "./Button";
 import { KeyCap } from "./KeyCap";
 
 /**
- * What a panel's feature is, shown rather than said (the owner, 2026-10-28: "a picture is worth 100 words"): a (?)
+ * What a panel's feature is, shown rather than said: a (?)
  * beside the panel's title opens a window, under it, playing the feature being used on a page as it would really be,
  * round and round, Panki's own components doing it. Pointed at it opens; let go of, it closes; a click keeps it open
  * until a press elsewhere or Escape. What each panel plays is its scene's: the extension's options page has its own
  * (`apps/extension/src/options/explainerScenes.tsx`), the app's Settings → Keybinds the Hold button's
- * (`views/HoldButtonScene.tsx`), and Settings → Panki AI's are in `explainers/aiScenes.tsx` (the owner, 2026-11-01: "we
- * should have it for Explain and Touch up in Panki AI too"). It was the extension's alone until 2026-11-02.
+ * (`views/HoldButtonScene.tsx`), and Settings → Panki AI's are in `explainers/aiScenes.tsx`.
  */
 
 /** The page a picture is drawn on, at a real page's size: a scene lays itself out in these pixels, Panki's components at their own size, and the whole is scaled to the window. */
 export const CANVAS = { width: 1100, height: 620 };
 /**
- * How far the camera can move in on what's being done (the owner, 2026-10-28: "quite subtle and smooth", then "a bit
- * more… just make sure it doesn't cut off"): it frames what a moment is about, whole, and never past the page's edges.
+ * How far the camera can move in on what's being done, subtly and smoothly: it frames what a moment is about, whole, and never past the page's edges.
  */
 const CAMERA_MAX = 1.45;
 /** Room left around what's framed, as a share of the page. */

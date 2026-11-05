@@ -6,8 +6,7 @@ import { dateWords } from "@web/words";
 import { askDownloadUpdate, askReloadPanki, askShowFolder, askUpdate, type UpdateState } from "../messages";
 
 /**
- * The extension's update, said where it's used (the owner, 2026-10-22, from the prototype at
- * https://claude.ai/artifact/SbBEB7JFVxbtLtvkW7rCMN): the way to it is Update Panki, in the folder the extension was put
+ * The extension's update, said where it's used: the way to it is Update Panki, in the folder the extension was put
  * in, then Reload Panki; or the zip downloaded and put there by hand. `UpdateBody` is what's said, as two steps;
  * the strip's head carries it under a button of its own (`UpdateMenu`), the options page in a panel at its top. Never a
  * second notice of an update.
@@ -25,8 +24,8 @@ export const buildDayWords = (changedAt: string): string => dateWords(Date.parse
 const READY_EVERY_MS = 2000;
 
 /**
- * What's said of an update, as the two steps it takes (the owner, 2026-10-22: words over a Reload button went unread,
- * and Reload was pressed as if it updated): 1, double-click Update Panki in Panki's folder (Find the folder opens
+ * What's said of an update, as the two steps it takes (words over a Reload button go unread, and Reload alone is
+ * pressed as if it updated): 1, double-click Update Panki in Panki's folder (Find the folder opens
  * Chrome's page for the extension, which says where it's loaded from); 2, Reload Panki, which stays off until the new
  * files are in the folder (`UpdateState.ready`, asked again every few seconds while this is open), step 1 ticked then.
  * Under them, the zip, to extract over the folder by hand. `onReloading` is told just before the extension reloads (a

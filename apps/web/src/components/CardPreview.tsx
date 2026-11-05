@@ -56,8 +56,7 @@ function carriedSources(from: CardType, to: CardType, sources: ValueSources): Va
 }
 
 /**
- * One card as a review would show it in the deck picked (the owner, 2026-10-29: "see how they'd look like in a specific
- * deck, I get to choose which deck"): its own deck to begin with. In a deck of its own card type it's exactly that
+ * One card as a review would show it in the deck picked: its own deck to begin with. In a deck of its own card type it's exactly that
  * deck's card, the example its Example shown picks; in another, the card type's fields take the values of this card's
  * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. A card type with
  * Listen first opens it on its Listen phase, as a review does, and it shows its front as its sound or clip begins the play set to show it. Turned by a

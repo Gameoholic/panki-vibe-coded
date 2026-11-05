@@ -18,14 +18,12 @@ import type { SilentPage, SilentReport, SilentStage } from "../transcribe/silent
 import { logText, timeOfDay, wholeSeconds, type LogPart, type TranscribeDetail, type TranscribeState, type TranscribeStatus } from "../transcribe/transcriber";
 
 /**
- * The strip's menu: everything about transcribing this video, in one place at the right of the head (the owner,
- * 2026-10-17, of the two bare buttons that stood there: "a little better and more polished"). How much of the video
- * is transcribed and how it stands, with Details (how it stands in full, the owner, 2026-10-19: "so we can also debug
- * better") and Log (every decision this page made, with its reason: "the thought process and execution for this
- * particular session") folded under it; the question before downloading a long video whole (Warn first), or what was
- * done about the download limit instead; then what to do: start, one item whatever the mode, saying what it does
- * there, or stop (the owner, 2026-10-20: the entire video and a part of it as items of their own went against what
- * Live and Full are); the Mode this viewer transcribes in and Auto transcribe, whether it starts by itself (both this viewer's own);
+ * The strip's menu: everything about transcribing this video, in one place at the right of the head. How much of the
+ * video is transcribed and how it stands, with Details (how it stands in full, to debug by) and Log (every decision
+ * this page made, with its reason) folded under it; the question before downloading a long video whole (Warn first),
+ * or what was done about the download limit instead; then what to do: start, one item whatever the mode, saying what
+ * it does there, or stop (the entire video and a part of it as items of their own would go against what Live and Full
+ * are); the Mode this viewer transcribes in and Auto transcribe, whether it starts by itself (both this viewer's own);
  * and a part transcribed again (its two times typed), or the whole transcript forgotten, which asks in place. The panel stands under its
  * button, closes on a press outside or Escape, and is this file's alone; what each item does is the strip's
  * (`content/youtube.tsx`).
@@ -35,14 +33,14 @@ import { logText, timeOfDay, wholeSeconds, type LogPart, type TranscribeDetail, 
 export type Seconds = { start: number; end: number };
 
 /**
- * Panki AI's part of the menu (AI step 6, A of the owner's preview, Sections): its head once it has run, and the
+ * Panki AI's part of the menu: its head once it has run, and the
  * question before a run over the account's Ask before a run is over (`head`); Proofread the entire video (`whole`, its
  * own button, in its `TemplateMenu` once the account has two templates); and Proofread a part, typed as Re-transcribe's
  * From and To, widened to whole lines. The strip runs it all; the menu only lays it out.
  */
 export type AiPart = {
   head: ReactNode;
-  /** The head is there (a run has been made): it is the part's heading, its name at the left, and the label gives way (the owner, 2026-11-03: "having Panki AI twice there is kinda wack"). */
+  /** The head is there (a run has been made): it is the part's heading, its name at the left, and the label gives way, so Panki AI isn't named twice. */
   headed: boolean;
   whole: ReactNode;
   part: { disabled: boolean; why: string | null; widen: (stretch: Seconds) => Seconds | null; costOf: (stretch: Seconds) => string | null; onRun: (stretch: Seconds) => void };
@@ -73,8 +71,7 @@ type Props = {
   ai: AiPart | null;
   /** Edit the transcript (AI step 6): the rows under the player open for editing until Done; none where they can't be. */
   editing: { on: boolean; disabled: boolean; why: string | null; onToggle: () => void } | null;
-  // Whether this video counted toward the watch time (Immersion / Just watching) was a row here until the owner had it
-  // out, 2026-10-21: Panki's own on / off switch is what says whether a video is noted.
+  // Whether a video is noted toward the watch time is Panki's own on / off switch, not a row here.
 };
 
 /** A part to transcribe again starts as this much of the video from where the viewer is. Seconds. */
@@ -100,7 +97,7 @@ const downloadOf = (state: TranscribeState): WholeJob | null => (state.transcrip
 export function statusWords(status: TranscribeStatus): { words: string; live: boolean } | null {
   switch (status.kind) {
     case "loading":
-      // A run begun, its silent player not up yet: "Preparing" (the owner's word, 2026-10-18).
+      // A run begun, its silent player not up yet: "Preparing".
       return { words: status.run ? "Preparing…" : "Loading…", live: true };
     case "running":
       return { words: `Transcribing · until ${clock(status.to)}`, live: true };
@@ -120,21 +117,20 @@ export function statusWords(status: TranscribeStatus): { words: string; live: bo
       return null;
   }
 }
-/** What the one item that starts it says: Transcribe, chunks following the viewer wherever they go (the owner, 2026-10-20: not "from here"); the entire video under Full; or to start over what stopped it. */
+/** What the one item that starts it says: Transcribe, chunks following the viewer wherever they go (never "from here"); the entire video under Full; or to start over what stopped it. */
 export function startWords(status: TranscribeStatus, way: TranscribeMode | null): string {
   if (status.kind === "blocked" || status.kind === "failed") return "Try again";
   return way === "full" ? "Transcribe the entire video" : "Transcribe";
 }
 
 /**
- * The button is the status (the owner, 2026-10-17: "whether it's transcribing, standing by on lead, turned off… the
- * button should lightly light in different colours based on status, maybe a small dot"): a word, and a look that
- * tints it and colours its dot. Going, in the accent with the dot breathing; ready (standing by at the lead, or the
+ * The button is the status (transcribing, standing by at the lead, off…): a word, and a look that lightly tints it and
+ * colours its small dot. Going, in the accent with the dot breathing; ready (standing by at the lead, or the
  * whole video done) in the good colour; trouble in the danger colour; nothing going, plain.
  */
 type Look = "loading" | "going" | "ready" | "quiet" | "trouble";
 const LOOKS: Record<TranscribeStatus["kind"], { words: string; look: Look }> = {
-  // The first moments of a video, before it can be said how it stands: plain, the dot breathing (the owner, 2026-10-18).
+  // The first moments of a video, before it can be said how it stands: plain, the dot breathing.
   loading: { words: "Loading", look: "loading" },
   running: { words: "Transcribing", look: "going" },
   held: { words: "Standing by", look: "ready" },
@@ -147,10 +143,9 @@ const LOOKS: Record<TranscribeStatus["kind"], { words: string; look: Look }> = {
   signedOut: { words: "Signed out", look: "trouble" },
 };
 /**
- * The button's word and look: a run begun whose silent player isn't up yet says so (the owner, 2026-10-19); a video not
- * downloaded for being over the download limit says that. How it's being transcribed (the entire video downloading,
- * chunks, or both) is never on the button, only that it is (the owner, 2026-10-20: "I don't want the button to show what
- * method it's using"); the menu and its Details say how, and how long a download has left.
+ * The button's word and look: a run begun whose silent player isn't up yet says so; a video not downloaded for being
+ * over the download limit says that. How it's being transcribed (the entire video downloading, chunks, or both) is
+ * never on the button, only that it is; the menu and its Details say how, and how long a download has left.
  */
 function chipOf(state: TranscribeState): { words: string; look: Look } {
   const { status } = state;
@@ -162,7 +157,7 @@ function chipOf(state: TranscribeState): { words: string; look: Look } {
 /**
  * The entire video being transcribed by the engine (downloaded and transcribed at once, on its side), with about how
  * long it has left as measured so far, in brackets: "transcribing the entire video in the background (~40 s left)", and
- * once it's taking longer than that, the seconds over, counting: "(-3 s)" (the owner's words, 2026-10-20).
+ * once it's taking longer than that, the seconds over, counting: "(-3 s)".
  */
 function entireWords(state: TranscribeState): string {
   const words = "transcribing the entire video in the background";
@@ -197,7 +192,7 @@ const STAGE_WORDS: Record<SilentStage, (r: SilentReport) => string> = {
 /**
  * What's happening this moment, in one line: with chunks, what the hidden player is doing (recording, or held, loading
  * and the rest) and what's at the engine, "Recording from 3:12 to 3:40, transcribing from 3:00 to 3:12", each half
- * left out when it isn't happening (the owner, 2026-10-20). The line outside Details keeps "Transcribing · until 3:40".
+ * left out when it isn't happening. The line outside Details keeps "Transcribing · until 3:40".
  */
 function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
   const { status, settings } = state;
@@ -223,7 +218,7 @@ function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
       return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
     }
     case "done": {
-      // Done by the whole video: how long that took, in place of the row it had (the owner, 2026-10-20).
+      // Done by the whole video: how long that took, in place of the row it had.
       const job = state.transcript?.job;
       return job?.state === "done" && job.endedAt !== null ? `Video transcribed in ${tookWords((job.endedAt - job.askedAt) / 1000)}` : "Everything is transcribed";
     }
@@ -290,12 +285,12 @@ function Details({ state, detail, live }: { state: TranscribeState; detail: () =
   if (run && settings && !state.redoing) {
     const lead = settings.lead * 60;
     const over = run.ahead - lead;
-    // Past the lead only to finish the chunk being recorded, which is the last before it holds (the owner, 2026-10-20).
+    // Past the lead only to finish the chunk being recorded, which is the last before it holds.
     const past = run.wrapping ? ` · reached, finishing the final chunk (${clock(over)} over)` : over >= 1 ? ` · reached (${clock(over)} over)` : "";
     rows.push(["Lead", run.ahead >= 0 ? `${clock(run.ahead)} ahead of you, max ${clock(lead)}${past}` : `${clock(-run.ahead)} behind you`]);
   }
-  // Where the ramp stands: the length a pause may close the chunk being recorded at (the owner's name, 2026-10-20), and
-  // the longest it can be, cut where it stands once nobody has paused for the wait past it.
+  // Where the ramp stands: the length a pause may close the chunk being recorded at (Target chunk length), and the
+  // longest it can be, cut where it stands once nobody has paused for the wait past it.
   if (silent?.chunk != null && settings) {
     const target = Math.round(silent.chunk);
     rows.push(["Target chunk length", `${target} s (${target + settings.pauseWait} s max)`]);
@@ -364,8 +359,8 @@ function Log({ state }: { state: TranscribeState }) {
 }
 
 /**
- * How much of the video is transcribed, and what share of it, green once it's all: "6m15s transcribed (35%)" (the owner,
- * 2026-10-20); or that nothing is yet. The share is rounded down, so 100% is only ever all of it.
+ * How much of the video is transcribed, and what share of it, green once it's all: "6m15s transcribed (35%)"; or that
+ * nothing is yet. The share is rounded down, so 100% is only ever all of it.
  */
 function Covered({ state, duration }: { state: TranscribeState; duration: number | null }) {
   const ms = state.transcript?.covered.reduce((sum, stretch) => sum + (stretch.endMs - stretch.startMs), 0) ?? 0;
@@ -406,8 +401,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
     if (!open) setAsking(null);
   }, [open]);
   // A video over the length limit flags the button until the menu is opened on it while it's so (the question waiting
-  // in it, or the limit said): the menu never opens by itself for it (it did, until the owner had the flag instead,
-  // 2026-10-20: "it opens this window automatically").
+  // in it, or the limit said): the menu never opens by itself for it, the flag says it instead.
   const [seenOn, setSeenOn] = useState<string | null>(null);
   useEffect(() => {
     if (open && state.limitPending && state.videoId) setSeenOn(state.videoId);
@@ -495,7 +489,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
                   Transcribe
                 </Button>
                 {/* No to the entire video: under Hybrid the chunks go on, which is what saying no comes to there, said so anyone
-                    gets it ("Chunks only" didn't, the owner, 2026-10-20), with Live's own icon, since that's what's left. */}
+                    gets it ("Chunks only" wouldn't), with Live's own icon, since that's what's left. */}
                 <Button variant="ghost" onClick={() => onAnswer(false)}>
                   {decided?.mode === "hybrid" ? <Icon name="lead" /> : null}
                   {decided?.mode === "hybrid" ? "Only what I watch" : "Cancel"}
@@ -521,7 +515,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
               ) : null}
             </p>
           ) : null}
-          {/* Three parts, each named (AI step 6, A of the owner's preview, Sections): Panki AI, the transcript, the settings. Step 7's rules (proofreading by itself, transcribing's own) land as rows under Settings, the parts above them unmoved. */}
+          {/* Three parts, each named: Panki AI, the transcript, the settings. Step 7's rules (proofreading by itself, transcribing's own) land as rows under Settings, the parts above them unmoved. */}
           {ai && hasAny ? (
             <div className="strip-menu-items">
               {ai.headed ? null : (
@@ -572,7 +566,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
                   {refusedHere ? <span className="strip-menu-why">not allowed over the limit</span> : null}
                 </Button>
               ) : null}
-              {/* Editing by hand made plain (the owner, 2026-11-03: "I have no clue how to edit it myself"): the rows open for editing until Done. */}
+              {/* Editing by hand made plain, so it can be found: the rows open for editing until Done. */}
               {editing && hasAny ? (
                 <Button variant="item" aria-pressed={editing.on} disabled={editing.disabled} onClick={() => done(editing.onToggle)}>
                   <Icon name={editing.on ? "check" : "edit"} />
@@ -580,7 +574,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
                   {editing.why ? <span className="strip-menu-why">{editing.why}</span> : null}
                 </Button>
               ) : null}
-              {/* A part is transcribed again, never forgotten on its own (the owner, 2026-10-20). */}
+              {/* A part is transcribed again, never forgotten on its own. */}
               {hasAny && canStart ? (
                 <Button variant="item" aria-pressed={asking === "redo"} onClick={() => ask("redo")}>
                   <Icon name="again" />
@@ -626,7 +620,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
                     label: TRANSCRIBE_MODES[id].name,
                     icon: MODE_ICONS[id],
                     disabled: !on.includes(id),
-                    // Which one is everyone's default isn't said here (the owner, 2026-10-20: "remove the default text here").
+                    // Which one is everyone's default isn't said here.
                     ...(on.includes(id) ? {} : { note: "off" }),
                   }))}
                   onChange={onMode}
@@ -665,7 +659,7 @@ const WIDEN_MS = 250;
 /**
  * From and to, typed as times of the video ("12:34", as `parseStamp` reads them), starting from where the viewer is and
  * a few minutes on; the button says the stretch they really come to, asked a moment after they stop changing, so the
- * times typed are the times done (the owner, 2026-10-20: "it says ahead of time").
+ * stretch done is said ahead of time.
  */
 function StretchForm({ id, at, duration, action, widen, lead, beside, onDone }: StretchProps) {
   const here = Math.max(0, Math.floor(at ?? 0));

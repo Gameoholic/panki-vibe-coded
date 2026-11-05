@@ -67,8 +67,7 @@ const cornerOf = (top: boolean, left: boolean): TagCorner => (top ? (left ? "top
 
 /**
  * The stage tag in its corner of the card. On the card being laid out it's pressed to pick it, and dragged anywhere
- * on the card to settle in the corner nearest where it's let go (the owner: "it sticks to either of the 4 corners, no
- * free position"); the arrow keys on it move it a corner over. Hidden, it's still there to pick while it's laid out,
+ * on the card to settle in the corner nearest where it's let go (one of the four corners, never a free position); the arrow keys on it move it a corner over. Hidden, it's still there to pick while it's laid out,
  * faint; in a review it isn't drawn.
  */
 function StageTagSpot({ tag, edit, card, children }: { tag: StageTag; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null>; children: ReactNode }) {
@@ -154,8 +153,7 @@ type Props = {
   onListened?: () => void;
   /**
    * A press anywhere on the card but on a file's own player or a spoiler, or Enter or Space while the card has the focus.
-   * Left out, a press on it does nothing: the review turns its card by its key and Show answer alone (the owner,
-   * 2026-10-25).
+   * Left out, a press on it does nothing: the review turns its card by its key and Show back of card alone.
    */
   onPress?: (() => void) | undefined;
   /** Where a file's bytes are (`api.mediaUrl`). Left out where a card can't hold a file yet, because it isn't made. */
@@ -193,18 +191,16 @@ type Props = {
   screenKey?: Shortcut | null;
   /**
    * Whether the card takes the focus and turns at Enter and Space as a button does; off where the page's own keys turn
-   * it (the review, whose Space is Show answer's key: the owner, 2026-10-24, "space should act as the space in the
-   * keybind"). On by default.
+   * it (the review, where Space does what Keybinds set it to). On by default.
    */
   keys?: boolean;
   /**
    * "Tap to reveal" under the parts, on the front; left out where a button under the card shows the answer (the review's
-   * Show answer, which carries its key: the owner, 2026-10-21, "there's no reason for this since we already have the
-   * big blue button").
+   * Show back of card, which carries its key, makes it needless).
    */
   hint?: boolean;
   /**
-   * What switches between the card's examples (the review's arrows, 2026-10-26): drawn right after the last part of the
+   * What switches between the card's examples (the review's arrows): drawn right after the last part of the
    * example the front shows (a field that's One per example), or its last part at all, so it stands under the example
    * whatever the layout; at the card's end when none is drawn. None by default.
    */
@@ -317,8 +313,7 @@ export function ReviewCard({
   /** What the Listen phase does with a part: nothing outside it. */
   const veilOf = (part: LayoutPart): ListenShow => (inListen ? part.listen : "show");
   // The one sound or clip that shows the card by itself (its `showOnPlay`) does so the moment its play of that number
-  // begins (the owner, 2026-11-01: "it only reveals itself once it PLAYS for the second time, not when the first time
-  // finishes"). A play begins at its first start, and again from its start: after its end, or played again from it;
+  // begins (as the second play starts, not as the first one ends). A play begins at its first start, and again from its start: after its end, or played again from it;
   // paused and played on is still the one. Heard on the card itself, in the capture phase, since a media element's
   // events don't bubble: every look of every player is heard alike.
   const plays = useRef({ count: 0, ended: false });
@@ -516,7 +511,7 @@ export function ReviewCard({
   }
 
   // The examples switched (the review's arrows): each sound and clip that's One per example carries how the one being
-  // left stood (the owner, 2026-11-04). Playing, or played to its end, the next example's starts from its beginning by
+  // left stood. Playing, or played to its end, the next example's starts from its beginning by
   // itself; paused part-way, or never started, it stays still. Only where it stands on the side shown, ready to hear;
   // its "plays by itself" is for the card coming up and being turned, which a switch is neither. A part that's One per
   // card is the same file in every example, so its player is left exactly as it is. The element each field last played
@@ -567,7 +562,7 @@ export function ReviewCard({
   function words(part: LayoutPart, field: CardField, value: ReactNode, blank = false, text = String(value)) {
     const reading = readingOver(field.id);
     // What Panki AI wrote is in the AI's ink, its own field or one it corrected; a field that's its own carries the spark
-    // on its name, when the layout shows it (the owner, 2026-11-04); the spark itself stands once in the card's corner,
+    // on its name, when the layout shows it; the spark itself stands once in the card's corner,
     // never in the words.
     const ai = !blank && byAi(sources, field.id);
     const own = ai && aiOwns(sources, field.id);
@@ -789,7 +784,7 @@ export function ReviewCard({
   }
   const pressable = edit || !onPress ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
 
-  // The spark once in the card's corner while the side shown holds anything Panki AI wrote (the owner, 2026-11-04: its
+  // The spark once in the card's corner while the side shown holds anything Panki AI wrote (its
   // words in the AI's ink, the spark out of the text), in the top corner the stage tag leaves free; on a card being laid
   // out the tag stands in its corner even hidden, so the spark keeps clear of it there too, and follows it as it's moved.
   const aiShown = drawn.some((d) => !d.held && (values[d.field.id] ?? "") !== "" && byAi(sources, d.field.id));

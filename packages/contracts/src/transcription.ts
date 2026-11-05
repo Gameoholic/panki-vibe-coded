@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 /**
- * A video transcribed by an engine (the owner's decision of 2026-10-16 and 17, which set aside "nothing generated"
- * for this one thing: "YouTube's subtitles are kinda wack… AI is so good at transcribing"). Two ways, which the modes
+ * A video transcribed by an engine (the one thing "nothing generated" is set aside for: a site's own subtitles are
+ * often poor, and an engine transcribes well). Two ways, which the modes
  * below combine: the extension plays the video silently ahead of the viewer, cuts its sound into chunks where nobody is
  * speaking, and sends each chunk ("piece", in the shapes and the tables) to Panki's server, which hands it to the
  * engine and keeps the words it hears with their times; or Panki's server asks the engine to fetch the whole video
- * itself and transcribe it in one call (2026-10-20). One transcript per video, shared by every account; the settings
+ * itself and transcribe it in one call. One transcript per video, shared by every account; the settings
  * that run it are shared too, and only an admin changes them.
  */
 
@@ -23,15 +23,14 @@ export type Engine = {
   /** Who runs it, and gives the key for it. */
   vendor: string;
   /**
-   * What it costs, as its vendor lists it, never measured (the owner, 2026-10-20: "the cost estimation should come from
-   * the pricing of the model… only the time estimation comes from our data"): an hour of sound in US cents (its API,
+   * What it costs, as its vendor lists it, never measured (only how long it takes is measured): an hour of sound in US cents (its API,
    * paid in dollars; only the display turns it into dollars), and a minute of sound in the credits of a plan.
    */
   centsPerHour: number;
   creditsPerMinute: number;
 };
 export const ENGINES: Record<EngineId, Engine> = {
-  // elevenlabs.io/pricing/api, "Scribe v2… Price per hour $0.22"; elevenlabs.io/pricing, "Speech to Text 330 credits per minute" (read 2026-10-20).
+  // elevenlabs.io/pricing/api, "Scribe v2… Price per hour $0.22"; elevenlabs.io/pricing, "Speech to Text 330 credits per minute".
   elevenlabs: { name: "ElevenLabs Scribe v2", vendor: "ElevenLabs", centsPerHour: 22, creditsPerMinute: 330 },
 };
 
@@ -46,11 +45,8 @@ export type TranscribeSpeed = z.infer<typeof TranscribeSpeed>;
 
 /**
  * The language a video is transcribed in, told to the engine with each piece (ISO 639-3, as ElevenLabs takes it), one
- * registry. Each account's own (`Settings.language`, English to begin with): it was an admin's setting for everyone
- * from 2026-10-18 ("treat it as Japanese… make it a setting") until the owner made it each account's alone on
- * 2026-10-21. Before the 18th the engine was asked what it heard for a run's first pieces, and a video it heard surely
- * as another language stopped transcribing ("Not Japanese"); that check is gone, and a video is transcribed in the
- * language of whoever asks.
+ * registry. Each account's own (`Settings.language`, English to begin with): a video is transcribed in the language of
+ * whoever asks, told to the engine, never asked of it.
  */
 export const TranscribeLanguage = z.enum(["jpn", "eng", "cmn", "kor", "spa", "fra", "deu", "por", "ita", "rus"]);
 export type TranscribeLanguage = z.infer<typeof TranscribeLanguage>;
@@ -69,14 +65,11 @@ export const TRANSCRIBE_LANGUAGES: Record<TranscribeLanguage, string> = {
 };
 
 /**
- * How a video is transcribed (the owner, 2026-10-19 and 20, on the plan page https://claude.ai/artifact/Ewy5PU1JTWAgPFABVGwt2V,
- * after a 16-minute video came back whole in 41 s): the engine fetching the whole video itself, in one call (Full);
- * chunks heard by a hidden player running ahead of the viewer, as it was done until then (Live); or chunks while the
- * whole video is transcribed in the background, whose transcript then replaces them (Hybrid). One registry; the names
- * are the owner's (they were All at once, As you watch and Head start for a day). An admin sets the mode everyone starts
- * on and can switch the others off; a viewer picks among those left, in the strip's menu. (Auto, Hybrid within the
- * length limit and Live past it, went the same day at the owner's word, Hybrid asking over the limit making it
- * redundant: "remove auto completely"; a stored "auto" reads as nothing.)
+ * How a video is transcribed (a 16-minute video comes back whole in 41 s): the engine fetching the whole video itself,
+ * in one call (Full); chunks heard by a hidden player running ahead of the viewer (Live); or chunks while the whole
+ * video is transcribed in the background, whose transcript then replaces them (Hybrid). One registry. An admin sets the
+ * mode everyone starts on and can switch the others off; a viewer picks among those left, in the strip's menu. A stored
+ * "auto", a mode that's gone, reads as nothing.
  */
 export const TranscribeMode = z.enum(["full", "live", "hybrid"]);
 export type TranscribeMode = z.infer<typeof TranscribeMode>;
@@ -88,7 +81,7 @@ export const TRANSCRIBE_MODES: Record<TranscribeMode, { name: string }> = {
 };
 
 /** What's done about a whole-video download for a video longer than the download limit: it goes ahead, it isn't done, or the viewer is asked first. */
-/** In the order they're offered, left to right: from the most free to the strictest (the owner, 2026-10-21). */
+/** In the order they're offered, left to right: from the most free to the strictest. */
 export const OverLimit = z.enum(["allowed", "warn", "notAllowed"]);
 export type OverLimit = z.infer<typeof OverLimit>;
 export const OVER_LIMIT_IDS = OverLimit.options;
@@ -100,17 +93,13 @@ export const PAUSE_WAIT_MAX = 60;
 
 /**
  * The settings that run transcribing, for everyone; changed only by an admin: what it costs and what the engine hears.
- * It always starts from where the viewer is, the moment the video plays ("Starts after" and "Starts from" were
- * settings until the owner cut them, 2026-10-17: "if I open a video, it means I want to watch it", and "there's no
- * situation in which I'd want to start from the beginning"). What's the viewer's own is the extension's, kept in the
- * browser, not a setting here: where the words come from ("Until Panki catches up" was one, replaced the same day),
- * and, since later that day ("any option that's client side"), whether it starts by itself or at a press, whether the transcript replaces the site's captions on the picture, and which of the modes
- * left on they use. A stored value for a setting that's gone reads as nothing; one for a setting that's new reads as its
- * default.
+ * It always starts from where the viewer is, the moment the video plays: a video opened is a video to watch, and
+ * there's no reason to start from its beginning. What's the viewer's own is the extension's, kept in the browser, not a
+ * setting here: where the words come from, whether it starts by itself or at a press, whether the transcript replaces
+ * the site's captions on the picture, and which of the modes left on they use. A stored value for a setting that's gone
+ * reads as nothing; one for a setting that's new reads as its default.
  *
- * How the sound is cut into chunks became settings again on 2026-10-20, at the owner's word on the plan page (they had
- * three such lengths here for an hour on 2026-10-17 and took them out then: "invisible to the user"): the first chunk
- * short, so the first words come quickly, each next one longer up to the chunk length, a chunk closed at the first pause
+ * How the sound is cut into chunks is set here too: the first chunk short, so the first words come quickly, each next one longer up to the chunk length, a chunk closed at the first pause
  * past its length or cut where it stands after the wait, and long stretches with no speech skipped. The rest of the
  * cutter's tuning stays the extension's (`transcribe/pieces.ts` → `CUT`, documented there).
  */
@@ -123,19 +112,19 @@ export const Transcription = z.object({
   /** How far ahead of the viewer the chunks go before waiting for them, in minutes. */
   lead: z.number().int().min(1).max(180),
   /**
-   * While the viewer's video is paused, the chunks keep filling the lead or stop at once: an admin's since 2026-10-27
-   * (the owner: "should be an admin setting"), the viewer's own on the extension's options page before.
+   * While the viewer's video is paused, the chunks keep filling the lead or stop at once: an admin's setting, since
+   * what the chunks run over is paid for.
    */
   paused: TranscribePaused,
   engine: EngineId,
-  // The language every video was told in was here until 2026-10-21; it's each account's own now (`Settings.language`).
+  // The language a video is told in is each account's own (`Settings.language`), not a setting here.
   /** The mode everyone starts on, until a viewer picks another. Never switched off (`modesOn`). */
   mode: TranscribeMode,
   /** The modes switched off for everyone; one that's gone since (Auto) read as nothing. */
   modesOff: z.preprocess((value) => (Array.isArray(value) ? value.filter((mode) => TRANSCRIBE_MODE_IDS.some((id) => id === mode)) : value), z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length)),
   /**
    * Seconds of a video the viewer watches (played, on that visit) before the entire video is transcribed by itself, so
-   * a video opened and left at once costs nothing (the owner, 2026-10-21); 0 is at once. A press on Transcribe doesn't wait.
+   * a video opened and left at once costs nothing; 0 is at once. A press on Transcribe doesn't wait.
    */
   wholeAfter: z.number().int().min(0).max(600),
   /** Minutes: a video longer than this is over the download limit, for the whole-video download. */
@@ -152,8 +141,7 @@ export const Transcription = z.object({
   /** Long stretches with no speech aren't sent to the engine. */
   skipSilence: z.boolean(),
   /**
-   * Whether anyone can fix a transcript by hand, a word or a line (the owner, 2026-10-27: "an admin setting… it's
-   * global"): each video has one transcript for everyone, so a fix is everyone's. Off, the API refuses a fix.
+   * Whether anyone can fix a transcript by hand, a word or a line, an admin's setting: each video has one transcript for everyone, so a fix is everyone's. Off, the API refuses a fix.
    */
   fixes: z.boolean(),
 });
@@ -162,8 +150,7 @@ export type Transcription = z.infer<typeof Transcription>;
  * The chunks run only three minutes ahead: whatever the hidden player has run ahead over is paid for, and a video left
  * early stops it, so the lead is all a quit video costs (about a cent of sound, where ten minutes is about four). At 4×
  * the lead fills at three minutes of video a minute. The chunks: 3 s, each next 1.5× the last (4.5, 7, 10, 15, 23, 34),
- * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest (the owner's numbers,
- * 2026-10-20 and 21; it was 45 s for every piece, cut at 75 s, until the 20th's morning). A video over half an hour
+ * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest. A video over half an hour
  * asks before it's transcribed whole.
  */
 export const DEFAULT_TRANSCRIPTION: Transcription = {
@@ -198,11 +185,10 @@ export const overDownloadLimit = (settings: Pick<Transcription, "downloadLimit">
 export const nextChunk = (settings: Pick<Transcription, "chunkGrowth" | "chunkLength">, seconds: number): number => Math.min(settings.chunkLength, seconds * settings.chunkGrowth);
 
 /**
- * How long transcribing takes, as measured on this engine's own downloads and chunks of the last 30 days (the owner,
- * 2026-10-19: "based on previous data, so it's not just an estimation that you hard code"), each the middle of what was
- * measured; null where nothing has been yet. Time alone: what it costs, in dollars and in credits, is the engine's
- * listed price (`ENGINES`), never measured (the owner, 2026-10-20; the credits measured across a download read 0, the
- * engine's count moving a while after the call).
+ * How long transcribing takes, as measured on this engine's own downloads and chunks of the last 30 days, never a
+ * number written in the code, each the middle of what was measured; null where nothing has been yet. Time alone: what
+ * it costs, in dollars and in credits, is the engine's listed price (`ENGINES`), never measured (the credits measured
+ * across a download can read 0, the engine's count moving a while after the call).
  */
 export const TranscribeEstimate = z.object({
   /** The whole-video downloads it was read from. */
@@ -219,8 +205,8 @@ export type TranscribeEstimate = z.infer<typeof TranscribeEstimate>;
 /**
  * The settings as they stand, whose key the chosen engine has (typed in Settings, the server's own from its
  * environment, or none), and that key as it is when it was typed in Settings and an admin is asking (`saved`; left out
- * for anyone else, and the server's own is never shown). How much sound has gone to engines is the usage ledger's since
- * 2026-10-30 (`UsageReport`); a tally of seconds stood here until then.
+ * for anyone else, and the server's own is never shown). How much sound has gone to engines is the usage ledger's
+ * (`UsageReport`).
  */
 export const TranscriptionStatus = z.object({
   settings: Transcription,
@@ -234,8 +220,7 @@ export type TranscriptionStatus = z.infer<typeof TranscriptionStatus>;
 export const TranscriptionResponse = z.object({ transcription: TranscriptionStatus });
 
 /**
- * The engine's account as the engine tells of it, for an admin to see in Settings (the owner, 2026-10-17: "how many
- * credits I have left, how much top up, my plan"): the plan's name and standing, the credits used of the period's
+ * The engine's account as the engine tells of it, for an admin to see in Settings: the plan's name and standing, the credits used of the period's
  * limit and when they reset, and what pay-as-you-go use has come to so far this period, in the account's currency.
  * Read from ElevenLabs' `GET /v1/user/subscription` (`tier`, `status`, `character_count`, `character_limit`,
  * `next_character_count_reset_unix`, `current_overage`); another engine fills the same shape from its own.
@@ -275,8 +260,7 @@ export const TranscriptLineMark = z.object({ wordId: z.number().int(), mark: Lin
 export type TranscriptLineMark = z.infer<typeof TranscriptLineMark>;
 
 /**
- * Who made a word's latest edit (AI step 6): a person by hand, or Panki AI's Proofread. Whichever came later wins (the
- * owner, 2026-11-03); an AI edit undone stands aside and the word reads as it did before it.
+ * Who made a word's latest edit: a person by hand, or Panki AI's Proofread. Whichever came later wins; an AI edit undone stands aside and the word reads as it did before it.
  */
 export const WordFixBy = z.enum(["hand", "ai"]);
 export type WordFixBy = z.infer<typeof WordFixBy>;
@@ -313,9 +297,9 @@ export const WHOLE_MAX_MS = 12 * 60 * 60 * 1000;
 /**
  * A video downloaded whole by the engine and transcribed in one call (Full, and Hybrid behind its chunks): asked for
  * once, never cancelled (it's paid for as it starts), and when it's done its words replace everything the video had,
- * chunks and hand fixes alike (the owner, 2026-10-20: "the latest one overwrites"). `askedAt` and `endedAt` are Panki's
+ * chunks and hand fixes alike, the latest one overwriting. `askedAt` and `endedAt` are Panki's
  * clock; `lengthMs` is the video's length as the extension read it off the player. Done, `words` is how many it heard
- * and `replaced` how many chunks stood aside for it; failed, `message` says why, in the owner's words.
+ * and `replaced` how many chunks stood aside for it; failed, `message` says why, in plain words.
  */
 export const WholeJob = z.object({
   id: z.string(),
@@ -336,7 +320,7 @@ export type WholeAsk = z.infer<typeof WholeAsk>;
  * A video's transcript as Panki keeps it: every word still standing, in the video's order, and the stretches of the
  * video that have been transcribed (`covered`, merged), so the extension knows where to go on from. `language` is the
  * language it was last transcribed in, as the engine was told (ISO 639-3, "jpn"); null until a piece heard words. It
- * decides nothing (it once did, while the engine was asked; 2026-10-18). `job` is the video's latest whole-video
+ * decides nothing. `job` is the video's latest whole-video
  * download, under way or ended; null when it was never downloaded whole. A video never transcribed is an empty
  * transcript, never an error.
  */
@@ -354,8 +338,7 @@ export const TranscriptResponse = z.object({ transcript: Transcript });
 export const PieceId = z.uuid();
 const MB = 1024 * 1024;
 /**
- * The longest piece's sound: the longest a chunk can be set to with the longest wait for a pause, and some slack. It
- * was 30 seconds while a piece was a sentence or so (until 2026-10-17), then 90 while every piece was cut at 75.
+ * The longest piece's sound: the longest a chunk can be set to with the longest wait for a pause, and some slack.
  */
 export const PIECE_MAX_MS = (CHUNK_LENGTH_MAX + PAUSE_WAIT_MAX + 5) * 1000;
 /** The most a piece's sound may weigh: 16-bit samples at the rate the engine listens at (16 kHz), for that long, with room. */
@@ -367,7 +350,7 @@ export const PIECE_MIME = "audio/wav";
  * What's said of a piece beside its sound, in the address of its PUT: the stretch of the video it accounts for
  * (`start` to `end`); and where in it the sound sent begins (`sound`, `start` when left out: the quiet before it was
  * listened through and had nothing to send, so it counts as heard; `sound` at `end` is a stretch of nothing at all,
- * sent with no sound). (`check`, whether the engine was to say what language it heard, went with the check, 2026-10-18.)
+ * sent with no sound).
  */
 export const PieceMeta = z
   .object({
@@ -394,15 +377,14 @@ export const PieceResponse = z.object({ transcript: Transcript, engineMs: z.numb
 export type PieceResponse = z.infer<typeof PieceResponse>;
 
 /**
- * A transcript forgotten, "to start from scratch" (the owner, 2026-10-17): a stretch of the video, in ms, or the whole
+ * A transcript forgotten, to start from scratch: a stretch of the video, in ms, or the whole
  * of it ({}). What's there stands aside, never deleted, and the stretch is transcribed afresh when a run passes it.
  */
 export const TranscriptForget = z.union([Stretch.refine((stretch) => stretch.endMs > stretch.startMs, { message: "A stretch ends after it begins." }), z.object({}).strict()]);
 export type TranscriptForget = z.infer<typeof TranscriptForget>;
 
 /**
- * A part of a video transcribed again, in chunks (the owner, 2026-10-20: "Re-transcribe a part", in place of forgetting
- * one): its id, minted by the extension, and the stretch asked for, in ms. Its pieces are kept out of the transcript as
+ * A part of a video transcribed again, in chunks (Re-transcribe a part, in place of forgetting one): its id, minted by the extension, and the stretch asked for, in ms. Its pieces are kept out of the transcript as
  * they come (`PieceMeta.redo`), and the transcript doesn't change until the whole part is in; then, at once, what
  * stood over the stretch stands aside and the new pieces stand in its place. Nothing is deleted.
  */
@@ -436,10 +418,9 @@ export type TranscriptFix = z.infer<typeof TranscriptFix>;
 export const LINE_FIX_WORDS_MAX = 400;
 export const LINE_FIX_TEXT_MAX = 2000;
 /**
- * A line of the transcript fixed by hand, with the pencil at the end of its row (the owner, 2026-10-19, on finding a
- * word could be fixed only by double-clicking it: "maybe add a pencil icon somewhere to enter edit for that specific
- * sentence"): its words, in order, what the line says now, and where it now starts and ends, in ms (the owner, the
- * next day: "I should be able to also change the timestamps"). The typed words are laid back onto the line's own
+ * A line of the transcript fixed by hand, with the pencil at the end of its row (a whole line at once, where a
+ * double-click fixes one word): its words, in order, what the line says now, and where it now starts and ends, in ms,
+ * so its times can be changed too. The typed words are laid back onto the line's own
  * (`realignLine`), each keeping its place in the line as the ends move; every word changed is a fix kept beside the
  * engine's, never over it.
  */

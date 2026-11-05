@@ -16,8 +16,7 @@ export const CardValues = z.record(CardFieldId, z.string().trim().max(VALUE_MAX)
 
 /**
  * What the extension knew as it made a card or an example, beyond its source's own, so a backfill can do later what
- * wasn't thought of then (the owner, 2026-10-28: "I want to save all the data we can, so if something arises and I
- * want to add a backfill it's possible"). How it was taken (`caption`: words picked on the line under a video, whichever
+ * wasn't thought of then: all the data there is, kept. How it was taken (`caption`: words picked on the line under a video, whichever
  * subtitles it was; `stretch`: a stretch of a video with no words picked; `selection`: a page's selected words); which
  * subtitles the line was (`panki`: Panki's transcript, `youtube`: the site's own captions); whether the clip's ends
  * were put by hand rather than where its words put them; the picked word's own stretch of the video (ms of its own
@@ -56,7 +55,7 @@ export const CardSource = z.object({
   /** Where in the video the line began and ended, in ms of the video's own time. */
   startMs: z.number().int().nonnegative().optional(),
   endMs: z.number().int().nonnegative().optional(),
-  /** Whose the video is, as the page showed it: the channel's name and its address (the owner, 2026-10-17: the source is the video's link and name, and the channel's). */
+  /** Whose the video is, as the page showed it: the channel's name and its address (a source is the video's link and name, and the channel's). */
   channel: z.object({ name: z.string().trim().max(100), url: z.string().trim().max(2000).regex(/^https?:\/\//i) }).optional(),
   client: ClientName,
   capture: CaptureFacts.optional(),
@@ -64,10 +63,10 @@ export const CardSource = z.object({
 export type CardSource = z.infer<typeof CardSource>;
 
 /**
- * Where a value came from (AI step 3; the owner, 2026-10-30: "separate the AI generated stuff from the true data"): the
- * owner (typed, picked or uploaded by hand), the subtitles or the page (which subtitles, on a video), the dictionaries
+ * Where a value came from, so what AI made is kept apart from the true data: `owner` (typed, picked or uploaded by
+ * hand), the subtitles or the page (which subtitles, on a video), the dictionaries
  * (which), the video (recorded off it, or its link), Forvo, or Panki AI (which action, on which model), the spark drawn
- * wherever it's shown. The names are Prompt context's sources (`pieces.ts` → `PieceSource`), plus the owner. A whole
+ * wherever it's shown. The names are Prompt context's sources (`pieces.ts` → `PieceSource`), plus `owner`. A whole
  * value has one: the field is one string, so the spark says "the AI wrote this field", never which part of it.
  */
 export const ValueSource = z.discriminatedUnion("by", [
@@ -84,14 +83,14 @@ export const ValueSource = z.discriminatedUnion("by", [
     /**
      * Whether it corrected a field the card fills otherwise (a Touch up proposal accepted on a Meaning, a Reading, a
      * Sentence…), rather than writing a field only Panki AI fills (its Explanation and Example sentences). Left out, it's
-     * the second, as every value kept before this was told (the owner, 2026-11-04: both are in the AI's ink, but only the
-     * second's name carries the spark).
+     * the second, as every value kept before this was told (both are in the AI's ink, but only the second's name
+     * carries the spark).
      */
     corrected: z.boolean().optional(),
   }),
 ]);
 export type ValueSource = z.infer<typeof ValueSource>;
-/** Each value's source, by field id; a field left out is the owner's. */
+/** Each value's source, by field id; a field left out is `OWNER`'s. */
 export const ValueSources = z.record(CardFieldId, ValueSource);
 export type ValueSources = z.infer<typeof ValueSources>;
 export const OWNER: ValueSource = { by: "owner" };
@@ -99,7 +98,7 @@ export const OWNER: ValueSource = { by: "owner" };
 export const byAi = (sources: Readonly<Record<string, ValueSource>> | undefined, fieldId: string): boolean => sources?.[fieldId]?.by === "ai";
 /**
  * Whether a field is Panki AI's own, a value Touch up wrote into a field only it fills, not one it corrected: what puts
- * the spark on the field's name where the layout shows it (the owner, 2026-11-04).
+ * the spark on the field's name where the layout shows it.
  */
 export function aiOwns(sources: Readonly<Record<string, ValueSource>> | undefined, fieldId: string): boolean {
   const source = sources?.[fieldId];
@@ -107,7 +106,7 @@ export function aiOwns(sources: Readonly<Record<string, ValueSource>> | undefine
 }
 
 /**
- * A value kept before sources were (migration 40): the owner's, or, on a card the extension made, what its capture
+ * A value kept before sources were (migration 40): `OWNER`'s, or, on a card the extension made, what its capture
  * says filled the field (`CaptureFacts.fields`, the role by its id): the dictionary's (its dictionaries then), the words
  * pointed at (which subtitles), Forvo, or the video for the link and every recording. Worked out on every read, never
  * written, so nothing kept is rewritten. A value typed over a dictionary's in the drawer reads as the dictionary's: the
@@ -126,7 +125,7 @@ export function legacySourceOf(capture: CaptureFacts | null | undefined, fieldId
 export const NewCard = z.object({
   id: CardId,
   values: CardValues,
-  /** Where each value came from; a field left out is the owner's (and every value from an extension from before). */
+  /** Where each value came from; a field left out is `OWNER`'s (and every value from an extension from before). */
   sources: ValueSources.optional(),
   source: CardSource.optional(),
 });
@@ -135,7 +134,7 @@ export const NewCard = z.object({
 export const CardExampleId = z.uuid();
 
 /**
- * Another example given to a card that's already there (the owner, 2026-10-25: a word met again, in another sentence
+ * Another example given to a card that's already there (a word met again, in another sentence
  * of another video): its values in the card type's fields that are One per example (`exampleFieldsOf`), and where it
  * came from. A card's own values are its first example, kept where they always were; these are the ones after it. The
  * card's place in the SRS is never touched by one.
@@ -158,7 +157,7 @@ export const CardExample = NewCardExample.omit({ source: true, sources: true }).
 });
 export type CardExample = z.infer<typeof CardExample>;
 
-/** Changing an example: any of its values, by field id, and their sources; a field left out keeps what it has, a value sent with no source is the owner's. */
+/** Changing an example: any of its values, by field id, and their sources; a field left out keeps what it has, a value sent with no source is `OWNER`'s. */
 export const CardExampleUpdate = z.object({ values: CardValues, sources: ValueSources.optional() });
 export type CardExampleUpdate = z.infer<typeof CardExampleUpdate>;
 
@@ -166,7 +165,7 @@ export type CardExampleUpdate = z.infer<typeof CardExampleUpdate>;
 export const CardHold = z.object({ kind: HoldKind, until: z.number().int().nonnegative().nullable() });
 export type CardHold = z.infer<typeof CardHold>;
 /**
- * A card put aside by hand, from its row in its deck (the owner, 2026-10-29): suspended, until it's brought back. A
+ * A card put aside by hand, from its row in its deck: suspended, until it's brought back. A
  * bury comes from a review's answer alone, its wait being that answer's.
  */
 export const NewHold = z.object({ kind: z.literal("suspend") });
@@ -206,7 +205,7 @@ export const Card = NewCard.omit({ source: true, sources: true }).extend({
 
 /**
  * What changing a card can change: any of its values, by field id, with where each came from. A field left out keeps
- * what it has; a value sent with no source is the owner's. The rules are the type's (`cardProblems`), weighed over the
+ * what it has; a value sent with no source is `OWNER`'s. The rules are the type's (`cardProblems`), weighed over the
  * card as it would then stand.
  */
 export const CardUpdate = z.object({ values: CardValues, sources: ValueSources.optional() });
@@ -256,7 +255,7 @@ export function sourcesWithExample(type: Pick<CardType, "fields">, card: Pick<Ca
  * A living card of the account's taken from a video: where in it, its clip as its source keeps it, in ms of the
  * video's own time (a clip kept without an end is its start alone), and the card in words (its first Front field that
  * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark; `suspended`
- * one apart, to be fixed from the video (the owner, 2026-10-29), false from a Panki from before it was told.
+ * one apart, to be fixed from the video, false from a Panki from before it was told.
  */
 export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string(), suspended: z.boolean().default(false) });
 export type VideoCard = z.infer<typeof VideoCard>;
@@ -306,8 +305,8 @@ export function comparedOf(type: Pick<CardType, "fields" | "mainField">): string
 }
 
 /**
- * How a card already there, called the same, stands to one being added (the owner, 2026-10-25: "I need to know it has
- * the same word AND meaning… if it exists but is not a duplicate, a notice, something less dangerous"): the same in
+ * How a card already there, called the same, stands to one being added (a duplicate is the same word and meaning; one
+ * called the same that isn't a duplicate gets a quieter notice): the same in
  * every field compared, a duplicate; told apart by one of them; or not known yet, a field compared still empty on the
  * card being added, or nothing being added at all (`compared` null: a word looked up in the popup).
  */
@@ -335,9 +334,8 @@ export const CalledCard = z.object({
 export type CalledCard = z.infer<typeof CalledCard>;
 /**
  * The words every living card of the account is called by (its type's `wordsFieldOf`), each once: the extension marks
- * them where they stand in a video's subtitles and on pages (the owner, 2026-10-25: "highlights words that are already
- * in my cards"). `suspended`: those of them whose every card is suspended, marked in a colour of their own (the owner,
- * 2026-10-30: a suspended card's word "appears green!! … why is that?!"); none from a Panki from before.
+ * them where they stand in a video's subtitles and on pages. `suspended`: those of them whose every card is suspended,
+ * marked in a colour of their own, never as a word that's in the decks; none from a Panki from before.
  */
 export const WordsInCards = z.object({ words: z.array(z.string()), suspended: z.array(z.string()).default([]) });
 export type WordsInCards = z.infer<typeof WordsInCards>;

@@ -65,7 +65,7 @@ const isLive = (tracks: readonly MediaStreamTrack[]) => tracks.some((track) => t
 /**
  * The player's picture and sound, for one recording. Chrome's is taken afresh each time and let go after: with one kept
  * for as long as the page lived, clips came out as a file's header with nothing in it while the sound cuts beside them
- * were whole (2026-10-18), most likely its picture having stopped while its sound went on (the site changes video
+ * were whole, most likely its picture having stopped while its sound went on (the site changes video
  * without loading a new page). Firefox's is kept while its picture is live, since taking it twice would split the sound.
  */
 function capture(video: HTMLVideoElement): Captured {

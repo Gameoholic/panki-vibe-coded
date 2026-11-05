@@ -58,15 +58,12 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
 
 /**
  * A clip as a bar of time with an end to pull at each side. The bar shows the clip with a few seconds either side and
- * **stays as it is**: pulling an end never changes what the bar shows. (It was first made to close in around the clip
- * each time an end was let go; the owner: "I don't like how it resizes the clip edges every time I drag".) For more
- * room, or less, the bar's own two edges are pulled: outwards takes in more of the video on that side, inwards less;
- * and an end moved to within `NEAR` of an edge pushes that edge out by itself (the owner, 2026-10-29: the grey handles
- * move "when the white handles approach"), so pulling an end on keeps taking in more. An edge pulled in close is left
- * there until an end is moved up to it. An end goes exactly where the pointer is, or stops at the edges of words while Alt is held (a setting once made
- * stopping at words the rule and Alt the exception; the owner had it taken out on 2026-10-19, never using it); the
- * arrow keys on it move it a tenth of a second. The thin line is where the video stands; a press on the clip between
- * its ends plays it from there (the owner, 2026-10-27).
+ * **stays as it is**: pulling an end never changes what the bar shows, so the clip's surroundings never resize under
+ * a drag. For more room, or less, the bar's own two edges are pulled: outwards takes in more of the video on that
+ * side, inwards less; and an end moved to within `NEAR` of an edge pushes that edge out by itself, so pulling an end on
+ * keeps taking in more. An edge pulled in close is left there until an end is moved up to it. An end goes exactly
+ * where the pointer is, or stops at the edges of words while Alt is held; the arrow keys on it move it a tenth of a
+ * second. The thin line is where the video stands; a press on the clip between its ends plays it from there.
  */
 export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle, onHear }: Props) {
   const track = useRef<HTMLDivElement>(null);

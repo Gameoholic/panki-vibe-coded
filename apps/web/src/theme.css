@@ -1,4 +1,4 @@
-/* The look the owner chose on 2026-10-09: "A · Paper". A light neutral ground, white bordered cards, Urbanist, a quiet indigo.
+/* The look: "A · Paper". A light neutral ground, white bordered cards, Urbanist, a quiet indigo.
    Every colour in the app is a token here. `:root` is the light set; every other theme is one `[data-theme]` block
    that gives every token another value, and nothing else. Which block applies is decided in JS (src/themes.ts, and the
    inline script in index.html before first paint): "Match the device" is resolved there into `light` or `dark`, so
@@ -68,8 +68,8 @@
   --clip: var(--mid);
   --clip-soft: var(--mid-soft);
   --spoiler: color-mix(in srgb, var(--fg) 22%, var(--surface-2));
-  /* What Panki AI wrote, in its own ink wherever a value is shown (the owner, 2026-11-04): the text's colour leaning
-     to the accent, so it reads as words on any surface and is never the owner's own. Made of tokens like the three above. */
+  /* What Panki AI wrote, in its own ink wherever a value is shown: the text's colour leaning to the accent, so it
+     reads as words on any surface and is never taken for words typed by hand. Made of tokens like the three above. */
   --ai-ink: color-mix(in srgb, var(--accent) 55%, var(--fg));
   /* The room a clip fills the screen in: black, whatever the theme, as a picture is watched; and words written over a
      picture, white on it whatever the theme (the transcript over a video). */
@@ -78,8 +78,8 @@
   /* A word lit in words over a picture (the word picked, in a clip's subtitles): the theme's accent, seen through. */
   --theater-mark: color-mix(in srgb, var(--accent) 45%, transparent);
   /* What Panki marks on a video's own bar can be coloured (the extension's seekLook.ts → MARK_COLOURS): these, the same
-     whatever the theme, since they lie on a picture. A transcript's reach is yellow to begin with (the owner,
-     2026-10-17: "yellow for things that were transcribed"), the cards taken from it orange (2026-10-18). */
+     whatever the theme, since they lie on a picture. A transcript's reach is yellow to begin with, the cards
+     taken from it orange. */
   --mark-yellow: #f2c230;
   --mark-orange: #ff6b1a;
   --mark-red: #ff4d5e;
@@ -89,12 +89,12 @@
   --mark-cyan: #2fd4e8;
   --mark-green: #3ddc84;
   --mark-white: #ffffff;
-  /* A flag on a control, asking for it to be opened (the strip's button with a video over the length limit, the owner,
-     2026-10-20): amber with dark ink, the same whatever the theme, as a sign is. */
+  /* A flag on a control, asking for it to be opened (the strip's button with a video over the length limit):
+     amber with dark ink, the same whatever the theme, as a sign is. */
   --flag: #f2c230;
   --flag-ink: #12131a;
   /* A meaning Panki AI judged close (`.ai-accuracy.is-close`, Touch up's meh): a golden orange, between the flag's
-     amber and the marks' red-orange, the same whatever the theme (the owner, 2026-11-01: "just orange", not yellow). */
+     amber and the marks' red-orange, the same whatever the theme: plainly orange, never read as yellow. */
   --close: #fb8c00;
   --close-ink: #12131a;
   /* The pages the extension's explainers play on (options/explainerScenes.tsx), other people's sites in their own

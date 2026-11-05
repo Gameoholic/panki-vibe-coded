@@ -8,7 +8,7 @@ import { listDictionaries, metaFor, tagsOf, termsFor } from "./store";
  * Looking words up, in the worker. From a place in some text: every stretch from there, longest first (up to
  * `SCAN` letters, never across a stop or a space), every form each may be a changed form of (`deinflect`), and each
  * of those looked for by how it's written and by how it's read. What's found is grouped by word, best first: the
- * longest stretch, the fewest endings, the most common, the dictionary first in the owner's order.
+ * longest stretch, the fewest endings, the most common, the dictionary first in the order they're put in.
  */
 
 /** How far from the pointer a word is looked for: no real word is longer. */
@@ -91,10 +91,10 @@ type Ranked<C extends Candidate> = { term: string; reading: string; best: C; row
 
 /**
  * The words some matches are, one per written form and reading across dictionaries, best first: the longest stretch,
- * then the fewest endings undone, the most common, the dictionary first in the owner's order, the highest score. The
+ * then the fewest endings undone, the most common, the dictionary first in the order they're put in, the highest score. The
  * one way a word is chosen: the pop-up's words (`lookUp`) and the word each stretch of a split line is taken as
  * (`latticeOf`), which the marks of the words in the decks read, are both this, so the marks and the pop-up's
- * "in your decks" can't come apart (the owner, 2026-10-29: "the same function, same shared logic").
+ * "in your decks" can't come apart.
  */
 function wordsFound<C extends Candidate>(matches: readonly { candidate: C; row: TermRecord }[], meta: readonly MetaRecord[], on: ReadonlyMap<string, DictionaryRecord>): Ranked<C>[] {
   const words = new Map<string, { term: string; reading: string; best: C; rows: Map<number, TermRecord> }>();
@@ -148,7 +148,7 @@ export async function lookUp(text: string): Promise<Found[]> {
   const meta = await metaFor([...new Set(matches.map((m) => m.row.term))]);
   const tags = await tagsBy(new Set(matches.map((m) => m.row.dict)));
   const orderOf = (dict: string) => on.get(dict)?.order ?? Infinity;
-  /** A dictionary as it's named where it's shown: the owner's name for it, or its own. */
+  /** A dictionary as it's named where it's shown: the name given to it, or its own. */
   const nameOf = (dict: string) => {
     const dictionary = on.get(dict);
     return dictionary ? shownName(dictionary) : "";

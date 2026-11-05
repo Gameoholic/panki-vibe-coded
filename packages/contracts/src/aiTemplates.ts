@@ -2,8 +2,8 @@ import { AI_ACTION_IDS, DEFAULT_EXPLAIN_PROMPT, DEFAULT_PROOFREAD_PROMPT, DEFAUL
 import { taggedOf, variableOf } from "./pieces";
 
 /**
- * Panki AI's templates (AI step 5, the owner, 2026-11-01: "each account's own, plus there are default ones that we
- * cannot remove but can duplicate and edit, like SRS types"): Panki's own starters, one registry, never stored and
+ * Panki AI's templates, each account's own beside starters that can't be removed but can be copied and edited, as SRS
+ * types are: Panki's own starters, one registry, never stored and
  * read-only, copied into an account's own as SRS types' starters are (`srsStarters.ts`); which template an action's
  * button runs (`defaultTemplateIdOf`); and Ask before a run over (`ASK_OVER`). An account's own templates are its
  * database's. A new starter is one entry.
@@ -85,7 +85,7 @@ ${PLAIN_RULES}`,
 /** Panki's own starters, as templates: read-only, each with its action's follow-up. */
 export const AI_STARTERS: readonly AiTemplate[] = STARTERS.map((starter) => ({ ...starter, followUp: DEFAULT_FOLLOW_UPS[starter.action], builtin: true }));
 
-/** Every template of an action, the account's own first then Panki's, in the order each is listed (the owner, 2026-11-01: "do it like the SRS does"). */
+/** Every template of an action, the account's own first then Panki's, in the order each is listed, as SRS types are. */
 export const templatesOf = (action: AiActionId, own: readonly AiTemplate[]): AiTemplate[] => [
   ...own.filter((t) => t.action === action),
   ...AI_STARTERS.filter((t) => t.action === action),
@@ -121,10 +121,10 @@ export function copyNameOf(name: string, taken: readonly string[]): string {
 /**
  * The choices of the account's two thresholds on a run's cost, Ask before a run is over (`Settings.aiAskOverMicros`)
  * and Show the cost when a run is over (`Settings.aiShowCostOverMicros`), in order: never, then amounts in
- * micro-dollars, then always (0). A range, so the owner picks how careful (`feedback-no-lazy-presets`).
+ * micro-dollars, then always (0). A range, so how careful to be is picked, never a one-value preset.
  */
 export const ASK_OVER: readonly (number | null)[] = [null, 1_000, 10_000, 50_000, 100_000, 500_000, 0];
 /** Whether a run that can cost up to this asks first. */
 export const asksFirst = (ceilingMicros: number, askOverMicros: number | null): boolean => askOverMicros !== null && ceilingMicros > askOverMicros;
-/** Whether a run that can cost up to this has its cost shown beside it: at or over the amount (the owner, 2026-11-01: "don't display it if it's lower than X"). */
+/** Whether a run that can cost up to this has its cost shown beside it: at or over the amount, never under it. */
 export const showsCost = (ceilingMicros: number, showOverMicros: number | null): boolean => showOverMicros !== null && ceilingMicros >= showOverMicros;

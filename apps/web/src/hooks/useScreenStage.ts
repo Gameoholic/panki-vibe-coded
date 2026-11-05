@@ -1,13 +1,11 @@
 import { createContext, useEffect, useRef, useState, type RefObject } from "react";
 
 /**
- * A review whose clip fills the screen (the owner, 2026-10-25: "I usually always do them in full screen mode… a smaller
- * condensed version of the card"; "if I'm on full screen on a card, it won't exit full screen for the next card"):
+ * A review whose clip fills the screen, for reviewing in full screen throughout with the card condensed beside it:
  * the screen is filled by the whole review, not by one clip's player, so it stays filled as one card gives way to the
- * next. The card's clip takes the screen and the rest of the review stands in a rail at its right (A of
- * https://claude.ai/artifact/LJ8v6mgrDgiDhyQnh7Zpee, the owner's pick after trying it beside B, glass: "rail is
- * better"), which can be closed to leave the clip alone until the screen is next filled ("it will simply reappear if I
- * exit out of full screen and open it again"). Whether the screen is filled is this device's, kept across reviews: a
+ * next. The card's clip takes the screen and the rest of the review stands in a rail at its right, which can be closed
+ * to leave the clip alone until the screen is next filled (leaving full screen and filling it again brings the rail
+ * back). Whether the screen is filled is this device's, kept across reviews: a
  * review opened hours later fills it again, at the first key or press when the browser won't fill it unasked.
  */
 
@@ -15,8 +13,7 @@ type Kept = { full: boolean };
 const KEY = "panki.review.stage";
 const DEFAULT: Kept = { full: false };
 
-// A look and whether the card was open were kept beside `full` for a day while the owner tried a rail and glass; a
-// browser that kept them keeps them unread.
+// An older shape kept a look and whether the card was open beside `full`; a browser that kept them keeps them unread.
 function readKept(): Kept {
   try {
     const raw = localStorage.getItem(KEY);
@@ -45,8 +42,7 @@ export const ScreenStageContext = createContext<ScreenStage | null>(null);
  * The stage for a review: `place` is the review's own element, which fills the screen and stays while its cards change;
  * `present` is whether it's there (a review at its end shows its tally instead, and extra study or an answer undone
  * there brings it back). Leaving the screen filled by the browser's way (Escape) is kept as leaving it; the review
- * ending, or being left, isn't: the end's tally leaves the screen (the owner, 2026-10-26: it "looks bad in the full
- * screen view"), and the next review, or the card an Undo there brings back, fills it again. `open` is whether the rail
+ * ending, or being left, isn't: the end's tally leaves the screen (it doesn't suit the full screen view), and the next review, or the card an Undo there brings back, fills it again. `open` is whether the rail
  * is shown: closed, it stays closed until the screen is filled again.
  */
 export function useScreenStage(place: RefObject<HTMLElement | null>, present: boolean) {
@@ -77,7 +73,7 @@ export function useScreenStage(place: RefObject<HTMLElement | null>, present: bo
       setFull(now);
       // The rail closed is for this time the screen is filled: the next time, it's there again.
       if (!now) setOpen(true);
-      // Left while the review is still here: the owner's choice, kept. Gone with the review's element: not a choice.
+      // Left while the review is still here: a choice, kept. Gone with the review's element: not a choice.
       if (now) {
         filled.current = el;
         keep({ full: true });

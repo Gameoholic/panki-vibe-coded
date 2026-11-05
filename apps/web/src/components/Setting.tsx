@@ -5,14 +5,14 @@ import { PerDevice } from "./PerDevice";
 type Props = {
   /** Names the setting for the checks that drive the real UI. */
   id: string;
-  /** What it sets, in the owner's words. */
+  /** What it sets, in plain words. */
   label: string;
   /** The control that sets it: a `NumberField`, a `Segmented`, a `Toggle`. */
   control: ReactNode;
   /** One line on what it does or when it matters, when the label alone doesn't say: words, or words with a mode's chip in them. */
   why?: ReactNode;
   /**
-   * A (?) after the label, only where the owner asked for one (Each run's): its words in a hint bubble when pointed at,
+   * A (?) after the label, only where a number needs explaining (Each run's): its words in a hint bubble when pointed at,
    * under the row when pressed (`HintMark`). `about` names it for a screen reader.
    */
   hint?: { about: string; words: ReactNode };

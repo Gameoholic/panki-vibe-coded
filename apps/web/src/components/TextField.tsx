@@ -14,7 +14,7 @@ type Props = {
   type?: "text" | "password";
   lang?: string | undefined;
   autoFocus?: boolean;
-  /** Off for the owner's own words; the name and password of the sign-in, so the browser's password manager can fill them. */
+  /** Off for words typed into Panki; the name and password of the sign-in, so the browser's password manager can fill them. */
   autoComplete?: "off" | "username" | "current-password";
   /** Shown, not edited: the words of something that's only for looking at. */
   readOnly?: boolean;
@@ -28,7 +28,7 @@ type Props = {
   className?: string;
   /**
    * Drawn inside the box, before the text (the first line's, in a box of several): a mark on what the field holds, Panki
-   * AI's spark on what it wrote (the owner, 2026-10-31: in the box before the value, in the accent, not after the label).
+   * AI's spark on what it wrote (in the box before the value, in the accent, not after the label).
    */
   lead?: ReactNode;
   /** Names the field for the checks that drive the real UI. */

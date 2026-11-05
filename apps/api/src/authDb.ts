@@ -61,7 +61,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     `);
   },
   (db) => {
-    // An admin changes what everyone shares (2026-10-17): the keys, the dictionaries kept on Panki, how transcribing
+    // An admin changes what everyone shares: the keys, the dictionaries kept on Panki, how transcribing
     // runs. Nobody is one until `pnpm user:admin` says so; every change of the flag is kept with its time.
     db.exec("ALTER TABLE users ADD COLUMN admin INTEGER NOT NULL DEFAULT 0");
     db.exec(`
@@ -74,7 +74,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     `);
   },
   (db) => {
-    // Each extension and its Video tracking (2026-11-03, Settings → Extension → Data tracking): a sign-in is an
+    // Each extension and its Video tracking, for Settings → Extension → Data tracking: a sign-in is an
     // extension's from the first request it makes with the extension's header; what it last said of its switch (null:
     // never said) and when, and when a stretch watched last came on it. Every change of the switch is kept with its time.
     db.exec("ALTER TABLE sessions ADD COLUMN extension INTEGER NOT NULL DEFAULT 0");

@@ -14,8 +14,7 @@ function hexOfPaint(paint: MarkPaint): string {
 
 /**
  * A colour picked from the palette (`seekLook.ts` → `MARK_COLOURS`): a round swatch for each, the one on ringed, and a
- * last one for a colour of the viewer's own (the owner, 2026-10-19: "a custom colour wheel in case I want custom
- * colours"), rainbow until one is picked, which opens the wheel under the row; its name after them. The seek bar's
+ * last one for a colour of the viewer's own, rainbow until one is picked, which opens the wheel under the row; its name after them. The seek bar's
  * marks and the words already in the cards both pick their colour with this.
  */
 export function Swatches({ id, value, disabled, onChange }: { id: string; value: MarkPaint; disabled: boolean; onChange: (colour: MarkPaint) => void }) {

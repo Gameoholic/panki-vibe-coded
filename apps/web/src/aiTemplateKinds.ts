@@ -21,7 +21,7 @@ import { estimateWords } from "./words";
  */
 
 /**
- * Whether an action's templates choose to judge the meanings (Explain's alone: the owner, 2026-11-01). Where it isn't a
+ * Whether an action's templates choose to judge the meanings (Explain's alone). Where it isn't a
  * choice, a template always does (Touch up's every answer judges the Meaning).
  */
 export const MEANINGS_CHOICE: Record<AiActionId, boolean> = { explain: true, touchUp: false, proofread: false };
@@ -84,8 +84,8 @@ export function ceilingWords(template: Pick<AiTemplate, "action" | "prompt">, se
 /** A price per million tokens, from whole cents: "$0.10". */
 const perMillion = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
 /**
- * How Each run's number is worked out, as its (?) says it (the owner, 2026-11-01: "explaining how the number is
- * calculated briefly, because right now it seems arbitrarily small"): exactly what `ceilingWords` counts, the prompt's
+ * How Each run's number is worked out, as its (?) says it, briefly, so the number never seems
+ * arbitrarily small: exactly what `ceilingWords` counts, the prompt's
  * own words and the longest answer allowed, each at the model's listed price, and that what the variables hold comes on
  * top, which the button's own "Up to" on a page counts.
  */

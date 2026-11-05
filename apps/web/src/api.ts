@@ -97,7 +97,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Told once, by `App`, when any call finds the owner signed out; `App` then shows the sign-in screen. */
+/** Told once, by `App`, when any call finds no one signed in; `App` then shows the sign-in screen. */
 let signedOut: (() => void) | null = null;
 
 type Options = {
@@ -141,7 +141,7 @@ const EVENTS_PATH = "/api/events";
 const WATCHING_PATH = "/api/watching";
 
 export const api = {
-  /** `App` registers what happens when a call finds the owner signed out. */
+  /** `App` registers what happens when a call finds no one signed in. */
   onSignedOut: (handler: (() => void) | null) => {
     signedOut = handler;
   },

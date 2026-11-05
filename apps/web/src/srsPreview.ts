@@ -54,7 +54,7 @@ export function journey(type: SrsType): JourneyStep[] {
   return steps;
 }
 
-/** How often the owner sits down to review, for the forecast: so many sittings a day, or `ASAP` for the moment anything is due. */
+/** How often reviews are sat down to, for the forecast: so many sittings a day, or `ASAP` for the moment anything is due. */
 export const ASAP = 0;
 /** A card is asked at most this many times in one sitting (or one day, with no sittings), so rules that loop can't hang the sum. */
 const ASKS_MAX = 6;

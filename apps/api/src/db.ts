@@ -125,7 +125,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       )
     `);
     db.exec("ALTER TABLE cards ADD COLUMN deck_id TEXT REFERENCES decks(id)");
-    // Cards from before decks existed go into one deck; the name is a placeholder the owner renames.
+    // Cards from before decks existed go into one deck; the name is a placeholder, renamed like any deck's.
     const orphaned = db.prepare("SELECT COUNT(*) AS n FROM cards WHERE deck_id IS NULL").get() as { n: number };
     if (orphaned.n > 0) {
       const id = crypto.randomUUID();
@@ -189,7 +189,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
         PRIMARY KEY (card_id, field_id)
       )
     `);
-    // The starter type is what every card was until now. A placeholder the owner renames and reshapes like any other;
+    // The starter type is what every card was before card types. A placeholder, renamed and reshaped like any other;
     // every deck so far gets it, and each card's three columns become its three values. Then the columns go: the
     // text now lives in card_values, nothing is lost.
     const typeId = crypto.randomUUID();
@@ -292,7 +292,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       )
     `);
     db.exec("CREATE INDEX card_places_card_id ON card_places (card_id)");
-    // Only the settings the owner changed are stored, as JSON; the rest read as the contracts' defaults, so a new
+    // Only the settings that were changed are stored, as JSON; the rest read as the contracts' defaults, so a new
     // setting is no migration.
     db.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
     db.exec(`
@@ -304,7 +304,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
         at INTEGER NOT NULL
       )
     `);
-    // The starter types are placeholders the owner renames and reshapes like any other; every deck so far goes on the
+    // The starter types are placeholders, renamed and reshaped like any other; every deck so far goes on the
     // default one. The SQL is inlined, not shared with openDb, so this migration stays true to the schema it ran on.
     const insertType = db.prepare(`INSERT INTO srs_types (id, name, "after", grow_by, burned_name, flow, overrides, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
     const insertStage = db.prepare("INSERT INTO srs_stages (id, type_id, name, wait_n, wait_unit, position) VALUES (?, ?, ?, ?, ?, ?)");
@@ -334,11 +334,11 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE srs_types ADD COLUMN builtin TEXT");
   },
   (db) => {
-    // What a type is, in the owner's words, beside the line worked out from its stages.
+    // What a type is, in words typed for it, beside the line worked out from its stages.
     db.exec("ALTER TABLE srs_types ADD COLUMN description TEXT NOT NULL DEFAULT ''");
   },
   (db) => {
-    // How a review runs is each deck's own: only what the owner changed is stored, as JSON, with a row per change.
+    // How a review runs is each deck's own: only what was changed is stored, as JSON, with a row per change.
     db.exec("ALTER TABLE decks ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'");
     db.exec(`
       CREATE TABLE deck_settings_changes (
@@ -351,7 +351,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       )
     `);
     db.exec("CREATE INDEX deck_settings_changes_deck_id ON deck_settings_changes (deck_id)");
-    // Three settings were for every deck until now. What the owner had set there carries over to each deck, in the
+    // Three settings were for every deck before this step. What was set there carries over to each deck, in the
     // deck's words ("what comes first" was about reviews; it's now where the new cards go).
     const old = new Map((db.prepare("SELECT key, value FROM settings WHERE key IN ('newPerDay', 'first', 'newOrder')").all() as { key: string; value: string }[]).map((row) => [row.key, JSON.parse(row.value) as unknown]));
     const carried: Record<string, unknown> = {};
@@ -460,7 +460,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("UPDATE card_fields SET kind = 'media' WHERE kind IN ('audio', 'video')");
   },
   (db) => {
-    // Word audio from Forvo (2026-10-15). The account's own key, typed in Settings: one row at most, kept apart from
+    // Word audio from Forvo. The account's own key, typed in Settings: one row at most, kept apart from
     // the settings because those keep every value they had, and a key's old values are secrets. When it was set or
     // forgotten is kept; what it was is not. And every recording fetched, kept as one of the account's files, so the
     // same recording asked for again is that file, not another request to Forvo.
@@ -490,7 +490,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
   },
   (db) => {
-    // How a type's cards look in a review (2026-10-15): each field's part (front and back, size, colour, place), as
+    // How a type's cards look in a review: each field's part (front and back, size, colour, place), as
     // JSON in the card's order. Empty for every type from before, which then reads as its fields' sides always made
     // it look (contracts → `layoutOf`). Every change keeps what it was and what it became.
     db.exec("ALTER TABLE card_types ADD COLUMN layout TEXT NOT NULL DEFAULT '[]'");
@@ -506,10 +506,10 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX card_type_layout_changes_type_id ON card_type_layout_changes (type_id)");
   },
   (db) => {
-    // Dictionaries kept on Panki (2026-10-16), uploaded from Settings, to be added to the extension from its options
+    // Dictionaries kept on Panki, uploaded from Settings, to be added to the extension from its options
     // page. The row is what the zip's own index.json says it is and the hash of its bytes (so a retried upload is told
     // from another file under the same id); the zip sits beside the database, in the account's `dictionaries` folder.
-    // Removing one keeps its row with the time it went; its zip, a copy of a file the owner has, is deleted for the room.
+    // Removing one keeps its row with the time it went; its zip, a copy of a file kept elsewhere too, is deleted for the room.
     db.exec(`
       CREATE TABLE dictionary_files (
         id TEXT PRIMARY KEY,
@@ -524,14 +524,14 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
   },
   (db) => {
-    // The dictionaries kept on Panki and the Forvo key are everyone's from 2026-10-17 on (the shared store, `shared.ts`),
+    // The dictionaries kept on Panki and the Forvo key are everyone's from this step on (the shared store, `shared.ts`),
     // and the API moves each account's over at startup (`gatherShared`). A row that has been moved says so, so the
     // move runs once; the row itself stays, as every row does. Nothing writes `dictionary_files` or `forvo_key` any more.
     db.exec("ALTER TABLE dictionary_files ADD COLUMN moved_at INTEGER");
   },
   (db) => {
     // Every save of a card type that changed it (its name, its fields, its layout) keeps the whole type before and
-    // after, as `srs_type_changes` does for an SRS type (2026-10-17). Until now a field renamed, given another kind or
+    // after, as `srs_type_changes` does for an SRS type. Before this step a field renamed, given another kind or
     // made optional left no trace: only the type's name and its layout had change tables of their own, which stay.
     db.exec(`
       CREATE TABLE card_type_changes (
@@ -545,13 +545,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX card_type_changes_type_id ON card_type_changes (type_id)");
   },
   (db) => {
-    // Whose the video was, beside what it was called (2026-10-17, the owner: the source is the video's link and name
-    // and the channel's). Null for every card from before, and for a page that isn't a video's.
+    // Whose the video was, beside what it was called: a source is the video's link and name, and the channel's. Null for every card from before, and for a page that isn't a video's.
     db.exec("ALTER TABLE card_sources ADD COLUMN channel_name TEXT");
     db.exec("ALTER TABLE card_sources ADD COLUMN channel_url TEXT");
   },
   (db) => {
-    // What's said in a clip, as it was heard on the video when it was recorded (2026-10-18): its lines and when each
+    // What's said in a clip, as it was heard on the video when it was recorded: its lines and when each
     // piece of them is said, from the clip's start, as JSON (the contracts' `MediaCues`). One row a file at most,
     // written once with it and never changed, as the file itself isn't.
     db.exec(`
@@ -563,13 +562,13 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
   },
   (db) => {
-    // Where a type's cards show their stage tag, and how (2026-10-18: shown or not, its size, its corner), as JSON;
+    // Where a type's cards show their stage tag, and how (shown or not, its size, its corner), as JSON;
     // none for every type from before, which reads as the tag where it always was (contracts → `stageTagOf`). Its
     // changes are kept in `card_type_changes`, the whole type before and after.
     db.exec("ALTER TABLE card_types ADD COLUMN stage_tag TEXT");
   },
   (db) => {
-    // A card put aside by an answer that buries or suspends it (2026-10-21), kept apart from card_places so its place
+    // A card put aside by an answer that buries or suspends it, kept apart from card_places so its place
     // and its schedule stay as they were: a bury lasts until the day turns, a suspend until it's brought back from the
     // deck's list, which sets `lifted_at` (a bury brought back early has one too). The answer's sitting and the spans
     // the browser measured are kept as an answer's are; the row is never deleted.
@@ -589,14 +588,14 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX card_holds_card_id ON card_holds (card_id)");
   },
   (db) => {
-    // A bury lasts as long as its step's wait (2026-10-21, the owner: "time based… default is 24 hours"), no longer
+    // A bury lasts as long as its step's wait (24 hours to begin with), no longer
     // until the day turns. When it ends is frozen on its row as it's made, so a wait changed later moves no bury already
     // made; a suspend has none. The buries from the hours before read as ending 24 hours after they were made.
     db.exec("ALTER TABLE card_holds ADD COLUMN until INTEGER");
     db.exec("UPDATE card_holds SET until = at + 86400000 WHERE kind = 'bury'");
   },
   (db, now) => {
-    // Lesson (2026-10-21, the owner): every type's own, before the first stage, with rules of its own (`lesson`, as
+    // Lesson: every type's own, before the first stage, with rules of its own (`lesson`, as
     // JSON; none for a type from before, which reads with the ones its answers make, contracts → `defaultLesson`). It
     // takes the place of the stage that did its job in the types that come with the app (Wanikani's and Wanikani+'s
     // Lesson, Anki's Learning 1: the first, with no wait): that stage is hidden, and each card on it goes back to
@@ -625,10 +624,10 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     }
   },
   (db) => {
-    // What's watched (2026-10-21, the owner: "video tracking for stats", "remember last played timestamp", "continue
-    // watching"). A video as YouTube shows it, the latest kept: its words are the site's, not the owner's. Each stretch
-    // watched without a pause or a jump, minted by the extension so a batch sent again keeps nothing twice, stamped by
-    // the API as it comes. And what the owner said of a video: leave it out of the count, count it again, put it away
+    // What's watched: for the stats, for where a video was stopped, and to continue watching. A video as YouTube shows
+    // it, the latest kept: its words are the site's, not the account's. Each stretch watched without a pause or a jump,
+    // minted by the extension so a batch sent again keeps nothing twice, stamped by the API as it comes. And what the
+    // viewer said of a video: leave it out of the count, count it again, put it away
     // from Continue watching; what a video is now is read from its latest marks, never kept. No foreign key from a
     // stretch to its video: a stretch is kept even when its video's words never came. Forgetting the history hides
     // every stretch and mark with the time, as a deleted card is hidden; nothing is deleted.
@@ -670,9 +669,8 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX watch_marks_video_id ON watch_marks (video_id)");
   },
   (db, now) => {
-    // 29. The language videos are transcribed in became each account's own, English to begin with (the owner,
-    // 2026-10-21). An account from before that never chose one was transcribed in Japanese, everyone's language until
-    // then: it keeps Japanese, said once as a setting of its own with its change row. A new account (nothing of its own
+    // 29. The language videos are transcribed in became each account's own, English to begin with. An account
+    // from before that never chose one was transcribed in Japanese, everyone's language before this step: it keeps Japanese, said once as a setting of its own with its change row. A new account (nothing of its own
     // yet: no deck, no event, no setting, nothing watched) starts on English like the contracts say.
     const has = (table: string) => (db.prepare(`SELECT EXISTS (SELECT 1 FROM ${table}) AS yes`).get() as { yes: number }).yes === 1;
     const chosen = db.prepare("SELECT 1 FROM settings WHERE key = 'language'").get() !== undefined;
@@ -681,7 +679,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('language', ?, ?, ?)").run(JSON.stringify(null), JSON.stringify("jpn"), now);
   },
   (db, now) => {
-    // 30. Video tracking became off to begin with (the owner, 2026-10-21). An account that has already kept some watching
+    // 30. Video tracking became off to begin with. An account that has already kept some watching
     // had it on without ever saying so: it keeps it on, said once as a setting of its own with its change row, so nothing
     // it was keeping stops. Any other account reads the new default, off.
     const chosen = db.prepare("SELECT 1 FROM settings WHERE key = 'videoTracking'").get() !== undefined;
@@ -691,7 +689,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('videoTracking', ?, ?, ?)").run(JSON.stringify(null), JSON.stringify(true), now);
   },
   (db) => {
-    // 31. Videos saved for later, the account's own and never YouTube's (the owner, 2026-10-21). A row each time one is
+    // 31. Videos saved for later, the account's own and never YouTube's. A row each time one is
     // saved, with its name and channel as the page showed them; taking the save back stamps `removed_at`, never deletes,
     // and saving it again is a new row. What's saved now is every row not taken back.
     db.exec(`
@@ -707,17 +705,17 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX saved_videos_video_id ON saved_videos (video_id)");
   },
   (db) => {
-    // 32. A field can tell two cards called the same apart (the owner, 2026-10-23: a word added again with another
+    // 32. A field can tell two cards called the same apart (a word added again with another
     // meaning is no duplicate). Off for every field there is; a type's save logs it with the rest of its fields.
     db.exec("ALTER TABLE card_fields ADD COLUMN tells_apart INTEGER NOT NULL DEFAULT 0");
   },
   (db) => {
-    // 33. A video saved for later keeps its length as the page showed it when it was saved (the owner, 2026-10-24); null
+    // 33. A video saved for later keeps its length as the page showed it when it was saved; null
     // for every save from before, and for one whose page didn't show it.
     db.exec("ALTER TABLE saved_videos ADD COLUMN length_ms INTEGER");
   },
   (db) => {
-    // 34. A card can be given more examples (the owner, 2026-10-25: a word met again, in another sentence of another
+    // 34. A card can be given more examples (a word met again, in another sentence of another
     // video, goes onto the card that's already there). A field says whether it goes with an example (off for every
     // field there is). A card's own values stay where they are and are its first example; each one after is a row here
     // with its values in the fields that go with an example, where it came from as a card's source keeps it (all null
@@ -764,16 +762,16 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE card_places ADD COLUMN example_id TEXT REFERENCES card_examples(id)");
   },
   (db) => {
-    // 35. A card type's main field, picked by the owner: what its cards are called by and found by as duplicates (the
-    // owner, 2026-10-25: "make the default be no duplicates… I don't want you to assume what the main word is"). Null
-    // for every type there is, the first Front field of words having stood in for it until now; a type's save logs it.
+    // 35. A card type's main field, picked by hand: what its cards are called by and found by as duplicates. Null for
+    // every type there is, so none has duplicates until one is picked and none is assumed (the first Front field of
+    // words stood in for it before this step); a type's save logs it.
     db.exec("ALTER TABLE card_types ADD COLUMN main_field TEXT");
   },
   (db) => {
-    // 36. A video is finished as a flag kept on it (the owner, 2026-10-25: "the moment it shows finished, it's a flag set
-    // on the video… even if I go to 0:05 and then exit it will still show as finished"): a finish or an unfinish mark,
+    // 36. A video is finished as a flag kept on it, so it stays finished wherever it's watched to afterwards: a finish
+    // or an unfinish mark,
     // each kept with who made it (`source`: the viewer pressing, Panki seeing the video played into its end; every mark
-    // from before is the viewer's). Until now a video was finished while its latest stretch ended near its end. Each video
+    // from before is the viewer's). Before this step a video was finished while its latest stretch ended near its end. Each video
     // that ever reached its last 20 s (the new default) is given its finish here, as `history`, at the moment it first
     // did: nothing finished before comes back to Continue watching, and these finishes can be told from the rest later.
     db.exec("ALTER TABLE watch_marks ADD COLUMN source TEXT NOT NULL DEFAULT 'viewer'");
@@ -786,7 +784,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `).run(20_000);
   },
   (db) => {
-    // 37. An answer taken back in a review with Undo (the owner, 2026-10-26) is never deleted: its row keeps everything
+    // 37. An answer taken back in a review with Undo is never deleted: its row keeps everything
     // it had and is marked with when it was undone, as a deleted card is with `removed_at` and a hold brought back with
     // `lifted_at`. An answer also keeps the id the browser gave it, which Undo names and which keeps the same answer
     // sent again from being given twice. Every row from before has neither: none of it is undone, and nothing moves.
@@ -798,8 +796,8 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE UNIQUE INDEX card_holds_given_id ON card_holds (given_id) WHERE given_id IS NOT NULL");
   },
   (db) => {
-    // 38. Everything the extension knew as it made a card, kept for a backfill (the owner, 2026-10-28: "save all the data
-    // we can… so in the future I can re-record batch on client side"): on a card's source and an example's, what it knew
+    // 38. Everything the extension knew as it made a card, kept for a backfill (a file can be recorded
+    // again later from this alone): on a card's source and an example's, what it knew
     // beyond the source's own, as JSON (the contracts' `CaptureFacts`); and how each file was recorded off a video, a row
     // a file (`MediaRecording`). Each is written once with what it's about and never changed. Every row from before has
     // none: what wasn't kept then isn't made up now.
@@ -825,7 +823,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
   },
   (db) => {
-    // 39. Listen first (the owner, 2026-11-01: "understanding by hearing matters more"): a card type can open its cards
+    // 39. Listen first, since understanding by hearing matters more: a card type can open its cards
     // on a Listen phase before the front, its sounds and clips heard while the rest is blurred. Whether a type does, and
     // after how many hearings the card shows itself, as JSON (`ListenFirst`); none for every type there is, which reads
     // as off (contracts → `listenFirstOf`). An answer, and a card put aside, keep the seconds the card was listened to
@@ -837,18 +835,18 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("ALTER TABLE review_sessions ADD COLUMN left_phase TEXT");
   },
   (db) => {
-    // 40. A value remembers where it came from (AI step 3; the owner, 2026-10-30: "separate the AI generated stuff from
-    // the true data"): the owner, the subtitles or page, a dictionary, the video, Forvo, or Panki AI, as JSON (the
-    // contracts' `ValueSource`), on a card's values and an example's, and the source each change took a value to. No row
-    // is touched: one kept before reads as the owner's or as its capture says (`legacySourceOf`), worked out on read.
+    // 40. A value remembers where it came from, so what AI made is kept apart from the true data: typed by hand, the
+    // subtitles or page, a dictionary, the video, Forvo, or Panki AI, as JSON (the contracts' `ValueSource`), on a
+    // card's values and an example's, and the source each change took a value to. No row is touched: one kept before
+    // reads as typed by hand or as its capture says (`legacySourceOf`), worked out on read.
     db.exec("ALTER TABLE card_values ADD COLUMN source TEXT");
     db.exec("ALTER TABLE card_example_values ADD COLUMN source TEXT");
     db.exec("ALTER TABLE card_value_changes ADD COLUMN to_source TEXT");
     db.exec("ALTER TABLE card_example_value_changes ADD COLUMN to_source TEXT");
   },
   (db) => {
-    // 41. Panki AI's templates, each account's own (AI step 5; the owner, 2026-11-01: "each account's own, plus there
-    // are default ones that we cannot remove but can duplicate and edit, like SRS types"). A row a template: the action
+    // 41. Panki AI's templates, each account's own, beside Panki's own starters that can't be removed but can be copied
+    // and edited, as SRS types are. A row a template: the action
     // it belongs to (fixed once made), its name, its prompt, its Follow-up prompt, and whether it judges the meanings.
     // Panki's own starters are never rows (the contracts' `aiTemplates.ts`). Deleting one stamps `removed_at`, never
     // destroys it; every save that changed one keeps it whole before and after, as an SRS type's does.
@@ -877,8 +875,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.exec("CREATE INDEX ai_template_changes_template_id ON ai_template_changes (template_id)");
   },
   (db, now) => {
-    // 42. Prompt context's `{Field}` renamed `{Follow-up field}` (the owner, 2026-11-01: "rename {Field} to
-    // follow-up-field so it's clear"): every template kept says the new name, so none reads as a variable Panki doesn't
+    // 42. Prompt context's `{Field}` renamed `{Follow-up field}`, so it's clear what it is: every template kept says the new name, so none reads as a variable Panki doesn't
     // know. Its tag as Panki wrote it, `<field>{Field}</field>`, becomes `<follow_up_field>{Follow-up field}</follow_up_field>`
     // whole; any other `{Field}` the new name alone. Each template changed keeps the change whole before and after, as
     // a save does; one with neither is left as it is.
@@ -903,8 +900,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     }
   },
   (db, now) => {
-    // 43. `{Question}` renamed `{Follow-up question}` the same way (the owner, 2026-11-01, right after 42: "same for
-    // {Question}"): its tag, `<question>{Question}</question>`, whole, any other `{Question}` the new name alone, each
+    // 43. `{Question}` renamed `{Follow-up question}` the same way: its tag, `<question>{Question}</question>`, whole, any other `{Question}` the new name alone, each
     // template changed keeping the change whole before and after. Its own step, 42 having run already.
     const rename = (text: string) =>
       text
@@ -1029,7 +1025,7 @@ function marksOf(rows: readonly WatchMarkRow[]): Map<string, VideoSaid> {
 
 /**
  * Where a video was stopped, as somewhere to continue from: none when it's finished (a flag, wherever it was stopped
- * after: `marksOf`), or when its length was never told. A video barely begun counts (2026-10-21), and so does one
+ * after: `marksOf`), or when its length was never told. A video barely begun counts, and so does one
  * stopped near its end that isn't finished (taken off by hand): it goes on from there.
  */
 function stopOf(toMs: number, lengthMs: number | null, finished: boolean): number | null {
@@ -1046,13 +1042,13 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
-/** A card type as its change log keeps it: everything the owner can edit, the fields in order with their layout, and its stage tag. */
+/** A card type as its change log keeps it: everything that can be edited, the fields in order with their layout, and its stage tag. */
 function typeSnapshot(type: CardType): string {
   const { name, fields, layout, tag, listen, mainField } = type;
   return JSON.stringify(canonical({ name, fields, layout, tag, listen, mainField }));
 }
 
-/** The type as its change log keeps it: everything the owner can edit, stages and answers in order. */
+/** The type as its change log keeps it: everything that can be edited, stages and answers in order. */
 function srsSnapshot(type: SrsType): string {
   const { name, description, stages, answers, flow, overrides, lesson, after, growBy, burnedName } = type;
   return JSON.stringify(canonical({ name, description, stages, answers, flow, overrides, lesson, after, growBy, burnedName }));
@@ -1258,7 +1254,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   );
   const insertExampleValueChange = db.prepare("INSERT INTO card_example_value_changes (example_id, field_id, from_value, to_value, at, to_source) VALUES (?, ?, ?, ?, ?, ?)");
   /**
-   * Where a value came from, as it's kept: the source sent with it, or the owner's (a value sent with none is typed or
+   * Where a value came from, as it's kept: the source sent with it, or `OWNER` (a value sent with none is typed or
    * picked by hand). Always written out, so only a row from before migration 40 is ever null.
    */
   const sourceJson = (sources: ValueSources | undefined, fieldId: string): string => JSON.stringify(sources?.[fieldId] ?? OWNER);
@@ -1490,7 +1486,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const first = stages[0]?.id;
     const flow = upgradeFlow(JSON.parse(base.flow), first);
     const overrides = Object.fromEntries(Object.entries(JSON.parse(base.overrides) as Record<string, unknown>).map(([stageId, own]) => [stageId, upgradeFlow(own, first)]));
-    // A type kept before Lesson had rules of its own (2026-10-21) reads with the ones its answers and default rules make.
+    // A type kept before Lesson had rules of its own reads with the ones its answers and default rules make.
     const lesson = base.lesson === null ? defaultLesson({ answers, flow: Flow.parse(flow) }) : upgradeFlow(JSON.parse(base.lesson), first);
     return SrsType.parse({ ...(row as object), builtin: (row as { builtin: number }).builtin === 1, stages, answers, flow, overrides, lesson, cardCounts });
   }
@@ -1672,9 +1668,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   /**
    * The account's watching at a moment, worked out over every stretch it hasn't forgotten: the time spent each of its
    * days (only on videos that count) and the videos to continue. Continuing is an offer, so there's none while Video
-   * tracking is off. (A watch streak against a daily goal was worked out here until the owner had both out, 2026-10-21,
-   * and the last video that counts, for Together, until all that's about other people was shelved the same day; the
-   * stretches they were read from are all still kept.)
+   * tracking is off.
    */
   function watchingOf(today: Today): Watching {
     const { settings, now } = today;
@@ -1888,7 +1882,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     updateSettings(patch: SettingsUpdate, now: number): Settings {
       return transaction(() => {
         const before = settingsFrom(selectSettings.all() as SettingRow[]);
-        // `videoTracking` is never written again (each browser's own since 2026-11-02): `SettingsUpdate` leaves it out.
+        // `videoTracking` is never written again (each browser has its own): `SettingsUpdate` leaves it out.
         for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
           if (key === "videoTracking") continue;
           const value = patch[key];
@@ -2156,8 +2150,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /**
      * The words every living card in a living deck is called by (its type's words field), each once, exactly as they
      * stand: what `cardsCalled` matches a word against, so the extension's marks and its pop-up's "in your decks" say
-     * the same (the owner, 2026-10-29); and those whose every card is suspended, by the same reading as a card's own
-     * hold (`cardColumns` → `suspendedAt`), marked apart (the owner, 2026-10-30).
+     * the same; and those whose every card is suspended, by the same reading as a card's own hold (`cardColumns` →
+     * `suspendedAt`), marked apart.
      */
     wordsInCards(): { words: string[]; suspended: string[] } {
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
@@ -2296,7 +2290,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
      * and schedule were never touched, so it's due again at once if it fell due meanwhile. Bringing back a card that
      * isn't put aside changes nothing. Null when the card isn't in that deck.
      */
-    /** Suspends a card from its deck's list (the owner, 2026-10-29): kept as a hold, its place and schedule untouched. Null when the card isn't in that deck. */
+    /** Suspends a card from its deck's list: kept as a hold, its place and schedule untouched. Null when the card isn't in that deck. */
     suspendCard(deckId: string, cardId: string, now: number): Card | null {
       return transaction(() => {
         if (!selectDeckCard.get(deckId, cardId)) return null;
@@ -2417,8 +2411,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /**
      * Keeps what was watched: each video's words as the page told them, and each stretch, stamped by the API's clock
      * with the device it was watched on. A stretch sent again is the one already kept. Whatever arrives is kept: whether
-     * a browser sends is that browser's own Video tracking (since 2026-11-02; until then the account's, which refused
-     * stretches here while it was off).
+     * a browser sends is that browser's own Video tracking.
      */
     keepWatching(batch: WatchBatch, who: { device: string }, now: number): void {
       transaction(() => {
@@ -2639,12 +2632,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   let failed = false;
   for (const [i, starter] of SRS_STARTER_IDS.entries()) {
     // One the app can't bring up to date (an edit to `srsStarters.ts` that breaks its own type's rules) is left as this
-    // database has it and said in the log, so the account still opens: on 2026-10-26 one such edit made every call to
-    // Panki fail until it was fixed. A write it began is undone with it (`transaction`).
+    // database has it and said in the log, so the account still opens rather than every call to
+    // Panki failing. A write it began is undone with it (`transaction`).
     try {
       const existing = api.getSrsType(builtinIds.get(starter) ?? "");
       // Its stages are matched to the app's position by position: with fewer in the app than it has, every card would
-      // shift a stage. A stage the app took away is a migration's to clear first (Lesson's was, 2026-10-21); until then it's left as it is.
+      // shift a stage. A stage the app took away is a migration's to clear first (as Lesson's was); until then it's left as it is.
       if (existing && existing.stages.length > starterStageCount(starter)) {
         console.warn(`[srs] ${starter} has ${existing.stages.length} stages and the app ${starterStageCount(starter)}: left as it is until a migration lines them up.`);
         continue;

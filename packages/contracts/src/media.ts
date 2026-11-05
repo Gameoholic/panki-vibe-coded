@@ -51,8 +51,8 @@ export const MediaResponse = z.object({ media: Media });
  * What's said in a clip, as it was heard on the video when the clip was recorded (the video's transcript, or its own
  * captions): each line, when it's said in ms from the clip's own start, and where each piece of it begins (`marks`: a
  * character of the text and when it's said). A card plays its clip with these in sync, the piece being said underlined,
- * as the extension draws them over YouTube (the owner, 2026-10-18: "the timestamps and words sourced from the video",
- * in place of a field's words laid over the whole clip). A sound recorded off a video keeps them too (2026-10-28),
+ * as the extension draws them over YouTube (their times and words from the video, never a field's words laid over the
+ * whole clip). A sound recorded off a video keeps them too,
  * though nothing shows a sound's. Kept with the file, written once with it, never changed.
  */
 export const CueMark = z.object({ at: z.number().int().nonnegative(), ms: z.number().int().nonnegative() });
@@ -73,8 +73,8 @@ export const RecordingCut = z.enum(["clip", "word"]);
 export type RecordingCut = z.infer<typeof RecordingCut>;
 
 /**
- * How a file was recorded off a video, so it can be recorded again, longer or better, from this alone (the owner,
- * 2026-10-28: "save all the data we can… so in the future I can re-record batch on client side"): the video's address,
+ * How a file was recorded off a video, so it can be recorded again, longer or better, from this alone, in a batch
+ * on the client later: the video's address,
  * which cut it is, the stretch asked for (ms of the video's own time) and where the video really stood when the
  * recording stopped, the picture's size and rate as the player played it (said for a sound recorded alone too: how good
  * the video was then), and the bit rates the recorder was given (none for the picture of a sound alone). `client` and

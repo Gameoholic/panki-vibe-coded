@@ -5,7 +5,7 @@ import { readStore, writeStore } from "./storage";
 
 /**
  * Whether this extension is the build Panki carries (the contracts' `extension.ts`), kept up to date by hand without a
- * store (the owner, 2026-10-22). The worker asks the Panki the profile in use points at, as Chrome starts, as the
+ * store. The worker asks the Panki the profile in use points at, as Chrome starts, as the
  * extension is (re)loaded, every hour on an alarm, when the profile changes, when a call is refused as too old, and at
  * Check now; the answer is kept in storage, where the strip, the pill and the options page read it (through the
  * worker), and is put on the toolbar button's badge. A check that fails (offline, Panki restarting) leaves the last
@@ -14,8 +14,7 @@ import { readStore, writeStore } from "./storage";
  * Two builds are told apart: the one **running**, noted as the extension's code is loaded (it's what the browser runs
  * until the next reload), and the one **in the folder** now, read from disk each time: Chrome reads an unpacked
  * extension's files afresh, so the moment Update Panki (or a zip extracted by hand) has put another build there, the
- * notice says it's ready and Reload Panki wakes (the owner, 2026-10-22: a Reload button beside words nobody reads was
- * pressed as if it updated).
+ * notice says it's ready and Reload Panki wakes (a Reload button that's always there gets pressed as if it updated).
  */
 
 export const UPDATE_ALARM = "panki-update";
@@ -73,8 +72,8 @@ function stateOf(mine: ExtensionBuildFile | null, latest: ExtensionBuild | null)
 
 /**
  * Another build is in the folder already, waiting for a reload. Any other than the one running, not only the one Panki
- * carried when it was last asked: Panki deployed again since (an hour can pass between asks) and Update Panki brings
- * the newer one, which never matched and left Reload Panki off for good (the owner, 2026-10-24). The reload's own check
+ * carried when it was last asked: Panki may have deployed again since (an hour can pass between asks), and Update Panki
+ * then brings a newer one, which would never match and would leave Reload Panki off for good. The reload's own check
  * says whether it's Panki's latest.
  */
 function readyOf(mine: ExtensionBuildFile | null, folder: ExtensionBuildFile | null): boolean {

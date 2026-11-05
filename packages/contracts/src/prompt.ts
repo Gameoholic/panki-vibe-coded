@@ -58,9 +58,9 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
 }
 
 /**
- * Every meaning of the dictionaries as a prompt is sent them (`{Meaning}`, the owner, 2026-10-31: one format for every
- * action, Explain's and Touch up's): a JSON list, one entry each in the list's order, its words and its index from 1,
- * nothing more. What's ticked on the card is never in it (the owner, 2026-10-31): the model judges each meaning against
+ * Every meaning of the dictionaries as a prompt is sent them (`{Meaning}`, one format for every action, Explain's and
+ * Touch up's): a JSON list, one entry each in the list's order, its words and its index from 1,
+ * nothing more. What's ticked on the card is never in it: the model judges each meaning against
  * the sentence alone, and Panki holds its verdicts against the ticks on its own side (`meaningVerdictOf`). One home for
  * the shape: the page building the piece and the server checking each index agree by construction.
  */
@@ -204,8 +204,8 @@ export const isFollowUp = (ask: { said: readonly unknown[] }): boolean => ask.sa
 export const ExplainProblem = z.enum(["off", "noKey", "tooLong", "followUps", "provider", "editingOff", "gone"]);
 export type ExplainProblem = z.infer<typeof ExplainProblem>;
 /**
- * An answer the provider gave that couldn't be used, as Details' Log tells of it (the owner, 2026-10-31: "it shows what
- * Panki AI answered even when the answer failed"): the text exactly as it came, the technical reason (not JSON; not
+ * An answer the provider gave that couldn't be used, as Details' Log tells of it, so what Panki AI answered shows
+ * even when the answer failed: the text exactly as it came, the technical reason (not JSON; not
  * the shape, with Zod's path and message; which of Panki's rules; cut short; declined), and what was metered for it.
  * Never on screen but in the Log: the failure's message stays plain.
  */
@@ -223,14 +223,14 @@ export type AiUnread = z.infer<typeof AiUnread>;
 export const ExplainError = z.object({ error: z.object({ message: z.string(), problem: ExplainProblem, unread: AiUnread.optional() }), ai: PankiAiStatus });
 
 /**
- * Explain's fixed shape (the owner, 2026-10-30: every call answers in one; 2026-10-31: a verdict on every meaning): the
+ * Explain's fixed shape (every call answers in one, with a verdict on every meaning): the
  * explanation, a row for each dictionary meaning sent, by its index, how well it fits this sentence and why, and, when
  * none fits, the meaning it proposes in its own words, with why. Read by the API's one reader; rows that aren't exactly
  * one for each meaning sent (`meaningsWhole`), or a proposed meaning beside a fitting row or missing without one
  * (`explainRuleBroken`), fail the answer whole.
  */
 export const ExplainShape = z.object({
-  // What each key holds and what Panki does with it, in the owner's words, said in Admin under the prompt
+  // What each key holds and what Panki does with it, in plain words, said in Admin under the prompt
   // (`answerPartsOf`); never sent to the provider (`schemaFor` leaves descriptions out: the prompt is the template's alone).
   explanation: z.string().max(AI_TEXT_MAX).describe("what the word means in this sentence; Panki shows it as the answer"),
   meanings: z.array(MeaningAccuracy).max(200).describe("one row for every meaning in <meaning>, each index once; Panki marks each meaning in the pop-up by its accuracy"),
@@ -251,8 +251,8 @@ export type PlainShape = z.infer<typeof PlainShape>;
 export const plainRuleBroken = (answer: PlainShape): string | null => (answer.answer.trim() === "" ? expectedGot("an answer", "an empty one") : null);
 
 /**
- * A follow-up's fixed shape on a template that judges the meanings (AI step 5, the owner: "follow-ups being able to
- * modify the fields again"): the answer, and the meanings judged again only when the question changes them. `meanings`
+ * A follow-up's fixed shape on a template that judges the meanings, so a follow-up can change
+ * them again: the answer, and the meanings judged again only when the question changes them. `meanings`
  * empty is the verdicts standing as they were, and then no proposed meaning; otherwise a row for every meaning again,
  * by the first answer's rules (`meaningsRuleBroken`), and Panki marks the rows afresh where they stand.
  */

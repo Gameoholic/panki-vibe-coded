@@ -5,11 +5,9 @@ import { usePull } from "@web/components/MediaView";
 import { useDismiss } from "@web/hooks/useDismiss";
 
 /**
- * The player's speed, changed without opening the site's own settings (the owner, 2026-10-21, the first YouTube
- * utility after Hide Shorts). Among the player's own controls: − and + round the speed it plays at; the speed pressed
- * opens a slider and the common speeds above it, and pressed with Shift or Ctrl goes back to 1× (2 of
- * https://claude.ai/artifact/UcHcxBe1gPntswHVpDudGs with 3's stepper beside it, the owner's pick, 2026-10-29). From 0.1×
- * to 10× (the owner: "is it possible to have higher / slower ones?"); a browser may play some of that silent (Firefox,
+ * The player's speed, changed without opening the site's own settings. Among the player's own controls: − and + round
+ * the speed it plays at; the speed pressed opens a slider and the common speeds above it, and pressed with Shift or
+ * Ctrl goes back to 1×. From 0.1× to 10×, past the site's own range; a browser may play some of that silent (Firefox,
  * outside 0.25× to 4×). It reads the player itself, so a speed set the site's way shows here too. A utility of the
  * site's own: there whether or not Panki is on.
  */
@@ -32,7 +30,7 @@ const BANDS = [
 /** How close the slider has to come to a common speed (a share of its length) to rest on it. */
 const SNAP = 0.015;
 
-// The speed written as the site writes it (the owner, 2026-11-04): "1.1x" on the bar, "1.10x" over the panel's
+// The speed written as the site writes it: "1.1x" on the bar, "1.10x" over the panel's
 // slider, its presets "1.0", "1.25", "2.0".
 const speedWords = (rate: number) => `${Number(rate.toFixed(2))}x`;
 const headWords = (rate: number) => `${rate.toFixed(2)}x`;
@@ -69,8 +67,7 @@ export function SpeedControl({ video }: { video: HTMLVideoElement }) {
     return () => video.removeEventListener("ratechange", read);
   }, [video]);
   // While the panel is open the player's bar stays shown whatever the pointer does, as it stays while the site's own gear
-  // menu is open (the owner, 2026-11-04: "the settings panel of YouTube native makes the entire playback bar… stay open
-  // even if I move my mouse away… same for our speed"): the player carries `BAR_HELD` while it's open, which the player
+  // menu is open, the pointer moved away or not: the player carries `BAR_HELD` while it's open, which the player
   // bar's stylesheet holds shown (`content/playerBar.ts` → `HOLD_SHOWN`). The panel closes by its ×, Esc, a press outside
   // it or the speed again. A video in no player (the options page's) has nothing to hold.
   useEffect(() => {
@@ -104,11 +101,10 @@ export function SpeedControl({ video }: { video: HTMLVideoElement }) {
         +
       </Button>
       {open ? (
-        // The site's own Playback speed panel, piece for piece (the owner, 2026-11-04, its picture: "use the same look
-        // that YouTube uses"): its head with its name and ×, the speed big, − the slider +, the presets as
+        // The site's own Playback speed panel, piece for piece, in the same look: its head with its name and ×, the speed big, − the slider +, the presets as
         // its round pills with Standard under 1. Panki's wider range stays on the slider.
         <div className="yt-speed-pop" role="group" aria-label="Playback speed">
-          {/* Its name at the head's left, × at its right closing it (the owner, 2026-11-04: in place of the site's way back, which here has nowhere to go back to). */}
+          {/* Its name at the head's left, × at its right closing it (in place of the site's way back, which here has nowhere to go back to). */}
           <div className="yt-speed-head">
             <span className="yt-speed-title">Playback speed</span>
             <Button className="yt-speed-close" aria-label="Close" onClick={() => setOpen(false)}>

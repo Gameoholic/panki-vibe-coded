@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The extension kept up to date without a store (the owner, 2026-10-22). Two things, apart:
+ * The extension kept up to date without a store. Two things, apart:
  *
  * - Whether an update is *available*: the extension's built files have a fingerprint, worked out by its build
  *   (`apps/extension/scripts/build.mjs`) and written beside them in `build.json`. Panki's server reads the fingerprint of
@@ -17,9 +17,9 @@ import { z } from "zod";
  * extension alone leaves it as it is. An extension built with a smaller number is refused by every route but the two
  * that tell it how to update, and says "Update needed" until it is.
  */
-// 3 since 2026-11-02: Video tracking became each browser's own, and `WatchedVideo.on` and `Watching.on` went.
-// 4 since 2026-11-04, the AI branch merged: 3 had also been taken by AI step 5 (2026-11-01: Explain and Touch up name a
-// template and send a follow-up's question apart from the conversation), so either 3 is too old for the other's break.
+// 3: Video tracking became each browser's own, and `WatchedVideo.on` and `Watching.on` went.
+// 4: 3 had also been taken by Panki AI's templates (Explain and Touch up name a template and send a follow-up's
+// question apart from the conversation), so either 3 is too old for the other's break.
 export const EXTENSION_PROTOCOL = 4;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
@@ -31,7 +31,7 @@ export const UPDATE_NEEDED_STATUS = 426;
 /** A build's fingerprint: the first 12 hex digits of the SHA-256 of its files. */
 export const ExtensionFingerprint = z.string().regex(/^[0-9a-f]{12}$/);
 
-/** What a build of the extension says of itself (`build.json`): its fingerprint, and the day its files last changed, from git ("2026-10-22"). */
+/** What a build of the extension says of itself (`build.json`): its fingerprint, and the day its files last changed, from git ("YYYY-MM-DD"). */
 export const ExtensionBuildFile = z.object({
   fingerprint: ExtensionFingerprint,
   changedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

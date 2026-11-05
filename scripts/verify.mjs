@@ -1,4 +1,4 @@
-// Drives the real UI in headless Chrome against a scratch instance. Never the owner's data or servers.
+// Drives the real UI in headless Chrome against a scratch instance. Never the real data or servers.
 // Usage: pnpm verify   (env: CHROME to point at another chrome.exe, VERBOSE=1 to see server output)
 import path from "node:path";
 import { Cdp, WEB_PORT, api, dbRow, getJson, json, openChrome, scratch, shots, sleep, startServers, stopAll, waitFor } from "./lib/scratch.mjs";

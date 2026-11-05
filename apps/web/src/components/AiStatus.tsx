@@ -7,13 +7,12 @@ import { Fold } from "./Fold";
 import { Icon } from "./Icon";
 
 /**
- * The AI's status, the one head over everything Panki AI does on a page (the owner, 2026-10-30, of the transcribing
- * status they like on a video's page: "small or unnoticeable enough that a normal user never feels it's redundant
- * information"). The spark and "Panki AI", and at the right the status as a button, a dot and a word lightly tinted
- * (the strip menu's look, smaller), with the cost beside it; pressed, it unfolds Details under it (the owner: "remove
- * the details, make the answered… button the dropdown"): how the call stands, why it ran, the model, the tokens and the
- * cost always open, then two alike folds, closed to begin with (the owner, 2026-10-31): Prompt context, every piece the
- * template asked for with what it held or why it held nothing (the one place the owner sees what a piece really was),
+ * The AI's status, the one head over everything Panki AI does on a page, as the transcribing status on a video's page
+ * is: small enough that it never reads as redundant information. The spark and "Panki AI", and at the right the status
+ * as a button, a dot and a word lightly tinted (the strip menu's look, smaller), with the cost beside it; pressed, the
+ * status itself unfolds Details under it: how the call stands, why it ran, the model, the tokens and the
+ * cost always open, then two alike folds, closed to begin with: Prompt context, every piece the
+ * template asked for with what it held or why it held nothing (the one place to see what a piece really was),
  * and the Log, every message as sent and every answer as it came, one that couldn't be used among them; and Copy. Never
  * open by itself; closed again whenever what holds it is drawn afresh (a pop-up opened on another word). Drawn once a
  * call exists; before that the action's own button, and what it says beside it, is the status.
@@ -55,9 +54,9 @@ function whyWords(why: AiRunWhy): string {
 }
 
 /**
- * What went, in the owner's terms: the prompt, the answers sent back with it and the follow-ups ("Prompt, 2 answers and
- * 2 follow-ups"). Counted as "messages" it read wrong to them, and as the prompt and follow-ups alone it left the
- * answers out (the owner, 2026-10-30).
+ * What went, in plain terms: the prompt, the answers sent back with it and the follow-ups ("Prompt, 2 answers and
+ * 2 follow-ups"). Not counted as "messages", which reads wrong, nor as the prompt and follow-ups alone, which would
+ * leave the answers out.
  */
 function sentWords(call: AiCall): string {
   const answers = call.said.filter((m) => m.role === "assistant").length;
@@ -69,18 +68,18 @@ function sentWords(call: AiCall): string {
 /**
  * The Log, the whole exchange of a call: every message in order, each in a box of its own under who said it (Panki's
  * prompt, Panki AI's answer, Your follow-up), ending with this call's own answer once it's in, or, for one that came
- * back and couldn't be used, that answer as it came (the owner, 2026-10-31: "it shows what Panki AI answered even when
- * the answer failed"). Every answer that read is drawn the same way, its own call's or an earlier one sent back with
- * it, whichever shape it answered in: the list, Raw folded under it (`AnswerView`; the owner, 2026-10-31). A failure is
- * never a turn: it's Panki's own note after them (`failureOf`, `LogFailure`). Full prompt until the owner, 2026-10-30,
- * asked for all of it; Conversation until 2026-10-31. A call is a list of messages, not one text.
+ * back and couldn't be used, that answer as it came, so what Panki AI answered shows even when
+ * the answer failed. Every answer that read is drawn the same way, its own call's or an earlier one sent back with
+ * it, whichever shape it answered in: the list, Raw folded under it (`AnswerView`). A failure is
+ * never a turn: it's Panki's own note after them (`failureOf`, `LogFailure`). A call is a list of messages, not one
+ * text.
  */
 const SAID_BY = { prompt: "Panki's prompt", assistant: "Panki AI's answer", user: "Your follow-up" } as const;
 /**
  * A message of the Log: who said it, its text exactly as it went or came, and, for an answer that read, its parts as
  * the list draws them (null for what isn't one: the prompt, a question, an answer that couldn't be used, as it came).
  */
-/** `json`: an answer that couldn't be used, drawn indented as Raw is when it parses (`pretty`; the owner, 2026-10-31), as it came when it doesn't. */
+/** `json`: an answer that couldn't be used, drawn indented as Raw is when it parses (`pretty`), as it came when it doesn't. */
 type Said = { by: string; text: string; verdicts: readonly AiVerdict[] | null; json?: boolean };
 /**
  * An earlier answer's parts: the call it was the answer of tells them, found by its text (a follow-up sends each answer
@@ -116,7 +115,7 @@ function failureOf(call: AiCall): { message: string; detail: string } | null {
 }
 const LOG_ERROR = "Error";
 /**
- * The failure in the Log (the owner, 2026-10-31: it "reads like a part of the conversation when it isn't"): Panki's own
+ * The failure in the Log, so it never reads as a part of the conversation: Panki's own
  * note set apart from the turns, in the danger colours as the status's Failed, the `alert` sign and "Error" in place of
  * a speaker, the plain message and the technical reason under it in small type.
  */
@@ -132,7 +131,7 @@ function LogFailure({ message, detail }: { message: string; detail: string }) {
     </div>
   );
 }
-/** An answer's JSON indented to be read (the owner, 2026-10-31); as it came when it isn't JSON. Copy keeps it as it came. */
+/** An answer's JSON indented to be read; as it came when it isn't JSON. Copy keeps it as it came. */
 function pretty(text: string): string {
   try {
     return JSON.stringify(JSON.parse(text), null, 2);
@@ -142,8 +141,7 @@ function pretty(text: string): string {
 }
 
 /**
- * This call's own answer in the Log, the owner's pick (4 of https://claude.ai/artifact/1wEsGSSpJ24sAFmPgSgWck,
- * 2026-10-31): a row a part of its fixed shape, its name, Panki's verdict as a small tag, the value and the why under it,
+ * This call's own answer in the Log: a row a part of its fixed shape, its name, Panki's verdict as a small tag, the value and the why under it,
  * then Raw, folded, the JSON as it came, indented. A dictionary meaning judged is drawn in its accuracy's look, as the
  * pop-up draws it (`.ai-accuracy`, the one home).
  */
@@ -204,13 +202,13 @@ function rowsOf(call: AiCall, now: number): Row[] {
       : outcome.kind === "answered"
         ? `Answered in ${seconds(outcome.ms)}${outcome.cut ? `, ${WORDS.cut}` : ""}`
         : `Failed after ${seconds(outcome.ms)}: ${outcome.message}`;
-  // In and out a row each (the owner, 2026-10-30), as the provider counted them; out against Max answer length. An
+  // In and out a row each, as the provider counted them; out against Max answer length. An
   // answer that couldn't be used was metered too, and says so.
   const metered = meteredOf(call);
   const tokensIn = metered ? n(metered.inputTokens) : outcome.kind === "thinking" ? WORDS.counting : WORDS.noTokens;
   const tokensOut = metered ? `${n(metered.outputTokens)} of ${n(call.maxAnswerTokens)}` : outcome.kind === "thinking" ? `At most ${n(call.maxAnswerTokens)}` : WORDS.noTokens;
   const cost =
-    // Once it's run, what it came to alone: the ceiling was the button's, before it ran (the owner, 2026-10-30).
+    // Once it's run, what it came to alone: the ceiling was the button's, before it ran.
     metered ? estimateWords(metered.costMicros) : outcome.kind === "thinking" ? `Up to ${estimateWords(call.ceilingMicros)}` : WORDS.nothingMetered;
   const note = outcome.kind === "failed" && outcome.unread && outcome.unread.detail !== "" ? outcome.unread.detail : undefined;
   return [

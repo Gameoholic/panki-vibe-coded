@@ -55,9 +55,8 @@ type Props = {
 /**
  * Inside a deck: the cards, in the order picked over them (newest first to begin with, kept on this device), and the
  * add form above them when asked for. A card called the same as another, in this deck or any other, says so on its
- * row, and pressed, the list shows that word's cards alone (the owner, 2026-10-21: "when I click duplicate it should
- * show only the duplicate cards of this same word"), those in other decks named over them. A card's edit button opens it where it stands in the list: its fields to change, Save, and Delete, which asks
- * first; the delete button under it deletes it from the row, asking there first. A card is suspended from its row, and
+ * row, and pressed, the list shows that word's cards alone, those in other decks named over them. A card's edit
+ * button opens it where it stands in the list: its fields to change, Save, and Delete, which asks first; the delete button under it deletes it from the row, asking there first. A card is suspended from its row, and
  * one put aside is brought back from it.
  */
 export function CardsView({
@@ -192,7 +191,7 @@ export function CardsView({
         twins={twins}
         onTwins={(card) => setOnly(wordsOf(card))}
         filter={filter}
-        // Pressed again, it closes the card, as Preview does (the owner, 2026-10-30).
+        // Pressed again, it closes the card, as Preview does.
         onEdit={(card) => (open?.id === card.id ? onClose(card.id) : onOpen(card.id))}
         onRemove={(card) => onRemove(card.id)}
         onLift={(card) => onLift(card.id)}

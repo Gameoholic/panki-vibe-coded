@@ -10,8 +10,7 @@ export function todayWords(reviews: number, fresh: number): string | null {
 }
 
 /**
- * Today's cards folded to their counts (the owner's pick, A of https://claude.ai/artifact/XVHRcYb8TKjrgrBdsUFtoG,
- * 2026-10-27): a name (a deck's when there's more than one; Extra study at a review's end), the counts, Show cards,
+ * Today's cards folded to their counts: a name (a deck's when there's more than one; Extra study at a review's end), the counts, Show cards,
  * `tools` (extra study's how many), what's left for later (extra study: how many new cards it has), and Start at the
  * end (`children`). The review's today screen, its extra study and each deck on the picker are all this.
  */

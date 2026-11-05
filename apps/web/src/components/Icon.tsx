@@ -57,7 +57,7 @@ const ICONS = {
   tv: ["M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M9 21h6", "M12 18v3"],
   /**
    * Time spent, by what on: a video with its play sign (time watched) or a card (time reviewing), big, with a small clock tucked into its corner. The pill's
-   * two times, told apart at a glance with the clock the same in both (the owner, 2026-10-28).
+   * two times, told apart at a glance with the clock the same in both.
    */
   watchTime: ["M13 16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v6", "M8 7.5v5l4.5-2.5z", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
   reviewTime: ["M13 20H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8.5", "M7.5 7h5", "M7.5 10.5h5", "M7.5 14h2.5", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
@@ -89,9 +89,9 @@ const ICONS = {
   alert: ["M12 3.5L21.5 20h-19z", "M12 10v4.5", "M12 17.5h.01"],
   /** An i in a circle: a note of Panki's own, beside what someone or something else said (under an AI answer, "Cut short at the answer limit."). */
   info: ["M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18z", "M12 11v5.5", "M12 7.5h.01"],
-  /** The AI: a four-point spark, filled (`className="is-solid"`; the owner's pick, 2026-10-30, "Spark, solid"). Every button the assistant or a touch-up offers carries it, and anything the AI wrote on a card is marked with it (CONVENTIONS: generated content is marked and kept apart from the true data). */
+  /** The AI: a four-point spark, filled (`className="is-solid"`). Every button the assistant or a touch-up offers carries it, and anything the AI wrote on a card is marked with it (CONVENTIONS: generated content is marked and kept apart from the true data). */
   ai: ["M12 3.5Q13.28 10.73 20.5 12Q13.28 13.28 12 20.5Q10.73 13.28 3.5 12Q10.73 10.73 12 3.5Z"],
-  // Every action carries its icon (the owner, 2026-10-29; the audit page's section 4): what each of these is for.
+  // Every action carries its icon: what each of these is for.
   signIn: ["M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4", "M3 12h11", "M10 8l4 4-4 4"],
   signOut: ["M10 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4", "M9 12h11", "M16 8l4 4-4 4"],
   /** Panki on or off, and Video tracking turned off. */
@@ -119,7 +119,7 @@ const ICONS = {
   star: ["M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"],
   /** A sun: a card put aside brought back, Unsnooze and Unsuspend. */
   wake: ["M12 3v2", "M12 19v2", "M3 12h2", "M19 12h2", "M12 8a4 4 0 1 0 0 8 4 4 0 1 0 0-8z"],
-  /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`, picked by the owner, 2026-10-20): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live), the download with a chunk's head start (Hybrid). (Auto's bolt went with Auto.) */
+  /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live), the download with a chunk's head start (Hybrid). */
   download: ["M12 3v11", "M8 10l4 4 4-4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"],
   lead: ["M3 12h11", "M10 8l4 4-4 4", "M19 6v12"],
   hybrid: ["M12 3v11", "M8 10l4 4 4-4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2", "M16 2l2 2-2 2", "M19.5 2l2 2-2 2"],

@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 /**
- * The usage ledger (2026-10-30): one row for every paid call Panki makes, whoever it's for, kept in the shared store
+ * The usage ledger: one row for every paid call Panki makes, whoever it's for, kept in the shared store
  * (`usage`), so credits and billing can be built on it later without anything being reversed. Each kind is the
- * service family it's shown under in Settings → Admin, every family its own panel's Usage (the owner, 2026-10-30:
- * "it has nothing to do with Panki AI, it's separate").
+ * service family it's shown under in Settings → Admin, every family its own panel's Usage, apart from Panki
+ * AI's.
  */
 export const UsageKind = z.enum(["ai", "transcription", "wordAudio"]);
 export type UsageKind = z.infer<typeof UsageKind>;
@@ -36,7 +36,7 @@ export type UsageTotals = z.infer<typeof UsageTotals>;
 
 /**
  * One kind's usage for an admin, from a moment on (null: all of it): every account's totals by name, then those from
- * before calls were counted per account (`name` null, Forvo's requests before 2026-10-30), and everyone's.
+ * before calls were counted per account (`name` null, Forvo's requests from before the ledger), and everyone's.
  */
 export const UsageReport = z.object({
   kind: UsageKind,

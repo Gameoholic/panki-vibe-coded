@@ -33,8 +33,8 @@ const MESSAGES = {
   unsaved: "The layout couldn't be saved.",
 };
 /**
- * Two sentences to hold the key over, as on any page, to try the popup as it's laid out right now (the owner,
- * 2026-10-16, in place of a field to type a word in): words with endings on them, words with shorter words inside, a
+ * Two sentences to hold the key over, as on any page, to try the popup as it's laid out right now, rather than a field
+ * to type a word in: words with endings on them, words with shorter words inside, a
  * word read more than one way.
  */
 const TRY_TEXT = "昨日、駅の近くで新しい喫茶店を見つけました。友達と一緒に入ってみたら、ケーキがとても美味しかったです。";
@@ -80,7 +80,7 @@ type Props = {
 };
 
 /**
- * The popup's layout, laid out on the popup itself (the owner's pick, C of the popup page, 2026-10-16), as a card
+ * The popup's layout, laid out on the popup itself, as a card
  * type's Layout tab is on the card: a word looked up in the dictionaries here, drawn as the popup draws it; a part
  * pressed is picked and its choices stand beside it; what's under the word is moved by its grip; what's hidden waits
  * under the popup. Above it, two sentences to point at with the key held, which open the real popup as it's laid out
@@ -260,8 +260,8 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
   }
   /**
    * A part that shows data, of which no dictionary that's on provides any: in the editor it says so where it stands,
-   * so a part left empty on every word isn't mistaken for one that's broken (the owner, 2026-10-16, with Pitch accent
-   * shown and no pitch accent dictionary: "is this a bug?").
+   * so a part left empty on every word isn't mistaken for one that's broken (Pitch accent shown with no pitch accent
+   * dictionary, say).
    */
   const unprovided = (part: string) => {
     const kinds = kindsIn(part);
@@ -270,8 +270,8 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
 
   /**
    * What the picked part shows, in the kinds of data Panki reads from a dictionary, each from the dictionaries that are
-   * on and provide it (a dictionary's own part, from that dictionary); a part that's Panki's own says so. The owner,
-   * 2026-10-16: where each part came from was a black box.
+   * on and provide it (a dictionary's own part, from that dictionary); a part that's Panki's own says so, so where each
+   * part comes from is never a black box.
    */
   function shows(): ReactNode {
     // Panki AI's words, not a dictionary's nor Panki's own: what it's for says all there is (`PART_ABOUT`).

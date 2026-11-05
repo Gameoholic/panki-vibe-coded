@@ -10,8 +10,8 @@ export type FixedPart = "split" | "word" | "reading" | "pitch" | "add" | "cards"
 export type NamedPart = FixedPart | BodyKind;
 /**
  * A part that shows one kind of a dictionary's data is called by that kind's own name, taken from `dataKinds.ts` so
- * the two can't drift apart: the dictionaries' Provides and the popup's layout say the same words (the owner,
- * 2026-10-16: "why not make them the same?"). The rest are Panki's own: the words found, the endings it takes off, Add.
+ * the two can't drift apart: the dictionaries' Provides and the popup's layout say the same words. The rest are
+ * Panki's own: the words found, the endings it takes off, Add.
  */
 export const PART_NAMES: Record<NamedPart, string> = {
   split: "Words found here",
@@ -27,7 +27,7 @@ export const PART_NAMES: Record<NamedPart, string> = {
   endings: "Endings",
   explain: "Explain",
 };
-/** What each part is for, said beside it when it's picked in the layout (the owner, 2026-10-16: "Words that start here, I don't get what that's for"). */
+/** What each part is for, said beside it when it's picked in the layout, since a part's name alone doesn't always say it. */
 export const PART_ABOUT: Record<NamedPart, string> = {
   split: "Every word found at the letter pointed at, when there's more than one: 喫茶店 and the shorter 喫茶, or 新 read しん and read あら. The one shown is lit; press another to see it. On Panki's line under a video, the line is split around it too.",
   word: "The word as the dictionary lists it: what the pop-up is about, always shown.",

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { NewSrsType, SrsTypeId, SrsTypeUpdate, type SrsType } from "@panki/contracts";
 import type { DbOf } from "../app";
 
-/** Which stage still needs a move, by the name the owner sees: its own, or "Stage N" by its place on the ladder. */
+/** Which stage still needs a move, by the name shown for it: its own, or "Stage N" by its place on the ladder. */
 function movesMessage(type: SrsType, needsMoves: Record<string, number>): string {
   const first = Object.entries(needsMoves)[0];
   if (!first) return "Say where the cards go.";

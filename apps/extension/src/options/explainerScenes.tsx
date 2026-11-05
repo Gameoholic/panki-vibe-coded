@@ -191,8 +191,7 @@ function usePointing() {
 
 /**
  * The key to hold as this browser has it, held down (nothing, for On hover, where pointing is enough); the key's name,
- * or null. The explainers play with the settings as they are (the owner, 2026-10-28: "have the animation reflect the
- * current settings").
+ * or null. The explainers play with the settings as they are.
  */
 function holdKey(t: Tools, key: LookKey): string | null {
   if (key === "hover") return null;
@@ -490,7 +489,7 @@ function HomeScene({ store }: { store: Stored }) {
     setSaved(false);
     t.frame();
     await t.wait(200);
-    // The whole home stays in view (the owner, 2026-10-28: "the zoom there is kinda unnecessary"), but for the + pressed.
+    // The whole home stays in view, no zoom needed, but for the + pressed.
     if (store.homePill) {
       setPill(true);
       await t.move(feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null, 550);

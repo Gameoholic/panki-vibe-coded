@@ -16,7 +16,7 @@ import { dictionaryDir, mediaDir, sharedDictionaryDir } from "../mediaFiles";
  * whole, the oldest are taken away so only the newest `env.backupSlots` stay (`backups.ts`); a run that fails takes
  * nothing away. A file in `files` is never deleted or overwritten.
  *
- *   <dir>/2026-10-17T21-05-33Z/auth.sqlite, shared.sqlite, users/<account id>/panki.sqlite
+ *   <dir>/<YYYY-MM-DDTHH-MM-SSZ>/auth.sqlite, shared.sqlite, users/<account id>/panki.sqlite
  *   <dir>/files/shared/dictionaries/<id>, users/<account id>/media/<id>
  *
  * Restoring is the reverse, with the API stopped: a snapshot's databases over the data folder's, and the files from

@@ -62,13 +62,12 @@ export const EventBatch = z.object({ events: z.array(NewEvent).min(1).max(100) }
 export type EventBatch = z.infer<typeof EventBatch>;
 
 /**
- * The most one showing of a card counts for in the time spent reviewing (the owner, 2026-10-26: "cap the time per card
- * to 2 minutes"): a card left on screen while away isn't time spent on it. What's kept is the time as measured; only
+ * The most one showing of a card counts for in the time spent reviewing, 2 minutes: a card left on screen while away isn't time spent on it. What's kept is the time as measured; only
  * what's worked out from it is capped.
  */
 export const CARD_TIME_MAX_MS = 120_000;
 
-/** A day on the owner's clock, "YYYY-MM-DD", turning over at the Settings' hour. */
+/** A day on the account's clock, "YYYY-MM-DD", turning over at the Settings' hour. */
 export const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export type Day = z.infer<typeof Day>;
 const Count = z.number().int().nonnegative();
@@ -97,8 +96,8 @@ export const ContinueVideo = z.object({
 export type ContinueVideo = z.infer<typeof ContinueVideo>;
 
 /**
- * A video watched to its end (finished: the latest of its finish and unfinish marks is a finish), for Recently watched
- * (the owner, 2026-10-25: "a 'recently watched' and it's for videos we FINISHED watching"): when it was last finished.
+ * A video watched to its end (finished: the latest of its finish and unfinish marks is a finish), for Recently watched,
+ * which lists only finished videos: when it was last finished.
  */
 export const FinishedVideo = z.object({
   videoId: VideoId,
@@ -112,8 +111,8 @@ export type FinishedVideo = z.infer<typeof FinishedVideo>;
 
 /**
  * The account's watching as the immersion tiles read it. Every span is ms on the clock (the time spent, whatever the
- * speed), only videos that count; days are the account's own. (`on`, the account's Video tracking, went when that
- * became each browser's own, 2026-11-02: the tiles show what's kept, and their ordinary empty state with none.)
+ * speed), only videos that count; days are the account's own. Video tracking is each browser's, so the tiles show
+ * what's kept, and their ordinary empty state with none.
  */
 export const Watching = z.object({
   today: Count,
@@ -125,17 +124,12 @@ export const Watching = z.object({
   byDay: z.array(z.object({ day: Day, ms: Count })).length(14),
   /** The channels watched most in the past 30 days, most first. */
   channels: z.array(z.object({ name: z.string(), ms: Count })).max(5),
-  // A watch streak against a daily goal stood here until the owner had both out, 2026-10-21 ("I don't want a target goal
-  // for immersion nor streaks… it might change in the future, we store the data"): every stretch is still kept.
+  // No goal and no streak for immersion; every stretch is kept, so one can be worked out later.
   continuing: z.array(ContinueVideo),
   /** The videos finished, the latest finished first, `WATCH.finishedMax` at most; none from an older server. */
   finished: z.array(FinishedVideo).default([]),
 });
 export type Watching = z.infer<typeof Watching>;
-
-// Together (everyone on this Panki, each as far as they shared: the owner's friend's idea, "お互いの観たYouTube動画を記録して、
-// 毎日観ないとストリークが切れるシステム") stood here for a day, 2026-10-21, until the owner shelved everything about other
-// people for a later feature: "everything to do with other people and not your own data is shelved".
 
 /**
  * What the Stats tab shows, worked out by the API on every read for all decks or one. Every number is an integer;

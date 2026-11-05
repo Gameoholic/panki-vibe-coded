@@ -26,7 +26,7 @@ export type Route =
   | { kind: "aiTemplate"; id: string }
   /** A new template of an action, picking what it starts from. */
   | { kind: "aiNew"; action: AiActionId }
-  /** What everyone shares and an admin alone changes: its own screen, at the bar's far end (the owner, 2026-10-29). */
+  /** What everyone shares and an admin alone changes: its own screen, at the bar's far end. */
   | { kind: "admin" }
   | { kind: "stats" };
 

@@ -7,8 +7,8 @@ import { z } from "zod";
  */
 
 /**
- * The key held while pointing at a word: Shift unless the owner picks another, or none at all, the word looked up as
- * the pointer goes onto it (`hover`; the owner, 2026-10-25: "add On hover to Key to hold"). One for everywhere, and
+ * The key held while pointing at a word: Shift unless another is picked, or none at all, the word looked up as the
+ * pointer goes onto it (`hover`, On hover). One for everywhere, and
  * one of its own for Panki's subtitles under and over a video (`storage.ts` → `lookKey`, `lookKeySubtitles`).
  */
 export const LookKey = z.enum(["shift", "ctrl", "alt", "hover"]);

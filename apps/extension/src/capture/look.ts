@@ -5,7 +5,7 @@ import { inPanki } from "../ui/mount";
 import { blockOf } from "./selection";
 
 /**
- * Pointing at a word to look it up (the owner's way, 2026-10-14 and 15): the key held while pointing opens the word's
+ * Pointing at a word to look it up: the key held while pointing opens the word's
  * popup; moving off the word with the key still held closes it, or moves it to the next word pointed at. Letting the
  * key go while on the word, or a click on it, keeps it open, the pointer free to go anywhere (into the popup), until a
  * click somewhere else or Escape; the key held over another word then looks that one up instead. The same on any page,
@@ -48,8 +48,8 @@ export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; loc
 const HOVER_MARGIN = 24;
 /**
  * How often a popup opened by hover looks again at its word, ms: the word gone or changed, or no longer under the
- * pointer (the line moved on under a pointer that stood still), it closes. Moves alone never saw that (the owner,
- * 2026-11-03: "the panel is kept when the subtitles change but as long as I don't move my mouse").
+ * pointer (the line moved on under a pointer that stood still), it closes. Moves alone never see that: subtitles
+ * change under a pointer that doesn't move.
  */
 const HOVER_LOOK_MS = 150;
 /** The key that keeps a popup opened by hover open, as `KeyboardEvent.key` names it and the options page says it. */
@@ -128,8 +128,8 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     /**
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
      * is on a word where the key to hold is On hover. One that's kept open gives way only to another
-     * word with the key held: the pointer crossing nothing, still on its own word, or only hovering, leaves it be (the
-     * owner, 2026-11-02: kept with Shift, it stayed "until I hover over ANOTHER word… that's a bug").
+     * word with the key held: the pointer crossing nothing, still on its own word, or only hovering, leaves it be, so
+     * one kept with Shift doesn't give way to the next word merely hovered.
      */
     point(pointed: Pointed | null, at?: At, hover = false) {
       if (at) lastAt = at;
@@ -173,7 +173,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     },
     /**
      * The key isn't held (let go, or the pointer moved without it). Let go on the word, the popup is kept open as a
-     * click keeps it (the owner, 2026-10-15: taking the mouse away after letting go on the word shouldn't close it);
+     * click keeps it, so taking the mouse away after letting go on the word doesn't close it;
      * off the word, it closes, unless it's kept open already.
      */
     release(at?: At) {
@@ -357,8 +357,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     pointWith(looker, lastKey, e, pointed, { x, y });
   };
   // The page's own text changing under a pointer that stood still (the site's captions as the video plays): what now
-  // stands there is pointed at as a move onto it would, through the same `pointWith` (the owner, 2026-11-03: "is it
-  // hovering? then my mouse is hovering"). Panki's own lines do the same as they're drawn (`Line.tsx`).
+  // stands there is pointed at as a move onto it would, through the same `pointWith`: a word that comes under the
+  // pointer is hovered whether the pointer moved or the word did. Panki's own lines do the same as they're drawn (`Line.tsx`).
   const relook = setInterval(() => {
     if (!onPage || !last) return;
     const pointed = last();
@@ -371,8 +371,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     mods = { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
     if (inPanki(e)) return;
     if (e.key === "Escape") looker.close();
-    // A pop-up opened by hover is kept open by Shift, wherever it is: on Panki's line a click is a pick (the owner,
-    // 2026-10-28: "clicking it opens the add to deck thing… if I press Shift then it stays open").
+    // A pop-up opened by hover is kept open by Shift, wherever it is: on Panki's line a click is a pick, which opens
+    // the drawer, so a click can't be what keeps it there.
     const view = looker.view();
     if (!e.repeat && e.key === HOVER_KEEP && view?.hovered && !view.locked) {
       looker.lock();

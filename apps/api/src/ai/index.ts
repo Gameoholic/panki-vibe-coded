@@ -8,12 +8,11 @@ import { createOpenAi } from "./openai";
 export { AiError, safetyIdOf, type AiMessage } from "./call";
 
 /**
- * Panki AI's providers (the owner's decision of 2026-10-30, which lifted "nothing generated"): one client per provider
- * in the contracts' `AI_PROVIDERS`, each its own host alone, and **one reader for every call** (the owner, 2026-10-30:
- * "shared and common logic… if it ever responds in the wrong format or the json is broken it does error"). Each action
+ * Panki AI's providers: one client per provider in the contracts' `AI_PROVIDERS`, each its own host alone, and **one
+ * reader for every call**, so an answer in the wrong format or broken JSON is an error the same way everywhere. Each action
  * hands it the Zod shape of its answer; the reader asks the provider for that shape in its own way, reads what comes
  * back through it, and anything that doesn't read whole (cut short at the cap, declined, not JSON, a field missing or
- * of the wrong kind) is one kind of failure, said in the owner's words, never a part of an answer. The tokens it took,
+ * of the wrong kind) is one kind of failure, said in plain words, never a part of an answer. The tokens it took,
  * as the provider counted them, come back either way, since they were paid for.
  */
 
@@ -22,8 +21,8 @@ export type AiAnswer<T> = { value: T; raw: string; inputTokens: number; outputTo
 export type AiClient = ReturnType<typeof createAiClient>;
 
 /**
- * The words for an answer that couldn't be used, one home: plain, as anyone reads them (the owner, 2026-10-31: the
- * technical reason lives in Details' Log alone, `AiError.detail`). `limit` is where its cap is set.
+ * The words for an answer that couldn't be used, one home: plain, as anyone reads them; the technical reason
+ * lives in Details' Log alone (`AiError.detail`). `limit` is where its cap is set.
  */
 const UNREAD = {
   cut: (limit: string) => `Panki AI's answer reached ${limit} before it finished. Raise it in Admin → Panki AI → Limits.`,
@@ -34,13 +33,13 @@ const UNREAD = {
 /**
  * What a JSON Schema can carry that isn't sent, one list. What a provider's structured output refuses (a 400) or
  * ignores, as Anthropic's docs list it, the strictest of the three (platform.claude.com/docs/en/build-with-claude/
- * structured-outputs → JSON Schema limitations, read 2026-10-31: no numerical constraints, no string constraints, no
+ * structured-outputs → JSON Schema limitations: no numerical constraints, no string constraints, no
  * array constraints beyond `minItems` of 0 or 1, only some formats and regexes) and OpenAI's strict mode and Google's
  * leave out besides (`minContains`, `maxContains`, `minProperties`, `maxProperties`, `uniqueItems`): every bound and
  * format goes, and the shape's Zod holds to them on what comes back (a 201-item list fails as unreadable). Then the
- * draft's `$schema`, and each key's description, which is Admin's account of the answer in the owner's words, not an
+ * draft's `$schema`, and each key's description, which is Admin's account of the answer in plain words, not an
  * instruction: what the model is told is the prompt's alone. A keyword left in that a provider refuses fails every call
- * of the action, as `maxItems` did on 2026-10-31.
+ * of the action, as `maxItems` once did.
  */
 export const UNSENT: ReadonlySet<string> = new Set([
   "$schema",
@@ -90,7 +89,7 @@ export function createAiClient(fetcher: typeof fetch = fetch) {
   return {
     /**
      * One call, its answer read through `shape`. `name` is the shape's name as a provider is told it (OpenAI's
-     * `json_schema.name`); `limit` is the setting its cap is, in the owner's words, for the failure that names it.
+     * `json_schema.name`); `limit` is the setting its cap is, in plain words, for the failure that names it.
      */
     async answer<T>({ provider, shape, name, limit, ...ask }: AiAsk & { provider: AiProviderId; shape: z.ZodType<T>; name: string; limit: string }): Promise<AiAnswer<T>> {
       const said = await providers[provider]({ ...ask, format: { name, schema: schemaFor(shape) } });

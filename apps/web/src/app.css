@@ -124,8 +124,8 @@ body {
   stroke-linejoin: round;
   flex-shrink: 0;
 }
-/* An icon beside a button's words is a little smaller and lighter than the words, so the words lead (the owner,
-   2026-10-29, of the icons every action gained: "seems out of place"). Kept as low as a bare `.icon`, so a button
+/* An icon beside a button's words is a little smaller and lighter than the words, so the words lead and the icon
+   never looks out of place. Kept as low as a bare `.icon`, so a button
    that sizes its own icon (the strip's tools, a player's bar) still does; an icon-only button keeps the full size. */
 :where(.btn:not(.btn-icon)) > .icon {
   width: 16px;
@@ -204,7 +204,7 @@ body {
   background: var(--accent-soft);
   color: var(--accent);
 }
-/* Admin, an admin's alone, at the bar's far right on a computer (the owner, 2026-10-29); on a phone one more cell of the bar. */
+/* Admin, an admin's alone, at the bar's far right on a computer; on a phone one more cell of the bar. */
 .btn-tab.is-end {
   margin-left: auto;
 }
@@ -282,8 +282,8 @@ body {
   font-weight: 600;
   opacity: 0.75;
 }
-/* A door's key (Settings → Keybinds → Home), its keycap after the name, the keycap every key is drawn as (it was bare
-   words, "Space", until 2026-10-28: it wasn't among them); a phone has no keys. */
+/* A door's key (Settings → Keybinds → Home), its keycap after the name, the keycap every key is drawn as; a phone has
+   no keys. */
 .door-label .key {
   margin-left: 10px;
   vertical-align: middle;
@@ -301,8 +301,8 @@ body {
   font-weight: 600;
   opacity: 0.8;
 }
-/* One of a few choices. A rounded rectangle, like everything else in the app that's pressed, and not a pill: the
-   owner, 2026-10-11, of the pill it first was: it "doesn't fit the rest of our apps". The small ones further down
+/* One of a few choices. A rounded rectangle, like everything else in the app that's pressed, and not a pill, which
+   doesn't fit the rest of the app. The small ones further down
    (on a card's row, in a menu) are rounded a little less, so they don't close back up into pills. */
 .btn-chip {
   padding: 5px 11px;
@@ -422,8 +422,8 @@ body {
 }
 
 /* Decks */
-/* A row never widens the list past the page: what doesn't fit is cut or wraps inside the row (Wanikani+'s longer
-   description pushed the SRS types off the screen sideways, 2026-10-21). */
+/* A row never widens the list past the page: what doesn't fit is cut or wraps inside the row (a long description
+   would push the list off the screen sideways). */
 .deck-list {
   list-style: none;
   margin: 0;
@@ -436,7 +436,7 @@ body {
   display: flex;
   gap: 6px;
 }
-/* In the SRS list, the types that come with the app follow the owner's own under a thin line: quieter rows with a
+/* In the SRS list, the types that come with the app follow the account's own under a thin line: quieter rows with a
    lock, since they're for looking at and copying, not for editing. */
 .list-rule {
   height: 1px;
@@ -731,7 +731,7 @@ textarea.field-input.prompt-input {
 .prompt-context-source {
   color: var(--muted);
 }
-/* A variable's Copy: small and quiet beside its chip (the owner, 2026-10-30, of the full-size one: "HUGE… I don't need that"). */
+/* A variable's Copy: small and quiet beside its chip, never a full-size button. */
 .btn.prompt-context-copy {
   gap: 4px;
   padding: 2px 8px;
@@ -867,8 +867,7 @@ textarea.field-input.prompt-input {
   justify-content: flex-start;
 }
 /* Quiet words beside a button in its row: why it can't run just now ("Used by 1 deck."), or what it costs (Explain,
-   Ask). The row wraps them under it where it's too narrow. One look for every one (it was Explain's alone until
-   2026-11-05). */
+   Ask). The row wraps them under it where it's too narrow. One look for every one. */
 .btn-beside {
   font-size: 12.5px;
   color: var(--muted);
@@ -1886,9 +1885,9 @@ canvas.media-frame {
   margin: 0;
 }
 /* Loading, as the shape of what's coming (components/Skeleton.tsx): blocks in the theme's second surface, a soft sweep
-   of the accent passing over them, there the instant the screen is (the owner, 2026-10-27: no fade; a half-second wait before had
-   left every load looking blank, and a fade after showed on every real load). Each shape is the real screen's own
-   classes, so it stands where the real thing will. One look for every loading place. */
+   of the accent passing over them, there the instant the screen is, with no fade: a wait before it leaves every load
+   looking blank, and a fade after it shows on every real load. Each shape is the real screen's own classes, so it
+   stands where the real thing will. One look for every loading place. */
 .skel {
   position: relative;
   display: block;
@@ -1915,8 +1914,7 @@ canvas.media-frame {
   inset: 0;
   transform: translateX(-100%);
   pointer-events: none;
-  /* In the theme's accent (the owner's pick, E at medium, of https://claude.ai/artifact/FQ7LEpBWo5BsMUJ62mc4XZ,
-     2026-10-29); the words' colour at 7% before was too faint to see. */
+  /* In the theme's accent, at a medium strength; the words' colour at 7% is too faint to see. */
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
   animation: skel-sweep var(--sweep) ease-in-out infinite;
 }
@@ -1945,13 +1943,11 @@ canvas.media-frame {
   opacity: 0.5;
 }
 /* The spark (`AiSpark`): sized as an icon where it stands (a button's 16 px, an icon button's 18), its parts filling it.
-   While it works, it turns (the owner, 2026-10-31: the star "should spin every second or so", then "slower, more ease in
-   and ease out, like it takes time to accelerate and decelerate"; two small sparks blinking at its corners every other
-   sweep stood here from 2026-10-30, and read as nothing). Each beat, `--spark-turn` (2 s, its one home), is a half turn
-   in its first 85%, starting slow, fast through the middle, slowing to a stop (an ease-in-out cubic), then a short rest
-   before the next. A half and not a full one: the spark has four points, so it looks the same every quarter turn, and a
-   full turn read as two spins (the owner, 2026-10-31: "ONE 360 spin, not 720"); 180° ends on the pose it began in, so
-   nothing snaps as the next beat starts from 0°. */
+   While it works, it turns every second or so, easing in and out as if it took time to speed up and slow down. Each
+   beat, `--spark-turn` (2 s, its one home), is a half turn in its first 85%, starting slow, fast through the middle,
+   slowing to a stop (an ease-in-out cubic), then a short rest before the next. A half and not a full one: the spark
+   has four points, so it looks the same every quarter turn, and a full turn reads as two spins; 180° ends on the pose
+   it began in, so nothing snaps as the next beat starts from 0°. */
 .ai-spark {
   --spark-turn: 2s;
   position: relative;
@@ -1976,8 +1972,8 @@ canvas.media-frame {
   }
 }
 /* The burst as a button is pressed (`AiSpark`'s `burst`): two small sparks at its corners blink once, one after the
-   other, and are gone (the owner, 2026-10-31: "plays once, at the moment the button is clicked"; they blinked on the
-   thinking beat from 2026-10-30, where they read as nothing). The spark itself doesn't move for it. */
+   other, and are gone: once, at the moment the button is pressed, never while it thinks, where they read as nothing.
+   The spark itself doesn't move for it. */
 .ai-spark-burst {
   position: absolute;
   inset: 0;
@@ -2029,8 +2025,7 @@ canvas.media-frame {
 /* Something that opens and closes by its height, fading as it goes (components/Fold.tsx), so what's around it is moved
    aside and let back instead of jumping. One row of a grid, taken from nothing to the height of what's in it; how long
    that takes is handed in by the component, its one home. While it moves, what's in it is cut off at its edge; at rest
-   nothing is, so a shadow or a focus ring can reach out of it. The easing is the app's own (the opening moment's). It
-   was the extension's alone until the AI's status needed it here (2026-10-30). */
+   nothing is, so a shadow or a focus ring can reach out of it. The easing is the app's own (the opening moment's). */
 .fold {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -2090,8 +2085,8 @@ canvas.media-frame {
 }
 
 /* The AI's status (components/AiStatus.tsx): the head over what Panki AI answered, the spark and "Panki AI" at its left,
-   the status at its right as a button, a dot and a word lightly tinted as the strip menu's button is, smaller (the
-   owner, 2026-10-30: the transcribing status "is great"), the cost beside it; pressed, Details unfold under it in the
+   the status at its right as a button, a dot and a word lightly tinted as the strip menu's button is, smaller, the
+   cost beside it; pressed, Details unfold under it in the
    strip menu's own box. It wraps under the name on a narrow screen rather than squeezing. */
 .ai-status {
   display: grid;
@@ -2931,7 +2926,7 @@ mark.review-mark {
   color: inherit;
   background: var(--accent-soft);
 }
-/* What Panki AI wrote (the owner, 2026-11-04): its words in the AI's ink wherever a value is shown, whatever the part's
+/* What Panki AI wrote: its words in the AI's ink wherever a value is shown, whatever the part's
    own colour; the spark out of the text, once: in the review card's free top corner, at a card row's top right, inside
    a drawer field's box before its value, and before its name when the layout shows the name. */
 .review-card .review-part .review-words.is-ai,
@@ -2981,7 +2976,7 @@ mark.review-mark {
 /* Subtitles over a picture (components/ClipSubtitles.tsx on a card's clip; the extension's transcript over a YouTube
    video is the same band): a subtitle style (the contracts' `subtitleStyle.ts` → `subtitleVars`; the app's and the
    extension's are each their own) as variables on what holds it, the fallbacks here its defaults. The band is placed across the picture by a flex row, never by
-   what's inherited (centred by text-align, it drifted when a player filled the screen, 2026-10-17), and its words are
+   what's inherited (centred by text-align, it drifts when a player fills the screen), and its words are
    sized with the picture (`--sub-scale`, the picture's height over the size's own), so it's the same share of any
    picture: never smaller than can be read. */
 .sub-ground {
@@ -3008,8 +3003,7 @@ mark.review-mark {
   text-align: var(--sub-align, center);
   overflow-wrap: anywhere;
 }
-/* A card's clip's words take the pointer, so the extension's dictionary can look them up there (the owner,
-   2026-10-27); the rest of the ground lets every press through to the picture. */
+/* A card's clip's words take the pointer, so the extension's dictionary can look them up there; the rest of the ground lets every press through to the picture. */
 .sub-ground > .sub-band {
   pointer-events: auto;
 }
@@ -3113,7 +3107,7 @@ mark.sub-mark {
   font-size: 40px;
   line-height: 1.15;
 }
-/* A part's words bold or not, its own choice beside its size (it came with the big size alone until 2026-10-18). */
+/* A part's words bold or not, its own choice beside its size. */
 .review-part.is-bold .review-words {
   font-weight: 700;
 }
@@ -3156,8 +3150,8 @@ mark.sub-mark {
 /* A spoiler, as Discord hides a message: a plain block the shape of what it covers, no word on it, pressed to see
    what's under it (a player's as wide as the player). It's exactly as big as what it covers, the cover reaching a
    little past it as a shadow, which takes no room: so the card is the same size covered or open, and nothing moves as
-   it opens (the owner, 2026-10-16, saw every spoiler change its part's size). With a mouse, resting on it shows what's
-   under it for as long as the pointer stays (the owner, the same day); a press opens it for good. */
+   it opens. With a mouse, resting on it shows what's under it for as long as the pointer stays; a press opens it for
+   good. */
 .btn.btn-spoiler {
   position: relative;
   padding: 0;
@@ -3546,9 +3540,7 @@ mark.sub-blur {
   fill: var(--mark-glyph);
 }
 
-/* The app's way of arriving: something pops in, words rise under it. The extension's "Added" is these two. (They
-   were the opening moment's, `Intro`, which played over the app on every load until the owner had it out, 2026-10-21:
-   "it's just taking too much time and I don't need it".) */
+/* The app's way of arriving: something pops in, words rise under it. The extension's "Added" is these two. */
 @keyframes intro-pop {
   from {
     opacity: 0;
@@ -3690,9 +3682,8 @@ mark.sub-blur {
   gap: 8px;
 }
 /* A key being held on a button until it does its thing (`useHold`, a key set to hold in Settings → Keybinds): its keycap
-   a clock face, filling round from the top as far as it's been held, its edge drawn round with it (look 6, Keycap
-   clock, of https://claude.ai/artifact/DRi1kaVpLt677h9LUyFDHf, the owner's pick, 2026-10-21). `--hold` is set on the
-   button and read here. In the answer's colour on a plain answer, in the button's own on the filled one. */
+   a clock face, filling round from the top as far as it's been held, its edge drawn round with it. `--hold` is set
+   on the button and read here. In the answer's colour on a plain answer, in the button's own on the filled one. */
 .key.is-hold {
   --hold-ink: currentColor;
   position: relative;
@@ -3721,9 +3712,8 @@ mark.sub-blur {
   display: inline-flex;
   gap: 3px;
 }
-/* The Hold button (`ShowButton.tsx` → `HoldButton`), drawing A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA:
-   its clock and, beside it, the next stage over how it's held and what follows, in a row of its own under the card on
-   both its sides (`.review-hold`). Held by a finger it's a hold, never a scroll, a selection or the phone's menu. */
+/* The Hold button (`ShowButton.tsx` → `HoldButton`): its clock and, beside it, the next stage over how it's held and
+   what follows, in a row of its own under the card on both its sides (`.review-hold`). Held by a finger it's a hold, never a scroll, a selection or the phone's menu. */
 .review-hold {
   display: flex;
   justify-content: center;
@@ -4098,7 +4088,7 @@ mark.sub-blur {
 
 /* The Admin tab wants more room across than a column, for the transcription modes side by side, so Settings is wider
    than other pages, a little less than the editors (`.app.is-wide`): on every tab alike, so changing tabs never
-   changes its width (it widened for Admin alone until the owner, 2026-10-21: "clicking admin changes the size of it all"). */
+   changes its width. */
 .app:has(.settings-tab) .main,
 .app:has(.settings-tab) .subhead,
 .app.is-settings .main,
@@ -4268,7 +4258,7 @@ mark.sub-blur {
   white-space: nowrap;
 }
 /* The switch and Make default, from the top of the row: a column with the switch alone (the default's) holds it level
-   with the others' switches rather than in the middle of the row's height (the owner, 2026-10-20). */
+   with the others' switches rather than in the middle of the row's height. */
 .mode-cell.mode-foot {
   display: flex;
   align-items: center;
@@ -4315,8 +4305,8 @@ mark.sub-blur {
 }
 
 /* A card row's place and due time on its right, then (where cards can be changed) edit with delete under it, each a
-   column of its own held to the row's top, level with the word: halfway down a tall row they floated loose of it (the
-   owner, 2026-10-18). Always there, never only under a pointer, so a finger finds them too. */
+   column of its own held to the row's top, level with the word: halfway down a tall row they would float loose of
+   it. Always there, never only under a pointer, so a finger finds them too. */
 .card-row.has-state,
 .card-row.has-tools {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -4340,8 +4330,8 @@ mark.sub-blur {
   gap: 4px;
   margin: -2px -2px 0 0;
 }
-/* Each tool its icon and its word, one under another, all as wide as the widest, the words lined up (the owner,
-   2026-10-29: "better to add text to them"). */
+/* Each tool its icon and its word, one under another, all as wide as the widest, the words lined up: an icon
+   alone doesn't say enough. */
 .card-tools .btn.card-tool {
   justify-content: flex-start;
   gap: 6px;
@@ -4417,7 +4407,7 @@ mark.sub-blur {
 .due.is-now {
   color: var(--accent);
 }
-/* A suspended card, tinted red whole (the owner, 2026-10-30), its Unsuspend where Suspend stands among its tools. */
+/* A suspended card, tinted red whole, its Unsuspend where Suspend stands among its tools. */
 .card-row.is-suspended {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
   background: var(--danger-soft);
@@ -4458,8 +4448,8 @@ mark.sub-blur {
 .review-asides.is-later {
   visibility: hidden;
 }
-/* The review on a computer fits the window, nothing scrolled to (the owner, 2026-10-21: "make it so I never have to
-   scroll, fit everything into the screen, make the buttons smaller if needed"): the app exactly the window's height;
+/* The review on a computer fits the window, nothing scrolled to, everything on one screen with the buttons smaller
+   where they must be: the app exactly the window's height;
    the counts with the Chart button at their right, the card, the answers one line each and the answers set apart take
    their own height, and the card takes the rest. In the card every part takes its own height but a clip's, which takes
    what's left (a size container), its picture 16:9 as big as that fits with its bar under it. The back's parts hold
@@ -4472,8 +4462,8 @@ mark.sub-blur {
     height: 100dvh;
   }
   /* The whole review screen is one width and one top, whatever it shows (its shape while it loads, today's cards, the
-     review, the end), so its header never moves from one to the next (the owner, 2026-10-26: it jumped as a review's
-     skeleton gave way to today's cards). `is-review` is the screen's, on `.app` (App.tsx). */
+     review, the end), so its header never moves from one to the next (a review's skeleton giving way to today's
+     cards, say). `is-review` is the screen's, on `.app` (App.tsx). */
   .app.is-review .main,
   .app.is-review .subhead {
     max-width: 1080px;
@@ -4629,11 +4619,10 @@ mark.sub-blur {
     line-height: 1.4;
   }
 }
-/* A review filling the screen (hooks/useScreenStage.ts; the owner, 2026-10-25): the whole review is what fills it, so it
-   stays filled as the cards change. The card's clip (`[data-staged]`, the first not under a spoiler) takes the screen's
-   room at the left, fixed under everything else of the review, and the rest stands in a rail at the right (A of the
-   ways tried; glass over the clip's corner, B, went at the owner's word: "rail is better"). The rail fits the screen
-   whole ("it all needs to fit in one page… at a lower zoom it all fits perfectly"): wider on a wider screen, set
+/* A review filling the screen (hooks/useScreenStage.ts): the whole review is what fills it, so it stays filled as the
+   cards change. The card's clip (`[data-staged]`, the first not under a spoiler) takes the screen's room at the left,
+   fixed under everything else of the review, and the rest stands in a rail at the right. The rail fits the screen
+   whole, all of it on one page as it is at a lower zoom: wider on a wider screen, set
    closer and a size smaller than the page's review, and with no scroll bar, a card that still runs over being reached
    with the wheel. Closed, the clip is alone until the screen is next filled. A card without a clip fills the screen
    as the review is. A clip only the back shows holds its room dark until the card is turned. */
@@ -5371,8 +5360,7 @@ mark.sub-blur {
 }
 /* An answer whose button is hidden at that point (its rule is "Button hidden"): no box follows it, as nothing happens;
    its name is the thing that's gone, an X before it and the whole of it struck through corner to corner, top left to
-   bottom right, at the end of a faint dashed stub (the owner, 2026-10-18: as a box it read as what pressing it did;
-   then "make it an X and strike the whole thing diagonally"). */
+   bottom right, at the end of a faint dashed stub. As a box it would read as what pressing it did. */
 .edge-label.is-hidden {
   display: inline-flex;
   align-items: center;
@@ -5387,7 +5375,7 @@ mark.sub-blur {
   inset: 0;
   border-radius: inherit;
   /* A gradient towards one corner draws its middle line through the other two, so "to bottom left" is the line from
-     the top left to the bottom right ("to bottom right" drew the other diagonal, 2026-10-18). */
+     the top left to the bottom right ("to bottom right" draws the other diagonal). */
   background: linear-gradient(to bottom left, transparent calc(50% - 0.75px), currentColor calc(50% - 0.75px), currentColor calc(50% + 0.75px), transparent calc(50% + 0.75px));
   pointer-events: none;
 }
@@ -5551,7 +5539,7 @@ mark.sub-blur {
 .fnode.downX .t {
   color: var(--danger);
 }
-/* New, before the first stage: set apart in its own colour as Burned is at the end (the owner, 2026-10-21), the accent
+/* New, before the first stage: set apart in its own colour as Burned is at the end, the accent
    new cards have in a review's count. */
 .fnode.root.is-lesson {
   background: var(--accent-soft);
@@ -6435,8 +6423,7 @@ mark.sub-blur {
 .tile-ghost .tile-x {
   display: none;
 }
-/* While arranging, the doors dim and every tile gets a × at its corner. Nothing shakes: the owner had the wobble
-   taken down to a tenth and then out altogether (2026-10-11). */
+/* While arranging, the doors dim and every tile gets a × at its corner. Nothing shakes. */
 .board.is-arranging > [data-id] {
   cursor: grab;
   touch-action: none; /* a finger on a tile moves it; the ground still scrolls */
@@ -6757,8 +6744,7 @@ mark.sub-blur {
 .capture .add-form > * {
   min-width: 0;
 }
-/* The drawer's first row, right under its head (its last until 2026-10-31; Discard went the same day, the × being the
-   way out): Touch up, then Add, the primary, taking the rest. Both the drawer's own button size. Add takes a row of its
+/* The drawer's first row, right under its head (the × being the way out): Touch up, then Add, the primary, taking the rest. Both the drawer's own button size. Add takes a row of its
    own only where the two can't share one. */
 .capture-ends {
   display: flex;
@@ -6873,8 +6859,7 @@ mark.sub-blur {
   flex-wrap: wrap;
   gap: 8px;
 }
-/* A field and what Touch up says about it, one shape (the owner, 2026-10-31: a proposal must be plainly its field's;
-   TouchUp.tsx → `Tied`), in Panki's verdict's colour: `--accuracy`, the meanings' own (`.ai-accuracy.is-…`: good green,
+/* A field and what Touch up says about it, one shape, so a proposal is plainly its field's (TouchUp.tsx → `Tied`), in Panki's verdict's colour: `--accuracy`, the meanings' own (`.ai-accuracy.is-…`: good green,
    meh orange, bad red), or the accent where nothing is wrong but something is offered. The field's box in it, its foot
    squared, and the note hanging straight from it, the box's sides carried on down round the note to one rounded end. */
 .touch-up-tied {
@@ -7047,8 +7032,7 @@ mark.sub-blur {
    the app's views/HoldButtonScene.tsx and explainers/aiScenes.tsx) ----------
    A (?) beside the panel's title; its window holds a browser with a page in it, the feature being used there. The page
    is drawn at a real page's size (CANVAS) and scaled to the window, so Panki's components keep their own sizes. The
-   extension's options page had these alone until 2026-11-02; the video site the scenes play on is here too (`.ex-yt`),
-   since Settings → Panki AI plays on it, and what only the extension's scenes draw is still its own. */
+   video site the scenes play on is here too (`.ex-yt`), since Settings → Panki AI plays on it, and what only the extension's scenes draw is still its own. */
 /* The title and its (?) on one line, centred on each other: the title's own space under it is the row's. */
 .explain-head {
   display: flex;
@@ -7228,7 +7212,7 @@ mark.sub-blur {
   overflow: hidden;
   background: var(--page);
 }
-/* The camera framing what a moment is about, slowly (the owner, 2026-10-28: "subtle and smooth… make sure it doesn't cut off"). */
+/* The camera framing what a moment is about, slowly and smoothly, never cutting off what it frames. */
 .explain-camera {
   position: absolute;
   inset: 0;
@@ -7326,7 +7310,7 @@ mark.sub-blur {
   }
 }
 
-/* A video's thumbnail (the owner's picks, bundled: explainers/thumbs/), cropped to its box as the site crops it. */
+/* A video's thumbnail (bundled: explainers/thumbs/), cropped to its box as the site crops it. */
 .ex-thumb,
 .ex-frame {
   display: block;

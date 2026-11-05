@@ -401,7 +401,7 @@ export function CardForm(props: Props) {
             );
           } else {
             const value = draft[field.id] ?? "";
-            // What Panki AI wrote is marked as the drawer marks it while it stands as written; changed, it's the owner's.
+            // What Panki AI wrote is marked as the drawer marks it while it stands as written; changed by hand, it's no longer the AI's.
             const aiWrote = card !== undefined && value !== "" && value === (card.values[field.id] ?? "") && byAi(card.sources, field.id);
             shown = (
               <>

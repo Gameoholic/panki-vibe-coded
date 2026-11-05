@@ -2,9 +2,8 @@ import { existsSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 
 /**
- * The backup folder's snapshots: one folder per `pnpm backup` run, named for its moment ("2026-10-17T21-05-33Z"), beside
- * the one `files` folder every run shares. Only the newest few are kept (the owner, 2026-10-22: "it should only store up
- * to 3 slots at a time"); the files stay, as every snapshot's cards may name them. Nothing but a folder named exactly
+ * The backup folder's snapshots: one folder per `pnpm backup` run, named for its moment ("YYYY-MM-DDTHH-MM-SSZ"), beside
+ * the one `files` folder every run shares. Only the newest few are kept (`env.backupSlots`); the files stay, as every snapshot's cards may name them. Nothing but a folder named exactly
  * like a snapshot is ever taken away.
  */
 

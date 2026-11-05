@@ -97,7 +97,7 @@ const proposedOf = (proposed: ProposedMeaning | null): ProposedMeaning | null =>
 const FOLLOW_UPS_OF: Record<AiActionId, string> = { explain: "an explanation", touchUp: "a touch-up", proofread: "a proofread" };
 
 /**
- * Panki AI, for everyone (2026-10-30): whether it's on, the provider and its model, whose key the provider has, and,
+ * Panki AI, for everyone: whether it's on, the provider and its model, whose key the provider has, and,
  * for an admin, the key itself. Read by anyone signed in; changed by an admin alone. Each action (Explain, Touch up) is
  * a call to the provider with the key an admin typed or the server's own, read through the one reader, running a
  * template of the account's own or one of Panki's starters (AI step 5); the account's templates are its own to manage.
@@ -412,7 +412,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     const { meanings, keys, now: card } = parsed.data;
     const call = { action: "touchUp", prompt: ask.prompt, said: ask.said, maxTokens: settings.aiMaxTouchUpTokens, ref: ask.ref } as const;
     // Asked on the wire, which has no union, nothing optional and nothing nullable (a provider refuses a schema past 16
-    // of those); read into the owner's shapes at once (`answerOfWire`, `followOfWire`), and every rule held to those.
+    // of those); read into Panki's own shapes at once (`answerOfWire`, `followOfWire`), and every rule held to those.
     if (ask.followUp) {
       const answer = await run(res, settings, { ...call, shape: ruled(touchUpFollowShape(keys), (wire) => touchUpFollowProblem(wire, meanings)) });
       if (!answer) return;

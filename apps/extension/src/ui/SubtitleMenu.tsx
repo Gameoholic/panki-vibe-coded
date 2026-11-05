@@ -6,8 +6,7 @@ import { SubtitleStyleFields } from "@web/components/SubtitleStyleFields";
 import { useDismiss } from "@web/hooks/useDismiss";
 
 /**
- * How the transcript looks over the video, set on the page itself (the owner, 2026-10-17: "edit the subtitles directly
- * in YouTube… not the vanilla subtitle settings button but somewhere else", after a day on the options page): a
+ * How the transcript looks over the video, set on the page itself, apart from the site's own subtitle settings: a
  * Subtitles button in the strip's head, and under it a panel of the style's settings (the app's `SubtitleStyleFields`,
  * which its own Settings draw for a card's clip), each kept the moment it's changed and seen on the video at once.
  * While the panel is open the band on the video can be dragged where it's wanted (`onOpen` tells the page). The panel
@@ -29,7 +28,7 @@ export function SubtitleMenu({ style, onChange, onOpen }: { style: SubtitleStyle
       </Button>
       {open ? (
         <div id="panki-subtitle-menu" className="strip-menu is-settings" role="dialog" aria-label="Subtitles">
-          {/* Dragging is the way nobody could guess (the owner, 2026-10-17: "directly drag the subtitle bar"); the one line here says so. */}
+          {/* Dragging the band is the way nobody could guess; the one line here says so. */}
           <SubtitleStyleFields idPrefix="subtitle" style={style} onChange={onChange} acrossWhy="Or drag the subtitles on the video while this is open." small />
         </div>
       ) : null}

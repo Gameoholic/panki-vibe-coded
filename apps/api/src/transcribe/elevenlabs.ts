@@ -4,10 +4,9 @@ import { timedOut } from "../outbound";
 import { EngineError, type EngineClient, type Heard } from "./engines";
 
 /**
- * ElevenLabs Scribe v2 (the owner's pick, 2026-10-16: "$0.22 an hour, 4½ hours free"). One call per piece: the sound
- * as a file in a multipart form, the words back with their times; or one call for a whole video, its address in place
- * of the file (2026-10-20). The key goes only in the `xi-api-key` header. And the account behind the key, from
- * `GET /v1/user/subscription` (its docs, read 2026-10-17: `tier`, `status`, `character_count` of `character_limit` in
+ * ElevenLabs Scribe v2 ($0.22 an hour, 4½ hours free). One call per piece: the sound as a file in a multipart form,
+ * the words back with their times; or one call for a whole video, its address in place of the file. The key goes only
+ * in the `xi-api-key` header. And the account behind the key, from `GET /v1/user/subscription` (its docs: `tier`, `status`, `character_count` of `character_limit` in
  * the period, `next_character_count_reset_unix`, `current_overage`), for an admin's Settings, and read on either side
  * of a whole-video download to tell what it cost.
  *
@@ -63,7 +62,7 @@ function saidOf(body: unknown): string | null {
   return said ? said.slice(0, SAID_MAX) : null;
 }
 
-/** What a refusal comes to, in the owner's words: ElevenLabs' own sentence when it gave one. Down or too busy, it may pass. */
+/** What a refusal comes to, in plain words: ElevenLabs' own sentence when it gave one. Down or too busy, it may pass. */
 function refused(status: number, body: unknown): EngineError {
   const passing = status >= 500 || status === 429;
   const said = saidOf(body);
@@ -91,7 +90,7 @@ function formOf(language: string): FormData {
   form.set("timestamps_granularity", "word");
   form.set("tag_audio_events", "false");
   form.set("diarize", "false");
-  // Always told: asked, it judged the language of the first pieces itself, and that check is gone (2026-10-18).
+  // Always told, never asked: the engine never judges the language itself.
   form.set("language_code", language);
   return form;
 }
@@ -132,7 +131,7 @@ export function createElevenLabs(fetcher: typeof fetch): EngineClient {
       return heardFrom(key, form, TRANSCRIBE_TIMEOUT_MS);
     },
     // The whole video, fetched by ElevenLabs itself from its address (`source_url`, which takes a YouTube link: its API
-    // reference, read 2026-10-19), in one call that comes back once it's all heard: a 16-minute video in 41 s.
+    // reference), in one call that comes back once it's all heard: a 16-minute video in 41 s.
     async transcribeVideo(key, url, language, deadlineMs) {
       const form = formOf(language);
       form.set("source_url", url);

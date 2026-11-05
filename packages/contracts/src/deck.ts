@@ -15,7 +15,7 @@ export const NewDeck = z.object({
 });
 
 /**
- * How a review of one deck runs; each deck has its own. Only what the owner changed is stored, the rest reads as
+ * How a review of one deck runs; each deck has its own. Only what was changed is stored, the rest reads as
  * `DEFAULT_DECK_SETTINGS`, so a new setting is no migration.
  */
 export const POOL_MAX = 99;
@@ -33,8 +33,8 @@ export const DeckSettings = z.object({
   /**
    * Where a card asked again in the same review goes back in: the end of the line, or anywhere at random. With a
    * `pool` it's always anywhere, whatever is stored: the pool is the line, so it comes back within the cards in play
-   * (`againPlaceOf`). "A few cards on" (`soon`) went at the owner's word, 2026-10-23; a deck that kept it reads as the
-   * default.
+   * (`againPlaceOf`). A deck that kept "A few cards on" (`soon`), a choice that's gone, reads as
+   * the default.
    */
   againPlace: z.enum(["end", "random"]),
   /** How many different cards are in play at once: the next one only joins when one of them is done for now. Null is all of them. */
@@ -46,12 +46,11 @@ export const DeckSettings = z.object({
   exampleShown: z.enum(["rotate", "newest", "random"]),
   /**
    * Whether a review opens on today's cards (the reviews and the new ones, each ticked) before the first one, to untick
-   * what's left for the next review and to add new cards past today's count (the owner's pick, B of
-   * https://claude.ai/artifact/1sSZsVseDpRJpDQE1F2u62, 2026-10-26); off, it starts straight in, as it always did.
+   * what's left for the next review and to add new cards past today's count; off, it starts straight in, as it always did.
    */
   todayFirst: z.boolean(),
   /**
-   * The answer the Hold button gives in this deck once it's held past the back of a card (the owner, 2026-11-02): one of
+   * The answer the Hold button gives in this deck once it's held past the back of a card: one of
    * the deck's SRS type's answers, by its id; none, the hold stops at the back. The deck's, since a device's keys know
    * answers only by their place and a built-in SRS type can't be changed. An id its SRS type doesn't have (the type
    * changed since) is none.

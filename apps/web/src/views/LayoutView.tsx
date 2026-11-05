@@ -78,11 +78,9 @@ type Props = {
 };
 
 /**
- * How a card type's cards look in a review, laid out on the card itself (the owner's pick, B of the card layout page,
- * 2026-10-15): the card as a review shows it, front or back, with one of the type's own cards on it; a part pressed
- * on it is picked and its choices stand beside it (under it on a phone); a part is moved by its grip; what isn't on
- * the side shown waits under the card. (A list of every field under it all was taken out at the owner's word the same
- * day: "useless".) "Preview" makes it a review card for a moment: pressed to turn, spoilers to open, sounds that play
+ * How a card type's cards look in a review, laid out on the card itself: the card as a review shows it, front or
+ * back, with one of the type's own cards on it; a part pressed on it is picked and its choices stand beside it (under
+ * it on a phone); a part is moved by its grip; what isn't on the side shown waits under the card. "Preview" makes it a review card for a moment: pressed to turn, spoilers to open, sounds that play
  * by themselves. Saved by the header's Save, as the SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
@@ -269,7 +267,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           control={<Segmented idPrefix="part-listen" label="While listening" options={LISTEN_OPTIONS} value={part.listen} disabled={!listen.on} onChange={(listening) => update(id, { listen: listening })} />}
         />
         {/*
-          Which play of this sound or clip shows the card (the owner, 2026-11-01), one of them on a card at most: while
+          Which play of this sound or clip shows the card, one of them on a card at most: while
           another does, it's greyed here and says which. Greyed too while it's hidden in the Listen phase, which never plays it.
         */}
         {media ? (
@@ -364,8 +362,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
 
   const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? null);
   /**
-   * Listen first, the type's own (the owner, 2026-11-01): a panel of its own above whatever's picked, headed by the type's
-   * name, so it never reads as the picked field's (the owner: "it looks like it's part of the field"). When the card
+   * Listen first, the type's own: a panel of its own above whatever's picked, headed by the type's name, so it never
+   * reads as part of the picked field. When the card
    * shows by itself is a sound's or clip's own, in its part's choices.
    */
   const typePanel = (

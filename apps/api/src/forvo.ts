@@ -3,14 +3,12 @@ import { sniffMimes } from "./mediaFiles";
 import { timedOut } from "./outbound";
 
 /**
- * Word audio recorded by people, from Forvo (the owner's choice, 2026-10-15, on its $2 a month plan): the one service
- * besides the owner's own that Panki calls, and only Forvo's own addresses. Nothing here is generated: each recording
- * is someone saying the word. Forvo's terms, as the owner pasted them that day: "Pronunciations by Forvo" is said where
- * they're used, a link to a file works for two hours, every list asked for and every file fetched counts against the
- * day's 500. They also say not to keep copies of the recordings; the owner, who pays for them and is their only
- * listener, decided Panki keeps what it fetches ("we are going to do caching"), and since 2026-10-18 keeps it on disk
- * for everyone, for good: "it needs to be saved on disk globally, cached forever so we never go to the API for a word
- * we already asked for in the past". That's the route's to do (`routes/forvo.ts`, the shared store); this is only the
+ * Word audio recorded by people, from Forvo (on its $2 a month plan): a service Panki calls, and only Forvo's own
+ * addresses. Nothing here is generated: each recording is someone saying the word. Forvo's terms: "Pronunciations by
+ * Forvo" is said where they're used, a link to a file works for two hours, every list asked for and every file fetched
+ * counts against the day's 500. They also say not to keep copies of the recordings; Panki keeps what it fetches all the
+ * same, since the one paying for them is their only listener: on disk for everyone, for good, so Forvo is never asked
+ * again for a word it was asked for before. That's the route's to do (`routes/forvo.ts`, the shared store); this is only the
  * calls themselves.
  *
  * The shape of its answer isn't documented, so it's read defensively: each recording is checked on its own, one that
@@ -32,7 +30,7 @@ export const KEPT_PER_WORD = 8;
 /** The call didn't come back: cut by the deadline, or never reached. */
 const unreached = (e: unknown) => new ForvoError(timedOut(e) ? "Forvo took too long to answer." : "Couldn't reach Forvo.", 502);
 
-/** What went wrong, in the owner's words, with the answer it gets: Forvo's fault (502), or a recording that isn't there (404). */
+/** What went wrong, in plain words, with the answer it gets: Forvo's fault (502), or a recording that isn't there (404). */
 export class ForvoError extends Error {
   constructor(
     message: string,

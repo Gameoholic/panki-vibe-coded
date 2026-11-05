@@ -2,8 +2,7 @@ import { panki } from "../panki";
 import { readStore, writeStore, type Stored } from "../storage";
 
 /**
- * Video tracking, this browser's own since 2026-11-02 (the owner: "I can want some devices sending and others not";
- * it was the account's, one switch for every browser). Off for a browser new to Panki. A browser that was already
+ * Video tracking, this browser's own, so some devices can send while others don't. Off for a browser new to Panki. A browser that was already
  * signed in when its switch came here starts from the account's old switch, read once (`Settings.videoTracking`, never
  * written since), so nothing that was sending stops by itself. Whichever it is, it's kept and never settled again.
  */
@@ -42,7 +41,7 @@ export async function setVideoTracking(on: boolean): Promise<void> {
 
 /**
  * The switch said to Panki on the sign-in in use, so Panki's Settings → Extension → Data tracking can list this browser
- * and whether it sends (2026-11-03): as the browser starts or the extension is updated, and whenever the switch or the
+ * and whether it sends: as the browser starts or the extension is updated, and whenever the switch or the
  * sign-in changes (the worker's). Nothing while signed out or still unsettled; a failure is said again the next time.
  */
 export async function reportVideoTracking(): Promise<void> {

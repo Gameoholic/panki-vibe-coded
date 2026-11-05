@@ -15,8 +15,8 @@ type Narrower = {
 const ranked = ({ srsType }: Context) => srsType !== undefined;
 
 /**
- * The ways a deck's cards can be narrowed to some of them, one entry each (the owner, 2026-10-30: "a way to FILTER
- * cards, for example but not limited to whether they are suspended or not"); every stage of the deck's SRS type is one
+ * The ways a deck's cards can be narrowed to some of them, one entry each (whether they're suspended, and much
+ * else); every stage of the deck's SRS type is one
  * more, after these (`stageFilter`). A new way is one entry.
  */
 export const CARD_FILTERS = {

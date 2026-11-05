@@ -31,9 +31,8 @@ const rowsKey = (action: AiActionId) => `rows:ai:${action}`;
 
 /**
  * Settings → Panki AI (AI step 5): Ask before a run is over and Show the cost when a run is over, the account's own, two
- * thresholds on the same choices (the owner, 2026-11-01: "2 settings overall"), saved a moment after a change; then a
- * panel per action listing its templates as the SRS types are listed (the owner, 2026-11-01: "do it like the SRS
- * does"): the account's own first, then under a thin line Panki's, quieter and each with a lock. A row is its name,
+ * thresholds on the same choices (two settings for every action), saved a moment after a change; then a panel per
+ * action listing its templates as the SRS types are listed: the account's own first, then under a thin line Panki's, quieter and each with a lock. A row is its name,
  * Default with the star on the one its button runs, whether it judges the meanings (Explain's), and what a run can cost
  * on the model set in Admin. New template under each. Each action's title has its (?), the action played at work
  * (`explainers/aiScenes.tsx`).

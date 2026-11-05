@@ -23,8 +23,8 @@ export type BoardLayout = {
 
 /** The tiles on the home before anything is changed. */
 const DEFAULT_TILES: readonly WidgetId[] = ["streak", "heat", "coming"];
-// "hold" is what this way of arranging was called while six were tried side by side, each with its own layout
-// (2026-10-11). It is the one that was chosen; the key keeps its name so what's already arranged on a device stays.
+// "hold" is this way of arranging's name among others it was once tried beside; the key keeps the name so what's
+// already arranged on a device stays.
 const KEY = "panki.board.hold";
 
 const isHomeId = (x: unknown): x is WidgetId => typeof x === "string" && widgetOf(x)?.home === true;
@@ -51,10 +51,10 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
 }
 
 /**
- * Tiles put on the home once, on each device, the first time it's read after they joined the registry (the owner,
- * 2026-10-21, of the watching tiles: "edit it to look with all the modules on"); from then on each is like any tile,
+ * Tiles put on the home once, on each device, the first time it's read after they joined the registry, so the
+ * home shows what watching adds; from then on each is like any tile,
  * put away with its × and brought back by hand. The ones already put out are kept beside the layout, so one put away
- * stays away. Recently watched joined them (2026-10-25), asked for by name.
+ * stays away.
  */
 const PUT_OUT: readonly WidgetId[] = ["continue", "watched", "watch-time", "channels", "recent"];
 const PUT_OUT_KEY = "panki.board.putOut";

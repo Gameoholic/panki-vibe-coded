@@ -107,8 +107,8 @@ const GUARD_SECONDS = 5;
 const GUARD_TRIES = 3;
 /**
  * Waiting this long for the video's data (loading, or a seek that doesn't land) with nothing coming, the page is opened
- * again where it stands, at most this many times for one silent player (2026-10-20: "Loading the video at 3:59" for
- * good, the frame's video server not found by the browser, `ERR_NAME_NOT_RESOLVED`). Seconds.
+ * again where it stands, at most this many times for one silent player (a frame can stay "Loading the video at 3:59"
+ * for good when the browser doesn't find its video server, `ERR_NAME_NOT_RESOLVED`). Seconds.
  */
 const STUCK_SECONDS = 15;
 const REOPENS = 3;
@@ -160,27 +160,23 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
    * The player's time and the sound clock's, read in the same instant: how a block of sound is placed in the video.
    * Null while the player is paused, seeking, stalled or in an ad, which is when nothing is taken.
    *
-   * Why the clock and not an event: until 2026-10-17 the count of samples began at the player's time as the `playing`
-   * event reported it, and every block after was counted from there. But the block that arrives right after that
-   * event holds sound rendered *before* it (the graph hands a block over once it's full, and the event itself is
-   * queued), so that sound was placed a block or two late, and every block after it with it; at speed the error is
-   * multiplied (a 4096-sample block is 85 ms of sound at 48 kHz, 256 ms of the video at 3×, two of them half a
-   * second: the owner's "always delayed a little bit, like half a second"). Each block now says when it was rendered
-   * (`playbackTime`), and is placed from that against the pair below, so when the event fired no longer matters.
+   * Why the clock and not an event: counted from the player's time as the `playing` event reports it, every block
+   * would be placed late. The block that arrives right after that event holds sound rendered *before* it (the graph
+   * hands a block over once it's full, and the event itself is queued), so that sound would be placed a block or two
+   * late, and every block after it with it; at speed the error is multiplied (a 4096-sample block is 85 ms of sound at
+   * 48 kHz, 256 ms of the video at 3×, two of them half a second). Each block says when it was rendered
+   * (`playbackTime`), and is placed from that against the pair below, so when the event fired doesn't matter.
    *
    * And the clock is checked against the one thing known for sure. After a seek the graph gives silence until the
    * player is there, then the sound from exactly where it landed: the first sample that isn't zero is the video at
    * `onset`. Where the clock put that sample, against where it truly was, is the clock's error (`biases`: what the
    * browser's latencies and the node's own buffering really come to on this device, which no reading says plainly),
-   * taken off every reading after; the sample itself anchors the count. Each measurement is printed to the page's
-   * console as "Panki timing", for the owner to read off (2026-10-17, the delay still felt after the clock came in).
+   * taken off every reading after; the sample itself anchors the count.
    *
-   * Two things the first try of this got wrong, the same evening, and the words went far later than before: the
-   * blocks were looked at for the first sound only once the pair was there, after the `playing` event, so the sound
-   * had often begun in a block already thrown away and the "first sound" was a block or more late; and the moment was
-   * taken as asked, where the player lands where it will (the site's own player seeks again to a whole second, the
-   * one its address named). So the blocks are looked at from the seek on, pair or no pair, and `onset` is where the
-   * player says it landed (`seeked`), not where it was sent.
+   * Two traps in that. The blocks are looked at for the first sound from the seek on, pair or no pair: waiting for the
+   * pair, after the `playing` event, the sound has often begun in a block already thrown away and the "first sound" is
+   * a block or more late. And `onset` is where the player says it landed (`seeked`), not where it was sent: the player
+   * lands where it will (the site's own player seeks again to a whole second, the one its address named).
    */
   let sync: { video: number; clock: number } | null = null;
   /** Where the player landed at the last seek, until its first sound has been heard; null otherwise. */
@@ -197,12 +193,11 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
   let looker: ReturnType<typeof setInterval> | null = null;
   /**
    * Where the player was last sent, while the site may still move it by itself: as its page loads, the site seeks to
-   * where it thinks the viewer left off (the account's progress on the video), which isn't where the run is (2026-10-20:
-   * the owner forgot a video's transcript, refreshed, pressed Transcribe at 0:00, and the chunks were heard from about
-   * 4:00, where they'd been watching). Such a seek is put back. Null once it has played `GUARD_SECONDS` on from there:
-   * `played` counts only the small steps of playing, never a seek's leap, and `last` is where it stood at the last step.
-   * (The leap itself counted at first: the site's seek to 8:55 read as having played on, and the guard was off before
-   * the seek it was there for could be put back, 2026-10-20.)
+   * where it thinks the viewer left off (the account's progress on the video), which isn't where the run is (a run
+   * from 0:00 on a video watched to 4:00 would be heard from 4:00). Such a seek is put back. Null once it has played
+   * `GUARD_SECONDS` on from there: `played` counts only the small steps of playing, never a seek's leap, and `last` is
+   * where it stood at the last step. (Were the leap counted, the site's seek would read as having played on, and the
+   * guard would be off before the seek it's there for could be put back.)
    */
   let sent: { at: number; tries: number; played: number; last: number } | null = null;
   /** The site's own seek has landed where it wasn't sent and is about to be put back: nothing heard there is the run's. */
@@ -349,7 +344,6 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
           // `read` had the bias so far taken off already; what's kept is the clock's raw error.
           biases = [...biases.slice(-(BIASES - 1)), error + bias()];
         }
-        // (Each onset was printed to the page's console as "Panki timing" while the delay was being run down, 2026-10-17; the owner had the print taken out once it was.)
         // The sound itself is the anchor; only where it was silent at the landing (the first sound came much later
         // than the clock says) is a clock that has been calibrated once trusted over it. And the pair is made now,
         // so the next block isn't thrown away.
@@ -373,8 +367,8 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
       onset = found.currentTime;
       // Every seek but the site's is `seekAndPlay`'s, which sets `sent` first: one landing far from it is the site's
       // (an ad plays its own times on the same element, and is left alone). It's put back once it has landed, by a seek
-      // of our own as a run's jumps are made: put back from inside the site's own seek (2026-10-20, the first try), the
-      // site's player was left playing out loud, the wired one dead.
+      // of our own as a run's jumps are made: put back from inside the site's own seek, the site's player is left
+      // playing out loud, the wired one dead.
       const back = sent;
       if (back === null || ad || Math.abs(found.currentTime - back.at) <= STRAY) return;
       if (back.tries >= GUARD_TRIES) {
@@ -551,8 +545,8 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
       video?.pause();
       void ctx?.close().catch(() => undefined);
       // Unloaded before it's taken out, so the site's page in it is torn down now rather than when the browser gets
-      // round to it: a trace of the owner's (2026-10-17) showed the tab's heap stepping up by 60 to 80 MB at each change
-      // of video, the site's own page and this frame's both loading then, and not coming down within the trace.
+      // round to it: left to the browser, the tab's heap steps up by 60 to 80 MB at each change of video, the site's
+      // own page and this frame's both loading then, and doesn't come down for a long while.
       frame.src = "about:blank";
       frame.remove();
     },

@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import { HoldClock, KeyCap } from "./KeyCap";
 
 type Props = {
-  /** The card in its Listen phase: Done listening, which shows its front; otherwise Show back of card (Show answer until 2026-11-01), which turns it. */
+  /** The card in its Listen phase: Done listening, which shows its front; otherwise Show back of card, which turns it. */
   listening: boolean;
   /** The key it's pressed with, drawn as its keycap: Done listening's own while listening, Show back of card's on the front. */
   bind: Key | undefined;
@@ -32,13 +32,12 @@ export function ShowButton({ listening, bind, onPress }: Props) {
 const holdWords = (ms: number) => (ms > 0 ? `Hold ${ms / 1000} s` : "Press");
 
 /**
- * The Hold button (`useHoldButton`), drawn as the owner's drawing A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA
- * (2026-11-02: "it looked cool and was better for this"): its key as one clock face for every stage of the card
+ * The Hold button (`useHoldButton`): its key as one clock face for every stage of the card
  * (`HoldClock`), what's done filled and the stage being held filling on from there, and beside it the next stage in
  * words (Done listening, Show back of card, the deck's answer by its name) over how long it's held ("Hold 0.5 s"; what
- * comes after it is the clock's to show, the owner, 2026-11-02).
+ * comes after it is the clock's to show).
  * Held, it goes on; tapped, the card goes back to its start. It stands under the card on both its sides, beside the
- * review's own buttons, which keep working by hand with no keys of their own while it's on (the owner, 2026-11-02). The
+ * review's own buttons, which keep their keys while it's on: it's one more action with a key of its own. The
  * review, the Layout tab's Preview and its explainer are all this.
  */
 export function HoldButton({ view }: { view: HoldButtonView }) {

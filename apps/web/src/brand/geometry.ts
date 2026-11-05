@@ -1,6 +1,5 @@
 // The Panki mark: パ, the first sound of the name, from Noto Sans JP at weight 900 as outlines (so it is
-// the same glyph on every device), on a 512 tile with 112 corners. Chosen by the owner on 2026-10-09
-// (https://claude.ai/artifact/8ffZbTJaFW8mvGV6dG6Vo5, option 4, white on indigo).
+// the same glyph on every device), on a 512 tile with 112 corners, white on indigo.
 // This is the one home of the geometry: public/icon.svg and public/icons/*.png are renders of it (`pnpm icons`),
 // and the colours are the --mark-* tokens in theme.css.
 export const MARK_SIZE = 512;

@@ -26,7 +26,7 @@ const Profile = z.object({
   /** The session's secret, from a bearer sign-in. Never logged, never sent anywhere but `address`. */
   token: z.string(),
   userName: z.string(),
-  /** A name of the owner's own for it ("Prod", "Dev"); empty is none, and it's shown by `userName` then (`profileWords`). */
+  /** A name given to it ("Prod", "Dev"); empty is none, and it's shown by `userName` then (`profileWords`). */
   name: z.string().catch(""),
 });
 export type Profile = z.infer<typeof Profile>;
@@ -39,11 +39,11 @@ const Stored = z.object({
   address: z.string().nullable().catch(null),
   token: z.string().nullable().catch(null),
   userName: z.string().nullable().catch(null),
-  /** The name of the owner's own for the sign-in in use; a profile's `name`, kept apart as the rest of it is. */
+  /** The name given to the sign-in in use; a profile's `name`, kept apart as the rest of it is. */
   profileName: z.string().catch(""),
   /**
-   * The sign-ins kept beside the one in use, to switch to on the options page (the owner, 2026-10-17: one Panki for
-   * real and one for trying things). Each is a session of its own on its Panki; the one in use is never among them.
+   * The sign-ins kept beside the one in use, to switch to on the options page (one Panki for real and one for trying
+   * things, say). Each is a session of its own on its Panki; the one in use is never among them.
    */
   profiles: z.array(Profile).catch([]),
   /** Deck id → which field takes which piece. */
@@ -55,36 +55,32 @@ const Stored = z.object({
    */
   mappingOn: z.record(z.string(), z.boolean()).catch({}),
   /**
-   * The deck the drawer opens on. None until one is chosen on purpose, in the drawer or on the options page (the
-   * owner, 2026-10-11: "we have to consciously select it"); from then on it's that one until another is chosen.
+   * The deck the drawer opens on. None until one is chosen on purpose, in the drawer or on the options page, never
+   * guessed; from then on it's that one until another is chosen.
    */
   defaultDeckId: DeckId.nullable().catch(null),
-  // `drawerLayout` was a key here for a day (2026-10-31): the drawer laid out six ways while the owner tried them, until
-  // they kept the one it always had. A browser that still has it keeps it unread.
-  // `clipToWords` was a key here (2026-10-11): whether a clip's end snapped to the edges of words as it was pulled.
-  // The owner had the setting taken out on 2026-10-19, never using it: an end goes where it's put, Alt held snaps it.
-  // A browser that still has it keeps it unread.
+  // A browser that kept `drawerLayout` (a choice of the drawer's layout) keeps it unread.
+  // A browser that kept `clipToWords` (whether a clip's end snapped to the edges of words as it was pulled) keeps it
+  // unread: an end goes where it's put, Alt held snaps it.
   /** The key held to look a word up by pointing at it, everywhere but Panki's subtitles: Key to hold globally. */
   lookKey: LookKey.catch("shift"),
   /**
    * The key held to look a word up in Panki's subtitles, under the player and over the video, apart from everywhere
-   * else's (the owner, 2026-10-25: "duplicate the setting, one for global and one for just Panki subtitles… we can even
-   * have different buttons for the two"), On hover among them ("it's annoying to have to Shift over the subtitle when
-   * I'm actively watching"). Shift to begin with. (For a few hours the same day it was `lookHover`, a switch: a browser
-   * that switched it on reads as On hover here, `readStore`.)
+   * else's, so the two can be different keys, On hover among them (holding a key over subtitles while watching gets in
+   * the way). Shift to begin with. (A browser that kept `lookHover`, the switch it once was, switched on reads as On
+   * hover here, `readStore`.)
    */
   lookKeySubtitles: LookKey.catch("shift"),
   /**
-   * Words already in the account's cards, marked where they stand (the owner, 2026-10-25, "both subtitles and
-   * everywhere… so they can be separate", "make colour customizable"): in Panki's subtitles (its lines under and over
-   * the player: Highlight in Panki subtitles), on every page Panki is on, the site's own captions among it (Highlight
-   * globally), and in which colour. Off to begin with. The site's captions were the subtitles switch's for a day, until
-   * the owner had the two panels say the same thing (2026-10-25): they go by the global key, so the global highlight.
+   * Words already in the account's cards, marked where they stand, each place switched apart and the colour chosen: in
+   * Panki's subtitles (its lines under and over the player: Highlight in Panki subtitles), on every page Panki is on,
+   * the site's own captions among it (Highlight globally), and in which colour. Off to begin with. The site's captions
+   * go by the global key, so by the global highlight too.
    */
   knownSubtitles: z.boolean().catch(false),
   knownPages: z.boolean().catch(false),
   knownColour: MarkPaint.catch("green"),
-  /** The words only suspended cards are, in a colour of their own (the owner, 2026-10-30); red to begin with, as their mark on the seek bar is. */
+  /** The words only suspended cards are, in a colour of their own; red to begin with, as their mark on the seek bar is. */
   knownSuspendedColour: MarkPaint.catch("red"),
   /**
    * Where pointing at a word works. Every site, to begin with: on the video site at once (the extension is there
@@ -95,34 +91,33 @@ const Stored = z.object({
   lookSites: z.array(z.string()).catch([]),
   /** How the popup is laid out, as the options page's editor saved it; none until it's saved once (`popupLayoutOf` fills it out). */
   popupLayout: PopupLayout.nullable().catch(null),
-  // `explainOnOpen` (Explain as the pop-up opens) went at the owner's word, 2026-11-02: a browser that kept it reads nothing of it.
-  /** The tab the options page is to open on, when the drawer sent the owner there to sign in or to switch a deck's field mapping on; the page takes it and clears it. */
+  // A browser that kept `explainOnOpen` (Explain as the pop-up opens) reads nothing of it.
+  /** The tab the options page is to open on, when the drawer sent the viewer there to sign in or to switch a deck's field mapping on; the page takes it and clears it. */
   optionsTab: OptionsTab.nullable().catch(null),
   /**
    * Where the words under a video come from (`subtitles.ts` → `sourceOf` reads it): picked in the line under the
-   * player; the same for the next video. Empty is the default. (`subtitleOrder`, an order the sources were tried in,
-   * was a key here for a day, 2026-10-17; a browser that still has it keeps it unread.)
+   * player; the same for the next video. Empty is the default. (A browser that kept `subtitleOrder`, an order the
+   * sources were tried in, keeps it unread.)
    */
   subtitleSource: z.string().catch(""),
   /**
-   * How transcribing behaves for this viewer (`transcribe/prefs.ts`): when it starts, what it does while the video is
-   * paused, whether the transcript replaces the site's captions on the picture. Set on the options page (YouTube →
-   * Transcribing); they were Panki's settings, an admin's, until the owner moved what's client-side here (2026-10-17).
+   * How transcribing behaves for this viewer (`transcribe/prefs.ts`): when it starts, whether the transcript replaces
+   * the site's captions on the picture. Set on the options page (YouTube → Transcribing): what's client-side is the
+   * viewer's own, what costs Panki's settings, an admin's.
    */
   transcribeTrigger: TranscribeTrigger.catch(DEFAULT_PREFS.trigger),
-  // `transcribePaused` went to Panki's settings, an admin's, on 2026-10-27; a browser that kept it keeps it unread.
+  // A browser that kept `transcribePaused` keeps it unread: what happens while paused is Panki's settings, an admin's.
   transcribeOverVideo: z.boolean().catch(DEFAULT_PREFS.overVideo),
   /**
    * How the transcript looks over the video (the contracts' `subtitleStyle.ts`), set in the strip's Subtitles menu.
-   * This browser's own: it was the account's for a few hours on 2026-10-18, shared with the app's cards, until the
-   * owner had the two kept apart.
+   * This browser's own, apart from the app's style for a card's clip.
    */
   subtitleStyle: SubtitleStyle.catch(DEFAULT_SUBTITLE_STYLE),
   /** Whether the word being said carries its mark, on the line under the player and on the subtitles over the video (`transcribe/prefs.ts`). */
   markUnder: z.boolean().catch(DEFAULT_PREFS.markUnder),
   markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
-  // `transcriptEdit` (whether Panki subtitles could be fixed here) lived an hour on 2026-10-27 before the owner made it
-  // an admin's, Panki's `Transcription.fixes`; a browser that kept it keeps it unread.
+  // A browser that kept `transcriptEdit` (whether Panki subtitles could be fixed here) keeps it unread: that's an
+  // admin's, Panki's `Transcription.fixes`.
   /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (YouTube → Seek bar). */
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
   /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
@@ -131,7 +126,7 @@ const Stored = z.object({
   pankiOn: z.boolean().catch(DEFAULT_MODULES.on),
   modulePanel: z.boolean().catch(DEFAULT_MODULES.panel),
   /** Where the Panki panel stands on a video's page, picked on the panel itself; beside the video, above the recommendations or in their place (options page, YouTube → Panki panel). */
-  // "stage" was a view of its own for a day (2026-11-04); kept so, it's beside the video, whose switch Theatre mode now is.
+  // "stage" kept as a view of its own reads as beside the video, whose switch Theatre mode is.
   panelView: z
     .string()
     .transform((view) => (view === "stage" ? "beside" : view))
@@ -154,13 +149,13 @@ const Stored = z.object({
   homePill: z.boolean().catch(DEFAULT_MODULES.homePill),
   /** What the pill in the header bar says, in what order (`modules.ts` → `PillLayout`), made whole as it's read. */
   pill: PillLayout.transform(pillLayoutOf).catch(DEFAULT_MODULES.pill),
-  // `pillPower` went on 2026-10-22 (the switch is the pill's whenever the pill is on); a browser that kept it keeps it unread.
+  // A browser that kept `pillPower` keeps it unread: the switch is the pill's whenever the pill is on.
   homeShelf: z.boolean().catch(DEFAULT_MODULES.homeShelf),
   homeSaved: z.boolean().catch(DEFAULT_MODULES.homeSaved),
   homeRecent: z.boolean().catch(DEFAULT_MODULES.homeRecent),
   thumbSave: z.boolean().catch(DEFAULT_MODULES.thumbSave),
   moduleShorts: z.boolean().catch(DEFAULT_MODULES.shorts),
-  // `homeChips` and `feedFilter` (the chips over YouTube's home feed) went on 2026-10-21; a browser that kept them keeps them unread.
+  // A browser that kept `homeChips` and `feedFilter` (chips over YouTube's home feed) keeps them unread.
   /**
    * The player's control bar laid out by Panki, or YouTube's own (`modules.ts` → `playerBar`, `BarLayout`): the switch,
    * and the layout made whole as it's read; null until it's first laid out on the options page, read until then from
@@ -170,7 +165,7 @@ const Stored = z.object({
   playerBarLayout: KeptBar.nullable().catch(null),
   /** Whether the bar stays on the video as it plays (`modules.ts` → `barKept`). */
   playerBarKept: z.boolean().catch(DEFAULT_MODULES.barKept),
-  /** The speed button's and the end time's own switches, before they were rows of the player bar (2026-11-04): read once into its layout, never written again. */
+  /** The speed button's and the end time's own switches, before they were rows of the player bar: read once into its layout, never written again. */
   speedControl: z.boolean().catch(true),
   endTime: z.boolean().catch(true),
   /** A short skip with ← or → and a key held (`modules.ts` → `shortSkip`). */
@@ -178,8 +173,7 @@ const Stored = z.object({
   shortSkipKey: SkipKey.catch(DEFAULT_MODULES.shortSkipKey),
   shortSkipSeconds: SkipSeconds.catch(DEFAULT_MODULES.shortSkipSeconds),
   /**
-   * Video tracking, this browser's own (the owner, 2026-11-02: "I can want some devices sending and others not"; the
-   * account's until then): whether the videos watched here are noted and sent to Panki. Set on the options page
+   * Video tracking, this browser's own, so some devices can send while others don't: whether the videos watched here are noted and sent to Panki. Set on the options page
    * (YouTube → Data tracking). Null until it's settled, once, by `watch/tracking.ts`: Off for a browser new to Panki,
    * the account's old switch for one that was already signed in.
    */
@@ -188,8 +182,8 @@ const Stored = z.object({
   update: UpdateState.nullable().catch(null),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
   reopenOptions: z.boolean().catch(false),
-  // `meaningPick` was a key here (2026-10-14): which meanings a card got. The owner had it taken out the next day, the
-  // ones ticked in the drawer being enough; a browser that still has it keeps it unread.
+  // A browser that kept `meaningPick` (which meanings a card got) keeps it unread: the ones ticked in the drawer are
+  // enough.
 });
 export type Stored = z.infer<typeof Stored>;
 
@@ -246,7 +240,7 @@ export const modulesOf = (store: Stored): Modules => ({
 export async function readStore(): Promise<Stored> {
   const kept = await chrome.storage.local.get(null);
   const stored = Stored.parse(kept);
-  // `lookHover`, the switch it was for a few hours (2026-10-25), switched on and never changed since: On hover.
+  // `lookHover`, the switch it once was, switched on and never changed since: On hover.
   if (kept.lookKeySubtitles === undefined && kept.lookHover === true) return { ...stored, lookKeySubtitles: "hover" };
   return stored;
 }
@@ -283,7 +277,7 @@ export async function forgetProfile(gone: Profile): Promise<void> {
   await writeStore({ profiles: store.profiles.filter((p) => !sameProfile(p, gone)) });
 }
 
-/** A profile given a name of the owner's own, or its name taken back (null or empty): the one in use or a kept one. */
+/** A profile given a name of its own, or its name taken back (null or empty): the one in use or a kept one. */
 export async function renameProfile(which: Profile, name: string | null): Promise<void> {
   const store = await readStore();
   const next = (name ?? "").trim().slice(0, PROFILE_NAME_MAX);

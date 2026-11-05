@@ -92,7 +92,7 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.back !== undefined ? { back: own.back } : {}),
       ...(own.size !== undefined ? { size: own.size } : {}),
       ...(own.tone !== undefined ? { tone: own.tone } : {}),
-      // Bold was the big size's own until a part could say (2026-10-18): one kept without it is bold when it's big.
+      // Bold was the big size's own before a part could say: one kept without it is bold when it's big.
       bold: own.bold ?? (own.size ?? base.size) === "big",
       ...(own.label !== undefined ? { label: own.label } : {}),
       ...(own.look !== undefined ? { look: own.look } : {}),
@@ -130,7 +130,7 @@ export function stageTagOf(kept: unknown): StageTag {
 
 /**
  * Listen first as it was kept: anything missing or broken in it reads as the default's, so a type from before reads as
- * off. The hearings it was kept with for its first day (`heard`) are let go: a sound or clip says that now.
+ * off. A count of hearings kept on it (`heard`) is let go: a sound or clip says that now.
  */
 const KeptListen = z.object({
   on: z.boolean().optional().catch(undefined),

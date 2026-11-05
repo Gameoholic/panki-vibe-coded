@@ -19,7 +19,7 @@ export function dictionaryDir(userDir: string): string {
 }
 
 /**
- * The dictionaries everyone shares (since 2026-10-17 they're the shared store's, not an account's) sit under the data
+ * The dictionaries everyone shares (the shared store's, not an account's) sit under the data
  * folder's `shared/dictionaries`, one zip per id, written and read by the same functions here.
  */
 export function sharedDictionaryDir(dataDir: string): string {

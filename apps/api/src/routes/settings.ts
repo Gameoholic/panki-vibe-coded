@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { SettingsUpdate } from "@panki/contracts";
 import type { DbOf } from "../app";
 
-/** The account's own settings, every one of them its own: its time zone and its transcription language too, nothing Panki-wide (2026-10-21). */
+/** The account's own settings, every one of them its own: its time zone and its transcription language too, nothing Panki-wide. */
 export function settingsRouter(dbOf: DbOf, now: () => number) {
   const router = Router();
 

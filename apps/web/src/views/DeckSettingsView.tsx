@@ -53,7 +53,7 @@ const REVIEW_ORDER_WORDS: Record<DeckSettings["reviewOrder"], string> = {
   overdue: "The card that has been due the longest comes first.",
 };
 const AGAIN_PLACE_WORDS: Record<DeckSettings["againPlace"], string> = {
-  // A pile of its own (the owner, 2026-10-21: "make it more obvious… like there's a separate section for cards that failed").
+  // A pile of its own, so it's plain that the cards that failed have a separate section.
   end: "Cards you're asked again collect in a separate pile at the end, after the rest of the review.",
   random: "A card you're asked again comes back at a random point in the rest of the review.",
 };
@@ -76,7 +76,7 @@ const EXAMPLE_SHOWN_OPTIONS = [
 /**
  * A type the deck is made of: its name as a choice that can't be changed here (greyed, as a disabled `Dropdown`), and
  * Open beside it to see or edit the type itself. One button that both showed the name and opened the type read as a
- * way to change it (the owner, 2026-10-30).
+ * way to change it.
  */
 function MadeOf({ id, label, name, onOpen }: { id: string; label: string; name: string; onOpen: (() => void) | undefined }) {
   return (
@@ -186,7 +186,7 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
           label="Today's cards before a review"
           control={<Toggle id="deck-today-first" says={{ on: "Shown", off: "Skipped" }} on={own.todayFirst} onChange={(todayFirst) => patch({ todayFirst })} />}
         />
-        {/* The answer a hold of the Hold button (Settings → Keybinds) gives once it's past the back of a card (the owner, 2026-11-02). */}
+        {/* The answer a hold of the Hold button (Settings → Keybinds) gives once it's past the back of a card. */}
         <Setting
           id="holdAnswer"
           label="Hold button answers with"

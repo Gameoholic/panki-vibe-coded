@@ -11,7 +11,6 @@ import { Icon, type IconName } from "./Icon";
 /**
  * The looks a sound or a clip can have on a card besides the player and the chip (`MediaView` picks among them):
  * a voice note, a round button, a tile, a speaker. Each plays through `usePlayback`, and a clip plays its sound alone.
- * The owner's four, from the audio player page of 2026-10-15 (https://claude.ai/artifact/2WEFUoj7rsgbJUp3KQB8yi).
  */
 
 /** What each kind of file is drawn with, so a sound and a clip are told apart before they're pressed. */
@@ -31,7 +30,7 @@ export type LookProps = { kind: "audio" | "video"; src: string; label: string; n
 /**
  * The key that plays it, drawn as the answers' keys are (`.key`, a keycap; a clock face as it's held, when it's held),
  * and the keys that play it again from its start (`restart`): one on the same key fills the same cap as it's held (1
- * pressed plays it, 1 held restarts it: the owner, 2026-10-29, "why doesn't the hold animation show for 1"), and one on
+ * pressed plays it, 1 held restarts it, and the hold shows on 1's own cap), and one on
  * a key of its own has a cap of its own, the again sign in it. Nothing when it has none.
  */
 export function MediaKey({ shortcut, restart = NO_RESTART, className = "" }: { shortcut: Shortcut | null; restart?: readonly Heard[]; className?: string }) {

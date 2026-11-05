@@ -1,7 +1,7 @@
 import { nextChunk, type Transcription } from "@panki/contracts";
 
 /**
- * Cuts a video's sound into chunks for the engine ("pieces" here and in the shapes; chunks to the owner, 2026-10-20),
+ * Cuts a video's sound into chunks for the engine ("pieces" here and in the shapes, "chunks" on screen),
  * where nobody is speaking. The sound comes in as the silent player plays it, a few thousand samples at a time; it's
  * kept here as one unbroken recording, and a chunk is closed after the fact, in the middle of the first half-second
  * with no voice in it once the chunk is as long as it's to be. Nothing is lost at a cut: what's after it is the start
@@ -17,7 +17,7 @@ import { nextChunk, type Transcription } from "@panki/contracts";
  * music under nobody's voice) is still a stretch of the video that's been heard, with nothing said in it; it goes to
  * Panki with the next chunk (`startMs` to `soundMs`, before the sound), or on its own as a chunk with no sound once it's
  * long enough, at a flush, or when listening picks up somewhere else. Otherwise every quiet is a hole in what's
- * covered: the first day the line on the player's bar broke wherever nobody spoke, and the run took each hole for
+ * covered: the line on the player's bar would break wherever nobody spoke, and the run would take each hole for
  * something still to transcribe. With Skip silence off (Panki's settings), nothing is let go as quiet: every second
  * heard is sent, voice or not, for a video whose quiet speech the voice measure misses.
  *
@@ -30,9 +30,8 @@ import { nextChunk, type Transcription } from "@panki/contracts";
 
 /**
  * The cutter's own tuning, one home. Seconds unless said. How long a chunk is to be, how long it waits for a pause and
- * whether silence is skipped are Panki's settings since 2026-10-20 (`ChunkShape`, at the owner's word on the plan page,
- * after they'd had three such lengths in Settings for an hour on 2026-10-17 and taken them out); the rest is one
- * mechanism that just works, "invisible to the user… but make sure it's documented well in the code".
+ * whether silence is skipped are Panki's settings (`ChunkShape`); the rest is one mechanism that just works, unseen by
+ * the viewer, and so documented here in full.
  *
  * How a chunk is cut, start to finish:
  *
@@ -44,10 +43,8 @@ import { nextChunk, type Transcription } from "@panki/contracts";
  * 2. A chunk closes in the middle of the first `silence` (half a second) with no voice in it, once the chunk is as
  *    long as it's to be. That's the first chunk's length for a run's first chunk, and the first after a jump; each
  *    next one is the last times the growth, up to the chunk length (5, 10, 20, 40, 45, 45… to begin with). A sentence
- *    at a time (3 to 20 s, the first day) made the engine guess more (the owner: "the model gets less context"), so the
- *    chunks grow to most of a minute; the first is short so a start or a jump shows words within seconds. (A ramp like
- *    this ran for a day once, 8 s doubling, until the owner had it out on 2026-10-17 for consistency; they asked for it
- *    back on 2026-10-20, knowing that, with its numbers as settings.)
+ *    at a time (3 to 20 s) makes the engine guess more, with less context, so the chunks grow to most of a minute; the
+ *    first is short so a start or a jump shows words within seconds.
  *
  * 3. Somebody who never pauses for the wait past that length is cut where they stand, at the quietest frame of the last
  *    `forceWindow` seconds (not within `forceKeep` of the very end), and the next chunk hears the last `overlap`
@@ -205,10 +202,9 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
    * Where each block pushed into the open piece begins (its first sample's place in the piece) and the video's moment
    * it was pushed at, as the last anchor put it. A moment in the piece is read off the block it falls in
    * (`timeOfSample`), never counted on from the piece's start: the count of samples drifts from the video's own clock
-   * (a little, steadily, at speed), and the player's clock is what the anchors follow. Until 2026-10-19 a piece's start
-   * and end were counted on from the one before, every piece of a run carrying the last one's error on, so the words
-   * came ever earlier than they were said, by a second or two at the end of a twenty-minute video (the owner: "the
-   * subtitles are ahead of the audio… this gap keeps growing throughout the video"). `wall` is when it came in, by
+   * (a little, steadily, at speed), and the player's clock is what the anchors follow. Counted on from the piece
+   * before, every piece of a run would carry the last one's error on, and the words would come ever earlier than they
+   * were said, by a second or two at the end of a twenty-minute video. `wall` is when it came in, by
    * `now`, for how long a chunk took to record.
    */
   let blocks: { sample: number; time: number; wall: number }[] = [];
@@ -383,7 +379,7 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
     anchor(videoTime) {
       // Listening picks up somewhere else than it left off, a jump nothing flushed: with nothing open, the quiet heard
       // up to there is told of first, so it isn't stretched across the jump; with a piece open, it's closed where it
-      // was (2026-10-20: the site's own seek from 0:00 to 3:39, under a piece begun at 0:00, made one chunk of both).
+      // was (otherwise the site's own seek from 0:00 to 3:39, under a piece begun at 0:00, makes one chunk of both).
       if (heardTo !== null) {
         const away = Math.abs(videoTime - heardTo);
         if (pieceStart === null && away > CUT.silence) {
@@ -400,7 +396,7 @@ export function createCutter(rate: number, shape: ChunkShape, emit: (piece: CutP
       if (next === null || input.length === 0) return;
       let samples = input;
       // Before the video's start: the silence of a player not yet there, never the video's. Left out, so nothing is
-      // placed before 0:00 (2026-10-20: a run from 0:00 sent a chunk beginning at -0.1 s, and Panki turned it away).
+      // placed before 0:00 (a chunk beginning at -0.1 s is one Panki turns away).
       if (next < 0) {
         const skip = Math.min(samples.length, Math.ceil(-next * rate));
         samples = samples.subarray(skip);

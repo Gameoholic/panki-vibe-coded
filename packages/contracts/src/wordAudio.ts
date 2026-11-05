@@ -2,8 +2,7 @@ import { z } from "zod";
 
 /**
  * Where the sound of a word said by a person comes from: one source today, Forvo, and the same registry a second
- * would join (the owner, 2026-10-17: "like engine and key; even though there's only one engine for audio
- * pronunciation, we might have others in the future"). The settings are everyone's, changed by an admin alone,
+ * would join, a source and its key as a transcription engine has them. The settings are everyone's, changed by an admin alone,
  * beside the transcription engine's in Settings → Admin. Calling a source is the API's alone.
  */
 export const WordAudioSourceId = z.enum(["forvo"]);

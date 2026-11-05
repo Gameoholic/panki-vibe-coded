@@ -7,12 +7,11 @@ import { MODE_ICONS } from "./ModeChip";
 import { Toggle } from "./Toggle";
 
 /**
- * The transcription modes side by side, as plans are on a pricing page (the owner, 2026-10-20: "a chart to compare
- * between them, like cost, speed etc., with x's and v's"): a column per mode, a row per way they differ, every row
+ * The transcription modes side by side, as plans are on a pricing page (cost, speed and the rest, with ticks and
+ * crosses): a column per mode, a row per way they differ, every row
  * lined up across the columns. The column of the mode everyone starts on is lit; under each, whether it's on and the
  * press that makes it the default. What it takes to start is measured (`TranscribeEstimate`), the rest is what each
- * mode is. The words are the owner's, worked over on the plan page (https://claude.ai/artifact/Ewy5PU1JTWAgPFABVGwt2V).
- * On a phone each mode is a card of its own, every cell with its row's name.
+ * mode is. On a phone each mode is a card of its own, every cell with its row's name.
  */
 
 type Mark = "yes" | "no" | "some";
@@ -46,7 +45,7 @@ function rowsOf(estimate: TranscribeEstimate): { name: string; cells: Record<Tra
       },
     },
     {
-      // Added 2026-10-20, when YouTube began refusing ElevenLabs' downloads: "it should fall back to transcribing by chunks when it fails… add this as a row to the comparison chart too".
+      // YouTube can refuse the engine's download of the entire video; each mode then falls back to chunks.
       name: "If the entire video fails",
       cells: {
         full: { mark: "yes", text: "Falls back to chunks from where you are" },

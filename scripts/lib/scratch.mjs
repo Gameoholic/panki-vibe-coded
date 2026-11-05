@@ -1,5 +1,5 @@
 // A scratch instance and the browsers that drive it: the API and the web on their own ports with an empty data folder,
-// and headless Chrome over the DevTools protocol. Never the owner's data or servers.
+// and headless Chrome over the DevTools protocol. Never the real data or servers.
 // Used by verify.mjs. No dependency: Node's own WebSocket.
 import { spawn, execSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";

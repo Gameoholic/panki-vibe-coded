@@ -83,8 +83,7 @@ const ROW_OVERHEAD = { word: 30, wordIndex: 12, piece: 60, pieceIndex: 10, fix: 
 const PAGE_SLACK = 1.25;
 
 /**
- * What the transcripts take in the shared store, worked out from their rows (the owner, 2026-10-22: "add to the storage
- * how much is taken up by transcripts"): every word (its text, its video, its piece, its index entry, those taken out
+ * What the transcripts take in the shared store, worked out from their rows: every word (its text, its video, its piece, its index entry, those taken out
  * included, as they're kept), every piece of sound sent, every fix and every stretch of quiet, with what a row and a
  * page take besides. About, not exact: Node's SQLite can't say what each table takes on the disk (it has no `dbstat`).
  * Opened for reading only; null when the store can't be read.

@@ -19,7 +19,7 @@ type Sorter = {
   key: (card: Card, deck: Deck) => number | string | null;
 };
 
-/** The ways a deck's cards can be put in order, one entry each (the owner, 2026-10-21: "add sort settings to the cards view in the deck"). */
+/** The ways a deck's cards can be put in order, one entry each. */
 export const CARD_SORTS = {
   added: { label: "Added", ways: { up: "Oldest first", down: "Newest first" }, first: "down", key: (card) => card.createdAt },
   due: { label: "Due", ways: { up: "Soonest first", down: "Latest first" }, first: "up", key: (card) => card.dueAt },
@@ -40,7 +40,6 @@ export const CARD_SORTS = {
     // New before the first stage, burned past the last.
     key: (card, { srsType }) => (!srsType ? null : isNew(card.place) ? -1 : isBurned(srsType, card.place) ? srsType.stages.length + card.place.past : stageIndex(srsType, card.place)),
   },
-  // Reviews and Last reviewed were here for an hour; the owner had them out the same day.
 } satisfies Record<string, Sorter>;
 
 export type CardSortId = keyof typeof CARD_SORTS;

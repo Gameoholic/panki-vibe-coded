@@ -2,10 +2,9 @@ import { z } from "zod";
 
 /**
  * How Panki's marks on a video's own seek bar look, this browser's viewer's to set on the options page (YouTube → Seek
- * bar; the owner, 2026-10-19: "make the segments customizable, both for colour and other stuff"): how far the
- * transcript reaches, the cards taken from the video, and the open clip. One registry of colours (or a colour of the
- * viewer's own, from the wheel) and one of thicknesses, every mark choosing from both. The shapes live here, apart from `storage.ts`, so a page's script carries
- * no storage code; the worker hands them to the page with the transcript (`TranscribePrefs.seek`).
+ * bar), each mark's colour and more: how far the transcript reaches, the cards taken from the video, and the open
+ * clip. One registry of colours (or a colour of the viewer's own, from the wheel) and one of thicknesses, every mark
+ * choosing from both. The shapes live here, apart from `storage.ts`, so a page's script carries no storage code; the worker hands them to the page with the transcript (`TranscribePrefs.seek`).
  */
 
 /** The colours a mark can be: the palette in the app's `theme.css` (`--mark-*`), and the theme's own accent. */
@@ -54,8 +53,7 @@ export type CardWords = z.infer<typeof CardWords>;
 
 /**
  * How a card's words come in (`extension.css` → `.seek-pins.is-…`): growing up out of their mark, flipping up on their
- * bottom edge like a departure board, fading in, or simply there. The owner picked Sprout of eight tried on
- * https://claude.ai/artifact/SqeA5JtrpGtykUKS3hWWR9 (2026-10-19), and had Flap and Fade kept as choices beside it.
+ * bottom edge like a departure board, fading in, or simply there. Sprout is the default.
  */
 export const PinEntrance = z.enum(["sprout", "flap", "fade", "none"]);
 export type PinEntrance = z.infer<typeof PinEntrance>;
@@ -63,7 +61,7 @@ export const PIN_ENTRANCES: Record<PinEntrance, string> = { sprout: "Sprout", fl
 export const PIN_ENTRANCE_IDS = PinEntrance.options;
 
 /**
- * What pressing a card's words on the bar does (the owner, 2026-10-19): nothing (they're only to be read), take the
+ * What pressing a card's words on the bar does: nothing (they're only to be read), take the
  * video to the start of the card's sentence (its clip, as it was taken), or to where its own words are said in it.
  */
 export const CardClick = z.enum(["none", "sentence", "word"]);
@@ -72,7 +70,7 @@ export const CARD_CLICKS: Record<CardClick, string> = { none: "Do nothing", sent
 export const CARD_CLICK_IDS = CardClick.options;
 
 /**
- * A mark with words on pins over it (the cards', and the words in the decks' since 2026-10-25): when they stand, how
+ * A mark with words on pins over it (the cards', and the words in the decks'): when they stand, how
  * they come in, what pressing one does. `entrance` and `click` came after the rest: a look kept before them is given
  * the default, and the words in the decks' `words` too (hidden).
  */
@@ -80,19 +78,17 @@ const WordsLook = MarkLook.extend({ words: CardWords.default("off"), entrance: P
 export type WordsLook = z.infer<typeof WordsLook>;
 
 export const SeekLook = z.object({
-  // (`bar`, Panki's own bar in the player's place with its colour and thickness, lived a day before the owner had it
-  // taken out, 2026-10-19; a look kept with it keeps it unread.)
+  // (A look kept with an old `bar`, Panki's own bar in the player's place, keeps it unread.)
   transcript: MarkLook,
-  // (`snap`, a press on the bar near a card's mark landing on the card, lived a day before the owner had it taken out,
-  // 2026-10-19; a look kept with it keeps it unread.)
+  // (A look kept with an old `snap`, a press near a card's mark landing on the card, keeps it unread.)
   cards: WordsLook.extend({ words: CardWords }),
   clip: MarkLook,
-  // Where the words that are in the decks are said (the owner, 2026-10-25: green like their highlight), with the cards'
-  // own settings for the words on pins over its ticks ("same settings as Cards… the default is the words hidden,
-  // thickness thick and it's shown"); a look kept before either is given what it lacks.
+  // Where the words that are in the decks are said (green like their highlight), with the cards' own settings for the
+  // words on pins over its ticks (shown, thick, the words hidden to begin with); a look kept before either is given
+  // what it lacks.
   known: WordsLook.default({ shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
-  // The cards taken from the video that are suspended, apart from the rest, to be fixed from the video (the owner,
-  // 2026-10-29: "so I can fix them right away and provide a new video / better example"), with the cards' own settings:
+  // The cards taken from the video that are suspended, apart from the rest, to be fixed from the video right away (a
+  // new clip, a better example), with the cards' own settings:
   // thick, their words always standing, red to begin with; a look kept before it is given it.
   suspended: WordsLook.default({ shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
 });

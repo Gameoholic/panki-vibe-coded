@@ -1,20 +1,17 @@
 /**
  * What Video tracking does, said under it in the extension, where it's switched, and in Panki's Settings, where it's
- * shown: the same words in both (the owner, 2026-10-28: "read exactly like the extension setting one").
+ * shown: the same words in both, so the two read exactly alike.
  */
 export const VIDEO_TRACKING_WHY =
   "Records every YouTube video you watch: which one, when, how long you watched and where you stopped. Continue watching, Recently watched, your watch time and Panki's other watching stats use it.";
 
-// `VIDEO_TRACKING_OFF` ("Video tracking is off", the tiles' and YouTube's shelves' while the account's was) went when
-// Video tracking became each browser's own, 2026-11-02.
-
 /**
- * The tag beside what's kept on this device alone (`PerDevice`, the owner, 2026-11-02: "I want as a user to know what's
- * per device"); everything untagged is the account's.
+ * The tag beside what's kept on this device alone (`PerDevice`), so it's always known what's per device; everything
+ * untagged is the account's.
  */
 export const PER_DEVICE = "This device";
 
-/** "1 card", "2 cards", "212,345 words": every count the owner reads is phrased here. */
+/** "1 card", "2 cards", "212,345 words": every count Panki shows is phrased here. */
 export function count(n: number, one: string, many: string) {
   return `${n.toLocaleString("en")} ${wordFor(n, one, many)}`;
 }
@@ -76,8 +73,7 @@ export function durationWords(seconds: number): string {
 }
 
 /**
- * What's left of a video stopped part-way, and how much of it was watched: "3 min left · 84%" (the owner, 2026-10-25:
- * "add the % of the video next to the X min left"). The time left is to the whole minute up, so a few seconds short is
+ * What's left of a video stopped part-way, and how much of it was watched: "3 min left · 84%". The time left is to the whole minute up, so a few seconds short is
  * never "0 min"; the share is to the whole percent down, so a video never reads 100% before it's done. Continue
  * watching's cards and tiles all say it this way.
  */
@@ -107,7 +103,7 @@ export function hmsWords(seconds: number): string {
 
 /**
  * What something costs at a listed price, from whole micro-dollars (the usage ledger's unit, `MICROS_PER_CENT` to the
- * cent), one of two ways everywhere (the owner, 2026-10-30): from a cent up, dollars and cents, "$0.70 (est.)",
+ * cent), one of two ways everywhere: from a cent up, dollars and cents, "$0.70 (est.)",
  * "$1,234.05 (est.)"; under a cent, four decimals, "$0.0006 (est.)", "$0.0040 (est.)", and under the fourth,
  * "<$0.0001 (est.)". Nothing at all is "$0.00 (est.)". Every dollar amount Panki shows is worked out from a listed
  * price, never told by the provider, so each says so. The micro-dollars stay whole; only this display splits them.
@@ -142,7 +138,7 @@ export function hourWords(at: number): string {
 }
 
 /**
- * How long ago a moment was, to end a sentence ("Finished just now"; the owner, 2026-10-25): "just now" under an hour,
+ * How long ago a moment was, to end a sentence ("Finished just now"): "just now" under an hour,
  * "1 hour ago", "5 hours ago" under a day, then by the device's calendar "yesterday", "3 days ago" within the week,
  * and the date after ("on 10 October 2026").
  */

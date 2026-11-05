@@ -68,7 +68,7 @@ export function clockPieces(stages: readonly Pick<HoldStage, "ms" | "tone" | "co
 }
 
 /**
- * The Hold button (the owner, 2026-11-02, A of https://claude.ai/artifact/4pgpAtQJRkEAfV1iWmm9NA): one button whose
+ * The Hold button: one button whose
  * key or press, held, carries the card through every stage without letting go, each stage held for its own time
  * (`useHold`, so it's drawn and let go as every hold is). Let go, the card stays at the stage it reached, and a new hold
  * goes on from there; a tap of the button takes the card back to its start (Back to start, which has its own key in the

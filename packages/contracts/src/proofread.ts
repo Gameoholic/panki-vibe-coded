@@ -10,7 +10,7 @@ import { expectedGot } from "./unread";
  * words' ids (`linesOf`); the server reads each word as it stands now, numbers the lines into the prompt
  * (`proofreadPieces`, one home for how they're written, so the page's Details say what went), and lays each corrected
  * line the model sends back onto its words as the pencil's edit is (`realignLine`): every word it changes is a fix of
- * the AI's, kept beside the engine's word. Whichever came later wins (the owner, 2026-11-03), and an AI edit is
+ * the AI's, kept beside the engine's word. Whichever came later wins, and an AI edit is
  * undone a word at a time or a run at a time (`TranscriptUndo`), one step back.
  */
 

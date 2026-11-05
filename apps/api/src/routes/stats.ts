@@ -4,8 +4,7 @@ import type { DbOf } from "../app";
 
 /**
  * `GET /api/stats` for every deck, `?deck=<id>` for one; worked out on every read with the API's clock, from the
- * account's own database alone. (Everyone on this Panki, Together, stood beside them for a day, 2026-10-21, until the
- * owner shelved all that's about other people for a later feature.)
+ * account's own database alone.
  */
 export function statsRouter(dbOf: DbOf, now: () => number) {
   const router = Router();

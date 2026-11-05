@@ -26,11 +26,10 @@ import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./sile
  *
  * - Full: Panki's server has the engine download the whole video and transcribe it in one call; nothing plays here.
  * Whatever the mode, a download that fails leaves the chunks to carry on, or to start, from where the viewer is (`fallBack`).
- * - Live: chunks, as it was done until 2026-10-20. The silent player runs ahead of the viewer, as far as the lead
+ * - Live: chunks. The silent player runs ahead of the viewer, as far as the lead
  *   allows, and waits for them there; where they jump, it follows; what's been transcribed already (by anyone) it skips.
  * - Hybrid: both at once. The chunks give words within seconds, the whole video downloads behind them, and when it's
  *   in its words replace the chunks' and the silent player stops.
- * (Auto, Hybrid within the length limit and Live past it, went 2026-10-20 at the owner's word.)
  *
  * A video over the length limit is transcribed whole only as Panki's settings say: by itself, after a question to the
  * viewer (Warn first), or not at all. Everything starts by itself the moment the video plays when Auto transcribe is on
@@ -41,9 +40,8 @@ import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./sile
  * sets them in Panki); how it behaves for this viewer (`prefs.ts`) is this browser's own; both are read with the
  * transcript, so nothing here keeps a setting of its own.
  *
- * Every decision is written down with its reason (the owner, 2026-10-19: "a button that shows the thought process and
- * execution for this particular session… along with always logging it into the console"): in the strip menu's Log, and
- * on the page's console as "[Panki] 12:05:03 …".
+ * Every decision is written down with its reason, so what this session did and why can always be read: in the strip
+ * menu's Log, and on the page's console as "[Panki] 12:05:03 …".
  */
 
 /** The transcriber's tuning, one home. Seconds. */
@@ -61,16 +59,15 @@ export const FOLLOW = {
   /**
    * A video's page is left to itself for this long after it changes before a run starts by itself. The silent player's
    * frame is the same origin as the page, so it runs on the page's own thread, and a player booting in it while the
-   * page is still switching videos left the page unresponsive for seconds (2026-10-17, Chrome's "page isn't
-   * responding"). A press on Transcribe doesn't wait, nor does asking for the whole video, which plays nothing here.
+   * page is still switching videos leaves the page unresponsive for seconds (Chrome's "page isn't responding"). A press on Transcribe doesn't wait, nor does asking for the whole video, which plays nothing here.
    */
   settle: 4,
   /** How often the transcript is read again while the whole video is downloading on Panki. */
   poll: 3,
   /**
    * A part transcribed again records on past its end until the next pause, where its last chunk closes, so it meets what
-   * stands after it in a pause, as chunks meet (the owner, 2026-10-20: "wait until a pause… so it's smooth"; stopped at
-   * its very end, the last chunk fell short by the sound still on its way to the cutter, and a gap showed on the bar).
+   * stands after it in a pause, as chunks meet, smoothly (stopped at its very end, the last chunk falls short by the
+   * sound still on its way to the cutter, and a gap shows on the bar).
    * Its start needs nothing: Panki widens a part to edges chunks were cut at, in pauses. This is the most it waits for
    * that pause past the end before stopping where it stands.
    */
@@ -80,8 +77,8 @@ export const FOLLOW = {
 const LOG_MAX = 400;
 
 /**
- * How transcribing stands. `loading` is the first moments of a video, before it can be said for sure (the owner,
- * 2026-10-18: the status "changes a lot in the first couple of seconds… I can't rely on it"): the transcript, the
+ * How transcribing stands. `loading` is the first moments of a video, before it can be said for sure, so the status
+ * doesn't flicker through guesses in its first seconds: the transcript, the
  * settings and the video's length not in yet, the few seconds the page is left to settle before a run starts by
  * itself, or a run begun whose silent player isn't up yet (`run`: a run is under way, so it's stopped rather than
  * started). It gives way to what's true as soon as that's known. `whole` is Full's download under way, with no chunks.
@@ -135,7 +132,7 @@ export type TranscribeState = {
   /**
    * The video is over the length limit and the mode picked is Full or Hybrid, with the
    * entire video waiting on the viewer: asked first, or not allowed, and neither answered nor asked for on this visit.
-   * The strip's button carries a flag for it until the menu is opened (the owner, 2026-10-20).
+   * The strip's button carries a flag for it until the menu is opened.
    */
   limitPending: boolean;
   /** Every decision this page made, with its reason. */
@@ -145,9 +142,7 @@ export type TranscribeState = {
 type Run = {
   silent: SilentPlayer;
   /**
-   * Where this run began, in the video. A run follows the viewer: held at the lead, following their jumps. (A run could
-   * also be a stretch typed in the strip's menu, "Transcribe a part", from 2026-10-17 until the owner had it out on
-   * 2026-10-20: "we will always just want to transcribe from here".)
+   * Where this run began, in the video. A run follows the viewer: held at the lead, following their jumps.
    */
   from: number;
   /** Chunks go one after another, each waiting for the last to come back. */
@@ -174,8 +169,7 @@ export type PieceTally = {
 };
 
 /**
- * How transcribing stands, in full: what the strip's menu shows under Details (the owner, 2026-10-19: "the actual
- * status in detail… so we can debug better"). Asked for while they're open, never told: it changes many times a second.
+ * How transcribing stands, in full: what the strip's menu shows under Details, for debugging. Asked for while they're open, never told: it changes many times a second.
  */
 export type TranscribeDetail = {
   /** Whether this video's transcript and the settings are in from Panki. */
@@ -258,7 +252,7 @@ export function createTranscriber() {
   /** What the mode came to on this video, and whether it has been decided before on it (a later decision is a change of mode). */
   let decided: Decided | null = null;
   let decidedOnce = false;
-  /** That there's nothing left to transcribe has been said since the mode was last decided: once each decision, so a mode changed on a video that's transcribed says why nothing happens (the owner, 2026-10-20). */
+  /** That there's nothing left to transcribe has been said since the mode was last decided: once each decision, so a mode changed on a video that's transcribed says why nothing happens. */
   let saidDone = false;
   /** The whole-video download, on this visit to the video: asked for here; the question waiting, answered yes, answered no; not allowed; what went wrong. */
   let wholeAsked = false;
@@ -304,7 +298,7 @@ export function createTranscriber() {
     if (!decided || !settings || !decided.long || decided.mode === "live") return false;
     if (settings.overLimit === "allowed" || status.kind === "done") return false;
     // Nothing waits on the viewer until the entire video would be asked for: not while it waits for the minimum watch
-    // time (the "!" went up as the video opened and the menu then had no question in it, 2026-10-21).
+    // time (else the "!" goes up as the video opens, with no question in the menu yet).
     if (!asking && !refused && watched < settings.wholeAfter) return false;
     return !wholeAsked && !confirmed && !declined && !fellBack;
   }
@@ -393,8 +387,7 @@ export function createTranscriber() {
 
   /**
    * The whole video couldn't be downloaded: transcribing goes on in chunks from where the viewer is, whatever the mode
-   * (the owner, 2026-10-20, after YouTube began refusing ElevenLabs' downloads: "it should fall back to transcribing by
-   * chunks when it fails"). Under Hybrid the chunks are running already and carry on; under Full they start,
+   * (the site can refuse the engine's download). Under Hybrid the chunks are running already and carry on; under Full they start,
    * at once when the download was asked for by a press, as anything starts by itself otherwise (`maybeStart`). The
    * download is asked for again on the next visit to the video.
    */
@@ -462,8 +455,8 @@ export function createTranscriber() {
   /**
    * Whether this visit should have the entire video transcribed by itself: the mode's way includes it, none is under
    * way, and some of the video isn't transcribed (`maybeWhole`). An earlier one's words standing don't stop it: they
-   * cover the whole video, so nothing would be left; and coverage of chunks once kept it from ever being asked again
-   * (2026-10-20: the entire video forgotten, chunks since, Hybrid never asked; "we expect Hybrid to do the full anyway").
+   * cover the whole video, so nothing would be left; and chunks' coverage doesn't stop it either, so Hybrid still asks
+   * for the entire video where chunks came after one was forgotten.
    */
   function wantsWhole(): boolean {
     const way = wayNow();
@@ -816,8 +809,8 @@ export function createTranscriber() {
       return;
     }
     if (!r.ready) return;
-    // The transcript changed under the run (a stretch forgotten, 2026-10-17: the owner forgot everything mid-video and
-    // the run went on ahead while the part they were at stayed bare): what's uncovered behind the silent player, from
+    // The transcript changed under the run (a stretch forgotten mid-video, which would otherwise leave the part the
+    // viewer is at bare while the run goes on ahead): what's uncovered behind the silent player, from
     // the viewer on, is gone back for.
     if (resync) {
       resync = false;
@@ -834,8 +827,8 @@ export function createTranscriber() {
     // The viewer is somewhere else: ahead of the silent player, or back before where this run began. It follows, when
     // the first moment to transcribe from there isn't where the player already is (behind the run, over what's covered,
     // there's nothing to follow to). Judged by where they are, not by how they got there: a jump made while the player
-    // was still loading was lost when only a change between two looks counted (2026-10-17: a refresh at 10:39 and
-    // straight to 0:00 left the run standing by at 10:39).
+    // was still loading is lost when only a change between two looks counts (a refresh at 10:39 and straight to 0:00
+    // would leave the run standing by at 10:39).
     if (t > r.at + FOLLOW.jump || t < mine.from - FOLLOW.jump) {
       const at = startAt(t - FOLLOW.back, length);
       if (at === null) {
@@ -867,7 +860,7 @@ export function createTranscriber() {
     const stoppedWithViewer = paused && settings.paused === "stop";
     // Under the lead it plays (once held, from when the viewer has come `slack` closer). At the lead no new chunk is
     // begun, but the one being recorded is finished and sent first, so everything up to where it holds is transcribed:
-    // the lead is words ahead of the viewer, never sound held back unsent (the owner, 2026-10-20). A pause with "While
+    // the lead is words ahead of the viewer, never sound held back unsent. A pause with "While
     // paused" on stop holds at once.
     const under = ahead < lead - (r.playing ? 0 : FOLLOW.slack);
     if (under || stoppedWithViewer || !r.playing) mine.wrap = null;
@@ -964,10 +957,10 @@ export function createTranscriber() {
       tell();
     },
     /**
-     * Transcribe pressed, the menu's one way to start (the owner, 2026-10-20: one button a mode): what the mode does,
+     * Transcribe pressed, the menu's one way to start, one button whatever the mode: what the mode does,
      * the language never asked. Live, chunks from where the viewer is; Full, the entire video; Hybrid, both. Under Full
      * and Hybrid alike the entire video is asked for again even over words an earlier one left: a press is for it, and over the length limit it's the same question either way
-     * (the owner, the same day: "we expect Hybrid to do the full anyway, the chunks thing is just for speed"). A run the
+     * (Hybrid is to transcribe the entire video anyway; its chunks are only for speed). A run the
      * browser blocked is tried again.
      */
     start(video: HTMLVideoElement) {
@@ -996,7 +989,7 @@ export function createTranscriber() {
       begin(id, at, "press");
     },
     /**
-     * "Re-transcribe a part" (the owner, 2026-10-20, in place of forgetting one): the part recorded again in chunks
+     * "Re-transcribe a part": the part recorded again in chunks
      * whatever the mode, widened by Panki to whole pieces, the transcript left as it is until all of it is in, and then
      * its words standing in place of what was there, at once. A run under way stops for it, and nothing else starts until
      * it's done or given up (Stop, another video, a failure).

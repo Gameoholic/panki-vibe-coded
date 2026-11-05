@@ -1,19 +1,19 @@
 import { z } from "zod";
 
 /**
- * How subtitles look over a picture (the owner, 2026-10-17: "size, font, position, etc."): the shape and its bounds,
+ * How subtitles look over a picture (size, font, position and the rest): the shape and its bounds,
  * the fonts it can be set in, and the CSS variables the band reads them as, one home for both places that draw them.
  * Each keeps its own style: the extension its own in the browser, for the transcript over a YouTube video (set in its
  * Subtitles menu on the page), and the app the account's (`srs.ts` → `Settings.subtitleStyle`), for a card's clip
- * (set in Settings). They were one, on the account, for a few hours on 2026-10-18.
+ * (set in Settings).
  */
 
 /**
  * The fonts the subtitles can be drawn in. Every one but Panki's is a font of the device's own (nothing is fetched on
  * someone else's page, and Panki's font files aren't there either: "Urbanist (Panki)" is the app's stack, Urbanist
  * when the device has it); a font the device hasn't got falls back to its family's generic. `from` is where it comes
- * with, said beside it in the list, so a font that does nothing on this device is no mystery. Good Japanese faces, by
- * the owner's ask (2026-10-17): the Windows and macOS system faces, the UD (universal design) ones made to be read at
+ * with, said beside it in the list, so a font that does nothing on this device is no mystery. Good Japanese faces: the
+ * Windows and macOS system faces, the UD (universal design) ones made to be read at
  * a glance, Noto's, and a few free ones many devices have. One registry; a new font is one entry.
  */
 const FONT_IDS = [
@@ -90,8 +90,8 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { size: 26, font: "urbanist
 
 /**
  * The size is meant for a picture this tall, in px; on a taller or shorter one the words scale with it, so they take
- * the same share of the picture on the page, in the theatre, on the full screen and on a card (the owner, 2026-10-17:
- * made small for the page they were too small on the full screen). Whoever draws the band puts the picture's height
+ * the same share of the picture on the page, in the theatre, on the full screen and on a card (sized for the page alone,
+ * they'd be too small on the full screen). Whoever draws the band puts the picture's height
  * over this on it as `--sub-scale`.
  */
 export const SUBTITLE_REF_HEIGHT = 720;

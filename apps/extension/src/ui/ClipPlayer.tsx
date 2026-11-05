@@ -14,7 +14,7 @@ type Props = {
   playing: boolean;
   /** Something else is being played on the page's video right now (the word's sound, while this is the sentence's clip): the picture here holds still, since it isn't this that's playing. */
   held: boolean;
-  /** What the clip is, in the owner's words (its field's name). */
+  /** What the clip is, in the viewer's own words (its field's name). */
   label: string;
   onToggle: () => void;
   /** Its subtitles, as the card would lay them over its picture (`ReviewCard`'s `StandIn`), told where the picture is in the clip. */

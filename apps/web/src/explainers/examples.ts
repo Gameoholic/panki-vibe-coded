@@ -3,13 +3,13 @@ import type { CalledCard, MeaningAccuracy, ProposedMeaning } from "@panki/contra
 /**
  * The made-up examples Panki shows its features at work with, one home: the extension's options page (the Pop-up
  * dictionary layout's sentences, its panels' explainers) and Settings → Panki AI's explainers alike. Never one of the
- * owner's own cards, and never asked of anyone.
+ * account's own cards, and never asked of anyone.
  */
 
 /**
  * A word that stands for one already in the decks wherever the pop-up dictionary is shown at work: on the pop-up it's a
- * card of an example deck, whose Open in Panki opens nothing (the owner, 2026-10-28: "so that I can see it in green…
- * and the 'already in your deck' message"). The drawer at work adds its card to the same deck.
+ * card of an example deck, whose Open in Panki opens nothing, so the word's highlight and the
+ * "already in your decks" message are seen at work. The drawer at work adds its card to the same deck.
  */
 export const IN_DECKS: CalledCard = {
   cardId: "00000000-0000-4000-8000-000000000001",

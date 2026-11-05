@@ -7,11 +7,11 @@ type Option<T extends string> = {
   label: string;
   /**
    * What its cell holds in place of the label while it's the one on: a control of its own, like a far move's stages
-   * typed in the ↑ X it is (the owner, 2026-10-26: "make it inline in the ↑3"). The cell is then no button, since a
+   * typed in the ↑ X it is, inline (↑ 3). The cell is then no button, since a
    * control can't sit in one; it's pressed to be picked like any other until it's on.
    */
   lit?: ReactNode;
-  /** Drawn before its label: tabs carry their icon, as every action does (the owner, 2026-10-29). */
+  /** Drawn before its label: tabs carry their icon, as every action does. */
   icon?: IconName;
 };
 

@@ -36,8 +36,7 @@ export const EXAMPLE_WORDS = { add: "Add as an additional example", go: "Add exa
 const ANYWAY_WORDS = "Add anyway";
 
 /**
- * Whether a card being added may be added (the owner, 2026-10-29: "I can't add it as a card until I resolve this
- * warning"): not while one already there is the same in every field compared, until that's resolved by Add as an
+ * Whether a card being added may be added: not while one already there is the same in every field compared, until that's resolved by Add as an
  * additional example, by a compared field changed so it's no longer the same, or by Add anyway. Add anyway holds for
  * those cards alone: once another card is the same, it's asked again.
  */
@@ -66,12 +65,10 @@ export function exampleTargetOf(cards: readonly CalledCard[], typeId: string, mi
 const decksOf = (cards: readonly CalledCard[]) => listWords([...new Set(cards.map((card) => card.deck))]);
 
 /**
- * Said under the field a card is called by, while what's typed or picked there is what a card already holds (the
- * owner, 2026-10-25): a warning, in amber, when one of them is the same in every field its type compares (the same
+ * Said under the field a card is called by, while what's typed or picked there is what a card already holds: a warning, in amber, when one of them is the same in every field its type compares (the same
  * word and meaning: "“生” is already in Mining, with the same Meaning."); otherwise a quieter notice that the word is in
  * the decks. Under it, every card called so, each with its deck and what it holds in the fields compared, and a way
- * to open it, at the row's right with a magnifying glass, apart from what resolves the warning: opening only looks (the
- * Duplicate and Different tags on each went at the owner's word, 2026-10-25). A warning holds Add back until it's
+ * to open it, at the row's right with a magnifying glass, apart from what resolves the warning: opening only looks. A warning holds Add back until it's
  * resolved (`useAddAnyway`); what resolves it is in a row of its own at its foot: Add as an additional example, which
  * puts what's being added onto the card that's there, and Add anyway. The app's form, the extension's drawer and its
  * popup are all this.

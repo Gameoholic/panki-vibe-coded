@@ -58,11 +58,11 @@ export type WidgetEntry = {
 };
 
 const DAY_MS = 86_400_000;
-/** The days of the week, Sunday first: the owner's week. */
+/** The days of the week, Sunday first. */
 const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 const MONTH_INITIAL = new Intl.DateTimeFormat(undefined, { month: "narrow", timeZone: "UTC" });
 const DAY_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-/** A day on the owner's clock ("YYYY-MM-DD") as a moment at UTC midnight, so date arithmetic never crosses a zone. */
+/** A day on the account's clock ("YYYY-MM-DD") as a moment at UTC midnight, so date arithmetic never crosses a zone. */
 const dayDate = (day: Day) => new Date(`${day}T00:00:00Z`);
 const dayOf = (date: Date): Day => date.toISOString().slice(0, 10);
 /** A whole-number percentage with one decimal when it has one: "87", "87.5". */
@@ -217,8 +217,8 @@ const everyOtherDay = (byDay: readonly { day: Day }[]) => byDay.map((d, i) => (i
 const spent = (ms: number) => durationWords(ms / 1000);
 
 /**
- * A watching tile's body: said to be empty while there's nothing for it yet, drawn otherwise. ("Video tracking is
- * off" stood first while that was the account's; it's each browser's since 2026-11-02.)
+ * A watching tile's body: said to be empty while there's nothing for it yet, drawn otherwise. Video tracking is each
+ * browser's, so nothing here says whether it's on.
  */
 function watchTile(empty: boolean, draw: () => ReactNode): ReactNode {
   if (empty) return <Quiet />;
@@ -230,8 +230,8 @@ const VIDEOS_SHOWN = 4;
 
 /**
  * The videos left part-way, newest first, each the video's own card opening on YouTube where it was stopped, with a
- * trash that removes it from here, asking first in its row (the owner, 2026-10-29: the box it had "isn't clear that it
- * deletes"; it comes back when it's played again, and what was watched is kept). One removed leaves at once; the stats
+ * trash that removes it from here, asking first in its row, a trash so it's clear it removes (it comes back when it's
+ * played again, and what was watched is kept). One removed leaves at once; the stats
  * are asked for again so the count catches up.
  */
 function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; onStale: () => void }) {
@@ -261,7 +261,7 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
         <div key={v.videoId} className={`w-video ${asking === v.videoId ? "is-asking" : ""}`.trim()}>
           <LinkView
             // No time in its address, as on YouTube's own home: the extension's Where you stopped last decides what
-            // happens as it opens (the owner, 2026-10-28: a time there read as the link's own and the button never came).
+            // happens as it opens (a time there would read as the link's own, and its button would never come).
             meta={{ link: { videoId: v.videoId, seconds: null }, title: v.title, channel: v.channel ? { name: v.channel } : null }}
             label="Continue watching"
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
@@ -293,9 +293,8 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
 }
 
 /**
- * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
- * watching"), each the video's own card opening it on YouTube from its start. Nothing takes one out: it's a history,
- * like YouTube's (the owner, 2026-10-29: "I shouldn't be able to delete videos from recently watched"); the strip's
+ * The videos finished, the latest first, each the video's own card opening it on YouTube from its start. Nothing takes
+ * one out: it's a history, like YouTube's; the strip's
  * Finished chip on the video's own page is where it's said to be unfinished.
  */
 function RecentRows({ videos }: { videos: readonly FinishedVideo[] }) {
@@ -318,7 +317,7 @@ function RecentRows({ videos }: { videos: readonly FinishedVideo[] }) {
 const REMOVE_CONTINUE = { question: "Remove from Continue watching?", go: { words: "Remove", busy: "Removing…" } };
 
 /**
- * The videos saved for later (the owner, 2026-10-22: "similar to Continue watching"), newest first, each the video's
+ * The videos saved for later, as Continue watching is drawn, newest first, each the video's
  * own card opening it on YouTube from its start (where it was stopped is the extension's to offer), with a trash that
  * takes the save back, asking first in its row. One taken back leaves at once; the stats are asked for again so the count catches up.
  */
@@ -609,8 +608,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       ));
     },
   },
-  // A Watch streak tile stood here until the owner had the streak and the daily goal out, 2026-10-21 ("I don't want a
-  // target goal for immersion nor streaks… it might change in the future"); every stretch watched is still kept.
+  // No watch streak and no daily goal for immersion; every stretch watched is still kept, should one ever come.
   {
     id: "watch-time",
     name: "Watch time",
@@ -681,8 +679,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       return watchTile(finished.length === 0, () => <RecentRows videos={finished} />);
     },
   },
-  // Together and Together · this week (everyone on this Panki) stood here for a day, 2026-10-21, until the owner shelved
-  // everything about other people for a later feature. A layout that still names them drops them (`layout.ts`).
+  // A layout that still names a tile no longer here (Together, Together · this week) drops it (`layout.ts`).
 ];
 
 /** The entry an id names; the registry is the one list, so a stored id that names nothing is simply not there. */

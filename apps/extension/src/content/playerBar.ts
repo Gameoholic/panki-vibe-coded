@@ -3,7 +3,7 @@ import { makePlace, type Place } from "../ui/mount";
 import { BAR_HELD } from "../ui/SpeedControl";
 
 /**
- * The player's control bar laid out as the options page says (`modules.ts` → `BAR_CONTROLS`, the owner, 2026-11-04),
+ * The player's control bar laid out as the options page says (`modules.ts` → `BAR_CONTROLS`),
  * done the gentlest way each part allows, so the site's player keeps working whatever it does with its own controls:
  *
  * - **Hidden**: by a stylesheet of Panki's on the page, one rule per control hidden; no node of the site's is touched,
@@ -127,7 +127,7 @@ export function createPlayerBar() {
   /**
    * The player's own time's type (its family, size, weight and colour), read off the page as it stands and handed to
    * Panki's controls as `--yt-bar-*`, so the speed's words and the end time read as the time does whatever the site
-   * sets them to (the owner, 2026-11-04: "the font of the 1.1× I think is wrong"). Panki's places don't inherit the
+   * sets them to. Panki's places don't inherit the
    * site's type: their shadow roots start from Panki's own.
    */
   function typeOfTime() {

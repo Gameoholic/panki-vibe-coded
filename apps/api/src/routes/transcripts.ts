@@ -77,7 +77,7 @@ function videoOf(req: Request, res: Response): string | null {
 export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, jobs: Jobs, now: () => number) {
   const router = Router();
 
-  /** The language the engine is told: the asking account's own (2026-10-21: each account's, nothing Panki-wide). */
+  /** The language the engine is told: the asking account's own, nothing Panki-wide. */
   const toldFor = (res: Response) => dbOf(res).getSettings().language;
 
   // A video never transcribed is an empty transcript, never an error. Read again and again while a download is under way.
@@ -177,7 +177,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
         return;
       }
       // Told the language the one watching transcribes in (their Settings, else Settings → Admin → Transcribing), never
-      // asked: the check that asked went on 2026-10-18.
+      // asked.
       const told = toldFor(res);
       let heard: Heard;
       const askedAt = performance.now();
@@ -224,8 +224,8 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     res.json({ transcript: shared.transcript(videoId) });
   });
 
-  // A line edited by hand (the editors, AI step 6): its words and where it starts and ends, each word changed kept
-  // beside the engine's. Its ends never over the line before or after (the owner, 2026-11-03: lines never overlap).
+  // A line edited by hand in the editors: its words and where it starts and ends, each word changed kept beside the
+  // engine's. Its ends never over the line before or after: lines never overlap.
   router.post("/:videoId/lines", (req, res) => {
     const videoId = videoOf(req, res);
     if (!videoId || fixesOff(res)) return;
@@ -293,7 +293,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     res.json({ transcript: shared.transcript(videoId) });
   });
 
-  // A part transcribed again in chunks, everyone's like a forget (the owner, 2026-10-20: "Re-transcribe a part"): asked
+  // A part transcribed again in chunks, everyone's like a forget (Re-transcribe a part): asked
   // for, with the stretch it widened to in the answer; its pieces come under its id and stay out of the transcript;
   // done, they stand in place of what stood there, at once; or given up, and the transcript is as it was.
   router.post("/:videoId/redos", (req, res) => {
@@ -319,7 +319,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     res.status(201).json(answer);
   });
 
-  // What a part typed would widen to, said before it's asked for (the owner, 2026-10-20: "it says ahead of time").
+  // What a part typed would widen to, said before it's asked for.
   router.get("/:videoId/redos/stretch", (req, res) => {
     const videoId = videoOf(req, res);
     if (!videoId) return;

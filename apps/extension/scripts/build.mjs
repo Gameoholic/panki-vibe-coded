@@ -62,15 +62,14 @@ for (const [name, entry] of Object.entries(SCRIPTS)) {
  * What the extension is and what it may do, the same for both browsers.
  *
  * The worker is named both ways at once: Chrome (121 and up) runs `service_worker` and passes over `scripts`, Firefox
- * (121 and up) runs `scripts` and passes over `service_worker`, so the one manifest loads in either. It was named each
- * browser's own way in its own folder until 2026-11-05, when Firefox refused the zip Panki hands out, which is Chrome's
- * build ("background.service_worker is currently disabled. Add background.scripts."): the owner loads that zip, not a
- * folder built here, so what Panki hands out has to load in both.
+ * (121 and up) runs `scripts` and passes over `service_worker`, so the one manifest loads in either. What's loaded is
+ * the zip Panki hands out, Chrome's build, not a folder built here, so that zip has to load in both (Firefox refuses
+ * one naming the worker Chrome's way alone: "background.service_worker is currently disabled. Add background.scripts.").
  *
  * It asks for little on purpose. It runs by itself on one site only, the video site, to draw the line under the
  * player. Anywhere else it does nothing until it's asked (`activeTab`: the one tab acted on, for that one act). And
  * the only address it may ever call is Panki's own, which isn't known here: it's asked for by name, on the options
- * page, when the owner types it (`optional_host_permissions` only says what may be asked for). Word audio from Forvo
+ * page, when its address is typed (`optional_host_permissions` only says what may be asked for). Word audio from Forvo
  * comes through Panki too: its server holds the key and calls Forvo. Looking words up on
  * other sites asks for those sites the same way, on the options page, and the worker then puts the page's script
  * there itself (`scripting.registerContentScripts`); nothing here names them. `unlimitedStorage` keeps the browser
@@ -92,7 +91,7 @@ const manifest = {
 };
 const write = (dir, extra) => writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify({ ...manifest, ...extra }, null, 2)}\n`);
 
-// 121: the first Chrome that takes a manifest naming the worker both ways (116 before, when it was named one way).
+// 121: the first Chrome that takes a manifest naming the worker both ways.
 write(out, { minimum_chrome_version: "121" });
 
 // Firefox's build differs only by its id (and the first Firefox that has `optional_host_permissions`); the zip Panki
@@ -102,7 +101,7 @@ cpSync(out, firefox, { recursive: true });
 write(firefox, { browser_specific_settings: { gecko: { id: "panki@panki.invalid", strict_min_version: "128.0" } } });
 
 /**
- * Chrome's build, made to be downloaded from Panki and kept up to date by hand (the owner, 2026-10-22: no store). The
+ * Chrome's build, made to be downloaded from Panki and kept up to date by hand, with no store. The
  * Update Panki script goes in with it (`update/`): double-clicked, it fetches the newest zip and puts it over the
  * folder it's in. Then the build's fingerprint: every file it's made of, read in one order, through SHA-256. The same
  * files always give the same one, so a deploy that changes nothing of the extension leaves it, and an extension tells
@@ -115,7 +114,7 @@ const updater = path.join(root, "update");
 // A batch file is read by Windows' own rules: lines that end the Windows way, whatever the checkout gave.
 writeFileSync(path.join(out, "Update Panki.cmd"), readFileSync(path.join(updater, "Update Panki.cmd"), "utf8").replace(/\r?\n/g, "\r\n"));
 cpSync(path.join(updater, "update.ps1"), path.join(out, "update.ps1"));
-// The Mac's (2026-11-05): bash reads a \r as part of the line, so its lines end the Unix way, whatever the checkout
+// The Mac's: bash reads a \r as part of the line, so its lines end the Unix way, whatever the checkout
 // gave. Its executable bit is the zip's to carry (`apps/api/src/routes/extension.ts`).
 writeFileSync(path.join(out, "Update Panki.command"), readFileSync(path.join(updater, "Update Panki.command"), "utf8").replace(/\r\n/g, "\n"));
 

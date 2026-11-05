@@ -4,10 +4,9 @@ import { Icon, type IconName } from "./Icon";
 type Props = {
   id: string;
   /**
-   * What it says in each state, in the owner's words: the words always say what's true right now ("On" / "Off",
-   * "Required" / "Optional", "Shown" / "Hidden"), never one label that stays the same when it flips (the owner,
-   * 2026-10-15, having had to ask more than once: "checkboxes reflect current state"). Both are asked for, so none can
-   * be left out.
+   * What it says in each state: the words always say what's true right now ("On" / "Off",
+   * "Required" / "Optional", "Shown" / "Hidden"), never one label that stays the same when it flips. Both are asked
+   * for, so none can be left out.
    */
   says: { on: string; off: string };
   on: boolean;

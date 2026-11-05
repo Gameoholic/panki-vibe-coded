@@ -3,8 +3,8 @@ import type { PromptPieceId } from "./pieces";
 import { aiSent, ceilingMicros, variablesIn, type AiUnread, type ExplainMessage, type MeaningAccuracyId, type PromptPieces } from "./prompt";
 
 /**
- * One call to Panki AI as the page that made it tells of it (the AI's status, the owner, 2026-10-30: "kind of a black
- * box… I want to know exactly what data was sent"): what it was, why it ran, the model, every piece of Prompt context
+ * One call to Panki AI as the page that made it tells of it (the AI's status, so nothing about a call is a black box,
+ * least of all what data was sent): what it was, why it ran, the model, every piece of Prompt context
  * its template asked for with what it held or why it held nothing, the prompt exactly as sent, and how it came out.
  * Built where the call is made, from the settings it ran with (`startCall`), and finished from the answer (`answeredCall`,
  * `failedCall`); drawn by the web's `AiStatus`. Never sent and never kept: what was sent stays on the page (AI.md,
@@ -63,13 +63,13 @@ export function piecesUsed(template: string, pieces: PromptPieces, gaps: PromptG
 
 /**
  * Why a call ran: pressed (`action` is the button's word, "Explain"), a follow-up asked, or Try again after a failure.
- * (A run by itself, "Explain as the pop-up opens", went at the owner's word, 2026-11-02: running by itself is AI step 7's.)
+ * Nothing runs by itself.
  */
 export type AiRunWhy = { kind: "pressed"; action: string } | { kind: "followUp"; field?: string } | { kind: "retry" };
 
 /**
- * One part of what an answer said, as Details' Conversation shows Panki AI's answer (the owner's pick, 2026-10-31: a
- * list, the JSON folded under Raw): a key of the action's fixed shape by its name, its verdict as a small tag (Fits,
+ * One part of what an answer said, as Details' Conversation shows Panki AI's answer (a list, the
+ * JSON folded under Raw): a key of the action's fixed shape by its name, its verdict as a small tag (Fits,
  * Proposed, Close, Set aside…, in a look), the value, and the reason. What the page shows anyway (Explain's paragraph, a
  * field's proposal) is there too, so Details say all the answer said, the parts that change nothing among them.
  */

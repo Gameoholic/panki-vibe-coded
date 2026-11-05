@@ -120,8 +120,8 @@ type Init = { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; headers?: Re
 const PROTOCOL = { [EXTENSION_HEADER]: String(EXTENSION_PROTOCOL) };
 
 /**
- * The only place the extension calls the network, and only ever Panki's own address: the one the owner typed on the
- * options page and gave the browser's OK for. No cookie goes along; the sign-in is the bearer secret. Every answer is
+ * The only place the extension calls the network, and only ever Panki's own address: the one typed on the
+ * options page and given the browser's OK for. No cookie goes along; the sign-in is the bearer secret. Every answer is
  * parsed through the contracts. (Word audio from Forvo comes this way too: Panki's server is what calls Forvo.)
  */
 async function call<T>(address: string, token: string | null, path: string, init: Init, parse: (body: unknown) => T): Promise<T> {
@@ -250,7 +250,7 @@ export const panki = {
   stats: ({ address, token }: Door): Promise<Stats> => call(address, token, "/api/stats", {}, (b) => StatsResponse.parse(b).stats),
   /** The account's settings, as the tiles read them. */
   /**
-   * The account's settings. An account's zone is its own, the device's to begin with (the owner, 2026-10-21): the
+   * The account's settings. An account's zone is its own, the device's to begin with: the
    * first time it's read here with none, this browser's is written, as the app does when it's opened.
    */
   settings: async ({ address, token }: Door): Promise<Settings> => {
@@ -261,8 +261,8 @@ export const panki = {
   },
   /**
    * Some of the account's own settings changed; the settings after. The options page's Video counts as finished in its
-   * last (`finishedWithinSec`) since 2026-10-30; its Video tracking, the account's switch until it became each
-   * browser's own on 2026-11-02, never (`SettingsUpdate` leaves it out).
+   * last (`finishedWithinSec`); never its old Video tracking switch, each browser's own now (`SettingsUpdate` leaves
+   * it out).
    */
   updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
     call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),

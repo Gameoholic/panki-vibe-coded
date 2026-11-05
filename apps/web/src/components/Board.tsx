@@ -63,8 +63,7 @@ function swap<T>(list: readonly T[], a: T, b: T): T[] {
 
 /**
  * The board: three tiles to a row on a PC, one on the phone. On the Stats tab it is every tile. On the home it is the
- * doors and the tiles this device was set up with, arranged by hand (the owner's pick of six ways tried on
- * 2026-10-11): a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
+ * doors and the tiles this device was set up with, arranged by hand: a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
  * and let go on another to trade places with it, a × puts a tile away, the dashed tile at the end brings one back,
  * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on.
  */
@@ -106,8 +105,8 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
   const carried = drag.lifted !== null && drag.over !== null ? dropped(drag.lifted, drag.over) : null;
   const items: readonly BoardItemId[] = home ? (carried ?? home.layout).order : WIDGETS.map((w) => w.id);
 
-  // Arranging ends on purpose only: Escape here, or the header's Done. A press on the ground used to end it too, and
-  // a tile let go between two others then closed the whole thing; the owner had that taken out (2026-10-11).
+  // Arranging ends on purpose only: Escape here, or the header's Done. A press on the ground doesn't end it, so a tile
+  // let go between two others never closes the whole thing.
   useEffect(() => {
     if (!arranging || !endArranging) return;
     const onKey = (e: KeyboardEvent) => {
@@ -145,7 +144,7 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
   );
 
   // A tile's real height is remembered on this device, and held while its body is a skeleton, so nothing grows or
-  // shrinks as its numbers arrive (`skeletonMemory.ts`; the owner, 2026-10-26: the skeleton fits what comes).
+  // shrinks as its numbers arrive (`skeletonMemory.ts`: the skeleton fits what comes).
   const tileHeight = (id: string): CSSProperties | undefined => {
     const kept = shapeOf(`tile:${id}`, 0);
     return kept > 0 ? { minHeight: `${kept}px` } : undefined;

@@ -29,12 +29,12 @@ function PartsList({ parts }: { parts: readonly AnswerPart[] }) {
 }
 
 /**
- * What a template's answers hold, folded under its prompt and read-only (the owner, 2026-10-31, who feared that editing a
- * prompt could break the app): a line a key, read off each fixed shape it answers in (`answerShapesOf`), headed by which
+ * What a template's answers hold, folded under its prompt and read-only (so it's plain that editing a prompt can't
+ * break the app): a line a key, read off each fixed shape it answers in (`answerShapesOf`), headed by which
  * call answers in it where there's more than one (Explain's first answer and a follow-up), and that the shape is
- * Panki's whatever the prompt says. A template's editor is its one home (Admin → Panki AI's until AI step 5). "What
- * Panki AI answers" until the owner, 2026-11-02: that read as the prompt's output, when it's the shape Panki sends the
- * provider as a schema with every call and holds the answer to; the clause after the title is their own words, muted.
+ * Panki's whatever the prompt says. A template's editor is its one home. Never called "What Panki AI answers", which
+ * reads as the prompt's output: it's the shape Panki sends the provider as a schema with every call and holds the
+ * answer to; the clause after the title is muted.
  */
 export function AnswerParts({ id, action, judges, provider }: Props) {
   const [open, setOpen] = useState(false);

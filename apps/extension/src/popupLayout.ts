@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 /**
- * How the dictionary's popup is laid out (the owner's pick, C of the popup page, 2026-10-16: "i like layout editor").
- * Each part is shown, folded to one line that opens it, or hidden; what's under the word stands in the owner's order,
+ * How the dictionary's popup is laid out, in an editor on the options page.
+ * Each part is shown, folded to one line that opens it, or hidden; what's under the word stands in the order it's put in,
  * each dictionary's meanings a part of its own; and the reading, the tags and how common a word is are each written one
  * of a few ways. Set on the options page and kept in the extension's storage, then handed to a page's script in the
  * worker's `lookState` answer: so it lives here, apart from `storage.ts`, as the look-up's other settings do.
@@ -20,9 +20,8 @@ export const BODY_KINDS = ["tags", "frequency", "wordType", "endings", "explain"
 export type BodyKind = (typeof BODY_KINDS)[number];
 export const isBodyKind = (id: string): id is BodyKind => (BODY_KINDS as readonly string[]).includes(id);
 /**
- * How a kind first stands in a layout. The word's type came after the rest (2026-10-16, so every kind of a
- * dictionary's data has a part of its own name) and starts hidden: a popup laid out before doesn't change by itself.
- * Explain starts shown (AI step 2, 2026-10-30), in a layout kept before too.
+ * How a kind first stands in a layout. The word's type came after the rest and starts hidden: a popup laid out before
+ * it doesn't change by itself. Explain starts shown, in a layout kept before it too.
  */
 const firstShow = (kind: BodyKind): PartShow => (kind === "wordType" ? "hidden" : "shown");
 /** The part that stands last, after every dictionary's meanings, when it's first placed: Explain reads them, so it comes after them. */
@@ -69,16 +68,15 @@ export const PopupLayout = z.object({
   pitch: PartShow.catch("shown"),
   add: PartShow.catch("shown"),
   /**
-   * The word's cards already in the decks, under its head: which deck, and Open in Panki. Always there until the owner
-   * had it a part of its own, 2026-10-28 ("make that message toggleable in the popup layout"); a layout kept before has it shown.
+   * The word's cards already in the decks, under its head: which deck, and Open in Panki. A layout kept from before it
+   * was a part of its own has it shown.
    */
   cards: PartShow.catch("shown"),
   /** What's under the word, top to bottom. */
   body: z.array(BodyPart).max(BODY_MAX).catch([]),
   /**
-   * The words found besides the one shown, each in full under it, or not at all. It could once be folded to an "Also
-   * here" row of chips at the bottom, the same words as the row at the top (the owner, 2026-10-16: "why do we have both
-   * the top and the bottom?"): that row is gone, and a layout kept with it folded has it hidden.
+   * The words found besides the one shown, each in full under it, or not at all (folded, it would only repeat the row
+   * of chips at the top). A layout kept with it folded has it hidden.
    */
   others: PartShow.catch("hidden"),
   tagWords: TagWords.catch("codes"),
@@ -86,7 +84,7 @@ export const PopupLayout = z.object({
 });
 export type PopupLayout = z.infer<typeof PopupLayout>;
 
-/** The popup as nobody has laid it out: A of the popup page, the clearer one, which the editor starts from. */
+/** The popup as nobody has laid it out, which the editor starts from. */
 const DEFAULT: PopupLayout = {
   split: "shown",
   reading: "over",
@@ -104,7 +102,7 @@ const DEFAULT: PopupLayout = {
  * The layout as it stands: what was kept (the default when nothing was), with each of the kinds under the word and
  * each dictionary that has meanings in it once, in the dictionaries' order. One not placed yet goes at the end (before
  * Explain while that stands last), open when no dictionary is open already and folded otherwise (the first open, the
- * rest folded, as the owner saw it on the popup page); one no longer there is left out. Explain, when it isn't placed
+ * rest folded); one no longer there is left out. Explain, when it isn't placed
  * yet, goes after all of them.
  */
 export function popupLayoutOf(kept: PopupLayout | null, dictionaries: readonly { id: string }[]): PopupLayout {

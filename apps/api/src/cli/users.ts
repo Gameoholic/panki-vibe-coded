@@ -7,8 +7,8 @@ import { env } from "../env";
 import { hashPassword } from "../password";
 
 /**
- * Accounts are made from the terminal, never from the app: `pnpm user:add <name> <password>` (the owner's choice to
- * pass the password on the command line), `pnpm user:password <name> <newPassword>`, `pnpm user:list`, and
+ * Accounts are made from the terminal, never from the app: `pnpm user:add <name> <password>` (the password passed
+ * on the command line), `pnpm user:password <name> <newPassword>`, `pnpm user:list`, and
  * `pnpm user:admin <name> [off]`, which makes an account an admin (one that changes what everyone shares) or takes it back.
  * Expected failures print one line and exit 1; nothing else is printed about a password.
  */

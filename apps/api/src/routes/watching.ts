@@ -6,10 +6,10 @@ import { signedIn } from "../session";
 import type { Shared } from "../shared";
 
 /**
- * What the account watches (2026-10-21, `watching.ts` in the contracts): the extension sends the stretches watched in
- * batches, asks of a video as it opens it (where it was stopped, whether it counts) and says what the owner said of it;
+ * What the account watches (`watching.ts` in the contracts): the extension sends the stretches watched in batches,
+ * asks of a video as it opens it (where it was stopped, whether it counts) and says what the viewer said of it;
  * Settings reads the history in brief and forgets it. The API stamps every time and keeps whatever arrives: whether a
- * browser sends is its own Video tracking (since 2026-11-02; the account's until then, which refused stretches here).
+ * browser sends is its own Video tracking.
  */
 export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: () => number) {
   const router = Router();
@@ -22,8 +22,7 @@ export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: ()
     return null;
   }
 
-  // `GET/PATCH /settings`, how watching was told for everyone, went on 2026-10-30: when a video counts as finished is
-  // each account's own setting now (`Settings.finishedWithinSec`, `routes/settings.ts`).
+  // When a video counts as finished is each account's own setting (`Settings.finishedWithinSec`, `routes/settings.ts`).
 
   // A batch sent again keeps nothing twice: each stretch's id is the extension's. Answered alike whether or not it was
   // kept, since with Video tracking off the extension has nothing to do about it.
@@ -39,7 +38,7 @@ export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: ()
     res.status(204).end();
   });
 
-  // Each extension says what its Video tracking switch is, as it starts signed in and as it's changed (2026-11-03);
+  // Each extension says what its Video tracking switch is, as it starts signed in and as it's changed;
   // Settings → Extension → Data tracking lists them, read-only.
   router.put("/device", (req, res) => {
     const parsed = DeviceTracking.safeParse(req.body);
@@ -81,7 +80,7 @@ export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: ()
     res.json(answer);
   });
 
-  // Saved for later, the account's own (2026-10-21): the list, a video saved with its name and channel, a save taken
+  // Saved for later, the account's own: the list, a video saved with its name and channel, a save taken
   // back (hidden, never deleted). Each answers with the list as it stands after.
   router.get("/saved", (_req, res) => {
     const answer: SavedResponse = { videos: dbOf(res).savedVideos() };

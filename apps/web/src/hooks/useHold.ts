@@ -8,7 +8,7 @@ const LET_GO_MS = 160;
  * Keys a tap of which does something right now, as each listener has them (`useHeardKeys`: a player's Space tapped,
  * while there's a clip to play), by how many: a hold of the same key on the same screen can't yet tell itself from
  * that tap as it goes down, so it stays still for its first moment (`TAP_MS`), and a tap shows no hold beginning
- * (the owner, 2026-10-29: "when I press space and instantly release it also thinks I'm trying to hold it"). Any key,
+ * (a key pressed and let go at once never looks like a hold). Any key,
  * any hold: nothing here knows which.
  */
 const liveTaps = new Map<string, number>();
@@ -23,15 +23,15 @@ export function keepTap(key: string): () => void {
 }
 const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed(e, key));
 /**
- * The one line between a tap and a hold of a key that's both (the owner, 2026-10-29): let go sooner, it's the tap;
+ * The one line between a tap and a hold of a key that's both: let go sooner, it's the tap;
  * held past it, the hold's ring begins to fill, and letting go then is a hold let go early, which does nothing. So the
  * ring showing always means a hold. The hold itself still takes as long as it's set to (every hold is longer than this).
- * 0.2 s, the owner's pick (2026-11-01; 0.15 s from 2026-10-29, after trying 0.1 s).
+ * 0.2 s, long enough for a quick tap.
  */
 export const TAP_MS = 200;
 /**
- * A second press of a key this soon after the first is a double press (`keys.ts` → `DOUBLE_PRESS`, the owner,
- * 2026-11-02: the Hold button's Back to start, and any key set to it); a press of a key whose double press does
+ * A second press of a key this soon after the first is a double press (`keys.ts` → `DOUBLE_PRESS`: the Hold
+ * button's Back to start, and any key set to it); a press of a key whose double press does
  * something waits this long before it's a press.
  */
 export const DOUBLE_MS = 300;
@@ -50,7 +50,7 @@ export function keepDouble(key: string): () => void {
 const doubleLive = (e: KeyboardEvent) => [...liveDoubles.keys()].some((key) => pressed(e, key));
 
 /**
- * Shift, Ctrl or Alt down by itself (`keys.ts` → `isModifier`, the owner, 2026-11-02): each one down now, and whether it
+ * Shift, Ctrl or Alt down by itself (`keys.ts` → `isModifier`): each one down now, and whether it
  * still is its own press, nothing else having gone down since (Ctrl+Z is Z's, never Ctrl's). Heard on the window before
  * anything else (capture), and let go of just after its key goes up, so whoever hears that can still ask.
  */

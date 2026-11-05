@@ -39,7 +39,7 @@ import { AnswerText, FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, quest
 import { glossaryText } from "./Glossary";
 
 /**
- * Explain, a part of the pop-up's layout (AI step 2, the owner's preview of 2026-10-30): Panki AI saying what the word
+ * Explain, a part of the pop-up's layout: Panki AI saying what the word
  * shown means where it was pointed at. On a press (or by itself once the pop-up is kept open, with Explain as the
  * pop-up opens on), the word, what the dictionaries say of it, its sentence and, on a video, what's around it go to
  * Panki through the worker; the answer stands under the spark as plain paragraphs, and a follow-up can be asked under
@@ -57,7 +57,7 @@ const MESSAGES = {
   cut: "Cut short at the answer limit.",
   /** An answer with nothing in it: the provider's failure, as good as. */
   nothing: "Panki AI gave no answer.",
-  /** Nothing in it and cut at Max answer length: the model's thinking took all of it (it did, on the owner's first try). */
+  /** Nothing in it and cut at Max answer length: the model's thinking took all of it. */
   used: "Panki AI reached the answer limit before it wrote anything. Max answer length is in Admin → Panki AI → Limits.",
   /**
    * Panki's own note when the answer judges none of the dictionary's meanings to fit and proposes none (one from a
@@ -109,8 +109,8 @@ export type MorePieces = (pointed: Pointed, limits: PieceLimits) => PromptPieces
 /** Explain on the options page (the made-up answers are the web's `explainers/examples.ts`): made-up answers, drawn as an answer is, answering no press, never asking anyone. */
 export type ExplainExamples = { kind: "example"; answers: readonly ExampleAnswer[] };
 /**
- * Explain on a page: Panki AI through the worker, about the word pointed at, run by its button alone (Explain as the
- * pop-up opens went at the owner's word, 2026-11-02: running by itself is AI step 7's). `more` is what the page adds (a video's).
+ * Explain on a page: Panki AI through the worker, about the word pointed at, run by its button alone (running by
+ * itself is AI step 7's). `more` is what the page adds (a video's).
  */
 export type ExplainLive = { kind: "panki"; pointed: Pointed; more: MorePieces | null };
 export type ExplainSource = ExplainExamples | ExplainLive;
@@ -402,7 +402,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
       {start}
       {runAsk("start")}
       <AiStatus calls={calls} burst={burst} />
-      {/* A turn on its way is its question alone, or nothing: the head's turning spark and Thinking are the wait (the owner, 2026-10-31). */}
+      {/* A turn on its way is its question alone, or nothing: the head's turning spark and Thinking are the wait. */}
       {turns.map((turn, i) =>
         turn.question === null && !turn.answer && !turn.failure ? null : (
         <div key={i} ref={i === turns.length - 1 ? latest : undefined} className="ai-explain-turn">

@@ -36,7 +36,7 @@ export function NumberField({ id, label, value, onChange, min, max, step: by = 1
 
   function type(next: string) {
     setText(next);
-    // A comma is a decimal point where the owner types one.
+    // A comma typed is a decimal point.
     const n = Number(next.replace(",", "."));
     if (next.trim() !== "" && Number.isFinite(n) && (places > 0 || Number.isInteger(n)) && n >= min && n <= max) onChange(fine(n));
   }

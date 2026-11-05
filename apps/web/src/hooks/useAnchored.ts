@@ -6,8 +6,7 @@ const EDGE = 8;
 
 /**
  * Keeps an open menu beside what opened it in the window itself (`position: fixed`), so no box that scrolls around it
- * cuts it off (the owner, 2026-11-01, Explain's templates menu in the pop-up: "i dont like how this expands and is cut
- * off"). Under the anchor where it fits, over it where there's more room above, held inside the window's width, and as
+ * cuts it off (Explain's templates menu in the pop-up, say). Under the anchor where it fits, over it where there's more room above, held inside the window's width, and as
  * tall as the room it has, scrolling inside itself past that. Placed again every frame while open, so it follows a page
  * or a pop-up that scrolls or moves. It stays where it is in the DOM (inside the extension's shadow root, so its styles
  * still reach it, and `useDismiss` still hears presses in it); a box around it that makes a fixed element its own
@@ -24,7 +23,7 @@ export function useAnchored(anchor: RefObject<HTMLElement | null>, menu: RefObje
         const below = window.innerHeight - at.bottom - GAP - EDGE;
         const above = at.top - GAP - EDGE;
         // Its whole height: `scrollHeight` leaves out the border, and a max height of that, the box being border-box, put a
-        // scrollbar on a menu that fit (the owner, 2026-11-01: "why is there a scroll wheel here"); rounded up, never short.
+        // scrollbar on a menu that fit; rounded up, never short.
         const edges = element.offsetHeight - element.clientHeight;
         const natural = Math.ceil(element.scrollHeight + edges);
         const up = natural > below && above > below;

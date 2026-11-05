@@ -54,8 +54,8 @@ const COUNTING_AGAIN_MS = 5000;
 
 /**
  * Where a dictionary comes from, in its own words from its index.json: who made it, its address, what it says it is.
- * An address is written out, never a link. What it doesn't say isn't shown. (The file's own name stood here too for a
- * renamed dictionary, until the owner had it taken off, 2026-10-17: Reset to default name is enough.)
+ * An address is written out, never a link. What it doesn't say isn't shown. A renamed dictionary's file name isn't
+ * here: Reset to default name is enough.
  */
 function Origin({ dictionary }: { dictionary: DictionaryRecord }) {
   const { author, url } = dictionary;
@@ -71,9 +71,9 @@ function Origin({ dictionary }: { dictionary: DictionaryRecord }) {
 }
 
 /**
- * A dictionary's name on its row, and renaming it there: the owner's own name, shown wherever it's named, the file
- * and everything Panki tells it apart by left as they are (the owner, 2026-10-16). Going back to the file's own name
- * is one press, Reset to default name (the owner's words, 2026-10-17); saving it empty does the same.
+ * A dictionary's name on its row, and renaming it there: a name of its own, shown wherever it's named, the file and
+ * everything Panki tells it apart by left as they are. Going back to the file's own name is one press, Reset to
+ * default name; saving it empty does the same.
  */
 function DictionaryName({ dictionary, onRenamed }: { dictionary: DictionaryRecord; onRenamed: () => void }) {
   const shown = shownName(dictionary);
@@ -160,8 +160,8 @@ function Provided({ provides, ownName, example }: { provides: Provides; ownName:
 
 /**
  * What a dictionary provides, in the kinds of data Panki reads from one, each with how many of its entries carry it
- * and what it is, one word's, and where it goes in the popup and on a card (the owner, 2026-10-16: a dictionary says
- * "we provide this data", rather than one list of what it fills and another of where it shows). Counted from its
+ * and what it is, one word's, and where it goes in the popup and on a card: a dictionary says what data it provides,
+ * rather than one list of what it fills and another of where it shows. Counted from its
  * rows, never guessed. Then one word as it gives it, so it's plain what an entry is.
  */
 function WhatsIn({ dictionary, about, uncountable }: { dictionary: DictionaryRecord; about: About | undefined; uncountable: boolean }) {
@@ -212,7 +212,7 @@ function WhatsIn({ dictionary, about, uncountable }: { dictionary: DictionaryRec
  * first is shown first wherever a word is looked up), remove one after asking. They live in this browser only.
  * `onChanged` hears of each change, for what else on the page is drawn from them (the popup's layout). Signed in
  * (`door`), the dictionaries kept on Panki that aren't here yet are listed too, each added with a press: fetched from
- * Panki whole and imported as a file picked here would be (the owner, 2026-10-16).
+ * Panki whole and imported as a file picked here would be.
  */
 export function Dictionaries({ onChanged, door }: { onChanged: () => void; door: Door | null }) {
   const [list, setList] = useState<DictionaryRecord[] | null>(null);
@@ -523,11 +523,10 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
 }
 
 /**
- * Words already in the cards, marked where they stand (`capture/known.ts`; the owner, 2026-10-25): on pages and in
+ * Words already in the cards, marked where they stand (`capture/known.ts`): on pages and in
  * Panki's subtitles, each its own switch, and the colour, picked as the seek bar's marks pick theirs. Kept the
  * moment it's changed; a page takes it up as it gets the focus back. Its two switches are named as Looking up words
- * names its two keys, "globally" and "in Panki subtitles", in the same order (the owner, 2026-10-25: "the
- * terminology is different… fix it").
+ * names its two keys, "globally" and "in Panki subtitles", in the same order: one name for each place everywhere.
  */
 export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
@@ -548,7 +547,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
         label="Colour"
         control={<Swatches id="known-colour" value={store.knownColour} disabled={!store.knownSubtitles && !store.knownPages} onChange={(knownColour) => void writeStore({ knownColour }).then(onChanged)} />}
       />
-      {/* A word whose every card is suspended, marked apart (the owner, 2026-10-30). */}
+      {/* A word whose every card is suspended, marked apart. */}
       <Setting
         id="known-suspended-colour"
         label="Suspended cards' colour"
@@ -634,13 +633,13 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   }
 
   const listed = store.lookWhere === "only" || store.lookWhere === "except";
-  // Pop-up dictionary heads the panel (the owner, 2026-10-21); off, every row under it is greyed, as every panel's own switch greys its rows (2026-10-28).
+  // Pop-up dictionary heads the panel; off, every row under it is greyed, as every panel's own switch greys its rows.
   const off = !store.moduleLookup;
   return (
     <section className="panel" aria-labelledby="looking-title">
       <SceneTitle id="popup" titleId="looking-title" store={store} />
       <Setting id="module-lookup" label="Pop-up dictionary" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
-      {/* Where and the key held there are one setting's two halves (the owner, 2026-10-28: "link these settings"); Panki
+      {/* Where and the key held there are one setting's two halves, grouped together; Panki
           subtitles are a group of their own, Where never reaching them. Named as Words that are in your decks names its
           two places, "globally" and "in Panki subtitles". */}
       <div className="seek-group">
@@ -689,8 +688,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           why={usageWords(store.lookKey)}
         />
       </div>
-      {/* The same choice again for Panki's subtitles alone (the owner, 2026-10-25: "duplicate the setting, one for global
-          and one for just Panki subtitles"); which those are is said under it, since a card's clip in a review is one. */}
+      {/* The same choice again for Panki's subtitles alone; which those are is said under it, since a card's clip in a review is one. */}
       <div className="seek-group">
         <h3 className="seek-group-title">In Panki subtitles</h3>
         <Setting

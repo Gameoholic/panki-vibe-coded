@@ -91,12 +91,10 @@ type Props = {
 const clock = (hour: number) => `${hour}:00`;
 
 /**
- * The page's tabs, as the extension's own page has them (the owner, 2026-10-17: "more organized, similar to the
- * extension settings page"): the look and what every deck shares, the keys, Panki AI's templates (AI step 5), the
+ * The page's tabs, as the extension's own page has them: the look and what every deck shares, the keys, Panki AI's templates (AI step 5), the
  * extension, and the account. The tab is in the address, so a reload stays on it (and the extension opens Panki at
  * `/settings#ai` for the templates); every tab is drawn and the others hidden, so a key half typed on one survives a
- * look at another. What an admin alone changes was a tab here until the owner gave it a screen of its own, at the
- * bar's far end (2026-10-29; `AdminView`).
+ * look at another. What an admin alone changes is a screen of its own, at the bar's far end (`AdminView`).
  */
 export type SettingsTab = "general" | "keys" | "ai" | "extension" | "account";
 const TABS: readonly { id: SettingsTab; label: string }[] = [
@@ -110,9 +108,8 @@ const TABS: readonly { id: SettingsTab; label: string }[] = [
 const tabOfAddress = <T extends string>(tabs: readonly { id: T }[]): T | null => tabs.find((t) => `#${t.id}` === window.location.hash)?.id ?? null;
 
 /**
- * Admin's tabs, as Settings has its own (the owner, 2026-10-30: "split the admin settings into tabs like these"): one
- * a paid service or what it keeps, each panel where it stood. Too many for a phone's row, so there they take two rows.
- * (Watching was a sixth for an hour, until when a video counts as finished became each account's own, 2026-10-30.)
+ * Admin's tabs, as Settings has its own: one a paid service or what it keeps, each panel where it stood. Too many for
+ * a phone's row, so there they take two rows.
  */
 type AdminTab = "transcription" | "wordAudio" | "ai" | "dictionaries" | "storage";
 const ADMIN_TABS: readonly { id: AdminTab; label: string }[] = [
@@ -142,7 +139,7 @@ const KIND_WORDS: Record<FilesOfKind["kind"], string> = { video: "Video", audio:
 const KIND_ORDER: readonly FilesOfKind["kind"][] = ["video", "audio", "image"];
 const SPEED_OPTIONS = TRANSCRIBE_SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
 const OVER_LIMIT_OPTIONS = OVER_LIMIT_IDS.map((id) => ({ id, label: OVER_LIMIT_WORDS[id] }));
-// The words the extension's options page had for it, when it was each viewer's (until 2026-10-27).
+// The words the extension's options page had for it, when it was each viewer's.
 const PAUSED_OPTIONS = [
   { id: "keep", label: "Keeps its lead" },
   { id: "stop", label: "Stops at once" },
@@ -197,7 +194,7 @@ export const DEVICE_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /**
  * The account's time zone as a choice: every zone the browser knows, written with spaces for underscores, this
- * device's noted. Each account's own, nothing Panki-wide (2026-10-21). A zone saved that the browser doesn't list (an
+ * device's noted. Each account's own, nothing Panki-wide. A zone saved that the browser doesn't list (an
  * old alias) is listed all the same, so the choice never shows as nothing.
  */
 function zoneOptions(saved: string): { id: string; label: string; note?: string }[] {
@@ -210,7 +207,7 @@ const TRACKING_SHAPE = "tracking-devices";
 
 /**
  * One extension's Video tracking as Data tracking lists it, in the setting's own name and words: "Video tracking · On
- * · last sent 3 hours ago", "Video tracking · Off · never sent" (the owner, 2026-11-03: quiet words, no chip). Two
+ * · last sent 3 hours ago", "Video tracking · Off · never sent", in quiet words, no chip. Two
  * states alone: one that hasn't said yet, an extension not yet updated, reads Off.
  */
 function trackingWords(device: TrackingDevice, now: number): string {
@@ -221,11 +218,9 @@ function trackingWords(device: TrackingDevice, now: number): string {
 
 /**
  * What Video tracking records, each extension signed in to the account and whether its Video tracking is on (the
- * owner, 2026-11-03, option A of https://claude.ai/artifact/QkVtNkysEjXQAgdJYqqxDT: the Account tab's rows, the state
- * in quiet words at the right), all that's kept of the videos watched in one line, and a way to forget it, asked in
- * place with words to type (a Watch history panel of its own, on the Account tab, until the owner had it in here,
- * 2026-10-28). Video tracking is each browser's own, switched in the extension alone (since 2026-11-02): the list is
- * read-only, nothing here switches or stops one. The website's own sign-ins aren't in it. The rows are hidden on Panki
+ * Account tab's rows, the state in quiet words at the right), all that's kept of the videos watched in one line, and
+ * a way to forget it, asked in place with words to type. Video tracking is each browser's own, switched in the
+ * extension alone: the list is read-only, nothing here switches or stops one. The website's own sign-ins aren't in it. The rows are hidden on Panki
  * with the time they went, never destroyed; the watch time and Continue watching start over.
  */
 function DataTrackingPanel() {
@@ -300,7 +295,7 @@ function DataTrackingPanel() {
         <Skeleton shape="kept" count={shapeOf(TRACKING_SHAPE, 1)} />
       )}
       {history ? (
-        // What's kept, and since the first video (it said "On since…" while Video tracking was the account's, 2026-10-29 to 2026-11-02).
+        // What's kept, and since the first video.
         <p className="session-who">{kept ? `${count(history.videos, "video", "videos")} kept${history.since !== null ? ` since ${dateWords(history.since)}` : ""}` : "Nothing kept."}</p>
       ) : failure ? null : (
         <Skeleton shape="lines" count={1} />
@@ -356,8 +351,7 @@ type KeyPanelProps = {
 
 /**
  * A service's key: typed in plain sight, saved, and then kept under a spoiler like a card's, pressed to see it and
- * pressed again to cover it (the owner, 2026-10-17: "you don't have to hide it… otherwise it's a spoiler like the
- * spoiler words in the card types"; it was typed as a password and never shown again). Saving another replaces it;
+ * pressed again to cover it, never a password field that hides it for good. Saving another replaces it;
  * Forget takes it off, asking first. Forvo's, a transcribing engine's and a Panki AI provider's are all this, inside the Admin panel.
  */
 function KeyPanel({ id, title, from, label, status, saved, schema, onSave, children }: KeyPanelProps) {
@@ -367,7 +361,7 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
   /** What copying the key came to, said beside it for a moment. */
   const [copied, setCopied] = useState<string | null>(null);
   /**
-   * The saved key to the clipboard (the owner, 2026-10-17: "make it so I can copy the key by clicking on it"). With a
+   * The saved key to the clipboard, by a press on it. With a
    * mouse the key shows on hover already, so the first press copies; on a touch screen the first press shows it and
    * the next copies.
    */
@@ -497,8 +491,8 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
 }
 
 /**
- * What a kind of paid call has come to, read from the usage ledger (the owner, 2026-10-30: each service's own, under
- * its own panel): every account, those from before calls were counted per account, and everyone, over this month, the
+ * What a kind of paid call has come to, read from the usage ledger (each service's own, under its own panel): every
+ * account, those from before calls were counted per account, and everyone, over this month, the
  * last 30 days or all of it. What it cost is at the listed prices, so it says "(est.)"; Forvo, a flat plan, has none.
  */
 function UsageSection({ kind }: { kind: UsageKind }) {
@@ -564,10 +558,9 @@ const STATUS_WORDS: Record<string, string> = { active: "Active", free: "Free", t
 const planWords = (plan: string) => plan.charAt(0).toUpperCase() + plan.slice(1);
 
 /**
- * The engine's account behind the key, read from the engine each time the panel opens or the key changes (the owner,
- * 2026-10-17: "how many credits I have left, how much top up, my plan"): the plan and its standing, the credits used
- * of the period's limit, as a share too, and when they reset. (What pay-as-you-go use had come to was a line here
- * until the owner had it taken off, the same day; the API still reads it.)
+ * The engine's account behind the key, read from the engine each time the panel opens or the key changes: the plan
+ * and its standing, the credits used of the period's limit, as a share too, and when they reset. What pay-as-you-go
+ * use has come to isn't shown, though the API still reads it.
  */
 function EngineAccountLines({ keyed, turn }: { keyed: boolean; turn: number }) {
   const [account, setAccount] = useState<EngineAccount | null>(null);
@@ -646,12 +639,11 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           </p>
         ) : null}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
-        {/* The language every video was transcribed in stood here from 2026-10-18 until the owner made it each account's own, 2026-10-21 (General → Watching). */}
         <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
           {/* Read again whenever the key changes: the saved key's text is the sign of that. */}
           <EngineAccountLines keyed={status.key !== null} turn={(status.saved ?? "").length} />
         </KeyPanel>
-        {/* What's been transcribed and what it cost, from the usage ledger; a tally under the key stood here until 2026-10-30. */}
+        {/* What's been transcribed and what it cost, from the usage ledger. */}
         <UsageSection kind="transcription" />
       </section>
       <section className="panel" aria-labelledby="modes-title">
@@ -659,7 +651,7 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           Transcription modes
         </h2>
         <ModeCompare mode={current.mode} modesOff={current.modesOff} estimate={status.estimate} onDefault={(mode) => patch({ mode })} onOn={setModeOn} />
-        {/* How much of a video is watched before the entire video is transcribed by itself (the owner, 2026-10-21). */}
+        {/* How much of a video is watched before the entire video is transcribed by itself. */}
         <Setting
           id="wholeAfter"
           label="Minimum watch time before activating full transcription"
@@ -670,7 +662,7 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
             </>
           }
         />
-        {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen, the engine downloading and transcribing a video at once (the owner, 2026-10-20). */}
+        {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen, the engine downloading and transcribing a video at once. */}
         <Setting
           id="downloadLimit"
           label="Length limit"
@@ -691,7 +683,7 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
         <h2 id="chunks-title" className="panel-title">
           Chunks
         </h2>
-        {/* How a chunk is cut, at the owner's ask (2026-10-20: "a short description under chunks explaining how it works"). */}
+        {/* How a chunk is cut, in a short description under the panel's title. */}
         <p className="setting-why">The background player records a chunk until it reaches its length, then stops at the first pause in the speech. If there's no pause, it's forcefully cut after the wait, and the next chunk starts 1.5 s earlier so the word that was cut is heard in its entirety.</p>
         <Setting
           id="speed"
@@ -767,10 +759,9 @@ type WordAudioProps = {
 };
 
 /**
- * Where word audio comes from, for everyone (the owner, 2026-10-17: "like engine and key; even though there's only one
- * engine for audio pronunciation, we might have others in the future"): the source, saved a moment after it's changed,
- * then its key and how many of the day's requests Panki has made to it. (Watching, how close to its end a video counts
- * as finished, stood after it from 2026-10-25 until it became each account's own on the extension's page, 2026-10-30.)
+ * Where word audio comes from, for everyone, shaped as the engine and its key are so a second source can join the
+ * first: the source, saved a moment after it's changed, then its key and how many of the day's requests Panki has
+ * made to it.
  */
 function WordAudioSection({ status, onStatus }: WordAudioProps) {
   const [current, patch, failure] = useSavedSoon<WordAudio>(status.settings, async (change) => {
@@ -791,7 +782,7 @@ function WordAudioSection({ status, onStatus }: WordAudioProps) {
       ) : null}
       <Setting id="wordAudioSource" label="Source" control={<Dropdown id="word-audio-source" label="Source" options={SOURCE_OPTIONS} value={current.source} disabled={WORD_AUDIO_SOURCE_IDS.length < 2} onChange={(next) => patch({ source: next })} />} />
       <KeyPanel id="word-audio" title={source.name} from={source.vendor} label="API key" status={status.key} saved={status.saved} schema={WordAudioKeyUpdate} onSave={async (key) => onStatus(await api.setWordAudioKey(current.source, key))}>
-        {/* Forvo tells nothing of its use, so Panki counts its own requests against the day's allowance (the owner, 2026-10-17). */}
+        {/* Forvo tells nothing of its use, so Panki counts its own requests against the day's allowance. */}
         {status.calls !== undefined && source.dailyLimit !== null ? (
           <p className="setting-why">
             {status.calls.toLocaleString("en")} of {source.dailyLimit.toLocaleString("en")} requests today
@@ -822,8 +813,8 @@ const LIMIT_ROWS: readonly { key: keyof typeof AI_LIMITS; label: string; suffix?
 ];
 
 /**
- * Panki AI's limits, everyone's, held by the server (the owner, 2026-10-30: "just so I know it's there… and maybe even
- * edit it"): a number each, saved a moment after each change as the panel's other settings are.
+ * Panki AI's limits, everyone's, held by the server, shown so an admin knows they're there and can change them: a
+ * number each, saved a moment after each change as the panel's other settings are.
  */
 function AiLimits({ current, on, patch }: { current: PankiAi; on: boolean; patch: (change: Partial<PankiAi>) => void }) {
   return (
@@ -860,10 +851,9 @@ function AiLimits({ current, on, patch }: { current: PankiAi; on: boolean; patch
 }
 
 /**
- * Panki AI, for everyone (2026-10-30, the AI's first step): whether it's on, the provider and its model (greyed while
- * it's off, as a panel's switch greys its rows), each saved a moment after it's changed; the model's listed price under
- * it; the provider's key; the limits (step 2, greyed while it's off too); and what it's been used for. The prompts stood
- * here, everyone's, with Prompt context and What Panki AI answers, until AI step 5 made them each account's templates
+ * Panki AI, for everyone: whether it's on, the provider and its model (greyed while it's off, as a panel's switch
+ * greys its rows), each saved a moment after it's changed; the model's listed price under it; the provider's key; the
+ * limits (greyed while it's off too); and what it's been used for. The prompts are each account's own templates
  * (Settings → Panki AI, `AiTemplateView`).
  */
 function PankiAiSection({ status, onStatus }: PankiAiProps) {
@@ -919,9 +909,8 @@ function PankiAiSection({ status, onStatus }: PankiAiProps) {
 const kindWords = (name: string, bytes: number, files: number) => `${name} ${sizeWords(bytes)} · ${count(files, "file", "files")}`;
 
 /**
- * What Panki's data takes on the disk, for an admin to keep an eye on the clips and sounds (the owner, 2026-10-17:
- * "the current storage plus storage allocated, so I know once the videos and audios take too much space"; read-only,
- * nothing to clean up here yet, by their word). Each account with its files by kind, what everyone shares, the backups,
+ * What Panki's data takes on the disk and what's left, so an admin knows when the clips and sounds take too much
+ * (read-only: nothing to clean up here yet). Each account with its files by kind, what everyone shares, the backups,
  * the whole of Panki, and the disk it's on. Read once as the panel opens: it walks every file.
  */
 function StorageSection() {
@@ -974,7 +963,7 @@ function StorageSection() {
               <span className="row-sub">
                 {[
                   report.shared.dictionaries.files > 0 ? kindWords("Dictionaries", report.shared.dictionaries.bytes, report.shared.dictionaries.files) : "No dictionaries",
-                  // About: worked out from the transcripts' rows, the store can't say exactly (the owner, 2026-10-22).
+                  // About: worked out from the transcripts' rows, the store can't say exactly.
                   ...(report.shared.transcripts && report.shared.transcripts.videos > 0
                     ? [`Transcripts about ${sizeWords(report.shared.transcripts.bytes)} (${count(report.shared.transcripts.videos, "video", "videos")}, ${count(report.shared.transcripts.words, "word", "words")})`]
                     : []),
@@ -1017,11 +1006,11 @@ function StorageSection() {
   );
 }
 
-/** The day a build of the extension's files last changed ("2026-10-22"), in words. Noon, so no zone turns it into the day before. */
+/** The day a build of the extension's files last changed (a "YYYY-MM-DD" day), in words. Noon, so no zone turns it into the day before. */
 const buildDay = (changedAt: string) => dateWords(Date.parse(`${changedAt}T12:00:00`));
 
 /**
- * The Chrome extension, as this Panki carries it (the owner, 2026-10-22: no store): the build to download, and how it's
+ * The Chrome extension, as this Panki carries it, with no store: the build to download, and how it's
  * set up on a computer. Keeping it up to date afterwards is the extension's own to say (Update Panki, in its folder).
  */
 function ExtensionPanel() {
@@ -1086,7 +1075,7 @@ function ExtensionPanel() {
           <li>Press Load unpacked and choose that folder.</li>
           <li>Sign in on the page that opens.</li>
           <li>To update it later, open Update Panki in that folder, then press Reload Panki.</li>
-          {/* Gatekeeper holds back a script downloaded from the internet the first time: Open from its menu lets it run (2026-11-05). */}
+          {/* Gatekeeper holds back a script downloaded from the internet the first time: Open from its menu lets it run. */}
           <li>On a Mac, the first time, right-click Update Panki and choose Open.</li>
         </ol>
       </section>
@@ -1125,8 +1114,7 @@ function AdminPanel({ tab }: { tab: AdminTab }) {
     };
   }, []);
 
-  // Panels of their own, as every other tab has (the owner, 2026-10-27: "all the settings are under Admin… organize it
-  // better, similar to other tabs"); each stands with its title while what's in it loads.
+  // Panels of their own, as every other tab has; each stands with its title while what's in it loads.
   return (
     <>
       {failure ? (
@@ -1139,8 +1127,8 @@ function AdminPanel({ tab }: { tab: AdminTab }) {
           <Transcribing status={transcription} onStatus={setTranscription} />
         ) : failure ? null : (
           <>
-            {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki (2026-10-27); the modes' chart is far taller on a phone. */}
-            {/* Transcribing and Word audio took their Usage on 2026-10-30, Panki AI is new: those three not measured since. */}
+            {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki; the modes' chart is far taller on a phone. */}
+            {/* Transcribing, Word audio (both with their Usage) and Panki AI are not measured. */}
             <LoadingPanel id="transcribing" title="Transcribing" rows={8} />
             <LoadingPanel id="modes" title="Transcription modes" rows={19} />
             <LoadingPanel id="chunks" title="Chunks" rows={15} />
@@ -1166,8 +1154,7 @@ function AdminPanel({ tab }: { tab: AdminTab }) {
 }
 
 /**
- * The Admin screen (the owner, 2026-10-29: "in the most top right of the website"; a tab of Settings until then), in
- * tabs since 2026-10-30 as Settings is: the tab in the address (`#ai`), so a reload stays on it. Its tabs are
+ * The Admin screen, at the top right of the site, in tabs as Settings is: the tab in the address (`#ai`), so a reload stays on it. Its tabs are
  * `.settings-tab`s, so it stands as wide as Settings does. Its pieces are Settings' own (`Setting`, `KeyPanel`), so it
  * stays in this file.
  */
@@ -1199,10 +1186,9 @@ function LoadingPanel({ id, title, icon, rows }: { id: string; title: string; ic
 }
 
 /**
- * Dictionaries kept on Panki (the owner, 2026-10-16: "put all these zips in the server … and I can choose available
- * ones from there to download"): uploaded here as the zips they come in, each listed by what its own index.json says it
- * is, and added to the extension from its options page. An admin's alone (the owner, 2026-10-17: "only admin can add
- * it"); everyone else meets the dictionaries on the extension's own page. Removing one asks first, with what it costs.
+ * Dictionaries kept on Panki, so each extension picks the ones it wants from there: uploaded here as the zips they
+ * come in, each listed by what its own index.json says it is, and added to the extension from its options page. Only
+ * an admin adds them; everyone else meets the dictionaries on the extension's own page. Removing one asks first, with what it costs.
  */
 function DictionariesPanel() {
   const [list, setList] = useState<ServerDictionary[] | null>(null);
@@ -1384,7 +1370,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
             {failure}
           </p>
         ) : null}
-        {/* Display: how Panki looks and speaks to you (Look until the owner, 2026-10-30, moved Language here). */}
+        {/* Display: how Panki looks and speaks to you. */}
         <section className="panel" aria-labelledby="display-title">
           <h2 id="display-title" className="panel-title">
             Display
@@ -1409,7 +1395,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
             }
           />
           {/* The language Panki speaks in: the AI's answers now (a prompt's {Language}), the whole app later. Greyed while
-              English is the one choice, as Word audio's source is while Forvo is (the owner, 2026-10-30). */}
+              English is the one choice, as Word audio's source is while Forvo is. */}
           <Setting
             id="appLanguage"
             label="Language"
@@ -1442,17 +1428,14 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
             label="Time zone"
             control={<Dropdown id="setting-time-zone" label="Time zone" options={zones} value={current.timeZone || DEVICE_ZONE} onChange={(timeZone) => patch({ timeZone })} />}
           />
-          {/* The language learned: the account's own, told to the engine for every video it transcribes (moved here from Watching at
-              the owner's word, 2026-10-21), and a Panki AI prompt's {Learning language} (Transcription language until 2026-10-30). */}
+          {/* The language learned: the account's own, told to the engine for every video it transcribes, and a Panki AI
+              prompt's {Learning language}. */}
           <Setting
             id="language"
             label="Learning language"
             control={<Dropdown id="setting-language" label="Learning language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />}
           />
         </section>
-
-        {/* Immersion (Watching until 2026-10-21) stood here with Video tracking's switch until the owner had it changed in
-            the extension alone and shown on the Extension tab, 2026-10-28 (`DataTrackingPanel`). */}
 
         {/* How a card's clip's subtitles look (a part's Subtitles in a card type's Layout): the app's own, apart from the extension's over YouTube. */}
         <section className="panel" aria-labelledby="card-subtitles-title">
@@ -1463,16 +1446,16 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
         </section>
       </div>
 
-      {/* The review's keys, this device's own (the owner, 2026-10-21: "can you make it so I can customize keybinds"). */}
+      {/* The review's keys, this device's own. */}
       <div className="settings-tab" hidden={shown !== "keys"}>
-        {/* The tab's head, above its panels: all of it is this device's, so it says so once (the owner, 2026-11-02). */}
+        {/* The tab's head, above its panels: all of it is this device's, so it says so once. */}
         <div className="settings-tab-head">
           <PerDevice />
         </div>
         <KeysPanels />
       </div>
 
-      {/* Panki AI's templates, each account's own, when a run asks first and when its cost is shown (AI step 5, 2026-11-01). */}
+      {/* Panki AI's templates, each account's own, when a run asks first and when its cost is shown. */}
       <div className="settings-tab" hidden={shown !== "ai"}>
         <AiTemplatesTab
           ai={ai}
@@ -1486,7 +1469,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
         />
       </div>
 
-      {/* The Chrome extension, downloaded from here and kept up to date without a store (the owner, 2026-10-22). */}
+      {/* The Chrome extension, downloaded from here and kept up to date without a store. */}
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
         <DataTrackingPanel />

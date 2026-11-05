@@ -8,9 +8,7 @@ import { SceneTitle } from "./explainerScenes";
 import { PartRows } from "./PartRows";
 
 /**
- * The player's control bar, laid out (the owner, 2026-11-04: "make it ONE switch to be able to play with that bar and
- * override the YouTube one, and if it's enabled then I can play around with it and add/remove stuff like an editor, and
- * there'll be a preview like the rest of the settings"): one switch, Panki's layout or YouTube's own; under it the bar as
+ * The player's control bar, laid out, with a preview like the rest of the settings: one switch, Panki's layout or YouTube's own; under it the bar as
  * it will stand, in the player's dark look at its own size, then each side's controls as rows, YouTube's and Panki's
  * alike, moved by their grips within their side and each shown or hidden. Off, the preview is YouTube's own bar, it
  * and the rows greyed. Kept the moment it's changed; a YouTube page reads it again as it gets the focus.
@@ -19,8 +17,7 @@ export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged:
   const layout = barOf(store);
   const keep = (next: BarLayout) => void writeStore({ playerBarLayout: next }).then(onChanged);
   return (
-    // A panel of its own on the YouTube tab, after YouTube utilities (the owner, 2026-11-04: "a section just for the
-    // thing I asked you for"); a group of that panel's for its first few hours.
+    // A panel of its own on the YouTube tab, after YouTube utilities.
     <section className="panel" aria-labelledby="player-bar-title">
       <SceneTitle id="playerBar" titleId="player-bar-title" store={store} />
       <Setting
@@ -28,7 +25,7 @@ export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged:
         label="Custom player bar"
         control={<Toggle id="player-bar-on" says={{ on: "On", off: "Off" }} on={store.playerBar} onChange={(playerBar) => void writeStore({ playerBar }).then(onChanged)} />}
       />
-      {/* The owner, 2026-11-04: "the option to make it never disappear, default off". */}
+      {/* Off to begin with: the bar fades as YouTube's does. */}
       <Setting
         id="player-bar-kept"
         label="Keep the bar visible always"

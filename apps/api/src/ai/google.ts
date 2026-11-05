@@ -2,7 +2,7 @@ import { z } from "zod";
 import { postTo, Tokens, unreadable, type ProviderClient } from "./call";
 
 /**
- * Google's Gemini API, `generateContent` (its docs, read 2026-10-30): the key in `x-goog-api-key`, the model in the
+ * Google's Gemini API, `generateContent` (its docs): the key in `x-goog-api-key`, the model in the
  * address, the conversation as `contents` (the model's turns are "model"), the answer's cap as `maxOutputTokens`, and
  * the least thinking the model takes asked for (`AiModel.least`), since thinking is counted against it. The answer's
  * shape is asked for as JSON with its schema, `responseMimeType: "application/json"` and `responseJsonSchema` (the

@@ -104,7 +104,7 @@ export const NO_UPDATE: UpdateState = { state: "unknown", own: null, latest: nul
 export const RecordingAsk = MediaRecording.omit({ client: true, build: true });
 export type RecordingAsk = z.infer<typeof RecordingAsk>;
 
-/** A tab of the options page the drawer sends the owner to: the sign-in, or a deck's field mapping. */
+/** A tab of the options page the drawer sends the viewer to: the sign-in, or a deck's field mapping. */
 export const OptionsTab = z.enum(["account", "decks", "youtube"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
@@ -326,7 +326,7 @@ export type State = z.infer<typeof State>;
 export type Done = z.infer<typeof Done>;
 /** A video's transcript with what runs transcribing: the shared settings, whether the chosen engine has a key, what a whole-video download takes as measured so far, this browser's pick of source, and this viewer's preferences. */
 const Transcripted = z.union([
-  // `language` is the account's own, told to the engine: each account's since 2026-10-21, nothing Panki-wide.
+  // `language` is the account's own, told to the engine: each account's, nothing Panki-wide.
   z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, language: TranscribeLanguage, key: z.boolean(), estimate: TranscribeEstimate, source: z.string(), prefs: TranscribePrefs }),
   Failed,
 ]);
@@ -374,8 +374,8 @@ const UNREAD = "Panki's answer couldn't be read.";
 /**
  * One question to the background and its answer. Each way it can go wrong says its own words, and why goes to the
  * page's console: the extension gone from under this page (reloaded), its background not answering, or an answer that
- * isn't of the shape asked for (`failed`). All three said "updated or switched off" until 2026-10-20, which sent the
- * owner reloading everything when that wasn't it.
+ * isn't of the shape asked for (`failed`). Said all as "updated or switched off", they'd send the viewer reloading
+ * everything when that isn't it.
  */
 async function ask(message: Ask): Promise<unknown> {
   try {

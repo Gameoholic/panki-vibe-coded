@@ -47,16 +47,15 @@ const shapeOf = (name: string, fields: readonly CardField[], mainField: string |
  * A card type's fields: its name and its fields, each with a kind and whether it's required, in the order a form asks
  * for them; delete at the bottom, only when no deck uses it. Where each field stands on the card, front or back, and
  * how it looks is the type's Layout (`LayoutView`): a field added here starts on the back, under the rest. Saved as
- * the Layout and the SRS editor are, by Save in the header beside whether it's saved (the owner, 2026-10-18: "it
- * should be uniform"; a Save of its own at the bottom, which went back to the list, came first); leaving with unsaved
- * changes asks first. A new type is made by its first Save, and stays open with its Layout.
+ * the Layout and the SRS editor are, by Save in the header beside whether it's saved, so every editor saves the same
+ * way; leaving with unsaved changes asks first. A new type is made by its first Save, and stays open with its Layout.
  */
 export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [id] = useState(() => type?.id ?? crypto.randomUUID());
   const [name, setName] = useState(type?.name ?? "");
   // A new type starts with one field on the front, because a card needs something there.
   const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false, perExample: false }]);
-  /** The field its cards are called by, as picked here: none until one is (the owner, 2026-10-25: never assumed). */
+  /** The field its cards are called by, as picked here: none until one is, never assumed. */
   const [mainField, setMainField] = useState<string | null>(type?.mainField ?? null);
   /** What's saved, to tell changes by; a new type's is how it starts, so an untouched one has nothing to lose. */
   const [saved, setSaved] = useState(() => shapeOf(name, fields, wordsFieldOf({ fields, mainField })?.id ?? null));
@@ -68,7 +67,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [busy, setBusy] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
-  /** The field whose Delete is asking first (the owner, 2026-10-29: taking something away is confirmed), if one is. */
+  /** The field whose Delete is asking first (taking something away is confirmed), if one is. */
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
@@ -219,8 +218,8 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
           <h2 id="type-fields-title" className="panel-title">
             Fields
           </h2>
-          {/* What cards are called by and when two are the same, said once at the top (the owner, 2026-10-25), in place
-              of a switch on every field: none picked to begin with, so nothing is a duplicate until one is. */}
+          {/* What cards are called by and when two are the same, said once at the top, in place of a
+              switch on every field: none picked to begin with, so nothing is a duplicate until one is. */}
           <Setting
             id="type-main-field"
             label="Main field"
@@ -328,8 +327,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
               onGo={() => void remove()}
             />
           ) : (
-            // Always there; greyed while a deck uses it, why beside it (the owner, 2026-11-05: the app's way for a
-            // button that can't run).
+            // Always there; greyed while a deck uses it, why beside it: the app's way for a button that can't run.
             <div className="add-actions add-actions-start">
               <Button id="type-delete" className="is-danger" disabled={type.deckCount > 0} onClick={() => setAsking(true)}>
                 <Icon name="trash" />

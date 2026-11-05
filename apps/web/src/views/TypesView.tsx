@@ -14,7 +14,7 @@ export function TypesView({ types, onOpen }: Props) {
       <h2 id="types-title" className="list-title">
         {types.length === 0 ? "No card types yet" : count(types.length, "card type", "card types")}
       </h2>
-      {/* With none, the heading says so and nothing more: New type is in plain sight (the owner, 2026-10-18). */}
+      {/* With none, the heading says so and nothing more: New type is in plain sight. */}
       {types.length === 0 ? null : (
         <ul className="deck-list">
           {types.map((type) => (

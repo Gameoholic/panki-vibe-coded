@@ -5,7 +5,7 @@ import type { DictionaryIndex } from "./dictionary";
 /**
  * A dictionary's rows, read the same way by both ends: the extension keeps them (its import), and Panki's server counts
  * what a dictionary it keeps provides (`dictionary.ts` → `providesOf`), so the options page can say so before it's
- * added (the owner, 2026-10-25: "I have no way of telling which dictionaries may be of use to me"). The banks of rows
+ * added, and which dictionaries are of use is known before. The banks of rows
  * in a term-bank zip:
  * `term_bank_N.json` (the words), `term_meta_bank_N.json` (how common a word is, its pitch accent), and
  * `tag_bank_N.json` (what the short tags on a word mean). Kanji banks are there in some and aren't read yet.

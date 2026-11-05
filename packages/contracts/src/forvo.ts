@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MediaId } from "./media";
 
 /**
- * Word audio recorded by people, from Forvo (the owner's choice, 2026-10-15): Panki's server holds the key and calls
+ * Word audio recorded by people, from Forvo: Panki's server holds the key and calls
  * Forvo, and a recording it fetches is kept as one of the account's files, so a card plays it from Panki ever after.
  * Forvo is one source of word audio among those `wordAudio.ts` lists; what's here is Forvo's own: its answers and
  * what's asked of it.

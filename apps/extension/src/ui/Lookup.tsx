@@ -253,7 +253,7 @@ function SenseRow({ sense, mark, tagWords, tagsOn }: { sense: Sense; mark: Meani
 }
 
 /**
- * The meaning Explain proposes when none of the dictionary's fits (the owner, 2026-10-31): one more meaning row after
+ * The meaning Explain proposes when none of the dictionary's fits: one more meaning row after
  * the last dictionary's shown, numbered after every meaning the dictionaries have (`{Meaning}`'s numbering, `number`),
  * in a dictionary meaning's shape with the spark where its tags would sit, lit as one that fits, its reason under its
  * chevron. Never a dictionary's meaning: not in `{Meaning}`, not counted, not what Add fills Meaning with.
@@ -336,11 +336,9 @@ export type CardsSource = { ask: (words: readonly string[]) => Promise<readonly 
 const PANKI_CARDS: CardsSource = { ask: askCalled, open: (card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId }) };
 
 /**
- * A word that's already a card, said under its head as the drawer says it (the owner, 2026-10-25: over any word, "in
- * case it's in a deck, it will show which deck it belongs to and I can click to see it in the deck"): which deck, and
- * Open in Panki, at that card in its deck's list. Asked by the word as the dictionary lists it; nothing while signed
- * out, and nothing at all for a word no card is called by. A part of the layout, In your decks, since 2026-10-28; on
- * the editor, a word in no deck shows the part's name in its place.
+ * A word that's already a card, said under its head as the drawer says it, over any word: which deck, and Open in
+ * Panki, at that card in its deck's list. Asked by the word as the dictionary lists it; nothing while signed out, and
+ * nothing at all for a word no card is called by. A part of the layout, In your decks; on the editor, a word in no deck shows the part's name in its place.
  */
 function InCards({ found, cards, edit }: { found: Found; cards: CardsSource; edit: PopupEdit | undefined }) {
   const called = useCalled([found.term], cards.ask);
@@ -431,8 +429,7 @@ type BodyProps = {
  * What's in the popup, as its layout says: at its top, when more than one word is found at that letter, every one of
  * them as a chip, the one shown lit and another pressed to show it (on Panki's line, the line is split around it too);
  * the word shown with its parts; then the other words, each in full, or not at all. One row of the words found, where
- * there were two: the words that start here by length at the top, and an "Also here" row of the rest at the bottom
- * (the owner, 2026-10-16: "why do we have both the top and the bottom?"). The popup on a page and the options page's
+ * there would otherwise be two, the words that start here at the top and the rest at the bottom. The popup on a page and the options page's
  * editor both draw this.
  */
 export function LookupBody({ found, layout, onAdd, split = null, onShow, edit, cards = PANKI_CARDS, explain }: BodyProps) {
@@ -452,7 +449,7 @@ export function LookupBody({ found, layout, onAdd, split = null, onShow, edit, c
     split?.onSplit(word.source.length);
   };
   // The words written the same way are one box, the word once and each of its readings to press in it: 昨日 read
-  // さくじつ or きのう is one word read two ways, where 昨 is another word (the owner, 2026-10-16).
+  // さくじつ or きのう is one word read two ways, where 昨 is another word.
   const byTerm = new Map<string, number[]>();
   found.forEach((word, i) => byTerm.set(word.term, [...(byTerm.get(word.term) ?? []), i]));
   const chips =
@@ -529,7 +526,7 @@ type Props = {
 };
 
 /**
- * The popup: every word found where the pointer is, laid out as the owner laid it out on the options page
+ * The popup: every word found where the pointer is, laid out as the viewer laid it out on the options page
  * (`LookupBody`). It stands under the word (over it, when there's more room there), inside the window, and the word
  * itself is lit. A press anywhere in it keeps it open.
  */
@@ -549,7 +546,7 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, expla
   return (
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
-      {/* Kept open or not, it looks the same (the owner had the border that marked it kept taken off, 2026-10-15). */}
+      {/* Kept open or not, it looks the same: no border marks it kept. */}
       <div className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
         <LookupBody
           found={view.found}

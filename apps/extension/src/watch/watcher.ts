@@ -2,13 +2,11 @@ import { WATCH, type NewWatchStretch, type WatchBatch, type WatchVideo } from "@
 import { uuid } from "../uuid";
 
 /**
- * Video tracking on a video's page (the owner, 2026-10-21: "video tracking for stats is enabled by default… count
- * immersion"): each stretch of the video watched without a pause or a jump, from where to where in it, how long it took
+ * Video tracking on a video's page, so time watched counts as immersion in the stats: each stretch of the video watched without a pause or a jump, from where to where in it, how long it took
  * on the clock and how fast it played, sent to Panki through the worker. A stretch closes when the video stops, jumps,
  * changes speed or changes, when an ad comes on, a video's first one `WATCH.firstMs` after it starts (so it counts at
  * once), and every `WATCH.flushMs` while it plays on (the next one starting where it ended), so a crash or a closed tab
- * loses little. Nothing is noted while this browser's Video tracking is off (`watch/tracking.ts`; the account's until
- * 2026-11-02), and the worker sends nothing then either. Several tabs each watch their own video, each with a watcher of its own.
+ * loses little. Nothing is noted while this browser's Video tracking is off (`watch/tracking.ts`), and the worker sends nothing then either. Several tabs each watch their own video, each with a watcher of its own.
  */
 
 /** A jump: the video stands this far from where it would be had it played on since the last look. */
@@ -37,7 +35,7 @@ export function createWatcher(deps: {
   let videoId: string | null = null;
   let on = false;
   let open: Open | null = null;
-  /** The videos whose first stretch has gone: a video's first is closed after `WATCH.firstMs`, so it counts at once (the owner, 2026-10-21: "as soon as I clicked the video"); the rest every `WATCH.flushMs`. */
+  /** The videos whose first stretch has gone: a video's first is closed after `WATCH.firstMs`, so it counts from the moment it's opened; the rest every `WATCH.flushMs`. */
   const started = new Set<string>();
   /** When the open stretch was last seen playing, on the clock. */
   let seenAt = 0;

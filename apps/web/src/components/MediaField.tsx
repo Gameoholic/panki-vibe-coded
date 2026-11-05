@@ -48,7 +48,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
     return () => URL.revokeObjectURL(made);
   }, [file]);
 
-  /** Whether Delete is asking first (the owner, 2026-10-29: anything that takes something off a card is confirmed). */
+  /** Whether Delete is asking first (anything that takes something off a card is confirmed). */
   const [asking, setAsking] = useState(false);
   const choose = () => input.current?.click();
   // What's in the field right now: the file just picked, or else the one the card already holds.

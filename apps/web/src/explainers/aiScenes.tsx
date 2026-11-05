@@ -42,8 +42,7 @@ import { EXAMPLE_ANSWERS, EXAMPLE_SENTENCE, EXAMPLE_TRANSCRIPT, IN_DECKS, type H
 import { WATCH, WATCHED, WatchPage } from "./site";
 
 /**
- * What Settings → Panki AI's explainers play (`components/Explainer.tsx`; the owner, 2026-11-01: "we should have it for
- * Explain and Touch up in Panki AI too"): each action at work on the video site, as the extension does it, made of the
+ * What Settings → Panki AI's explainers play (`components/Explainer.tsx`): each action at work on the video site, as the extension does it, made of the
  * same pieces (`AiStatus`, `JudgedRow`, `TemplateMenu`, `AnswerText`, `FollowUp`, `TouchUpButton`, `TouchUpBar`, `Tied`,
  * `fieldShown`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
  * player, whose looks are the extension's alone, so the scene draws it in shapes of its own (`app.css` → `.ex-under`),

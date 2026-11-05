@@ -1,12 +1,10 @@
 import type { CSSProperties } from "react";
 
 /**
- * What's coming, drawn as its shape while it loads (the owner, 2026-10-26: "make it a skeleton whenever we do loading
- * across the entire app"): quiet blocks where the words, rows and tiles will be, a soft sweep passing over them. Each
+ * What's coming, drawn as its shape while it loads, wherever anything in the app loads: quiet blocks where the words, rows and tiles will be, a soft sweep passing over them. Each
  * shape is built of the real screen's own classes (a deck's row is a `deck-row`, a setting a `setting`, the review a
  * `review is-fit`), so it stands exactly where the real thing will and nothing jumps as it arrives; and it shows only
- * once a load has taken a moment (`.skel-in`, `.skel`), so a quick one never shows it at all (the owner, the same day:
- * the first skeletons "don't really fit the UI… super jumpy"). The one way anything in the app says it's loading; never
+ * once a load has taken a moment (`.skel-in`, `.skel`), so a quick one never shows it at all. The one way anything in the app says it's loading; never
  * "Loading…" in words.
  */
 
@@ -62,7 +60,7 @@ function TileBody() {
   );
 }
 
-/** `TodayBar`'s parts as measured: a character of its bold words, Show cards and Hide cards, a button's height, and Start's room besides its words (its padding, its play icon, the gaps and keycap: 82 px as measured, and the icon's 16 px and its 8 px gap since; a button's icon was 18 px until 2026-10-29, Show and Hide narrower by those 2 px too). */
+/** `TodayBar`'s parts as measured: a character of its bold words, Show cards and Hide cards, a button's height, and Start's room besides its words (its padding, the gaps and keycap, 82 px as measured, and its play icon's 16 px with its 8 px gap). */
 const TODAY_CHAR_PX = 8.6;
 const TODAY_SHOW_PX = "134px";
 const TODAY_HIDE_PX = "126px";

@@ -10,11 +10,9 @@ import type { Line } from "../capture/captions";
  * A line is a sentence or a clause: it ends at a full stop, at a pause between words, or when it's long enough that it
  * wouldn't fit a row. A transcript line's id is negative, so it's never taken for a caption line's.
  *
- * Lines are kept from coming out a word or two long (the owner, 2026-10-17: "sometimes there's only one word and it
- * appears and disappears really fast… the old text ends up disappearing a lot quicker than I'd like"): a short pause
- * cuts a line only once the line is `ENOUGH` long, so a hesitation inside a sentence doesn't cut it in two, and a
- * line may run to `LONG` before its length cuts it. Before that day a pause of 0.7 cut a line whatever its length,
- * `LONG` was 30 and `LONG_AT_COMMA` 20: the five numbers below are the whole of the change, should it be unwanted.
+ * Lines are kept from coming out a word or two long, which would flash by too fast to read: a short pause cuts a line
+ * only once the line is `ENOUGH` long, so a hesitation inside a sentence doesn't cut it in two, and a line may run to
+ * `LONG` before its length cuts it.
  */
 
 /** A pause between two words this long ends a line whatever its length: a breath between two thoughts. Seconds. */

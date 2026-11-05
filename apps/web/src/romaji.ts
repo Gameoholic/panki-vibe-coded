@@ -1,6 +1,5 @@
 /**
- * Romaji as hiragana, for searching a deck's cards in either (the owner, 2026-10-29: "search in the fuzzy search with
- * ROMAJI too"): Hepburn, Kunrei and the way a keyboard types it alike (shi / si, tsu / tu, ja / zya / jya), a doubled
+ * Romaji as hiragana, for searching a deck's cards in either: Hepburn, Kunrei and the way a keyboard types it alike (shi / si, tsu / tu, ja / zya / jya), a doubled
  * consonant as っ ("kitte"), n as ん before a consonant, at the end, or written nn or n' ("konnichiha", "kin'en"),
  * long vowels with a macron or a circumflex as two ("tōkyō"), and "-" as ー. Not romaji at all, null.
  */

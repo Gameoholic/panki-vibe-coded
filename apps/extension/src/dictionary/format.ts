@@ -26,17 +26,17 @@ export type DictionaryRecord = {
   importedAt: number;
   /** Switched on: looked in. */
   on: boolean;
-  /** Its place in the owner's order: the first is shown first. */
+  /** Its place in the order they're put in: the first is shown first. */
   order: number;
   /** Being removed: on no list and in no look-up, its rows being cleared away (`store.ts` → `removeDictionary`). */
   removing?: true;
   /**
-   * The owner's own name for it (2026-10-16), shown wherever it's named: its row, the popup, the drawer, the popup's
+   * A name given to it on the options page, shown wherever it's named: its row, the popup, the drawer, the popup's
    * layout. Its `title` stays what its file says, which is what tells one dictionary from another (and Panki's copy
    * from this one); nothing of the file or its id changes. Missing while it goes by its title.
    */
   name?: string;
 };
 
-/** What a dictionary is called wherever it's shown: the owner's name for it, or the one its file gives it. */
+/** What a dictionary is called wherever it's shown: the name given to it, or the one its file gives it. */
 export const shownName = (dictionary: Pick<DictionaryRecord, "title" | "name">): string => dictionary.name?.trim() || dictionary.title;

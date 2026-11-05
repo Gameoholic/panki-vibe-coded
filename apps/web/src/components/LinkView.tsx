@@ -12,7 +12,7 @@ export type VideoProgress = { share: number; left: string };
 type Props = {
   /** The video, its title and its channel's name: a card's metadata (`YouTubeMeta`), or a video watched. */
   meta: Pick<YouTubeMeta, "link" | "title"> & { channel: { name: string } | null };
-  /** What the field is, in the owner's words (its name): what a screen reader hears before where it goes. */
+  /** What the field is, by its own name: what a screen reader hears before where it goes. */
   label: string;
   /** `row` is the small one on a card's row. */
   size?: "card" | "row";
@@ -27,8 +27,7 @@ type Props = {
  * small card of its own (the video's thumbnail, its title, the channel's picture and name and the moment under it, the
  * arrow that says it leaves Panki); on a row, a chip, "YouTube · 12:34". A picture Panki doesn't have (a card from
  * before they were kept) is left out, and so is the channel when it wasn't read. A card from before the title was
- * kept says "YouTube video" (the owner, 2026-10-18, of the title and chip stacked under each other: "looks shit"; then
- * of a play tile where the thumbnail now is: "no need for the play button"). The address is written afresh from what
+ * kept says "YouTube video". No play tile stands in for the thumbnail. The address is written afresh from what
  * was read out of the card's value, never the value itself. Continue watching draws a video watched as the same card,
  * opening where it was stopped, with how much is left and a line over the thumbnail as far as it got.
  */

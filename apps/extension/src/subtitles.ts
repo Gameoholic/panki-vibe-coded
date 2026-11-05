@@ -3,14 +3,12 @@ import { EngineId } from "@panki/contracts";
 /**
  * Where the words under a video come from: Panki's own (the transcript, by whichever engine Panki's settings name),
  * the site's own captions, or nothing. Picked in the line under the player and kept in this browser, so the next video
- * has the same (the owner, 2026-10-17). One pick, no falling back: with Panki's picked the site's captions are never
- * shown, not under the player nor on the picture, however far the transcript has got (the owner, later the same day:
- * "it won't show the YouTube subtitles at all, not even as a fallback"). With anything but Panki's picked nothing is
+ * has the same. One pick, no falling back: with Panki's picked the site's captions are never shown, not under the
+ * player nor on the picture, however far the transcript has got. With anything but Panki's picked nothing is
  * transcribed at all. One registry.
  *
- * The strip says what kind of subtitles they are, never the engine that made them (the owner, 2026-10-21): the engine
- * is Settings → Admin's to say, as it always was. Until then each engine was a source of its own, by its id; a pick kept
- * from then reads as Panki's.
+ * The strip says what kind of subtitles they are, never the engine that made them: the engine is Settings → Admin's to
+ * say. A pick kept as an engine's id, from when each engine was a source of its own, reads as Panki's.
  */
 export type SubtitleSource = "panki" | "youtube" | "none";
 export const SUBTITLE_SOURCES: Record<SubtitleSource, { name: string }> = {

@@ -41,7 +41,7 @@ function Resettable<K extends keyof SubtitleStyle>({ which, label, style, onChan
 
 /**
  * How subtitles look, as rows of settings: size, font (each with where it comes with beside it), height, across,
- * alignment, the band's darkness, each with its own way back to the default (the owner, 2026-10-17). The extension's
+ * alignment, the band's darkness, each with its own way back to the default. The extension's
  * Subtitles menu over a YouTube video and the app's Settings (a card's clip) both draw these; each keeps its own style.
  */
 export function SubtitleStyleFields({ idPrefix, style, onChange, acrossWhy, small = false }: Props) {

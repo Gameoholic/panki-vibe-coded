@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 /**
- * How a card type's cards look in a review (the owner's design, 2026-10-15: option B of the card layout page, edited on
- * the card itself). For each field: what each side of the card does with it, where it sits, and how it looks. The
+ * How a card type's cards look in a review, edited on the card itself. For each field: what each side of the card does with it, where it sits, and how it looks. The
  * order is the card's, top to bottom, and is its own: the fields' order is still the forms'. A type's layout as it
  * stands, filled out from its fields, is `cardLayout.ts` → `layoutOf`.
  *
@@ -21,14 +20,13 @@ export type PartTone = z.infer<typeof PartTone>;
 /**
  * How a sound or a clip shows on the card (its "player style"): Panki's own player (a clip with its picture, and full
  * screen), the browser's own (`plain`), a small button, a voice note (its waveform, and its speed), a round button with
- * a ring, a tile with its name and length, or a speaker to sit beside the words it says (the owner's looks of
- * 2026-10-15, all kept to choose from). All but the player and plain play a clip's sound alone.
+ * a ring, a tile with its name and length, or a speaker to sit beside the words it says, all kept to choose from. All
+ * but the player and plain play a clip's sound alone.
  */
 export const MediaLook = z.enum(["player", "plain", "button", "voice", "round", "tile", "speaker"]);
 export type MediaLook = z.infer<typeof MediaLook>;
 /**
- * When a sound or a clip plays by itself in a review (the owner, 2026-10-21: "either when I receive the card or when I
- * flip to its back"): never, only when pressed; when the card comes up, if it's on the front then; when the card is
+ * When a sound or a clip plays by itself in a review: never, only when pressed; when the card comes up, if it's on the front then; when the card is
  * turned, if it's on the back (a clip on both sides plays again); or both. A spoiler waits until it's opened.
  */
 export const AutoPlay = z.enum(["never", "shown", "turned", "both"]);
@@ -56,38 +54,33 @@ export const LayoutPart = z.object({
   back: FaceShow,
   size: PartSize,
   tone: PartTone,
-  /** Its words drawn bold (the owner, 2026-10-18, beside its colour and size); a part laid out before reads as bold when it's big, as it always looked. */
+  /** Its words drawn bold, beside its colour and size; a part laid out before reads as bold when it's big, as it always looked. */
   bold: z.boolean(),
   /** Its name: over words, on a player or a button. */
   label: z.boolean(),
   look: MediaLook,
-  /** When a sound or a clip plays by itself (it was a switch, `auto`, "as it comes into view", until 2026-10-21). */
+  /** When a sound or a clip plays by itself (once a switch, `auto`, "as it comes into view"). */
   plays: AutoPlay,
   /** It sits beside the one above it, in one row, rather than under it. */
   beside: z.boolean(),
   /**
-   * The field this one's words are written small over, as its reading over a word; null for none (the owner,
-   * 2026-10-16: "the card's reading right above the word, optionally, just like in the popup"). Set on the reading
-   * ("Reading above: Word"), words of one line over words of one line, wherever the two stand in the card's order: it
-   * shows there as its own front and back say, and has no place of its own while it does. (Two tries came first the
-   * same day: "over the one below", which did nothing with the reading under its word, then the word naming its reading,
-   * which the owner read the other way round.)
+   * The field this one's words are written small over, as its reading over a word, as the popup shows one; null for
+   * none. Set on the reading ("Reading above: Word"), words of one line over words of one line, wherever the two stand
+   * in the card's order: it shows there as its own front and back say, and has no place of its own while it does.
    */
   over: z.uuid().nullable(),
   /**
    * Another field whose words are lit where they stand in this one's (its "Highlight"); null for none. The word in its
-   * sentence, lit as the extension's drawer lights it while the card is made (the owner, 2026-10-18). Set on words
-   * (a line or a paragraph), or on a Media part, whose subtitles it's lit in (the word in the line being said, the same
-   * day), naming another field of words; its first appearance is lit, and nothing when it isn't there.
+   * sentence, lit as the extension's drawer lights it while the card is made. Set on words
+   * (a line or a paragraph), or on a Media part, whose subtitles it's lit in (the word in the line being said), naming another field of words; its first appearance is lit, and nothing when it isn't there.
    */
   mark: z.uuid().nullable(),
   /**
    * Whether this part's clip plays with its subtitles: the words said in it, as they were heard on the video when it
    * was recorded, each line as it's said and the piece being said underlined (`media.ts` → `MediaCues`), as the
    * extension draws them over YouTube. Set on a Media part; over the picture of the player and the plain player only;
-   * in the app's own subtitle style (`Settings.subtitleStyle`). It named a field whose words were laid over the whole
-   * clip for a day (2026-10-18), until the owner had it follow the speech: "the timestamps and words sourced from the
-   * video".
+   * in the app's own subtitle style (`Settings.subtitleStyle`). They follow the speech, their times and words from the
+   * video, never a field's words laid over the whole clip.
    */
   subtitles: z.boolean(),
   /** What the Listen phase does with it, while its type has Listen first on (`ListenFirst`); shown to begin with, and for a layout sent from before. */
@@ -96,9 +89,8 @@ export const LayoutPart = z.object({
   listenSubtitles: ListenSubtitles.default("show"),
   /**
    * The play of a sound or clip in the Listen phase, by its number (2, its second), that shows the card's front the
-   * moment it begins, as Done listening does (its "Ends listening", On second play…); null, only Done listening does (the
-   * owner, 2026-11-01: a part's own, where hearings to the end were the type's the day before; "it only reveals
-   * itself once it PLAYS for the second time, not when the first time finishes"; none to begin with). One part of a
+   * moment it begins, as Done listening does (its "Ends listening", On second play…); null, only Done listening does (none
+   * to begin with). A part's own, and counted as a play begins, never as the one before it finishes. One part of a
    * layout at most.
    */
   showOnPlay: z.number().int().min(2).max(SHOW_ON_PLAY_MAX).nullable().default(null),
@@ -123,7 +115,7 @@ export const TagCorner = z.enum(["top-left", "top-right", "bottom-left", "bottom
 export type TagCorner = z.infer<typeof TagCorner>;
 /**
  * The card's stage tag (where the card stands: New, its stage, the end; the app's `PlacePill`), laid out apart from the
- * fields, since it's none of them (the owner, 2026-10-18: "obviously it's not a field, so it can work separately"):
+ * fields, since it's none of them:
  * shown or not, alike on both sides; its size; and the corner it sits in, dragged there on the card being laid out,
  * never a place between corners.
  */
@@ -133,12 +125,12 @@ export type StageTag = z.infer<typeof StageTag>;
 export const DEFAULT_STAGE_TAG: StageTag = { shown: true, size: "normal", corner: "top-left" };
 
 /**
- * Listen first (the owner, 2026-11-01: "I recognise words just by their spelling and the video context, not by hearing
- * the word… understanding by hearing matters more"): a type's cards open in a review on a Listen phase before the
+ * Listen first, since a word known by its spelling and its video isn't yet known by ear, and understanding by hearing
+ * matters more: a type's cards open in a review on a Listen phase before the
  * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Done listening, or the
  * one sound or clip that shows it by itself beginning the play its `showOnPlay` says, shows the front.
- * Like the stage tag, the type's own, apart from its fields. A card with nothing to hear opens on its front. (How many
- * hearings, `heard`, was the type's own for its first day, for every sound and clip alike; what's kept of it is let go.)
+ * Like the stage tag, the type's own, apart from its fields. A card with nothing to hear opens on its front. (A
+ * `heard` kept on a type from before, how many hearings for every sound and clip alike, is let go.)
  */
 export const ListenFirst = z.object({ on: z.boolean() });
 export type ListenFirst = z.infer<typeof ListenFirst>;

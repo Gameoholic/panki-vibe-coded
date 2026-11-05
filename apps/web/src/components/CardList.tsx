@@ -80,18 +80,17 @@ function cell(card: Card, field: CardField, className: string) {
   );
 }
 
-/** Whether anything on a card's row is Panki AI's: the row then carries the spark once (the owner, 2026-11-04). */
+/** Whether anything on a card's row is Panki AI's: the row then carries the spark once. */
 const aiOn = (card: Card, type: CardType) => type.fields.some((field) => (card.values[field.id] ?? "") !== "" && byAi(card.sources, field.id));
 
 /**
  * Cards as rows: the front fields on the first line, the first one that holds words big; the back fields under them; a
  * file where its field stands; at the top right the card's place and when it's next reviewed, then its tools one under
- * another, where cards can be changed: Preview, Edit, Suspend, Delete (the owner, 2026-10-29: "first preview then edit
- * then delete"; 2026-10-18: "the delete button should be directly below the pencil"; and everything at the right sat
- * halfway down the row). Delete asks in the row itself before the card goes; Suspend doesn't, as Unsuspend, standing
- * in its place once it's done, takes it back at once. A card that's open has its form under it, as a preview is (the
- * owner, 2026-10-30: Edit pressed again closes it, as Preview does). A card put aside says so where its next review
- * would be, with Unsnooze or Unsuspend where Suspend stands; a suspended one is tinted red whole (the owner, 2026-10-30).
+ * another, where cards can be changed: Preview, Edit, Suspend, Delete, held to the row's top. Delete asks in the row
+ * itself before the card goes; Suspend doesn't, as Unsuspend, standing
+ * in its place once it's done, takes it back at once. A card that's open has its form under it, as a preview is (Edit
+ * pressed again closes it, as Preview does). A card put aside says so where its next review
+ * would be, with Unsnooze or Unsuspend where Suspend stands; a suspended one is tinted red whole.
  */
 export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, onSuspend, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
   const titleId = useId();
@@ -194,7 +193,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                 ) : null}
                 {onEdit || onRemove || onPreview || onSuspend ? (
                   <div className="card-tools">
-                    {/* Each with its word beside its icon (the owner, 2026-10-29: "better to add text to them"). */}
+                    {/* Each with its word beside its icon. */}
                     {onPreview ? (
                       <Button className="card-tool" aria-pressed={previewing?.id === card.id} onClick={() => onPreview(card)}>
                         <Icon name="eye" />

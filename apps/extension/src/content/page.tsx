@@ -14,7 +14,7 @@ import { Notice, Panel, type Chars } from "../ui/Panel";
 /**
  * Panki on any page. It's put on a page two ways: by the browser, into the one tab that was acted on (the right-click
  * menu, the toolbar button), and then it reads what's selected, with the sentence around it, and opens the capture
- * drawer down the side of the window; or on every page the owner has allowed (the options page's "Look up words"),
+ * drawer down the side of the window; or on every page the viewer has allowed (the options page's "Look up words"),
  * where pointing at a word with the key held looks it up, and the popup's Add opens the same drawer on that word.
  */
 
@@ -103,7 +103,7 @@ function start() {
     respond({ ok: true });
   });
 
-  // Pointing at words, where the owner allows it. The popup's Add opens the drawer on the word, in its sentence.
+  // Pointing at words, where the viewer allows it. The popup's Add opens the drawer on the word, in its sentence.
   const listening: Listening = createListening({
     whereAt: () => ({ of: "page" }),
     // A card's clip in a Panki review: its subtitles are Panki subtitles, with their own key to hold.

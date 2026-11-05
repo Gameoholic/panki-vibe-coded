@@ -18,8 +18,7 @@ type Props = {
 /**
  * Every piece a prompt can use, drawn from the registry (`PROMPT_PIECE_IDS`), never typed out here: the variable, pressed
  * to go in at the prompt's caret, with Copy beside it; what it holds, its numbers read from the limits as they're set;
- * and where it comes from, in the field mapping's own words. A template's editor is its one home (Admin → Panki AI's
- * until AI step 5, 2026-11-01).
+ * and where it comes from, in the field mapping's own words. A template's editor is its one home.
  */
 export function PromptContext({ limits, canInsert, onInsert }: Props) {
   return (

@@ -358,9 +358,8 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
  * fields in the card's own order (what the extension fills is filled, the rest is typed; the sentence is one of them),
  * the card as a review will show it (the app's own card, turned by a press). A clip and a word's audio, when the deck takes them, are recorded
  * first and kept on Panki as files; then the card is made, naming them, so a field that must be filled is filled as
- * the card is made. (The card came first and the recordings followed it until 2026-10-17, when a Required clip field
- * couldn't be satisfied at all: the owner, with a clip right there, "Clip is Required, and a recording can only follow
- * its card".)
+ * the card is made. (Were the card made first and the recordings after it, a Required clip field could never be
+ * satisfied.)
  *
  * **No deck is chosen for you.** Until one has been chosen on purpose (here, or on the options page) the drawer shows
  * the decks and nothing else; the one chosen is then the one every drawer opens on. What fills which of its fields is
@@ -516,8 +515,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** Panki AI is working on the card: a Touch up run, its Try again, a follow-up. */
   const touching = touch.busy !== false;
   /**
-   * Nothing on the card can be changed: it's on its way, or Panki AI is working on it (the owner, 2026-11-02: "make sure
-   * we can't edit any of the fields while Panki AI is working"), so an answer is never drawn against a card that moved
+   * Nothing on the card can be changed: it's on its way, or Panki AI is working on it, so no field is edited while
+   * it works and an answer is never drawn against a card that moved
    * under it. Playing a clip changes nothing and stays; Accept, Dismiss and × are Touch up's and the drawer's own.
    */
   const still = busy || touching;
@@ -538,9 +537,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    */
   const typedAny = (wordTyped && word.trim() !== "") || Object.values(typed).some((text) => text.trim() !== "") || Object.keys(dictTyped).length > 0 || (written !== null && written !== capture.sentence);
   /**
-   * The drawer asked to go, by × or Escape (the owner, 2026-10-29: taking something away asks first; a Discard button
-   * did the same until 2026-10-31, "we shouldn't have a discard button since we already have X"): with something typed
-   * it asks first, in place near the top, and Cancel there takes the focus; with nothing typed, or a card on its way or
+   * The drawer asked to go, by × or Escape, the one way to discard it (taking something away asks first): with
+   * something typed it asks first, in place near the top, and Cancel there takes the focus; with nothing typed, or a card on its way or
    * added, it goes at once.
    */
   function leave() {
@@ -593,7 +591,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** What this card holds in the fields its type compares, and their names: how each card called so stands to it. */
   const mine = type ? apartOf(type, values) : [];
   const compared = type ? comparedOf(type) : [];
-  // What's here can go onto that card as another example instead (the owner, 2026-10-25): one of this deck's card type,
+  // What's here can go onto that card as another example instead: one of this deck's card type,
   // when the type has a field that goes with an example. Only those fields are sent, and only their recordings made.
   const target = type && exampleFieldsOf(type).length > 0 ? exampleTargetOf(called, type.id, mine, compared) : null;
   const [toExample, setToExample] = useState(false);
@@ -680,7 +678,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const touchBeside = touchUpReason(ai.known, ai.ai, ai.failure) ?? (touchNow ? RUN_WORDS.upTo(runCeiling(touchPreferred), showCostOver) : null);
 
   /**
-   * Touch up answered: a video's sentence is locked as it stands (the owner, 2026-11-02), so the clip's ends pulled after
+   * Touch up answered: a video's sentence is locked as it stands, so the clip's ends pulled after
    * can't rewrite what Panki AI just judged or proposed against. Unlocking it by hand is still a press.
    */
   const lockSentence = () => {
@@ -747,7 +745,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   /**
    * A follow-up's own pieces: the question, the field it was asked from by its name on the card, and the card as it
-   * stands now (the owner: "it sends back the entire Card"), whatever was accepted or typed since the run.
+   * stands now, the entire card, whatever was accepted or typed since the run.
    */
   function askingOf(fieldId: string | null, question: string, now: TouchRead): PromptPieces {
     const field = fieldId ? type?.fields.find((f) => f.id === fieldId) : undefined;
@@ -945,7 +943,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   function writeAi(field: CardField, text: string) {
     const role = roleOf(map, field.id);
     const ai = aiSourceOf();
-    // A field only Touch up fills is its own; any other it corrected (the owner, 2026-11-04: only the first's name is sparked).
+    // A field only Touch up fills is its own; any other it corrected (so only the first's name is sparked).
     const source = ai && (role === null || ROLES[role].from !== "ai") ? { ...ai, corrected: true } : ai;
     if (role === "sentence") setWritten(text);
     else if (isDictRole(role)) setDictTyped((was) => ({ ...was, [field.id]: text }));
@@ -985,8 +983,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     decide(key);
   }
   const pendingKeys = touchKeys.filter(waiting);
-  // Accept all and Dismiss all close every note under the fields, "Nothing to change." and the error's among them (the
-  // owner, 2026-10-31: a note left standing looked as if nothing happened); the head stays, and the next run, or a
+  // Accept all and Dismiss all close every note under the fields, "Nothing to change." and the error's among them (a
+  // note left standing would look as if nothing happened); the head stays, and the next run, or a
   // follow-up's change to a field, brings its note back.
   const allHidden = () => Object.fromEntries(touchKeys.map((key) => [key, true]));
   const acceptAll = () => {
@@ -1018,7 +1016,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     };
   }
   /**
-   * A field and what Touch up says about it as one shape (the owner, 2026-10-31: a proposal must be plainly its field's),
+   * A field and what Touch up says about it as one shape, so a proposal is plainly its field's,
    * in its verdict's colour, the field's box the diff while a proposal waits (`Tied`). Every field the same way.
    */
   function tied(field: CardField | null, box: ReactNode): ReactNode {
@@ -1033,7 +1031,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   /**
    * Where each value came from, as it's sent with the card: the AI's while a field holds what Touch up wrote; else by
-   * the role that filled it, the owner's once typed over; the owner's for what nothing fills.
+   * the role that filled it, `OWNER` once typed over, and `OWNER` for what nothing fills.
    */
   function sourcesOf(fieldIds: readonly string[], filled: Readonly<Record<string, string>>): ValueSources {
     const dictionaries = [...new Set(tickedSenses.map((sense) => sense.dict.slice(0, 200)))].slice(0, 50);
@@ -1335,8 +1333,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   /**
    * The word's meanings, when it has more than one or Touch up proposed one of its own: each ticked on or off in a
-   * dropdown under the field they go in. Once Touch up has judged them, exactly the pop-up's way (the owner,
-   * 2026-10-31): each a `JudgedRow` (the row its own size, lit in its judgement's look, good green, meh orange, bad red,
+   * dropdown under the field they go in. Once Touch up has judged them, exactly the pop-up's way: each a
+   * `JudgedRow` (the row its own size, lit in its judgement's look, good green, meh orange, bad red,
    * its why under a chevron, closed to begin with; unmarked when the Meaning came back as the error), and the meaning
    * Panki AI proposed as one more choice at the end, numbered after them, the spark where a meaning's dictionary is,
    * green; ticking it accepts it (the field takes its words, the AI's), unticking it lets them go. How the verdict is
@@ -1540,8 +1538,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * What stands in the drawer once the card is added: "Added to Mining", nothing more (the owner, 2026-10-25: which
-   * clips came with it went), and a recording that didn't make it, when one didn't.
+   * What stands in the drawer once the card is added: "Added to Mining", nothing more, and a recording that didn't make it, when one didn't.
    */
   function added() {
     if (phase.at !== "done") return null;
@@ -1788,8 +1785,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * The drawer's top, right under its head (the owner, 2026-10-31: "maybe just move the buttons… to the TOP"; they
-   * stood at its foot until then, a long drawer's scroll away): Touch up with what it can cost under it, and Add; then
+   * The drawer's top, right under its head, never a long drawer's scroll away at its foot: Touch up with what it can cost under it, and Add; then
    * what's under way, what went wrong, leaving asking first, and Touch up's head once it has run, each opening under the
    * buttons and moving the card down rather than knocking it.
    */
@@ -1799,12 +1795,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return (
       <>
         <div className="capture-live capture-ends">
-          {/* Touch up, for a deck with a field it can propose for, always in its place so the row keeps one shape (the
-              owner, 2026-10-31): greyed once it has run, Touch up's head under the row taking over; before that, what it
+          {/* Touch up, for a deck with a field it can propose for, always in its place so the row keeps one shape:
+              greyed once it has run, Touch up's head under the row taking over; before that, what it
               can cost or why it can't run right under it. */}
           {touchKeys.length > 0 ? (
             <div className="capture-touch">
-              {/* Pressable again whenever it isn't thinking (the owner, 2026-10-31: "I want to be able to rerun Touch up"): a new call on the card as it stands now. */}
+              {/* Pressable again whenever it isn't thinking, to run Touch up again: a new call on the card as it stands now. */}
               {touchButton()}
               {touch.busy ? null : <TouchUpCost beside={touchBeside} />}
             </div>

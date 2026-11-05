@@ -13,28 +13,19 @@ import { mount } from "../ui/mount";
 import { tokensOn } from "../ui/styles";
 
 /**
- * YouTube's own pages made Panki's (the owner, 2026-10-21: "redesign YouTube around our goals whilst still looking and
- * feeling like YouTube… make it feel like it's our own super deluxe premium YouTube, not just an extension that adds a
- * box"). Nothing of the site is replaced; Panki is laid into it, in the site's own shapes and colours (its tokens,
- * `--yt-spec-*`, reach into Panki's places as custom properties do, so what Panki draws is in the site's theme by
- * construction; Panki's accent is the one colour of its own):
- *
- * Of seven mock-ups (https://claude.ai/artifact/C8dW71YGUczUvp6CFh8sPG) the owner picked Shelves with the Continue
- * watching shelf alone, "and everything else", to be "customizable in settings": each part below is its own switch on
- * the options page's Modules tab, under the master one.
+ * YouTube's own pages made Panki's: YouTube built around learning while still looking and feeling like YouTube, Panki's
+ * own premium YouTube rather than an extension that adds a box. Nothing of the site is replaced; Panki is laid into it,
+ * in the site's own shapes and colours (its tokens, `--yt-spec-*`, reach into Panki's places as custom properties do,
+ * so what Panki draws is in the site's theme by construction; Panki's accent is the one colour of its own). Each part
+ * below is its own switch on the options page's YouTube tab, under the master one.
  *
  * - **In the header bar**, beside the site's own buttons: the mark and what the viewer picked for it, in their order
  *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time reviewing, the review streak). Pressed, Panki opens.
- * - **One line over the recommendations**, where the site puts a shelf's heading: the day, today's minutes, who else on
- *   this Panki watched today, and at its end Review with what's due.
- *
- * No goal and no streak (the owner, 2026-10-21: "I don't want a target goal for immersion nor streaks… it might change
- * in the future, we store the data"): a ring to the day's goal and the streak's flame stood in both until then.
+ *   No goal and no streak for watching: the data is kept, none of it is drawn.
  * - **Continue watching**, a shelf of the site's own kind of cards: the videos left part-way, each opening where it was
- *   stopped, with how much is left over its picture and Panki's bar along its foot; one row, two, or all.
- * - **Shorts** can be kept off every page (a YouTube utility). Chips sifting the feed stood here until 2026-10-21.
- * - **On every thumbnail**, wherever the site shows a video: how far you got with Panki, the cards made from it, and
- *   whether Panki has its subtitles.
+ *   stopped, with how much is left over its picture and Panki's bar along its foot.
+ * - **Shorts** can be kept off every page (a YouTube utility).
+ * - **On every thumbnail**, wherever the site shows a video: a saved video's tick.
  *
  * The site's names relied on are together here; when the site changes them, this is where to look.
  */
@@ -178,14 +169,11 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
   // ---- The top of the home.
 
-  // The Today line (the day, today's minutes watched, Review) stood here until the owner had it out, 2026-10-28: "I don't need it".
-
   /**
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
    * it was begun, or its length, as the site's own cards have it), its name, its channel, a line of Panki's; the whole
    * card a link, and, on a shelf a video can be taken off, a trash at its corner that asks first, under the card's
-   * words (`Ask`), as everything that takes something away does (the owner, 2026-10-29: Continue watching's box "isn't
-   * clear that it deletes"). Recently watched's have none: it's a history.
+   * words (`Ask`), as everything that takes something away does, so it's plain that it removes. Recently watched's have none: it's a history.
    */
   function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, remove = null, save }: {
     videoId: string;
@@ -274,7 +262,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * The save button on a card of Panki's own (Continue watching; the owner, 2026-10-21), the floating one's look at the
+   * The save button on a card of Panki's own (Continue watching), the floating one's look at the
    * picture's top left: the site's preview never covers Panki's cards, so it sits in them, seen under the pointer (and
    * always on a touch screen), and always once saved.
    */
@@ -299,16 +287,15 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   const progressOf = (v: ContinueVideo) => ({ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) });
   /**
    * The address that opens a video to go on with: the video alone, no time in it, so "Where you stopped last" decides
-   * (offered, or jumped to, from Panki's latest stop). It carried the stop as a time marked as Panki's own until
-   * 2026-10-22, which read as a moment asked for, and Jump automatically then stood aside (the owner: "why does clicking
-   * a video from Panki's lists add the t=?").
+   * (offered, or jumped to, from Panki's latest stop). A time in it would read as a moment asked for, and Jump
+   * automatically would stand aside for it.
    */
   const resumeAt = (v: ContinueVideo) => youtubeUrl({ videoId: v.videoId, seconds: null });
   /** A video left part-way as a save keeps it: its name, its channel, its length. */
   const aboutContinue = (v: ContinueVideo): SaveVideo => ({ title: v.title.slice(0, 300), channel: v.channel.slice(0, 100), lengthMs: v.lengthMs > 0 ? Math.min(86_400_000, v.lengthMs) : null });
 
   /**
-   * The videos left part-way (the owner's pick of six, 2026-10-21: "Hero and the rest"): the one left last big, with
+   * The videos left part-way, "Hero and the rest": the one left last big, with
    * where it was stopped, what's left and Resume, the next ones under it as the site's own kind of card, each opening
    * where it was stopped; × puts one away until it's watched again.
    */
@@ -317,7 +304,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     const [failure, setFailure] = useState<string | null>(null);
     const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, max);
     const [first, ...rest] = shown;
-    // "Video tracking is off" stood here while that was the account's; it's each browser's since 2026-11-02.
     if (!first) return <EmptyShelf title="Continue watching" words="Nothing to continue." lead />;
     async function putAway(videoId: string) {
       setFailure(null);
@@ -336,7 +322,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         <h2 className="yh-h">
           Continue watching <span className="yh-h-n">{shown.length}</span>
         </h2>
-        {/* As the owner picked it on the artifact: the picture half the shelf's width, its words beside it (the title,
+        {/* The picture half the shelf's width, its words beside it (the title,
             the channel and where it was stopped, what's left in the accent, Resume), the rest four across under it. */}
         <div className="yh-lead">
           <div className="yc yh-lead-pic-wrap">
@@ -381,10 +367,10 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * A shelf with nothing on it, as big as it is with videos, so nothing around it moves (the owner, 2026-10-29: an empty
-   * shelf mustn't collapse and resize the others): `lead`, Continue watching's, a small fanned stack of empty
-   * thumbnails in its big picture's place, its progress line at nothing, and beside it the words and Resume greyed out
-   * (C of https://claude.ai/artifact/9D8n5tbVayg1wuctkcutb8, the owner's pick); otherwise a row of cards' room. What's
+   * A shelf with nothing on it, as big as it is with videos, so nothing around it moves: an empty
+   * shelf never collapses and resizes the others. `lead`, Continue watching's, a small fanned stack of empty
+   * thumbnails in its big picture's place, its progress line at nothing, and beside it the words and Resume greyed out;
+   * otherwise a row of cards' room. What's
    * empty is said in it.
    */
   function EmptyShelf({ title, words, lead = false }: { title: string; words: string; lead?: boolean }) {
@@ -414,8 +400,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * A shelf of the site's own kind of card, as many as fit its row and Show more for the rest ("Fits the row" of the
-   * artifact, the owner's pick for Saved for later, 2026-10-21). Saved for later and Recently watched are both this.
+   * A shelf of the site's own kind of card, as many as fit its row and Show more for the rest. Saved for later and Recently watched are both this.
    */
   function RowShelf<T>({ title, items, empty, failure, card }: { title: string; items: readonly T[]; empty: string | null; failure: string | null; card: (item: T) => ReactNode }) {
     const [open, setOpen] = useState(false);
@@ -449,8 +434,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * The videos saved for later with a thumbnail's save button, newest first (the owner, 2026-10-21: "I want to be able
-   * to save videos for later… I don't want to use YouTube's Watch later or playlists"): each the site's own kind of
+   * The videos saved for later with a thumbnail's save button, newest first, Panki's own in place of YouTube's
+   * Watch later or playlists: each the site's own kind of
    * card opening the video, × taking the save back. Kept on the account's Panki, so every browser signed in sees them.
    */
   function SavedShelf({ videos }: { videos: readonly SavedVideo[] }) {
@@ -460,7 +445,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       <RowShelf
         title="Saved for later"
         items={videos}
-        // Empty, it says where saving is (the owner, 2026-10-21, before saving anything: "where can I see the videos I've marked to watch later? and how can I mark videos like that").
+        // Empty, it says where saving is, so the way to save is found before anything is saved.
         empty="Nothing saved yet. Point at any video and press the bookmark at its top left."
         failure={failure}
         card={(v) => (
@@ -487,10 +472,9 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * The videos finished, the latest first (the owner, 2026-10-25: "a 'recently watched'… for videos we FINISHED
-   * watching", beside Continue watching and Saved for later): each the site's own kind of card opening the video from
+   * The videos finished, the latest first, beside Continue watching and Saved for later: each the site's own kind of card opening the video from
    * its start, its length in its picture's corner and when it was finished under it. Nothing takes one out: it's a
-   * history, like the site's own (the owner, 2026-10-29); the Finished chip under a video says it isn't finished.
+   * history, like the site's own; the Finished chip under a video says it isn't finished.
    */
   function RecentShelf({ videos }: { videos: readonly FinishedVideo[] }) {
     const now = Date.now();
@@ -515,8 +499,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       />
     );
   }
-
-  // The chips sifting the site's feed (All, Japanese, Panki subtitles, Unwatched) stood here until the owner had them out, 2026-10-21.
 
   function Top() {
     const now = useSyncExternalStore(known.subscribe, known.get);
@@ -547,7 +529,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null
         ) : (
           <>
-            {/* Continue watching and Saved for later side by side, half the row each (the owner, 2026-10-21: "it can appear in the same row… 50% 50%"); one switched off leaves the other the row. Empty, each still stands (2026-10-29). */}
+            {/* Continue watching and Saved for later side by side, half the row each; one switched off leaves the other the row. Empty, each still stands. */}
             <div className="yh-shelves">
               {on.homeShelf ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
               {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
@@ -652,8 +634,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
   /**
    * What a thumbnail's mark says, as a key: a saved video's tick at its top right while saving is switched on, nothing
-   * otherwise. How far you got, the cards made from it and whether Panki had its subtitles were marked on it too until
-   * the owner had them out, 2026-10-28 ("I don't need it").
+   * otherwise.
    */
   function sayOf(g: VideoGlance | null, on: Modules): string {
     return g !== null && on.thumbSave && g.saved ? "saved" : "";
@@ -692,8 +673,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * The save button (the owner's pick of six, 2026-10-21; a button inside each thumbnail never showed: the site lays a
-   * playing preview over the card the pointer rests on, covering whatever is in it). So there's one button, floating over
+   * The save button (a button inside each thumbnail would never show: the site lays a playing preview over the card the
+   * pointer rests on, covering whatever is in it). So there's one button, floating over
    * the page in a place of Panki's above everything of the site's, put at the top left of the video the pointer is on, a
    * card or the site's preview of it (whose top right has the site's own buttons). It follows the pointer as it moves and
    * goes as the page scrolls; a press saves the video, or takes its save back.
@@ -801,8 +782,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * The top of the home laid against the site's grid, never centred (the owner, 2026-10-21: "it shouldn't be centered,
-   * it should be on the left like all YouTube"): its sides where the grid's row of videos runs, read off the page as it
+   * The top of the home laid against the site's grid, never centred, on the left as all of
+   * YouTube is: its sides where the grid's row of videos runs, read off the page as it
    * stands, so it follows the window's width. The shelves inside lay themselves out in that width (`extension.css`).
    */
   function alignTop(contents: Element) {

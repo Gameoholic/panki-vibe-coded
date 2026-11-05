@@ -6,8 +6,8 @@ import { useEffect, useRef, type RefObject } from "react";
  * from the window is the root's host, and every press would read as one outside. A closed shadow root goes further
  * and hides its insides from a listener on the window altogether, so the press is heard twice: on the element's own
  * root (the shadow root, or the document), where the path is whole, and on the window for presses anywhere else on
- * the page, where a path through the host is left to the first. (2026-10-17: the strip's menu closed itself on every
- * press inside it until this, and "Forget a part…" seemed to do nothing.) The app's `Dropdown` and the extension's
+ * the page, where a path through the host is left to the first. (Heard on the window alone, a menu in a closed root
+ * would close itself on every press inside it.) The app's `Dropdown` and the extension's
  * menus are all this; never a second way of closing on a press outside.
  */
 export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onDismiss: () => void) {

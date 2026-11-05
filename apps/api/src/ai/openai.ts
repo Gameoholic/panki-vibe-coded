@@ -2,7 +2,7 @@ import { z } from "zod";
 import { postTo, Tokens, unreadable, type ProviderClient } from "./call";
 
 /**
- * OpenAI's Chat Completions (its docs, read 2026-10-30): the key as a bearer token, the conversation as `messages`, the
+ * OpenAI's Chat Completions (its docs): the key as a bearer token, the conversation as `messages`, the
  * answer's cap as `max_completion_tokens`, which its reasoning counts against too, so the least reasoning the model
  * takes is asked for (`AiModel.least`). The answer's shape is asked for as Structured Outputs, `response_format` of
  * `json_schema` with `strict: true` (every property required, every object closed: `schemaFor` makes them so). The

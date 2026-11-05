@@ -4,7 +4,7 @@ import { AppLanguage } from "./srs";
 import { TranscribeLanguage } from "./transcription";
 
 /**
- * Panki AI (the owner's name for it, 2026-10-30): which provider's language model Panki calls and which of its models,
+ * Panki AI: which provider's language model Panki calls and which of its models,
  * for everyone, an admin's to change (Settings → Admin → Panki AI). One registry of providers, each with its models and
  * their listed prices, so what a call costs is worked out from the tokens it used (`tokenCostMicros`), as a
  * transcription engine's is from its seconds (`ENGINES`' `centsPerHour`). Calling a provider is the API's alone.
@@ -12,8 +12,8 @@ import { TranscribeLanguage } from "./transcription";
 export const AiProviderId = z.enum(["anthropic", "openai", "google"]);
 export type AiProviderId = z.infer<typeof AiProviderId>;
 /**
- * The provider and model a call really ran on, as the server tells it with the answer (the owner, 2026-10-31: Details
- * named the model the page last knew, the one before an admin's change). Its cost is the server's, at this model's
+ * The provider and model a call really ran on, as the server tells it with the answer, never the model the
+ * page last knew, which an admin may have changed since. Its cost is the server's, at this model's
  * listed price. None from a Panki from before.
  */
 export const AiRanOn = z.object({ provider: AiProviderId, model: z.string().max(80) });
@@ -25,9 +25,8 @@ export const AI_PROVIDER_IDS = AiProviderId.options;
  * US cents per million tokens, in and out. `least` is the least thinking the model takes, asked for on every call so
  * Max answer length goes to the answer (a model's thinking is billed as output and counted against it): "off" turns it
  * off, "betweenTools" is Claude Sonnet 5.5's way of turning it off, "low" the lowest level a model that always thinks
- * takes; none for a model that doesn't think unless told to. Read from each provider's docs on 2026-10-30. (Claude
- * Haiku 5.5 thinks by default, at medium: with nothing sent its thinking took all 800 tokens and no answer came back,
- * the owner's first try.)
+ * takes; none for a model that doesn't think unless told to. Read from each provider's docs. (Claude Haiku 5.5
+ * thinks by default, at medium: with nothing sent its thinking can take all 800 tokens and no answer come back.)
  */
 export type AiModel = { id: string; name: string; inCentsPerMTok: number; outCentsPerMTok: number; least?: "off" | "betweenTools" | "low" };
 export type AiProvider = {
@@ -39,7 +38,7 @@ export type AiProvider = {
 };
 
 /**
- * The providers and their models, each at its listed price as read from the provider's own pricing page on 2026-10-30
+ * The providers and their models, each at its listed price as read from the provider's own pricing page
  * (platform.claude.com/docs/en/about-claude/pricing, developers.openai.com/api/docs/pricing,
  * ai.google.dev/gemini-api/docs/pricing). Google's Gemini 4 Argon and 3.8 Flash are introductory prices, doubling after
  * 30 November and 31 December 2026: changed here when they change; a cost already metered keeps the price it had.
@@ -88,9 +87,8 @@ export const AiActionId = z.enum(AI_ACTION_IDS);
 export type AiActionId = z.infer<typeof AiActionId>;
 export const AI_ACTIONS: Record<AiActionId, { name: string }> = {
   explain: { name: "Explain" },
-  // The owner's name for it, 2026-10-30 ("Meaning in this context" went the same day).
   touchUp: { name: "Touch up" },
-  // A video's Panki subtitles put right (AI step 6, the owner, 2026-11-03: "ok fine proofread").
+  // A video's Panki subtitles put right.
   proofread: { name: "Proofread" },
 };
 
@@ -103,8 +101,8 @@ export type TemplateId = z.infer<typeof TemplateId>;
 /** The longest a template's name can be. */
 export const TEMPLATE_NAME_MAX = 80;
 /**
- * A Panki AI template (AI step 5, the owner: "each account's own, plus there are default ones that we cannot remove
- * but can duplicate and edit, like SRS types"): its name, the action it belongs to (fixed once made), its prompt, its
+ * A Panki AI template, each account's own, beside Panki's starters that can't be removed but can be copied and edited,
+ * as SRS types are: its name, the action it belongs to (fixed once made), its prompt, its
  * Follow-up prompt (what a follow-up sends, `{Follow-up question}` in it), and for Explain whether it judges the meanings (a
  * template that doesn't answers in the plain shape, first and after). `builtin` is one of Panki's starters, read-only.
  */
@@ -135,12 +133,11 @@ const EXPLAIN_FOLLOW_UP = `A follow-up question is answered in three parts:
 - proposedMeaning: null while your verdicts stand, or when a row is fits; when you judged again and no row is fits, the meaning you propose, as in your first answer.`;
 
 /**
- * Explain's prompt as Panki writes it (the owner, 2026-10-30: it guides, never just translates; no persona), around
- * how a follow-up answers. The variables are Prompt context's names (`pieces.ts`), each piece of data in a tag of its
- * own name on its own line (`taggedOf`: the owner, 2026-10-30, "why do the tags differ from the curly brackets?"), so a
- * line whose variable comes out empty isn't sent and the model can't take the data for instructions; a paragraph says
- * so in the prompt's own words (the owner, the same day), editable like the rest. Its opening is the owner's own words.
- * Plain text asked for, since the pop-up draws none.
+ * Explain's prompt as Panki writes it (it guides, never just translates; no persona), around how a follow-up answers.
+ * The variables are Prompt context's names (`pieces.ts`), each piece of data in a tag of its own name on its own line
+ * (`taggedOf`, so the tags and the curly brackets read alike), so a line whose variable comes out empty isn't sent and
+ * the model can't take the data for instructions; a paragraph says so in the prompt's own words, editable like the
+ * rest. Plain text asked for, since the pop-up draws none.
  */
 const explainPromptWith = (followUp: string): string => `A Panki user learning {Learning language} pointed at a word while watching or reading. Explain what that word does in this exact sentence, so they can understand the sentence themselves.
 
@@ -187,9 +184,10 @@ In a follow-up, <card> is the card as it stands now, after anything the user acc
 
 /**
  * Touch up's prompt as Panki writes it (step 3): the card as it stands (`{Card}`, each field Panki can judge marked with
- * its key, an empty one "(empty)"), what the dictionary, the page and the video say, and the answer's rules (the owner,
- * 2026-10-31, the Touch up scenarios page): good, meh or bad for a field that holds a value, none asked of an empty one, every part always there ("" for none: no unions on the wire, `touchUp.ts` → `touchUpShape`); a proposal exactly when
- * one's needed; the error when there's nothing to go on; a why always; and since AI step 5, how a follow-up answers.
+ * its key, an empty one "(empty)"), what the dictionary, the page and the video say, and the answer's rules: good, meh
+ * or bad for a field that holds a value, none asked of an empty one, every part always there ("" for none: no unions
+ * on the wire, `touchUp.ts` → `touchUpShape`); a proposal exactly when one's needed; the error when there's nothing to
+ * go on; a why always; and how a follow-up answers.
  */
 const touchUpPromptWith = (followUp: string): string => `A Panki user learning {Learning language} is adding a card for a word they met in a sentence. Judge each field of the card as it stands, and propose a value only where one is needed, so the card is right for learning that word.
 
@@ -246,8 +244,8 @@ export const DEFAULT_TOUCH_UP_PROMPT = touchUpPromptWith(TOUCH_UP_FOLLOW_UP);
  * Proofread's prompt as Panki writes it (AI step 6): the lines of a video's Panki subtitles, numbered, with the words a
  * person edited and those the engine was unsure of, and the video's own title, channel and description, which name its
  * people and places. Correct, never rewrite: the model can't hear the video, so it puts right the wrong kanji for the
- * sound said and a misheard name, and a word edited by hand only when it's sure (the owner, 2026-11-03: whichever comes
- * later wins, so the AI may change one). The answer is the lines it changes alone (`proofread.ts` → `ProofreadShape`).
+ * sound said and a misheard name, and a word edited by hand only when it's sure (whichever comes later wins, so the AI
+ * may change one). The answer is the lines it changes alone (`proofread.ts` → `ProofreadShape`).
  */
 export const DEFAULT_PROOFREAD_PROMPT = `A Panki user learning {Learning language} is watching a video with Panki subtitles: a speech engine's transcript of it, in numbered lines. The engine can mishear: the wrong kanji for the sound that was said, a name it didn't know, a word split or joined in the wrong place. Correct only what was misheard, so each line reads as what was really said.
 
@@ -273,8 +271,8 @@ Rules:
 - Plain text only.`;
 
 /**
- * Panki AI's limits, everyone's, held by the server and set in Admin → Panki AI → Limits (the owner, 2026-10-30: "just
- * so I know it's there… and maybe even edit it"). Each has a ceiling of its own here, so no value makes a limit
+ * Panki AI's limits, everyone's, held by the server and set in Admin → Panki AI → Limits, so each
+ * is seen and can be changed. Each has a ceiling of its own here, so no value makes a limit
  * meaningless. One home for each.
  */
 export const AI_LIMITS = {

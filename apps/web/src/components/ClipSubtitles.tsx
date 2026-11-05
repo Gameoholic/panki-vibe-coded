@@ -62,9 +62,8 @@ type Showing = { text: string; from: number; to: number } | null;
 
 /**
  * A clip's subtitles on a card, following it as it plays: the line being said at that moment, the piece of it being
- * said underlined, nothing between lines (the owner, 2026-10-18: "the timestamps and words sourced from the video", as
- * the extension draws them over YouTube; a field's words laid over the whole clip came first and stood there from the
- * first frame to the last). Put in the box that holds the clip's picture (`MediaView`'s `over`), it reads the picture's
+ * said underlined, nothing between lines: the words and their times as heard on the video, as
+ * the extension draws them over YouTube, never a field's words laid over the whole clip. Put in the box that holds the clip's picture (`MediaView`'s `over`), it reads the picture's
  * own `<video>` there; its words are sized with the box's height, so they're the same share of the clip on the card and
  * on the full screen. The band is the app's `.sub-band`, the one the extension draws too.
  */

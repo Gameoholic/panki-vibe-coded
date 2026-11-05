@@ -24,7 +24,7 @@ function plus(a: UsageTotals, b: UsageTotals): UsageTotals {
 const totalsOf = ({ userId: _userId, ...totals }: UsageRow): UsageTotals => totals;
 
 /**
- * The usage ledger, for an admin (2026-10-30): one kind's calls from a moment on, every account by name (one with
+ * The usage ledger, for an admin: one kind's calls from a moment on, every account by name (one with
  * nothing used shows nothing used), then the calls from before they were counted per account, then everyone's. The
  * moment is the browser's to pick (this month on its clock, the last 30 days); left out, all of it.
  */

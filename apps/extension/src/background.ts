@@ -21,9 +21,9 @@ import { reportVideoTracking, settleVideoTracking, videoTrackingOn } from "./wat
  * included: Panki's server is what calls Forvo); a page's script asks it, by message, and never sees the secret. It also hears the two ways a capture is asked for from outside a page
  * (the right-click menu, the toolbar button) and tells the page in front to capture, putting Panki's script into that
  * one tab first when it isn't there. It looks words up in the dictionaries for the pages' scripts (`dictionary/`), and
- * puts the script that does that onto every page the owner allows. It is woken for each of these and keeps nothing
+ * puts the script that does that onto every page that's allowed. It is woken for each of these and keeps nothing
  * between them but what's in storage and the dictionaries' database (a few look-ups are remembered while it's
- * awake). (There was a keyboard shortcut too, Alt+P; the owner had it taken out on 2026-10-11.)
+ * awake).
  */
 const MENU = "add-to-panki";
 const SIGN_IN_FIRST = "Sign in to Panki first.";
@@ -99,7 +99,7 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
     const url = sender.url ?? sender.tab?.url;
     return {
       ok: true,
-      // Panki's own pages always count, whatever Where says (the owner, 2026-10-28): Where decides every other site.
+      // Panki's own pages always count, whatever Where says: Where decides every other site.
       on: usable && (onPanki(url, store) || lookAllowed(store.lookWhere, store.lookSites, url)),
       key: store.lookKey,
       subtitleKey: store.lookKeySubtitles,
@@ -136,9 +136,8 @@ function onPanki(url: string | undefined, store: Stored): boolean {
 /**
  * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`,
  * `knownSuspendedColour`): the words every card is called by, those only suspended cards are among them, kept a minute
- * (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is; nor
- * on Panki's own pages, where every word is the cards' own (the owner, 2026-10-25: "it should only be used for
- * external" pages).
+ * (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is; nor on Panki's own pages, where every word is the
+ * cards' own: it's for other sites alone.
  */
 async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
@@ -185,7 +184,7 @@ function pankiPatterns(store: Stored): string[] {
  * setting and the browser's permission both allow it, and taken off when either stops; and always on Panki's own
  * pages, where both keys work whatever Where says, its words and its cards' clips' subtitles (the worker's `lookState` tells the
  * page which of its words it may look up). The video site is left out: its own script does the same there. Without
- * this, the script is only ever put into a tab when the owner acts (the menu, the button).
+ * this, the script is only ever put into a tab when asked for there (the menu, the button).
  */
 const PAGE_SCRIPT = "panki-page";
 async function placePageScript(): Promise<void> {
@@ -356,7 +355,7 @@ async function answer(
     return { ok: true };
   }
   if (ask.kind === "open") {
-    // Panki, as the profile in use knows it (the owner, 2026-10-17: "it grabs the url from the extension profile"); the
+    // Panki, at the address of the profile in use; the
     // page never holds the address itself. A card is opened by its ids alone, at the address the app reads them from.
     const { address, token } = await readStore();
     const at = ask.card ? routePath({ kind: "deck", id: encodeURIComponent(ask.card.deckId), tab: "cards", card: encodeURIComponent(ask.card.cardId) }) : "/";

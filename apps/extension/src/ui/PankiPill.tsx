@@ -7,8 +7,7 @@ import { count, durationWords } from "@web/words";
 import type { PillLayout, PillPart } from "../modules";
 
 /**
- * Panki's pill in YouTube's header bar (the owner, 2026-10-21: "make it so I can completely customize this widget,
- * including what to put there (cards, review spending, etc.)"): the mark, then each part picked, in the order picked,
+ * Panki's pill in YouTube's header bar, what's on it entirely the viewer's to pick: the mark, then each part picked, in the order picked,
  * as its icon and value, the whole of it opening Panki; and at its end, when it's picked, Panki's own on / off switch,
  * the one the strip under a video has. Drawn on YouTube's pages (`content/feed.tsx`) and on the options page's preview
  * of it, with made-up numbers there (`SAMPLE_NUMBERS`). Never a second drawing of the pill.
@@ -16,7 +15,6 @@ import type { PillLayout, PillPart } from "../modules";
 
 /** The numbers the pill can say, from Panki's stats and decks. */
 export type PillNumbers = {
-  // `watching` (the account's Video tracking: off, the minutes watched said nothing) went when that became each browser's own, 2026-11-02.
   watchedMs: number;
   due: number;
   reviews: number;
@@ -36,7 +34,7 @@ export function pillNumbersOf(stats: Stats, decks: readonly Deck[]): PillNumbers
   };
 }
 
-/** Numbers for the options page's preview: none of the owner's own. */
+/** Numbers for the options page's preview: made up, none of the account's own. */
 export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: 7 };
 
 /** Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it. */
@@ -60,7 +58,7 @@ export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; wor
  * whole of it pressed for `onClick`; then `power`, Panki's on / off switch, when it's to be there. `update` puts a dot
  * on the mark while the extension has an update: the accent's while one is available, the flag's amber while one is
  * needed (`ui/UpdateNotice.tsx` says what it is). `profile` is what the profile in use is called, right after the mark:
- * always said while Panki is on and signed in, with no switch to hide it (the owner, 2026-10-22), so it's always plain
+ * always said while Panki is on and signed in, with no switch to hide it, so it's always plain
  * which Panki this is, the real one or the one for trying things.
  */
 export function PankiPill({

@@ -1,6 +1,5 @@
 /**
- * The shapes screens really had, remembered on this device so a skeleton fits exactly what comes a moment later (the
- * owner, 2026-10-26: "make it EXACTLY fit the UI that we will get a second later"): how many rows a list drew, how tall
+ * The shapes screens really had, remembered on this device so a skeleton fits exactly what comes a moment later: how many rows a list drew, how tall
  * a tile stood. Written as the real thing renders, read as its skeleton is drawn; only a screen never seen on this
  * device falls back to a guess. Kept in `localStorage` (`panki.skel`), one small number per name; a value that doesn't
  * read as one is dropped.

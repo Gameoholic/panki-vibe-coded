@@ -11,7 +11,7 @@ export const FIELD_KINDS: Record<FieldKind, { name: string; multiline: boolean }
   long: { name: "Paragraph", multiline: true },
   media: { name: "Media", multiline: false },
   image: { name: "Image", multiline: false },
-  // Holds the video's link, title and channel as one value (`youtubeMetaValue`); it was "YouTube link", the link alone, until 2026-10-18.
+  // Holds the video's link, title and channel as one value (`youtubeMetaValue`); an older value is the link alone.
   youtube: { name: "YouTube metadata", multiline: false },
   pitch: { name: "Pitch accent", multiline: false },
 };

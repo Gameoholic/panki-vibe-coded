@@ -16,15 +16,15 @@ const seconds = (ms: number) => `${ms / 1000} s`;
 const holdLabel = (ms: number) => (ms === 0 ? "Press" : `Hold ${seconds(ms)}`);
 /** A Hold button stage's hold: "Press", "Hold 0.5 s". */
 const HOLD_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: holdLabel(ms) }));
-/** How a key is pressed, every kind (`PRESS_KINDS`): "Press", "Double press", "Hold 0.5 s" (Double press, the owner, 2026-11-02). */
+/** How a key is pressed, every kind (`PRESS_KINDS`): "Press", "Double press", "Hold 0.5 s". */
 const PRESS_OPTIONS = PRESS_KINDS.map((ms) => ({ id: String(ms), label: ms === DOUBLE_PRESS ? "Double press" : holdLabel(ms) }));
 /** Confirmation's extra hold as its choice reads: "+0 s", "+1 s". */
 const EXTRA_OPTIONS = HOLD_TIMES.map((ms) => ({ id: String(ms), label: `+${seconds(ms)}` }));
 const holdOf = (id: string, fallback: number) => HOLD_TIMES.find((ms) => String(ms) === id) ?? fallback;
 const pressOf = (id: string, fallback: number) => PRESS_KINDS.find((ms) => String(ms) === id) ?? fallback;
 /**
- * The Hold button's stages as rows, the review's own names, in the order a hold goes through them, each its own hold
- * (the owner, 2026-11-02). Done listening's is unused on a card with no Listen phase; the row stays, the panel being
+ * The Hold button's stages as rows, the review's own names, in the order a hold goes through them, each its own hold.
+ * Done listening's is unused on a card with no Listen phase; the row stays, the panel being
  * the device's and knowing no deck.
  */
 const HOLD_STAGES = [
@@ -54,8 +54,7 @@ function KeyPair({ id, label, own, part, slot, binds, asking, onAsk, listen = fa
 }
 
 /**
- * One action's row: what it does, its key, and as many more as are added with + (the owner, 2026-10-28: "multiple
- * keybinds to an action"; 2026-10-29: "add however many I want via a plus button"), each pressed or held for a time of
+ * One action's row: what it does, its key, and as many more as are added with +, each pressed or held for a time of
  * its own. A key is one thing on a screen, but for a press and a hold of it. The action's own key taken off leaves it
  * with none; an added one taken off goes.
  */
@@ -129,9 +128,8 @@ export function KeysPanels() {
   return (
     <>
       {/*
-        Enabled, the whole feature's switch on this device (the owner, 2026-11-02: "make it enable/disable keybinds
-        entirely"): off, no key is heard anywhere and no keycap drawn. Off on a phone and on elsewhere until it's set
-        (Keycaps until then, and a phone's Keys on buttons before it).
+        Enabled, the whole feature's switch on this device: off, no key is heard anywhere and no keycap drawn. Off on a
+        phone and on elsewhere until it's set.
       */}
       <section className="panel" aria-labelledby="keys-enabled-title">
         <h2 id="keys-enabled-title" className="panel-title">
@@ -146,7 +144,7 @@ export function KeysPanels() {
         <KeyRow id="home-review" label="Review" bind={binds.homeReview} slot={{ kind: "homeReview" }} binds={binds} disabled={off} />
       </section>
       {/*
-        The Hold button (the owner, 2026-11-02): held, one key carries a card from its start through every stage to the
+        The Hold button: held, one key carries a card from its start through every stage to the
         deck's answer (a deck's "Hold button answers with"), each stage held for its own time; Back to start, a key of its
         own (Space pressed twice to begin with), takes the card back to its start. Off to begin with; its rows greyed while
         it's off. One more action with its own key (Shift held to begin with), beside the review's own and theirs.
@@ -214,7 +212,7 @@ export function KeysPanels() {
         ))}
         <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} disabled={off} />
       </section>
-      {/* Every key set here goes at once, so it asks first, in place (the owner, 2026-10-29). */}
+      {/* Every key set here goes at once, so it asks first, in place. */}
       {changed && resetting ? (
         <div className="ask-box">
           <Ask

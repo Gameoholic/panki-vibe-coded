@@ -75,8 +75,8 @@ const RECOMMENDATIONS = "ytd-watch-flexy #secondary #related";
 const SEEK_BAR = "#movie_player .ytp-progress-bar";
 /**
  * The links to the channel the video is on, under the player; the one with words is its name. The channel's picture
- * is a link to it too, and comes first, with no words: the first link found was taken, its words were none, and every
- * card lost its channel until the first with words was taken instead (2026-10-18).
+ * is a link to it too, and comes first, with no words: so the first link with words is taken, never the first link,
+ * whose words are none.
  */
 const CHANNEL_NAME = "ytd-watch-flexy #owner ytd-channel-name a[href], ytd-watch-flexy ytd-video-owner-renderer a[href]";
 /** The channel's picture beside its name, under the player: Panki keeps it with the card's video (`askPictures`). */
@@ -142,8 +142,8 @@ const ON_SEEK_BAR = "display: block; position: absolute; inset: 0; z-index: 42; 
 const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; bottom: var(--sub-bottom, 9%); z-index: 40; pointer-events: none;";
 /**
  * Where going on from the stop is offered: on the picture itself, in the player's bottom right corner above its
- * controls, as Netflix offers to skip an intro (the owner, 2026-10-21: "like when Netflix suggests to skip over the
- * intro, that style UI and UX"). Over the subtitles' band and under the player's own controls.
+ * controls, in the shape Netflix offers to skip an intro in. Over the subtitles' band and under the player's own
+ * controls.
  */
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
 // The player's control bar, and the speed button, the end time and Theatre mode among its controls, are `playerBar.ts`'s.
@@ -173,8 +173,7 @@ const siteTheme = () => (document.documentElement.hasAttribute("dark") ? "dark" 
 const videoId = () => new URL(location.href).searchParams.get("v");
 /**
  * The video the page was loaded on, and whether its address named a moment then: a link pasted, shared or bookmarked
- * with a timestamp is a moment wanted (the owner, 2026-10-21: "if there's a predefined t= in the URL… use the t="),
- * where a `t=` the site adds as it moves between its own pages is only its place in a half-watched video.
+ * with a timestamp is a moment wanted, so its `t=` is honoured, where a `t=` the site adds as it moves between its own pages is only its place in a half-watched video.
  */
 const loadedOn = { videoId: videoId(), moment: new URL(location.href).searchParams.has("t") };
 
@@ -256,8 +255,8 @@ async function readSaved() {
 }
 
 /**
- * The video on the page saved for later from the strip, or its save taken back (the owner, 2026-10-21: "save the video
- * for later from inside the video"): said at once, then asked of Panki; its name and channel as the page shows them.
+ * The video on the page saved for later from the strip, or its save taken back, so a video can be saved from inside
+ * it: said at once, then asked of Panki; its name and channel as the page shows them.
  * A failure puts it back.
  */
 async function toggleSaved() {
@@ -272,12 +271,12 @@ async function toggleSaved() {
 }
 /**
  * The offer to go on from where the video was stopped, in seconds, while it stands on the picture; `jumped`, Panki has
- * already gone there by itself and the box only says so (the owner, 2026-10-27: to be sure it was Panki's jump).
+ * already gone there by itself and the box only says so, so it's plain the jump was Panki's.
  */
 /** `arrives`: it goes by itself once the video gets there, as it does when it opened short of it. */
 type Offer = { at: number; jumped: boolean; arrives: boolean };
 const offered = cell<Offer | null>(null);
-/** The offer on its way out: it fades for a moment before it's gone (the owner, 2026-10-21: "so it doesn't just bam cut away"). */
+/** The offer on its way out: it fades for a moment before it's gone, rather than cutting away. */
 const offerAway = cell(false);
 /** The video's name and channel as the page shows them: the channel's name and where it links, none when the site has moved it. */
 function aboutVideo() {
@@ -353,8 +352,7 @@ const watcher = createWatcher({
 });
 
 /**
- * Whether the video on the page is finished (the owner, 2026-10-25, picking D of ten ways: the strip's status chip):
- * as Panki says when it opens, then as it's played here. Played into its last `withinMs` from before them, it's
+ * Whether the video on the page is finished, told by the strip's status chip: as Panki says when it opens, then as it's played here. Played into its last `withinMs` from before them, it's
  * finished, said to Panki at once and kept there as a flag, wherever the video goes after; the chip at the strip's head
  * says "Watching · 94%" until then and "Finished" after, and a press on it says the other, by hand. Null until Panki
  * has said, and while the account keeps no watching.
@@ -408,8 +406,7 @@ async function sayFinished(finished: boolean, source: WatchMarkSource) {
 /**
  * Whether the pointer is on the seek bar: read against where the bar is drawn, not from the bar's own events, so the
  * pointer counts as on it as far up as the cards' words stand (`reachPx`), coming in as much as going out, with
- * nothing laid over the picture to take its presses (the owner, 2026-10-19: "right now I basically have to hug the
- * seekbar"). A bar the player has hidden (it hides its controls when the pointer rests) is never on.
+ * nothing laid over the picture to take its presses, so the pointer needn't hug the bar to reach the marks. A bar the player has hidden (it hides its controls when the pointer rests) is never on.
  */
 function follow(x: number, y: number) {
   const box = document.querySelector(SEEK_BAR)?.getBoundingClientRect();
@@ -462,8 +459,8 @@ function goToPin(pinned: Pinned) {
 
 /**
  * The player's own preview over its bar (the frame and the time it would go to) shown, while the pointer is on a
- * pin's words (a card's, or a word that's in the decks), for where pressing them goes rather than for where the pointer is (the owner, 2026-10-19: "display
- * the frame we will go to"). The pointer's own moves over the words are kept from the bar (`SeekMark` → `onPeek`), and
+ * pin's words (a card's, or a word that's in the decks), for where pressing them goes rather than for where the pointer is: the
+ * frame a press would go to. The pointer's own moves over the words are kept from the bar (`SeekMark` → `onPeek`), and
  * the bar is told of a move at that moment instead: the one place Panki stirs the player's own script, with nothing
  * but a pointer's move, as the pointer itself would make. Panki's own following of the pointer leaves made-up moves
  * alone (`isTrusted`).
@@ -501,8 +498,6 @@ document.documentElement.addEventListener("pointerleave", () => {
   pointerAt = null;
   onBar.set(false);
 });
-// Snapping to cards (a press on the bar let go near a card's mark landing on the card's moment) lived here for a day;
-// the owner had it taken out on 2026-10-19, the cards' words doing the same job.
 
 /** What reaches the screen from outside it: the menu or the toolbar button asked for a capture; the page moved on to another video. */
 const asked = new EventTarget();
@@ -530,9 +525,8 @@ const inPlace = cell(false);
  */
 const placedAs = cell<PanelView | "stage">("under");
 /**
- * Theatre mode, switched in the panel's head while it stands beside the video (the owner, 2026-11-04: "an easier, more
- * built-in way to switch between theatre mode and whatever was on before… only supported when it's beside the video,
- * so it's less of a mode"). This page's alone: it lasts from one video to the next in this tab, and a page opened
+ * Theatre mode, switched in the panel's head while it stands beside the video: a built-in way between it and what was
+ * on before, offered only beside the video so it's less of a mode. This page's alone: it lasts from one video to the next in this tab, and a page opened
  * afresh never fills the screen by itself, so it's never something to find a way out of.
  */
 const theatre = cell(false);
@@ -547,8 +541,7 @@ let wasPlaying = false;
 let pauseAfter: number | null = null;
 /**
  * The open clip's end, where the video stops by itself when it's played up to it, once for each clip: played on from
- * there, it goes on past (the owner, 2026-10-15: "pause when it reaches… the end timestamp. But if I continue or try
- * again it will let me, not block me"). Null while no clip with an end is open.
+ * there, it goes on past, so the end stops it without ever blocking it. Null while no clip with an end is open.
  */
 let stopAt: number | null = null;
 /** The video has stopped at this clip's end already, by `watchEnd` or at the end of a sentence it was let finish. */
@@ -590,8 +583,7 @@ async function readModules() {
 const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false };
 /**
  * Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own
- * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not (the owner,
- * 2026-10-21). The same while an update is needed: Panki would refuse all of it, so none of it is tried.
+ * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not. The same while an update is needed: Panki would refuse all of it, so none of it is tried.
  */
 function active(): Modules {
   const now = modules.get();
@@ -669,11 +661,11 @@ function tryResume() {
   if (at === null || !player || player.readyState < 2 || !Number.isFinite(player.duration) || player.duration <= 0) return;
   resuming = null;
   // A moment that was asked for: a card's clip (`youtubeUrl` marks its address), or a link with a timestamp the page
-  // was loaded on. The video is never pulled away from one; going on from the stop is offered instead (the owner,
-  // 2026-10-21: "in that case you'll still show the button").
+  // was loaded on. The video is never pulled away from one; going on from the stop is offered instead,
+  // the button still shown.
   const wanted = momentWanted(location.href) || (loadedOn.moment && loadedOn.videoId === watching);
   const how = modules.get().resume;
-  // Always jump goes there over a time that was asked for too (the owner, 2026-10-22).
+  // Always jump goes there over a time that was asked for too.
   if (how === "always" || (how === "continue" && !wanted)) {
     // Jump automatically goes to Panki's stop wherever the site put the video: its own `t=` on a half-watched video is
     // its place, which can be past Panki's (a phone's watching the site knows of and Panki doesn't). As many seconds
@@ -687,8 +679,7 @@ function tryResume() {
   // A link with a time of its own under "Jump, unless the link has a time": the button, or nothing, as picked.
   if (how === "continue" && modules.get().resumeTimed === "nothing") return;
   // Offered even when the video opened at the stop already (a link at its time): it says the place is right, and
-  // pressed it goes back as many seconds as set (the owner, 2026-10-28: "for my peace of mind… it will put me back 3
-  // seconds"). Opened short of it, it goes by itself once the video gets there.
+  // pressed it goes back as many seconds as set. Opened short of it, it goes by itself once the video gets there.
   putOffer({ at, jumped: false, arrives: player.currentTime < landing(at) - 2 });
 }
 
@@ -745,7 +736,7 @@ function columnBeside(player: Element | null): HTMLElement | null {
 }
 
 /**
- * The Stage (`PanelView` "stage", phase 2, 2026-11-04): the video filling the screen but for the panel's column at the
+ * The Stage (`PanelView` "stage"): the video filling the screen but for the panel's column at the
  * right or the left. It can't be the player's own full screen, which is the site's and holds the player alone, so it's
  * a layer of Panki's over the page: the site's theater mode turned on (its own button, as the viewer's press would),
  * which puts the player in the full-width container at the page's top, and that container held to the screen beside
@@ -762,8 +753,8 @@ const STAGE_LEFT_CLASS = "panki-stage-left";
  * What the Stage changes of the page, only while `html` carries `STAGE_CLASS` (taken off at once on leaving, and while
  * the site's own full screen is up without Theatre): the page doesn't scroll, its header bar is hidden, and the
  * full-bleed container is fixed to the screen beside the panel's column (`--panki-stage-w`), black around the picture.
- * The player stands in that container in the site's theater mode and in its full screen alike (the owner's reading,
- * 2026-11-04: in full screen `ytd-watch-flexy` carries `fullscreen` and `full-bleed-player`), so the Stage is the same
+ * The player stands in that container in the site's theater mode and in its full screen alike (in full
+ * screen `ytd-watch-flexy` carries `fullscreen` and `full-bleed-player`), so the Stage is the same
  * lines in both.
  */
 const STAGED_PAGE = `${WATCH_PAGE}:is([theater], [fullscreen])`;
@@ -818,8 +809,8 @@ function setStaged(up: boolean, left: boolean) {
 }
 
 /**
- * Theatre mode in the browser's own full screen (`Modules.stageFull`, the owner, 2026-11-04). The site's own full
- * screen (its F, its button) is the page's root as the full screen element (the owner's reading, the same day), so
+ * Theatre mode in the browser's own full screen (`Modules.stageFull`). The site's own full screen (its F, its button)
+ * is the page's root as the full screen element, so
  * Panki asking for the root's is asking for the site's: the site lays its full screen out (`ytd-watch-flexy[fullscreen]`,
  * its theater mode dropped) and Theatre stands in that, its CSS keyed on it as on theater mode (`STAGED_PAGE`), the
  * panel's column beside the player. Theatre and its full screen never disagree: leaving Theatre leaves it, and leaving
@@ -878,7 +869,7 @@ function pressTheater() {
 /**
  * Whether the stage stands this moment, its layer put up or down to match. Switched on (Theatre mode, while the view is
  * Beside the video, on a watch page with its video), it waits for theater mode, pressing it on (a few tries, a while apart); with it on, the layer goes up. Under
- * the site's own full screen the layer is down and the stage waits for it to be left (the owner's F is the site's).
+ * the site's own full screen the layer is down and the stage waits for it to be left (the viewer's F is the site's).
  * Theater mode turned off by the viewer while it stands leaves the stage. Not picked, it's down, and theater mode goes
  * back off if Panki turned it on. With Theatre's own full screen (`fullByTheatre`) none of that: it stands in the
  * site's full screen layout instead of theater mode.
@@ -1164,8 +1155,8 @@ const AS_SAID: Trim = { start: null, end: null };
 /**
  * Where a clip that begins with these words begins, and where one that ends with them ends (not known while they're
  * the last of a line still being written), given the words said just before and just after them. Words timed as they
- * were said (the transcript's) have their lead and tail only up to those words, never into them (the owner,
- * 2026-10-28: "there's half a word he says before that"), and end on their own sound rather than on what follows; a
+ * were said (the transcript's) have their lead and tail only up to those words, never into them, so no
+ * half of the word before is heard, and end on their own sound rather than on what follows; a
  * caption's, timed as it was shown, have them whole.
  */
 function beginsAt(beat: Beat, before: Beat | undefined): number {
@@ -1201,8 +1192,8 @@ function nearest(beats: readonly Beat[], time: number, moment: (beat: Beat) => n
 /**
  * The first words a clip that begins at a moment holds, and the last ones a clip that ends at one holds; null when it
  * holds none. Words timed as they were said (the transcript's) are held when more of them is inside the clip than out
- * (`holds`), so a start put where a word begins keeps that word (the owner, 2026-10-28: the い of いやー went, as
- * every word was taken to begin a lead earlier than it was said). A caption's, timed as it was shown, are the ones whose
+ * (`holds`), so a start put where a word begins keeps that word (taking every word to begin a
+ * lead earlier than it was said loses its first sound). A caption's, timed as it was shown, are the ones whose
  * lead begins nearest the start and whose tail ends nearest the end, the lead and tail being how late it's shown.
  */
 function firstHeld(beats: readonly Beat[], start: number): Beat | null {
@@ -1353,7 +1344,7 @@ function wordStretch(clip: Clip): Ends | null {
 
 /**
  * A word's stretch kept inside its sentence's clip: the word is cut out of the clip, so neither of its ends is ever
- * outside the clip's own (the owner, 2026-10-11: the word's bar runs from the clip's start to the clip's end). While
+ * outside the clip's own (the word's bar runs from the clip's start to the clip's end). While
  * the clip's end isn't known yet, only its start holds the word back.
  */
 function inside(word: Ends, clip: Ends): Ends {
@@ -1613,8 +1604,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
       }
     />
   );
-  // The row's pencil and spark went with the old way of editing (AI step 6, the owner's B and C): a row is its words
-  // alone, edited in the strip's editor or over the video; while it's proofread, its words wait under the sweep.
+  // A row is its words alone, edited in the strip's editor or over the video; while it's proofread, its words wait under the sweep.
   return waiting ? <AiWaiting label="Panki AI is proofreading">{line}</AiWaiting> : line;
 }
 
@@ -1762,7 +1752,7 @@ type BesideListProps = {
 };
 
 /**
- * The Panki panel beside the video (`PanelView` "beside"; the owner, 2026-11-03): every line with its time, the line
+ * The Panki panel beside the video (`PanelView` "beside"): every line with its time, the line
  * being said lit and kept in view as the video plays, scrolled inside the panel and never the page. Scrolled by hand,
  * it lets the video go on unfollowed for a moment (`FOLLOW_HELD_MS`); a time pressed goes there and follows again.
  * A word pressed is a pick, as under the player; double-clicked, the editor opens there.
@@ -1936,7 +1926,7 @@ function App() {
 
   /** The transcript's words by id, as it stands: which words Panki AI edited, and the editors' lines. */
   const wordsById = useMemo(() => new Map((tx.transcript?.words ?? []).map((w) => [w.id, w])), [tx.transcript]);
-  /** Editing by hand begins by pausing the video (AI step 6; the pencil refused while it played until then). */
+  /** Editing by hand begins by pausing the video, rather than refusing while it plays. */
   function pauseToEdit(what: string) {
     if (!video || video.paused) return;
     video.pause();
@@ -1950,7 +1940,7 @@ function App() {
   };
 
   /**
-   * The transcript's lines as the editors take them (AI step 6, the owner's B and C): each by its first word's id, its
+   * The transcript's lines as the editors take them: each by its first word's id, its
    * times, its text, its words as they read now, and those Panki AI edited last with what was heard and why.
    */
   const editorLines = useMemo((): EditorLine[] => {
@@ -2198,15 +2188,15 @@ function App() {
 
   /**
    * Whether the transcript stands in for the site's captions on the picture: the engine is the pick, and the settings
-   * want it there. The site's captions never stand in for it, not before it has caught up either (the owner,
-   * 2026-10-17: "sometimes the old YouTube subtitles pop up").
+   * want it there. The site's captions never stand in for it, not before it has caught up either, so
+   * the site's own never pop up in its place.
    */
   const overVideo = engineOn && tx.prefs.overVideo;
   /** The transcript's line over the video: the one being said, kept a moment after its last word as a subtitle is. */
   const overLine = overVideo && view.mode === "transcript" ? view.saying : null;
   const overPart = overLine ? underText.parts.find((part) => part.line.id === overLine.id) : undefined;
   // The site's own captions give way for as long as the transcript stands in for them, between its lines too: faded
-  // only while a line was being said, they came back in every gap (the owner, 2026-10-17).
+  // only while a line was being said, they came back in every gap.
   useEffect(() => {
     showingOver.set(overVideo);
   }, [overVideo]);
@@ -2257,8 +2247,8 @@ function App() {
     setTaking(null);
   }, []);
   /**
-   * The card is in (the owner, 2026-10-26: playing the video while the drawer still said Added went back into the
-   * clip): the video is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
+   * The card is in, so playing the video while the drawer still says Added never goes back into the clip: the video
+   * is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
    * with it; the drawer stays only to say Added, then closes as it always did. Never back: it goes on from the latest of
    * where it stands, where it stood before the clip was played and the clip's end. Whether it then plays is the options
    * page's After adding a card (`afterAdd`): as it was before the drawer held it (a video started by hand since is left
@@ -2620,8 +2610,7 @@ function App() {
   /** Whether the Subtitles menu is open: only then is the band on the video there to be dragged. */
   const [styling, setStyling] = useState(false);
   /**
-   * The band dragged across the picture (the owner, 2026-10-17: "directly drag the subtitle bar to reposition it…
-   * in % relative to the screen, but only while the subtitle settings are open"): its place follows the pointer as
+   * The band dragged across the picture, only while the subtitle settings are open: its place follows the pointer as
    * shares of the player's own box, seen at once, and is kept when the pointer is let go. The words aren't pressed
    * while the band is for dragging.
    */
@@ -2673,10 +2662,10 @@ function App() {
   const editing = editorOpen && showsTranscript && fixesOn;
   /** Nothing to show where the words would be: why, and the press that changes it when there is one. */
   const emptyHere =
-    tx.status.kind === "running" ? null : picked === "youtube" ? ( // The menu's button says it's transcribing; a word here too was one too many (the owner, 2026-10-17).
+    tx.status.kind === "running" ? null : picked === "youtube" ? ( // The menu's button says it's transcribing; a word here too would be one too many.
       <p className="empty">Turn on captions to enable.</p>
     ) : picked === "none" ? (
-      // The owner, 2026-10-17, at an empty strip with None picked: "make sure this says to enable subtitles if they're disabled", then "what about showing 'turn on subtitles'": the press that does it.
+      // An empty strip with None picked says the subtitles are off, with the press that turns them on.
       <p className="empty strip-empty">
         Subtitles are off.
         <Button className="capture-tool" onClick={() => pickSource(DEFAULT_SOURCE)}>
@@ -2699,11 +2688,11 @@ function App() {
   /** Panki itself, its settings, and leaving Theatre mode: the head's three small buttons, at the far end of its first line. */
   const corner = (
     <>
-      {/* Panki itself, the one the profile in use is signed in to, in a tab of its own (the owner, 2026-10-17). */}
+      {/* Panki itself, the one the profile in use is signed in to, in a tab of its own. */}
       <Button className="capture-tool btn-icon" aria-label="Open Panki" onClick={() => void askOpenPanki()}>
         <Icon name="out" />
       </Button>
-      {/* The extension's own settings, on their YouTube tab (the owner, 2026-10-17: "a button for the settings"). */}
+      {/* The extension's own settings, on their YouTube tab. */}
       <Button className="capture-tool btn-icon" aria-label="Panki settings" onClick={() => void askOptions("youtube")}>
         <Icon name="settings" />
       </Button>
@@ -2725,7 +2714,7 @@ function App() {
   return (
     <>
       {placed && !pankiOn ? (
-        // Switched off altogether (the owner, 2026-10-21): the head alone, with the switch to turn it back on; nothing
+        // Switched off altogether: the head alone, with the switch to turn it back on; nothing
         // at all while the switch is the header bar's pill's.
         !switchHere ? null : <div className="strip is-off">
           <div className="strip-head">
@@ -2756,7 +2745,7 @@ function App() {
                 <Dropdown id="panki-subtitles" label="Subtitles" options={SUBTITLE_SOURCE_IDS.map((id) => ({ id, label: SUBTITLE_SOURCES[id].name }))} value={picked} onChange={pickSource} />
               </span>
             ) : null}
-            {/* Where the panel stands, picked on the panel itself and kept for every video (`PanelView`; the owner, 2026-11-03), at the left beside the source since the owner, 2026-11-04. */}
+            {/* Where the panel stands, picked on the panel itself and kept for every video (`PanelView`), at the left beside the source. */}
             <span className="strip-pick strip-view">
               <Dropdown
                 id="panki-panel-view"
@@ -2779,7 +2768,7 @@ function App() {
             <div className="strip-tools">
               {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
-              {/* Panki altogether, on or off (the owner, 2026-10-21: "make the button toggle whether Panki is even enabled"), here while it isn't the header bar pill's. */}
+              {/* Panki altogether, on or off, here while it isn't the header bar pill's. */}
               {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" icon="power" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
               {/* Finished or not (`finishHere`): how far along until it's played into its end, then Finished; a press says the other. */}
               {finishNow && finishNow.videoId === videoId() && (finishNow.finished || finishNow.percent !== null) ? (
@@ -2797,15 +2786,15 @@ function App() {
                   )}
                 </Button>
               ) : null}
-              {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home (the owner, 2026-10-21). */}
+              {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home. */}
               {savedNow && savedNow.videoId === videoId() ? (
                 <Button className={`capture-tool strip-save ${savedNow.saved ? "is-saved" : ""}`.trim()} aria-pressed={savedNow.saved} onClick={() => void toggleSaved()}>
                   <Icon name="bookmark" />
                   {savedNow.saved ? "Saved" : "Save for later"}
                 </Button>
               ) : null}
-              {/* Editing the transcript (AI step 6, B) opens from the Transcription menu's item or a double-click on a word: an Edit button stood here too until the owner, 2026-11-04 ("it's enough to have it inside the Transcribe button"). */}
-              {/* Everything about transcribing this video, in one place; room beside it for what comes next (a "Clip the last 5 seconds" button stood here until the owner had it taken out, 2026-10-17; the toolbar's way in still cuts that clip). */}
+              {/* Editing the transcript opens from the Transcription menu's item or a double-click on a word: no Edit button of its own here, the menu's is enough. */}
+              {/* Everything about transcribing this video, in one place; room beside it for what comes next. */}
               {menuOn ? (
                 <TranscribeMenu
                   state={tx}
@@ -2828,12 +2817,12 @@ function App() {
                   }
                 />
               ) : null}
-              {/* How the transcript looks over the video, set right here (the owner, 2026-10-17: "edit the subtitles directly in YouTube"). */}
+              {/* How the transcript looks over the video, set right here on the video's page. */}
               {overVideo ? <SubtitleMenu style={tx.prefs.style} onChange={setStyle} onOpen={setStyling} /> : null}
               {listed === null ? corner : null}
             </div>
           </div>
-          {/* B (AI step 6): the strip opened as the editor stands in the rows' place, the lines around the moment each its own text; beside the video, every line. */}
+          {/* The strip opened as the editor stands in the rows' place, the lines around the moment each its own text; beside the video, every line. */}
           {editing ? <StripEditor lines={editorLines} nowKey={nowKey} start={editorStart} actions={editorActions} whole={listed !== null} onDone={() => setEditorOpen(false)} /> : null}
           {listed !== null ? (
             // Beside the video: the whole transcript, a line each with its time, the one being said lit and kept in view.
@@ -2899,7 +2888,7 @@ function App() {
         </div>
       ) : null}
       {/* The transcript over the video, the line being said: the same words as under the player, to press and to fix. */}
-      {/* C (AI step 6): a word double-clicked there, the line is edited where it stands, the video paused. */}
+      {/* Over the video: a word double-clicked there, the line is edited where it stands, the video paused. */}
       {createPortal(
         overEditing && overLineEditing && fixesOn ? (
           <div className="sub-band over-line is-editing" lang="ja">
@@ -2938,7 +2927,7 @@ function App() {
         ) : null,
         over.ground,
       )}
-      {/* Where the video was stopped the time before, offered on the picture for a few seconds as it opens, as Netflix offers to skip an intro (the owner, 2026-10-21). */}
+      {/* Where the video was stopped the time before, offered on the picture for a few seconds as it opens, as Netflix offers to skip an intro. */}
       {createPortal(offer !== null ? <ResumeOffer at={offer.at} jumped={offer.jumped} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
       {/* Panki's own controls on the player's bar, each in its place there (`playerBar.ts` puts them where the layout says): a YouTube utility, drawn for whichever player the page has. */}
       {PANKI_BAR_IDS.map((id) => createPortal(barDrawn[id], playerBar.places[id].ground, id))}
@@ -2984,8 +2973,8 @@ setInterval(look, 1000);
 // (a question to the worker alone, nothing sent anywhere).
 setInterval(() => void readUpdate(), 5 * 60_000);
 // The lines follow the video's time every frame the page is drawn, so a line comes up the moment its first word is said
-// and gives way the moment the next one's is (the owner, 2026-10-28: looked at four times a second with the rest below,
-// a line came up to a quarter of a second late). Nothing is drawn again unless the line changes (`lineSource.ts` →
+// and gives way the moment the next one's is (looked at four times a second with the rest below, a line would come up
+// to a quarter of a second late). Nothing is drawn again unless the line changes (`lineSource.ts` →
 // `refresh`).
 function followLines() {
   lines.refresh();
@@ -3015,7 +3004,7 @@ const SKIP_HELD: Record<SkipKey, (e: KeyboardEvent) => boolean> = {
   alt: (e) => e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey,
 };
 /**
- * A short skip (a YouTube utility, the owner, 2026-10-26): ← or → with the chosen key held goes back or on by the
+ * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on by the
  * seconds set, in place of the site's 5 s, and held down it goes on skipping. Heard before the site's own keys (the
  * window, capturing) and kept from them. There with Panki on or off; never while typing, in Panki's own places, or
  * while an ad plays.
@@ -3036,8 +3025,8 @@ window.addEventListener(
 );
 // The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page; a card may have
 // been deleted in Panki: read again when this page gets the focus back, and when its tab is shown again (a switch of
-// tabs doesn't always bring a focus event: a switch set on the options page was ignored until the window was clicked,
-// 2026-10-18).
+// tabs doesn't always bring a focus event, and a switch set on the options page would be ignored until the window was
+// clicked).
 function readAgain() {
   transcriber.refresh();
   void readCarded();

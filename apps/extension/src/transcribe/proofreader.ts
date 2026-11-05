@@ -27,7 +27,7 @@ import type { Transcriber } from "./transcriber";
 
 /**
  * Proofread on a video's page (AI step 6): a video's Panki subtitles put right by Panki AI, a run at a time, its edits
- * going in by themselves (the owner, 2026-11-03: a learner can't judge a mishearing; the engine's word kept, the spark
+ * going in by themselves (a learner can't judge a mishearing; the engine's word kept, the spark
  * on every word edited and Undo are what protect the transcript). A run is the entire video, a part of it or one row,
  * sent as the lines the strip reads (`linesOf`) by their words' ids, at most `PROOFREAD_CALL_CHARS` of them a call
  * (`batchesOf`), one call after another, every call one id of the run's so Undo all takes the whole run back. Its calls

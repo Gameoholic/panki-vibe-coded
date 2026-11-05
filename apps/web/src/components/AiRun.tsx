@@ -37,7 +37,7 @@ import { TextField } from "./TextField";
 export const RUN_WORDS = {
   /**
    * The most a run can cost, as it's said beside it: only at or over the account's Show the cost when a run is over
-   * (`PankiAiStatus.showCostOverMicros`; the owner, 2026-11-01), nothing under it.
+   * (`PankiAiStatus.showCostOverMicros`), nothing under it.
    */
   upTo: (micros: number, showOver: number | null): string | null => (showsCost(micros, showOver) ? `Up to ${estimateWords(micros)}` : null),
   /** The question before a template's first ask: its name, and the most it can cost. */
@@ -58,8 +58,8 @@ export const RUN_WORDS = {
 };
 
 /**
- * Why an action can't run, said beside its greyed button whatever it is (the owner, 2026-11-05: Panki AI switched off
- * said nothing, the button greyed alone): what went wrong asking, signed out (`signedOut`, the action's own words),
+ * Why an action can't run, said beside its greyed button whatever it is, so a button is never greyed without a
+ * reason: what went wrong asking, signed out (`signedOut`, the action's own words),
  * Panki AI switched off, or no key for its provider. Nothing while what's true is still being asked (`known` false), and
  * nothing when it can run (the cost stands there then). Explain and Touch up are both this.
  */
@@ -156,12 +156,12 @@ type MenuProps = {
 };
 
 /**
- * An action's button with a small arrow at its end (AI step 5, the owner's preview of 2026-11-01): the button runs the
+ * An action's button with a small arrow at its end: the button runs the
  * template chosen here, named on it; the arrow opens a menu under it of every template, each with the most its first
- * ask can cost, the account's default first, the chosen one lit as a `Dropdown`'s value is (`aria-pressed`; its star
- * and an Edit templates row went at the owner's word, 2026-11-01: templates are edited in Settings → Panki AI alone).
- * Picking one runs it and makes it the button's for this pop-up or drawer alone, never the account's default (the
- * owner: "it should change the default BUT only for this specific window"). A press outside it or Escape closes it.
+ * ask can cost, the account's default first, the chosen one lit as a `Dropdown`'s value is (`aria-pressed`; templates
+ * are edited in Settings → Panki AI alone, so the menu has no Edit row).
+ * Picking one runs it and makes it the button's for this pop-up or drawer alone, never the account's default. A press
+ * outside it or Escape closes it.
  */
 export function TemplateMenu({ id, rows, defaultId, chosenId, disabled, onPick, onOpen, children }: MenuProps) {
   const [open, setOpen] = useState(false);

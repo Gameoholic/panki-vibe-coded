@@ -129,8 +129,8 @@ function SignIn({ known, onDone, onCancel }: { known: string; onDone: () => void
 }
 
 /**
- * Every sign-in this browser keeps, a row each: the one in use, and the others to switch to (the owner, 2026-10-17:
- * a real Panki and one for trying things, switched between on the extension alone). Switching is instant, the
+ * Every sign-in this browser keeps, a row each: the one in use, and the others to switch to (a real Panki and one for
+ * trying things, say, switched between on the extension alone). Switching is instant, the
  * sessions all stay open on their Pankis; Sign out ends that one's session and drops it here.
  */
 function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }) {
@@ -161,7 +161,7 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
         {rows.map((profile) => {
           const inUse = active !== null && sameProfile(profile, active);
           return (
-            // The one in use stands out in the accent, its words saying so; Switch on the others is a quiet button, never the primary look (the owner, 2026-10-28: "it makes it seem like it's the primary selected one").
+            // The one in use stands out in the accent, its words saying so; Switch on the others is a quiet button, never the primary look, which would read as the one selected.
             <div key={`${profile.address} ${profile.userName}`} className={`kept-row ${inUse ? "is-current" : ""}`.trim()}>
               <Rename
                 id={`profile-${profile.address}-${profile.userName}`}
@@ -173,7 +173,7 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
                     {inUse ? <span className="kept-in-use"> · In use</span> : null}
                   </span>
                 }
-                // No Reset to default name on a profile (the owner, 2026-10-29); saving it empty still goes back to the account's name.
+                // No Reset to default name on a profile; saving it empty still goes back to the account's name.
                 canReset={false}
                 max={PROFILE_NAME_MAX}
                 onKeep={async (name) => {
@@ -202,7 +202,7 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
 }
 
 /**
- * The Account panel, under Profiles (the owner, 2026-10-30): the settings of the profile in use's account that are for
+ * The Account panel, under Profiles: the settings of the profile in use's account that are for
  * all of Panki, set in Panki and shown here. Signed out, there's no account, and no panel.
  */
 function AccountPanel({ door }: { door: Door }) {
@@ -218,7 +218,7 @@ function AccountPanel({ door }: { door: Door }) {
 
 /**
  * The account's Language, the one Panki speaks to it in (Panki's Settings → General → Display), greyed with the link
- * sign: set in Panki alone (the owner, 2026-10-30), as Video tracking is set here alone and shown in Panki.
+ * sign: set in Panki alone, as Video tracking is set here alone and shown in Panki.
  */
 function LinkedLanguage({ door }: { door: Door }) {
   /** As Panki says it; null while it's asked; or why it couldn't be. */
@@ -287,7 +287,6 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
       <Setting
         id="default-deck"
         label="Default deck"
-        // The owner's words, 2026-10-29.
         why="Where cards you add from a video or a page go to by default."
         control={
           <Dropdown
@@ -303,23 +302,22 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
   );
 }
 
-/**
- * How transcribing behaves for this viewer (the owner, 2026-10-17: "this is fine to allow per user… any option that's
- * client side"; what it costs stays an admin's, in Panki's Settings). Kept the moment it's changed; a video page reads
- * it again with the transcript as it gets the focus. The words are the ones Panki's Settings had (the owner's own).
- */
-// Whether it starts by itself is switched in the strip's menu alone (Auto transcribe); its row here went at the owner's word, 2026-10-17.
-// While paused went to Panki's Settings → Admin the same way, 2026-10-27 ("should be an admin setting").
+// Whether transcribing starts by itself is switched in the strip's menu alone (Auto transcribe); what it does while
+// paused is an admin's, in Panki's Settings → Admin.
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
 const BESIDE_RECS_OPTIONS = BESIDE_RECS_IDS.map((id) => ({ id, label: BESIDE_RECS[id] }));
 const STAGE_SIDE_OPTIONS = STAGE_SIDE_IDS.map((id) => ({ id, label: STAGE_SIDES[id] }));
-// What the choice made does, under it (the owner, 2026-10-27: "not clear what this does, add description").
+// What the choice made does, under it: the choice alone doesn't say.
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
   pause: "Once a card from a video is added, the video stays paused.",
   play: "Once a card from a video is added, the video plays.",
 };
-// The Panki panel's switch heads it since the Modules tab went (the owner, 2026-10-21: "most of this can just live under the YouTube settings"); off, nothing is transcribed, so the rest is greyed.
+/**
+ * How transcribing behaves for this viewer: what's client-side is theirs, what it costs stays an admin's, in Panki's
+ * Settings. Kept the moment it's changed; a video page reads it again with the transcript as it gets the focus. The
+ * Panki panel's switch heads it; off, nothing is transcribed, so the rest is greyed.
+ */
 function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const off = !store.modulePanel;
   return (
@@ -339,7 +337,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         control={<Segmented idPrefix="stage-side" label="Theatre mode" options={STAGE_SIDE_OPTIONS} value={store.stageSide} disabled={off} onChange={(stageSide) => void writeStore({ stageSide }).then(onChanged)} />}
         why="Where the Panki panel stands in Theatre mode."
       />
-      {/* The owner, 2026-11-04: "whether Theatre full-screens (on by default)". Off, Theatre mode fills the window. */}
+      {/* Whether Theatre mode takes the browser's full screen, on to begin with; off, it fills the window. */}
       <Setting
         id="stage-full"
         label="Full screen in Theatre mode"
@@ -362,10 +360,8 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
 }
 
 /**
- * Video tracking (the owner, 2026-10-21, the extension being what tracks: "shouldn't this be on the extension too?"):
- * this browser's own since 2026-11-02 (`watch/tracking.ts`; the owner: "I can want some devices sending and others
- * not"), the account's on Panki until then. Turning it off asks first, saying what stops and what stays. The panel
- * was Immersion until the owner renamed it, 2026-10-28.
+ * Video tracking, set here since the extension is what tracks: this browser's own (`watch/tracking.ts`), so some
+ * devices can send while others don't. Turning it off asks first, saying what stops and what stays.
  */
 function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
   const [asking, setAsking] = useState(false);
@@ -458,9 +454,8 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
 }
 
 /**
- * How close to its end a video played counts as finished: the account's own, kept on Panki (`Settings.finishedWithinSec`;
- * the owner, 2026-10-30: "move it into per-user settings… extension right?", it was an admin's in Settings → Admin →
- * Watching), saved a moment after it's changed. Greyed while Video tracking is off, when nothing is marked finished.
+ * How close to its end a video played counts as finished: the account's own, kept on Panki
+ * (`Settings.finishedWithinSec`), saved a moment after it's changed. Greyed while Video tracking is off, when nothing is marked finished.
  */
 function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: boolean }) {
   const [current, patch, failure] = useSavedSoon<{ finishedWithinSec: number }>({ finishedWithinSec: saved }, async (change) => ({
@@ -492,17 +487,16 @@ function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: 
   );
 }
 
-// How the transcript looks over the video is set on the video page itself (`ui/SubtitleMenu.tsx`), by the owner's word, 2026-10-17.
+// How the transcript looks over the video is set on the video page itself (`ui/SubtitleMenu.tsx`), where it's seen.
 
 /**
  * Whether the word being said carries its mark: on the line under the player, and on the subtitles over the video,
- * each its own (the owner, 2026-10-18: "show/hide the blue thing… separate for the YouTube subtitles and the Panki
- * tab"). The second is only a choice while the transcript replaces the site's subtitles. Kept the moment it's changed.
+ * each shown or hidden on its own. The second is only a choice while the transcript replaces the site's subtitles. Kept the moment it's changed.
  */
 function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="current-word-title">
-      {/* The two places, named as everywhere else (2026-10-28): the Panki panel under the player, and Panki subtitles on the video. */}
+      {/* The two places, named as everywhere else: the Panki panel under the player, and Panki subtitles on the video. */}
       <SceneTitle id="underline" titleId="current-word-title" store={store} />
       <Setting id="mark-under" label="Panki panel" control={<Toggle id="mark-under-on" says={{ on: "Shown", off: "Hidden" }} on={store.markUnder} onChange={(markUnder) => void writeStore({ markUnder }).then(onChanged)} />} />
       <Setting
@@ -514,17 +508,11 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
   );
 }
 
-// Clips had a panel here, Clip handles (snap to words or move freely), until the owner had it taken out, 2026-10-19.
-
-// Each of Panki's parts had a Modules tab of its own, first in the row (the owner, 2026-10-21: "the entire Panki panel
-// toggleable… the seek bar marks, ON by default"), until the same day they had it folded into the tabs of what each is
-// about ("most of this can just live under the YouTube settings"): the panel heads Video page, the marks head Seek bar,
-// the home heads YouTube home, Pop-up dictionary heads Looking up words on the Dictionary tab. Video tracking is the
-// account's, in Panki's Settings, beside what it keeps.
+// Each of Panki's parts is switched at the head of the panel of what it's about: the Panki panel's, the seek bar marks',
+// YouTube home add-ons', the Pop-up dictionary's.
 
 /**
- * YouTube's home, part by part (the owner, 2026-10-21, picking Shelves of seven mock-ups with the Continue watching
- * shelf alone: "make it customizable in settings"): the master switch first, then each its own under it, greyed while
+ * YouTube's home, part by part: the master switch first, then each its own under it, greyed while
  * the master is off. The header bar's pill is laid out under its switch (`PillParts`).
  */
 function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
@@ -539,28 +527,27 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
       <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
-      {/* How many it shows was a choice here until the owner made it always 5, 2026-10-22 (`modules.ts` → `SHELF_MAX`). */}
+      {/* How many it shows is always 5 (`modules.ts` → `SHELF_MAX`). */}
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
       {row("home-recent", "Recently watched", store.homeRecent, { on: "Shown", off: "Hidden" }, (homeRecent) => ({ homeRecent }))}
-      {/* Named for what it shows (the owner, 2026-10-22: "Save button on thumbnails: what are we saving?"). Progress, cards and subtitles on thumbnails stood above it until the owner had them out, 2026-10-28: "I don't need it". */}
+      {/* Named for what it saves the video for, so it's plain what's being saved. */}
       {row("thumb-save", "Save for later button on thumbnails", store.thumbSave, { on: "Shown", off: "Hidden" }, (thumbSave) => ({ thumbSave }))}
     </section>
   );
 }
 
 /**
- * What makes YouTube nicer whether or not Panki is in use (the owner, 2026-10-21: "regardless of Panki, just nice to
- * have"): nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here. The player's
+ * What makes YouTube nicer whether or not Panki is in use: nothing here reads Panki's master switch. Hide Shorts is the first; the next is one row here. The player's
  * control bar, laid out, is a panel of its own after this one (`PlayerBarPanel`).
  */
 function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   return (
     <section className="panel" aria-labelledby="utilities-title">
       <SceneTitle id="utilities" titleId="utilities-title" store={store} />
-      {/* Shown or hidden as its neighbours say it (2026-10-28; "Hide Shorts", On / Off, until then), Shown to begin with. */}
+      {/* Shown or hidden as its neighbours say it, Shown to begin with. */}
       <Setting id="shorts" label="Shorts" control={<Toggle id="shorts-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleShorts} onChange={(moduleShorts) => void writeStore({ moduleShorts }).then(onChanged)} />} />
-      {/* The speed button and the video's end time had a switch each here until they became rows of the player bar, a panel of its own after this one (2026-11-04). */}
-      {/* One group, its switch and the two rows it greys (the owner, 2026-10-28: they read as three settings apart). */}
+      {/* The speed button and the video's end time are rows of the player bar, a panel of its own after this one. */}
+      {/* One group, its switch and the two rows it greys, so they don't read as three settings apart. */}
       <div className="seek-group">
         <h3 className="seek-group-title">Short skip with the arrow keys</h3>
         <Setting
@@ -603,22 +590,21 @@ const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
   { id: "alt", label: "Alt" },
 ];
 
-// Where you stopped last was a panel of its own here until the owner had it folded into Seek bar, 2026-10-21 (`SeekBar.tsx`).
+// Where you stopped last is a group of the Seek bar panel (`SeekBar.tsx`).
 
 /**
- * The page's tabs (the owner, 2026-10-16: the settings were "all over the place"): everything of the dictionary
+ * The page's tabs, so the settings stand together by what they're about: everything of the dictionary
  * together (looking words up, the dictionaries, the popup's layout), the decks and what fills their fields, how a
  * video's clip is cut, and the sign-in. The tab is in the address, so a reload stays on it.
  */
-// The site's own tab, as each video site Panki works on will have one (the owner, 2026-10-16: "since we'll introduce Netflix soon").
-// A Modules tab stood first for a few hours on 2026-10-21; each of its switches now heads the panel of what it's about.
+// The site's own tab, as each video site Panki works on will have one.
 type Tab = "dictionary" | "decks" | "youtube" | "account";
 const TABS: readonly { id: Tab; label: string }[] = [
-  // Named as its first panel since 2026-10-28 (Dictionary until then); its id stays `dictionary`, the address.
+  // Named as its first panel; its id stays `dictionary`, the address.
   { id: "dictionary", label: "Pop-up dictionary" },
   { id: "decks", label: "Decks" },
   { id: "youtube", label: "YouTube" },
-  // Called About since 2026-10-22, at the owner's pick, once the extension's version joined the profiles here; its id stays `account` (the address, the drawer's way to the sign-in).
+  // About: the profiles and the extension's version; its id stays `account` (the address, the drawer's way to the sign-in).
   { id: "account", label: "About" },
 ];
 const tabOfAddress = (): Tab | null => TABS.find((t) => `#${t.id}` === location.hash)?.id ?? null;
@@ -644,7 +630,7 @@ function FieldsOf({ type, saved, off, onSave }: { type: CardType; saved: FieldMa
                 ...ROLE_IDS.map((role) => ({ id: role, label: ROLES[role].name, note: SOURCE_WORDS[ROLES[role].from], disabled: !ROLES[role].takes(field) })),
               ]}
               value={roleOf(map, field.id) ?? NONE}
-              // The word at each choice's right is where it comes from (the owner, 2026-10-16, kept forgetting).
+              // The word at each choice's right is where it comes from, so it never has to be remembered.
               columns={{ choice: "Fill with", note: "Source" }}
               disabled={off}
               onChange={(role) => onSave(withRole(map, field.id, role === NONE ? null : role))}
@@ -759,7 +745,7 @@ function Options() {
       <header className="brand">
         <Mark size={22} />
         Panki
-        {/* Panki altogether, on or off in this browser, the same switch the strip's head has (the owner, 2026-10-21); here too, since the strip is the only other place and a page may not be open. */}
+        {/* Panki altogether, on or off in this browser, the same switch the strip's head has; here too, since the strip is the only other place and a page may not be open. */}
         {store ? (
           <span className="brand-switch">
             <Toggle id="panki-on" icon="power" says={{ on: "On", off: "Off" }} on={store.pankiOn} onChange={(pankiOn) => void writeStore({ pankiOn }).then(refresh)} />
@@ -778,7 +764,7 @@ function Options() {
           ) : null}
           {/* Every tab stays drawn, the ones not chosen hidden: nothing laid out and unsaved is lost by looking at another. */}
           <div className="options-tab" hidden={tab !== "dictionary"}>
-            {/* Pop-up dictionary, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads (the owner's order, 2026-10-28). */}
+            {/* Pop-up dictionary, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads. */}
             <Looking store={store} onChanged={refresh} />
             <KnownWords store={store} onChanged={refresh} />
             <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, colour: store.knownColour }} onSaved={refresh} />
@@ -806,7 +792,7 @@ function Options() {
             )}
           </div>
           <div className="options-tab" hidden={tab !== "youtube"}>
-            {/* Data tracking first: what's recorded of the videos watched (the owner, 2026-10-28). */}
+            {/* Data tracking first: what's recorded of the videos watched. */}
             <VideoTracking store={store} onChanged={refresh} door={door} />
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />

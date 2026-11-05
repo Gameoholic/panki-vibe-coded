@@ -16,7 +16,7 @@ type Props = {
   kind: MediaKind;
   /** Where the bytes are: `api.mediaUrl(id)` for a file Panki holds, an object URL for one just picked. */
   src: string;
-  /** What the file is, in the owner's words (its field's name): what a screen reader hears, and the word on a row's chip. */
+  /** What the file is, by its field's name: what a screen reader hears, and the word on a row's chip. */
   label: string;
   /** `row` is the small one on a card's row: a picture as a thumbnail, a sound or a clip as a chip that plays it. */
   size?: "card" | "row";
@@ -193,8 +193,7 @@ const SEEK_STEP = 5;
 
 /**
  * Where the clip is, as a line that's pressed or pulled to go anywhere in it, as on a video site, or moved with the
- * arrow keys five seconds at a time (the owner, 2026-10-24: "I can't click on the seek bar to change the timestamp
- * like in YouTube").
+ * arrow keys five seconds at a time.
  */
 function SeekLine({ at, length, label, onSeek }: { at: number; length: number; label: string; onSeek: (share: number) => void }) {
   const { line, pulling, handlers } = usePull(onSeek);
@@ -308,7 +307,7 @@ function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut 
 
 /**
  * Panki's own player: a clip's picture over the app's bar, or a sound's bar alone. A clip fills the screen from its
- * bar's end (the owner, 2026-10-15, who liked this look better than the browser's own, and wanted full screen too);
+ * bar's end;
  * the picture and the bar fill it together, so the controls stay Panki's.
  */
 function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart, over, screenKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null }) {
@@ -378,7 +377,7 @@ function PlayerLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart,
 
 /**
  * Plain: the browser's own player and its controls (full screen, going anywhere in it, the sound, the speed), for
- * whoever wants it (the owner, 2026-10-15, had it kept as a style beside Panki's own). Its name over it when shown.
+ * whoever wants it, a style kept beside Panki's own. Its name over it when shown.
  */
 function PlainLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart, over }: LookProps & { over: ReactNode }) {
   const play = usePlayback(cue, onCueEnd, shortcut, restart);

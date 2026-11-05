@@ -8,10 +8,10 @@ export const CardFieldId = z.uuid();
 export const FieldSide = z.enum(["front", "back"]);
 /**
  * What a field holds: one line of text, several, a file (media: a clip or a sound, whichever is put there; or a
- * picture), a link to a YouTube video, or a pitch accent (drawn as the line over its reading, `pitch.ts`; the owner,
- * 2026-10-16). The ids live here so the API refuses a kind that doesn't exist; the word for each and how it's filled
- * in and shown is the web's `FIELD_KINDS` registry. (Sound and clips were two kinds, `audio` and `video`, until
- * 2026-10-11; the owner made them one, since the same field takes either.)
+ * picture), a link to a YouTube video, or a pitch accent (drawn as the line over its reading, `pitch.ts`). The ids live
+ * here so the API refuses a kind that doesn't exist; the word for each and how it's filled in and shown is the web's
+ * `FIELD_KINDS` registry. (Sound and clips were once two kinds, `audio` and `video`; they're one, since the same field
+ * takes either.)
  */
 export const FieldKind = z.enum(["text", "long", "media", "image", "youtube", "pitch"]);
 
@@ -66,7 +66,7 @@ export function holdsWords(kind: FieldKind): boolean {
 
 /**
  * One field of a card type. The list's order is the fields' order in a form. `side` is where it stands for what knows
- * only two sides (a card's row in a list, a form's big field): since layouts (2026-10-15) it's read from the type's
+ * only two sides (a card's row in a list, a form's big field): it's read from the type's
  * layout, the front when the front shows the field at all; sent, it's only where a field with no part yet starts.
  */
 export const CardField = z.object({
@@ -77,12 +77,12 @@ export const CardField = z.object({
   required: z.boolean(),
   /**
    * Whether two cards called the same (`wordsFieldOf`) are told apart by this field: when both hold something here and
-   * it differs, neither is the other's duplicate (the owner, 2026-10-23: a word added again with another meaning is no
+   * it differs, neither is the other's duplicate (a word added again with another meaning is no
    * duplicate). Only a field of words means anything by it (`apartOf`); left out, it's off.
    */
   tellsApart: z.boolean().default(false),
   /**
-   * Whether this field goes with an example rather than the card (the owner, 2026-10-25): a card that's already there
+   * Whether this field goes with an example rather than the card: a card that's already there
    * can be given another example (a sentence, its clip, its video), and a field that's One per example holds a value of
    * each example's own. Off, the field is the card's alone, as every field was before. Left out, it's off.
    */
@@ -102,8 +102,7 @@ export const NewCardType = z.object({
   listen: ListenFirst.optional(),
   /**
    * The field its cards are called by (`wordsFieldOf`): what names a card and what a card already there is found by
-   * (the warning on adding, the duplicates, the popup, the highlighting). Picked by the owner, never assumed (2026-10-25:
-   * "I don't want you to assume what the main word is"): null, and its cards have no duplicates. Left out, as it stands
+   * (the warning on adding, the duplicates, the popup, the highlighting). Picked by hand, never assumed: null, and its cards have no duplicates. Left out, as it stands
    * (none for a new type).
    */
   mainField: CardFieldId.nullable().optional(),
@@ -138,9 +137,8 @@ export const CardTypeList = z.object({ types: z.array(CardType) });
 export const CardTypeResponse = z.object({ type: CardType });
 
 /**
- * The field a type's cards are called by in words: its main field, as the owner picked it (`mainField`), while it's one
- * of its fields that holds words. None when none is picked (the owner, 2026-10-25: no assuming which it is; until then
- * it was the first Front field of words). A card is named by it wherever it's named: asked about before it's deleted,
+ * The field a type's cards are called by in words: its main field, as picked (`mainField`), while it's one of its
+ * fields that holds words. None when none is picked: which it is is never assumed. A card is named by it wherever it's named: asked about before it's deleted,
  * over its mark on a video's bar, as a card already there when one called the same is being added, and in duplicates.
  */
 export function wordsFieldOf(type: { fields: readonly CardField[]; mainField?: string | null | undefined }): CardField | null {

@@ -4,7 +4,7 @@ import type { Shared } from "../shared";
 import { EngineError, type Engines } from "./engines";
 
 /**
- * Whole-video downloads (2026-10-20): a video handed to the engine by its address, the engine fetching it and
+ * Whole-video downloads: a video handed to the engine by its address, the engine fetching it and
  * transcribing all of it in one call, its words then replacing everything the video had (`shared.finishJob`). Asked
  * for by the extension (Full, and Hybrid behind its chunks) and run here, in the background of the API, so nothing
  * waits on it: the extension reads the transcript again until it's done. One at a time per engine, each waiting for
@@ -12,7 +12,7 @@ import { EngineError, type Engines } from "./engines";
  * either side of it. Every step is said on the API's console, never with the key.
  */
 
-/** How long the engine may take over a whole video: ten seconds a minute of it, never under two minutes nor over fifteen (a 16-minute video took 41 s, 2026-10-19). */
+/** How long the engine may take over a whole video: ten seconds a minute of it, never under two minutes nor over fifteen (a 16-minute video took 41 s). */
 const DEADLINE = { msPerMinute: 10_000, minMs: 120_000, maxMs: 900_000 };
 /** How many times a download is handed to the engine: once more after a trouble that may pass (the engine unreachable, down or too busy; the API stopped under it), never after the engine's no. */
 const ATTEMPTS = 2;
@@ -70,7 +70,7 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
         () => null,
       );
       // The engine's count moves a while after a call, not with it: read straight after, it often hasn't moved at all.
-      // Nothing counted is not known, never free (2026-10-20: "0 credits" asked before a 22-minute video).
+      // Nothing counted is not known, never free: a count that hasn't moved yet would say a long video cost 0 credits.
       const credits = before !== null && after !== null && after > before ? after - before : null;
       const done = shared.finishJob(id, heard, credits, now());
       if (done) {
