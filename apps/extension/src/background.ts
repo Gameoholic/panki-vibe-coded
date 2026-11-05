@@ -254,13 +254,17 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 /**
  * Panki AI as it stands for everyone, kept for the browser's session (`chrome.storage.session`: a worker keeps nothing
- * between wakings, and this is asked each time a pop-up opens): fetched once, then again only when it isn't there (the
- * browser started afresh), and forgotten as the sign-in changes (signed in, signed out, another profile). Every
- * Explain's answer, refused or not, carries it as it stood for that call and replaces it, so an admin's change shows on
- * the next press. Never the key itself: what's kept and handed on is `AiShown`, without an admin's `saved`.
+ * between wakings, and this is asked each time a pop-up opens): fetched, then again once it's older than `AI_KEPT_MS`
+ * or isn't there (the browser started afresh), and forgotten as the sign-in changes (signed in, signed out, another
+ * profile). A switch, a key or a template changed on Panki tells the worker nothing, so the lifetime is what lets the
+ * next pop-up or drawer see it. Every Explain's answer, refused or not, carries it as it stood for that call and
+ * replaces it, so an admin's change shows on the next press. Never the key itself: what's kept and handed on is
+ * `AiShown`, without an admin's `saved`.
  */
 const AI_KEPT = "pankiAi";
-const KeptAi = z.object({ who: z.string(), ai: AiShown });
+/** How long the kept state is trusted before Panki is asked again, as the words in the cards are. */
+const AI_KEPT_MS = 60_000;
+const KeptAi = z.object({ who: z.string(), at: z.number(), ai: AiShown });
 /** Whose Panki AI it is: the Panki and the account signed in to it. */
 const whoOf = (store: Stored) => `${store.address ?? ""}\n${store.userName ?? ""}`;
 async function keepAi(store: Stored, ai: PankiAiStatus): Promise<AiShown> {
@@ -274,12 +278,12 @@ async function keepAi(store: Stored, ai: PankiAiStatus): Promise<AiShown> {
     askOverMicros: ai.askOverMicros,
     showCostOverMicros: ai.showCostOverMicros,
   };
-  await chrome.storage.session.set({ [AI_KEPT]: { who: whoOf(store), ai: shown } satisfies z.infer<typeof KeptAi> });
+  await chrome.storage.session.set({ [AI_KEPT]: { who: whoOf(store), at: Date.now(), ai: shown } satisfies z.infer<typeof KeptAi> });
   return shown;
 }
 async function keptAi(door: Door, store: Stored, fresh: boolean): Promise<AiShown> {
   const kept = fresh ? null : KeptAi.safeParse((await chrome.storage.session.get(AI_KEPT))[AI_KEPT]);
-  if (kept?.success && kept.data.who === whoOf(store)) return kept.data.ai;
+  if (kept?.success && kept.data.who === whoOf(store) && Date.now() - kept.data.at < AI_KEPT_MS) return kept.data.ai;
   return keepAi(store, await panki.ai(door));
 }
 chrome.storage.onChanged.addListener((changes, area) => {
