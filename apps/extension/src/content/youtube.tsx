@@ -1815,44 +1815,82 @@ function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waiti
   /** Until when a scroll is the list's own following, not the viewer's. */
   const ownUntil = useRef(0);
   const first = useRef(true);
-  useEffect(() => {
+  /** Where the line being said is when it's out of the list's view (scrolled past it, or still above it): the way to it, or null while it shows. */
+  const [away, setAway] = useState<"up" | "down" | null>(null);
+  /** The row of the line being said, in the list. */
+  const litRow = () => {
     const box = list.current;
-    if (!box || lit === null || Date.now() < heldUntil.current) return;
-    const row = box.querySelector(`[data-line="${lit}"]`);
-    if (!(row instanceof HTMLElement)) return;
-    // Kept a third of the way down, so what was just said stays in sight above it.
-    const want = Math.max(0, row.offsetTop - box.clientHeight / 3);
+    const row = box && lit !== null ? box.querySelector(`[data-line="${lit}"]`) : null;
+    return box && row instanceof HTMLElement ? { box, row } : null;
+  };
+  /** Says whether the line being said is in view right now, and which way it lies when it isn't. */
+  const judge = () => {
+    const found = litRow();
+    if (!found) {
+      setAway(null);
+      return;
+    }
+    const { box, row } = found;
+    setAway(row.offsetTop + row.offsetHeight < box.scrollTop ? "up" : row.offsetTop > box.scrollTop + box.clientHeight ? "down" : null);
+  };
+  /** Scrolls the list to the line being said: a third of the way down, so what was just said stays in sight above it. */
+  const follow = (still: boolean) => {
+    const found = litRow();
+    if (!found) return;
+    const { box, row } = found;
+    ownUntil.current = Date.now() + 900;
+    box.scrollTo({ top: Math.max(0, row.offsetTop - box.clientHeight / 3), behavior: still || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
+  useEffect(() => {
+    judge();
+    const found = litRow();
+    if (!found || Date.now() < heldUntil.current) return;
+    const { box, row } = found;
     const inView = row.offsetTop >= box.scrollTop && row.offsetTop + row.offsetHeight <= box.scrollTop + box.clientHeight * 0.8;
     if (!first.current && inView) return;
-    ownUntil.current = Date.now() + 900;
-    const still = first.current || matchMedia("(prefers-reduced-motion: reduce)").matches;
-    box.scrollTo({ top: want, behavior: still ? "auto" : "smooth" });
+    follow(first.current);
     first.current = false;
   }, [lit]);
   const onScroll = () => {
     if (Date.now() > ownUntil.current) heldUntil.current = Date.now() + FOLLOW_HELD_MS;
+    judge();
   };
+  /** Jump to, pressed: back to the line being said, and following it again. */
+  const jump = () => {
+    heldUntil.current = 0;
+    follow(false);
+  };
+  const litStart = away !== null ? (parts.find((part) => part.line.id === lit)?.line.start ?? null) : null;
   const end = (at: number, line: CaptionLine) => at + line.text.length;
   return (
-    <div ref={list} className="strip-list" onScroll={onScroll}>
-      {parts.map(({ line, at }) => {
-        const mine = (chars: Chars | null) => (chars && chars.from < end(at, line) && chars.to > at ? chars : null);
-        return (
-          <ListLine
-            key={line.id}
-            line={line}
-            at={at}
-            lit={line.id === lit}
-            chars={mine(picked)}
-            now={mine(now)}
-            forced={forcedOf(at, line.text.length)}
-            fixable={fixable}
-            ai={aiLines.get(line.id) ?? NO_RANGES}
-            waiting={waitingLines.has(line.id)}
-            hand={hand}
-          />
-        );
-      })}
+    <div className="strip-list-box">
+      {/* Scrolled away from the line being said, a button over the list's foot goes back to it. */}
+      {away !== null && litStart !== null ? (
+        <Button className="strip-list-jump" onClick={jump}>
+          <Icon name={away} />
+          Jump to {clock(litStart)}
+        </Button>
+      ) : null}
+      <div ref={list} className="strip-list" onScroll={onScroll}>
+        {parts.map(({ line, at }) => {
+          const mine = (chars: Chars | null) => (chars && chars.from < end(at, line) && chars.to > at ? chars : null);
+          return (
+            <ListLine
+              key={line.id}
+              line={line}
+              at={at}
+              lit={line.id === lit}
+              chars={mine(picked)}
+              now={mine(now)}
+              forced={forcedOf(at, line.text.length)}
+              fixable={fixable}
+              ai={aiLines.get(line.id) ?? NO_RANGES}
+              waiting={waitingLines.has(line.id)}
+              hand={hand}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

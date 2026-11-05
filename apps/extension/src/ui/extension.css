@@ -639,6 +639,37 @@
   right: 0;
   width: auto;
 }
+/* The list in a box of its own height, so Jump to can float over its foot without scrolling with it. */
+.strip-list-box {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Scrolled away from the line being said: Jump to 7:21, over the list's foot, in the accent (`BesideList`). */
+.btn.strip-list-jump {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 1;
+  transform: translateX(-50%);
+  height: 30px;
+  min-height: 0;
+  padding: 0 12px 0 10px;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow);
+}
+.btn.strip-list-jump .icon {
+  color: inherit;
+}
 .strip-list {
   position: relative;
   flex: 1 1 auto;
