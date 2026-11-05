@@ -245,7 +245,7 @@ const head = (words: string) => (
   </span>
 );
 
-/** A line with nothing to press: "Nothing to change." (its why closed) or Panki's words for an error (open). */
+/** A line with nothing to press: "Nothing to change." (its why closed), a judgement that changes nothing, or Panki's words for an error (open). */
 function Line({ words, why, open }: { words: string; why: string; open: boolean }) {
   return (
     <div className="touch-up-note">
@@ -284,13 +284,16 @@ const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string 
 });
 
 /**
- * A text field as Panki draws its answer: good, a green "Nothing to change."; the error, red; meh or bad, the value it
- * holds struck in orange or red with the proposal under it in green, titled Could be better or Incorrect; written, the
- * value for an empty field in green under Panki AI proposes. `held` is what the field held as it was sent.
+ * A text field as Panki draws its answer: good, a green "Nothing to change."; the error, red; unchanged, Could be better
+ * or Incorrect in orange or red with its why open and nothing to press, its proposal being what the field holds; meh or
+ * bad, the value it holds struck in orange or red with the proposal under it in green, titled Could be better or
+ * Incorrect; written, the value for an empty field in green under Panki AI proposes. `held` is what the field held as it
+ * was sent.
  */
 export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
   if (verdict.kind === "good") return { tone: "good", diff: null, note: <Line words={TOUCH_UP_WORDS.nothing} why={verdict.why} open={false} /> };
+  if (verdict.kind === "unchanged") return { tone: verdict.judgement, diff: null, note: <Line words={judgedTitle(verdict.judgement)} why={verdict.why} open /> };
   if (!ways.waiting) return null;
   const proposal = (tone: Tone, title: string): Shown => ({
     tone,
@@ -303,8 +306,11 @@ export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Sho
     note: <Proposal title={title} why={verdict.why} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
   });
   if (verdict.kind === "written") return proposal("accent", TOUCH_UP_WORDS.proposes);
-  return proposal(verdict.kind, verdict.kind === "meh" ? TOUCH_UP_WORDS.couldBeBetter : TOUCH_UP_WORDS.incorrect);
+  return proposal(verdict.kind, judgedTitle(verdict.kind));
 }
+
+/** A field judged meh or bad, as its note's title says it. */
+const judgedTitle = (judgement: "meh" | "bad"): string => (judgement === "meh" ? TOUCH_UP_WORDS.couldBeBetter : TOUCH_UP_WORDS.incorrect);
 
 /** The Meaning as the diff reads, joined as the field joins its meanings: kept plain, orange or red struck, green added. */
 function MeaningMarks({ marks, wordsOf }: { marks: readonly MeaningMark[]; wordsOf: (number: number) => string }) {
@@ -353,7 +359,7 @@ export function meaningShown(verdict: MeaningVerdict, wordsOf: (number: number) 
 }
 
 /** Whether a verdict is a proposal, the one thing that waits on Accept or Dismiss. */
-export const proposes = (verdict: FieldVerdict | MeaningVerdict): boolean => verdict.kind !== "error" && verdict.kind !== "good";
+export const proposes = (verdict: FieldVerdict | MeaningVerdict): boolean => verdict.kind !== "error" && verdict.kind !== "good" && verdict.kind !== "unchanged";
 
 /**
  * What a field's box carries before its value (`TextField`'s `lead`): the spark while Panki AI wrote what it holds, in
@@ -375,7 +381,8 @@ function fieldTag(verdict: FieldVerdict): AiVerdict["tag"] {
   if (verdict.kind === "error") return tagOf("bad", TOUCH_UP_ERRORS[verdict.error]);
   if (verdict.kind === "good") return tagOf("good", TOUCH_UP_WORDS.nothing);
   if (verdict.kind === "written") return tagOf("accent", TOUCH_UP_WORDS.proposes);
-  return verdict.kind === "meh" ? tagOf("meh", TOUCH_UP_WORDS.couldBeBetter) : tagOf("bad", TOUCH_UP_WORDS.incorrect);
+  const judgement = verdict.kind === "unchanged" ? verdict.judgement : verdict.kind;
+  return tagOf(judgement, judgedTitle(judgement));
 }
 
 /**
