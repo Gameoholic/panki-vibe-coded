@@ -220,7 +220,7 @@ export function FollowUp({ id, value, error, disabled, beside, nested = false, s
           <AiSpark />
           {RUN_WORDS.ask}
         </Button>
-        {beside ? <span className="ai-explain-beside">{beside}</span> : null}
+        {beside ? <span className="btn-beside">{beside}</span> : null}
       </div>
     </>
   );

@@ -274,7 +274,7 @@ function ExplainScene({ ai, defaults, showCostOver }: SceneProps) {
                       {template.name}
                     </Button>
                   </TemplateMenu>
-                  {beside ? <span className="ai-explain-beside">{beside}</span> : null}
+                  {beside ? <span className="btn-beside">{beside}</span> : null}
                 </div>
                 {calls.length > 0 ? <AiStatus calls={calls} burst={burst} /> : null}
                 {answered && ANSWER ? (

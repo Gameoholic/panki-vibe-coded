@@ -317,9 +317,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
           <h2 id="type-delete-title" className="panel-title">
             Delete this type
           </h2>
-          {type.deckCount > 0 ? (
-            <p className="empty">Used by {count(type.deckCount, "deck", "decks")}. A type can be deleted once no deck uses it.</p>
-          ) : asking ? (
+          {asking && type.deckCount === 0 ? (
             <Ask
               idPrefix="type-delete"
               question={`Delete “${type.name}”?`}
@@ -330,15 +328,15 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
               onGo={() => void remove()}
             />
           ) : (
-            <>
-              <p className="empty">No deck uses it.</p>
-              <div className="add-actions add-actions-start">
-                <Button id="type-delete" className="is-danger" onClick={() => setAsking(true)}>
-                  <Icon name="trash" />
-                  Delete type…
-                </Button>
-              </div>
-            </>
+            // Always there; greyed while a deck uses it, why beside it (the owner, 2026-11-05: the app's way for a
+            // button that can't run).
+            <div className="add-actions add-actions-start">
+              <Button id="type-delete" className="is-danger" disabled={type.deckCount > 0} onClick={() => setAsking(true)}>
+                <Icon name="trash" />
+                Delete type…
+              </Button>
+              {type.deckCount > 0 ? <span className="btn-beside">Used by {count(type.deckCount, "deck", "decks")}.</span> : null}
+            </div>
           )}
         </section>
       ) : null}

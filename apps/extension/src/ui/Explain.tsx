@@ -381,7 +381,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
       >
         <ExplainButton name={current.name} disabled={!canRun || busy} onPress={() => press(current, null, [], { kind: "pressed", action: current.name }, "start")} />
       </TemplateMenu>
-      {busy ? null : (reason ?? costOf(current, null, [])) ? <span className="ai-explain-beside">{reason ?? costOf(current, null, [])}</span> : null}
+      {busy ? null : (reason ?? costOf(current, null, [])) ? <span className="btn-beside">{reason ?? costOf(current, null, [])}</span> : null}
     </div>
   );
   const runAsk = (where: Where) => <RunAsk id={`${id}-${where}`} asked={gate.at(where)} onCancel={gate.cancel} />;

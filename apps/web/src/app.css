@@ -866,6 +866,13 @@ textarea.field-input.prompt-input {
 .add-actions-start {
   justify-content: flex-start;
 }
+/* Quiet words beside a button in its row: why it can't run just now ("Used by 1 deck."), or what it costs (Explain,
+   Ask). The row wraps them under it where it's too narrow. One look for every one (it was Explain's alone until
+   2026-11-05). */
+.btn-beside {
+  font-size: 12.5px;
+  color: var(--muted);
+}
 .form-failure {
   font-size: 13px;
   color: var(--danger);
@@ -6806,10 +6813,6 @@ mark.sub-blur {
 }
 .btn.ai-explain-button:disabled > .ai-spark {
   color: inherit;
-}
-.ai-explain-beside {
-  font-size: 12.5px;
-  color: var(--muted);
 }
 .ai-explain {
   display: grid;

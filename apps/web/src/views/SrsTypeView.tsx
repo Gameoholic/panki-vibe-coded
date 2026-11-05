@@ -499,9 +499,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
         <h2 id="srs-delete-title" className="panel-title">
           Delete this SRS type
         </h2>
-        {draft.deckCount > 0 ? (
-          <p className="empty">Used by {count(draft.deckCount, "deck", "decks")}. An SRS type can be deleted once no deck uses it.</p>
-        ) : deleting ? (
+        {deleting && draft.deckCount === 0 ? (
           <Ask
             idPrefix="srs-delete"
             question={`Delete “${draft.name}”?`}
@@ -512,15 +510,14 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             onGo={() => void remove()}
           />
         ) : (
-          <>
-            <p className="empty">No deck uses it.</p>
-            <div className="add-actions add-actions-start">
-              <Button id="srs-delete" className="is-danger" onClick={() => setDeleting(true)}>
-                <Icon name="trash" />
-                Delete type…
-              </Button>
-            </div>
-          </>
+          // Always there; greyed while a deck uses it, why beside it (the owner, 2026-11-05).
+          <div className="add-actions add-actions-start">
+            <Button id="srs-delete" className="is-danger" disabled={draft.deckCount > 0} onClick={() => setDeleting(true)}>
+              <Icon name="trash" />
+              Delete type…
+            </Button>
+            {draft.deckCount > 0 ? <span className="btn-beside">Used by {count(draft.deckCount, "deck", "decks")}.</span> : null}
+          </div>
         )}
       </section>
       )}
