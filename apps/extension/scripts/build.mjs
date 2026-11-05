@@ -59,7 +59,13 @@ for (const [name, entry] of Object.entries(SCRIPTS)) {
 }
 
 /**
- * What the extension is and what it may do, the same for both browsers but for how the worker is named.
+ * What the extension is and what it may do, the same for both browsers.
+ *
+ * The worker is named both ways at once: Chrome (121 and up) runs `service_worker` and passes over `scripts`, Firefox
+ * (121 and up) runs `scripts` and passes over `service_worker`, so the one manifest loads in either. It was named each
+ * browser's own way in its own folder until 2026-11-05, when Firefox refused the zip Panki hands out, which is Chrome's
+ * build ("background.service_worker is currently disabled. Add background.scripts."): the owner loads that zip, not a
+ * folder built here, so what Panki hands out has to load in both.
  *
  * It asks for little on purpose. It runs by itself on one site only, the video site, to draw the line under the
  * player. Anywhere else it does nothing until it's asked (`activeTab`: the one tab acted on, for that one act). And
@@ -82,17 +88,18 @@ const manifest = {
   permissions: ["storage", "unlimitedStorage", "contextMenus", "scripting", "activeTab", "alarms", "downloads"],
   optional_host_permissions: ["http://*/*", "https://*/*"],
   content_scripts: [{ matches: ["https://www.youtube.com/*"], js: ["youtube.js"], run_at: "document_idle" }],
+  background: { service_worker: "background.js", scripts: ["background.js"] },
 };
 const write = (dir, extra) => writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify({ ...manifest, ...extra }, null, 2)}\n`);
 
-write(out, { minimum_chrome_version: "116", background: { service_worker: "background.js" } });
+// 121: the first Chrome that takes a manifest naming the worker both ways (116 before, when it was named one way).
+write(out, { minimum_chrome_version: "121" });
 
+// Firefox's build differs only by its id (and the first Firefox that has `optional_host_permissions`); the zip Panki
+// hands out, Chrome's build, loads there as a temporary add-on just the same.
 const firefox = path.join(dist, "firefox");
 cpSync(out, firefox, { recursive: true });
-write(firefox, {
-  background: { scripts: ["background.js"] },
-  browser_specific_settings: { gecko: { id: "panki@panki.invalid", strict_min_version: "128.0" } },
-});
+write(firefox, { browser_specific_settings: { gecko: { id: "panki@panki.invalid", strict_min_version: "128.0" } } });
 
 /**
  * Chrome's build, made to be downloaded from Panki and kept up to date by hand (the owner, 2026-10-22: no store). The
