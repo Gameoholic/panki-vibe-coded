@@ -6933,29 +6933,21 @@ mark.sub-blur {
   flex-wrap: wrap;
   gap: 8px;
 }
-/* Under a field Panki AI wrote and the owner changed since (TouchUp.tsx → `MarkAsMine`): a quiet row, close under the
-   field, small words in the muted colour, Mark as mine and its ×. The capture drawer's and a card opened to edit's alike. */
-.ai-mine {
+/* Under a field Panki AI wrote and the owner changed since (TouchUp.tsx → `UnmarkAi`): a quiet line, close under the
+   field, small words in the muted colour, Unmark as Panki AI's. The capture drawer's and a card opened to edit's alike. */
+.ai-unmark {
   display: flex;
   align-items: center;
-  gap: 2px;
   margin-top: -4px;
 }
-.btn.ai-mine-go {
+.btn.ai-unmark-go {
   gap: 6px;
   padding: 3px 8px;
   font-size: 13px;
   color: var(--muted);
 }
-.btn.ai-mine-go:hover:not(:disabled) {
+.btn.ai-unmark-go:hover:not(:disabled) {
   color: var(--fg);
-}
-.btn-icon.ai-mine-dismiss {
-  padding: 4px;
-}
-.btn-icon.ai-mine-dismiss > .icon {
-  width: 14px;
-  height: 14px;
 }
 /* The diff, git's way (TouchUp.tsx → `Mark`): what goes struck in its verdict's colour, what comes in green, each on
    its colour's faint tint (`.ai-accuracy-lit`); only the tint's shape and the strike are set here. */

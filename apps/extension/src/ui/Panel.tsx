@@ -62,7 +62,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import {
   FollowTurns,
-  MarkAsMine,
+  UnmarkAi,
   TOUCH_UP_WORDS,
   Tied,
   TouchUpBar,
@@ -217,11 +217,10 @@ const whereOf = (fieldId: string) => `field:${fieldId}`;
 /**
  * A value Panki AI wrote into a field, once accepted: the words, its source, and what holds it in the drawer (the
  * sentence typed, a dictionary field typed over, a field typed in). It stays the AI's when it's changed by hand
- * (`aiSourceNow`: `edited`), until the owner marks it as theirs or what holds it lets it go (the meanings ticked
- * again, the sentence unlocked, another word or entry). `dismissed` is the offer to mark it as theirs put away, for
- * the answer part it was put away under: the next answer on its key, or an Accept, brings it back.
+ * (`aiSourceNow`: `edited`), until the owner unmarks it or what holds it lets it go (the meanings ticked again, the
+ * sentence unlocked, another word or entry).
  */
-type AiWrote = { value: string; source: AiValueSource; holder: "sentence" | "dict" | "typed"; dismissed?: { part: TouchUpAnswer[TouchUpKey] } };
+type AiWrote = { value: string; source: AiValueSource; holder: "sentence" | "dict" | "typed" };
 /** The AI's words let go of the fields chosen: what fills them now is something else, or the owner marked them as theirs. */
 const aiLetGo = (was: Record<string, AiWrote>, gone: (fieldId: string, wrote: AiWrote) => boolean): Record<string, AiWrote> =>
   Object.fromEntries(Object.entries(was).filter(([fieldId, wrote]) => !gone(fieldId, wrote)));
@@ -1081,26 +1080,17 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** The mark after a field's name: the spark while the AI's words stand in it. */
   const marksOf = (field: CardField) => fieldMarks(aiHolds(field.id));
   /**
-   * Under a field that's Panki AI's and holds other words than it wrote: the offer to mark it as the owner's
-   * (`MarkAsMine`). Not while its proposal waits (the diff is the field then), nor while Touch up is at work, nor once
-   * put away, until the next answer on its key or an Accept.
+   * Under a field that's Panki AI's and holds other words than it wrote: the offer to take the AI's mark off it
+   * (`UnmarkAi`). Not while its proposal waits (the diff is the field then), nor while Touch up is at work.
    */
-  function mineOffer(field: CardField | null): ReactNode {
+  function unmarkOffer(field: CardField | null): ReactNode {
     const wrote = field ? aiWrote[field.id] : undefined;
     if (!field || !wrote || !aiHolds(field.id) || touch.busy !== false) return null;
     if (aiSourceNow(wrote.source, wrote.value, values[field.id] ?? "").edited !== true) return null;
     const key = keyOfField(field.id);
     if (key && waiting(key)) return null;
-    const part = key ? touch.answer?.[key] : undefined;
-    if (wrote.dismissed && wrote.dismissed.part === part) return null;
     const id = field.id;
-    return (
-      <MarkAsMine
-        disabled={still}
-        onMine={() => setAiWrote((was) => aiLetGo(was, (fieldId) => fieldId === id))}
-        onDismiss={() => setAiWrote((was) => (was[id] ? { ...was, [id]: { ...was[id], dismissed: { part } } } : was))}
-      />
-    );
+    return <UnmarkAi disabled={still} onUnmark={() => setAiWrote((was) => aiLetGo(was, (fieldId) => fieldId === id))} />;
   }
 
   /**
@@ -1495,7 +1485,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             />,
           ),
         )}
-        {mineOffer(sentenceField)}
+        {unmarkOffer(sentenceField)}
         {lockable ? (
           <div className="capture-tools">
             <Toggle
@@ -1788,7 +1778,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               />,
             ),
           )}
-          {mineOffer(field)}
+          {unmarkOffer(field)}
           {already(field)}
           {/* The word's sound stands under the word, and the meanings to tick under where they go. */}
           {isWord ? wordBlock() : null}

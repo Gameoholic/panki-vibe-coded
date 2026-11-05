@@ -61,9 +61,8 @@ export const TOUCH_UP_WORDS = {
   acceptAll: "Accept all",
   dismissAll: "Dismiss all",
   tryAgain: "Try again",
-  /** Under a value Panki AI wrote and then changed by hand: making it the owner's, and putting the offer away. */
-  markAsMine: "Mark as mine",
-  dismissMine: "Dismiss",
+  /** Under a value Panki AI wrote and then changed by hand: taking the AI's mark off it, so it's the owner's. */
+  unmarkAi: "Unmark as Panki AI's",
 };
 
 /** Why the button can't run, said under it (`whyNot`, Explain's too: Panki AI off among them). */
@@ -379,20 +378,17 @@ export function fieldMarks(ai: boolean): ReactNode {
 }
 
 /**
- * Under a field Panki AI wrote and the owner has since changed, which stays the AI's (its source `edited`): a quiet offer
- * to make it theirs, Mark as mine, and × to put the offer away. Whoever holds the field decides when it shows (only
- * while the value differs from what the AI wrote, and not put away) and what each press does: the capture drawer and a
- * card opened to edit (`CardForm`) alike.
+ * Under a field Panki AI wrote and the owner has since changed, which stays the AI's (its source `edited`): a quiet
+ * line offering to take the AI's mark off it, Unmark as Panki AI's, so it's theirs. Whoever holds the field decides when
+ * it shows (only while the value differs from what the AI wrote) and what the press does: the capture drawer and a card
+ * opened to edit (`CardForm`) alike. Nothing dismisses it: it's one quiet line, there as long as it applies.
  */
-export function MarkAsMine({ disabled = false, onMine, onDismiss }: { disabled?: boolean; onMine: () => void; onDismiss: () => void }) {
+export function UnmarkAi({ disabled = false, onUnmark }: { disabled?: boolean; onUnmark: () => void }) {
   return (
-    <div className="ai-mine">
-      <Button className="ai-mine-go" disabled={disabled} onClick={onMine}>
+    <div className="ai-unmark">
+      <Button className="ai-unmark-go" disabled={disabled} onClick={onUnmark}>
         <Icon name="user" />
-        {TOUCH_UP_WORDS.markAsMine}
-      </Button>
-      <Button className="btn-icon ai-mine-dismiss" aria-label={TOUCH_UP_WORDS.dismissMine} disabled={disabled} onClick={onDismiss}>
-        <Icon name="close" />
+        {TOUCH_UP_WORDS.unmarkAi}
       </Button>
     </div>
   );

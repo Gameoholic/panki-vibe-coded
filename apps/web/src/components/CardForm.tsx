@@ -39,7 +39,7 @@ import { Form } from "./Form";
 import { Icon } from "./Icon";
 import { MediaField } from "./MediaField";
 import { TextField } from "./TextField";
-import { MarkAsMine, fieldMarks } from "./TouchUp";
+import { UnmarkAi, fieldMarks } from "./TouchUp";
 
 const MB = 1024 * 1024;
 
@@ -274,9 +274,8 @@ export function CardForm(props: Props) {
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
-  /** Fields of Panki AI's marked as the owner's here (saved as theirs), and those whose offer to do so was put away. */
+  /** Fields of Panki AI's unmarked here: saved as the owner's. */
   const [marked, setMarked] = useState<Record<string, true>>({});
-  const [offerAway, setOfferAway] = useState<Record<string, true>>({});
   const first = type.fields[0];
   /** The field the card is called by: a card being added says under it when one is already called so. */
   const lead = card ? null : wordsFieldOf(type);
@@ -451,13 +450,7 @@ export function CardForm(props: Props) {
                   onChange={(text) => edit(field.id, text)}
                   error={errors[field.id] || undefined}
                 />
-                {ai?.edited === true && !offerAway[field.id] ? (
-                  <MarkAsMine
-                    disabled={busy}
-                    onMine={() => setMarked((m) => ({ ...m, [field.id]: true }))}
-                    onDismiss={() => setOfferAway((o) => ({ ...o, [field.id]: true }))}
-                  />
-                ) : null}
+                {ai?.edited === true ? <UnmarkAi disabled={busy} onUnmark={() => setMarked((m) => ({ ...m, [field.id]: true }))} /> : null}
                 {field.id === lead?.id ? (
                   <AlreadyIn
                     cards={called}
