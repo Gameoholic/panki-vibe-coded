@@ -1,4 +1,4 @@
-import { AI_ACTION_IDS, DEFAULT_EXPLAIN_PROMPT, DEFAULT_PROOFREAD_PROMPT, DEFAULT_TOUCH_UP_PROMPT, type AiActionId, type AiTemplate, type TemplateId } from "./ai";
+import { AI_ACTION_IDS, DEFAULT_EXPLAIN_PROMPT, DEFAULT_PROOFREAD_PROMPT, DEFAULT_TOUCH_UP_PROMPT, videoContextRule, type AiActionId, type AiTemplate, type TemplateId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 
 /**
@@ -31,7 +31,9 @@ ${taggedOf("word")}
 ${taggedOf("dictForm")}
 ${taggedOf("dictReading")}
 ${taggedOf("sentence")}
-${taggedOf("surrounding")}`;
+${taggedOf("surrounding")}
+${taggedOf("source")}
+${taggedOf("description")}`;
 /** The rules every plain starter ends with. */
 const PLAIN_RULES = `Your answer, and every follow-up's, is one part:
 - answer: plain text, two or three short sentences, 50 words at most. The point first; no preamble, no restating the sentence, no "note that". Say the one thing that matters most and leave the rest for a follow-up.
@@ -39,7 +41,7 @@ const PLAIN_RULES = `Your answer, and every follow-up's, is one part:
 Rules:
 - Answer in {Language}. Write {Learning language} in its own script.
 - Never translate the sentence whole unless asked.
-- Use the subtitles and video only as context. Subtitles can contain transcription mistakes: if a word looks misheard, say so.
+${videoContextRule("say so")}
 - Plain text only: no markdown, no bold, no headings, no bullet symbols.`;
 
 /** Panki's own starters by id, in the order each action lists them; the first of each action is its default until the account picks another. */
