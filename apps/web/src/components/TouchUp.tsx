@@ -1,6 +1,5 @@
 import { Fragment, useState, type ReactNode } from "react";
 import {
-  AI_PROVIDERS,
   LOOK_OF,
   TOUCH_UP,
   TOUCH_UP_ERRORS,
@@ -20,7 +19,7 @@ import {
   type TouchUpNow,
 } from "@panki/contracts";
 import { langOf } from "../words";
-import { AnswerText } from "./AiRun";
+import { AnswerText, whyNot } from "./AiRun";
 import { AiStatus } from "./AiStatus";
 import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
@@ -40,7 +39,6 @@ import { WhyButton } from "./JudgedRow";
 /** What this says, one home. */
 export const TOUCH_UP_WORDS = {
   signedOut: "Sign in to Panki to touch up.",
-  noKey: (provider: string) => `No key for ${provider}.`,
   /** Every positive line, a text field's and the Meaning's alike. */
   nothing: "Nothing to change.",
   /** A value written into a field that was empty, the Meaning of a dictionary with none among them. */
@@ -62,13 +60,9 @@ export const TOUCH_UP_WORDS = {
   tryAgain: "Try again",
 };
 
-/** Why the button can't run, when that can be put right from here; Panki AI switched off says nothing but the greyed button. */
+/** Why the button can't run, said under it (`whyNot`, Explain's too: Panki AI off among them). */
 export function touchUpReason(known: boolean, ai: Pick<PankiAiStatus, "settings" | "key"> | null, failure: string | null): string | null {
-  if (!known) return null;
-  if (failure) return failure;
-  if (ai === null) return TOUCH_UP_WORDS.signedOut;
-  if (!ai.settings.aiOn) return null;
-  return ai.key === null ? TOUCH_UP_WORDS.noKey(AI_PROVIDERS[ai.settings.aiProvider].name) : null;
+  return whyNot(known, ai, failure, TOUCH_UP_WORDS.signedOut);
 }
 
 /**

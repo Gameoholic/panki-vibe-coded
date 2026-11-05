@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
+  AI_PROVIDERS,
   aiModelOf,
   aiSent,
   asksFirst,
@@ -9,6 +10,7 @@ import {
   type AiTemplate,
   type ExplainMessage,
   type PankiAi,
+  type PankiAiStatus,
   type PromptPieces,
   type TemplateId,
 } from "@panki/contracts";
@@ -50,7 +52,24 @@ export const RUN_WORDS = {
   ask: "Ask",
   empty: "Type a question.",
   long: (max: number) => `Keep the question under ${max.toLocaleString("en")} characters.`,
+  /** Why an action's button is greyed, beside it, the same for every action (signed out is each action's own). */
+  off: "Panki AI is off.",
+  noKey: (provider: string) => `No key for ${provider}.`,
 };
+
+/**
+ * Why an action can't run, said beside its greyed button whatever it is (the owner, 2026-11-05: Panki AI switched off
+ * said nothing, the button greyed alone): what went wrong asking, signed out (`signedOut`, the action's own words),
+ * Panki AI switched off, or no key for its provider. Nothing while what's true is still being asked (`known` false), and
+ * nothing when it can run (the cost stands there then). Explain and Touch up are both this.
+ */
+export function whyNot(known: boolean, ai: Pick<PankiAiStatus, "settings" | "key"> | null, failure: string | null, signedOut: string): string | null {
+  if (!known) return null;
+  if (failure) return failure;
+  if (ai === null) return signedOut;
+  if (!ai.settings.aiOn) return RUN_WORDS.off;
+  return ai.key === null ? RUN_WORDS.noKey(AI_PROVIDERS[ai.settings.aiProvider].name) : null;
+}
 
 /**
  * The most a call can cost at the model's listed prices: the template's prompt filled from the pieces as Panki sends

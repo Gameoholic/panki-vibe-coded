@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  AI_PROVIDERS,
   APP_LANGUAGES,
   DEFAULT_PANKI_AI,
   PIECE_MAX,
@@ -36,7 +35,7 @@ import { sentenceAround } from "../capture/selection";
 import type { Found } from "../dictionary/found";
 import { dictionaryPieces } from "../dictionary/pieces";
 import { askAiState, askExplain, type AiShown } from "../messages";
-import { AnswerText, FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
+import { AnswerText, FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst, whyNot } from "@web/components/AiRun";
 import { glossaryText } from "./Glossary";
 
 /**
@@ -54,7 +53,6 @@ import { glossaryText } from "./Glossary";
 const MESSAGES = {
   go: "Explain",
   signedOut: "Sign in to Panki to explain.",
-  noKey: (provider: string) => `No key for ${provider}.`,
   /** Panki's own note under an answer the provider stopped at Max answer length: never the AI's words. */
   cut: "Cut short at the answer limit.",
   /** An answer with nothing in it: the provider's failure, as good as. */
@@ -270,8 +268,8 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
   const shown = ai.known ? ai.ai : null;
   const settings = shown?.settings ?? null;
   const canRun = settings !== null && settings.aiOn && shown?.key !== null && pieces !== null;
-  /** Why it can't run, when that can be put right from here; Panki AI switched off says nothing but the greyed button. */
-  const reason = !ai.known ? null : ai.failure ? ai.failure : shown === null ? MESSAGES.signedOut : !shown.settings.aiOn ? null : shown.key === null ? MESSAGES.noKey(AI_PROVIDERS[shown.settings.aiProvider].name) : null;
+  /** Why it can't run, beside the greyed button (`whyNot`, Touch up's too: Panki AI off among them). */
+  const reason = ai.known ? whyNot(true, shown, ai.failure, MESSAGES.signedOut) : null;
   const own = shown?.templates ?? [];
   /** The account's default Explain template: what this pop-up opens on. */
   const preferred = defaultTemplateOf("explain", shown?.defaults ?? {}, own);
