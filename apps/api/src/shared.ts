@@ -55,6 +55,7 @@ import {
 import type { AuthDb } from "./authDb";
 import type { Db } from "./db";
 import { userDir } from "./dbs";
+import { hashOf, whileUnchanged } from "./kept";
 import { dictionaryDir, mediaDir, removeFile, sharedDictionaryDir } from "./mediaFiles";
 
 export type Shared = ReturnType<typeof openShared>;
@@ -871,7 +872,16 @@ export function openShared(dataDir: string) {
     );
   }
 
+  // Which services have a key and since when, never the keys: a key set or forgotten changes the hash, its value never reaches it.
+  const selectKeysSet = db.prepare("SELECT service, set_at AS setAt FROM service_keys ORDER BY service");
+  const keptHash = whileUnchanged(db, () => hashOf((selectSettings.all() as SettingRow[]).sort((a, b) => a.key.localeCompare(b.key)), selectKeysSet.all()));
+
   return {
+    /**
+     * The `shared` kind of the state header (`kept.ts`): every shared setting (Panki AI, transcription, word audio) and
+     * which services have a key, hashed as they stand; worked out again only once this database has changed.
+     */
+    kept: (): string => keptHash(),
     /** The key kept for a service, typed in Settings; null when there's none. Read only to call that service, never sent back. */
     key(service: Service): string | null {
       const row = selectKey.get(service) as { key: string } | undefined;

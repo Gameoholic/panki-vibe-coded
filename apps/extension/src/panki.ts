@@ -1,5 +1,9 @@
-import type { z } from "zod";
+import { z } from "zod";
 import {
+  KEPT_KIND_IDS,
+  STATE_HEADER,
+  parseState,
+  type KeptState,
   ApiErrorBody,
   BearerLogin,
   ExplainError,
@@ -120,9 +124,38 @@ type Init = { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; headers?: Re
 const PROTOCOL = { [EXTENSION_HEADER]: String(EXTENSION_PROTOCOL) };
 
 /**
+ * The state header last seen from each Panki, by its address (the contracts' `kept.ts`), in the browser's session
+ * storage: what `kept.ts` holds what it keeps against. Each answer's hashes go over what was seen before, so an answer
+ * that doesn't carry a kind (one not signed in carries no account's) leaves that kind as it was.
+ */
+const STATE_SEEN = "pankiStateSeen";
+const Seen = z.record(z.string(), z.record(z.string(), z.string()));
+
+async function seenAll(): Promise<Record<string, KeptState>> {
+  const read = Seen.safeParse((await chrome.storage.session.get(STATE_SEEN))[STATE_SEEN]);
+  return read.success ? (read.data as Record<string, KeptState>) : {};
+}
+
+/** An answer's state header noted, for the Panki at that address; written only when a hash changed. */
+async function noteState(address: string, header: string | null): Promise<void> {
+  const state = parseState(header);
+  if (Object.keys(state).length === 0) return;
+  const all = await seenAll();
+  const before = all[address] ?? {};
+  if (KEPT_KIND_IDS.every((kind) => state[kind] === undefined || state[kind] === before[kind])) return;
+  await chrome.storage.session.set({ [STATE_SEEN]: { ...all, [address]: { ...before, ...state } } });
+}
+
+/** How things stood at a Panki by the last answer from it: a kind it never said is left out. */
+export async function stateSeen(address: string): Promise<KeptState> {
+  return (await seenAll())[address] ?? {};
+}
+
+/**
  * The only place the extension calls the network, and only ever Panki's own address: the one typed on the
  * options page and given the browser's OK for. No cookie goes along; the sign-in is the bearer secret. Every answer is
- * parsed through the contracts. (Word audio from Forvo comes this way too: Panki's server is what calls Forvo.)
+ * parsed through the contracts, and its state header noted (`noteState`), refusals included. (Word audio from Forvo
+ * comes this way too: Panki's server is what calls Forvo.)
  */
 async function call<T>(address: string, token: string | null, path: string, init: Init, parse: (body: unknown) => T): Promise<T> {
   let res: Response;
@@ -136,6 +169,7 @@ async function call<T>(address: string, token: string | null, path: string, init
   } catch {
     throw new PankiError("Couldn't reach Panki.", 0);
   }
+  await noteState(address, res.headers.get(STATE_HEADER));
   const body: unknown = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
     const known = ApiErrorBody.safeParse(body);
@@ -344,6 +378,7 @@ async function bytesAt({ address, token }: Door, path: string, init: Init = {}):
   } catch {
     throw new PankiError("Couldn't reach Panki.", 0);
   }
+  await noteState(address, res.headers.get(STATE_HEADER));
   if (!res.ok) throw new PankiError("Panki didn't send the file.", res.status);
   return res.blob();
 }

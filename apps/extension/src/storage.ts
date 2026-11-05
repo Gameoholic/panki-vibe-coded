@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
-import { OptionsTab, UpdateState } from "./messages";
+import { OptionsTab } from "./messages";
 import { AfterAdd, BesideRecs, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PillLayout, StageSide, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
@@ -178,8 +178,6 @@ const Stored = z.object({
    * the account's old switch for one that was already signed in.
    */
   videoTracking: z.boolean().nullable().catch(null),
-  /** How this extension stood against Panki's build when it last asked (`updates.ts`); null until it has. */
-  update: UpdateState.nullable().catch(null),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
   reopenOptions: z.boolean().catch(false),
   // A browser that kept `meaningPick` (which meanings a card got) keeps it unread: the ones ticked in the drawer are

@@ -11,6 +11,7 @@ export * from "./dictionaryRows";
 export * from "./extension";
 export * from "./forvo";
 export * from "./history";
+export * from "./kept";
 export * from "./layout";
 export * from "./media";
 export * from "./pieces";

@@ -1,15 +1,16 @@
 import { EXTENSION_PROTOCOL, ExtensionBuildFile, type ExtensionBuild } from "@panki/contracts";
+import { peekKept, readKept } from "./kept";
 import { NO_UPDATE, type UpdateState } from "./messages";
-import { panki } from "./panki";
-import { readStore, writeStore } from "./storage";
+import { readStore } from "./storage";
 
 /**
  * Whether this extension is the build Panki carries (the contracts' `extension.ts`), kept up to date by hand without a
  * store. The worker asks the Panki the profile in use points at, as Chrome starts, as the
  * extension is (re)loaded, every hour on an alarm, when the profile changes, when a call is refused as too old, and at
- * Check now; the answer is kept in storage, where the strip, the pill and the options page read it (through the
- * worker), and is put on the toolbar button's badge. A check that fails (offline, Panki restarting) leaves the last
- * answer standing. The worker alone.
+ * Check now; Panki's build is kept as `kept.ts` keeps it (`build`), so a read from the strip, the pill or the options
+ * page (through the worker) asks Panki again too once the state header says the build changed. How it stands is put on
+ * the toolbar button's badge. A check that fails (offline, Panki restarting) leaves the last answer standing. The
+ * worker alone.
  *
  * Two builds are told apart: the one **running**, noted as the extension's code is loaded (it's what the browser runs
  * until the next reload), and the one **in the folder** now, read from disk each time: Chrome reads an unpacked
@@ -95,31 +96,34 @@ async function standing(latest: ExtensionBuild | null, checkedAt: number | null)
   return { state: stateOf(mine, latest), own: mine, latest, checkedAt, ready: readyOf(mine, folder) };
 }
 
-/** How this extension stands, from Panki's build as last asked: cheap (no call to Panki), so a notice asks it every few seconds while it's open. */
-export async function readUpdate(): Promise<UpdateState> {
-  const kept = (await readStore()).update;
-  return kept ? standing(kept.latest, kept.checkedAt) : { ...NO_UPDATE, own: await running() };
-}
-
-/** Panki asked afresh: the build it carries, against this one. */
-export async function checkForUpdate(): Promise<UpdateState> {
-  const { address } = await readStore();
-  let update: UpdateState;
-  if (!address) update = { ...NO_UPDATE, own: await running() };
-  else {
-    try {
-      update = await standing(await panki.extensionBuild(address), Date.now());
-    } catch {
-      // Offline, or Panki restarting: the last answer stands.
-      update = await readUpdate();
-      await badge(update);
-      return update;
-    }
+/**
+ * How this extension stands against Panki's build as `kept.ts` keeps it (`build`), the badge put to match: asked of
+ * Panki only once what's kept is older than its lifetime, Panki's state header says the build changed, or with `fresh`.
+ * Offline, or Panki restarting, the last answer stands.
+ */
+async function updateNow(fresh: boolean): Promise<UpdateState> {
+  const store = await readStore();
+  if (!store.address) {
+    const update = { ...NO_UPDATE, own: await running() };
+    await badge(update);
+    return update;
   }
-  await writeStore({ update });
+  try {
+    await readKept("build", store, fresh);
+  } catch {
+    // The last answer stands.
+  }
+  const kept = await peekKept("build", store);
+  const update = kept ? await standing(kept.value, kept.at) : { ...NO_UPDATE, own: await running() };
   await badge(update);
   return update;
 }
+
+/** How this extension stands: cheap while what's kept of Panki's build holds, so a notice asks it every few seconds while it's open. */
+export const readUpdate = (): Promise<UpdateState> => updateNow(false);
+
+/** Panki asked afresh: the build it carries, against this one. */
+export const checkForUpdate = (): Promise<UpdateState> => updateNow(true);
 
 /** Panki's build downloaded as a zip, into the browser's downloads; false with no Panki set. */
 export async function downloadUpdate(): Promise<boolean> {

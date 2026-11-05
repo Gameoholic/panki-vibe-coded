@@ -1,13 +1,13 @@
 import "./setup";
-import { z } from "zod";
-import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor, type CardSource, type PankiAiStatus } from "@panki/contracts";
+import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor, type CardSource } from "@panki/contracts";
 import { routePath } from "@web/routes";
 import { hostPattern } from "./address";
 import { latticeOf, lookUp } from "./dictionary/lookup";
 import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
-import { AiShown, Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
+import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { mappingOn } from "./roles";
@@ -114,11 +114,6 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
   }
 }
 
-/** How long the words in the cards are kept here before Panki is asked again: every page asks as it opens and gets the focus. */
-const WORDS_KEPT_MS = 60_000;
-/** The words in the cards of the sign-in in use (and those only suspended cards are), as last asked for, and when; let go when a card is added here. */
-let wordsKept: { door: string; at: number; words: string[]; suspended: string[] } | null = null;
-
 /** Whether a page is one of Panki's own: at the address of the sign-in in use or of any profile kept to switch to. */
 function onPanki(url: string | undefined, store: Stored): boolean {
   if (!url) return false;
@@ -135,9 +130,9 @@ function onPanki(url: string | undefined, store: Stored): boolean {
 
 /**
  * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`,
- * `knownSuspendedColour`): the words every card is called by, those only suspended cards are among them, kept a minute
- * (`WORDS_KEPT_MS`). Signed out, or with Panki off, nothing is; nor on Panki's own pages, where every word is the
- * cards' own: it's for other sites alone.
+ * `knownSuspendedColour`): the words every card is called by, those only suspended cards are among them, kept as
+ * `kept.ts` keeps them (`words`). Signed out, or with Panki off, nothing is; nor on Panki's own pages, where every word
+ * is the cards' own: it's for other sites alone.
  */
 async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
@@ -145,21 +140,17 @@ async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
   // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
   if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown && !store.seekLook.suspended.shown) || !store.address || !store.token) return off;
-  const door: Door = { address: store.address, token: store.token };
-  const at = Date.now();
-  const doorKey = `${door.address}\n${door.token}`;
-  if (wordsKept?.door !== doorKey || at - wordsKept.at > WORDS_KEPT_MS) {
-    try {
-      wordsKept = { door: doorKey, at, ...(await panki.wordsInCards(door)) };
-    } catch (e) {
-      console.error("Panki:", e);
-      return off;
-    }
+  let words: { words: string[]; suspended: string[] };
+  try {
+    words = await readKept("words", store);
+  } catch (e) {
+    console.error("Panki:", e);
+    return off;
   }
   return {
     ok: true,
-    words: wordsKept.words,
-    suspended: wordsKept.suspended,
+    words: words.words,
+    suspended: words.suspended,
     subtitles: store.knownSubtitles,
     pages: store.knownPages,
     colour: store.knownColour,
@@ -252,52 +243,20 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && "address" in changes) void checkForUpdate();
 });
 
-/**
- * Panki AI as it stands for everyone, kept for the browser's session (`chrome.storage.session`: a worker keeps nothing
- * between wakings, and this is asked each time a pop-up opens): fetched, then again once it's older than `AI_KEPT_MS`
- * or isn't there (the browser started afresh), and forgotten as the sign-in changes (signed in, signed out, another
- * profile). A switch, a key or a template changed on Panki tells the worker nothing, so the lifetime is what lets the
- * next pop-up or drawer see it. Every Explain's answer, refused or not, carries it as it stood for that call and
- * replaces it, so an admin's change shows on the next press. Never the key itself: what's kept and handed on is
- * `AiShown`, without an admin's `saved`.
- */
-const AI_KEPT = "pankiAi";
-/** How long the kept state is trusted before Panki is asked again, as the words in the cards are. */
-const AI_KEPT_MS = 60_000;
-const KeptAi = z.object({ who: z.string(), at: z.number(), ai: AiShown });
-/** Whose Panki AI it is: the Panki and the account signed in to it. */
-const whoOf = (store: Stored) => `${store.address ?? ""}\n${store.userName ?? ""}`;
-async function keepAi(store: Stored, ai: PankiAiStatus): Promise<AiShown> {
-  const shown: AiShown = {
-    settings: ai.settings,
-    key: ai.key,
-    learningLanguage: ai.learningLanguage,
-    language: ai.language,
-    templates: ai.templates,
-    defaults: ai.defaults,
-    askOverMicros: ai.askOverMicros,
-    showCostOverMicros: ai.showCostOverMicros,
-  };
-  await chrome.storage.session.set({ [AI_KEPT]: { who: whoOf(store), at: Date.now(), ai: shown } satisfies z.infer<typeof KeptAi> });
-  return shown;
-}
-async function keptAi(door: Door, store: Stored, fresh: boolean): Promise<AiShown> {
-  const kept = fresh ? null : KeptAi.safeParse((await chrome.storage.session.get(AI_KEPT))[AI_KEPT]);
-  if (kept?.success && kept.data.who === whoOf(store) && Date.now() - kept.data.at < AI_KEPT_MS) return kept.data.ai;
-  return keepAi(store, await panki.ai(door));
-}
+// What's kept for a sign-in goes with it (`kept.ts`): signed in, signed out, another profile.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && ("address" in changes || "token" in changes || "userName" in changes)) void chrome.storage.session.remove(AI_KEPT);
+  if (area === "local" && ("address" in changes || "token" in changes || "userName" in changes)) void forgetSignedIn();
 });
 
 /**
- * Panki AI as the pop-up is told it: null signed out, or when the sign-in turns out to be no good any more (forgotten
- * here too). `fresh` asks Panki first: the account's templates change in Panki, which tells the worker nothing.
+ * Panki AI as the pop-up is told it, kept as `kept.ts` keeps it (`ai`): null signed out, or when the sign-in turns out
+ * to be no good any more (forgotten here too). `fresh` asks Panki first (the templates arrow opened). Never the key
+ * itself: what's kept and handed on is `AiShown`, without an admin's `saved`.
  */
 async function aiState(store: Stored, fresh = false): Promise<AiState> {
   if (!store.address || !store.token) return { ok: true, ai: null };
   try {
-    return { ok: true, ai: await keptAi({ address: store.address, token: store.token }, store, fresh) };
+    return { ok: true, ai: await readKept("ai", store, fresh) };
   } catch (e) {
     if (e instanceof PankiError && e.status === 401) {
       await forgetSignIn();
@@ -412,9 +371,8 @@ async function answer(
       return { ok: true, decks, types, srsTypes, maps: store.maps, decksOn, defaultDeckId: store.defaultDeckId, subtitleStyle };
     }
     if (ask.kind === "add") {
+      // Its answer carries the words' new hash, so the words kept are asked for afresh next time (`kept.ts`).
       await panki.addCard(door, ask.deckId, { ...ask.card, ...(await stamped(ask.card.source)) });
-      // A card's words are words in the cards now: asked for afresh next time.
-      wordsKept = null;
       return { ok: true };
     }
     if (ask.kind === "addExample") {
@@ -467,22 +425,22 @@ async function answer(
     if (ask.kind === "explain") {
       try {
         const answered = await panki.explain(door, ask.ask);
-        await keepAi(store, answered.ai);
+        await putKept("ai", store, aiShownOf(answered.ai));
         return { ok: true, explain: answered.explain };
       } catch (e) {
         if (!(e instanceof ExplainRefused)) throw e;
-        await keepAi(store, e.ai);
+        await putKept("ai", store, aiShownOf(e.ai));
         return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
       }
     }
     if (ask.kind === "touchUp") {
       try {
         const answered = await panki.touchUp(door, ask.ask);
-        await keepAi(store, answered.ai);
+        await putKept("ai", store, aiShownOf(answered.ai));
         return { ok: true, touchUp: answered.touchUp };
       } catch (e) {
         if (!(e instanceof ExplainRefused)) throw e;
-        await keepAi(store, e.ai);
+        await putKept("ai", store, aiShownOf(e.ai));
         return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
       }
     }
@@ -490,11 +448,11 @@ async function answer(
     if (ask.kind === "proofread") {
       try {
         const answered = await panki.proofread(door, ask.ask);
-        await keepAi(store, answered.ai);
+        await putKept("ai", store, aiShownOf(answered.ai));
         return { ok: true, proofread: answered.proofread, transcript: answered.transcript };
       } catch (e) {
         if (!(e instanceof ExplainRefused)) throw e;
-        await keepAi(store, e.ai);
+        await putKept("ai", store, aiShownOf(e.ai));
         return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
       }
     }

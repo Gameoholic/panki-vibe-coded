@@ -2,6 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { EXTENSION_HEADER, EXTENSION_PROTOCOL, ExtensionBuildFile, UPDATE_NEEDED_STATUS, type ExtensionBuildFile as BuildFile } from "@panki/contracts";
+import { hashOf } from "../kept";
 import { EXECUTABLE, entriesOf, zipOf } from "../zipWrite";
 
 const NO_BUILD = "There's no build of the extension on this Panki.";
@@ -28,6 +29,29 @@ function buildIn(dir: string): BuildFile | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The `build` kind of the state header (`kept.ts`): the build this Panki carries and the protocol it speaks, hashed;
+ * null with no build. Its file is looked at on every answer, but read again only when it changed on disk (a deploy).
+ */
+export function buildState(dir: string): () => string | null {
+  const file = path.join(dir, "chrome", "build.json");
+  let kept: { mark: string; hash: string | null } | null = null;
+  return () => {
+    let mark: string;
+    try {
+      const stat = statSync(file);
+      mark = `${stat.mtimeMs}:${stat.size}`;
+    } catch {
+      mark = "none";
+    }
+    if (kept?.mark !== mark) {
+      const build = buildIn(dir);
+      kept = { mark, hash: build ? hashOf(build.fingerprint, EXTENSION_PROTOCOL) : null };
+    }
+    return kept.hash;
+  };
 }
 
 /**

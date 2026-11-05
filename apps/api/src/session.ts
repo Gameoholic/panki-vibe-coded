@@ -56,6 +56,12 @@ export function signedIn(res: Response): Signed {
   return signed;
 }
 
+/** The request's sign-in when `requireSession` has put one on it; null before it has, or for a request it refused. */
+export function signedInOrNull(res: Response): Signed | null {
+  const signed: unknown = res.locals.signed;
+  return isSigned(signed) ? signed : null;
+}
+
 /**
  * The secret a request carries. The app's own is its cookie; something that can't keep one (the browser extension)
  * sends the same kind of secret as `Authorization: Bearer …`, got from a `bearer` sign-in. Either names a session row.

@@ -9,7 +9,8 @@ import type { Forvo } from "./forvo";
 import { cardsRouter } from "./routes/cards";
 import { decksRouter } from "./routes/decks";
 import { dictionariesRouter } from "./routes/dictionaries";
-import { extensionRouter, requireProtocol } from "./routes/extension";
+import { stateHeader } from "./kept";
+import { buildState, extensionRouter, requireProtocol } from "./routes/extension";
 import { forvoRouter } from "./routes/forvo";
 import { mediaRouter } from "./routes/media";
 import { settingsRouter } from "./routes/settings";
@@ -23,7 +24,7 @@ import { usageRouter } from "./routes/usage";
 import { videosRouter } from "./routes/videos";
 import { watchingRouter } from "./routes/watching";
 import { wordAudioRouter } from "./routes/wordAudio";
-import { requireSession, signedIn } from "./session";
+import { requireSession, signedIn, signedInOrNull } from "./session";
 import type { Shared } from "./shared";
 import { createThrottle } from "./throttle";
 import type { Engines } from "./transcribe/engines";
@@ -80,6 +81,18 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
 
   const deps = { auth, throttle: createThrottle(), now };
   const dbOf: DbOf = (res) => dbFor(signedIn(res).user.id);
+
+  // Every answer says how what the extension keeps stands now (`kept.ts`): everyone's, the build's, and the account's
+  // when the request is signed in.
+  const build = buildState(extensionDir);
+  app.use(
+    "/api",
+    stateHeader((res) => {
+      const signed = signedInOrNull(res);
+      const carries = build();
+      return { shared: shared.kept(), ...(signed ? dbFor(signed.user.id).kept() : {}), ...(carries ? { build: carries } : {}) };
+    }),
+  );
 
   // An extension of another protocol is stopped here, before anything else; how to update needs no sign-in.
   app.use("/api", requireProtocol);

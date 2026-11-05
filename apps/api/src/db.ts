@@ -86,6 +86,7 @@ import {
   type WatchedVideo,
   type Watching,
 } from "@panki/contracts";
+import { hashOf, whileUnchanged } from "./kept";
 import { addDays, checkTimeZone, dayReader, dayStartAt, daysBetween, streakOf, type Day } from "./time";
 
 export type Db = ReturnType<typeof openDb>;
@@ -2169,6 +2170,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return { words: rows.map((row) => row.words), suspended: rows.filter((row) => row.allSuspended === 1).map((row) => row.words) };
     },
     /**
+     * This account's kinds of the state header (`kept.ts`): its settings with its Panki AI templates, and the words in its
+     * cards, each hashed from what it is now; worked out again only once the database has changed.
+     */
+    kept: (): { account: string; words: string } => keptHashes(),
+    /**
      * A deck's duplicates: each of its living cards called the same as another living card in any living deck, and not
      * told apart from it (`toldApart`), with those others, the newest first. Every living card's words are read in one
      * go (a field belongs to one type, so a value in a type's words field is a card called by it), then grouped by the
@@ -2661,5 +2667,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // The types from before are hidden only once every one that comes with the app is there to take their place.
   if (!failed) for (const type of before) removeSrsType.run(now(), type.id);
 
+  const keptHashes = whileUnchanged(db, () => ({ account: hashOf(selectSettings.all(), selectAiTemplates.all()), words: hashOf(api.wordsInCards()) }));
   return api;
 }
