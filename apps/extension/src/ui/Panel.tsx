@@ -235,6 +235,8 @@ export type ClipOffer = {
   ticks: readonly number[];
   /** Whether any of it is being played right now: round and round, or once after an end was moved. */
   playing: boolean;
+  /** Where it paused, in the video's seconds, while that's inside it: Play goes on from there, and its bar stands there. Null otherwise. */
+  pausedAt: number | null;
   /** Changes when the cut went somewhere else by itself (another sentence, another word): its bar goes there with it. */
   anchor: number;
   move: (which: ClipEnd, to: number, by: MoveBy) => void;
@@ -242,7 +244,7 @@ export type ClipOffer = {
   settle: (which: ClipEnd) => void;
   /** Plays it from a moment inside it: a press on its bar. */
   hear: (at: number) => void;
-  /** Plays it round and round; or stops it, while any of it is playing. */
+  /** Plays it round and round, from where it paused if it did; or pauses it, while any of it is playing. */
   toggle: () => void;
   record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Made>;
   /** What's said in it as it stands now, from its start (`captions.ts` → `cuesOf`): kept with the recording, so a card plays a clip with its subtitles. */
@@ -1495,8 +1497,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         />
         <div className="capture-times">
           <Button className="capture-play" disabled={off} onClick={offer.toggle}>
-            <Icon name={offer.playing ? "stop" : "play"} />
-            {offer.playing ? "Stop" : "Play"}
+            <Icon name={offer.playing ? "pause" : "play"} />
+            {offer.playing ? "Pause" : "Play"}
           </Button>
           {offer.end === null ? (
             // The video was let run (started, even, if it stood still) so the sentence is heard out: said, so it isn't taken for a fault.
@@ -1757,6 +1759,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           end={cut.offer.end}
           soundOnly={cut.soundOnly}
           playing={cut.offer.playing}
+          pausedAt={cut.offer.pausedAt}
           // The word's sound being played isn't the sentence's clip playing: that one's picture holds still meanwhile.
           held={playing !== null && playing !== cut.of}
           label={cut.field.name}

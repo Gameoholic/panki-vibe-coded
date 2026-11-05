@@ -12,6 +12,8 @@ type Props = {
   soundOnly: boolean;
   /** Whether the clip is being played right now. */
   playing: boolean;
+  /** Where it paused, in the video's seconds, while that's inside the clip: the bar stands there. Null otherwise. */
+  pausedAt: number | null;
   /** Something else is being played on the page's video right now (the word's sound, while this is the sentence's clip): the picture here holds still, since it isn't this that's playing. */
   held: boolean;
   /** What the clip is, in the viewer's own words (its field's name). */
@@ -30,7 +32,7 @@ const PICTURE = 480;
  * player. Nothing is recorded or fetched for it: a clip is made once, when its card is added. Its subtitles follow
  * the picture, so they hold still with it too.
  */
-export function ClipPlayer({ video, start, end, soundOnly, playing, held, label, onToggle, subtitles }: Props) {
+export function ClipPlayer({ video, start, end, soundOnly, playing, pausedAt, held, label, onToggle, subtitles }: Props) {
   const picture = useRef<HTMLCanvasElement>(null);
   const [now, setNow] = useState(start);
   /** The moment of the video the picture shows; null before it shows any. */
@@ -87,7 +89,9 @@ export function ClipPlayer({ video, start, end, soundOnly, playing, held, label,
   }, [video, playing]);
 
   const length = end === null ? null : Math.max(0, end - start);
-  const at = playing ? Math.max(0, Math.min(now - start, length ?? Infinity)) : 0;
+  // The bar follows the video while it plays, stands where it paused, and is at the start otherwise.
+  const shown = playing ? now : pausedAt;
+  const at = shown === null ? 0 : Math.max(0, Math.min(shown - start, length ?? Infinity));
   return (
     // Its presses are its own: a press anywhere else on the card turns the card over.
     <div className={`media media-player media-${soundOnly ? "audio" : "video"}`} onClick={(e) => e.stopPropagation()}>

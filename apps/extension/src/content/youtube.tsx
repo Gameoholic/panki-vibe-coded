@@ -96,6 +96,8 @@ const LEAD = 0.35;
 const TAIL = 0.25;
 /** A clip is never shorter than this, however its ends are pulled. */
 const CLIP_MIN = 0.3;
+/** A cut paused closer than this to its end plays again from its start: there's nothing left of it to go on with. */
+const REST_MARGIN = 0.1;
 /** After the end is moved, this much of the clip is played up to it, so the cut is heard. (After the start is moved the clip plays from there on: stopping a second in was tried first, and read as the video getting stuck.) */
 const CUT = 0.9;
 /** A clip taken off the video itself, with no words to go by, starts as this many seconds up to where the video stands: what was just heard. */
@@ -2473,7 +2475,15 @@ function App() {
     played.current = cut;
     replay.play(video, { from: now.start, to: now.end }, round ? "round" : "once", Math.max(now.start, Math.min(now.end, from)));
   }
-  /** Play a cut, round and round; or, while any of it is playing (round, or once after an end was moved), stop. Asked of one while the other plays, it takes over. */
+  /** Where a cut paused, if it did and that moment is still inside its ends: Play goes on from there. Null for a cut never played, played out, or whose ends moved past it. */
+  function restOf(cut: Cut, now: Ends): number | null {
+    const rest = replay.rested();
+    return rest !== null && played.current === cut && now.end !== null && rest >= now.start && rest < now.end - REST_MARGIN ? rest : null;
+  }
+  /**
+   * Play a cut, round and round; or, while any of it is playing (round, or once after an end was moved), pause it where
+   * it is, Play then going on from there. Asked of one while the other plays, it takes over.
+   */
   function toggleCut(cut: Cut) {
     const now = ends.current[cut];
     if (!video || !now || now.end === null) return;
@@ -2485,8 +2495,9 @@ function App() {
     // captions as the player draws them again.
     const pinned = taking?.of === "caption" && (cut === "word" ? taking.wordTrim.end !== null : taking.trim.end !== null);
     if (taking?.of === "caption" && !pinned) setEnds(cut, { start: now.start, end: now.end });
+    const from = restOf(cut, now) ?? now.start;
     played.current = cut;
-    replay.play(video, { from: now.start, to: now.end }, "round");
+    replay.play(video, { from: now.start, to: now.end }, "round", from);
   }
 
   useEffect(() => {
@@ -2584,6 +2595,7 @@ function App() {
             within: cut === "word" && clip.end !== null ? { from: clip.start, to: clip.end } : null,
             ticks: heard.map((beat) => beat.start),
             playing: replaying !== null && played.current === cut,
+            pausedAt: replaying === null ? restOf(cut, now) : null,
             anchor,
             move: (which, to, by) => moveEnd(cut, which, to, by),
             settle: (which) => hearCut(cut, which),

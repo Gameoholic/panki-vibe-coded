@@ -20,17 +20,20 @@ export function createReplay() {
   let to = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
   let home: number | null = null;
+  /** Where the video stood when the stretch last stopped playing, so Play again goes on from there; null once it's played again or let go. */
+  let rested: number | null = null;
   /** Counts the times a stretch was started, so a late answer about an earlier one is known for what it is. */
   let run = 0;
   const listeners = new Set<() => void>();
 
-  /** No longer playing a stretch; the video itself is left as it is. */
+  /** No longer playing a stretch; the video itself is left as it is, and where it stands is remembered. */
   function halt() {
     if (timer !== null) clearInterval(timer);
     timer = null;
     video?.removeEventListener("pause", onPause);
     if (mode === null) return;
     mode = null;
+    rested = video?.currentTime ?? null;
     for (const listener of listeners) listener();
   }
   // Stopped by anything else (the player's own button, the end of the video): it isn't this playing it any more. A
@@ -59,6 +62,7 @@ export function createReplay() {
       from = stretch.from;
       to = stretch.to;
       home ??= next.currentTime;
+      rested = null;
       mode = how;
       next.currentTime = at;
       next.addEventListener("pause", onPause);
@@ -82,14 +86,18 @@ export function createReplay() {
       stop();
       const stood = home;
       home = null;
+      rested = null;
       return stood;
     },
     /** The player has gone on to another video: nothing of the last one applies, and this one is left playing. */
     forget() {
       halt();
       home = null;
+      rested = null;
     },
     mode: (): Replaying | null => mode,
+    /** Where the video stood when the last stretch stopped playing (Pause, the player's own button, the end of a run once); null while one plays, or once it's let go. */
+    rested: (): number | null => rested,
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => {
