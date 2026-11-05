@@ -10,6 +10,7 @@ import {
   TOUCH_UP_KEYS,
   TRANSCRIBE_LANGUAGES,
   VALUE_MAX,
+  aiSourceNow,
   answeredCall,
   apartOf,
   cardPiece,
@@ -29,6 +30,7 @@ import {
   templatesOf,
   wordsFieldOf,
   type AiCall,
+  type AiValueSource,
   type AiRunWhy,
   type AiTemplate,
   type AiVerdict,
@@ -60,6 +62,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import {
   FollowTurns,
+  MarkAsMine,
   TOUCH_UP_WORDS,
   Tied,
   TouchUpBar,
@@ -211,8 +214,17 @@ const BAR = "bar";
 const RUN = "run";
 /** Where a follow-up is asked from a field's note. */
 const whereOf = (fieldId: string) => `field:${fieldId}`;
-/** A value Panki AI wrote into a field, once accepted: the words, and its source. It stays the AI's while the field holds exactly these words. */
-type AiWrote = { value: string; source: ValueSource };
+/**
+ * A value Panki AI wrote into a field, once accepted: the words, its source, and what holds it in the drawer (the
+ * sentence typed, a dictionary field typed over, a field typed in). It stays the AI's when it's changed by hand
+ * (`aiSourceNow`: `edited`), until the owner marks it as theirs or what holds it lets it go (the meanings ticked
+ * again, the sentence unlocked, another word or entry). `dismissed` is the offer to mark it as theirs put away, for
+ * the answer part it was put away under: the next answer on its key, or an Accept, brings it back.
+ */
+type AiWrote = { value: string; source: AiValueSource; holder: "sentence" | "dict" | "typed"; dismissed?: { part: TouchUpAnswer[TouchUpKey] } };
+/** The AI's words let go of the fields chosen: what fills them now is something else, or the owner marked them as theirs. */
+const aiLetGo = (was: Record<string, AiWrote>, gone: (fieldId: string, wrote: AiWrote) => boolean): Record<string, AiWrote> =>
+  Object.fromEntries(Object.entries(was).filter(([fieldId, wrote]) => !gone(fieldId, wrote)));
 
 /** A cut as recorded: the file, and how it was made off the video (null where that can't be said). */
 export type Made = { file: Blob; recording: RecordingAsk | null };
@@ -503,6 +515,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         setEntry(whole.some((f) => wordKey(f) === preferKey) ? preferKey : null);
         setTicked([0]);
         setDictTyped({});
+        setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "dict"));
       });
     }, LOOKUP_SETTLE_MS);
     return () => {
@@ -514,6 +527,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   // Other words were taken: a sentence typed over or locked on the old ones would be the wrong sentence now.
   useEffect(() => {
     setWritten(null);
+    setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "sentence"));
   }, [capture.moved]);
 
   // Added with nothing left to say: after a moment the drawer takes itself away.
@@ -612,11 +626,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const touchKeys = TOUCH_UP_KEYS.filter((key) => keyField(key) !== null);
   const keyOfField = (fieldId: string): TouchUpKey | null => touchKeys.find((key) => keyField(key)?.id === fieldId) ?? null;
   const aiSettings = ai.ai?.settings ?? null;
-  /** Whether a field holds, right now, exactly what Panki AI wrote there: the spark beside it, and its source the AI's. */
-  const aiHolds = (fieldId: string) => {
-    const wrote = aiWrote[fieldId];
-    return wrote !== undefined && (values[fieldId] ?? "").trim() === wrote.value;
-  };
+  /**
+   * Whether a field is Panki AI's right now: it wrote what the field holds, changed by hand since or not, and nothing
+   * has let it go nor has the owner marked it as theirs. The spark beside it, and its source the AI's.
+   */
+  const aiHolds = (fieldId: string) => aiWrote[fieldId] !== undefined && (values[fieldId] ?? "").trim() !== "";
   // What was proposed was for this word in this dictionary entry: another word, or another of its entries, and it's let go.
   const touchFor = `${looked}\u0000${chosen ? wordKey(chosen) : ""}`;
   useEffect(() => {
@@ -943,7 +957,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   const lastCall = touch.calls[touch.calls.length - 1];
   /** Where a value the AI wrote came from: Touch up, on the model the call ran on. */
-  const aiSourceOf = (): Extract<ValueSource, { by: "ai" }> | null => (lastCall ? { by: "ai", action: "touchUp", provider: lastCall.provider, model: lastCall.model } : null);
+  const aiSourceOf = (): AiValueSource | null => (lastCall ? { by: "ai", action: "touchUp", provider: lastCall.provider, model: lastCall.model } : null);
   /** What Panki makes of a text field's answer, against what it held as it was sent (`fieldVerdictOf`); none when it wasn't answered. */
   const fieldVerdict = (key: FieldKey) => {
     const part = touch.answer?.[key];
@@ -958,16 +972,20 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return verdict !== null && proposes(verdict);
   }
   const decide = (key: TouchUpKey) => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true } }));
-  /** A value of the AI's written into its field, as typing there would, and remembered as the AI's while it stands. */
+  /**
+   * A value of the AI's written into its field, as typing there would, and remembered as the AI's (a fresh entry, so an
+   * offer to mark it as the owner's that was put away comes back).
+   */
   function writeAi(field: CardField, text: string) {
     const role = roleOf(map, field.id);
     const ai = aiSourceOf();
     // A field only Touch up fills is its own; any other it corrected (so only the first's name is sparked).
     const source = ai && (role === null || ROLES[role].from !== "ai") ? { ...ai, corrected: true } : ai;
-    if (role === "sentence") setWritten(text);
-    else if (isDictRole(role)) setDictTyped((was) => ({ ...was, [field.id]: text }));
+    const holder = role === "sentence" ? "sentence" : isDictRole(role) ? "dict" : "typed";
+    if (holder === "sentence") setWritten(text);
+    else if (holder === "dict") setDictTyped((was) => ({ ...was, [field.id]: text }));
     else setTyped((was) => ({ ...was, [field.id]: text }));
-    if (source) setAiWrote((was) => ({ ...was, [field.id]: { value: text.trim(), source } }));
+    if (source) setAiWrote((was) => ({ ...was, [field.id]: { value: text.trim(), source, holder } }));
   }
   /** A meaning's own words by its number, as the field holds them. */
   const meaningWordsOf = (n: number) => (chosen?.senses[n - 1] ? glossaryText(chosen.senses[n - 1]?.glossary ?? []) : (touch.meanings[n - 1] ?? ""));
@@ -978,6 +996,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       delete rest[fieldId];
       return rest;
     });
+    setAiWrote((was) => aiLetGo(was, (id) => id === fieldId));
   }
   /**
    * A proposal accepted: a change of ticks is the ticks set to the good rows, the dictionary's own meanings written in
@@ -1061,17 +1080,40 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     touch.busy === "run" && fieldId !== null && keyOfField(fieldId) !== null ? <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting> : inside;
   /** The mark after a field's name: the spark while the AI's words stand in it. */
   const marksOf = (field: CardField) => fieldMarks(aiHolds(field.id));
+  /**
+   * Under a field that's Panki AI's and holds other words than it wrote: the offer to mark it as the owner's
+   * (`MarkAsMine`). Not while its proposal waits (the diff is the field then), nor while Touch up is at work, nor once
+   * put away, until the next answer on its key or an Accept.
+   */
+  function mineOffer(field: CardField | null): ReactNode {
+    const wrote = field ? aiWrote[field.id] : undefined;
+    if (!field || !wrote || !aiHolds(field.id) || touch.busy !== false) return null;
+    if (aiSourceNow(wrote.source, wrote.value, values[field.id] ?? "").edited !== true) return null;
+    const key = keyOfField(field.id);
+    if (key && waiting(key)) return null;
+    const part = key ? touch.answer?.[key] : undefined;
+    if (wrote.dismissed && wrote.dismissed.part === part) return null;
+    const id = field.id;
+    return (
+      <MarkAsMine
+        disabled={still}
+        onMine={() => setAiWrote((was) => aiLetGo(was, (fieldId) => fieldId === id))}
+        onDismiss={() => setAiWrote((was) => (was[id] ? { ...was, [id]: { ...was[id], dismissed: { part } } } : was))}
+      />
+    );
+  }
 
   /**
-   * Where each value came from, as it's sent with the card: the AI's while a field holds what Touch up wrote; else by
-   * the role that filled it, `OWNER` once typed over, and `OWNER` for what nothing fills.
+   * Where each value came from, as it's sent with the card: the AI's while a field is (`edited` once it holds other
+   * words than Touch up wrote, `aiSourceNow`); else by the role that filled it, `OWNER` once typed over, and `OWNER`
+   * for what nothing fills.
    */
   function sourcesOf(fieldIds: readonly string[], filled: Readonly<Record<string, string>>): ValueSources {
     const dictionaries = [...new Set(tickedSenses.map((sense) => sense.dict.slice(0, 200)))].slice(0, 50);
     const subtitles = capture.facts?.subtitles;
     const sourceOf = (fieldId: string): ValueSource => {
       const wrote = aiWrote[fieldId];
-      if (wrote && (filled[fieldId] ?? "").trim() === wrote.value) return wrote.source;
+      if (wrote) return aiSourceNow(wrote.source, wrote.value, filled[fieldId] ?? "");
       const role = roleOf(map, fieldId);
       if (role === null || ROLES[role].from === "ai") return OWNER;
       if (role === "word") return wordTyped ? OWNER : { by: "text", ...(subtitles ? { subtitles } : {}) };
@@ -1350,6 +1392,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       setEntry(key);
       setTicked([0]);
       setDictTyped({});
+      setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "dict"));
     };
     return (
       <div className="field capture-dict">
@@ -1452,6 +1495,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             />,
           ),
         )}
+        {mineOffer(sentenceField)}
         {lockable ? (
           <div className="capture-tools">
             <Toggle
@@ -1461,7 +1505,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               says={{ on: "Locked", off: "Unlocked" }}
               on={written !== null}
               disabled={still}
-              onChange={(on) => setWritten(on ? capture.sentence : null)}
+              onChange={(on) => {
+                setWritten(on ? capture.sentence : null);
+                // Unlocked, the clip's words are the sentence again, and what Panki AI wrote there is let go with what was typed.
+                if (!on) setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "sentence"));
+              }}
             />
           </div>
         ) : null}
@@ -1740,6 +1788,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               />,
             ),
           )}
+          {mineOffer(field)}
           {already(field)}
           {/* The word's sound stands under the word, and the meanings to tick under where they go. */}
           {isWord ? wordBlock() : null}

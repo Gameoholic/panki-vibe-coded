@@ -89,9 +89,17 @@ export const ValueSource = z.discriminatedUnion("by", [
      * carries the spark).
      */
     corrected: z.boolean().optional(),
+    /**
+     * Whether it was changed by hand after Panki AI wrote it, and kept as the AI's (the owner can strip that, and the
+     * value is then theirs). Left out, it stands as the AI wrote it, as every value kept before this was told. It
+     * changes nothing of how it's drawn: still the AI's ink, and the spark where `aiOwns` puts it.
+     */
+    edited: z.boolean().optional(),
   }),
 ]);
 export type ValueSource = z.infer<typeof ValueSource>;
+/** A value's source when Panki AI wrote it. */
+export type AiValueSource = Extract<ValueSource, { by: "ai" }>;
 /** Each value's source, by field id; a field left out is `OWNER`'s. */
 export const ValueSources = z.record(CardFieldId, ValueSource);
 export type ValueSources = z.infer<typeof ValueSources>;
@@ -105,6 +113,14 @@ export const byAi = (sources: Readonly<Record<string, ValueSource>> | undefined,
 export function aiOwns(sources: Readonly<Record<string, ValueSource>> | undefined, fieldId: string): boolean {
   const source = sources?.[fieldId];
   return source?.by === "ai" && source.corrected !== true;
+}
+/**
+ * A value Panki AI wrote, as it stands now: its source as it was while the field holds exactly what the AI wrote
+ * (trimmed), and `edited` once it holds anything else; one already edited stays so. The field stays the AI's either
+ * way until the owner marks it as theirs. The capture drawer and a card opened to edit both go by this.
+ */
+export function aiSourceNow(source: AiValueSource, wrote: string, now: string): AiValueSource {
+  return source.edited === true || now.trim() !== wrote.trim() ? { ...source, edited: true } : source;
 }
 
 /**

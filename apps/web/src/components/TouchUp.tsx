@@ -61,6 +61,9 @@ export const TOUCH_UP_WORDS = {
   acceptAll: "Accept all",
   dismissAll: "Dismiss all",
   tryAgain: "Try again",
+  /** Under a value Panki AI wrote and then changed by hand: making it the owner's, and putting the offer away. */
+  markAsMine: "Mark as mine",
+  dismissMine: "Dismiss",
 };
 
 /** Why the button can't run, said under it (`whyNot`, Explain's too: Panki AI off among them). */
@@ -373,6 +376,26 @@ export const proposes = (verdict: FieldVerdict | MeaningVerdict): boolean => ver
  */
 export function fieldMarks(ai: boolean): ReactNode {
   return ai ? <AiSpark className="field-ai" /> : null;
+}
+
+/**
+ * Under a field Panki AI wrote and the owner has since changed, which stays the AI's (its source `edited`): a quiet offer
+ * to make it theirs, Mark as mine, and × to put the offer away. Whoever holds the field decides when it shows (only
+ * while the value differs from what the AI wrote, and not put away) and what each press does: the capture drawer and a
+ * card opened to edit (`CardForm`) alike.
+ */
+export function MarkAsMine({ disabled = false, onMine, onDismiss }: { disabled?: boolean; onMine: () => void; onDismiss: () => void }) {
+  return (
+    <div className="ai-mine">
+      <Button className="ai-mine-go" disabled={disabled} onClick={onMine}>
+        <Icon name="user" />
+        {TOUCH_UP_WORDS.markAsMine}
+      </Button>
+      <Button className="btn-icon ai-mine-dismiss" aria-label={TOUCH_UP_WORDS.dismissMine} disabled={disabled} onClick={onDismiss}>
+        <Icon name="close" />
+      </Button>
+    </div>
+  );
 }
 
 /** A meaning row's judgement as Details' tag says it. */

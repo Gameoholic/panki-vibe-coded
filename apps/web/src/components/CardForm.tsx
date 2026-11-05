@@ -6,8 +6,8 @@ import {
   NewCard,
   NewCardExample,
   VALUE_MAX,
+  aiSourceNow,
   apartOf,
-  byAi,
   cardProblems,
   comparedOf,
   exampleFieldsOf,
@@ -16,6 +16,7 @@ import {
   mediaFor,
   mediaKindsOf,
   wordsFieldOf,
+  type AiValueSource,
   type CalledCard,
   type Card,
   type CardExampleUpdate,
@@ -23,6 +24,7 @@ import {
   type CardType,
   type MediaKind,
   type SubtitleStyle,
+  type ValueSources,
   DEFAULT_SUBTITLE_STYLE,
 } from "@panki/contracts";
 import { api } from "../api";
@@ -37,7 +39,7 @@ import { Form } from "./Form";
 import { Icon } from "./Icon";
 import { MediaField } from "./MediaField";
 import { TextField } from "./TextField";
-import { fieldMarks } from "./TouchUp";
+import { MarkAsMine, fieldMarks } from "./TouchUp";
 
 const MB = 1024 * 1024;
 
@@ -214,17 +216,44 @@ function startFrom(type: CardType, card: Card) {
   return { words, files };
 }
 
-/** Only what differs from the card as it stands, so a save changes (and keeps the history of) nothing it didn't touch. */
-function changedFrom(type: CardType, card: Card, values: Record<string, string>): Record<string, string> {
+/** A field's source on the card as it stands, when Panki AI wrote it. */
+const aiSourceOn = (card: Card | undefined, fieldId: string): AiValueSource | null => {
+  const source = card?.sources[fieldId];
+  return source?.by === "ai" ? source : null;
+};
+
+/**
+ * Where a value Panki AI wrote stands as the form holds it: still the AI's (`edited` once it holds other words than the
+ * card does, or did already, `aiSourceNow`), or null once it's empty or marked as the owner's (`mine`).
+ */
+function aiSourceFor(card: Card | undefined, fieldId: string, value: string, mine: boolean): AiValueSource | null {
+  const source = aiSourceOn(card, fieldId);
+  if (!card || !source || mine || value.trim() === "") return null;
+  return aiSourceNow(source, card.values[fieldId] ?? "", value);
+}
+
+/**
+ * Only what differs from the card as it stands, so a save changes (and keeps the history of) nothing it didn't touch,
+ * with each value Panki AI wrote that's still its own sent with its source (a value sent with none is the owner's). A
+ * value of the AI's whose source changes with its words left alone (marked as the owner's, or `edited` for the first
+ * time) is sent too.
+ */
+function changedFrom(type: CardType, card: Card, values: Record<string, string>, mine: Readonly<Record<string, true>>): CardUpdate {
   const changed: Record<string, string> = {};
+  const sources: ValueSources = {};
   for (const field of type.fields) {
     const now = values[field.id] ?? "";
     const before = card.values[field.id] ?? "";
     // Words still in a field from before it held files aren't a file to take off: left alone, they stay.
     const was = holdsFile(field.kind) && fileKindOf(field.kind, before, card.files) === null ? "" : before;
-    if (now !== was) changed[field.id] = now;
+    const kept = aiSourceOn(card, field.id);
+    const ai = holdsFile(field.kind) ? null : aiSourceFor(card, field.id, now, mine[field.id] === true);
+    const sourceMoved = kept !== null && (ai === null || (ai.edited === true && kept.edited !== true));
+    if (now === was && !sourceMoved) continue;
+    changed[field.id] = now;
+    if (ai) sources[field.id] = ai;
   }
-  return changed;
+  return CardUpdate.parse({ values: changed, sources });
 }
 
 /**
@@ -245,6 +274,9 @@ export function CardForm(props: Props) {
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
+  /** Fields of Panki AI's marked as the owner's here (saved as theirs), and those whose offer to do so was put away. */
+  const [marked, setMarked] = useState<Record<string, true>>({});
+  const [offerAway, setOfferAway] = useState<Record<string, true>>({});
   const first = type.fields[0];
   /** The field the card is called by: a card being added says under it when one is already called so. */
   const lead = card ? null : wordsFieldOf(type);
@@ -335,7 +367,7 @@ export function CardForm(props: Props) {
         }
       }
       if ("onSave" in props) {
-        await props.onSave(CardUpdate.parse({ values: changedFrom(type, props.card, values) }));
+        await props.onSave(changedFrom(type, props.card, values, marked));
         return;
       }
       if (asExample && onAddExample && target) await onAddExample(target,NewCardExample.parse({ id: crypto.randomUUID(), values }));
@@ -401,15 +433,16 @@ export function CardForm(props: Props) {
             );
           } else {
             const value = draft[field.id] ?? "";
-            // What Panki AI wrote is marked as the drawer marks it while it stands as written; changed by hand, it's no longer the AI's.
-            const aiWrote = card !== undefined && value !== "" && value === (card.values[field.id] ?? "") && byAi(card.sources, field.id);
+            // What Panki AI wrote is marked as the drawer marks it, changed by hand or not, until it's marked as the owner's;
+            // once it holds other words than it did, the offer to do that stands under it.
+            const ai = aiSourceFor(card, field.id, value, marked[field.id] === true);
             shown = (
               <>
                 <TextField
                   id={inputId(field.id)}
                   data-field={field.name}
                   label={label}
-                  lead={fieldMarks(aiWrote)}
+                  lead={fieldMarks(ai !== null)}
                   multiline={FIELD_KINDS[field.kind].multiline}
                   lang={langOf(value)}
                   autoComplete="off"
@@ -418,6 +451,13 @@ export function CardForm(props: Props) {
                   onChange={(text) => edit(field.id, text)}
                   error={errors[field.id] || undefined}
                 />
+                {ai?.edited === true && !offerAway[field.id] ? (
+                  <MarkAsMine
+                    disabled={busy}
+                    onMine={() => setMarked((m) => ({ ...m, [field.id]: true }))}
+                    onDismiss={() => setOfferAway((o) => ({ ...o, [field.id]: true }))}
+                  />
+                ) : null}
                 {field.id === lead?.id ? (
                   <AlreadyIn
                     cards={called}
