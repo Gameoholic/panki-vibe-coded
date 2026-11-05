@@ -37,6 +37,7 @@ import {
   proofreadProblem,
   proofreadTokens,
   sentLength,
+  sentenceHeld,
   templateById,
   tokenCostMicros,
   touchUpFollowProblem,
@@ -304,6 +305,8 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     /** A follow-up's Follow-up prompt as filled and sent, handed back for the page to keep in `Said`; "" for a first ask. */
     asked: string;
     ref: string;
+    /** The pieces as they were sent (`piecesAsSent`): what an answer is held to beyond its shape (a Touch up Sentence, `sentenceHeld`). */
+    pieces: PromptPieces;
   };
   /**
    * An ask made ready the same way for every action (AI step 5): the template it names, the account's own or a starter
@@ -348,7 +351,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       return null;
     }
     const said: ExplainMessage[] = followUp ? [...ask.said, { role: "user", text: asked }] : [];
-    return { template, followUp, prompt: sent[0] ?? "", said, asked, ref: pieces.dictForm || pieces.word || "" };
+    return { template, followUp, prompt: sent[0] ?? "", said, asked, ref: pieces.dictForm || pieces.word || "", pieces };
   }
   /** The tokens and cost of an answer, and what it ran on, as every action's reply carries them. */
   const spent = ({ raw, inputTokens, outputTokens, costMicros, ranOn }: Ran<unknown>) => ({ raw, inputTokens, outputTokens, costMicros, ranOn });
@@ -411,20 +414,23 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     if (!ask) return;
     const { meanings, keys, now: card } = parsed.data;
     const call = { action: "touchUp", prompt: ask.prompt, said: ask.said, maxTokens: settings.aiMaxTouchUpTokens, ref: ask.ref } as const;
+    // A proposed Sentence is held to what was sent, the run's sentence, the card's as it stands and the surrounding
+    // subtitles: one reworded is that part alone set aside as the `rewrote` error, the rest of the answer standing.
+    const sent = { sentences: [ask.pieces.sentence ?? "", card.values.sentence ?? ""], surrounding: ask.pieces.surrounding ?? "" };
     // Asked on the wire, which has no union, nothing optional and nothing nullable (a provider refuses a schema past 16
     // of those); read into Panki's own shapes at once (`answerOfWire`, `followOfWire`), and every rule held to those.
     if (ask.followUp) {
       const answer = await run(res, settings, { ...call, shape: ruled(touchUpFollowShape(keys), (wire) => touchUpFollowProblem(wire, meanings)) });
       if (!answer) return;
       const { reply, answer: changes } = followOfWire(answer.value);
-      res.json({ touchUp: { answer: meaningsInOrder(changes), reply, asked: ask.asked, ...spent(answer) }, ai: statusOf(res) });
+      res.json({ touchUp: { answer: meaningsInOrder(sentenceHeld(changes, sent)), reply, asked: ask.asked, ...spent(answer) }, ai: statusOf(res) });
       return;
     }
     // `{Meaning}` is the one meanings list, Explain's; what's ticked is in `{Card}`, for the Meaning's own why. The
     // answer is held to the card as it was sent (`touchUpProblem`); the page draws it from there.
     const answer = await run(res, settings, { ...call, shape: ruled(touchUpShape(keys, card, meanings.length), (wire) => touchUpProblem(answerOfWire(wire), meanings, card)) });
     if (!answer) return;
-    res.json({ touchUp: { answer: meaningsInOrder(answerOfWire(answer.value)), reply: "", asked: "", ...spent(answer) }, ai: statusOf(res) });
+    res.json({ touchUp: { answer: meaningsInOrder(sentenceHeld(answerOfWire(answer.value), sent)), reply: "", asked: "", ...spent(answer) }, ai: statusOf(res) });
   });
 
   /**

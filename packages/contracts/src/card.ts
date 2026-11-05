@@ -19,7 +19,8 @@ export const CardValues = z.record(CardFieldId, z.string().trim().max(VALUE_MAX)
  * wasn't thought of then: all the data there is, kept. How it was taken (`caption`: words picked on the line under a video, whichever
  * subtitles it was; `stretch`: a stretch of a video with no words picked; `selection`: a page's selected words); which
  * subtitles the line was (`panki`: Panki's transcript, `youtube`: the site's own captions); whether the clip's ends
- * were put by hand rather than where its words put them; the picked word's own stretch of the video (ms of its own
+ * were put by hand rather than where its words put them, or by an accepted Touch up Sentence (`clipBySentence`: its
+ * ends moved to the accepted words, nothing pulled by hand since); the picked word's own stretch of the video (ms of its own
  * time), put by hand or not; the dictionary's word the card was made with, and the dictionaries its ticked meanings came
  * from; what filled each field (the extension's role for it, by the deck's field mapping then: a field not named was
  * typed or left empty); and the extension's build. Each part only where it was known. Written once, never changed.
@@ -28,6 +29,7 @@ export const CaptureFacts = z.object({
   taken: z.enum(["caption", "stretch", "selection"]).optional(),
   subtitles: z.enum(["panki", "youtube"]).optional(),
   clipByHand: z.boolean().optional(),
+  clipBySentence: z.boolean().optional(),
   word: z.object({ startMs: z.number().int().nonnegative(), endMs: z.number().int().nonnegative().optional(), byHand: z.boolean() }).optional(),
   dictionary: z.object({ term: z.string().max(200), reading: z.string().max(200), dictionaries: z.array(z.string().max(200)).max(50) }).optional(),
   fields: z.record(CardFieldId, z.string().max(40)).optional(),

@@ -49,13 +49,20 @@ export const LOOK_OF: Record<Judgement, MeaningAccuracyId> = { good: "fits", meh
 const Why = z.string().max(2_000);
 
 /**
- * Why the model couldn't judge or write a field, one registry, each with Panki's own words for it (the code is Panki's
- * to read, never shown): no_context, not enough to go on. A second kind is one id and its words.
+ * Why a field came back with nothing to accept, one registry, each with Panki's own words for it (the code is Panki's
+ * to read, never shown): no_context, the model had not enough to go on; rewrote, Panki set aside a Sentence that was
+ * reworded rather than cut or extended (`sentenceHeld`). A new kind is one id and its words; one the model may answer
+ * is in `MODEL_ERROR_IDS` too.
  */
-export const TOUCH_UP_ERROR_IDS = ["no_context"] as const;
+export const TOUCH_UP_ERROR_IDS = ["no_context", "rewrote"] as const;
 export const TouchUpErrorId = z.enum(TOUCH_UP_ERROR_IDS);
 export type TouchUpErrorId = z.infer<typeof TouchUpErrorId>;
-export const TOUCH_UP_ERRORS: Record<TouchUpErrorId, string> = { no_context: "Panki AI couldn't decide without more context." };
+export const TOUCH_UP_ERRORS: Record<TouchUpErrorId, string> = {
+  no_context: "Panki AI couldn't decide without more context.",
+  rewrote: "Panki AI rewrote the sentence instead of cutting or extending it.",
+};
+/** The errors the model itself may answer, on the wire; the rest are Panki's own verdicts on what it answered. */
+const MODEL_ERROR_IDS = ["no_context"] as const satisfies readonly TouchUpErrorId[];
 
 /*
  * The answer as the model sends it (the wire), and as Panki reads it (the answer). The wire has no union and nothing
@@ -72,7 +79,7 @@ export const TOUCH_UP_ERRORS: Record<TouchUpErrorId, string> = { no_context: "Pa
 /** What the wire says in place of nothing: an empty string. */
 const NONE = "";
 const Proposed = z.string().max(VALUE_MAX);
-const ErrorCode = z.enum([NONE, ...TOUCH_UP_ERROR_IDS]);
+const ErrorCode = z.enum([NONE, ...MODEL_ERROR_IDS]);
 /** A text field that holds a value, on the wire: every key always there. */
 export const FieldWire = z.object({
   judgement: Judgement.describe('good (right as it is), meh (could be better) or bad (wrong); "bad" beside an error, which Panki ignores'),
@@ -380,6 +387,72 @@ export function touchUpProblem(answer: TouchUpAnswer, meanings: readonly string[
     if (broken) return broken;
   }
   return null;
+}
+
+/**
+ * Text as a sentence is matched against another: spaces, punctuation and symbols set aside, widths and capitals alike
+ * (NFKC, lower case), each character kept with the stretch of the text it came from (`from[i]` to `to[i]`), so a match
+ * in the bare text is said again as characters of the text.
+ */
+export function bareOf(text: string): { bare: string; from: number[]; to: number[] } {
+  let bare = "";
+  const from: number[] = [];
+  const to: number[] = [];
+  for (let at = 0; at < text.length; ) {
+    const char = String.fromCodePoint(text.codePointAt(at) ?? 0);
+    const next = at + char.length;
+    for (const unit of char.normalize("NFKC").toLowerCase()) {
+      if (/[\s\p{P}\p{S}]/u.test(unit)) continue;
+      // A unit of two code units (a surrogate pair) is two places in the bare text, both standing for the same character.
+      for (let i = 0; i < unit.length; i++) {
+        from.push(at);
+        to.push(next);
+      }
+      bare += unit;
+    }
+    at = next;
+  }
+  return { bare, from, to };
+}
+
+/**
+ * Every stretch of a text that is some words, spaces and punctuation set aside (`bareOf`), as characters of the text,
+ * in the text's order; none for words that are nothing but spaces and punctuation.
+ */
+export function runsOf(text: string, words: string): { from: number; to: number }[] {
+  const needle = bareOf(words).bare;
+  if (needle === "") return [];
+  const hay = bareOf(text);
+  const runs: { from: number; to: number }[] = [];
+  for (let at = hay.bare.indexOf(needle); at >= 0; at = hay.bare.indexOf(needle, at + 1)) {
+    runs.push({ from: hay.from[at] ?? 0, to: hay.to[at + needle.length - 1] ?? text.length });
+  }
+  return runs;
+}
+
+/** What a proposed Sentence is held to: every sentence that was sent (the `{Sentence}` piece, the card's field), and the surrounding video subtitles ("" off a video). */
+export type SentenceSent = { sentences: readonly string[]; surrounding: string };
+
+/**
+ * A proposed Sentence is only ever a cut of what was sent or an extension of it by the lines around it: a run of a
+ * sentence sent, or of the surrounding video subtitles (which hold the sentence's own lines with those either side),
+ * spaces and punctuation aside. One that's neither was reworded, and only that part is set aside, as the `rewrote`
+ * error with its why said as expected against got; the rest of the answer stands. Nothing to hold it to (an empty
+ * sentence off a video), and it stands as written.
+ */
+export function sentenceHeld(answer: TouchUpAnswer, sent: SentenceSent): TouchUpAnswer {
+  const part = answer.sentence;
+  if (!part || isError(part)) return answer;
+  const proposed = part.proposed?.trim() ?? "";
+  if (proposed === "") return answer;
+  const surrounding = sent.surrounding.trim();
+  const sources = [...sent.sentences, surrounding].filter((text) => text.trim() !== "");
+  if (sources.length === 0 || sources.some((text) => runsOf(text, proposed).length > 0)) return answer;
+  const expected =
+    surrounding !== ""
+      ? "a cut of the sentence sent, or a run of the surrounding video subtitles, spaces and punctuation aside"
+      : "a cut of the sentence sent, spaces and punctuation aside";
+  return { ...answer, sentence: { error: "rewrote", why: expectedGot(expected, `"${proposed}"`) } };
 }
 
 /*

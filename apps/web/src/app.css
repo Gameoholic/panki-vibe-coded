@@ -6921,7 +6921,9 @@ mark.sub-blur {
   font-weight: 700;
   color: var(--accuracy);
 }
-.touch-up-reason {
+/* A note's why, and what else Accept does under a proposal's why (the Sentence's clip on a video): quiet alike. */
+.touch-up-reason,
+.touch-up-also {
   margin: 0;
   font-size: 13px;
   color: var(--muted);

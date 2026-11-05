@@ -79,7 +79,7 @@ import { FIELD_KINDS } from "@web/fieldKinds";
 import { useCalled } from "@web/hooks/useCalled";
 import { count, langOf, wordFor } from "@web/words";
 import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
-import { pick, spanOver, textOf } from "../capture/words";
+import { pick, spanOver, stamp, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found } from "../dictionary/found";
 import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
@@ -183,6 +183,12 @@ type Touch = {
   first: TouchRead | null;
   said: readonly ExplainMessage[];
   turns: readonly FollowTurn[];
+  /**
+   * On a video, where Accept puts the clip for the Sentence proposed (`words`), worked out as the answer landed, so its
+   * note says the times Accept will use: null ends when the words aren't in the subtitles kept. Null with no Sentence
+   * proposal, or off a video.
+   */
+  clipTo: { words: string; ends: ClipEnds | null } | null;
 };
 const NO_TOUCH: Touch = {
   calls: [],
@@ -198,6 +204,7 @@ const NO_TOUCH: Touch = {
   first: null,
   said: [],
   turns: [],
+  clipTo: null,
 };
 /** Where a follow-up is asked under the head, beside the fields' own (by their ids). */
 const BAR = "bar";
@@ -241,7 +248,15 @@ export type ClipOffer = {
   record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Made>;
   /** What's said in it as it stands now, from its start (`captions.ts` → `cuesOf`): kept with the recording, so a card plays a clip with its subtitles. */
   cues: () => MediaCues;
+  /**
+   * The sentence's clip following words of the subtitles kept (an accepted Touch up Sentence): where its ends would go
+   * for them, worked out as a sentence's clip as it was said is, or null when they aren't there; and putting them there.
+   * The sentence's clip alone has it.
+   */
+  follow?: { endsFor: (words: string) => ClipEnds | null; moveTo: (ends: ClipEnds) => void };
 };
+/** A clip's two ends, both known, in the video's seconds. */
+type ClipEnds = { start: number; end: number };
 
 /** What's said while a stretch is being recorded. */
 const RECORDING: Record<Cut, string> = { clip: "Recording the clip…", word: "Recording the word…" };
@@ -684,6 +699,18 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const lockSentence = () => {
     if (clip !== null && sentenceField !== null) setWritten((was) => was ?? capture.sentence);
   };
+  /**
+   * Where Accept would put the clip for an answer's Sentence proposal (`held` what the field held as it was asked), so
+   * its note can say the times: the proposed words looked for in the subtitles the page keeps. None with no proposal, or
+   * off a video.
+   */
+  function clipToOf(answer: TouchUpAnswer, held: string): Touch["clipTo"] {
+    const part = answer.sentence;
+    const follow = clip?.follow;
+    if (!part || !follow) return null;
+    const verdict = fieldVerdictOf(part, held);
+    return "proposed" in verdict ? { words: verdict.proposed, ends: follow.endsFor(verdict.proposed) } : null;
+  }
 
   /**
    * Touch up, asked: one call on the card as it stands (what was accepted before is the card's now), its answer's
@@ -722,6 +749,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       first: read,
       said: [],
       turns: [],
+      clipTo: null,
     }));
     setFollows({});
     const answer = await askTouchUp({ templateId: using.id, pieces: read.pieces, meanings: read.meanings, keys: touchKeys, now: read.now, said: [] });
@@ -737,6 +765,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       failure: answer.ok ? null : { message: answer.message, retry: answer.problem === "provider" },
       // The model reads its own turn back as it wrote it, its JSON.
       said: answer.ok ? [{ role: "assistant", text: answer.touchUp.raw || JSON.stringify(answer.touchUp.answer) }] : [],
+      clipTo: answer.ok ? clipToOf(answer.touchUp.answer, read.now.values.sentence ?? "") : null,
     }));
     if (answer.ok) lockSentence();
     // The worker keeps Panki AI as this answer said it stands: what's said beside the button follows any change.
@@ -819,6 +848,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       hidden: without(was.hidden),
       said: [...said, { role: "user", text: followed.asked || question }, { role: "assistant", text: followed.raw || followed.reply }],
       turns: [...followsKept, { ...pending, reply: followed.reply }],
+      // A follow-up that changes the Sentence brings its own clip; one that doesn't leaves the last proposal's.
+      clipTo: followed.answer.sentence ? clipToOf(followed.answer, current.now.values.sentence ?? "") : was.clipTo,
     }));
     lockSentence();
     readAi();
@@ -978,9 +1009,23 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       }
     } else {
       const verdict = fieldVerdict(key);
-      if (verdict && "proposed" in verdict) writeAi(field, verdict.proposed);
+      if (verdict && "proposed" in verdict) {
+        writeAi(field, verdict.proposed);
+        // On a video the clip goes to the accepted words, where its note said; the sentence stays locked as written.
+        const to = key === "sentence" ? clipToFor(verdict.proposed) : null;
+        if (to?.ends) clip?.follow?.moveTo(to.ends);
+      }
     }
     decide(key);
+  }
+  /** Where the clip goes for the Sentence proposed, as worked out when it landed; null off a video or for other words. */
+  const clipToFor = (proposed: string) => (touch.clipTo && touch.clipTo.words === proposed ? touch.clipTo : null);
+  /** The Sentence proposal's line about the clip: the times Accept moves it to, that it stays, or nothing off a video. */
+  function clipNote(key: TouchUpKey): string | null {
+    const verdict = key === "sentence" ? fieldVerdict(key) : null;
+    const to = verdict && "proposed" in verdict ? clipToFor(verdict.proposed) : null;
+    if (!to) return null;
+    return to.ends ? TOUCH_UP_WORDS.clipMoves(stamp(to.ends.start), stamp(to.ends.end)) : TOUCH_UP_WORDS.clipStays;
   }
   const pendingKeys = touchKeys.filter(waiting);
   // Accept all and Dismiss all close every note under the fields, "Nothing to change." and the error's among them (a
@@ -1000,7 +1045,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   function touchShown(field: CardField): Shown | null {
     const key = keyOfField(field.id);
     if (!key || !touch.answer || touch.hidden[key]) return null;
-    const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key) };
+    const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key), also: clipNote(key) };
     const meaning = key === "meaning" ? meaningVerdict() : null;
     const verdict = key === "meaning" ? null : fieldVerdict(key);
     const shown = meaning ? meaningShown(meaning, meaningWordsOf, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;

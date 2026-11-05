@@ -13,7 +13,7 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { defaultTemplateOf, inEndZone, momentWanted, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiRunWhy, type AiTemplate, type CaptureFacts, type PromptPieces, type WatchMarkSource } from "@panki/contracts";
+import { defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiRunWhy, type AiTemplate, type CaptureFacts, type PromptPieces, type WatchMarkSource } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { RUN_WORDS, RunAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
@@ -1213,14 +1213,50 @@ function lastHeld(beats: readonly Beat[], end: number): Beat | null {
 function asSaidOf(said: { parts: Parts; found: { at: number; sentence: string }; start: number; end: number | null }): Ends {
   const stop = said.found.at + said.found.sentence.length;
   const own = beatsOf(said.parts).filter((beat) => beat.to > said.found.at && beat.from < stop);
+  const whole = { start: Math.max(0, said.start - LEAD), end: said.end === null ? null : said.end + TAIL };
   const first = own[0];
-  const last = own.at(-1);
-  if (!first || !last || first.over === null) return { start: Math.max(0, said.start - LEAD), end: said.end === null ? null : said.end + TAIL };
+  if (!first || first.over === null) return whole;
   const kept = lines.snapshot();
   const around = beatsOf(transcriptOf(kept.length > 0 ? kept : said.parts.map((part) => part.line)).parts);
+  return saidEnds(own, around) ?? whole;
+}
+
+/**
+ * The ends of a clip of some stretches of words as they were said: a lead before the first, held back from the words
+ * just before it, and a tail after the last, held back from the words just after (`beginsAt`, `endsAt`), those looked
+ * for in `around`. Null with no words.
+ */
+function saidEnds(own: readonly Beat[], around: readonly Beat[]): Ends | null {
+  const first = own[0];
+  const last = own.at(-1);
+  if (!first || !last) return null;
   const before = around.filter((beat) => beat.start < first.start).at(-1);
   const after = around.find((beat) => beat.start > last.start);
   return { start: beginsAt(first, before), end: endsAt(last, after) };
+}
+
+/**
+ * Where the clip's ends go for some words (an accepted Touch up Sentence): the words found as a run of the lines kept
+ * (`runsOf`, spaces and punctuation aside), the one nearest `near` where they're there more than once, and its ends
+ * worked out as a sentence's clip as it was said is (`saidEnds`), to the hundredth. Null when they aren't in the lines
+ * kept, their end isn't known yet, or they'd make a clip longer than one is kept.
+ */
+function endsOfWords(words: string, near: number, limit: { from: number; to: number }): { start: number; end: number } | null {
+  const { text, parts } = transcriptOf(lines.snapshot());
+  const beats = beatsOf(parts);
+  const found = runsOf(text, words).flatMap((run) => {
+    const ends = saidEnds(
+      beats.filter((beat) => beat.to > run.from && beat.from < run.to),
+      beats,
+    );
+    return ends && ends.end !== null ? [{ start: ends.start, end: ends.end }] : [];
+  });
+  const best = found.reduce<{ start: number; end: number } | null>((was, each) => (was === null || Math.abs(each.start - near) < Math.abs(was.start - near) ? each : was), null);
+  if (!best) return null;
+  const start = Math.max(limit.from, best.start);
+  const end = Math.min(limit.to, Math.max(best.end, start + CLIP_MIN));
+  if (end - start > CLIP_MAX_SECONDS) return null;
+  return { start: Math.round(start * 100) / 100, end: Math.round(end * 100) / 100 };
 }
 
 /**
@@ -1407,10 +1443,10 @@ function recordingOf(cut: Cut, start: number, end: number, facts: RecordFacts): 
 /**
  * What the page knows of how a capture off the video was taken, for the card to keep (the contracts' `CaptureFacts`;
  * the drawer adds what it knows, the worker the build): words picked on the line or a stretch with none, which
- * subtitles the line was, whether the clip's ends were put by hand (said only for words picked: a stretch's are always
- * put), and the picked word's own stretch.
+ * subtitles the line was, who put the clip's ends (`clipBy`: where its words were said, by hand, or by an accepted
+ * Sentence; how it was said only for words picked, a stretch's being always put), and the picked word's own stretch.
  */
-function takenFacts(taken: "caption" | "stretch", clipByHand: boolean | null, word: (Ends & { byHand: boolean }) | null, clip: { start: number; end: number | null }): CaptureFacts {
+function takenFacts(taken: "caption" | "stretch", clipBy: ClipBy | null, word: (Ends & { byHand: boolean }) | null, clip: { start: number; end: number | null }): CaptureFacts {
   const mode = lines.get().mode;
   const endMs = (clip.end ?? clip.start) * 1000;
   // The words of the clip's stretch Panki AI's Proofread edited (AI step 6): kept, since the Sentence carries no spark for them.
@@ -1424,7 +1460,8 @@ function takenFacts(taken: "caption" | "stretch", clipByHand: boolean | null, wo
   return {
     taken,
     ...(mode === "transcript" ? { subtitles: "panki" as const } : mode === "captions" ? { subtitles: "youtube" as const } : {}),
-    ...(clipByHand === null ? {} : { clipByHand }),
+    ...(clipBy === "said" || clipBy === "hand" ? { clipByHand: clipBy === "hand" } : {}),
+    ...(clipBy === "sentence" ? { clipByHand: false, clipBySentence: true } : {}),
     ...(word ? { word: { startMs: msOf(word.start), ...(word.end === null ? {} : { endMs: msOf(word.end) }), byHand: word.byHand } } : {}),
     ...(proofread.length > 0 ? { proofread } : {}),
   };
@@ -1458,11 +1495,12 @@ document.addEventListener(
  * clip's ends were put; a stretch of the video taken by itself, with no words to go by; or words selected on the page.
  * `turn` tells one capture from the next, and `moved` counts the times a capture went to another sentence of the same
  * lines. `wordTrim` is where the ends of the picked word's own sound were put by hand (as it was said, until they are),
- * and `wordTurn` counts the times another word was picked: its sound starts over from that word.
+ * and `wordTurn` counts the times another word was picked: its sound starts over from that word. `bySentence` is that
+ * the clip's ends were last put by an accepted Touch up Sentence, not by hand.
  */
 type Taking = (
-  | { of: "caption"; turn: number; lineIds: readonly number[]; chars: Chars | null; trim: Trim; moved: number; wordTrim: Trim; wordTurn: number }
-  | { of: "stretch"; turn: number; trim: { start: number; end: number } }
+  | { of: "caption"; turn: number; lineIds: readonly number[]; chars: Chars | null; trim: Trim; moved: number; wordTrim: Trim; wordTurn: number; bySentence?: boolean }
+  | { of: "stretch"; turn: number; trim: { start: number; end: number }; bySentence?: boolean }
   | { of: "selection"; turn: number; taken: Taken; chars: SentenceChars | null }
   | { of: "nothing" }
 ) & {
@@ -1473,6 +1511,9 @@ type Taking = (
   /** The card is in: the drawer only says so. The clip, its marks, the pick and the hold on the video are let go (`letGo`), and a word taken now is a capture of its own. */
   added?: boolean;
 };
+
+/** Who put a clip's ends: where its words were said, a hand on its bar, or an accepted Touch up Sentence. */
+type ClipBy = "said" | "hand" | "sentence";
 
 /** The picked word as letters of the clip's sentence; null when it isn't in the sentence (the clip's ends were pulled away from it). */
 function inSentence(clip: Clip): SentenceChars | null {
@@ -2385,14 +2426,17 @@ function App() {
     setTaking({ of: "stretch", turn: turn + 1, trim: { start: Math.max(0, end - STRETCH), end }, fresh: taking === null });
   }
 
-  /** Writes down where a cut's ends are now. Both, always: from the first move on it's a stretch of the video, not a sentence or a word as it was said. */
-  function setEnds(cut: Cut, next: { start: number; end: number }) {
+  /**
+   * Writes down where a cut's ends are now. Both, always: from the first move on it's a stretch of the video, not a
+   * sentence or a word as it was said. `by` is who put the clip's: a hand on a bar, or an accepted Sentence.
+   */
+  function setEnds(cut: Cut, next: { start: number; end: number }, by: "hand" | "sentence" = "hand") {
     if (cut === "word") {
       if (taking?.of !== "caption") return;
       setTaking({ ...taking, wordTrim: next });
     } else {
       if (taking?.of !== "caption" && taking?.of !== "stretch") return;
-      setTaking({ ...taking, trim: next });
+      setTaking({ ...taking, trim: next, bySentence: by === "sentence" });
     }
     ends.current = { ...ends.current, [cut]: next };
     if (played.current === cut) replay.retarget({ from: next.start, to: next.end });
@@ -2524,8 +2568,8 @@ function App() {
     const moved = taking.of === "caption" ? taking.moved : 0;
     const facts =
       taking.of === "caption"
-        ? takenFacts("caption", taking.trim.start !== null, wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null, clip)
-        : takenFacts("stretch", null, null, clip);
+        ? takenFacts("caption", taking.bySentence ? "sentence" : taking.trim.start !== null ? "hand" : "said", wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null, clip)
+        : takenFacts("stretch", taking.bySentence ? "sentence" : null, null, clip);
     const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts, more: videoPieces };
     const player = video;
     /** A cut as the drawer is handed it: where it stands, and what can be asked of it. */
@@ -2551,6 +2595,17 @@ function App() {
               const at = ends.current[cut];
               return at && at.end !== null ? cuesOf(lines.get().lines, at.start, at.end) : [];
             },
+            // The clip follows an accepted Touch up Sentence: its words looked for in the lines kept, nearest where the clip stands.
+            ...(cut === "clip"
+              ? {
+                  follow: {
+                    endsFor: (words: string) => endsOfWords(words, ends.current.clip?.start ?? now.start, limitOf(player)),
+                    moveTo: (to: { start: number; end: number }) => {
+                      if (!recording) setEnds("clip", to, "sentence");
+                    },
+                  },
+                }
+              : {}),
           }
         : null;
     const offer = offerOf("clip", { start: clip.start, end: clip.end }, moved);

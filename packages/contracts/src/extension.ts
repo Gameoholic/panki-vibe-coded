@@ -20,7 +20,8 @@ import { z } from "zod";
 // 3: Video tracking became each browser's own, and `WatchedVideo.on` and `Watching.on` went.
 // 4: 3 had also been taken by Panki AI's templates (Explain and Touch up name a template and send a follow-up's
 // question apart from the conversation), so either 3 is too old for the other's break.
-export const EXTENSION_PROTOCOL = 4;
+// 5: a Touch up answer's error can be `rewrote` (a Sentence reworded, set aside by the server), which 4 doesn't read.
+export const EXTENSION_PROTOCOL = 5;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

@@ -52,6 +52,10 @@ export const TOUCH_UP_WORDS = {
   meaningNew: "All meanings are incorrect, Panki AI proposes a new meaning",
   /** What the Meaning list says while Panki AI's proposed meaning is the field's. */
   meaningProposed: "Panki AI's meaning",
+  /** Under a Sentence proposal on a video: where Accept puts the clip's ends, its two times as a clip's stamp writes them. */
+  clipMoves: (start: string, end: string) => `Accept also moves the clip to ${start} – ${end}.`,
+  /** The same, when the proposed words aren't in the subtitles kept: Accept writes the sentence and leaves the clip. */
+  clipStays: "The clip stays as it is.",
   accept: "Accept",
   dismiss: "Dismiss",
   acceptAll: "Accept all",
@@ -254,11 +258,15 @@ function Line({ words, why, open }: { words: string; why: string; open: boolean 
   );
 }
 
-/** A proposal: its title, its why open, and the two ways out, always Accept and Dismiss. Nothing is written until one is pressed. */
-function Proposal({ title, why, onAccept, onDismiss }: { title: string; why: string; onAccept: () => void; onDismiss: () => void }) {
+/**
+ * A proposal: its title, its why open, what else Accept does (`also`: the Sentence's clip on a video), and the two ways
+ * out, always Accept and Dismiss. Nothing is written until one is pressed.
+ */
+function Proposal({ title, why, also, onAccept, onDismiss }: { title: string; why: string; also?: string | null; onAccept: () => void; onDismiss: () => void }) {
   return (
     <div className="touch-up-note">
       <WithReason open reason={why} head={head(title)} />
+      {also ? <p className="touch-up-also">{also}</p> : null}
       <div className="touch-up-tools">
         <Button variant="primary" onClick={onAccept}>
           <Icon name="check" />
@@ -273,8 +281,11 @@ function Proposal({ title, why, onAccept, onDismiss }: { title: string; why: str
   );
 }
 
-/** What a proposal does once pressed, and whether it still waits (decided, nothing of it is drawn but its field). */
-type Ways = { waiting: boolean; onAccept: () => void; onDismiss: () => void };
+/**
+ * What a proposal does once pressed, and whether it still waits (decided, nothing of it is drawn but its field); `also`
+ * is a line saying what else Accept does, given by whoever holds it (the drawer's `TOUCH_UP_WORDS.clipMoves`).
+ */
+type Ways = { waiting: boolean; onAccept: () => void; onDismiss: () => void; also?: string | null };
 
 /** The error, the same under any field: Panki's own words for its code, in red, the why open, nothing to press. */
 const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string }): Shown => ({
@@ -300,7 +311,7 @@ export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Sho
         <Mark block={verdict.kind !== "written"}>{verdict.proposed}</Mark>
       </>
     ),
-    note: <Proposal title={title} why={verdict.why} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
+    note: <Proposal title={title} why={verdict.why} also={ways.also} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
   });
   if (verdict.kind === "written") return proposal("accent", TOUCH_UP_WORDS.proposes);
   return proposal(verdict.kind, verdict.kind === "meh" ? TOUCH_UP_WORDS.couldBeBetter : TOUCH_UP_WORDS.incorrect);
