@@ -7,6 +7,7 @@ import {
   fieldVerdictOf,
   isError,
   meaningVerdictOf,
+  textDiff,
   type AiCall,
   type AiVerdict,
   type FieldVerdict,
@@ -497,9 +498,33 @@ const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string 
 });
 
 /**
- * A text field as Panki draws its answer: good, the green "Nothing to change" tag; the error, red; meh or bad, the value it
- * holds struck in orange or red with the proposal under it in green, titled Could be better or Incorrect; written, the
- * value for an empty field in green under Panki AI proposes. `held` is what the field held as it was sent.
+ * A proposal for a text field as one paragraph with its changes lit (`textDiff`): kept text plain, what goes struck in
+ * the verdict's colour, what comes in green. A rewrite (`DIFF_KEEP_MIN`) is the held value struck whole with the
+ * proposal under it in green; an empty field filled, the proposal all green.
+ */
+function TextDiff({ held, proposed, out }: { held: string; proposed: string; out: "meh" | "bad" | null }) {
+  const runs = out === null ? null : textDiff(held, proposed);
+  if (out === null) return <Mark>{proposed}</Mark>;
+  if (runs === null) {
+    return (
+      <>
+        <Mark out={out}>{held}</Mark>
+        <Mark block>{proposed}</Mark>
+      </>
+    );
+  }
+  return (
+    <span lang={langOf(proposed)}>
+      {runs.map((run, i) => (run.kind === "keep" ? <Fragment key={i}>{run.text}</Fragment> : <Mark key={i} out={run.kind === "drop" ? out : undefined}>{run.text}</Mark>))}
+    </span>
+  );
+}
+
+/**
+ * A text field as Panki draws its answer: good, the green "Nothing to change" tag; the error, red; meh or bad, the
+ * proposal as a diff of the value it holds (`TextDiff`), what goes struck in orange or red, titled Could be better or
+ * Incorrect; written, the value for an empty field in green under Panki AI proposes. `held` is what the field held as
+ * it was sent.
  */
 export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
@@ -507,12 +532,7 @@ export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Sho
   if (!ways.waiting) return null;
   const proposal = (tone: Tone, title: string): Shown => ({
     tone,
-    diff: (
-      <>
-        {verdict.kind === "written" ? null : <Mark out={verdict.kind}>{held}</Mark>}
-        <Mark block={verdict.kind !== "written"}>{verdict.proposed}</Mark>
-      </>
-    ),
+    diff: <TextDiff held={held} proposed={verdict.proposed} out={verdict.kind === "written" ? null : verdict.kind} />,
     note: <Proposal title={title} why={verdict.why} also={ways.also} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
     quiet: null,
   });

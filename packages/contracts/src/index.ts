@@ -7,6 +7,7 @@ export * from "./card";
 export * from "./cardLayout";
 export * from "./conversation";
 export * from "./deck";
+export * from "./diff";
 export * from "./dictionary";
 export * from "./dictionaryRows";
 export * from "./extension";
