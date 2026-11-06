@@ -43,7 +43,16 @@ Before sharing with public:
 - Card type default that comes with Panki?
 
 
-
-- Cards that appear green now should optionally appear greener the more examples we hafve for this card (ideally 3 examples per card (the 3 is customizable, can set it to 0))
+    
+- Cards that appear green now should optionally appear greener the more examples we hafve for this card (ideally 3 examples per card (the 3 is customizable, can set it to 0)) Maybe we can add a signal to like mark a word to make it apepar differnetly liek "Request additional example" if i think while reviewing the card could benefit from mroe examples? Or maybe if the word has >=3 exampels fo rhtt meanignwe flag it int he "the cardw it hths iemangi anrlead yexists ad as adaitional exmaple" thing to know we have alot .obivously nto jstu meanign i mtalkgi anbot uthe duolicate logic its dynamic i sjut gave meanign ehre as ane xample.
 
 - disconnect wanikani+ from wanikani. make my own grading.
+
+
+
+https://www.youtube.com/watch?v=JfvEIHYU24o
+https://www.youtube.com/watch?v=5AtlfA_wYW8
+https://sluka.app/
+https://migaku.com/
+https://www.youtube.com/watch?v=4tKINZwRzVs
+https://www.youtube.com/watch?v=pg98lmTOO9I

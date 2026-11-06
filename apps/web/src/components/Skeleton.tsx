@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 /**
  * What's coming, drawn as its shape while it loads, wherever anything in the app loads: quiet blocks where the words, rows and tiles will be, a soft sweep passing over them. Each
  * shape is built of the real screen's own classes (a deck's row is a `deck-row`, a setting a `setting`, the review a
- * `review is-fit`), so it stands exactly where the real thing will and nothing jumps as it arrives; and it shows only
+ * `review is-fit card-frame`), so it stands exactly where the real thing will and nothing jumps as it arrives; and it shows only
  * once a load has taken a moment (`.skel-in`, `.skel`), so a quick one never shows it at all. The one way anything in the app says it's loading; never
  * "Loading…" in words.
  */
@@ -351,9 +351,10 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
         </div>
       );
     case "review":
-      // The review's own frame (`ReviewView`, `.review.is-fit`): the counts, the card taking the room, Show answer under it.
+      // The review's own frame (`ReviewView`, `.review.is-fit.card-frame`): the counts, the card taking the room, Show
+      // answer under it; the card's words in its main column.
       return (
-        <section className="skel-in review is-fit" {...status}>
+        <section className="skel-in review is-fit card-frame" {...status}>
           <div className="review-top">
             <span className="review-counts">
               <Bone w="4.5em" h="1em" />
@@ -366,8 +367,10 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
               <Bone w="6em" h="1.5em" round />
             </span>
             <div className="review-body">
-              <Bone w="30%" h="3em" />
-              <Bone w="60%" h="1.1em" className="is-faint" />
+              <div className="review-main">
+                <Bone w="30%" h="3em" />
+                <Bone w="60%" h="1.1em" className="is-faint" />
+              </div>
             </div>
           </div>
           <div className="review-actions">

@@ -17,6 +17,7 @@ import {
   type CardPlace,
   type CardSide,
   type CardType,
+  type Column,
   type LayoutPart,
   type ListenFirst,
   type ListenShow,
@@ -50,8 +51,8 @@ import { ScrollEdges } from "./ScrollEdges";
 export type CardEdit = {
   picked: string | null;
   onPick: (fieldId: string) => void;
-  /** Moving the parts on the side that's showing, by their place among that side's parts (`partsOn`). */
-  order: ReturnType<typeof useDragOrder>;
+  /** Moving the parts on the side that's showing, in each column, by their place among that side's parts in it (`partsOnIn`). */
+  order: Readonly<Record<Column, ReturnType<typeof useDragOrder>>>;
   /** The stage tag: whether it's the one picked, picking it, and moving it to a corner (dragged there, or by the arrow keys on it). */
   tagPicked: boolean;
   onPickTag: () => void;
@@ -222,6 +223,9 @@ export type StandIn = (subtitles: (cues: MediaCues, time: ClipTime) => ReactNode
 /** A part to draw on a side: its field, and whether it's only holding its place on the front for the back, unseen. */
 type Drawn = { part: LayoutPart; field: CardField; held: boolean };
 
+/** The parts on a side that stand in a column, in the card's order: what a column's parts are moved among. */
+export const partsOnIn = (layout: readonly LayoutPart[], side: CardSide, column: Column): LayoutPart[] => partsOn(layout, side).filter((p) => p.column === column);
+
 /** Whether a field's value on a card is a sound or a clip to play. */
 function playableOf(field: CardField, values: Readonly<Record<string, string>>, files: Readonly<Record<string, MediaKind>> | undefined): boolean {
   const kind = fileKindOf(field.kind, values[field.id] ?? "", files);
@@ -251,7 +255,8 @@ const VEIL_CLASS: Record<Exclude<ListenShow, "show">, { still: string; playing: 
 };
 
 /**
- * The card as a review shows it, drawn from its type's layout: each field where the layout puts it, in its size and
+ * The card as a review shows it, drawn from its type's layout: each field where the layout puts it, in its column (the
+ * side one at the card's left where it fits its frame and is wide enough, else above the main one), in its size and
  * colour, beside the one above when it's set to be; on the front what the front shows, and once it's turned what the
  * back does. A spoiler is covered until it's pressed, and stays open when the card is turned. What only the back shows
  * keeps its room on the front, unseen, so turning the card moves nothing. A type with Listen first opens a card with
@@ -289,7 +294,8 @@ export function ReviewCard({
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
-  const body = useRef<HTMLDivElement>(null);
+  /** The main column: where the card's parts scroll, wherever they can (`.review-main`, app.css). */
+  const scroller = useRef<HTMLDivElement>(null);
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
   /**
@@ -309,30 +315,30 @@ export function ReviewCard({
     setCarried(new Set());
     if (!revealed) setOpened(new Set());
   }, [revealed]);
-  // Turned back to its front (Hide back of card, an Undo), the body's scroll goes back to the top before it's drawn: the
-  // front can't be scrolled, so parts left scrolled out of view there could never be brought back. A new card is a new
-  // ReviewCard (the review keys it), its body already at the top.
+  // Turned back to its front (Hide back of card, an Undo), the main column's scroll goes back to the top before it's
+  // drawn: the front can't be scrolled, so parts left scrolled out of view there could never be brought back. A new card
+  // is a new ReviewCard (the review keys it), its column already at the top.
   useLayoutEffect(() => {
-    if (!revealed && body.current) body.current.scrollTop = 0;
+    if (!revealed && scroller.current) scroller.current.scrollTop = 0;
   }, [revealed]);
   /**
-   * Whether the front's own parts are taller than the body's room. Then holding the back's room keeps nothing still
-   * (the body scrolls once turned whatever's done), so the front scrolls over its own parts alone (`is-front-tall`,
-   * app.css): the back's runs take no room and its scroll ends at the front's last part. Only where the body is a box
-   * of its own (a review that fits the window or fills the screen); everywhere else it's `display: contents` and never
-   * scrolls.
+   * Whether the main column's front parts are taller than its room. Then holding the back's room keeps nothing still
+   * (the column scrolls once turned whatever's done), so the front scrolls over its own parts alone (`is-front-tall`,
+   * app.css): the back's runs take no room and its scroll ends at the front's last part. Only where the column is a box
+   * of its own (a card that fits its frame, or a review filling the screen); everywhere else it's `display: contents`
+   * and never scrolls.
    */
   const [frontTall, setFrontTall] = useState(false);
   useLayoutEffect(() => {
-    const el = body.current;
+    const el = scroller.current;
     if (!el || revealed) {
       setFrontTall(false);
       return;
     }
     // Measured as the sum of the front's own blocks, not as where its last one ends: a run of the back's parts may stand
-    // between two of them, and holds room there until the class takes it away. A part placed out of the body's flow (a
-    // clip placed by the card, or filling the screen) takes none of its room. A part that grows into what's left (a clip
-    // in the column) measures as the room itself once it's grown, which still fits.
+    // between two of them, and holds room there until the class takes it away. A part placed out of the column's flow (a
+    // clip filling the screen) takes none of its room. A part that grows into what's left (a clip in the column)
+    // measures as the room itself once it's grown, which still fits.
     const measure = () => {
       const style = getComputedStyle(el);
       if (style.display === "contents") return setFrontTall(false);
@@ -723,16 +729,18 @@ export function ReviewCard({
       );
     }
     if (edit) {
-      const i = partsOn(layout, side).findIndex((p) => p.fieldId === field.id);
+      // Moved among the parts of its own column: which column it's in is its own choice, never a drag's.
+      const order = edit.order[part.column];
+      const i = partsOnIn(layout, side, part.column).findIndex((p) => p.fieldId === field.id);
       return (
         <div
           key={field.id}
-          ref={edit.order.rowRef(i)}
-          style={edit.order.rowStyle(i)}
-          className={`${look} is-editable ${edit.picked === field.id ? "is-picked" : ""} ${hidden ? "is-covered" : ""} ${edit.order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+          ref={order.rowRef(i)}
+          style={order.rowStyle(i)}
+          className={`${look} is-editable ${edit.picked === field.id ? "is-picked" : ""} ${hidden ? "is-covered" : ""} ${order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
           onClick={() => edit.onPick(field.id)}
         >
-          <Button className="btn-icon review-grip" aria-label={`Move ${field.name}`} {...edit.order.handleProps(i)}>
+          <Button className="btn-icon review-grip" aria-label={`Move ${field.name}`} {...order.handleProps(i)}>
             <Icon name="grip" />
           </Button>
           <div className="review-part-face">
@@ -771,30 +779,25 @@ export function ReviewCard({
     );
   }
 
-  // Rows: a part set beside the one above joins its row. Runs of rows that only ever show once the card is turned
-  // stand together, closer, as the back always has.
-  const rows: Drawn[][] = [];
-  for (const d of drawn) {
-    // Written over another part's words as its reading, it has no place of its own.
-    if (attached.has(d.field.id)) continue;
-    const last = rows[rows.length - 1];
-    if (d.part.beside && last) last.push(d);
-    else rows.push([d]);
-  }
-  const blocks: ReactNode[] = [];
-  let later: ReactNode[] = [];
-  const flush = () => {
-    if (later.length === 0) return;
-    blocks.push(
-      <div key={`later-${blocks.length}`} className="review-answer" aria-hidden={!revealed}>
-        {later}
-      </div>,
-    );
-    later = [];
+  // Rows, in each column: a part set beside the one above it in its column joins its row. Runs of rows that only ever
+  // show once the card is turned stand together, closer, as the back always has.
+  const rowsIn = (column: Column): Drawn[][] => {
+    const rows: Drawn[][] = [];
+    for (const d of drawn) {
+      // Written over another part's words as its reading, it has no place of its own.
+      if (attached.has(d.field.id) || d.part.column !== column) continue;
+      const last = rows[rows.length - 1];
+      if (d.part.beside && last) last.push(d);
+      else rows.push([d]);
+    }
+    return rows;
   };
-  // The examples' switch goes under the example: after the last row holding a part of it the front shows, else its last.
+  const sideRows = rowsIn("side");
+  const mainRows = rowsIn("main");
+  // The examples' switch goes under the example: after the last row holding a part of it the front shows, else its
+  // last, in whichever column that is (the side column's rows counted first, as it stands first where the two stack).
   const backOnly = (row: Drawn[]) => row.every((d) => d.part.front === "hide");
-  const exampleRows = examplePager === null ? [] : rows.filter((row) => row.some((d) => d.field.perExample));
+  const exampleRows = examplePager === null ? [] : [...sideRows, ...mainRows].filter((row) => row.some((d) => d.field.perExample));
   const pagerAfter = exampleRows.filter((row) => !backOnly(row)).at(-1) ?? exampleRows.at(-1) ?? null;
   const pager = examplePager === null ? null : (
     <div key="examples" className="review-examples">
@@ -802,27 +805,44 @@ export function ReviewCard({
     </div>
   );
   let pagerPlaced = false;
-  for (const row of rows) {
-    const parts = row.map(partView).filter((p) => p !== null);
-    if (parts.length === 0) continue;
-    const key = row[0]?.field.id ?? "";
-    const view =
-      parts.length === 1 ? (
-        parts[0]
-      ) : (
-        <div key={`row-${key}`} className="review-row">
-          {parts}
-        </div>
+  /** A column's blocks: its rows, and its runs of the back's rows each in one block. */
+  const blocksOf = (rows: Drawn[][]): ReactNode[] => {
+    const blocks: ReactNode[] = [];
+    let later: ReactNode[] = [];
+    const flush = () => {
+      if (later.length === 0) return;
+      blocks.push(
+        <div key={`later-${blocks.length}`} className="review-answer" aria-hidden={!revealed}>
+          {later}
+        </div>,
       );
-    const into = backOnly(row) ? later : (flush(), blocks);
-    into.push(view);
-    if (row === pagerAfter && pager) {
-      into.push(pager);
-      pagerPlaced = true;
+      later = [];
+    };
+    for (const row of rows) {
+      const parts = row.map(partView).filter((p) => p !== null);
+      if (parts.length === 0) continue;
+      const key = row[0]?.field.id ?? "";
+      const view =
+        parts.length === 1 ? (
+          parts[0]
+        ) : (
+          <div key={`row-${key}`} className="review-row">
+            {parts}
+          </div>
+        );
+      const into = backOnly(row) ? later : (flush(), blocks);
+      into.push(view);
+      if (row === pagerAfter && pager) {
+        into.push(pager);
+        pagerPlaced = true;
+      }
     }
-  }
-  flush();
-  if (pager && !pagerPlaced) blocks.push(pager);
+    flush();
+    return blocks;
+  };
+  const sideBlocks = blocksOf(sideRows);
+  const mainBlocks = blocksOf(mainRows);
+  if (pager && !pagerPlaced) mainBlocks.push(pager);
 
   // The card is pressed like a button, so it answers to a button's keys; a key on something inside it is that thing's.
   // Where the page's own keys turn it (`keys` off: the review), it's pressed with a pointer alone and never takes the
@@ -846,14 +866,19 @@ export function ReviewCard({
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
       {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
-      {/* The parts in one box, so a review that fits the window or fills the screen can scroll them inside the card
-          (`.review-body`, app.css), with Panki's fades and thin bar over it; everywhere else the box draws nothing of
-          its own, and runs over nothing, so neither do they. The front holds the back's room unseen and can't be
-          scrolled, so it has no fades and no bar, unless its own parts don't fit: then it scrolls over them alone. */}
-      <div ref={body} className="review-body">
-        {blocks}
+      {/* The parts in their two columns (`.review-body`, app.css): the side one, only while something in it shows or
+          holds its room, and the main one. Where the card fits its frame they stand side by side when there's room
+          (else the side one above), and the main one scrolls its parts inside the card, with Panki's fades and thin bar
+          over it; everywhere else neither box draws anything of its own, and runs over nothing, so neither do they. The
+          front holds the back's room unseen and can't be scrolled, so it has no fades and no bar, unless its own parts
+          don't fit: then it scrolls over them alone. */}
+      <div className="review-body">
+        {sideBlocks.length > 0 ? <div className="review-side">{sideBlocks}</div> : null}
+        <div ref={scroller} className="review-main">
+          {mainBlocks}
+        </div>
       </div>
-      {revealed || frontTall ? <ScrollEdges of={body} /> : null}
+      {revealed || frontTall ? <ScrollEdges of={scroller} /> : null}
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>
   );

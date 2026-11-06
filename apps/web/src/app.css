@@ -3214,8 +3214,8 @@ mark.sub-mark {
   font-size: 14px;
 }
 /* The words beside a clip, a size smaller than on a card alone so a long meaning takes less height: the full-screen
-   rail's, and on a wide window the page's column at the clip's right. */
-.review {
+   rail's, and the main column beside the side one where a card fits its frame. */
+.review-card {
   --beside-big: 28px;
   --beside-normal: 16px;
   --beside-small: 13px;
@@ -3447,6 +3447,22 @@ mark.sub-blur {
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+/* The card in the review's own frame (`.card-frame`, whose rules are the review's, under "The review on a computer fits
+   the window"): on a computer as tall as the review's card is on this window, the window less what the review draws
+   around its card as it last measured it here (`--review-chrome`, `ReviewView` → `reviewChromeOf`). The one way it
+   differs from the review's: beside the choices on a wide window it's narrower, and its columns split by the card's own
+   width, so they split as the review's would at that width. Being laid out, it keeps room for the grips. */
+.layout-frame {
+  display: grid;
+  min-width: 0;
+}
+@media (min-width: 641px) {
+  .layout-frame {
+    height: calc(100dvh - var(--review-chrome));
+    display: flex;
+    flex-direction: column;
+  }
 }
 .layout-tools {
   display: flex;
@@ -4559,24 +4575,39 @@ mark.sub-blur {
    what's left (a size container), its picture 16:9 as big as that fits with its bar under it. The back's parts hold
    their room on the front, so the clip is the same size on both sides. The chart, when it's open, hangs under all of
    that, the page scrolling down to it, so opening it moves nothing above. The parts stand in the card's body
-   (`.review-body`, which draws nothing of its own anywhere else): a card too tall for the window scrolls there, inside
-   the card, by the same rule as the full-screen rail's, so the buttons never move and the page never grows. On a phone
-   the page scrolls as it always did. */
-.review-body {
+   (`.review-body`, which draws nothing of its own anywhere else), in its two columns (`.review-side`, `.review-main`,
+   the layout's `LayoutPart.column`): a card too tall for the window scrolls in its main column, inside the card, by the
+   same rule as the full-screen rail's, so the buttons never move and the page never grows. On a phone the page scrolls
+   as it always did.
+
+   How a card fits its frame is one set of rules, `.card-frame > .review-card`: the review's on a computer
+   (`.review.is-fit` is its frame) and the Layout tab's drawing of the card (`.layout-frame`), which is given the height
+   the review's card has on this window, so what's laid out is what the review draws. */
+.review-body,
+.review-side,
+.review-main {
   display: contents;
 }
-/* The card's body in a review that fits the window and in one filling the screen alike. It takes the card's room and
-   scrolls inside it when the parts outgrow it (Panki's own fades and thin bar, `ScrollEdges`), centred while they fit, so
-   the counts above and the buttons under the card stay where they are. It reaches 8 px into the card's padding and pads
-   it back, so its parts stand where they did while a spoiler's cover and a focus ring at its edge still have room
-   before it clips. Each block holds its card to its share (`flex: 1 1 0` and `min-height: 0`: at `auto` a flex item is
-   at least as tall as its content, so the body would never be held and never scroll) and gives it its own padding. A
-   clip filling the screen (`position: fixed`) and a clip placed by the card (`position: absolute`, the body never
-   positioned) are out of the body's reach: they neither scroll with it nor are clipped by it. */
-.main > .review:is(.is-fit, .is-stage) > .review-card > .review-body {
+/* The card's body in a frame it fits and in a review filling the screen alike: it takes the card's room, its columns
+   in it. Each block holds its card to its share (`flex: 1 1 0` and `min-height: 0`: at `auto` a flex item is at least
+   as tall as its content, so nothing would ever be held and nothing scroll) and gives it its own padding. Weighed as
+   nothing (`:where`), so the rules for one frame alone (a phone's, the screen filled) take over by being named. */
+:where(.card-frame, .main > .review.is-stage) > .review-card > .review-body {
   flex: 1 1 0;
   min-height: 0;
   align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* The main column scrolls inside the card when its parts outgrow it (Panki's own fades and thin bar, `ScrollEdges`),
+   centred while they fit, so the counts above and the buttons under the card stay where they are. It reaches 8 px into
+   what's around it and pads it back, so its parts stand where they would while a spoiler's cover and a focus ring at
+   its edge still have room before it clips. A clip filling the screen (`position: fixed`) is out of its reach: it
+   neither scrolls with it nor is clipped by it. */
+:where(.card-frame, .main > .review.is-stage) > .review-card > .review-body > .review-main {
+  flex: 1 1 0;
+  min-height: 0;
   margin: -8px;
   padding: 8px;
   display: flex;
@@ -4588,30 +4619,37 @@ mark.sub-blur {
   scrollbar-width: none;
 }
 /* The front never scrolls: the back's parts still hold their room there, so the front's parts stand exactly where they
-   will once it's turned (at the top when the whole card runs over, centred while it fits), but nothing past them can be
-   scrolled to, and no fade or bar is drawn (ReviewCard draws `ScrollEdges` on the back alone). `hidden` and not `clip`:
-   it stays a scroll container, as `auto` is, so the horizontal axis computes the same and nothing moves as the card
-   turns; ReviewCard puts its scroll back to the top as the card turns back. */
-.main > .review:is(.is-fit, .is-stage) > .review-card:not(.is-revealed) > .review-body {
+   will once it's turned (at the top when the whole column runs over, centred while it fits), but nothing past them can
+   be scrolled to, and no fade or bar is drawn (ReviewCard draws `ScrollEdges` on the back alone). `hidden` and not
+   `clip`: it stays a scroll container, as `auto` is, so the horizontal axis computes the same and nothing moves as the
+   card turns; ReviewCard puts its scroll back to the top as the card turns back. */
+:where(.card-frame, .main > .review.is-stage) > .review-card:not(.is-revealed) > .review-body > .review-main {
   overflow-y: hidden;
 }
 /* Unless the front's own parts don't fit (`is-front-tall`, measured by ReviewCard): then holding the back's room keeps
-   nothing still, since the body scrolls once turned either way, so the front scrolls over its own parts alone, with
+   nothing still, since the column scrolls once turned either way, so the front scrolls over its own parts alone, with
    Panki's fades and bar. The back's runs take no room there, so the scroll ends at the front's last part (a run between
-   two front parts gives way, and they close up); turned, they come in where they stand and the body scrolls on. A part
-   of the back beside a front one in its row still holds its room, so the front part stays where it stands in the row. */
-.main > .review:is(.is-fit, .is-stage) > .review-card.is-front-tall:not(.is-revealed) > .review-body {
+   two front parts gives way, and they close up); turned, they come in where they stand and the column scrolls on. A
+   part of the back beside a front one in its row still holds its room, so the front part stays where it stands in the
+   row. */
+:where(.card-frame, .main > .review.is-stage) > .review-card.is-front-tall:not(.is-revealed) > .review-body > .review-main {
   overflow-y: auto;
 }
-.main > .review:is(.is-fit, .is-stage) > .review-card.is-front-tall:not(.is-revealed) > .review-body > .review-answer {
+:where(.card-frame, .main > .review.is-stage) > .review-card.is-front-tall:not(.is-revealed) > .review-body > .review-main > .review-answer {
   display: none;
 }
-.main > .review:is(.is-fit, .is-stage) > .review-card > .review-body > * {
+:where(.card-frame, .main > .review.is-stage) > .review-card > .review-body > .review-main > *,
+:where(.card-frame, .main > .review.is-stage) > .review-card > .review-body > .review-side > * {
   flex: none;
+}
+/* The card is the container its columns are judged by: they stand side by side once it's wide enough (below). */
+.card-frame > .review-card {
+  container: card / inline-size;
 }
 /* On a phone the page's review has no body of its own: its card grows with its parts and the page scrolls. */
 @media (max-width: 640px) {
-  .main > .review.is-fit > .review-card > .review-body {
+  .card-frame > .review-card > .review-body,
+  .card-frame > .review-card > .review-body > .review-main {
     display: contents;
   }
 }
@@ -4673,8 +4711,8 @@ mark.sub-blur {
     margin: 0;
     padding-bottom: 16px;
   }
-  /* The card held to its share, its body scrolling inside it (the rule above the block). */
-  .main > .review.is-fit > .review-card {
+  /* The card held to its share of its frame, its main column scrolling inside it (the rules above the block). */
+  .card-frame > .review-card {
     flex: 1 1 0;
     min-height: 0;
     padding: 12px 24px;
@@ -4682,41 +4720,56 @@ mark.sub-blur {
     flex-direction: column;
     align-items: center;
   }
-  /* What holds the clip grows: its part, or the run of the back's parts or the row it's in, and then its part. */
-  .main > .review.is-fit > .review-card > .review-body > :has(video.media-frame),
-  .main > .review.is-fit > .review-card > .review-body > .review-answer > :has(video.media-frame) {
+  /* Being laid out, it keeps room for each part's grip at its left, and its main column reaches into that room so the
+     grips there aren't clipped by its scroll. */
+  .card-frame > .review-card.is-editing {
+    padding-inline: 46px;
+  }
+  .card-frame > .review-card.is-editing > .review-body > .review-main {
+    margin-inline: -46px;
+    padding-inline: 46px;
+  }
+  /* What holds a clip grows: its part, or the run of the back's parts or the row it's in, and then its part, in
+     whichever column it stands. */
+  .card-frame > .review-card > .review-body > :is(.review-main, .review-side) > :has(video.media-frame),
+  .card-frame > .review-card > .review-body > :is(.review-main, .review-side) > .review-answer > :has(video.media-frame) {
     flex: 1 1 0;
     min-height: 240px;
     width: 100%;
   }
-  .main > .review.is-fit > .review-card > .review-body > .review-answer:has(video.media-frame) {
+  .card-frame > .review-card > .review-body > :is(.review-main, .review-side) > .review-answer:has(video.media-frame) {
     display: flex;
     flex-direction: column;
     align-items: center;
   }
-  .main > .review.is-fit > .review-card > .review-body > .review-answer:has(video.media-frame) > * {
+  .card-frame > .review-card > .review-body > :is(.review-main, .review-side) > .review-answer:has(video.media-frame) > * {
     flex: none;
   }
-  .main > .review.is-fit .review-row:has(video.media-frame) {
+  /* Where the columns stack (no room for the two side by side), a clip in the side column takes what's left above the
+     main one, which is then as tall as its parts and scrolls when they don't fit, so the clip stays in sight. */
+  .card-frame > .review-card > .review-body:has(> .review-side video.media-frame) > .review-main {
+    flex: 0 1 auto;
+  }
+  .card-frame .review-row:has(video.media-frame) {
     flex-wrap: nowrap;
     align-items: stretch;
   }
-  .main > .review.is-fit .review-row > .review-part {
+  .card-frame .review-row > .review-part {
     align-content: center;
   }
-  .main > .review.is-fit .review-row > .review-part:has(video.media-frame) {
+  .card-frame .review-row > .review-part:has(video.media-frame) {
     width: auto;
   }
-  .main > .review.is-fit .review-part:has(video.media-frame) {
+  .card-frame .review-part:has(video.media-frame) {
     container-type: size;
     align-content: center;
   }
   /* As wide as a 16:9 picture with the bar under it (about 60 px with its gap) fits in the part's height. */
-  .main > .review.is-fit .review-part:has(video.media-frame) .media.media-player {
+  .card-frame .review-part:has(video.media-frame) .media.media-player {
     width: min(100cqw, calc((100cqh - 54px) * 16 / 9));
     gap: 4px;
   }
-  .main > .review.is-fit .review-part .media-player video.media-frame {
+  .card-frame .review-part .media-player video.media-frame {
     max-height: none;
   }
   /* The answers on one line each: the name, where it goes, the key. Show answer as tall. */
@@ -4745,44 +4798,53 @@ mark.sub-blur {
     padding-block: 6px;
   }
 }
-/* On a wide window the clip stands at the card's left, as tall as the card, and the card's other parts in a column at
-   its right: under one another they didn't fit with the clip any bigger than it was. The clip is placed by the card,
-   so the body scrolling under it leaves it where it is (the body is never positioned: an absolutely placed box whose
-   containing block is outside a scroller neither scrolls with it nor is clipped by it). The column's words are the
-   full-screen rail's sizes. */
-@media (min-width: 960px) {
-  .main > .review.is-fit > .review-card:has(video.media-frame) {
-    --clip-side: 52%;
-    padding-left: calc(var(--clip-side) + 24px);
+/* A card wide enough for its two columns side by side (judged on the card itself, so the review and the Layout tab's
+   narrower drawing of it split at the same width): the side column at its left, its share of the card's width
+   (`--clip-side`, the one magnitude) and as tall as the card, its parts centred and never scrolled; the main column the
+   rest, scrolling. Under one another a clip didn't fit any bigger than it was. The main column's words, beside the
+   side one, are the full-screen rail's sizes. */
+.card-frame > .review-card {
+  --clip-side: 52%;
+  --columns-gap: 24px;
+}
+.card-frame > .review-card.is-editing {
+  --columns-gap: 46px;
+}
+@container card (min-width: 700px) {
+  .card-frame > .review-card > .review-body:has(> .review-side) {
+    flex-direction: row;
+    gap: var(--columns-gap);
   }
-  .main > .review.is-fit > .review-card:has(video.media-frame) .review-part.size-big .review-words {
+  .card-frame > .review-card > .review-body > .review-side {
+    flex: 0 0 var(--clip-side);
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: safe center;
+    gap: 6px;
+  }
+  .card-frame > .review-card > .review-body > .review-main,
+  .card-frame > .review-card > .review-body:has(> .review-side video.media-frame) > .review-main {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* A clip in the side column takes all of the column's height that's left, however tall that is. */
+  .card-frame > .review-card > .review-body > .review-side > :has(video.media-frame),
+  .card-frame > .review-card > .review-body > .review-side > .review-answer > :has(video.media-frame) {
+    min-height: 0;
+  }
+  .card-frame > .review-card > .review-body:has(> .review-side) > .review-main .review-part.size-big .review-words {
     font-size: var(--beside-big);
   }
-  .main > .review.is-fit > .review-card:has(video.media-frame) .review-part.size-normal .review-words {
+  .card-frame > .review-card > .review-body:has(> .review-side) > .review-main .review-part.size-normal .review-words {
     font-size: var(--beside-normal);
   }
-  .main > .review.is-fit > .review-card:has(video.media-frame) .review-part.size-small .review-words {
+  .card-frame > .review-card > .review-body:has(> .review-side) > .review-main .review-part.size-small .review-words {
     font-size: var(--beside-small);
   }
-  .main > .review.is-fit > .review-card > .review-body > .review-answer:has(video.media-frame) {
-    display: grid;
-    flex: none;
-    min-height: 0;
-  }
-  .main > .review.is-fit > .review-card > .review-body > .review-part:has(video.media-frame),
-  .main > .review.is-fit > .review-card > .review-body > .review-answer > .review-part:has(video.media-frame) {
-    position: absolute;
-    top: 12px;
-    bottom: 12px;
-    left: 24px;
-    width: calc(var(--clip-side) - 24px);
-    min-height: 0;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-  }
-  /* A long sentence beside the clip, a little closer set. */
-  .main > .review.is-fit > .review-card:has(video.media-frame) .review-words.is-long {
+  /* A long sentence beside the side column, a little closer set. */
+  .card-frame > .review-card > .review-body:has(> .review-side) > .review-main .review-words.is-long {
     line-height: 1.4;
   }
 }
