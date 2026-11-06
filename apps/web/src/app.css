@@ -5261,6 +5261,10 @@ mark.sub-blur {
 .dropdown-tick.is-off {
   visibility: hidden;
 }
+/* A choice that stands as it is, ticked from elsewhere (a custom meaning, the Meaning field's own words): nothing to press. */
+.btn-item.is-fixed {
+  cursor: default;
+}
 /* Headings over a list's two columns, the choices and their quiet words: what each column is. */
 .dropdown-columns {
   display: flex;

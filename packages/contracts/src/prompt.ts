@@ -62,10 +62,15 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
  * Touch up's): a JSON list, one entry each in the list's order, its words and its index from 1,
  * nothing more. What's ticked on the card is never in it: the model judges each meaning against
  * the sentence alone, and Panki holds its verdicts against the ticks on its own side (`meaningVerdictOf`). One home for
- * the shape: the page building the piece and the server checking each index agree by construction.
+ * the shape: the page building the piece and the server checking each index agree by construction. Touch up adds the
+ * Meaning field's own meanings after the dictionary's (`custom`, `touchUp.ts` → `readMeaning`), numbered on from them and
+ * marked `"custom": true`, so the model judges them as rows of their own and knows they're the user's.
  */
-export function meaningsPiece(meanings: readonly string[]): string {
-  return JSON.stringify(meanings.map((meaning, i) => ({ meaning, index: i + 1 })));
+export function meaningsPiece(meanings: readonly string[], custom: readonly string[] = []): string {
+  return JSON.stringify([
+    ...meanings.map((meaning, i) => ({ meaning, index: i + 1 })),
+    ...custom.map((meaning, i) => ({ meaning, index: meanings.length + i + 1, custom: true })),
+  ]);
 }
 
 /** How a meaning stands in the sentence, one registry: its name on screen. The colours and the strike are `app.css`'s, by `.ai-accuracy.is-…`. */

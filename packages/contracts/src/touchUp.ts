@@ -121,7 +121,7 @@ export type EmptyMeaningWire = z.infer<typeof EmptyMeaningWire>;
 
 /** What each key holds and what Panki does with it, in plain words: said in Admin (`answerShapesOf`), never sent (`schemaFor` leaves descriptions out). */
 export const KEY_WORDS: Record<TouchUpKey, string> = {
-  meaning: "the card's Meaning, judged meaning by meaning, or the error: Panki holds the rows against what's ticked and draws the difference",
+  meaning: "the card's Meaning, judged meaning by meaning (the dictionary's, then the field's own custom ones), or the error: Panki holds the rows against what the field holds and draws the difference",
   reading: "the dictionary form's reading: judged, written when it's empty, or the error",
   dictionaryForm: "the dictionary form, the same way",
   pitchAccent: "the dictionary form's pitch accent as its field writes it (くう 1), the same way",
@@ -214,44 +214,131 @@ export function fieldVerdictOf(part: FieldAnswer, held: string): FieldVerdict {
   return { kind: part.judgement ?? "written", proposed, why: part.why };
 }
 
-/** One meaning in the Meaning while a proposal waits, git's way: kept plain, could be better (orange, struck), wrong (red, struck), or added (green). */
-export type MeaningMark = { number: number; mark: "keep" | "meh" | "bad" | "add" };
+/*
+ * The Meaning field is the one truth of what a card means. Its text is read as glosses (`glossesOf`); a dictionary
+ * meaning is ticked only while its whole stands in the field, every gloss of it in its order and side by side (spaces,
+ * capitals and punctuation aside, as `bareOf` compares), and every run of glosses no dictionary meaning claims is a
+ * meaning of the field's own, a custom meaning, counted apart from the dictionary's (`readMeaning`). The drawer's list of
+ * meanings is worked out from the field every time, and ticking one only adds or takes out its glosses
+ * (`meaningTicked`, `meaningWithout`). Touch up is sent what's worked out: the dictionary's numbers held, the field's text
+ * and each custom meaning as a row of its own (`meaningsPiece`'s `custom`).
+ */
+
+/** What stands between two glosses of a Meaning: a semicolon, of either width, or a line break. */
+const GLOSS_BREAK = /[;；\r\n]/;
+/** A Meaning's glosses as written: split at each break, each trimmed and its spaces made single, the empty ones dropped. */
+export function glossesOf(text: string): string[] {
+  return text
+    .split(GLOSS_BREAK)
+    .map((gloss) => gloss.replace(/\s+/g, " ").trim())
+    .filter((gloss) => gloss !== "");
+}
+/** Glosses as a Meaning holds them. */
+const glossesJoined = (glosses: readonly string[]): string => glosses.join("; ");
+/** A Meaning tidied: its glosses joined by "; ", stray breaks and spaces gone. What's sent, what's kept and what Accept writes; never while it's typed. */
+export const tidyMeaning = (text: string): string => glossesJoined(glossesOf(text));
+
+/** One run of a Meaning's glosses: a dictionary meaning whole, by its number in `{Meaning}`, or one of the field's own, by its count; its words as the field has them. */
+export type MeaningRun = { kind: "dictionary" | "custom"; number: number; words: string };
+/** A Meaning read: its runs in the field's order, the dictionary's numbers it holds (in the list's order), and its custom meanings' words (in the field's). */
+export type MeaningRead = { runs: MeaningRun[]; ticked: number[]; custom: string[] };
 /**
- * The Meaning's answer as Panki draws it, made from the rows against what's ticked, the one place it's decided:
+ * A Meaning's text against the dictionary's meanings: each meaning whose glosses all stand in it, in order and side by
+ * side, is ticked there; the longest meanings are matched first and, among those as long, the first in the list, and
+ * glosses one meaning took can't be another's. Whatever no meaning takes is the field's own: each run of such glosses
+ * side by side one custom meaning, so there are two only when a dictionary meaning stands between them.
+ */
+export function readMeaning(text: string, meanings: readonly string[]): MeaningRead {
+  const glosses = glossesOf(text);
+  const bare = glosses.map((gloss) => bareOf(gloss).bare);
+  const owner: (number | null)[] = glosses.map(() => null);
+  const wholes = meanings
+    .map((words, i) => ({ number: i + 1, bare: glossesOf(words).map((gloss) => bareOf(gloss).bare) }))
+    .filter((whole) => whole.bare.length > 0 && whole.bare.every((each) => each !== ""))
+    .sort((a, b) => b.bare.length - a.bare.length || a.number - b.number);
+  for (const whole of wholes) {
+    const size = whole.bare.length;
+    for (let at = 0; at + size <= glosses.length; at++) {
+      if (!whole.bare.every((each, j) => owner[at + j] === null && bare[at + j] === each)) continue;
+      for (let j = 0; j < size; j++) owner[at + j] = whole.number;
+      break;
+    }
+  }
+  const runs: MeaningRun[] = [];
+  let custom = 0;
+  for (let at = 0; at < glosses.length; ) {
+    const number = owner[at] ?? null;
+    let end = at + 1;
+    while (end < glosses.length && owner[end] === number) end++;
+    const words = glossesJoined(glosses.slice(at, end));
+    runs.push(number === null ? { kind: "custom", number: ++custom, words } : { kind: "dictionary", number, words });
+    at = end;
+  }
+  return {
+    runs,
+    ticked: runs.flatMap((run) => (run.kind === "dictionary" ? [run.number] : [])).sort((a, b) => a - b),
+    custom: runs.flatMap((run) => (run.kind === "custom" ? [run.words] : [])),
+  };
+}
+/** A Meaning with a dictionary meaning ticked: its glosses, whole, at the end; tidied. One already held leaves it as it is. */
+export function meaningTicked(text: string, meanings: readonly string[], number: number): string {
+  const words = meanings[number - 1];
+  if (words === undefined || readMeaning(text, meanings).ticked.includes(number)) return tidyMeaning(text);
+  return glossesJoined([...glossesOf(text), ...glossesOf(words)]);
+}
+/** A Meaning with the runs chosen taken out, exactly those glosses; tidied. Unticking a dictionary meaning is its run. */
+export function meaningWithout(text: string, meanings: readonly string[], gone: (run: MeaningRun) => boolean): string {
+  return glossesJoined(readMeaning(text, meanings).runs.filter((run) => !gone(run)).map((run) => run.words));
+}
+/** The custom meanings a card was sent with, read off its Meaning as sent: what `{Meaning}` lists after the dictionary's. */
+export const customOf = (now: TouchUpNow, meanings: readonly string[]): string[] => readMeaning(now.values.meaning ?? "", meanings).custom;
+
+/** One row of the Meaning as judged: a dictionary meaning by its number, or a custom one by its count; its words, how it stands and why, and whether the Meaning held it. */
+export type MeaningRowVerdict = { kind: "dictionary" | "custom"; number: number; words: string; judgement: Judgement; why: string; ticked: boolean };
+/** One run of the Meaning while a proposal waits, git's way: kept plain, could be better (orange, struck), wrong (red, struck), or added (green). */
+export type MeaningMark = { kind: "dictionary" | "custom"; number: number; words: string; mark: "keep" | "meh" | "bad" | "add" };
+/**
+ * The Meaning's answer as Panki draws it, made from the rows against what the Meaning held as it was sent, the one
+ * place it's decided:
  * - the error, the list left unmarked;
- * - good: every ticked row good and no other row good ("Nothing to change.");
- * - change, some row good: `tone` more (nothing ticked is off, more rows are good: accent), meh (a ticked row could be
- *   better: orange) or bad (a ticked row is wrong: red); Accept ticks the good rows (`good`), the dictionary's words;
- * - propose, no row good: `tone` meh (a ticked row is near: a better meaning, orange), bad (every ticked row wrong: a
- *   new meaning, red) or empty (the dictionary has no meanings, or nothing is ticked: accent); Accept writes it.
- * `marks` is the Meaning as the diff reads, in the list's order.
+ * - good: every row the Meaning held good and no other row good ("Nothing to change.");
+ * - change, some row good: Accept writes `accepted`, the runs that fit as the field has them, in its order, then each
+ *   dictionary meaning that fits and wasn't held;
+ * - propose, no row good: Accept writes the meaning Panki AI proposed in their place.
+ * `rows` is every row judged, the dictionary's then the custom ones (what a title names); `marks` the Meaning as the
+ * diff reads, in the field's order, then what's added.
  */
 export type MeaningVerdict =
   | { kind: "error"; error: TouchUpErrorId; why: string }
-  | { kind: "good"; why: string }
-  | { kind: "change"; tone: "more" | "meh" | "bad"; marks: MeaningMark[]; good: number[]; why: string }
-  | { kind: "propose"; tone: "meh" | "bad" | "empty"; marks: MeaningMark[]; proposed: string; why: string };
-export function meaningVerdictOf(part: MeaningAnswer, ticked: readonly number[]): MeaningVerdict {
+  | { kind: "good"; rows: MeaningRowVerdict[]; why: string }
+  | { kind: "change"; rows: MeaningRowVerdict[]; marks: MeaningMark[]; accepted: string; why: string }
+  | { kind: "propose"; rows: MeaningRowVerdict[]; marks: MeaningMark[]; proposed: string; why: string };
+/** `now` is the card as it was sent (its Meaning tidied, `now.values.meaning`), `meanings` the dictionary's, in `{Meaning}`'s order. */
+export function meaningVerdictOf(part: MeaningAnswer, now: TouchUpNow, meanings: readonly string[]): MeaningVerdict {
   if (isError(part)) return { kind: "error", error: part.error, why: part.why };
-  const judgementOf = new Map(part.meanings.map((row) => [row.meaning, row.judgement]));
-  const held = new Set(ticked);
-  const good = part.meanings.filter((row) => row.judgement === "good").map((row) => row.meaning).sort((a, b) => a - b);
-  const tickedMarks = [...held]
-    .sort((a, b) => a - b)
-    .map((number): MeaningMark => {
-      const judgement = judgementOf.get(number) ?? "good";
-      return { number, mark: judgement === "good" ? "keep" : judgement };
-    });
-  const off = tickedMarks.filter((m) => m.mark !== "keep");
-  if (good.length > 0) {
-    const added = good.filter((n) => !held.has(n)).map((number): MeaningMark => ({ number, mark: "add" }));
-    if (off.length === 0 && added.length === 0) return { kind: "good", why: part.why };
-    const marks = [...tickedMarks, ...added].sort((a, b) => a.number - b.number);
-    const tone = off.some((m) => m.mark === "bad") ? "bad" : off.length > 0 ? "meh" : "more";
-    return { kind: "change", tone, marks, good, why: part.why };
+  const read = readMeaning(now.values.meaning ?? "", meanings);
+  const answered = new Map(part.meanings.map((row) => [row.meaning, row]));
+  const held = new Set(read.ticked);
+  const rowOf = (run: { kind: MeaningRun["kind"]; number: number }) => (run.kind === "dictionary" ? run.number : meanings.length + run.number);
+  const listed: MeaningRun[] = [...meanings.map((words, i): MeaningRun => ({ kind: "dictionary", number: i + 1, words })), ...read.runs.filter((run) => run.kind === "custom")];
+  const rows = listed.flatMap((run): MeaningRowVerdict[] => {
+    const row = answered.get(rowOf(run));
+    return row ? [{ ...run, judgement: row.judgement, why: row.why, ticked: run.kind === "custom" || held.has(run.number) }] : [];
+  });
+  // A run the answer has no row for (none, it's held to one each) stands as it is.
+  const markOf = (run: MeaningRun): MeaningMark => {
+    const judgement = answered.get(rowOf(run))?.judgement ?? "good";
+    return { ...run, mark: judgement === "good" ? "keep" : judgement };
+  };
+  const kept = read.runs.map(markOf);
+  if (rows.some((row) => row.judgement === "good")) {
+    const added = rows.filter((row) => row.judgement === "good" && !row.ticked).map((row): MeaningMark => ({ kind: row.kind, number: row.number, words: row.words, mark: "add" }));
+    if (added.length === 0 && kept.every((mark) => mark.mark === "keep")) return { kind: "good", rows, why: part.why };
+    const marks = [...kept, ...added];
+    const accepted = glossesJoined(marks.filter((mark) => mark.mark === "keep" || mark.mark === "add").map((mark) => mark.words));
+    return { kind: "change", rows, marks, accepted, why: part.why };
   }
-  const tone = tickedMarks.length === 0 ? "empty" : off.some((m) => m.mark === "meh") ? "meh" : "bad";
-  return { kind: "propose", tone, marks: tickedMarks, proposed: part.proposed?.trim() ?? "", why: part.why };
+  return { kind: "propose", rows, marks: kept, proposed: tidyMeaning(part.proposed ?? ""), why: part.why };
 }
 
 /** That an answer's shape is Panki's, whatever its prompt says, in plain words, so editing a prompt is plainly no way to break the app. */
@@ -325,8 +412,9 @@ export const MEANINGS_MAX = 200;
 
 /**
  * The card as it stands when Touch up is pressed, what its answer is held against: each key's field as it holds it
- * (empty, it was sent empty: only a judgement null may answer it), and the dictionary meanings ticked for the Meaning, by
- * their numbers in `{Meaning}` (none once it's typed over).
+ * (empty, it was sent empty: only a judgement null may answer it; the Meaning tidied, `tidyMeaning`), and the rows of
+ * `{Meaning}` the Meaning holds, by their numbers there: the dictionary's it holds whole and its own custom ones after
+ * them, worked out from its text (`readMeaning`), which is what every rule reads; these are for `{Card}`.
  */
 export const TouchUpNow = z.object({
   values: z.partialRecord(TouchUpKey, z.string().max(VALUE_MAX)),
@@ -353,11 +441,16 @@ function fieldProblem(key: FieldKey, part: FieldAnswer, held: string): string | 
   }
   return null;
 }
-/** The Meaning's answer against Panki's rules, as expected against got, or null. */
-function meaningProblem(part: MeaningAnswer, count: number): string | null {
+/**
+ * The Meaning's answer against Panki's rules, as expected against got, or null: `meanings` the dictionary's and `custom`
+ * the field's own, every row `{Meaning}` listed. A proposed meaning that is one of them, spaces and punctuation aside, is
+ * refused: a proposal says none of the meanings there fits.
+ */
+function meaningProblem(part: MeaningAnswer, meanings: readonly string[], custom: readonly string[]): string | null {
   if (part.why.trim() === "") return expectedGot("a why at meaning", "an empty one");
   if (isError(part)) return null;
   const rows = part.meanings;
+  const count = meanings.length + custom.length;
   if (!meaningsWhole(rows, count)) {
     return rows.length !== count
       ? expectedGot(`one row per meaning (${count})`, `${rows.length}`)
@@ -368,17 +461,26 @@ function meaningProblem(part: MeaningAnswer, count: number): string | null {
   const good = rows.some((row) => row.judgement === "good");
   if (good && part.proposed !== null) return expectedGot('proposed "" beside a good row', "a value");
   if (!good && (part.proposed ?? "").trim() === "") return expectedGot("a proposed meaning when no row is good", '""');
+  const proposed = bareOf(part.proposed ?? "").bare;
+  if (proposed !== "") {
+    const same = (words: string) => bareOf(words).bare === proposed;
+    const dictionary = meanings.findIndex(same);
+    if (dictionary >= 0) return expectedGot("a meaning not in the list", `meaning ${dictionary + 1}'s words`);
+    const own = custom.findIndex(same);
+    if (own >= 0) return expectedGot("a meaning not in the list", `custom meaning ${own + 1}'s words`);
+  }
   return null;
 }
 /**
  * What's wrong with an answer that read as its shape but doesn't hold against what was sent, said as expected against got for Details' Log (`unread.ts` → `expectedGot`), or null: every why
  * written; a field sent empty judged null and a filled one judged; a proposal with meh, bad and null, none with good;
- * the Meaning a row for each meaning sent, each index once, and a proposed meaning exactly when no row is good. Such an
- * answer fails whole, never shown in part. Its shape (two exactly, a judgement beside an error being neither) is Zod's.
+ * the Meaning a row for each meaning sent (the dictionary's, then the field's own, `customOf`), each index once, and a
+ * proposed meaning exactly when no row is good, never one of theirs. Such an answer fails whole, never shown in part.
+ * Its shape (two exactly, a judgement beside an error being neither) is Zod's.
  */
 export function touchUpProblem(answer: TouchUpAnswer, meanings: readonly string[], now: TouchUpNow): string | null {
   if (answer.meaning) {
-    const broken = meaningProblem(answer.meaning, meanings.length);
+    const broken = meaningProblem(answer.meaning, meanings, customOf(now, meanings));
     if (broken) return broken;
   }
   for (const key of FIELD_KEYS) {
@@ -509,10 +611,12 @@ export function followOfWire(wire: TouchUpFollowWire): { reply: string; answer: 
 }
 /**
  * What's wrong with a follow-up's answer, as expected against got, or null: a reply written; each change a key once,
- * a value and a why, Example sentences in pairs; a Meaning judged again by the first answer's rules (and no rows at all
- * for a dictionary with none).
+ * a value and a why, Example sentences in pairs; a Meaning judged again by the first answer's rules, against the card as
+ * it stands now (`now`: its custom meanings), and no rows at all when there's nothing to judge.
  */
-export function touchUpFollowProblem(wire: TouchUpFollowWire, meanings: readonly string[]): string | null {
+export function touchUpFollowProblem(wire: TouchUpFollowWire, dictionary: readonly string[], now: TouchUpNow): string | null {
+  const custom = customOf(now, dictionary);
+  const meanings = [...dictionary, ...custom];
   if (wire.answer.trim() === "") return expectedGot("an answer", "an empty one");
   const seen = new Set<FieldKey>();
   for (const change of wire.changes ?? []) {
@@ -523,9 +627,9 @@ export function touchUpFollowProblem(wire: TouchUpFollowWire, meanings: readonly
   }
   const meaning = wire.meaning;
   if (!meaning || (meaning.meanings.length === 0 && meaning.proposed.trim() === "")) return null;
-  if (meanings.length === 0 && meaning.meanings.length > 0) return expectedGot("no rows at meaning, the dictionary having no meanings", `${meaning.meanings.length}`);
+  if (meanings.length === 0 && meaning.meanings.length > 0) return expectedGot("no rows at meaning, there being no meanings to judge", `${meaning.meanings.length}`);
   if (meanings.length > 0 && meaning.meanings.length === 0) return expectedGot(`one row per meaning (${meanings.length}) beside a proposed meaning`, "0");
-  return meaningProblem({ meanings: meaning.meanings, proposed: orNull(meaning.proposed), why: meaning.why }, meanings.length);
+  return meaningProblem({ meanings: meaning.meanings, proposed: orNull(meaning.proposed), why: meaning.why }, dictionary, custom);
 }
 
 /**
@@ -567,7 +671,7 @@ export const TouchUpResponse = z.object({ touchUp: TouchedUp, ai: PankiAiStatus 
 
 /**
  * One of the card's fields as `{Card}` tells of it: its name, the key Touch up fills it by (none for a field it doesn't fill),
- * what it holds now, and for the Meaning the dictionary meanings ticked for it, by their numbers in `{Meaning}`.
+ * what it holds now, and for the Meaning the rows of `{Meaning}` it holds, by their numbers there (`TouchUpNow.ticked`).
  */
 export type CardPieceRow = { name: string; key: TouchUpKey | null; value: string; ticked?: readonly number[] };
 /**

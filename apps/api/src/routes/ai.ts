@@ -22,6 +22,7 @@ import {
   aiModelOf,
   aiSent,
   answerOfWire,
+  customOf,
   defaultIdsOf,
   explainFollowUpRuleBroken,
   explainRuleBroken,
@@ -315,7 +316,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
    * `{Meaning}` is the list made here (`meaningsPiece`), the one an answer's rows are checked against, in the Follow-up
    * prompt as in the first; the account's two languages its own whatever came (`piecesFor`). Null once it has refused.
    */
-  function prepare(res: Response, settings: PankiAi, action: AiActionId, ask: Pick<ExplainAsk, "templateId" | "pieces" | "meanings" | "said" | "asking">): Prepared | null {
+  function prepare(res: Response, settings: PankiAi, action: AiActionId, ask: Pick<ExplainAsk, "templateId" | "pieces" | "meanings" | "said" | "asking">, custom: readonly string[] = []): Prepared | null {
     const template = templateById(ask.templateId, dbOf(res).listAiTemplates());
     if (!template || template.action !== action) {
       // With Panki AI as it stands, so the page takes the templates as they are now (one deleted on another device).
@@ -340,7 +341,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
         return null;
       }
     }
-    const meanings = ask.meanings.length > 0 ? { dictMeaning: meaningsPiece(ask.meanings) } : {};
+    const meanings = ask.meanings.length + custom.length > 0 ? { dictMeaning: meaningsPiece(ask.meanings, custom) } : {};
     const pieces = piecesFor(res, { ...ask.pieces, ...meanings }, settings);
     const asking = piecesFor(res, { ...ask.asking, ...meanings }, settings);
     // What's sent and what Max request length counts are one list (`aiSent`), as the page's "Up to" is worked out from.
@@ -410,9 +411,11 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       return;
     }
     const settings = shared.getAi();
-    const ask = prepare(res, settings, "touchUp", parsed.data);
-    if (!ask) return;
     const { meanings, keys, now: card } = parsed.data;
+    // The Meaning's own meanings, read off its text as sent, are listed after the dictionary's: rows of their own.
+    const custom = customOf(card, meanings);
+    const ask = prepare(res, settings, "touchUp", parsed.data, custom);
+    if (!ask) return;
     const call = { action: "touchUp", prompt: ask.prompt, said: ask.said, maxTokens: settings.aiMaxTouchUpTokens, ref: ask.ref } as const;
     // A proposed Sentence is held to what was sent, the run's sentence, the card's as it stands and the surrounding
     // subtitles: one reworded is that part alone set aside as the `rewrote` error, the rest of the answer standing.
@@ -420,15 +423,16 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     // Asked on the wire, which has no union, nothing optional and nothing nullable (a provider refuses a schema past 16
     // of those); read into Panki's own shapes at once (`answerOfWire`, `followOfWire`), and every rule held to those.
     if (ask.followUp) {
-      const answer = await run(res, settings, { ...call, shape: ruled(touchUpFollowShape(keys), (wire) => touchUpFollowProblem(wire, meanings)) });
+      const answer = await run(res, settings, { ...call, shape: ruled(touchUpFollowShape(keys), (wire) => touchUpFollowProblem(wire, meanings, card)) });
       if (!answer) return;
       const { reply, answer: changes } = followOfWire(answer.value);
       res.json({ touchUp: { answer: meaningsInOrder(sentenceHeld(changes, sent)), reply, asked: ask.asked, ...spent(answer) }, ai: statusOf(res) });
       return;
     }
-    // `{Meaning}` is the one meanings list, Explain's; what's ticked is in `{Card}`, for the Meaning's own why. The
-    // answer is held to the card as it was sent (`touchUpProblem`); the page draws it from there.
-    const answer = await run(res, settings, { ...call, shape: ruled(touchUpShape(keys, card, meanings.length), (wire) => touchUpProblem(answerOfWire(wire), meanings, card)) });
+    // `{Meaning}` is the one meanings list, Explain's, with the Meaning's custom ones after; what it holds is in
+    // `{Card}`, for the Meaning's own why. The answer is held to the card as it was sent (`touchUpProblem`, a proposal
+    // repeating a row refused among its rules); the page draws it from there.
+    const answer = await run(res, settings, { ...call, shape: ruled(touchUpShape(keys, card, meanings.length + custom.length), (wire) => touchUpProblem(answerOfWire(wire), meanings, card)) });
     if (!answer) return;
     res.json({ touchUp: { answer: meaningsInOrder(sentenceHeld(answerOfWire(answer.value), sent)), reply: "", asked: "", ...spent(answer) }, ai: statusOf(res) });
   });

@@ -15,9 +15,11 @@ type Common<T extends string | number> = {
    * right of a choice in the list (where it comes from, say); the button shows only the label. `icon` is drawn before
    * the label, in the list and on the button (a transcription mode's). A `note` can be a sign rather than words (Panki
    * AI's spark where a meaning's dictionary would be). `judged` is Panki AI's verdict on a meaning: the choice drawn in
-   * a `JudgedRow`, as the pop-up draws its meanings (the drawer's Meaning list under Touch up).
+   * a `JudgedRow`, as the pop-up draws its meanings (the drawer's Meaning list under Touch up). `fixed` is a choice of
+   * several that stands as `values` say and isn't toggled from here, drawn as any other (the Meaning list's custom
+   * meanings: ticked, as the field's own words).
    */
-  options: readonly { id: T; label: string; disabled?: boolean; note?: ReactNode; icon?: IconName; judged?: { accuracy: MeaningAccuracyId; reason: string } }[];
+  options: readonly { id: T; label: string; disabled?: boolean; fixed?: boolean; note?: ReactNode; icon?: IconName; judged?: { accuracy: MeaningAccuracyId; reason: string } }[];
   /** What the button says while the value is none of the choices: nothing has been chosen yet. */
   placeholder?: string;
   /** Shown, with what's chosen, but not to be changed just now. */
@@ -79,10 +81,12 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
                   role="option"
                   aria-selected={isOn(o.id)}
                   aria-pressed={isOn(o.id)}
+                  aria-readonly={o.fixed === true || undefined}
+                  className={o.fixed ? "is-fixed" : undefined}
                   disabled={o.disabled === true}
                   onClick={() => {
                     if ("values" in props) {
-                      props.onToggle(o.id);
+                      if (!o.fixed) props.onToggle(o.id);
                       return;
                     }
                     props.onChange(o.id);

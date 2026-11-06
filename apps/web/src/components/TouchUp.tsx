@@ -13,12 +13,13 @@ import {
   type Judgement,
   type MeaningAnswer,
   type MeaningMark,
+  type MeaningRowVerdict,
   type MeaningVerdict,
   type PankiAiStatus,
   type TouchUpAnswer,
   type TouchUpNow,
 } from "@panki/contracts";
-import { langOf } from "../words";
+import { langOf, listWords, wordFor } from "../words";
 import { AnswerText, whyNot } from "./AiRun";
 import { AiStatus } from "./AiStatus";
 import { AiSpark } from "./AiWaiting";
@@ -44,12 +45,23 @@ export const TOUCH_UP_WORDS = {
   proposes: "Panki AI proposes",
   couldBeBetter: "Could be better",
   incorrect: "Incorrect",
-  /** The Meaning's titles, by Panki's verdict on its rows against the ticks (`meaningVerdictOf`). */
-  meaningMore: "More meanings fit",
-  meaningsBetter: "Some meanings could be better",
-  meaningsIncorrect: "Some meanings are incorrect",
-  meaningBetter: "Panki AI proposes a better meaning",
-  meaningNew: "All meanings are incorrect, Panki AI proposes a new meaning",
+  /**
+   * The Meaning's titles (`meaningTitle`), clauses joined by commas: what each meaning the field holds that doesn't fit
+   * is, incorrect first, then close; then what fits instead, or that Panki AI proposes. Each verb as it is for one, and
+   * for several.
+   */
+  meaningIncorrect: ["is incorrect", "are incorrect"] as const,
+  meaningClose: ["is close", "are close"] as const,
+  meaningFits: ["fits", "fit"] as const,
+  meaningFitsBetter: ["fits better", "fit better"] as const,
+  /** After the meanings that fit beside what the field already holds, nothing of it off. */
+  meaningToo: "too",
+  meaningProposesBetter: "but Panki AI proposes a better meaning",
+  meaningProposes: "Panki AI proposes a meaning",
+  /** Every meaning there, the dictionary's and the field's own, incorrect, and Panki AI's in their place. */
+  meaningAllIncorrect: "All existing meanings are incorrect, but Panki AI proposes a better meaning",
+  /** A run of the Meaning no dictionary meaning claims, by its count: in the Meaning list, the titles' numbered form and Details. */
+  customMeaning: (n: number) => `Custom meaning ${n}`,
   /** What the Meaning list says while Panki AI's proposed meaning is the field's. */
   meaningProposed: "Panki AI's meaning",
   /** Under a Sentence proposal on a video: where Accept puts the clip's ends, its two times as a clip's stamp writes them. */
@@ -186,8 +198,10 @@ export function FollowTurns({ turns, canRun, onRetry }: { turns: readonly Follow
 
 /**
  * The colour a field and its note are drawn in, by Panki's verdict: good green, meh orange, bad red (the meanings' own
- * looks, `.ai-accuracy.is-…`, one home), accent where nothing is wrong but something is offered (a value for an empty
- * field, more meanings that fit).
+ * looks, `.ai-accuracy.is-…`, one home), and accent, the blue, for words of Panki AI's own on offer (a value for an
+ * empty field, a meaning it proposes). The Meaning's note says what the proposal is, never how a ticked meaning was
+ * judged: green with nothing to change, orange or red for other meanings of the list to tick (red when one held is
+ * incorrect), blue when Panki AI proposes one of its own.
  */
 export type Tone = "good" | "meh" | "bad" | "accent";
 const TONE_CLASS: Record<Tone, string> = { good: `ai-accuracy is-${LOOK_OF.good}`, meh: `ai-accuracy is-${LOOK_OF.meh}`, bad: `ai-accuracy is-${LOOK_OF.bad}`, accent: "is-accent" };
@@ -319,36 +333,78 @@ export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Sho
   return proposal(verdict.kind, verdict.kind === "meh" ? TOUCH_UP_WORDS.couldBeBetter : TOUCH_UP_WORDS.incorrect);
 }
 
-/** The Meaning as the diff reads, joined as the field joins its meanings: kept plain, orange or red struck, green added. */
-function MeaningMarks({ marks, wordsOf }: { marks: readonly MeaningMark[]; wordsOf: (number: number) => string }) {
+/** The Meaning as the diff reads, joined as the field joins its glosses: kept plain, orange or red struck, green added. */
+function MeaningMarks({ marks }: { marks: readonly MeaningMark[] }) {
   return (
     <>
-      {marks.map(({ number, mark }, i) => (
-        <Fragment key={number}>
+      {marks.map(({ kind, number, words, mark }, i) => (
+        <Fragment key={`${kind}${number}`}>
           {i > 0 ? "; " : null}
-          {mark === "keep" ? wordsOf(number) : <Mark out={mark === "add" ? undefined : mark}>{wordsOf(number)}</Mark>}
+          {mark === "keep" ? words : <Mark out={mark === "add" ? undefined : mark}>{words}</Mark>}
         </Fragment>
       ))}
     </>
   );
 }
 
-/** The Meaning's tone and title, by Panki's verdict on its rows against the ticks: one home for both. */
+/**
+ * How the Meaning's titles name a meaning: by its words, quoted ("“lenient; indulgent” is close"), or by its number
+ * ("meaning 2 is close", "custom meaning 1 is incorrect"). One switch, so the other is one edit away.
+ */
+const MEANING_NAMES: "quoted" | "numbered" = "quoted";
+/** Some meanings named in a title, as `MEANING_NAMES` says: "“to multiply”", "“to hang” and “to multiply”", "meanings 1 and 3 and custom meaning 1". */
+function meaningsNamed(rows: readonly MeaningRowVerdict[]): string {
+  if (MEANING_NAMES === "quoted") return listWords(rows.map((row) => `“${row.words}”`));
+  const numbered = (kind: MeaningRowVerdict["kind"], one: string, many: string) => {
+    const numbers = rows.filter((row) => row.kind === kind).map((row) => String(row.number));
+    return numbers.length > 0 ? [`${wordFor(numbers.length, one, many)} ${listWords(numbers)}`] : [];
+  };
+  return listWords([...numbered("dictionary", "meaning", "meanings"), ...numbered("custom", "custom meaning", "custom meanings")]);
+}
+/** One clause: the meanings named, then the verb for one or for several. */
+const clauseOf = (rows: readonly MeaningRowVerdict[], [one, many]: readonly [string, string]) => `${meaningsNamed(rows)} ${rows.length === 1 ? one : many}`;
+const capitalised = (words: string) => words.slice(0, 1).toUpperCase() + words.slice(1);
+
+/**
+ * The Meaning's tone and title, one home for both, by one grammar over the rows judged: the meanings the field holds
+ * that don't fit, incorrect first then close, each named; then, when a meaning of the list fits, every one that fits
+ * ("but … fits better" beside a close one, "but … fits" beside incorrect ones alone, "… fits too" when nothing held is
+ * off), an unheld one named only when it fits; when none fits, that Panki AI proposes (a better meaning after a clause,
+ * "a meaning" alone). Every meaning there incorrect is said as one. Orange, or red when one held is incorrect, for
+ * meanings to tick; blue for a meaning of Panki AI's own.
+ */
 function meaningTitle(verdict: Extract<MeaningVerdict, { kind: "change" | "propose" }>): { tone: Tone; title: string } {
+  const { rows } = verdict;
+  if (verdict.kind === "propose" && rows.length > 0 && rows.every((row) => row.judgement === "bad")) return { tone: "accent", title: TOUCH_UP_WORDS.meaningAllIncorrect };
+  const incorrect = rows.filter((row) => row.ticked && row.judgement === "bad");
+  const close = rows.filter((row) => row.ticked && row.judgement === "meh");
+  const clauses = [
+    ...(incorrect.length > 0 ? [clauseOf(incorrect, TOUCH_UP_WORDS.meaningIncorrect)] : []),
+    ...(close.length > 0 ? [clauseOf(close, TOUCH_UP_WORDS.meaningClose)] : []),
+  ];
   if (verdict.kind === "change") {
-    if (verdict.tone === "more") return { tone: "accent", title: TOUCH_UP_WORDS.meaningMore };
-    return verdict.tone === "meh" ? { tone: "meh", title: TOUCH_UP_WORDS.meaningsBetter } : { tone: "bad", title: TOUCH_UP_WORDS.meaningsIncorrect };
+    const fits = rows.filter((row) => row.judgement === "good");
+    if (clauses.length > 0) clauses.push(`but ${clauseOf(fits, close.length > 0 ? TOUCH_UP_WORDS.meaningFitsBetter : TOUCH_UP_WORDS.meaningFits)}`);
+    else {
+      const added = clauseOf(
+        fits.filter((row) => !row.ticked),
+        TOUCH_UP_WORDS.meaningFits,
+      );
+      clauses.push(rows.some((row) => row.ticked) ? `${added} ${TOUCH_UP_WORDS.meaningToo}` : added);
+    }
+    return { tone: incorrect.length > 0 ? "bad" : "meh", title: capitalised(clauses.join(", ")) };
   }
-  if (verdict.tone === "empty") return { tone: "accent", title: TOUCH_UP_WORDS.proposes };
-  return verdict.tone === "meh" ? { tone: "meh", title: TOUCH_UP_WORDS.meaningBetter } : { tone: "bad", title: TOUCH_UP_WORDS.meaningNew };
+  clauses.push(clauses.length > 0 ? TOUCH_UP_WORDS.meaningProposesBetter : TOUCH_UP_WORDS.meaningProposes);
+  return { tone: "accent", title: capitalised(clauses.join(", ")) };
 }
 
 /**
- * The Meaning as Panki draws its answer: every ticked row good, a green "Nothing to change."; the error, red, the list
- * left unmarked; a change of ticks or a proposed meaning, the Meaning's box as the diff (the proposed meaning green under
- * the ticked ones), titled by `meaningTitle`. `wordsOf` is a meaning's words by its number.
+ * The Meaning as Panki draws its answer: every meaning held good, a green "Nothing to change."; the error, red, the list
+ * left unmarked; other meanings to tick or a proposed meaning, the Meaning's box as the diff (what goes struck, what
+ * comes in green; the proposed meaning green under the struck ones), titled by `meaningTitle`. Its note says nothing of
+ * what Accept does beyond the diff: Accept and Dismiss are the two ways out.
  */
-export function meaningShown(verdict: MeaningVerdict, wordsOf: (number: number) => string, ways: Ways): Shown | null {
+export function meaningShown(verdict: MeaningVerdict, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
   if (verdict.kind === "good") return { tone: "good", diff: null, note: <Line words={TOUCH_UP_WORDS.nothing} why={verdict.why} open={false} /> };
   if (!ways.waiting) return null;
@@ -357,7 +413,7 @@ export function meaningShown(verdict: MeaningVerdict, wordsOf: (number: number) 
     tone,
     diff: (
       <>
-        <MeaningMarks marks={verdict.marks} wordsOf={wordsOf} />
+        <MeaningMarks marks={verdict.marks} />
         {verdict.kind === "propose" ? <Mark block={verdict.marks.length > 0}>{verdict.proposed}</Mark> : null}
       </>
     ),
@@ -410,8 +466,8 @@ function fieldTag(verdict: FieldVerdict): AiVerdict["tag"] {
 
 /**
  * The Meaning as Details say it, Explain's way (`Explain.tsx` → `explainVerdicts`): Panki's verdict with the Meaning's
- * own why first, then every meaning judged, its number, words and why, in its judgement's look, and the proposed meaning
- * numbered after them.
+ * own why first, then every meaning judged, the dictionary's by number and the field's own as Custom meaning 1 and on,
+ * its words and why, in its judgement's look, and the proposed meaning numbered after the dictionary's.
  */
 function meaningVerdicts(part: MeaningAnswer, verdict: MeaningVerdict, meanings: readonly string[]): AiVerdict[] {
   const name = TOUCH_UP.meaning.name;
@@ -419,7 +475,15 @@ function meaningVerdicts(part: MeaningAnswer, verdict: MeaningVerdict, meanings:
   const { tone, title } = verdict.kind === "good" ? { tone: "good" as const, title: TOUCH_UP_WORDS.nothing } : meaningTitle(verdict);
   return [
     { name, tag: tagOf(tone, title), value: "", reason: part.why },
-    ...part.meanings.map((row): AiVerdict => ({ name: `${name} ${row.meaning}`, tag: { words: JUDGEMENT_WORDS[row.judgement], look: "muted" }, value: meanings[row.meaning - 1] ?? "", reason: row.why, accuracy: LOOK_OF[row.judgement] })),
+    ...verdict.rows.map(
+      (row): AiVerdict => ({
+        name: row.kind === "dictionary" ? `${name} ${row.number}` : TOUCH_UP_WORDS.customMeaning(row.number),
+        tag: { words: JUDGEMENT_WORDS[row.judgement], look: "muted" },
+        value: row.words,
+        reason: row.why,
+        accuracy: LOOK_OF[row.judgement],
+      }),
+    ),
     ...(part.proposed ? [{ name: `Proposed ${name.toLowerCase()} ${meanings.length + 1}`, tag: tagOf("accent", TOUCH_UP_WORDS.proposes), value: part.proposed, reason: "" }] : []),
   ];
 }
@@ -427,11 +491,12 @@ function meaningVerdicts(part: MeaningAnswer, verdict: MeaningVerdict, meanings:
 /**
  * What Details say each part of an answer came to, by the key's name and Panki's verdict on it, the drawer's own: for
  * the Meaning, the verdict and every meaning judged (`meaningVerdicts`); for a text field, its verdict as a tag, the value
- * proposed, and the why. `meanings` is every meaning sent, in `{Meaning}`'s order; `now` the card as it was sent.
+ * proposed, and the why. `meanings` is the dictionary's meanings sent, in `{Meaning}`'s order; `now` the card as it was
+ * sent, the Meaning's custom meanings read off it.
  */
 export function touchUpVerdicts(answer: TouchUpAnswer, now: TouchUpNow, meanings: readonly string[]): AiVerdict[] {
   return TOUCH_UP_KEYS.flatMap((key): AiVerdict[] => {
-    if (key === "meaning") return answer.meaning ? meaningVerdicts(answer.meaning, meaningVerdictOf(answer.meaning, now.ticked), meanings) : [];
+    if (key === "meaning") return answer.meaning ? meaningVerdicts(answer.meaning, meaningVerdictOf(answer.meaning, now, meanings), meanings) : [];
     const part = answer[key];
     if (!part) return [];
     const verdict = fieldVerdictOf(part, now.values[key] ?? "");

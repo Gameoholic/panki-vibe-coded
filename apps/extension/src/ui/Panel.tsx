@@ -13,9 +13,11 @@ import {
   aiSourceNow,
   answeredCall,
   apartOf,
+  bareOf,
   cardPiece,
   cardProblems,
   comparedOf,
+  customOf,
   defaultTemplateOf,
   exampleFieldsOf,
   failedCall,
@@ -24,8 +26,12 @@ import {
   fieldVerdictOf,
   isError,
   LOOK_OF,
+  meaningTicked,
   meaningVerdictOf,
+  meaningWithout,
+  readMeaning,
   startCall,
+  tidyMeaning,
   templateById,
   templatesOf,
   wordsFieldOf,
@@ -121,6 +127,8 @@ const isDictRole = (role: RoleId | null): role is DictionaryRoleId => role !== n
 const meaningsSaid = (ticked: number, of: number) => `${ticked} of ${of} ${wordFor(of, "meaning", "meanings")}`;
 /** The Meaning list's choice for the meaning Touch up proposed, past every dictionary meaning's place. */
 const PROPOSED = -1;
+/** The Meaning list's first custom meaning, the field's own words; the next are counted down from it. */
+const CUSTOM = -2;
 
 /** A file that came through a message, as a file again. */
 function blobOf(base64: string, mime: string): Blob {
@@ -217,8 +225,9 @@ const whereOf = (fieldId: string) => `field:${fieldId}`;
 /**
  * A value Panki AI wrote into a field, once accepted: the words, its source, and what holds it in the drawer (the
  * sentence typed, a dictionary field typed over, a field typed in). It stays the AI's when it's changed by hand
- * (`aiSourceNow`: `edited`), until the owner unmarks it or what holds it lets it go (the meanings ticked again, the
- * sentence unlocked, another word or entry).
+ * (`aiSourceNow`: `edited`), until the owner unmarks it or what holds it lets it go (its words taken out of the Meaning
+ * by its list or Accept, the sentence unlocked, another word or entry). For the Meaning, `value` is the AI's own words,
+ * which may stand beside others in it.
  */
 type AiWrote = { value: string; source: AiValueSource; holder: "sentence" | "dict" | "typed" };
 /** The AI's words let go of the fields chosen: what fills them now is something else, or the owner marked them as theirs. */
@@ -431,9 +440,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [found, setFound] = useState<Found[] | null>(null);
   /** Which of those it is (`wordKey`); null for the first. */
   const [entry, setEntry] = useState<string | null>(null);
-  /** The meanings ticked, by their place in the word's list. */
-  const [ticked, setTicked] = useState<readonly number[]>([0]);
-  /** What's typed over what the dictionary filled in, by field id. */
+  /**
+   * The Meaning as it stands, the one truth of it: typed, written by its list of meanings or by Touch up. Null while
+   * it's the dictionary's first meaning, as a word found starts. The meanings ticked in the list are read off it.
+   */
+  const [meaningText, setMeaningText] = useState<string | null>(null);
+  /** What's typed over what the dictionary filled in, by field id (all but the Meaning, which is `meaningText`). */
   const [dictTyped, setDictTyped] = useState<Record<string, string>>({});
   /** The word's recordings on Forvo, or why there are none to show; null while they're asked for, or when the deck takes none. */
   const [voices, setVoices] = useState<{ word: string; list: readonly ForvoVoice[] } | { word: string; problem: string } | null>(null);
@@ -512,7 +524,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         const whole = answer.ok ? answer.found.filter((f) => f.source === looked) : [];
         setFound(whole);
         setEntry(whole.some((f) => wordKey(f) === preferKey) ? preferKey : null);
-        setTicked([0]);
+        setMeaningText(null);
         setDictTyped({});
         setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "dict"));
       });
@@ -579,16 +591,21 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** The dictionary's word this is: the one chosen, or the first found. */
   const chosen = found?.find((f) => wordKey(f) === entry) ?? found?.[0] ?? null;
   const meaningField = fieldOf("dictMeaning");
-  // The meanings ticked, in the dictionary's order whatever order they were ticked in.
-  const tickedSenses = chosen ? [...ticked].sort((a, b) => a - b).flatMap((i) => chosen.senses[i] ?? []) : [];
-  /** The same, as their numbers in the dictionary's list (`{Meaning}`'s, from 1): what Touch up judges the Meaning by. */
-  const tickedNumbers = chosen ? [...ticked].sort((a, b) => a - b).filter((i) => chosen.senses[i] !== undefined).map((i) => i + 1) : [];
-  /** What the dictionary fills each of its pieces with, before anything is typed over it: every kind of its data, its meanings the ones ticked. */
-  const fromDictionary: Record<DictionaryRoleId, string> = chosen ? dictionaryPieces(chosen, tickedSenses, meaningField !== null && FIELD_KINDS[meaningField.kind].multiline) : NO_PIECES;
+  /** The word's meanings, each as the field writes it (its glosses joined by "; "), in the dictionary's order: `{Meaning}`'s. */
+  const dictMeanings = chosen ? chosen.senses.map((sense) => glossaryText(sense.glossary)) : [];
+  /** The Meaning as it stands: what's been made of it, else the dictionary's first meaning. */
+  const meaningNow = meaningText ?? dictMeanings[0] ?? "";
+  /** The meanings the Meaning holds whole, and its own runs of glosses: what the list ticks, read off the field every time. */
+  const meaningRead = readMeaning(meaningNow, dictMeanings);
+  /** The senses the Meaning holds, in the dictionary's order: their tags and their dictionaries go with the card. */
+  const tickedSenses = chosen ? meaningRead.ticked.flatMap((n) => chosen.senses[n - 1] ?? []) : [];
+  /** What the dictionary fills each of its pieces with, before anything is typed over it: every kind of its data (the Meaning is `meaningNow`). */
+  const fromDictionary: Record<DictionaryRoleId, string> = chosen ? dictionaryPieces(chosen, tickedSenses, false) : NO_PIECES;
   /** The first of the card's fields the dictionary fills: what it found stands above it. */
   const firstDictField = type?.fields.find((f) => isDictRole(roleOf(map, f.id))) ?? null;
-  /** A dictionary's piece as it stands in its field: typed over, or as the dictionary has it. */
+  /** A dictionary's piece as it stands in its field: the Meaning as it stands, the rest typed over or as the dictionary has it. */
   const dictValue = (role: DictionaryRoleId) => {
+    if (role === "dictMeaning") return meaningNow;
     const field = fieldOf(role);
     return (field ? dictTyped[field.id] : undefined) ?? fromDictionary[role];
   };
@@ -644,31 +661,35 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    * stands (`{Card}`), each of its fields with the key a proposal for it comes under.
    */
   function touchPieces(limits: PieceLimits): { pieces: PromptPieces; gaps: PromptGaps; meanings: string[]; now: TouchUpNow } {
-    const meanings = chosen ? chosen.senses.map((sense) => glossaryText(sense.glossary)) : [];
+    const meanings = dictMeanings;
     const video = capture.more?.(limits) ?? {};
-    // The card as it stands, what the answer is held against: each key's field, and the Meaning by the numbers of the
-    // dictionary's meanings ticked for it (none once it's typed over), so the model judges it by number.
-    const ticked = chosen && meaningField && dictTyped[meaningField.id] === undefined ? tickedNumbers : [];
-    const now: TouchUpNow = {
-      values: Object.fromEntries(touchKeys.flatMap((key) => {
+    // The card as it stands, what the answer is held against: each key's field (the Meaning tidied), and the rows of
+    // `{Meaning}` the Meaning holds, the dictionary's by number and its own custom ones after them, so the model judges
+    // it by number.
+    const sentValue = (field: CardField) => (field.id === meaningField?.id ? tidyMeaning(values[field.id] ?? "") : (values[field.id] ?? ""));
+    const sent: TouchUpNow["values"] = Object.fromEntries(
+      touchKeys.flatMap((key) => {
         const field = keyField(key);
-        return field ? [[key, values[field.id] ?? ""]] : [];
-      })),
-      ticked,
-    };
+        return field ? [[key, sentValue(field)]] : [];
+      }),
+    );
+    // Read as the server reads it (`customOf`), off the Meaning as sent.
+    const meaning = readMeaning(sent.meaning ?? "", meanings);
+    const ticked = [...meaning.ticked, ...meaning.custom.map((_, i) => meanings.length + i + 1)];
+    const now: TouchUpNow = { values: sent, ticked };
     const card = type
       ? cardPiece(
           type.fields
             .filter((f) => isTyped(f.kind))
-            .map((f) => ({ name: f.name, key: keyOfField(f.id), value: values[f.id] ?? "", ...(f.id === meaningField?.id ? { ticked } : {}) })),
+            .map((f) => ({ name: f.name, key: keyOfField(f.id), value: sentValue(f), ...(f.id === meaningField?.id ? { ticked } : {}) })),
         )
       : "";
     const languages = ai.ai ? { learningLanguage: TRANSCRIBE_LANGUAGES[ai.ai.learningLanguage], language: APP_LANGUAGES[ai.ai.language] } : {};
     const all: PromptPieces = {
       word: word.trim(),
       ...(chosen ? dictionaryPieces(chosen, chosen.senses, true) : {}),
-      // The one meanings list, what's ticked never in it (the server makes it the same way).
-      dictMeaning: meaningsPiece(meanings),
+      // The one meanings list, the Meaning's custom ones after the dictionary's (the server makes it the same way).
+      dictMeaning: meaningsPiece(meanings, meaning.custom),
       sentence,
       ...video,
       ...languages,
@@ -842,7 +863,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       answer: { ...was.answer, ...followed.answer },
       // A change is drawn against the field as it stood when it was asked; the rest as they were.
       now: {
-        values: { ...was.now.values, ...Object.fromEntries(changed.flatMap((key) => (key === "meaning" ? [] : [[key, current.now.values[key] ?? ""]]))) },
+        values: { ...was.now.values, ...Object.fromEntries(changed.map((key) => [key, current.now.values[key] ?? ""])) },
         ticked: followed.answer.meaning ? current.now.ticked : was.now.ticked,
       },
       decided: without(was.decided),
@@ -962,45 +983,55 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const part = touch.answer?.[key];
     return part ? fieldVerdictOf(part, touch.now.values[key] ?? "") : null;
   };
-  /** What Panki makes of the Meaning's answer, its rows against what was ticked as it was sent (`meaningVerdictOf`). */
-  const meaningVerdict = () => (touch.answer?.meaning ? meaningVerdictOf(touch.answer.meaning, touch.now.ticked) : null);
+  /** What Panki makes of the Meaning's answer, its rows against what the Meaning held as it was sent (`meaningVerdictOf`). */
+  const meaningVerdict = () => (touch.answer?.meaning ? meaningVerdictOf(touch.answer.meaning, touch.now, touch.meanings) : null);
+  /**
+   * The Meaning has changed since it was judged (typed, a meaning ticked or unticked, a proposal accepted): what was said
+   * of it is about words no longer there, so its note is put away until it's judged again.
+   */
+  const meaningMoved = meaningField !== null && touch.answer?.meaning !== undefined && tidyMeaning(values[meaningField.id] ?? "") !== (touch.now.values.meaning ?? "");
   /** Whether a key's proposal still waits under its field: only a proposal does (never Nothing to change, nor the error), until it's decided. */
   function waiting(key: TouchUpKey): boolean {
-    if (touch.decided[key] || keyField(key) === null) return false;
+    if (touch.decided[key] || keyField(key) === null || (key === "meaning" && meaningMoved)) return false;
     const verdict = key === "meaning" ? meaningVerdict() : fieldVerdict(key);
     return verdict !== null && proposes(verdict);
   }
   const decide = (key: TouchUpKey) => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true } }));
   /**
    * A value of the AI's written into its field, as typing there would, and remembered as the AI's (a fresh entry, so an
-   * offer to mark it as the owner's that was put away comes back).
+   * offer to mark it as the owner's that was put away comes back). `aiWords` are the AI's own among `text`, when they're
+   * written beside what the field held (a proposed meaning ticked in the Meaning's list).
    */
-  function writeAi(field: CardField, text: string) {
+  function writeAi(field: CardField, text: string, aiWords?: string) {
     const role = roleOf(map, field.id);
     const ai = aiSourceOf();
     // A field only Touch up fills is its own; any other it corrected (so only the first's name is sparked).
     const source = ai && (role === null || ROLES[role].from !== "ai") ? { ...ai, corrected: true } : ai;
     const holder = role === "sentence" ? "sentence" : isDictRole(role) ? "dict" : "typed";
     if (holder === "sentence") setWritten(text);
+    else if (field.id === meaningField?.id) setMeaningText(text);
     else if (holder === "dict") setDictTyped((was) => ({ ...was, [field.id]: text }));
     else setTyped((was) => ({ ...was, [field.id]: text }));
-    if (source) setAiWrote((was) => ({ ...was, [field.id]: { value: text.trim(), source, holder } }));
+    if (source) setAiWrote((was) => ({ ...was, [field.id]: { value: (aiWords ?? text).trim(), source, holder } }));
   }
-  /** A meaning's own words by its number, as the field holds them. */
-  const meaningWordsOf = (n: number) => (chosen?.senses[n - 1] ? glossaryText(chosen.senses[n - 1]?.glossary ?? []) : (touch.meanings[n - 1] ?? ""));
-  /** The Meaning back to the meanings ticked: what was typed over it, the AI's words among it, let go. */
-  function meaningToTicks(fieldId: string) {
-    setDictTyped((was) => {
-      const rest = { ...was };
-      delete rest[fieldId];
-      return rest;
-    });
-    setAiWrote((was) => aiLetGo(was, (id) => id === fieldId));
+  /** Whether a Meaning still holds the words Panki AI wrote into it, whole and side by side, whatever else stands around them. */
+  function meaningHoldsAi(text: string): boolean {
+    const wrote = meaningField ? aiWrote[meaningField.id] : undefined;
+    return wrote !== undefined && readMeaning(text, [...dictMeanings, wrote.value]).ticked.includes(dictMeanings.length + 1);
   }
   /**
-   * A proposal accepted: a change of ticks is the ticks set to the good rows, the dictionary's own meanings written in
-   * the field as the list writes them (no spark: an orange tick goes as a red one does); a proposed meaning and any other
-   * field's value is the AI's words, sparked.
+   * The Meaning rewritten by its list or by Accept: the field takes it, and the AI's mark goes with the AI's words once
+   * they're no longer in it. Typing in it is the field's own and keeps the mark (`aiSourceNow`: edited).
+   */
+  function setMeaning(text: string) {
+    setMeaningText(text);
+    const fieldId = meaningField?.id;
+    if (fieldId && !meaningHoldsAi(text)) setAiWrote((was) => aiLetGo(was, (id) => id === fieldId));
+  }
+  /**
+   * A proposal accepted: other meanings of the list to tick are the Meaning rewritten to the runs that fit, as the field
+   * has them, then the dictionary's that fit (no spark of its own: the AI's mark stays only on its own words still
+   * there); a proposed meaning and any other field's value is the AI's words, sparked.
    */
   function accept(key: TouchUpKey) {
     const field = keyField(key);
@@ -1008,8 +1039,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     if (key === "meaning") {
       const verdict = meaningVerdict();
       if (verdict?.kind === "change") {
-        setTicked(verdict.good.map((n) => n - 1));
-        meaningToTicks(field.id);
+        setMeaning(verdict.accepted);
       } else if (verdict?.kind === "propose" && verdict.proposed) {
         writeAi(field, verdict.proposed);
       }
@@ -1052,9 +1082,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const key = keyOfField(field.id);
     if (!key || !touch.answer || touch.hidden[key]) return null;
     const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key), also: clipNote(key) };
+    if (key === "meaning" && meaningMoved) return null;
     const meaning = key === "meaning" ? meaningVerdict() : null;
     const verdict = key === "meaning" ? null : fieldVerdict(key);
-    const shown = meaning ? meaningShown(meaning, meaningWordsOf, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;
+    const shown = meaning ? meaningShown(meaning, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;
     if (!shown) return null;
     return {
       ...shown,
@@ -1072,7 +1103,17 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    */
   function tied(field: CardField | null, box: ReactNode): ReactNode {
     const shown = field ? touchShown(field) : null;
-    return shown ? <Tied shown={shown}>{box}</Tied> : box;
+    if (shown) return <Tied shown={shown}>{box}</Tied>;
+    // The Meaning changed since it was judged: its note goes, and the follow-ups asked there stay, to ask of it as it stands.
+    if (field && meaningMoved && keyOfField(field.id) === "meaning" && !touch.hidden.meaning) {
+      return (
+        <>
+          {box}
+          {followBlock(field.id)}
+        </>
+      );
+    }
+    return box;
   }
   /** A field Touch up's run is reworking: its words where they stand, dimmed under the sweep. A follow-up's head is its wait. */
   const reworked = (fieldId: string | null, inside: ReactNode): ReactNode =>
@@ -1108,6 +1149,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       if (role === null || ROLES[role].from === "ai") return OWNER;
       if (role === "word") return wordTyped ? OWNER : { by: "text", ...(subtitles ? { subtitles } : {}) };
       if (role === "sentence") return written !== null && written !== capture.sentence ? OWNER : { by: "text", ...(subtitles ? { subtitles } : {}) };
+      // The Meaning is the dictionary's while it holds nothing but its meanings, whole; a gloss of its own makes it the owner's.
+      if (role === "dictMeaning") return readMeaning(filled[fieldId] ?? "", dictMeanings).custom.length > 0 ? OWNER : { by: "dictionary", dictionaries };
       if (isDictRole(role)) return dictTyped[fieldId] !== undefined ? OWNER : { by: "dictionary", dictionaries };
       if (role === "forvoAudio") return { by: "forvo" };
       return { by: "video" };
@@ -1232,7 +1275,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     if (!deck || !type || still || unresolved) return;
     // An example is only the fields that go with one, and the recordings for them; the card's own are as they are on it.
     const fields = asExample ? exampleFieldsOf(type) : type.fields;
-    const toSend: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, values[f.id] ?? ""])) : values;
+    // The Meaning goes tidied, its glosses joined by "; ", however it was typed.
+    const tidied = meaningField && values[meaningField.id] !== undefined ? { ...values, [meaningField.id]: tidyMeaning(values[meaningField.id] ?? "") } : values;
+    const toSend: Record<string, string> = asExample ? Object.fromEntries(fields.map((f) => [f.id, tidied[f.id] ?? ""])) : tidied;
     const making = asExample ? cuts.filter((cut) => cut.field.perExample) : cuts;
     /** The fields a recording is about to fill: not missing, whatever the values say before it's made. */
     const toRecord = new Set(making.map((cut) => cut.field.id));
@@ -1380,7 +1425,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     if (found.length < 2) return null;
     const choose = (key: string) => {
       setEntry(key);
-      setTicked([0]);
+      setMeaningText(null);
       setDictTyped({});
       setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "dict"));
     };
@@ -1398,38 +1443,56 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * The word's meanings, when it has more than one or Touch up proposed one of its own: each ticked on or off in a
-   * dropdown under the field they go in. Once Touch up has judged them, exactly the pop-up's way: each a
-   * `JudgedRow` (the row its own size, lit in its judgement's look, good green, meh orange, bad red,
-   * its why under a chevron, closed to begin with; unmarked when the Meaning came back as the error), and the meaning
-   * Panki AI proposed as one more choice at the end, numbered after them, the spark where a meaning's dictionary is,
-   * green; ticking it accepts it (the field takes its words, the AI's), unticking it lets them go. How the verdict is
-   * seen; acting on it is the proposal under the field, as ever.
+   * The word's meanings, when it has more than one, the Meaning holds words of its own, or Touch up proposed one: a
+   * dropdown under the field they go in, worked out from the field every time and acting on nothing but it. A meaning
+   * is ticked while its glosses all stand in the field, whole (`readMeaning`); ticking one adds its glosses at the end,
+   * unticking it takes out exactly that run (`meaningTicked`, `meaningWithout`). Once Touch up has judged them, exactly
+   * the pop-up's way: each a `JudgedRow` (lit in its judgement's look, good green, meh orange, bad red, its why under a
+   * chevron, closed to begin with; unmarked when the Meaning came back as the error); then the meaning Panki AI proposed
+   * as one more choice, numbered after the dictionary's, the spark where a meaning's dictionary is, green, ticking it
+   * adding its words, the AI's, unticking taking them out; then each of the field's own runs of glosses as Custom
+   * meaning 1 and on, ticked and not to be unticked here (they're the field's words), lit as Touch up judged them while
+   * they're the words it was sent. How the verdict is seen; acting on it is the proposal under the field, as ever.
    */
   function meaningsBlock() {
     const part = touch.answer?.meaning;
     const judged = part && !isError(part) ? part : null;
     const judgedRows = judged?.meanings ?? [];
-    const proposed = judged?.proposed ? { meaning: judged.proposed, reason: judged.why } : null;
-    if (!meaningField || !chosen || (chosen.senses.length < 2 && !proposed)) return null;
+    const proposed = judged?.proposed ? { meaning: tidyMeaning(judged.proposed), reason: judged.why } : null;
+    if (!meaningField || !chosen) return null;
+    // The proposal is read as one more meaning of the list, so the field holding it ticks it rather than making it custom.
+    const listed = proposed ? [...dictMeanings, proposed.meaning] : dictMeanings;
+    const read = readMeaning(meaningNow, listed);
+    if (dictMeanings.length < 2 && !proposed && read.custom.length === 0) return null;
     const field = meaningField;
-    const markOf = (i: number) => judgedRows.find((row) => row.meaning === i + 1);
-    const proposedOn = proposed !== null && aiHolds(field.id);
+    const rowOf = (n: number) => judgedRows.find((row) => row.meaning === n);
+    const judgedOf = (n: number) => {
+      const row = rowOf(n);
+      return row ? { judged: { accuracy: LOOK_OF[row.judgement], reason: row.why } } : {};
+    };
+    // A custom meaning's judgement is the one Touch up gave the same words, by their place among those it was sent.
+    const sentCustom = touch.answer ? customOf(touch.now, touch.meanings) : [];
+    const judgedCustom = (words: string) => {
+      const at = sentCustom.findIndex((sent) => bareOf(sent).bare === bareOf(words).bare);
+      return at >= 0 ? judgedOf(touch.meanings.length + at + 1) : {};
+    };
+    const proposedId = dictMeanings.length;
+    const proposedOn = proposed !== null && read.ticked.includes(proposedId + 1);
+    const customIds = read.custom.map((_, i) => CUSTOM - i);
     const options = [
       // Each says which dictionary it's from, so it's plain where a card's meaning came from.
-      ...chosen.senses.map((sense, i) => {
-        const mark = markOf(i);
-        return {
-          id: i,
-          label: `${i + 1}. ${glossaryText(sense.glossary)}`,
-          note: sense.dict,
-          ...(mark ? { judged: { accuracy: LOOK_OF[mark.judgement], reason: mark.why } } : {}),
-        };
-      }),
+      ...chosen.senses.map((sense, i) => ({ id: i, label: `${i + 1}. ${dictMeanings[i] ?? ""}`, note: sense.dict, ...judgedOf(i + 1) })),
       ...(proposed
-        ? [{ id: PROPOSED, label: `${chosen.senses.length + 1}. ${proposed.meaning}`, note: <AiSpark className="touch-up-mark" />, judged: { accuracy: "fits" as const, reason: proposed.reason } }]
+        ? [{ id: PROPOSED, label: `${proposedId + 1}. ${proposed.meaning}`, note: <AiSpark className="touch-up-mark" />, judged: { accuracy: "fits" as const, reason: proposed.reason } }]
         : []),
+      ...read.custom.map((words, i) => ({ id: CUSTOM - i, label: `${TOUCH_UP_WORDS.customMeaning(i + 1)} · ${words}`, fixed: true, ...judgedCustom(words) })),
     ];
+    const dictTicked = read.ticked.filter((n) => n <= dictMeanings.length);
+    const summary = [
+      ...(dictTicked.length > 0 || (!proposedOn && read.custom.length === 0) ? [meaningsSaid(dictTicked.length, dictMeanings.length)] : []),
+      ...(proposedOn ? [TOUCH_UP_WORDS.meaningProposed] : []),
+      ...(read.custom.length > 0 ? [count(read.custom.length, "custom meaning", "custom meanings")] : []),
+    ].join(" · ");
     return (
       <Dropdown
         id="panki-meanings"
@@ -1437,21 +1500,20 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         wide
         disabled={still}
         options={options}
-        values={proposedOn ? [PROPOSED] : ticked}
-        summary={proposedOn ? TOUCH_UP_WORDS.meaningProposed : meaningsSaid(ticked.length, chosen.senses.length)}
+        values={[...dictTicked.map((n) => n - 1), ...(proposedOn ? [PROPOSED] : []), ...customIds]}
+        summary={summary}
         onToggle={(i) => {
           if (i === PROPOSED) {
-            if (proposedOn) {
-              meaningToTicks(field.id);
-            } else if (proposed) {
-              writeAi(field, proposed.meaning);
+            if (proposedOn) setMeaning(meaningWithout(meaningNow, listed, (run) => run.kind === "dictionary" && run.number === proposedId + 1));
+            else if (proposed) {
+              writeAi(field, meaningTicked(meaningNow, listed, proposedId + 1), proposed.meaning);
               decide("meaning");
             }
             return;
           }
-          setTicked((was) => (was.includes(i) ? was.filter((n) => n !== i) : [...was, i]));
-          // The meaning is the ticked ones again: what was typed over it is let go.
-          meaningToTicks(field.id);
+          if (i < 0) return;
+          const number = i + 1;
+          setMeaning(read.ticked.includes(number) ? meaningWithout(meaningNow, listed, (run) => run.kind === "dictionary" && run.number === number) : meaningTicked(meaningNow, listed, number));
         }}
       />
     );
@@ -1770,7 +1832,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
                   if (isWord) {
                     setWord(text);
                     setWordTyped(true);
-                  } else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
+                  } else if (fromDict === "dictMeaning") setMeaningText(text);
+                  else if (fromDict) setDictTyped((t) => ({ ...t, [field.id]: text }));
                   else setTyped((t) => ({ ...t, [field.id]: text }));
                   if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
                 }}

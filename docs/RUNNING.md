@@ -12,6 +12,7 @@
 | `pnpm dev` | Run the web (http://127.0.0.1:5173) and the API (127.0.0.1:3001). |
 | `pnpm build` | Build the web and the extension (`apps/extension/dist`). |
 | `pnpm typecheck` | Type-check everything. |
+| `pnpm --dir packages/contracts test` | The contracts' unit tests (the Meaning read as glosses, Touch up's Meaning verdicts). |
 | `pnpm user:add <name> <password>` | Make an account. Stop the API first. The first account takes the data from before accounts. |
 | `pnpm user:password <name> <new>` | Change a password. Signs every device out. |
 | `pnpm user:list` | List accounts. |
