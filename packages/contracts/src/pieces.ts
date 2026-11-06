@@ -114,8 +114,11 @@ export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   unsure: "transcript",
 };
 
-/** A piece's name as a template's tag: lower case, spaces as underscores ("Dictionary form" → `dictionary_form`). The one way a tag is named. */
-export const tagOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, "_");
+/**
+ * A piece's name as a template's tag: lower case, spaces and hyphens as underscores ("Dictionary form" →
+ * `dictionary_form`, "Follow-up field" → `follow_up_field`), the form the prompts name them by. The one way a tag is named.
+ */
+export const tagOf = (name: string): string => name.trim().toLowerCase().replace(/[\s-]+/g, "_");
 /** A piece as a template writes it: its variable, "{Reading}". */
 export const variableOf = (id: PromptPieceId): string => `{${PIECE_NAMES[id]}}`;
 /** A piece in its tag on a line of its own, `<reading>{Reading}</reading>`: the line drops when the piece comes out empty. */
