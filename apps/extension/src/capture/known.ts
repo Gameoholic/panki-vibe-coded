@@ -2,15 +2,16 @@ import { useMemo, useSyncExternalStore } from "react";
 import { isJapanese } from "@web/words";
 import type { Lattice } from "../dictionary/found";
 import { wordsOf } from "../dictionary/split";
-import { LATTICE_MAX, askKnown, askLattice } from "../messages";
-import { paintCss, type MarkPaint } from "../seekLook";
+import { localNow, onLocal } from "../local";
+import { LATTICE_MAX, askKnown, askLattice, type KnownLook } from "../messages";
+import { paintCss } from "../seekLook";
 import { literalOf } from "../ui/styles";
 import type { Token } from "./words";
 
 /**
  * Words already in the account's cards, marked where they stand: in subtitles and on pages, each switched apart, in a
- * colour that's chosen. What's known is the words every card is called by, from Panki through the worker (`askKnown`), with the two switches and
- * the colour (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`). A word in a line is one of them by the
+ * colour that's chosen. What's known is the words every card is called by, from Panki through the worker (`askKnown`); the two switches and
+ * the colours are this browser's settings (`local.ts`, `Local`'s `known`). A word in a line is one of them by the
  * pop-up's own check, the same function, so the two can't drift apart:
  * the word the dictionary takes it as, chosen by the pop-up's own choice (`lookup.ts` → `wordsFound`: 食べました is
  * 食べる, あえて is 敢えて), is exactly a word a card is called by (the API's `wordsInCards`, what its `cardsCalled`
@@ -21,12 +22,13 @@ import type { Token } from "./words";
  * marked in a colour of its own (`suspended`, `knownSuspendedColour`), so it never reads as a word being learned.
  */
 
-/** `suspended`: those of `words` whose every card is suspended. */
-export type KnownNow = { words: ReadonlySet<string>; suspended: ReadonlySet<string>; subtitles: boolean; pages: boolean; colour: MarkPaint; suspendedColour: MarkPaint };
-const NOTHING: KnownNow = { words: new Set(), suspended: new Set(), subtitles: false, pages: false, colour: "green", suspendedColour: "red" };
+/** `suspended`: those of `words` whose every card is suspended. How they're marked is this browser's settings' (`KnownLook`). */
+export type KnownNow = KnownLook & { words: ReadonlySet<string>; suspended: ReadonlySet<string> };
 const sameSet = (list: readonly string[], set: ReadonlySet<string>) => list.length === set.size && list.every((item) => set.has(item));
 
-let now: KnownNow = NOTHING;
+/** The words, none until the worker has said; how they're marked is read from this browser's settings as they stand. */
+let words: Pick<KnownNow, "words" | "suspended"> = { words: new Set(), suspended: new Set() };
+let now: KnownNow | null = null;
 const followers = new Set<() => void>();
 const subscribe = (follower: () => void) => {
   followers.add(follower);
@@ -34,31 +36,41 @@ const subscribe = (follower: () => void) => {
     followers.delete(follower);
   };
 };
-const current = () => now;
+/** What's known as it stands: the words, and this browser's settings for them. Only once those are in (`loadLocal`). */
+function current(): KnownNow {
+  const look = localNow().known;
+  if (now === null || now.subtitles !== look.subtitles || now.pages !== look.pages || now.colour !== look.colour || now.suspendedColour !== look.suspendedColour || now.words !== words.words) now = { ...look, ...words };
+  return now;
+}
+const tell = () => {
+  for (const follower of followers) follower();
+};
 
-/** What's known as it stands, asked of the worker again: as a page opens, gets the focus, and after a card is added. */
+/** The words as they stand, asked of the worker again: as a page opens, gets the focus, a setting changes, and after a card is added. */
 export async function refreshKnown(): Promise<void> {
   const answer = await askKnown();
   if (!answer.ok) return;
   // The same again (the usual answer when the page only got the focus back) changes nothing and reads nothing again.
-  const same =
-    answer.subtitles === now.subtitles &&
-    answer.pages === now.pages &&
-    answer.colour === now.colour &&
-    answer.suspendedColour === now.suspendedColour &&
-    sameSet(answer.words, now.words) &&
-    sameSet(answer.suspended, now.suspended);
-  if (same) return;
-  now = { words: new Set(answer.words), suspended: new Set(answer.suspended), subtitles: answer.subtitles, pages: answer.pages, colour: answer.colour, suspendedColour: answer.suspendedColour };
-  for (const follower of followers) follower();
+  if (sameSet(answer.words, words.words) && sameSet(answer.suspended, words.suspended)) return;
+  words = { words: new Set(answer.words), suspended: new Set(answer.suspended) };
+  tell();
 }
 
-/** Asked as the page opens and again whenever it gets the focus back (the options page may have changed a switch). Once per page. */
+/**
+ * Started once this browser's settings are in, once a page. The words are Panki's, asked again whenever the page gets
+ * the focus back (a card added or deleted in Panki); a change of the settings is drawn at once, and asks for the words
+ * again too, since the worker gives none while nothing marks them.
+ */
 let started = false;
 export function startKnown(): void {
   if (started) return;
   started = true;
   void refreshKnown();
+  onLocal((next, was) => {
+    if (JSON.stringify(next.known) === JSON.stringify(was.known) && JSON.stringify(next.prefs.seek) === JSON.stringify(was.prefs.seek) && next.modules.on === was.modules.on) return;
+    tell();
+    void refreshKnown();
+  });
   window.addEventListener("focus", () => void refreshKnown());
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") void refreshKnown();
@@ -212,7 +224,7 @@ export function markKnownOnPage(): void {
   const changed = new Set<Node>();
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  const wanted = () => now.words.size > 0 && now.pages;
+  const wanted = () => current().words.size > 0 && current().pages;
   latticeFollowers.add((text) => {
     if (!wanted()) return;
     answered.add(text);
@@ -229,8 +241,9 @@ export function markKnownOnPage(): void {
     if (!parent || parent.closest(SKIPPED) || !isJapanese(node.data)) return;
     const text = node.data;
     const ranges: { range: Range; as: KnownAs }[] = [];
+    const known = current();
     for (const token of wordsOf(text, latticeFor(text))) {
-      const as = token.word ? knownAs(now, token) : null;
+      const as = token.word ? knownAs(known, token) : null;
       if (as === null) continue;
       const range = new Range();
       range.setStart(node, token.start);
@@ -273,9 +286,10 @@ export function markKnownOnPage(): void {
 
   /** The colours, on the page's highlight layer, as the colours themselves: the app's tokens don't reach the page. */
   function paint() {
+    const { colour, suspendedColour } = current();
     style.textContent =
-      `::highlight(${HIGHLIGHT.known}) { background-color: ${tintOf(literalOf(paintCss(now.colour)))}; }\n` +
-      `::highlight(${HIGHLIGHT.suspended}) { background-color: ${tintOf(literalOf(paintCss(now.suspendedColour)))}; }`;
+      `::highlight(${HIGHLIGHT.known}) { background-color: ${tintOf(literalOf(paintCss(colour)))}; }\n` +
+      `::highlight(${HIGHLIGHT.suspended}) { background-color: ${tintOf(literalOf(paintCss(suspendedColour)))}; }`;
     if (!style.isConnected) (document.head ?? document.documentElement).append(style);
   }
 

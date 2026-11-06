@@ -542,9 +542,6 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     );
   }
 
-  top.root.render(<Top />);
-  mast.root.render(<MastPill />);
-
   // ---- The thumbnails' marks, and Shorts taken off the feed.
 
   const glances = new Map<string, { glance: VideoGlance; at: number }>();
@@ -725,28 +722,30 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   let aiming = 0;
-  document.addEventListener(
-    "pointermove",
-    (e) => {
-      if (aiming) return;
-      aiming = requestAnimationFrame(() => {
-        aiming = 0;
-        const on = deps.modules();
-        const target = e.target;
-        if (!on.thumbSave || !(target instanceof Element)) return aim.set(null);
-        // On the button itself: it stays where it is.
-        if (target === floater.host) return;
-        const next = aimAt(target);
-        const was = aim.get();
-        if (next && was && next.videoId === was.videoId && Math.abs(next.x - was.x) < 1 && Math.abs(next.y - was.y) < 1) return;
-        aim.set(next);
-      });
-    },
-    { passive: true },
-  );
-  // Scrolled, it would stand where the video was: it goes until the pointer moves again.
-  window.addEventListener("scroll", () => aim.set(null), { passive: true, capture: true });
-  floater.root.render(<SaveFloat />);
+  /** The floating save button followed, from `start` on: which parts are on is this browser's settings, not known before. */
+  function aimFollowing() {
+    document.addEventListener(
+      "pointermove",
+      (e) => {
+        if (aiming) return;
+        aiming = requestAnimationFrame(() => {
+          aiming = 0;
+          const on = deps.modules();
+          const target = e.target;
+          if (!on.thumbSave || !(target instanceof Element)) return aim.set(null);
+          // On the button itself: it stays where it is.
+          if (target === floater.host) return;
+          const next = aimAt(target);
+          const was = aim.get();
+          if (next && was && next.videoId === was.videoId && Math.abs(next.x - was.x) < 1 && Math.abs(next.y - was.y) < 1) return;
+          aim.set(next);
+        });
+      },
+      { passive: true },
+    );
+    // Scrolled, it would stand where the video was: it goes until the pointer moves again.
+    window.addEventListener("scroll", () => aim.set(null), { passive: true, capture: true });
+  }
 
   function clearMarks() {
     for (const host of placed) host.remove();
@@ -801,6 +800,13 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   return {
+    /** Everything of it drawn and followed, once, when this browser's settings are in (the page's `begin`). */
+    start() {
+      top.root.render(<Top />);
+      mast.root.render(<MastPill />);
+      floater.root.render(<SaveFloat />);
+      aimFollowing();
+    },
     /** Looked at every second or so, and whenever the site says it's shown another page. */
     look() {
       const on = deps.modules();

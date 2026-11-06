@@ -7,11 +7,10 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LookState, type Looked, type Moduled, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
-import { mappingOn } from "./roles";
-import { forgetSignIn, modulesOf, prefsOf, readStore, writeStore, type Stored } from "./storage";
+import { forgetSignIn, localChange, localOf, readStore, writeStore, type Stored } from "./storage";
 import { sourceOf } from "./subtitles";
 import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, runningBuild, showFolder } from "./updates";
 import { reportVideoTracking, settleVideoTracking, videoTrackingOn } from "./watch/tracking";
@@ -101,8 +100,6 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
       ok: true,
       // Panki's own pages always count, whatever Where says: Where decides every other site.
       on: usable && (onPanki(url, store) || lookAllowed(store.lookWhere, store.lookSites, url)),
-      key: store.lookKey,
-      subtitleKey: store.lookKeySubtitles,
       subtitlesOn: usable,
       dictionaries: on.length,
       signature: on.map((d) => d.id).join(","),
@@ -129,14 +126,14 @@ function onPanki(url: string | undefined, store: Stored): boolean {
 }
 
 /**
- * What's marked as already in the cards, and where (`storage.ts` → `knownSubtitles`, `knownPages`, `knownColour`,
- * `knownSuspendedColour`): the words every card is called by, those only suspended cards are among them, kept as
- * `kept.ts` keeps them (`words`). Signed out, or with Panki off, nothing is; nor on Panki's own pages, where every word
- * is the cards' own: it's for other sites alone.
+ * The words already in the cards: every card is called by, those only suspended cards are among them, kept as
+ * `kept.ts` keeps them (`words`). Where and how they're marked is the page's to read from this browser's settings
+ * (`Local`'s `known`). Signed out, with Panki off, or with nothing of this browser's marking them, there are none; nor
+ * on Panki's own pages, where every word is the cards' own: it's for other sites alone.
  */
 async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
-  const off: Known = { ok: true, words: [], suspended: [], subtitles: false, pages: false, colour: store.knownColour, suspendedColour: store.knownSuspendedColour };
+  const off: Known = { ok: true, words: [], suspended: [] };
   if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
   // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
   if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown && !store.seekLook.suspended.shown) || !store.address || !store.token) return off;
@@ -147,15 +144,7 @@ async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
     console.error("Panki:", e);
     return off;
   }
-  return {
-    ok: true,
-    words: words.words,
-    suspended: words.suspended,
-    subtitles: store.knownSubtitles,
-    pages: store.knownPages,
-    colour: store.knownColour,
-    suspendedColour: store.knownSuspendedColour,
-  };
+  return { ok: true, words: words.words, suspended: words.suspended };
 }
 
 /** Panki's own addresses, as the browser matches them: the sign-in in use and every profile kept, each allowed as it was signed in to. */
@@ -243,6 +232,32 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && "address" in changes) void checkForUpdate();
 });
 
+/**
+ * This browser's settings changed (the options page, the panel's menu, another tab, Video tracking settled): every
+ * page with Panki's script on it is told at once, with all of them as they stand (`messages.ts` → `LocalChanged`), so
+ * each follows without a reload. Only when what a page reads really changed: a sign-in or a deck chosen elsewhere
+ * tells nobody. The options page reads the storage itself and hears the change there.
+ */
+async function tellPages(changes: Record<string, chrome.storage.StorageChange>): Promise<void> {
+  const { next, was } = await localChange(changes);
+  if (JSON.stringify(next) === JSON.stringify(was)) return;
+  const told: LocalChanged = { kind: "local", local: next };
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id === undefined) return;
+      try {
+        await chrome.tabs.sendMessage(tab.id, told);
+      } catch {
+        // Nothing of Panki's on that page.
+      }
+    }),
+  );
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local") void tellPages(changes).catch((e: unknown) => console.error("Panki:", e));
+});
+
 // What's kept for a sign-in goes with it (`kept.ts`): signed in, signed out, another profile.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && ("address" in changes || "token" in changes || "userName" in changes)) void forgetSignedIn();
@@ -269,8 +284,8 @@ async function aiState(store: Stored, fresh = false): Promise<AiState> {
   }
 }
 
-/** A video's transcript with what runs transcribing, asked of Panki in one go, and this browser's own: where the words come from, and how transcribing behaves for this viewer. */
-async function transcripted(door: Door, videoId: string, store: Stored): Promise<Transcripted> {
+/** A video's transcript with what runs transcribing, asked of Panki in one go: Panki's alone (this browser's own settings are `Local`'s). */
+async function transcripted(door: Door, videoId: string): Promise<Transcripted> {
   const [transcript, transcription] = await Promise.all([panki.transcript(door, videoId), panki.transcription(door)]);
   return {
     ok: true,
@@ -280,8 +295,6 @@ async function transcripted(door: Door, videoId: string, store: Stored): Promise
     language: transcription.own,
     key: transcription.key !== null,
     estimate: transcription.estimate,
-    source: sourceOf(store.subtitleSource),
-    prefs: prefsOf(store),
   };
 }
 
@@ -295,7 +308,7 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Moduled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -350,7 +363,7 @@ async function answer(
   }
   if (ask.kind === "lookState" || ask.kind === "lookup" || ask.kind === "lattice") return look(ask, sender);
   if (ask.kind === "known") return known(sender);
-  if (ask.kind === "modules") return { ok: true, modules: modulesOf(await readStore()) };
+  if (ask.kind === "local") return { ok: true, local: localOf(await readStore()) };
   if (ask.kind === "pankiOn") {
     await writeStore({ pankiOn: ask.on });
     return { ok: true };
@@ -371,8 +384,7 @@ async function answer(
   try {
     if (ask.kind === "state") {
       const [decks, types, srsTypes, subtitleStyle] = await Promise.all([panki.decks(door), panki.types(door), panki.srsTypes(door), panki.subtitleStyle(door)]);
-      const decksOn = decks.filter((deck) => mappingOn(store.mappingOn, store.maps, deck.id)).map((deck) => deck.id);
-      return { ok: true, decks, types, srsTypes, maps: store.maps, decksOn, defaultDeckId: store.defaultDeckId, subtitleStyle };
+      return { ok: true, decks, types, srsTypes, subtitleStyle };
     }
     if (ask.kind === "add") {
       // Its answer carries the words' new hash, so the words kept are asked for afresh next time (`kept.ts`).
@@ -407,13 +419,13 @@ async function answer(
     }
     if (ask.kind === "videoCards") return { ok: true, cards: await panki.videoCards(door, ask.videoId) };
     // What's kept of the account's watching: a video as it opens, the stretches watched, a video marked. Whether this
-    // browser notes anything is its own Video tracking (`watch/tracking.ts`): off, a batch that slipped through is let go.
-    if (ask.kind === "watched") return { ok: true, video: await panki.watched(door, ask.videoId), on: await videoTrackingOn() };
+    // browser notes anything is its own Video tracking (`Local`'s `tracking`): off, a batch that slipped through is let go.
+    if (ask.kind === "watched") return { ok: true, video: await panki.watched(door, ask.videoId) };
     if (ask.kind === "watch") {
       if (await videoTrackingOn()) await panki.watch(door, ask.batch);
       return { ok: true };
     }
-    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark, ask.source), on: await videoTrackingOn() };
+    if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark, ask.source) };
     // Panki on YouTube's own pages: the tiles over its home's videos, and the marks on its thumbnails.
     if (ask.kind === "home") {
       const [stats, decks, settings, saved] = await Promise.all([panki.stats(door), panki.decks(door), panki.settings(door), panki.saved(door)]);
@@ -462,15 +474,15 @@ async function answer(
     }
     if (ask.kind === "undoFixes") {
       await panki.undoFixes(door, ask.videoId, ask.undo);
-      return transcripted(door, ask.videoId, store);
+      return transcripted(door, ask.videoId);
     }
     if (ask.kind === "lineMark") {
       await panki.markLine(door, ask.videoId, ask.mark);
-      return transcripted(door, ask.videoId, store);
+      return transcripted(door, ask.videoId);
     }
     // A video's transcript, the pieces of its sound on their way to the engine through Panki, and a word fixed by
     // hand: Panki's server holds the engine's key and the transcript, shared by everyone.
-    if (ask.kind === "transcript") return transcripted(door, ask.videoId, store);
+    if (ask.kind === "transcript") return transcripted(door, ask.videoId);
     if (ask.kind === "poll") return { ok: true, transcript: await panki.transcript(door, ask.videoId), engineMs: null };
     if (ask.kind === "whole") return { ok: true, transcript: await panki.wholeVideo(door, ask.videoId, ask.lengthMs), engineMs: null };
     if (ask.kind === "piece") {
@@ -488,15 +500,15 @@ async function answer(
     }
     if (ask.kind === "fix") {
       await panki.fixWord(door, ask.videoId, ask.fix);
-      return transcripted(door, ask.videoId, store);
+      return transcripted(door, ask.videoId);
     }
     if (ask.kind === "line") {
       await panki.fixLine(door, ask.videoId, ask.fix);
-      return transcripted(door, ask.videoId, store);
+      return transcripted(door, ask.videoId);
     }
     if (ask.kind === "forget") {
       await panki.forgetTranscript(door, ask.videoId, ask.stretch ?? {});
-      return transcripted(door, ask.videoId, store);
+      return transcripted(door, ask.videoId);
     }
     if (ask.kind === "redoStretch") return { ok: true, stretch: await panki.redoStretch(door, ask.videoId, ask.stretch.startMs, ask.stretch.endMs) };
     if (ask.kind === "redo") {

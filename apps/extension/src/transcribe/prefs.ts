@@ -6,7 +6,8 @@ import { DEFAULT_SEEK_LOOK, SeekLook } from "../seekLook";
  * How transcribing behaves for this browser's viewer, theirs to set on the options page (YouTube → Transcribing),
  * apart from what it costs, which stays Panki's settings and an admin's (the speed, the lead, the engine, the pieces):
  * whatever only the viewer's own browser does is theirs to choose. The shapes live here, apart
- * from `storage.ts`, so a page's script carries no storage code; the worker hands them to the page with the transcript.
+ * from `storage.ts`, so a page's script carries no storage code; the page gets them with the rest of this browser's
+ * settings (`messages.ts` → `Local`, `local.ts`).
  */
 
 /** When transcribing starts: on every video played, or only at a press on Transcribe. */
@@ -23,12 +24,11 @@ export const TranscribePrefs = z.object({
   style: SubtitleStyle,
   /**
    * Whether the word being said carries its mark (the line under it, `Line`'s `now`): on the line under the player,
-   * and on the subtitles over the video, each its own. They apply to the site's captions as
-   * much as to the transcript, and ride with the rest here because this is what the page is handed.
+   * and on the subtitles over the video, each its own. They apply to the site's captions as much as to the transcript.
    */
   markUnder: z.boolean(),
   markOver: z.boolean(),
-  /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's, riding here for the same reason. */
+  /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's. */
   seek: SeekLook,
   /** The transcription mode this viewer picked in the strip's menu, among those an admin left on; null for the one everyone starts on (`modeOf`). */
   mode: TranscribeMode.nullable(),

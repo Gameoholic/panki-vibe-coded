@@ -108,7 +108,8 @@ import { wordKey, type Found } from "../dictionary/found";
 import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
 import { wordsNow } from "../dictionary/useWords";
 import { askAdd, askAddExample, askAiState, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
-import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, roleOf, roleOfKey, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
+import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, mappingOn, roleOf, roleOfKey, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
+import { useLocal } from "../local";
 import { uuid } from "../uuid";
 import { ClipPlayer } from "./ClipPlayer";
 import { gapsOf, type PieceLimits } from "./Explain";
@@ -452,6 +453,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   // Minted once for the panel, so pressing Add again after a lost connection is the same card, not a second one.
   const [cardId] = useState(uuid);
   const [state, setState] = useState<State | null>(lastKnown);
+  /** This browser's own: what fills each deck's fields, which decks are switched on, the deck it opens on (`local.ts`). */
+  const own = useLocal().drawer;
   /** Panki hasn't answered in a while: the drawer shows itself anyway, and says so. */
   const [slow, setSlow] = useState(false);
   /** Asked to go: it folds away first. */
@@ -522,7 +525,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     load();
     readAi();
     const waited = setTimeout(() => setSlow(true), SLOW_MS);
-    // Back from the options page (signed in, a deck set up): what the panel knows is asked for afresh.
+    // Back from Panki or the options page (signed in, a deck made): what Panki says is asked for afresh. A deck's field
+    // mapping set there is this browser's own, and reaches the drawer at once (`useLocal`).
     window.addEventListener("focus", load);
     return () => {
       alive = false;
@@ -619,10 +623,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   const loaded = state?.ok ? state : null;
   // Never the first deck there is: one chosen here, or the one chosen before, or none.
-  const deck = loaded ? (loaded.decks.find((d) => d.id === deckId) ?? loaded.decks.find((d) => d.id === loaded.defaultDeckId) ?? null) : null;
+  const deck = loaded ? (loaded.decks.find((d) => d.id === deckId) ?? loaded.decks.find((d) => d.id === own.defaultDeckId) ?? null) : null;
   const type = loaded && deck ? (loaded.types.find((t) => t.id === deck.typeId) ?? null) : null;
   const srsType = loaded && deck ? (loaded.srsTypes.find((s) => s.id === deck.srsTypeId) ?? null) : null;
-  const map = loaded && deck && type ? cleanMap(loaded.maps[deck.id] ?? {}, type) : {};
+  const map = loaded && deck && type ? cleanMap(own.maps[deck.id] ?? {}, type) : {};
   const fieldOf = (role: RoleId) => type?.fields.find((f) => f.id === map[role]) ?? null;
   const wordField = fieldOf("word");
   const sentenceField = fieldOf("sentence");
@@ -1440,7 +1444,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     setErrors({});
     setFailure(null);
     void askDeck(id);
-    if (lastKnown?.ok) lastKnown = { ...lastKnown, defaultDeckId: id };
   }
 
   async function add() {
@@ -1920,7 +1923,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     }
     // A deck is set up before anything is added to it: its field mapping is switched on, on the options page, and
     // until it is the extension adds nothing to it.
-    if (!state.decksOn.includes(deck.id)) {
+    if (!mappingOn(own.mappingOn, own.maps, deck.id)) {
       return (
         <>
           {chooser}

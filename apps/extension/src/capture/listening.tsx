@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { dictionariesAre } from "../dictionary/useWords";
 import type { Found } from "../dictionary/found";
 import type { LookKey } from "../lookSettings";
+import { localNow, onLocal } from "../local";
 import { askLookState } from "../messages";
 import { popupLayoutOf, type PopupLayout } from "../popupLayout";
 import type { MorePieces } from "../ui/Explain";
@@ -32,19 +33,17 @@ export type Listening = ReturnType<typeof createListening>;
 const OVER_ALL = "position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: block;";
 
 /**
- * Pointing at words on a page, whole: what the worker says is allowed here and how the popup is laid out (asked again
- * whenever the page gets the focus back, in case the options page changed it), the page's listening, and the popup in
- * a place of Panki's own.
- * The video page and any other page both start one; the video page also points at its own line's words through it.
+ * Pointing at words on a page, whole: the keys to hold, this browser's own (`local.ts`), what the worker says is
+ * allowed here and how the popup is laid out (asked again whenever those settings change, and when the page gets the
+ * focus back: the dictionaries live in the browser's database, which tells no page of a change), the page's listening,
+ * and the popup in a place of Panki's own.
+ * The video page and any other page both start one, once this browser's settings are in; the video page also points at
+ * its own line's words through it.
  */
 export function createListening(options: Options) {
-  let settings: { on: boolean; key: LookKey; subtitlesOn: boolean; subtitleKey: LookKey; layout: PopupLayout } = {
-    on: false,
-    key: "shift",
-    subtitlesOn: false,
-    subtitleKey: "shift",
-    layout: popupLayoutOf(null, []),
-  };
+  /** What the worker says of this page: nothing works here until it has. */
+  let here: { on: boolean; subtitlesOn: boolean; layout: PopupLayout } = { on: false, subtitlesOn: false, layout: popupLayoutOf(null, []) };
+  const keys = (): { key: LookKey; subtitleKey: LookKey } => localNow().look;
   const place = makePlace(options.theme?.() ?? "light");
   place.host.style.cssText = OVER_ALL;
   const root = createRoot(place.ground);
@@ -68,10 +67,11 @@ export function createListening(options: Options) {
       <Lookup
         key={view.pointed.id}
         view={view}
-        layout={settings.layout}
+        layout={here.layout}
         split={split}
         explain={{ kind: "panki", more: options.aiContext ?? null }}
         onKeep={looker.lock}
+        onClose={looker.close}
         onAdd={(found) => {
           looker.close();
           options.onAdd(found, view.pointed);
@@ -80,29 +80,33 @@ export function createListening(options: Options) {
     );
   }
 
-  const page = listenOnPage(looker, {
-    key: (target) => (options.subtitlesAt?.(target) ? settings.subtitleKey : settings.key),
-    on: (target) => (options.subtitlesAt?.(target) ? settings.subtitlesOn : settings.on),
-    whereAt: options.whereAt,
-    inPopup: (e) => e.composedPath().includes(place.host),
-  });
+  /** The page's listening, from `start` on: the keys to hold are this browser's settings, which aren't known before. */
+  let page: ReturnType<typeof listenOnPage> | null = null;
 
   async function refresh() {
     const state = await askLookState();
     if (!state.ok) return;
-    settings = { on: state.on, key: state.key, subtitlesOn: state.subtitlesOn, subtitleKey: state.subtitleKey, layout: state.layout };
+    here = { on: state.on, subtitlesOn: state.subtitlesOn, layout: state.layout };
     dictionariesAre(state.signature);
-    if (!settings.on && !settings.subtitlesOn) looker.close();
+    if (!here.on && !here.subtitlesOn) looker.close();
   }
 
   return {
     looker,
     /** Whether pointing at words works here right now and with which key, and the same in Panki's subtitles. */
-    settings: () => settings,
+    settings: () => ({ ...here, ...keys() }),
     /** Panki's own line says where the pointer is when it's over one of its words, so the key pressed there looks it up. */
-    pointedBy: page.pointedBy,
+    pointedBy: (...args: Parameters<ReturnType<typeof listenOnPage>["pointedBy"]>) => page?.pointedBy(...args),
+    /** Started once this browser's settings are in (`loadLocal`). */
     start() {
+      page = listenOnPage(looker, {
+        key: (target) => (options.subtitlesAt?.(target) ? keys().subtitleKey : keys().key),
+        on: (target) => (options.subtitlesAt?.(target) ? here.subtitlesOn : here.on),
+        whereAt: options.whereAt,
+        inPopup: (e) => e.composedPath().includes(place.host),
+      });
       void refresh();
+      onLocal(() => void refresh());
       window.addEventListener("focus", () => void refresh());
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") void refresh();

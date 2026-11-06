@@ -58,7 +58,7 @@ import {
   VideoGlance,
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
-import { LookKey } from "./lookSettings";
+import { LookKey, LookWhere } from "./lookSettings";
 import { Modules, PanelView } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
@@ -108,9 +108,48 @@ export type RecordingAsk = z.infer<typeof RecordingAsk>;
 export const OptionsTab = z.enum(["account", "decks", "youtube"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
+/** Words that are in your decks, as this browser marks them: in Panki's subtitles, on every page, and in which colours. */
+export const KnownLook = z.object({ subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint, suspendedColour: MarkPaint });
+export type KnownLook = z.infer<typeof KnownLook>;
+
+/**
+ * This browser's own settings, everything of them a page's script draws or behaves by, as one value (`storage.ts` →
+ * `LOCAL`, one entry per part): asked of the worker once as a page starts (`askLocal`), answered from the browser's
+ * storage alone with nothing asked of Panki, and sent to every page again the moment any of it changes
+ * (`LocalChanged`). A page draws nothing of Panki's before it's in (`local.ts`), so nothing is ever drawn in a default
+ * and then redrawn in the viewer's own. What the pop-up dictionary may do on a page stays its own ask (`lookState`):
+ * it's answered for the page's address and from the dictionaries, which this storage doesn't hold.
+ */
+export const Local = z.object({
+  /** How transcribing behaves and looks for this viewer: the seek bar's marks, the subtitles over the video, the mode. */
+  prefs: TranscribePrefs,
+  /** Where a video's words come from (`subtitles.ts`), read as `sourceOf` reads it. */
+  source: z.string(),
+  /** Which of Panki's parts are on, and how they behave (`modules.ts`). */
+  modules: Modules,
+  known: KnownLook,
+  /**
+   * The pop-up dictionary's own: the keys held, globally and in Panki's subtitles, where it works and how it's laid out
+   * as kept. Whether it works on a page, and the layout filled out against the dictionaries, are `lookState`'s, asked
+   * again whenever these change.
+   */
+  look: z.object({ key: LookKey, subtitleKey: LookKey, where: LookWhere, sites: z.array(z.string()), layout: PopupLayout.nullable() }),
+  /** This browser's Video tracking (`watch/tracking.ts`); off until it's settled. */
+  tracking: z.boolean(),
+  /** The drawer's own: what fills each deck's fields, which decks are switched on to be added to, the deck it opens on. */
+  drawer: z.object({ maps: z.record(z.string(), FieldMap), mappingOn: z.record(z.string(), z.boolean()), defaultDeckId: DeckId.nullable() }),
+});
+export type Local = z.infer<typeof Local>;
+
+/** The worker telling every page this browser's settings changed, with all of them as they stand now. */
+export const LocalChanged = z.object({ kind: z.literal("local"), local: Local });
+export type LocalChanged = z.infer<typeof LocalChanged>;
+
 export const Ask = z.discriminatedUnion("kind", [
-  /** What the panel needs to open: the decks, their card types and SRS types (to show the card as a review will), what fills each deck's fields, the deck it opens on. */
+  /** What the panel needs of Panki to open: the decks, their card types and SRS types (to show the card as a review will). What fills each deck's fields and the deck it opens on are this browser's (`Local`). */
   z.object({ kind: z.literal("state") }),
+  /** This browser's own settings, all of them (`Local`). Needs no sign-in, and asks nothing of Panki. */
+  z.object({ kind: z.literal("local") }),
   /** A deck was chosen in the drawer: it's the one the drawer opens on from now. */
   z.object({ kind: z.literal("deck"), deckId: DeckId }),  z.object({ kind: z.literal("add"), deckId: DeckId, card: NewCard }),
   /** What the drawer holds, given as another example to a card that's already there, in its deck. */
@@ -135,9 +174,9 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open"), card: z.object({ deckId: DeckId, cardId: CardId }).optional() }),
   /** The account's cards already called by the words a card is about to be added with: the drawer says so. */
   z.object({ kind: z.literal("called"), words: CardsCalled.shape.word }),
-  /** Whether pointing at a word looks it up on the page asking, with which key held, and how the popup is laid out. Needs no sign-in: the dictionaries are this browser's own. */
+  /** Whether pointing at a word looks it up on the page asking, and how the popup is laid out against the dictionaries there are. Needs no sign-in: the dictionaries are this browser's own. */
   z.object({ kind: z.literal("lookState") }),
-  /** The words in the account's cards, and where and in what colour they're marked. */
+  /** The words in the account's cards, when anything of this browser's marks them (how they're marked is `Local`'s `known`). */
   z.object({ kind: z.literal("known") }),
   /** Every word found from the first letter of this text on. */
   z.object({ kind: z.literal("lookup"), text: z.string().max(LOOKUP_MAX) }),
@@ -185,9 +224,7 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pictures"), videoId: VideoId, avatar: z.string().max(2000).nullable() }),
   /** Where in a video the account's cards were taken from: marked on the video's bar. */
   z.object({ kind: z.literal("videoCards"), videoId: VideoId }),
-  /** Which of Panki's parts are on in this browser, and what happens where a video was stopped. Needs no sign-in: they're this browser's own. */
-  z.object({ kind: z.literal("modules") }),
-  /** A video as it opens: whether the account keeps its watching, where it was stopped, whether it counts. */
+  /** A video as it opens: where it was stopped, whether it counts, whether it's finished. */
   z.object({ kind: z.literal("watched"), videoId: VideoId }),
   /** Stretches of videos watched, with the videos they're of, kept on Panki. */
   z.object({ kind: z.literal("watch"), batch: WatchBatch }),
@@ -243,11 +280,8 @@ export type AiState = z.infer<typeof AiState>;
 const LookState = z.union([
   z.object({
     ok: z.literal(true),
-    /** Pointing at a word looks it up here: the site is one the setting allows, and there's a dictionary to look in. */
+    /** Pointing at a word looks it up here: the site is one the setting allows, and there's a dictionary to look in. The keys held are `Local`'s. */
     on: z.boolean(),
-    key: LookKey,
-    /** The key held in Panki's subtitles, under and over a video and on a card's clip (`storage.ts` → `lookKeySubtitles`). */
-    subtitleKey: LookKey.catch("shift"),
     /** Pointing at a word in Panki's subtitles looks it up: Word lookup is on and there's a dictionary, whatever Where says (`on`). */
     subtitlesOn: z.boolean(),
     /** How many dictionaries are switched on: none means the line is split the browser's way. */
@@ -260,11 +294,8 @@ const LookState = z.union([
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 export type LookState = z.infer<typeof LookState>;
-/** The words every card is called by and those only suspended cards are, whether they're marked in a video's subtitles and on pages, and in what colours. */
-const Known = z.union([
-  z.object({ ok: z.literal(true), words: z.array(z.string()), suspended: z.array(z.string()), subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint, suspendedColour: MarkPaint }),
-  z.object({ ok: z.literal(false), message: z.string() }),
-]);
+/** The words every card is called by and those only suspended cards are; none while nothing of this browser's marks them. */
+const Known = z.union([z.object({ ok: z.literal(true), words: z.array(z.string()), suspended: z.array(z.string()) }), z.object({ ok: z.literal(false), message: z.string() })]);
 export type Known = z.infer<typeof Known>;
 const Looked = z.union([z.object({ ok: z.literal(true), found: z.array(Found) }), z.object({ ok: z.literal(false), message: z.string() })]);
 const Latticed = z.union([z.object({ ok: z.literal(true), lattice: Lattice }), z.object({ ok: z.literal(false), message: z.string() })]);
@@ -274,6 +305,9 @@ export type Latticed = z.infer<typeof Latticed>;
 /** `status` is Panki's own answer when it refused (a 409 with no key to transcribe with); none for a fault of the extension's. */
 const Failed = z.object({ ok: z.literal(false), message: z.string(), signedOut: z.boolean().optional(), status: z.number().optional() });
 const Done = z.union([z.object({ ok: z.literal(true) }), Failed]);
+/** This browser's own settings. */
+const Localled = z.union([z.object({ ok: z.literal(true), local: Local }), Failed]);
+export type Localled = z.infer<typeof Localled>;
 const Voiced = z.union([z.object({ ok: z.literal(true), voices: z.array(ForvoVoice) }), Failed]);
 /** The recording as Panki keeps it: the file's id, which goes in the card's field, and its bytes, to hear it here. */
 const Heard = z.union([z.object({ ok: z.literal(true), mediaId: MediaId, mime: z.string().max(100), base64: z.string().max(RECORDING_MAX) }), Failed]);
@@ -287,11 +321,8 @@ export type Pictured = z.infer<typeof Pictured>;
 /** The account's cards taken from the video: each its clip, in ms, and its words. */
 const Carded = z.union([z.object({ ok: z.literal(true), cards: z.array(VideoCard) }), Failed]);
 export type Carded = z.infer<typeof Carded>;
-/** Which of Panki's parts are on in this browser. */
-const Moduled = z.union([z.object({ ok: z.literal(true), modules: Modules }), Failed]);
-export type Moduled = z.infer<typeof Moduled>;
-/** A video as the account's watching has it, and whether this browser's Video tracking is on (`watch/tracking.ts`): off, nothing is noted and nothing offered. */
-const Watched = z.union([z.object({ ok: z.literal(true), video: WatchedVideo, on: z.boolean() }), Failed]);
+/** A video as the account's watching has it. Whether this browser notes it is its own Video tracking (`Local`'s `tracking`). */
+const Watched = z.union([z.object({ ok: z.literal(true), video: WatchedVideo }), Failed]);
 export type Watched = z.infer<typeof Watched>;
 /** Panki for YouTube's home: who's signed in (the account, and what the profile in use is called), the account's stats, its decks (what's due) and its settings. */
 const Homed = z.union([z.object({ ok: z.literal(true), name: z.string(), profile: z.string(), stats: Stats, decks: z.array(Deck), settings: Settings, saved: z.array(SavedVideo) }), Failed]);
@@ -314,11 +345,6 @@ const State = z.union([
     decks: z.array(Deck),
     types: z.array(CardType),
     srsTypes: z.array(SrsType),
-    maps: z.record(z.string(), FieldMap),
-    /** The decks whose field mapping is switched on: the only ones a card can be added to from here. */
-    decksOn: z.array(z.string()),
-    /** The deck the drawer opens on; null until one has been chosen. */
-    defaultDeckId: DeckId.nullable(),
     /** How the account's card clips show their subtitles (Panki's Settings): the card previewed here shows them so too. */
     subtitleStyle: SubtitleStyle,
   }),
@@ -326,10 +352,10 @@ const State = z.union([
 ]);
 export type State = z.infer<typeof State>;
 export type Done = z.infer<typeof Done>;
-/** A video's transcript with what runs transcribing: the shared settings, whether the chosen engine has a key, what a whole-video download takes as measured so far, this browser's pick of source, and this viewer's preferences. */
+/** A video's transcript with what runs transcribing, Panki's alone: the shared settings, whether the chosen engine has a key, what a whole-video download takes as measured so far. This browser's pick of source and its preferences are `Local`'s. */
 const Transcripted = z.union([
   // `language` is the account's own, told to the engine: each account's, nothing Panki-wide.
-  z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, language: TranscribeLanguage, key: z.boolean(), estimate: TranscribeEstimate, source: z.string(), prefs: TranscribePrefs }),
+  z.object({ ok: z.literal(true), transcript: Transcript, settings: Transcription, language: TranscribeLanguage, key: z.boolean(), estimate: TranscribeEstimate }),
   Failed,
 ]);
 export type Transcripted = z.infer<typeof Transcripted>;
@@ -520,9 +546,9 @@ export async function askForget(videoId: string, stretch: Stretch | null): Promi
 export async function askPrefs(prefs: Partial<TranscribePrefs>): Promise<void> {
   await ask({ kind: "prefs", prefs });
 }
-/** Which of Panki's parts are on in this browser. */
-export async function askModules(): Promise<Moduled> {
-  const answer = Moduled.safeParse(await ask({ kind: "modules" }));
+/** This browser's own settings, all of them, from its storage alone. */
+export async function askLocal(): Promise<Localled> {
+  const answer = Localled.safeParse(await ask({ kind: "local" }));
   return answer.success ? answer.data : failed(answer.error);
 }
 /** A video as it opens: whether this browser notes it, where it was stopped, whether it counts. */

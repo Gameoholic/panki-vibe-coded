@@ -13,8 +13,9 @@ import {
 } from "@panki/contracts";
 import { aboutWords, clock } from "@web/words";
 import { askPiece, askPoll, askRedo, askRedoEnd, askTranscript, askWhole } from "../messages";
-import { DEFAULT_SOURCE, engineWanted, sourceOf, type SubtitleSource } from "../subtitles";
-import { DEFAULT_PREFS, type TranscribePrefs } from "./prefs";
+import { localNow, onLocal } from "../local";
+import { engineWanted, sourceOf, type SubtitleSource } from "../subtitles";
+import type { TranscribePrefs } from "./prefs";
 import { uuid } from "../uuid";
 import { coveredUntil, nextUncovered } from "./lines";
 import type { CutPiece } from "./pieces";
@@ -37,8 +38,8 @@ import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./sile
  * nothing is transcribed at all), or at a press in the menu. Every video is taken to be in the language Panki's settings
  * name, told to the engine, never asked. Every chunk and every download goes through Panki (the worker asks it); the
  * transcript that comes back is what the line under the player reads. The settings that cost are everyone's (an admin
- * sets them in Panki); how it behaves for this viewer (`prefs.ts`) is this browser's own; both are read with the
- * transcript, so nothing here keeps a setting of its own.
+ * sets them in Panki) and read with the transcript; how it behaves for this viewer (`prefs.ts`) and the source picked
+ * are this browser's own, read as they stand (`local.ts`); nothing here keeps a setting of its own.
  *
  * Every decision is written down with its reason, so what this session did and why can always be read: in the strip
  * menu's Log, and on the page's console as "[Panki] 12:05:03 …".
@@ -227,8 +228,10 @@ export function createTranscriber() {
   let language: TranscribeLanguage | null = null;
   let key = false;
   let estimate: TranscribeEstimate | null = null;
-  let source: SubtitleSource = DEFAULT_SOURCE;
-  let prefs: TranscribePrefs = DEFAULT_PREFS;
+  // Where the words come from and how it behaves for this viewer are this browser's settings, read as they stand
+  // (`local.ts`), never a copy that could start as a default: nothing here runs before they're in.
+  const prefsNow = (): TranscribePrefs => localNow().prefs;
+  const sourceNow = (): SubtitleSource => sourceOf(localNow().source);
   let status: TranscribeStatus = { kind: "off" };
   let working: Stretch | null = null;
   let run: Run | null = null;
@@ -282,8 +285,8 @@ export function createTranscriber() {
     language,
     key,
     estimate,
-    source,
-    prefs,
+    source: sourceNow(),
+    prefs: prefsNow(),
     status,
     working,
     decided,
@@ -302,7 +305,8 @@ export function createTranscriber() {
     if (!asking && !refused && watched < settings.wholeAfter) return false;
     return !wholeAsked && !confirmed && !declined && !fellBack;
   }
-  let snapshot: TranscribeState = snap();
+  /** Made at the first look, once this browser's settings are in; made again at every change. */
+  let snapshot: TranscribeState | null = null;
   const tell = () => {
     snapshot = snap();
     for (const follower of followers) follower();
@@ -340,6 +344,24 @@ export function createTranscriber() {
     }
     return at - from > 0.5 ? { startMs: Math.round(from * 1000), endMs: Math.round(at * 1000) } : null;
   }
+
+  /**
+   * This browser's settings changed, here (the strip's menu) or anywhere else (the options page, another tab): taken at
+   * once. A change of mode is decided afresh on this video; a change of Auto transcribe is written down.
+   */
+  onLocal((next, was) => {
+    if (JSON.stringify(next.prefs) === JSON.stringify(was.prefs) && next.source === was.source) return;
+    if (next.prefs.mode !== was.prefs.mode) {
+      decided = null;
+      asking = false;
+      confirmed = false;
+      declined = false;
+      refused = false;
+      fellBack = false;
+    }
+    if (next.prefs.trigger !== was.prefs.trigger) note(next.prefs.trigger === "auto" ? "auto transcribe on" : "auto transcribe off · nothing starts by itself");
+    tell();
+  });
 
   const job = () => transcript?.job ?? null;
   const downloading = () => job()?.state === "running";
@@ -430,10 +452,6 @@ export function createTranscriber() {
     language = answer.language;
     key = answer.key;
     estimate = answer.estimate;
-    source = sourceOf(answer.source);
-    // The mode picked elsewhere (another tab) since: decided afresh.
-    if (answer.prefs.mode !== prefs.mode) decided = null;
-    prefs = answer.prefs;
     watchJob();
     if (status.kind === "signedOut" || status.kind === "failed") status = { kind: "off" };
     tell();
@@ -442,7 +460,7 @@ export function createTranscriber() {
   /** What the mode comes to on this video, once its length is known; written down as it's decided, and again when the mode changes under it. */
   function decide(seconds: number) {
     if (!settings) return;
-    const mode = modeOf(settings, prefs.mode);
+    const mode = modeOf(settings, prefsNow().mode);
     const long = overDownloadLimit(settings, seconds);
     decided = { mode, long, seconds };
     saidDone = false;
@@ -471,8 +489,8 @@ export function createTranscriber() {
    */
   function maybeWhole(id: string, duration: number | null) {
     if (redoing || !settings || !transcript || !key || duration === null || !decided) return;
-    if (!engineWanted(source)) return;
-    const auto = prefs.trigger === "auto" && !autoBlocked;
+    if (!engineWanted(sourceNow())) return;
+    const auto = prefsNow().trigger === "auto" && !autoBlocked;
     if (!auto || wholeAsked || declined || !wantsWhole()) return;
     if (nextUncovered(transcript, 0, duration) === null) return;
     // A video opened and left at once costs nothing: by itself, only once it has been watched a little (Panki's `wholeAfter`).
@@ -644,7 +662,7 @@ export function createTranscriber() {
     // A part being transcribed again: nothing else starts until its words stand, or it's given up.
     if (redoing || !settings || !transcript) return;
     // The engine isn't the pick (the site's captions, or nothing, is): nothing to say, nothing to do.
-    if (!engineWanted(source)) {
+    if (!engineWanted(sourceNow())) {
       setStatus({ kind: "off" });
       return;
     }
@@ -667,7 +685,7 @@ export function createTranscriber() {
       setStatus({ kind: "done" });
       return;
     }
-    const auto = prefs.trigger === "auto" && !autoBlocked;
+    const auto = prefsNow().trigger === "auto" && !autoBlocked;
     // (The entire video, for a way that includes it, is asked for by `maybeWhole`, every look, run or no run.)
     if (wayNow() === "full") {
       if (downloading() || wholeInFlight) setStatus({ kind: "whole" });
@@ -729,7 +747,7 @@ export function createTranscriber() {
   /** A part being transcribed again: recorded end to end whatever the viewer does, always in chunks whatever the mode, with no lead and nothing skipped; then finished (`finishRedo`). */
   function steerRedo(mine: Run, redo: RedoRun, duration: number | null) {
     if (!settings) return;
-    if (!engineWanted(source)) {
+    if (!engineWanted(sourceNow())) {
       giveUpRedo("subtitles no longer from the engine");
       setStatus({ kind: "off" });
       return;
@@ -772,7 +790,7 @@ export function createTranscriber() {
       return;
     }
     // The pick left the engine (the line's picker): the run stops here, pressed or not.
-    if (!engineWanted(source)) {
+    if (!engineWanted(sourceNow())) {
       end();
       note("chunk player stopped · subtitles no longer from the engine");
       setStatus({ kind: "off" });
@@ -883,7 +901,7 @@ export function createTranscriber() {
   }
 
   return {
-    state: () => snapshot,
+    state: (): TranscribeState => (snapshot ??= snap()),
     subscribe(follower: () => void) {
       followers.add(follower);
       return () => {
@@ -950,11 +968,6 @@ export function createTranscriber() {
         setWorking(now?.state === "running" ? { startMs: 0, endMs: now.lengthMs } : null);
         maybeStart(id, t, duration);
       }
-    },
-    /** The pick changed here on the page (the line's picker): taken at once; the worker keeps it. */
-    setSource(next: SubtitleSource) {
-      source = next;
-      tell();
     },
     /**
      * Transcribe pressed, the menu's one way to start, one button whatever the mode: what the mode does,
@@ -1034,22 +1047,6 @@ export function createTranscriber() {
       }
       declined = true;
       note("answered · cancel · the entire video isn't transcribed");
-    },
-    /** A preference of this viewer's changed here on the page (the strip's menu): taken at once; the worker keeps it. A change of mode is decided afresh on this video. */
-    setPrefs(next: Partial<TranscribePrefs>) {
-      const modeChanged = next.mode !== undefined && next.mode !== prefs.mode;
-      const triggerChanged = next.trigger !== undefined && next.trigger !== prefs.trigger;
-      prefs = { ...prefs, ...next };
-      if (modeChanged) {
-        decided = null;
-        asking = false;
-        confirmed = false;
-        declined = false;
-        refused = false;
-        fellBack = false;
-      }
-      if (triggerChanged) note(prefs.trigger === "auto" ? "auto transcribe on" : "auto transcribe off · nothing starts by itself");
-      tell();
     },
     /** Stop pressed: the chunks stop, and nothing more of this video starts by itself until Transcribe is pressed, or another video plays. A whole-video download under way can't be stopped (it's paid for as it starts) and comes in all the same. */
     stop() {

@@ -7,6 +7,7 @@ import type { Pointed } from "../capture/look";
 import { selectionRect, sentenceAround, takeSelection, type Taken } from "../capture/selection";
 import { pageSource } from "../capture/source";
 import type { Found } from "../dictionary/found";
+import { loadLocal } from "../local";
 import { Trigger } from "../messages";
 import { deviceTheme, mount, type Mounted } from "../ui/mount";
 import { Notice, Panel, type Chars } from "../ui/Panel";
@@ -96,10 +97,14 @@ function start() {
     filling().append(mounted.host);
     mounted.root.render(<OnPage taken={taken} prefer={prefer} arrives={arrives} onClose={close} />);
   };
+  // Heard at once: the worker puts this script on a page and asks it to capture straight after. The drawer opens once
+  // this browser's settings are in, as everything of Panki's here waits for them.
   chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (sender.id !== chrome.runtime.id || !Trigger.safeParse(message).success) return;
     // Read before anything of Panki's is on the page: opening the panel must not be what changes the selection.
-    open(takeSelection(), selectionRect(), null);
+    const taken = takeSelection();
+    const rect = selectionRect();
+    void loadLocal().then(() => open(taken, rect, null));
     respond({ ok: true });
   });
 
@@ -115,10 +120,12 @@ function start() {
       open(taken, pointed.measure(found.source.length), found);
     },
   });
-  listening.start();
-  // Words already in the cards, marked on the page's own highlight layer while the pages switch is on.
-  startKnown();
-  markKnownOnPage();
+  void loadLocal().then(() => {
+    listening.start();
+    // Words already in the cards, marked on the page's own highlight layer while the pages switch is on.
+    startKnown();
+    markKnownOnPage();
+  });
 }
 
 if (!window.__pankiOnPage) {

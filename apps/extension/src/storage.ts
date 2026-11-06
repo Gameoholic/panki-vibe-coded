@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
-import { OptionsTab } from "./messages";
+import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelKey, PanelView, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
+import { sourceOf } from "./subtitles";
 import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
 /**
@@ -13,8 +14,9 @@ import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transc
  * fields, the deck the drawer opens on, how the drawer and looking a word up are set to behave, and how the popup is
  * laid out. (The dictionaries
  * themselves are in the browser's database: `dictionary/store.ts`.) Only the background and the options page
- * read it; a page's script never does, so the sign-in's secret never sits in someone else's page. Read defensively: a
- * key that's missing or broken is its empty value, never a crash.
+ * read it; a page's script never does, so the sign-in's secret never sits in someone else's page: it gets what it
+ * draws by as one value from the worker (`localOf`, `local.ts`). Read defensively: a key that's missing or broken is
+ * its empty value, never a crash.
  */
 /**
  * One sign-in: who, at which Panki, with the session's secret. The one in use is `address` / `token` / `userName`
@@ -194,7 +196,7 @@ const Stored = z.object({
 });
 export type Stored = z.infer<typeof Stored>;
 
-/** The viewer's transcribing preferences as one value, as the page gets them with the transcript. */
+/** The viewer's transcribing preferences as one value. */
 export const prefsOf = (store: Stored): TranscribePrefs => ({
   trigger: store.transcribeTrigger,
   overVideo: store.transcribeOverVideo,
@@ -253,12 +255,57 @@ export const modulesOf = (store: Stored): Modules => ({
   shortSkipSeconds: store.shortSkipSeconds,
 });
 
-export async function readStore(): Promise<Stored> {
-  const kept = await chrome.storage.local.get(null);
+/**
+ * This browser's settings as a page's script gets them (`messages.ts` → `Local`), one entry per part, each worked out
+ * from the store: the worker's answer to `local`, and what it sends every page when one of them changes. A new setting a
+ * page reads is a key of the store and a line in one of these, never an ask of its own.
+ */
+const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
+  prefs: prefsOf,
+  source: (store) => sourceOf(store.subtitleSource),
+  modules: modulesOf,
+  known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, colour: store.knownColour, suspendedColour: store.knownSuspendedColour }),
+  look: (store) => ({ key: store.lookKey, subtitleKey: store.lookKeySubtitles, where: store.lookWhere, sites: store.lookSites, layout: store.popupLayout }),
+  // Unsettled is off: it's settled as the worker starts (`watch/tracking.ts`), and every page told then.
+  tracking: (store) => store.videoTracking === true,
+  drawer: (store) => ({ maps: store.maps, mappingOn: store.mappingOn, defaultDeckId: store.defaultDeckId }),
+};
+
+export const localOf = (store: Stored): Local => ({
+  prefs: LOCAL.prefs(store),
+  source: LOCAL.source(store),
+  modules: LOCAL.modules(store),
+  known: LOCAL.known(store),
+  look: LOCAL.look(store),
+  tracking: LOCAL.tracking(store),
+  drawer: LOCAL.drawer(store),
+});
+
+/** What the browser keeps, read as the store: everything kept, or what's given in its place (`kept`, the store as it stood before a change). */
+function storeOf(kept: Record<string, unknown>): Stored {
   const stored = Stored.parse(kept);
   // `lookHover`, the switch it once was, switched on and never changed since: On hover.
   if (kept.lookKeySubtitles === undefined && kept.lookHover === true) return { ...stored, lookKeySubtitles: "hover" };
   return stored;
+}
+
+export async function readStore(): Promise<Stored> {
+  return storeOf(await chrome.storage.local.get(null));
+}
+
+/**
+ * This browser's settings before and after a change to its storage, as `chrome.storage.onChanged` tells of it: the store
+ * now, and the store with each changed key put back as it was. Whether a page needs telling is then worked out from
+ * the settings themselves, never from a list of keys that could fall behind them.
+ */
+export async function localChange(changes: Record<string, chrome.storage.StorageChange>): Promise<{ next: Local; was: Local }> {
+  const kept = await chrome.storage.local.get(null);
+  const before: Record<string, unknown> = { ...kept };
+  for (const [key, change] of Object.entries(changes)) {
+    if (change.oldValue === undefined) delete before[key];
+    else before[key] = change.oldValue;
+  }
+  return { next: localOf(storeOf(kept)), was: localOf(storeOf(before)) };
 }
 
 export async function writeStore(patch: Partial<Stored>): Promise<void> {

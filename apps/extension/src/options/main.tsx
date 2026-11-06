@@ -674,6 +674,14 @@ function Options() {
   const dictionariesChange = useCallback(() => setDictionariesChanged((n) => n + 1), []);
   const refresh = useCallback(() => void readStore().then(setStore), []);
   useEffect(refresh, [refresh]);
+  // A setting changed anywhere else (the panel's menu on a video, another tab of this page): read again at once.
+  useEffect(() => {
+    const changed = (_: unknown, area: string) => {
+      if (area === "local") refresh();
+    };
+    chrome.storage.onChanged.addListener(changed);
+    return () => chrome.storage.onChanged.removeListener(changed);
+  }, [refresh]);
 
   const address = store?.address ?? null;
   const token = store?.token ?? null;

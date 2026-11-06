@@ -23,9 +23,11 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askFullPanel, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey } from "../modules";
+import { amendLocal, loadLocal, localNow, onLocal } from "../local";
+import type { TranscribePrefs } from "../transcribe/prefs";
+import { OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -240,8 +242,19 @@ const carded = cell<readonly VideoCard[]>([]);
 const onBar = cell(false);
 /** How far above the seek bar the pointer counts as on it, as the marks last said (`SeekMark` → `REACH`). */
 const reachPx = cell(0);
-/** Which of Panki's parts are on in this browser (the options page's Modules tab): all of them until the worker says. */
-const modules = cell<Modules>(DEFAULT_MODULES);
+/**
+ * Which of Panki's parts are on in this browser, as this browser's settings say (`local.ts`): read only once they're
+ * in, since nothing of Panki's here starts before (`begin`); followed as they change, anywhere.
+ */
+const modules = {
+  get: (): Modules => localNow().modules,
+  subscribe: (follower: () => void) =>
+    onLocal((next, was) => {
+      if (JSON.stringify(next.modules) !== JSON.stringify(was.modules)) follower();
+    }),
+  /** A change made here, on the page at once; the worker keeps it and says so to every page. */
+  amend: (patch: Partial<Modules>) => amendLocal((was) => ({ ...was, modules: { ...was.modules, ...patch } })),
+};
 /** The video as the account's watching has it: whether it's kept at all, where it was stopped the time before, whether it counts. Null until Panki has said. */
 type Seen = { videoId: string; on: boolean; stoppedAt: number | null; counted: boolean };
 const seen = cell<Seen | null>(null);
@@ -593,17 +606,13 @@ async function readCarded() {
   if (answer.ok && watching === id) carded.set(answer.cards);
 }
 
-/** Which of Panki's parts are on, asked of the worker again: on the first look, and whenever the page gets the focus back (a switch flipped on the options page). */
-async function readModules() {
-  const answer = await askModules();
-  if (!answer.ok) return;
-  const was = modules.get();
-  const next = answer.modules;
-  if (Object.keys(next).some((key) => next[key as keyof Modules] !== was[key as keyof Modules])) modules.set(next);
+/** A preference of this viewer's changed in the strip's menu, on the page at once; the worker keeps it (`askPrefs`) and says so to every page. */
+function amendPrefs(patch: Partial<TranscribePrefs>) {
+  amendLocal((was) => ({ ...was, prefs: { ...was.prefs, ...patch } }));
 }
 
 /** Every part off, as the modules read with Panki switched off altogether. */
-const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false };
+const allOff = (now: Modules): Modules => ({ ...now, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false });
 /**
  * Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own
  * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not. The same while an update is needed: Panki would refuse all of it, so none of it is tried.
@@ -611,13 +620,13 @@ const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: 
 function active(): Modules {
   const now = modules.get();
   if (now.on && !updateNeeded()) return now;
-  const utilities = { shorts: now.shorts, playerBar: now.playerBar, bar: now.bar, barKeptFull: now.barKeptFull, barKeptNotFull: now.barKeptNotFull, shortSkip: now.shortSkip, shortSkipKey: now.shortSkipKey, shortSkipSeconds: now.shortSkipSeconds };
-  return { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, ...utilities };
+  // The YouTube utilities, where the video was stopped and the pill's layout stay as set: the rest of the parts read off.
+  return allOff(now);
 }
 
 /** Panki switched on or off altogether, from the strip's head or the header bar's pill: on the page at once, and kept for every page from now on. */
 function setPankiOn(on: boolean) {
-  modules.set({ ...modules.get(), on });
+  modules.amend({ on });
   void askPankiOn(on);
   // Turned back on, the video playing is noted again from now (off, `look` closed and sent what was open).
   if (on) void readSeen();
@@ -625,7 +634,7 @@ function setPankiOn(on: boolean) {
 
 /** The panel's view picked on the panel: on the page at once, and kept for every video from now on. */
 function setPanelView(view: PanelView) {
-  modules.set({ ...modules.get(), panelView: view });
+  modules.amend({ panelView: view });
   void askPanelView(view);
 }
 
@@ -647,15 +656,16 @@ async function readSeen() {
   const was = seen.get();
   const first = was === null || was.videoId !== id;
   const stoppedAt = answer.video.stoppedAtMs === null ? null : answer.video.stoppedAtMs / 1000;
-  // `on` is this browser's own Video tracking (`watch/tracking.ts`): off, nothing is noted and nothing offered here.
-  seen.set({ videoId: id, on: answer.on, stoppedAt: first ? stoppedAt : was.stoppedAt, counted: answer.video.counted });
+  // `on` is this browser's own Video tracking (`Local`'s `tracking`): off, nothing is noted and nothing offered here.
+  const on = localNow().tracking;
+  seen.set({ videoId: id, on, stoppedAt: first ? stoppedAt : was.stoppedAt, counted: answer.video.counted });
   // Whether it's finished, as Panki has it; one being said right now is the chip's until Panki answers it.
   const had = finishHere.get();
   const same = had !== null && had.videoId === id;
-  finishHere.set(answer.on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
+  finishHere.set(on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
   // Nothing is noted, and nothing offered, while Panki is switched off altogether.
-  watcher.video(id, answer.on && modules.get().on);
-  if (first && answer.on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
+  watcher.video(id, on && modules.get().on);
+  if (first && on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
 }
 
 /** Where the video was stopped the time before, not yet acted on: Panki's answer can come before the player holds this video. */
@@ -863,7 +873,7 @@ function togglePanel() {
   const now = modules.get();
   const shown = !(now.fullPanel || upForDrawer.get());
   upForDrawer.set(false);
-  modules.set({ ...now, fullPanel: shown });
+  modules.amend({ fullPanel: shown });
   void askFullPanel(shown);
 }
 
@@ -2641,7 +2651,7 @@ function App() {
   const menuOn = engineOn && tx.status.kind !== "signedOut";
   /** The pick changed here: taken at once on the page, and kept by the worker for the next video. */
   function pickSource(id: SubtitleSource) {
-    transcriber.setSource(id);
+    amendLocal((was) => ({ ...was, source: id }));
     void askSubtitles(id);
   }
   /** The video's length in seconds, when the player says it. */
@@ -2649,17 +2659,17 @@ function App() {
   /** Whether it starts by itself, changed in the menu: this viewer's own, taken at once on the page and kept by the worker. */
   function setAuto(on: boolean) {
     const trigger = on ? "auto" : "press";
-    transcriber.setPrefs({ trigger });
+    amendPrefs({ trigger });
     void askPrefs({ trigger });
   }
   /** The mode this viewer transcribes in, picked in the menu: taken at once, kept by the worker. */
   function setMode(mode: TranscribeMode) {
-    transcriber.setPrefs({ mode });
+    amendPrefs({ mode });
     void askPrefs({ mode });
   }
   /** How the transcript looks over the video, changed under the panel menu's Subtitle style: seen at once, kept by the worker. */
   function setStyle(style: SubtitleStyle) {
-    transcriber.setPrefs({ style });
+    amendPrefs({ style });
     void askPrefs({ style });
   }
   /** Whether Subtitle style shows in the panel's menu: only then is the band on the video there to be dragged. */
@@ -2684,7 +2694,7 @@ function App() {
         x: withinBound(from.style.x + ((ev.clientX - from.x) / box.width) * 100, SUBTITLE_BOUNDS.x),
         bottom: withinBound(from.style.bottom - ((ev.clientY - from.y) / box.height) * 100, SUBTITLE_BOUNDS.bottom),
       };
-      transcriber.setPrefs({ style: latest });
+      amendPrefs({ style: latest });
     };
     const done = () => {
       band.removeEventListener("pointermove", move);
@@ -2953,20 +2963,28 @@ function App() {
   );
 }
 
-strip.root.render(<App />);
-listening.start();
-// Words already in the cards: Panki's own lines mark them themselves (`Row`), by Highlight in Panki subtitles; the
-// site's own text, its captions among it, is marked on the page's highlight layer by Highlight globally, as its
-// captions go by Key to hold globally.
-startKnown();
-markKnownOnPage();
-void readModules();
-void readUpdate();
-look();
-setInterval(look, 1000);
-// The worker asks Panki about a newer build every hour; a page left open in front learns what it found within minutes
-// (a question to the worker alone, nothing sent anywhere).
-setInterval(() => void readUpdate(), 5 * 60_000);
+/**
+ * Everything of Panki's on the page, started once this browser's settings are in (`loadLocal`, a moment after the page
+ * loads, from the browser's own storage): the screen, the pop-up dictionary, the marks, the page's listeners. Before
+ * then nothing of Panki's is drawn, so the first thing drawn is already in the viewer's own settings.
+ */
+function begin() {
+  strip.root.render(<App />);
+  feed.start();
+  listening.start();
+  // Words already in the cards: Panki's own lines mark them themselves (`Row`), by Highlight in Panki subtitles; the
+  // site's own text, its captions among it, is marked on the page's highlight layer by Highlight globally, as its
+  // captions go by Key to hold globally.
+  startKnown();
+  markKnownOnPage();
+  void readUpdate();
+  listen();
+  look();
+  setInterval(look, 1000);
+  // The worker asks Panki about a newer build every hour; a page left open in front learns what it found within minutes
+  // (a question to the worker alone, nothing sent anywhere).
+  setInterval(() => void readUpdate(), 5 * 60_000);
+}
 // The lines follow the video's time every frame the page is drawn, so a line comes up the moment its first word is said
 // and gives way the moment the next one's is (looked at four times a second with the rest below, a line would come up
 // to a quarter of a second late). Nothing is drawn again unless the line changes (`lineSource.ts` →
@@ -2975,22 +2993,25 @@ function followLines() {
   lines.refresh();
   requestAnimationFrame(followLines);
 }
-requestAnimationFrame(followLines);
-// Transcribing follows the viewer's player, looked at a few times a second; the lines again with it, for a page whose
-// frames aren't drawn (a tab behind another).
-setInterval(() => {
-  transcriber.tick(video);
-  lines.refresh();
-  watcher.tick(video);
-  followFinish(video);
-  // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
-  tryResume();
-  // (After a jump the video is there already: the box saying so stays its time.)
-  const now = offered.get();
-  if (now !== null && now.arrives && video && video.currentTime >= landing(now.at) - 2) dismissOffer();
-}, FOLLOW_MS);
-// What's been watched is sent as the page is hidden or left: a closed tab loses no more than the moment.
-window.addEventListener("pagehide", () => watcher.leave());
+/** The player followed, from `begin` on. */
+function followPlayer() {
+  requestAnimationFrame(followLines);
+  // Transcribing follows the viewer's player, looked at a few times a second; the lines again with it, for a page whose
+  // frames aren't drawn (a tab behind another).
+  setInterval(() => {
+    transcriber.tick(video);
+    lines.refresh();
+    watcher.tick(video);
+    followFinish(video);
+    // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
+    tryResume();
+    // (After a jump the video is there already: the box saying so stays its time.)
+    const now = offered.get();
+    if (now !== null && now.arrives && video && video.currentTime >= landing(now.at) - 2) dismissOffer();
+  }, FOLLOW_MS);
+  // What's been watched is sent as the page is hidden or left: a closed tab loses no more than the moment.
+  window.addEventListener("pagehide", () => watcher.leave());
+}
 
 /** Whether a key going down has the short skip's key held with it, and that one alone. */
 const SKIP_HELD: Record<SkipKey, (e: KeyboardEvent) => boolean> = {
@@ -3079,84 +3100,95 @@ function panelKeyUp(e: KeyboardEvent) {
   togglePanel();
 }
 
-// The page's keys, one listener each way: heard before the site's own (the window, capturing), so a key Panki takes is
-// kept from the site.
-window.addEventListener(
-  "keydown",
-  (e) => {
-    if (shortSkip(e)) {
-      modifierDown = null;
-      return;
-    }
-    panelKey(e);
-  },
-  true,
-);
-window.addEventListener("keyup", panelKeyUp, true);
-// The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page; a card may have
-// been deleted in Panki: read again when this page gets the focus back, and when its tab is shown again (a switch of
-// tabs doesn't always bring a focus event, and a switch set on the options page would be ignored until the window was
-// clicked).
+/**
+ * What Panki says may have changed, read again when this page gets the focus back, and when its tab is shown again (a
+ * switch of tabs doesn't always bring a focus event): the settings for everyone, changed in Panki; a card deleted
+ * there; the build. This browser's own settings aren't among them: the worker tells every page of a change at once.
+ */
 function readAgain() {
   transcriber.refresh();
   void readCarded();
-  void readModules();
   void readUpdate();
   void readSeen();
   void readSaved();
   feed.refresh();
 }
-window.addEventListener("focus", readAgain);
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") readAgain();
-  else watcher.leave();
-});
-// The site's own word for "another page of mine is now showing": it never loads a new page between videos.
-document.addEventListener("yt-navigate-finish", () => {
-  // Another of the site's pages: what's known of each video (watched since, a card made) is asked for afresh.
-  feed.refresh();
-  look();
-});
-// A full screen entered or left, by any way (the site's F, its button, a double-click, Esc): the Stage follows
-// `document.fullscreenElement` alone. The site lays its full screen out a moment after the change, so it's looked at
-// again once that's done; left, the page is scrolled back where it stood.
-document.addEventListener("fullscreenchange", () => {
-  if (document.fullscreenElement === null) afterFull();
-  place();
-  requestAnimationFrame(place);
-  setTimeout(place, 300);
-});
-// The player's size changes with the window (and the site's theatre view): the words over it keep their share of it.
-window.addEventListener("resize", place);
-showing.subscribe(place);
-showingOver.subscribe(place);
-upForDrawer.subscribe(place);
-// A card begun with the panel folded away in full screen: the drawer is in its column, so the column comes back while
-// the drawer is open, and folds away again as it closes; what's kept is left as the key or the handle last left it.
-showing.subscribe(() => {
-  if (!showing.get()) upForDrawer.set(false);
-  else if (!modules.get().fullPanel) upForDrawer.set(true);
-});
-carded.subscribe(place);
-// A part switched on or off, and where the video was stopped known: what's on the page follows.
-modules.subscribe(() => {
-  feed.redraw();
-  look();
-});
-// An update found, or needed: the pill's dot, and with one needed, everything of Panki's here stopping.
-update.subscribe(() => {
-  feed.redraw();
-  look();
-});
-seen.subscribe(place);
-offered.subscribe(place);
-// Another video: whether the pointer is on the bar is known afresh.
-asked.addEventListener("moved", () => onBar.set(false));
-// The transcript's reach goes on the seek bar as soon as there is one to mark.
-transcriber.subscribe(place);
+
+/** The page's listeners, from `begin` on: each reads this browser's settings, which aren't known before. */
+function listen() {
+  followPlayer();
+  // The page's keys, one listener each way: heard before the site's own (the window, capturing), so a key Panki takes
+  // is kept from the site.
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      if (shortSkip(e)) {
+        modifierDown = null;
+        return;
+      }
+      panelKey(e);
+    },
+    true,
+  );
+  window.addEventListener("keyup", panelKeyUp, true);
+  window.addEventListener("focus", readAgain);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") readAgain();
+    else watcher.leave();
+  });
+  // The site's own word for "another page of mine is now showing": it never loads a new page between videos.
+  document.addEventListener("yt-navigate-finish", () => {
+    // Another of the site's pages: what's known of each video (watched since, a card made) is asked for afresh.
+    feed.refresh();
+    look();
+  });
+  // A full screen entered or left, by any way (the site's F, its button, a double-click, Esc): the Stage follows
+  // `document.fullscreenElement` alone. The site lays its full screen out a moment after the change, so it's looked at
+  // again once that's done; left, the page is scrolled back where it stood.
+  document.addEventListener("fullscreenchange", () => {
+    if (document.fullscreenElement === null) afterFull();
+    place();
+    requestAnimationFrame(place);
+    setTimeout(place, 300);
+  });
+  // The player's size changes with the window (and the site's theatre view): the words over it keep their share of it.
+  window.addEventListener("resize", place);
+  showing.subscribe(place);
+  showingOver.subscribe(place);
+  upForDrawer.subscribe(place);
+  // A card begun with the panel folded away in full screen: the drawer is in its column, so the column comes back
+  // while the drawer is open, and folds away again as it closes; what's kept is left as the key or the handle last left it.
+  showing.subscribe(() => {
+    if (!showing.get()) upForDrawer.set(false);
+    else if (!modules.get().fullPanel) upForDrawer.set(true);
+  });
+  carded.subscribe(place);
+  // A part switched on or off, here or anywhere: what's on the page follows.
+  modules.subscribe(() => {
+    feed.redraw();
+    look();
+  });
+  // Video tracking switched in this browser: the video on the page is noted, or no longer, from now.
+  onLocal((next, was) => {
+    if (next.tracking !== was.tracking) void readSeen();
+  });
+  // An update found, or needed: the pill's dot, and with one needed, everything of Panki's here stopping.
+  update.subscribe(() => {
+    feed.redraw();
+    look();
+  });
+  seen.subscribe(place);
+  offered.subscribe(place);
+  // Another video: whether the pointer is on the bar is known afresh.
+  asked.addEventListener("moved", () => onBar.set(false));
+  // The transcript's reach goes on the seek bar as soon as there is one to mark.
+  transcriber.subscribe(place);
+}
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
   if (sender.id !== chrome.runtime.id || !Trigger.safeParse(message).success) return;
   asked.dispatchEvent(new Event("capture"));
   respond({ ok: true });
 });
+
+void loadLocal().then(begin);

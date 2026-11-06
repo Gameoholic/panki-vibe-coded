@@ -5,8 +5,8 @@ import type { IconName } from "@web/components/Icon";
  * Which of Panki's parts are on in this browser, each switched on the options page under the panel of what it's about,
  * the Panki panel, the pop-up dictionary and the seek bar marks each on to begin with; what happens, on a video watched
  * before, where it was stopped; and how Panki reshapes YouTube's own pages. The shapes live here, apart from
- * `storage.ts`, so a page's script carries no storage code; the worker hands them to the page (`askModules`). Video
- * tracking isn't here: it's this browser's own, `watch/tracking.ts`.
+ * `storage.ts`, so a page's script carries no storage code; the page gets them with the rest of this browser's settings
+ * (`messages.ts` → `Local`, `local.ts`). Video tracking isn't here: it's `Local`'s own `tracking`, `watch/tracking.ts`.
  */
 
 /**
