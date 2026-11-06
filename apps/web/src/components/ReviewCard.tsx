@@ -315,6 +315,48 @@ export function ReviewCard({
   useLayoutEffect(() => {
     if (!revealed && body.current) body.current.scrollTop = 0;
   }, [revealed]);
+  /**
+   * Whether the front's own parts are taller than the body's room. Then holding the back's room keeps nothing still
+   * (the body scrolls once turned whatever's done), so the front scrolls over its own parts alone (`is-front-tall`,
+   * app.css): the back's runs take no room and its scroll ends at the front's last part. Only where the body is a box
+   * of its own (a review that fits the window or fills the screen); everywhere else it's `display: contents` and never
+   * scrolls.
+   */
+  const [frontTall, setFrontTall] = useState(false);
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el || revealed) {
+      setFrontTall(false);
+      return;
+    }
+    // Measured as the sum of the front's own blocks, not as where its last one ends: a run of the back's parts may stand
+    // between two of them, and holds room there until the class takes it away. A part placed out of the body's flow (a
+    // clip placed by the card, or filling the screen) takes none of its room. A part that grows into what's left (a clip
+    // in the column) measures as the room itself once it's grown, which still fits.
+    const measure = () => {
+      const style = getComputedStyle(el);
+      if (style.display === "contents") return setFrontTall(false);
+      const gap = parseFloat(style.rowGap) || 0;
+      let need = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      let count = 0;
+      for (const child of el.children) {
+        if (child.classList.contains("review-answer")) continue;
+        const own = getComputedStyle(child);
+        if (own.position === "absolute" || own.position === "fixed" || own.display === "none") continue;
+        need += child.getBoundingClientRect().height + (parseFloat(own.marginTop) || 0) + (parseFloat(own.marginBottom) || 0);
+        count += 1;
+      }
+      need += gap * Math.max(0, count - 1);
+      // A pixel of slack, so a fractional height at a browser's zoom never flips it back and forth.
+      setFrontTall(need > el.clientHeight + 1);
+    };
+    measure();
+    // Its room changes with the window and the zoom; a part's height with a picture or a font arriving.
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    for (const child of el.children) watch.observe(child);
+    return () => watch.disconnect();
+  }, [revealed, values, listening, given, type, opened]);
 
   /** In the Listen phase: on the front, never once it's turned. */
   const inListen = listening && !revealed;
@@ -799,19 +841,19 @@ export function ReviewCard({
   const sparkCorner = (tag.shown || edit) && tag.corner === "top-right" ? "top-left" : "top-right";
 
   return (
-    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${inListen ? "is-listening" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
+    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${frontTall ? "is-front-tall" : ""} ${inListen ? "is-listening" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
       <StageTagSpot tag={tag} edit={edit} card={card}>
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
       {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
       {/* The parts in one box, so a review that fits the window or fills the screen can scroll them inside the card
           (`.review-body`, app.css), with Panki's fades and thin bar over it; everywhere else the box draws nothing of
-          its own, and runs over nothing, so neither do they. Only the back scrolls: the front holds the back's room
-          unseen and can't be scrolled, so it has no fades and no bar. */}
+          its own, and runs over nothing, so neither do they. The front holds the back's room unseen and can't be
+          scrolled, so it has no fades and no bar, unless its own parts don't fit: then it scrolls over them alone. */}
       <div ref={body} className="review-body">
         {blocks}
       </div>
-      {revealed ? <ScrollEdges of={body} /> : null}
+      {revealed || frontTall ? <ScrollEdges of={body} /> : null}
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>
   );

@@ -4595,6 +4595,17 @@ mark.sub-blur {
 .main > .review:is(.is-fit, .is-stage) > .review-card:not(.is-revealed) > .review-body {
   overflow-y: hidden;
 }
+/* Unless the front's own parts don't fit (`is-front-tall`, measured by ReviewCard): then holding the back's room keeps
+   nothing still, since the body scrolls once turned either way, so the front scrolls over its own parts alone, with
+   Panki's fades and bar. The back's runs take no room there, so the scroll ends at the front's last part (a run between
+   two front parts gives way, and they close up); turned, they come in where they stand and the body scrolls on. A part
+   of the back beside a front one in its row still holds its room, so the front part stays where it stands in the row. */
+.main > .review:is(.is-fit, .is-stage) > .review-card.is-front-tall:not(.is-revealed) > .review-body {
+  overflow-y: auto;
+}
+.main > .review:is(.is-fit, .is-stage) > .review-card.is-front-tall:not(.is-revealed) > .review-body > .review-answer {
+  display: none;
+}
 .main > .review:is(.is-fit, .is-stage) > .review-card > .review-body > * {
   flex: none;
 }
