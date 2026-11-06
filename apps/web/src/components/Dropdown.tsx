@@ -50,7 +50,7 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
   const says = "values" in props ? props.summary : (current?.label ?? placeholder);
 
   useDismiss(rootRef, open, () => setOpen(false));
-  useAnchored(rootRef, menu, anchored && open && !disabled);
+  useAnchored(rootRef, menu, anchored && open && !disabled, wide ? "same" : "least");
 
   return (
     <span ref={rootRef} className={`dropdown ${wide ? "is-wide" : ""}`.trim()}>
@@ -72,9 +72,8 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
         <>
           <div
             ref={menu}
+            // In the window, `useAnchored` gives it its button's width, as it has when it opens in place.
             className={`menu dropdown-menu ${anchored ? "is-anchored" : ""}`.trim()}
-            // In the window, at least as wide as its button, as it is when it opens in place.
-            style={anchored ? { minWidth: rootRef.current?.offsetWidth } : undefined}
             role="listbox"
             aria-label={label}
             aria-multiselectable={many || undefined}

@@ -11,8 +11,18 @@ const EDGE = 8;
  * or a pop-up that scrolls or moves. It stays where it is in the DOM (inside the extension's shadow root, so its styles
  * still reach it, and `useDismiss` still hears presses in it); a box around it that makes a fixed element its own
  * (a transform, a filter) is made up for by measuring where it really landed.
+ *
+ * Given a `width`, it's its anchor's, as a `Dropdown`'s list is when it opens in place: at least as wide (`"least"`),
+ * or exactly as wide, for a list whose choices wrap (`"same"`, a wide one's); never wider than the window. Set here,
+ * every frame, never as a share in CSS: a share of a fixed element is a share of the window. Without one, the menu's
+ * own CSS sizes it (the templates menu).
  */
-export function useAnchored(anchor: RefObject<HTMLElement | null>, menu: RefObject<HTMLElement | null>, open: boolean) {
+export function useAnchored(
+  anchor: RefObject<HTMLElement | null>,
+  menu: RefObject<HTMLElement | null>,
+  open: boolean,
+  width?: "least" | "same",
+) {
   useEffect(() => {
     if (!open) return;
     let frame = 0;
@@ -20,6 +30,13 @@ export function useAnchored(anchor: RefObject<HTMLElement | null>, menu: RefObje
       const at = anchor.current?.getBoundingClientRect();
       const element = menu.current;
       if (at && element) {
+        if (width) {
+          const most = Math.max(0, window.innerWidth - 2 * EDGE);
+          const wide = `${Math.min(at.width, most)}px`;
+          element.style.maxWidth = `${most}px`;
+          element.style.minWidth = wide;
+          element.style.width = width === "same" ? wide : "";
+        }
         const below = window.innerHeight - at.bottom - GAP - EDGE;
         const above = at.top - GAP - EDGE;
         // Its whole height: `scrollHeight` leaves out the border, and a max height of that, the box being border-box, put a
@@ -45,5 +62,5 @@ export function useAnchored(anchor: RefObject<HTMLElement | null>, menu: RefObje
     };
     place();
     return () => cancelAnimationFrame(frame);
-  }, [anchor, menu, open]);
+  }, [anchor, menu, open, width]);
 }

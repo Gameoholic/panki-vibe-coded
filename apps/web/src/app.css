@@ -3578,11 +3578,13 @@ mark.sub-blur {
 .float-body > .form-failure {
   margin: 0;
 }
-/* A list opened in the window itself (`Dropdown`'s `anchored`): `useAnchored` places it, at least as wide as its
-   button by its own style. */
-.menu.dropdown-menu.is-anchored {
+/* A list opened in the window itself (`Dropdown`'s `anchored`): `useAnchored` places it and gives it its width, its
+   button's (a wide one's exactly), never past the window. The in-place rules' shares would be the window's. */
+.menu.dropdown-menu.is-anchored,
+.dropdown.is-wide .menu.dropdown-menu.is-anchored {
   position: fixed;
   z-index: 45;
+  width: max-content;
   min-width: 0;
 }
 @media (max-width: 640px) {
