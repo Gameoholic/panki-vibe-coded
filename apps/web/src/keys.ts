@@ -42,14 +42,14 @@ export type KeyBinds = {
   reveal: Bind;
   /**
    * Shows a card's front out of its Listen phase, as Done listening does (a key of its own, the same as
-   * Show back of card's to begin with). It's heard on the Listen phase alone, so it may share a key and a hold with Show
-   * back of card and Step back, which never are.
+   * Show back of card's to begin with). It may share a key and a hold with Show back of card and Step back: a key that's
+   * more than one of them is heard by precedence (`apart`).
    */
   showCard: Bind;
   /**
    * Step back: the card a phase back, its back to its front, and its front to its Listen phase where it has one
-   * (Backspace to begin with). It's heard on the front as Show back of card is, so the two never share a key in the same
-   * shape. Kept as `hide`, its name when it turned the back to the front alone (Hide back of card).
+   * (Backspace to begin with). It may share a key with Show back of card: on the front that key is Show back of card's,
+   * on the back Step back's. Kept as `hide`, its name when it turned the back to the front alone (Hide back of card).
    */
   hide: Bind;
   answers: readonly Bind[];
@@ -309,20 +309,17 @@ function read(): KeyBinds {
         : restartTaken
           ? DEFAULT_KEYS.restart.map(() => one(null, 0))
           : DEFAULT_KEYS.restart;
-    // Step back, kept as `hide`. Kept before it was Step back (`STEP_BACK_KEPT`), it was Hide back of card, heard on the
-    // back alone: its old default (Space held 0.25 s, nothing added) reads as Step back's, and any other of its keys is
-    // kept where it doesn't clash with Show back of card's as kept (both are heard on the front now). Kept before it had
-    // a key at all, it takes its default, unless that already does something else on the review here.
+    // Step back, kept as `hide`. Kept before it was Step back (`STEP_BACK_KEPT`), it was Hide back of card: its old
+    // default (Space held 0.25 s, nothing added) reads as Step back's, any other of its keys as it was kept. Kept before
+    // it had a key at all, it takes its default, unless that already does something else on the review here (Done
+    // listening's and Show back of card's don't count: a key both is heard by precedence, `apart`).
     const stepped = "kept" in raw && typeof raw.kept === "number" && raw.kept >= STEP_BACK_KEPT;
     const hide = (() => {
-      const free = takenBy([reveal, ...answers, ...media, ...restart, fullScreen], DEFAULT_KEYS.hide) ? one(null, 0) : DEFAULT_KEYS.hide;
+      const free = takenBy([...answers, ...media, ...restart, fullScreen], DEFAULT_KEYS.hide) ? one(null, 0) : DEFAULT_KEYS.hide;
       if (!("hide" in raw)) return free;
       const kept = bindOf(raw.hide, DEFAULT_KEYS.hide, undefined);
-      if (stepped) return kept;
-      if (kept.key === " " && kept.holdMs === OLD_HIDE_MS && kept.also.length === 0) return free;
-      const keep = (key: Key) => !keysOf(reveal).some((own) => clash(own, key));
-      const main = keep(kept) ? kept : { ...kept, key: null };
-      return { ...main, also: kept.also.filter(keep) };
+      if (!stepped && kept.key === " " && kept.holdMs === OLD_HIDE_MS && kept.also.length === 0) return free;
+      return kept;
     })();
     // Kept before Done listening had a key of its own: Show back of card's, which was its until then.
     const showCard = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.showCard, undefined) : reveal;
@@ -417,12 +414,13 @@ const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "examplePrev"
 /** The Hold button's two, heard only while it's on. */
 const HOLD_KINDS: readonly Slot["kind"][] = ["holdButton", "holdReset"];
 /**
- * Done listening is heard on the Listen phase alone, Show back of card on the front, Step back on the front and the
- * back: Done listening takes neither's key, being never heard where they are, but Show back of card and Step back
- * share the front, so they take each other's by the shape rule (`clash`). The Hold button and its Back to start are
- * heard beside them, on every face, so they share keys with them only by that rule too, as every other action does.
+ * Done listening, Show back of card and Step back never take each other's key: a key that's more than one of them is
+ * heard by precedence, Done listening's on the Listen phase, Show back of card's on the front, Step back's where neither
+ * does anything (the back, or a front whose key is Step back's alone). The Hold button and its Back to start are heard
+ * beside them, on every face, so they share keys with them only by the shape rule (`clash`), as every other action does.
  */
-const apart = (a: Slot, b: Slot) => a.kind !== b.kind && (a.kind === "showCard" || b.kind === "showCard") && ["showCard", "reveal", "hide"].includes(a.kind) && ["showCard", "reveal", "hide"].includes(b.kind);
+const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide"];
+const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
 
 /** The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space starts the review, then shows the answer). */
 const screenOf = (kind: Slot["kind"]): "home" | "today" | "review" => (kind === "homeReview" ? "home" : kind === "start" ? "today" : "review");

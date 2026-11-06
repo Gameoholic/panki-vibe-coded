@@ -276,13 +276,14 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         showNext();
         return;
       }
-      const stepping = canStepBack ? keyIn(binds.hide, key) : null;
+      // A key that's both is Done listening's or Show back of card's where they do something, Step back's on the back.
+      const showing = face === "back" ? null : keyIn(face === "listen" ? binds.showCard : binds.reveal, key);
+      const stepping = canStepBack && !showing ? keyIn(binds.hide, key) : null;
       if (stepping) {
         e.preventDefault();
         if (!e.repeat) hold.begin(e, button("hide"), stepping.holdMs, stepBack);
         return;
       }
-      const showing = face === "back" ? null : keyIn(face === "listen" ? binds.showCard : binds.reveal, key);
       if (showing) {
         e.preventDefault();
         if (!e.repeat) hold.begin(e, button("reveal"), showing.holdMs, showNext);

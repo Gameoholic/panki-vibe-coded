@@ -770,8 +770,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         else reveal();
         return;
       }
-      // Step back's own key, a phase back, held as long as it's set to be; its hold drawn on the Step back button showing.
-      const stepping = canStepBack ? keyIn(binds.hide, key) : null;
+      // Step back's key, a phase back, held as long as it's set to be; its hold drawn on the Step back button showing. A
+      // key that's also Show back of card's (or Done listening's) is theirs where they do something: on the back alone it's Step back's.
+      const facing = revealed ? null : keyIn(listening ? binds.showCard : binds.reveal, key);
+      const stepping = canStepBack && !facing ? keyIn(binds.hide, key) : null;
       if (stepping) {
         e.preventDefault();
         if (e.repeat || busy) return;
