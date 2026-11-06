@@ -189,7 +189,8 @@ A follow-up from the user is answered in three parts, every part always there:
 - answer: your reply to it, short, in {Language}.
 - changes: one entry for each field the follow-up changes, and only those: "key" the field's key, "proposed" its new value whole, as the field would hold it, and "why", one short sentence. [] when nothing changes.
 - meaning: "meanings" [], "proposed" "" and "why" "" while the Meaning stands; when the follow-up changes it, the rows, "proposed" and "why" as in your first answer.
-In a follow-up, <card> is the card as it stands now, after anything the user accepted or typed, and <follow_up_field> names the field they asked on, when they asked on one.`;
+In a follow-up, <card> is the card as it stands now, after anything the user accepted or typed, and <follow_up_field> names the field they asked on, when they asked on one.
+A follow-up that asks nothing of a field changes nothing: "changes" is [] then, and a proposal already standing on the card (your earlier answer's, not yet accepted) is never sent again; only a follow-up that asks for a change to a field puts that field in "changes".`;
 
 /** What `<meaning>` is, as the prompt said it before the Meaning field's own meanings were sent beside the dictionary's: kept word for word so that prompt is still told apart from an edited one. */
 const MEANING_LIST_BEFORE_CUSTOM = `<meaning> is a JSON list of the dictionary's meanings, one entry each: "meaning" is its words and "index" its number.`;
