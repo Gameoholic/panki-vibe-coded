@@ -30,7 +30,6 @@ import { AnswerText, FollowUp, RUN_WORDS, TemplateMenu } from "../components/AiR
 import { AiStatus } from "../components/AiStatus";
 import { AiSpark, AiWaiting } from "../components/AiWaiting";
 import { Button } from "../components/Button";
-import { Dropdown } from "../components/Dropdown";
 import { Stage, type Spot, type Tools } from "../components/Explainer";
 import { Icon } from "../components/Icon";
 import { JudgedRow } from "../components/JudgedRow";
@@ -469,7 +468,6 @@ const VIDEO_SECONDS = 18 * 60 + 40;
  * Answered, the misheard words put right in place, each lit with a small spark, and the rows read on their own.
  */
 function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
-  const id = useId();
   const { settings, own, languages } = standing(ai);
   const template = defaultTemplateOf("proofread", defaults, own);
   const pieces: PromptPieces = { ...proofreadPieces(HEARD_WORDS), source: `${WATCHED.title} · ${WATCHED.channel}`, ...languages };
@@ -555,7 +553,6 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
           <div ref={strip} className="ex-under">
             <div className="ex-under-head">
               <span className="ex-under-name">Panki</span>
-              <Dropdown id={`${id}-source`} label="Subtitles" options={[{ id: "panki", label: "Panki subtitles" }]} value="panki" onChange={nothing} />
               <div className="ex-under-tools">
                 <Button className="ai-status-button is-ready ex-under-status" aria-expanded={open}>
                   <i className="ai-status-dot" aria-hidden="true" />
@@ -604,6 +601,9 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
                   </div>
                 ) : null}
               </div>
+              <Button className="btn-icon ex-under-more" aria-label="Panel settings">
+                <Icon name="menu" />
+              </Button>
             </div>
             <div className="ex-under-rows">{rows}</div>
           </div>

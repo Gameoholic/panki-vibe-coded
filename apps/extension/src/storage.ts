@@ -109,7 +109,7 @@ const Stored = z.object({
   // A browser that kept `transcribePaused` keeps it unread: what happens while paused is Panki's settings, an admin's.
   transcribeOverVideo: z.boolean().catch(DEFAULT_PREFS.overVideo),
   /**
-   * How the transcript looks over the video (the contracts' `subtitleStyle.ts`), set in the strip's Subtitles menu.
+   * How the transcript looks over the video (the contracts' `subtitleStyle.ts`), set in the panel's menu, under Subtitle style.
    * This browser's own, apart from the app's style for a card's clip.
    */
   subtitleStyle: SubtitleStyle.catch(DEFAULT_SUBTITLE_STYLE),

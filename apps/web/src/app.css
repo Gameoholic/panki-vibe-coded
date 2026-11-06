@@ -7950,8 +7950,12 @@ mark.sub-blur {
   padding: 2px 8px;
   font-size: 12px;
 }
+/* The head as the extension draws it: the status right after the name, its menu opening from its left edge, the
+   panel's ≡ at the far end. */
 .ex-under-tools {
   position: relative;
+}
+.btn.ex-under-more {
   margin-left: auto;
 }
 .btn.ai-status-button.ex-under-status {
@@ -7961,7 +7965,8 @@ mark.sub-blur {
 }
 .menu.ex-under-menu {
   top: auto;
-  right: 0;
+  left: 0;
+  right: auto;
   bottom: calc(100% + 6px);
   width: 340px;
   max-height: none;

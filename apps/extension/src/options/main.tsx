@@ -490,7 +490,7 @@ function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: 
   );
 }
 
-// How the transcript looks over the video is set on the video page itself (`ui/SubtitleMenu.tsx`), where it's seen.
+// How the transcript looks over the video is set on the video page itself (the panel's menu, `ui/PanelMenu.tsx`), where it's seen.
 
 /**
  * Whether the word being said carries its mark: on the line under the player, and on the subtitles over the video,

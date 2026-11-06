@@ -342,10 +342,29 @@
 .strip-menu p {
   margin: 0;
 }
-/* The Subtitles menu (ui/SubtitleMenu.tsx): the app's setting rows, which want more room across than the items do. */
+/* Subtitle style in the panel's menu (ui/PanelMenu.tsx): the app's setting rows, which want more room across than the
+   items do, under the way back to the menu's rows. */
 .strip-menu.is-settings {
   width: 360px;
   gap: 10px;
+}
+/* The status at the head's left, right after the name: its menu opens from the status's left edge, over the strip,
+   where hung from its right edge it ran past the strip's. */
+.strip-status .strip-menu {
+  left: 0;
+  right: auto;
+}
+/* The panel's menu (ui/PanelMenu.tsx): its first group under no line, a short choice as a row of its own across the
+   menu (`Segmented`), and the way back from Subtitle style at its top. */
+.strip-menu-items:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.strip-menu-seg {
+  padding: 2px 10px 6px;
+}
+.btn.btn-item.strip-menu-back {
+  font-weight: 700;
 }
 .strip-menu-covered {
   font-weight: 700;
@@ -561,14 +580,6 @@
   width: 14px;
   height: 14px;
 }
-/* Beside the name: the source of the words, picked from the app's own dropdown, small enough for the head. */
-.strip-pick .btn-chip {
-  padding: 2px 8px;
-  font-size: 12px;
-}
-.strip-pick .dropdown-menu {
-  font-size: 13px;
-}
 /* With None picked: what's wrong and the press that mends it, on one line. */
 .strip .strip-empty {
   display: flex;
@@ -663,25 +674,7 @@
   min-height: 100%;
   padding-top: 12px;
 }
-/* The column is narrow (beside the video, full screen): the head is the name, the source, the view and the small
-   buttons at the far end on its first line, then the rest of the tools on a line of their own from the left, wrapping
-   as a row; never a ragged stack at the right. */
-.strip-corner {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-.strip.is-beside .strip-tools {
-  flex: 1 0 100%;
-  margin-left: 0;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
-.strip.is-beside .strip-tools:empty {
-  display: none;
-}
-/* There a menu opens under the whole head, the panel's width, wherever its button stands in the row: hung from its
+/* Beside the video and in full screen the column is narrow: a menu opens under the whole head, the panel's width, wherever its button stands in the row: hung from its
    button it ran past the column's edge. */
 .strip.is-beside .strip-head {
   position: relative;
@@ -1172,7 +1165,7 @@
 .over-line {
   pointer-events: auto;
 }
-/* While the Subtitles menu is open the band is for dragging: the words under it aren't pressed. */
+/* While Subtitle style shows in the panel's menu the band is for dragging: the words under it aren't pressed. */
 .over-line.is-dragging {
   cursor: move;
   touch-action: none;
@@ -1217,6 +1210,7 @@
   height: 100%;
 }
 .btn.btn-ghost.yt-speed-button,
+.btn.btn-ghost.yt-bar-words,
 .btn.btn-ghost.yt-speed-step {
   height: 100%;
   border: 0;
@@ -1247,6 +1241,7 @@
    stylesheet can't reach, so the site's look is said again here, as it draws it. */
 .btn.btn-ghost.yt-speed-step,
 .btn.btn-ghost.yt-speed-button,
+.btn.btn-ghost.yt-bar-words,
 .btn.btn-ghost.yt-bar-button {
   position: relative;
   isolation: isolate;
@@ -1254,6 +1249,7 @@
 }
 .btn.btn-ghost.yt-speed-step::before,
 .btn.btn-ghost.yt-speed-button::before,
+.btn.btn-ghost.yt-bar-words::before,
 .btn.btn-ghost.yt-bar-button::before {
   content: "";
   position: absolute;
@@ -1269,7 +1265,8 @@
   pointer-events: none;
 }
 /* Round words, a pill as wide as the button. */
-.btn.btn-ghost.yt-speed-button::before {
+.btn.btn-ghost.yt-speed-button::before,
+.btn.btn-ghost.yt-bar-words::before {
   left: 0;
   right: 0;
   width: auto;
@@ -1278,28 +1275,33 @@
 @media (hover: hover) {
   .btn.btn-ghost.yt-speed-step:hover:not(:disabled),
   .btn.btn-ghost.yt-speed-button:hover,
+  .btn.btn-ghost.yt-bar-words:hover,
   .btn.btn-ghost.yt-bar-button:hover {
     background: transparent;
     color: var(--theater-ink);
   }
   .btn.btn-ghost.yt-speed-step:hover:not(:disabled)::before,
   .btn.btn-ghost.yt-speed-button:hover::before,
+  .btn.btn-ghost.yt-bar-words:hover::before,
   .btn.btn-ghost.yt-bar-button:hover::before {
     background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
   }
 }
 .btn.btn-ghost.yt-speed-step:active:not(:disabled)::before,
 .btn.btn-ghost.yt-speed-button:active::before,
+.btn.btn-ghost.yt-bar-words:active::before,
 .btn.btn-ghost.yt-bar-button:active::before {
   background: color-mix(in srgb, var(--theater-ink) 20%, transparent);
 }
 .btn.btn-ghost.yt-speed-step:focus-visible,
 .btn.btn-ghost.yt-speed-button:focus-visible,
+.btn.btn-ghost.yt-bar-words:focus-visible,
 .btn.btn-ghost.yt-bar-button:focus-visible {
   outline: none;
 }
 .btn.btn-ghost.yt-speed-step:focus-visible::before,
 .btn.btn-ghost.yt-speed-button:focus-visible::before,
+.btn.btn-ghost.yt-bar-words:focus-visible::before,
 .btn.btn-ghost.yt-bar-button:focus-visible::before {
   background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
   box-shadow: 0 0 0 2px var(--theater-ink);
@@ -1498,7 +1500,27 @@
 .btn.btn-ghost.yt-bar-button[aria-pressed="true"]:hover {
   color: var(--accent);
 }
-/* Its hover, pressed and keyboard looks are the site's own, with the speed button's, below. */
+/* Its hover, pressed and keyboard looks are the site's own, with the speed button's, above. */
+/* Words of Panki's among the player's own controls (Watching, ui/WatchingControl.tsx): the speed button's kind, in the
+   time's type, its icon before them; once finished, the good colour, its tick popping in as it turns (the app's one way
+   of arriving). */
+.btn.btn-ghost.yt-bar-words {
+  gap: 6px;
+  min-width: 44px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+.btn.btn-ghost.yt-bar-words .icon {
+  width: 18px;
+  height: 18px;
+}
+.btn.btn-ghost.yt-bar-words.is-finished,
+.btn.btn-ghost.yt-bar-words.is-finished:hover {
+  color: var(--good);
+}
+.yt-bar-words.is-finished .icon {
+  animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
   display: inline-flex;
@@ -2483,27 +2505,6 @@
   border-radius: 8px;
   font-size: 13px;
   color: var(--muted);
-}
-/* Save for later among the strip's tools: the tools' own shape, the accent once saved. */
-.btn.capture-tool.strip-save.is-saved {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font-weight: 600;
-}
-/* Finished or not, among the strip's tools: how far along in the tools' own quiet
-   shape, the good colour once finished, its tick popping in as it turns (the app's one way of arriving). */
-.btn.capture-tool.strip-finish {
-  font-variant-numeric: tabular-nums;
-}
-.btn.capture-tool.strip-finish.is-finished {
-  border-color: var(--good);
-  background: var(--good-soft);
-  color: var(--good);
-  font-weight: 600;
-}
-.strip-finish.is-finished .icon {
-  animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 /* A switch among the strip's tools (Panki on / off) or the sentence's in the drawer (Locked / Unlocked), the tools' own shape and size, its track scaled to them, so it matches the buttons beside it. */
 .btn.btn-switch.capture-tool.strip-switch {

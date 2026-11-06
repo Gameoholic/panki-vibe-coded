@@ -294,22 +294,22 @@ function KnownScene({ store }: { store: Stored }) {
 const SENTENCE = "新しい喫茶店を見つけました";
 const PICKED = { from: SENTENCE.indexOf(IN_DECKS.words), to: SENTENCE.indexOf(IN_DECKS.words) + IN_DECKS.words.length };
 
-/** The Panki panel under the player, as the video page draws it: its head and its line of words. */
+/** The Panki panel under the player, as the video page draws it: its head (the name, the status, the panel's menu) and its line of words. */
 function Strip({ tokens, now, picked, shown = true, line }: { tokens: readonly Token[]; now: Span | null; picked: Span | null; shown?: boolean; line?: (el: HTMLDivElement | null) => void }) {
-  const id = useId();
   return (
     <div className={`strip ex-strip ${shown ? "" : "is-away"}`.trim()}>
       <div className="strip-head">
         <span className="strip-name">Panki</span>
-        <span className="strip-pick">
-          <Dropdown id={`${id}-source`} label="Subtitles" options={[{ id: "panki", label: "Panki subtitles" }]} value="panki" onChange={nothing} />
+        <span className="strip-status">
+          <Button className="capture-tool strip-menu-button is-ready" aria-label="Transcription: Transcribed">
+            <i className="strip-menu-dot" aria-hidden="true" />
+            Transcribed
+            <Icon name="down" />
+          </Button>
         </span>
         <div className="strip-tools">
-          <Button className="capture-tool btn-icon" aria-label="Open Panki">
-            <Icon name="out" />
-          </Button>
-          <Button className="capture-tool btn-icon" aria-label="Panki settings">
-            <Icon name="settings" />
+          <Button className="capture-tool btn-icon" aria-label="Panel settings">
+            <Icon name="menu" />
           </Button>
         </div>
       </div>

@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@web/components/Icon";
 import { clock, hourWords } from "@web/words";
 import { BAR_CONTROLS, DEFAULT_BAR, barSide, type BarControl, type BarLayout } from "../modules";
+import { SaveControl } from "../ui/SaveControl";
 import { SpeedControl } from "../ui/SpeedControl";
+import { WatchingControl } from "../ui/WatchingControl";
 
 /** YouTube's own bar, as it stands with the player bar switched off: its controls in its order, nothing of Panki's. */
 export const YOUTUBE_OWN: BarLayout = DEFAULT_BAR.map((control) => ({ ...control, shown: BAR_CONTROLS[control.id].from === "youtube" }));
@@ -21,7 +23,8 @@ const BAR_HEIGHT = 80;
  * in a long one; at its right one glass strip holding every control as a bare icon. It's drawn at a player's real
  * width (`BAR_WIDTH`) and scaled to the room it has, so it looks the same in a narrow column. Each control stands in a
  * box that says which it is (`data-control`; `classOf` a class of the caller's, one coming in or going). YouTube's are
- * drawn in its shapes; Panki's are the real ones (the speed button on `video`, never shown). The options page's
+ * drawn in its shapes; Panki's are the real ones (the speed button on `video`, never shown; Watching and Save for later
+ * on the made-up video, each pressed to say the other). The options page's
  * preview and the Player bar's explainer are both this.
  */
 export function BarControls({ layout, video, classOf }: { layout: BarLayout; video: HTMLVideoElement; classOf?: (id: BarControl) => string }) {
@@ -36,6 +39,9 @@ export function BarControls({ layout, video, classOf }: { layout: BarLayout; vid
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+  // Watching and Save for later on the made-up video, pressed to say the other as they are on a real one.
+  const [finished, setFinished] = useState(false);
+  const [saved, setSaved] = useState(false);
   const glyph = (name: IconName, solid = false) => <Icon name={name} className={solid ? "is-solid" : ""} />;
   const drawn: Record<BarControl, ReactNode> = {
     play: <span className="ytb-round">{glyph("play", true)}</span>,
@@ -46,7 +52,9 @@ export function BarControls({ layout, video, classOf }: { layout: BarLayout; vid
       </span>
     ),
     endTime: <span className="yt-end">Ends {hourWords(Date.now() + (BAR_LENGTH - BAR_PLAYED) * 1000)}</span>,
+    watching: <WatchingControl finished={finished} percent={Math.floor((BAR_PLAYED / BAR_LENGTH) * 100)} onToggle={() => setFinished((was) => !was)} />,
     speed: <SpeedControl video={video} />,
+    save: <SaveControl saved={saved} onToggle={() => setSaved((was) => !was)} />,
     autoplay: (
       <span className="ytb-icon">
         <span className="ytb-autoplay">

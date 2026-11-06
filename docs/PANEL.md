@@ -18,10 +18,10 @@ The preview that settled it: https://claude.ai/artifact/6vGycGLcJmoXzMAX2HS2hM (
 ## The order
 
 - [x] **1. One full screen.** Theatre follows the site's full screen (F, the button, a double-click on the player) whenever Panki is on and the panel is on; the panel hidden and shown inside it by its key and its edge; the Theatre button and the two settings gone (a kept `stageFull` / `stageKey` read as nothing). Its own session. Built 2026-11-06, not yet seen: "One full screen" in `ARCHITECTURE.md`; the player bar's Theatre mode control went with it.
-- [ ] **2. The head and its menu; the two bar controls.** The head as status and ≡; the menu; Save for later and Watching as player bar controls, the Player bar panel listing them. Its own session, after 1 (the head's Theatre button goes in 1).
+- [x] **2. The head and its menu; the two bar controls.** The head as status and ≡; the menu; Save for later and Watching as player bar controls, the Player bar panel listing them. Its own session, after 1 (the head's Theatre button goes in 1). Built 2026-11-06, not yet seen: the head one row (the name, the status, and at its end the update, Panki's switch where the pill doesn't hold it, ≡); the menu `ui/PanelMenu.tsx`, Source and View as rows of short choices (`Segmented`, as the preview drew them, rather than the dropdowns they were, so nothing in the menu opens a menu of its own), Subtitle style… taking the menu's place; Watching on the bar's left after the end time, Save for later a bookmark on its right after the speed button ("In the strip" in `ARCHITECTURE.md`'s transcribing section, "The player bar, laid out").
 - [ ] **Later: the outro found by the AI** (`AI.md`, parked), which would save the Watching press.
 
 ## Open
 
 - Whether the panel's hide key should be P or something else: P to begin with, Key to hide the panel in the YouTube tab's Panki panel panel (Full screen), a choice of letters YouTube's player doesn't use by themselves. Checked as step 1 was built: YouTube's own shortcut list has P only as Shift+P (previous video in a playlist), which the key never takes.
-- Where in the bar the two new controls stand to begin with: after the end time, as the registry's order has it; the owner lays them out from there.
+- Where in the bar the two new controls stand to begin with: Watching after the end time on the left, Save for later after the speed button on the right (a control never changes side); the owner lays them out from there.

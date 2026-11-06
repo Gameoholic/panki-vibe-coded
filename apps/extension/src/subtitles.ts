@@ -8,13 +8,14 @@ import { EngineId } from "@panki/contracts";
  * transcribed at all. One registry.
  *
  * The strip says what kind of subtitles they are, never the engine that made them: the engine is Settings → Admin's to
- * say. A pick kept as an engine's id, from when each engine was a source of its own, reads as Panki's.
+ * say. A pick kept as an engine's id, from when each engine was a source of its own, reads as Panki's. `short` is its
+ * name where a Subtitles label already stands over it (the panel's menu: Subtitles, then Panki / YouTube / None).
  */
 export type SubtitleSource = "panki" | "youtube" | "none";
-export const SUBTITLE_SOURCES: Record<SubtitleSource, { name: string }> = {
-  panki: { name: "Panki subtitles" },
-  youtube: { name: "YouTube subtitles" },
-  none: { name: "None" },
+export const SUBTITLE_SOURCES: Record<SubtitleSource, { name: string; short: string }> = {
+  panki: { name: "Panki subtitles", short: "Panki" },
+  youtube: { name: "YouTube subtitles", short: "YouTube" },
+  none: { name: "None", short: "None" },
 };
 /** The sources as the picker lists them: Panki's, then the site's, then nothing. */
 export const SUBTITLE_SOURCE_IDS = Object.keys(SUBTITLE_SOURCES) as SubtitleSource[];

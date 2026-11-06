@@ -117,7 +117,8 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  * class names, as they were when this was written: when the site renames one, this is where to look), a Panki control
  * by its place, drawn by the page (`content/youtube.tsx` → `barDrawn`) and on the options page (`options/PlayerBar.tsx`).
  * The order here is YouTube's own, Speed first among the right-hand controls and the end time after the time, as they
- * stood before they could be laid out; `shown` is each one's to begin with. A new control is one entry.
+ * stood before they could be laid out, then Watching after the end time and Save for later after Speed, where a kept
+ * layout from before them takes them in (`barLayoutOf`); `shown` is each one's to begin with. A new control is one entry.
  *
  * Only the controls that always stand on YouTube's current player are entries (no Previous, Next, Chapter, Miniplayer
  * or Play on TV). A control a page adds now and then (a playlist's Previous and Next) is left exactly as the site draws
@@ -125,7 +126,7 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  */
 export type BarSide = "left" | "right";
 type BarEntry = { name: string; side: BarSide; icon: IconName; shown: boolean } & ({ from: "youtube"; find: string } | { from: "panki" });
-export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "speed", "autoplay", "captions", "settings", "theater", "fullscreen"] as const;
+export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "watching", "speed", "save", "autoplay", "captions", "settings", "theater", "fullscreen"] as const;
 export const BarControl = z.enum(BAR_CONTROL_IDS);
 export type BarControl = z.infer<typeof BarControl>;
 export const BAR_CONTROLS = {
@@ -133,7 +134,10 @@ export const BAR_CONTROLS = {
   volume: { name: "Volume", side: "left", icon: "quiet", shown: true, from: "youtube", find: ".ytp-volume-area" },
   time: { name: "Time", side: "left", icon: "clock", shown: true, from: "youtube", find: ".ytp-time-display" },
   endTime: { name: "Video end time", side: "left", icon: "ends", shown: true, from: "panki" },
+  // Finished or not, and saved for later: Panki's own, there only while Panki is on and signed in.
+  watching: { name: "Watching", side: "left", icon: "clock", shown: true, from: "panki" },
   speed: { name: "Speed button", side: "right", icon: "speed", shown: true, from: "panki" },
+  save: { name: "Save for later", side: "right", icon: "bookmark", shown: true, from: "panki" },
   // The autoplay switch is a button of the site's holding its own toggle: found by what it holds.
   autoplay: { name: "Autoplay", side: "right", icon: "autoplay", shown: true, from: "youtube", find: ".ytp-button:has(.ytp-autonav-toggle-button)" },
   captions: { name: "Captions", side: "right", icon: "subtitles", shown: true, from: "youtube", find: ".ytp-subtitles-button" },
@@ -272,7 +276,8 @@ export const Modules = z.object({
   shorts: z.boolean(),
   /**
    * The player's control bar laid out by Panki (a YouTube utility: there whether or not Panki is on): its controls
-   * shown, hidden and ordered as `bar` says, Panki's among them (the speed button, and when the video will end). Off,
+   * shown, hidden and ordered as `bar` says, Panki's among them (the speed button, when the video will end, and with
+   * Panki on, Watching and Save for later). Off,
    * the bar is YouTube's own, with nothing of Panki's in it. On to begin with, laid out as the site lays it out.
    */
   playerBar: z.boolean(),

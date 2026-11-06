@@ -20,21 +20,22 @@ import { RUN_WORDS, RunAsk, TemplateMenu, useAskFirst } from "@web/components/Ai
 import { clock } from "@web/words";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { Dropdown } from "@web/components/Dropdown";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askOpenPanki, askOptions, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANEL_VIEWS, PANEL_VIEW_IDS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey, type StageSide } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey, type StageSide } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
-import { SubtitleMenu } from "../ui/SubtitleMenu";
+import { PanelMenu } from "../ui/PanelMenu";
+import { SaveControl } from "../ui/SaveControl";
+import { WatchingControl } from "../ui/WatchingControl";
 import type { Cut } from "../roles";
 import { paintCss } from "../seekLook";
-import { DEFAULT_SOURCE, SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, engineWanted, type SubtitleSource } from "../subtitles";
+import { DEFAULT_SOURCE, engineWanted, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
 import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
@@ -975,9 +976,18 @@ function place() {
   resume.host.dataset.theme = theme;
   resume.host.toggleAttribute("data-full", full !== null);
   // The player's control bar as laid out: a utility of the site's own, there with Panki on or off. The speed button
-  // with a video; when it will end too, but not while an ad plays (its time isn't the video's).
+  // with a video; when it will end too, but not while an ad plays (its time isn't the video's). Watching and Save for
+  // later are Panki's own, there only while it's on and Panki has said how this video stands (signed in): Watching
+  // not while an ad plays either.
   const ad = adPlaying();
-  const barShows: Record<PankiBarControl, boolean> = { speed: video !== null, endTime: video !== null && !ad };
+  const finish = finishHere.get();
+  const saved = savedHere.get();
+  const barShows: Record<PankiBarControl, boolean> = {
+    speed: video !== null,
+    endTime: video !== null && !ad,
+    watching: on.on && video !== null && !ad && finish !== null && finish.videoId === watching && (finish.finished || finish.percent !== null),
+    save: on.on && video !== null && saved !== null && saved.videoId === watching,
+  };
   playerBar.apply({ on: on.playerBar, layout: on.bar, kept: on.barKept, shows: (id) => barShows[id], adPlaying: ad, theme });
 
   if (!showing.get() || !on.panel) {
@@ -2669,12 +2679,12 @@ function App() {
     transcriber.setPrefs({ mode });
     void askPrefs({ mode });
   }
-  /** How the transcript looks over the video, changed in the Subtitles menu: seen at once, kept by the worker. */
+  /** How the transcript looks over the video, changed under the panel menu's Subtitle style: seen at once, kept by the worker. */
   function setStyle(style: SubtitleStyle) {
     transcriber.setPrefs({ style });
     void askPrefs({ style });
   }
-  /** Whether the Subtitles menu is open: only then is the band on the video there to be dragged. */
+  /** Whether Subtitle style shows in the panel's menu: only then is the band on the video there to be dragged. */
   const [styling, setStyling] = useState(false);
   /**
    * The band dragged across the picture, only while the subtitle settings are open: its place follows the pointer as
@@ -2745,20 +2755,11 @@ function App() {
   const barDrawn: Record<PankiBarControl, ReactNode> = {
     speed: video ? <SpeedControl key={watching ?? ""} video={video} /> : null,
     endTime: video ? <EndTime video={video} /> : null,
+    // Finished or not (`finishHere`): how far along until it's played into its end, then Finished; a press says the other.
+    watching: finishNow && finishNow.videoId === videoId() ? <WatchingControl finished={finishNow.finished} percent={finishNow.percent} onToggle={() => void sayFinished(!finishNow.finished, "viewer")} /> : null,
+    // This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home.
+    save: savedNow && savedNow.videoId === videoId() ? <SaveControl saved={savedNow.saved} onToggle={() => void toggleSaved()} /> : null,
   };
-  /** Panki itself and its settings: the head's small buttons, at the far end of its first line. */
-  const corner = (
-    <>
-      {/* Panki itself, the one the profile in use is signed in to, in a tab of its own. */}
-      <Button className="capture-tool btn-icon" aria-label="Open Panki" onClick={() => void askOpenPanki()}>
-        <Icon name="out" />
-      </Button>
-      {/* The extension's own settings, on their YouTube tab. */}
-      <Button className="capture-tool btn-icon" aria-label="Panki settings" onClick={() => void askOptions("youtube")}>
-        <Icon name="settings" />
-      </Button>
-    </>
-  );
 
   return (
     <>
@@ -2786,65 +2787,13 @@ function App() {
         </div>
       ) : placed ? (
         <div className={`strip ${listed !== null ? "is-beside" : ""} ${stageNowHere ? `is-stage ${stageLeft ? "is-left" : ""}` : ""}`.replace(/\s+/g, " ").trim()}>
+          {/* One row: the name, how transcribing stands (the Transcription menu, whose button is the status), and at its
+              end the panel's one menu holding every other setting. Watching and Save for later are the player bar's. */}
           <div className="strip-head">
             <span className="strip-name">Panki</span>
-            {/* Where the words come from, picked here and kept for the next video; with the engine picked, the site's captions never stand in for it. */}
-            {tx.settings ? (
-              <span className="strip-pick">
-                <Dropdown id="panki-subtitles" label="Subtitles" options={SUBTITLE_SOURCE_IDS.map((id) => ({ id, label: SUBTITLE_SOURCES[id].name }))} value={picked} onChange={pickSource} />
-              </span>
-            ) : null}
-            {/* Where the panel stands, picked on the panel itself and kept for every video (`PanelView`), at the left beside the source. */}
-            <span className="strip-pick strip-view">
-              <Dropdown
-                id="panki-panel-view"
-                label="View"
-                options={PANEL_VIEW_IDS.map((id) => ({ id, label: PANEL_VIEWS[id].name, icon: PANEL_VIEWS[id].icon }))}
-                value={viewPicked}
-                onChange={setPanelView}
-              />
-            </span>
-            {/* Beside the video and in full screen the column is narrow: the small buttons end the first line, the rest of the tools take a line of their own under it. */}
-            {listed !== null ? <span className="strip-corner">{corner}</span> : null}
-            {/* A sentence taken before it was all said: the video is let run to its end (and started, if it stood
-                still), which would look like a fault if nothing said so. */}
-            {taking?.of === "caption" && clip && clip.end === null ? (
-              <span className="strip-live" role="status">
-                <i className="live-dot" aria-hidden="true" />
-                Letting the sentence finish. The video stops at its end.
-              </span>
-            ) : null}
-            <div className="strip-tools">
-              {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
-              <UpdateMenu update={updateNow} onReloading={reloadPage} />
-              {/* Panki altogether, on or off, here while it isn't the header bar pill's. */}
-              {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" icon="power" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
-              {/* Finished or not (`finishHere`): how far along until it's played into its end, then Finished; a press says the other. */}
-              {finishNow && finishNow.videoId === videoId() && (finishNow.finished || finishNow.percent !== null) ? (
-                <Button className={`capture-tool strip-finish ${finishNow.finished ? "is-finished" : ""}`.trim()} aria-pressed={finishNow.finished} onClick={() => void sayFinished(!finishNow.finished, "viewer")}>
-                  {finishNow.finished ? (
-                    <>
-                      <Icon name="check" />
-                      Finished
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="clock" />
-                      Watching · {finishNow.percent}%
-                    </>
-                  )}
-                </Button>
-              ) : null}
-              {/* This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home. */}
-              {savedNow && savedNow.videoId === videoId() ? (
-                <Button className={`capture-tool strip-save ${savedNow.saved ? "is-saved" : ""}`.trim()} aria-pressed={savedNow.saved} onClick={() => void toggleSaved()}>
-                  <Icon name="bookmark" />
-                  {savedNow.saved ? "Saved" : "Save for later"}
-                </Button>
-              ) : null}
-              {/* Editing the transcript opens from the Transcription menu's item or a double-click on a word: no Edit button of its own here, the menu's is enough. */}
-              {/* Everything about transcribing this video, in one place; room beside it for what comes next. */}
-              {menuOn ? (
+            {/* Everything about transcribing this video, in one place. Editing the transcript opens from its item or a double-click on a word. */}
+            {menuOn ? (
+              <span className="strip-status">
                 <TranscribeMenu
                   state={tx}
                   duration={duration}
@@ -2865,10 +2814,29 @@ function App() {
                       : null
                   }
                 />
-              ) : null}
-              {/* How the transcript looks over the video, set right here on the video's page. */}
-              {overVideo ? <SubtitleMenu style={tx.prefs.style} onChange={setStyle} onOpen={setStyling} /> : null}
-              {listed === null ? corner : null}
+              </span>
+            ) : null}
+            {/* A sentence taken before it was all said: the video is let run to its end (and started, if it stood
+                still), which would look like a fault if nothing said so. */}
+            {taking?.of === "caption" && clip && clip.end === null ? (
+              <span className="strip-live" role="status">
+                <i className="live-dot" aria-hidden="true" />
+                Letting the sentence finish. The video stops at its end.
+              </span>
+            ) : null}
+            <div className="strip-tools">
+              {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
+              <UpdateMenu update={updateNow} onReloading={reloadPage} />
+              {/* Panki altogether, on or off, here while it isn't the header bar pill's. */}
+              {switchHere ? <Toggle id="panki-on" className="capture-tool strip-switch" icon="power" says={{ on: "Panki on", off: "Panki off" }} on={true} onChange={setPankiOn} /> : null}
+              {/* Every other setting of the panel, in its one menu: where the words come from (kept for the next video; with
+                  Panki's picked the site's captions never stand in for it), how they look over the video, where the panel
+                  stands, Panki itself and the extension's options. */}
+              <PanelMenu
+                source={tx.settings ? { value: picked, onChange: pickSource } : null}
+                view={{ value: viewPicked, onChange: setPanelView }}
+                style={overVideo ? { value: tx.prefs.style, onChange: setStyle, onStyling: setStyling } : null}
+              />
             </div>
           </div>
           {/* The strip opened as the editor stands in the rows' place, the lines around the moment each its own text; beside the video, every line. */}
