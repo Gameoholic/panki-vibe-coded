@@ -7444,6 +7444,22 @@ mark.sub-blur {
   display: grid;
   gap: 12px;
 }
+/* A branch merged into main, in the head (TouchUp.tsx → `MergedBranch`): its field's mark once at the top, then the
+   branch's commits behind a thin rule down the left edge, a quoted thread's shape, in the muted line colour. */
+.touch-up-merged {
+  display: grid;
+  gap: 8px;
+}
+.touch-up-merged > .btn.touch-up-about {
+  justify-self: start;
+  margin-bottom: 0;
+}
+.touch-up-branch {
+  display: grid;
+  gap: 12px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+}
 .touch-up-again {
   margin: 0;
   font-size: 12.5px;

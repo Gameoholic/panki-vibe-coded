@@ -288,24 +288,48 @@ function FoldedTurns({ turns, ...rest }: TurnsProps & { turns: readonly TouchUpT
 }
 
 /**
+ * A branch merged into main, in the head, as one block: its field's mark once at the top (the forward sign and the
+ * field's name, pressed to go there), then a thin rule down its left edge holding, in order, its questions that changed
+ * nothing under their fold line and the commit that changed, none of them marked again.
+ */
+function MergedBranch({ turn, about, ...rest }: TurnsProps & { turn: TouchUpTurn; about: { id: string; name: string } }) {
+  return (
+    <div className="touch-up-merged">
+      <Button className="touch-up-about" onClick={() => rest.onGo(about.id)}>
+        <Icon name="forward" />
+        {about.name}
+      </Button>
+      <div className="touch-up-branch">
+        {turn.folded && turn.folded.length > 0 ? <FoldedTurns turns={turn.folded.map((each) => ({ ...each, about: null }))} {...rest} /> : null}
+        <Turn turn={{ ...turn, about: null }} {...rest} />
+      </div>
+    </div>
+  );
+}
+
+/**
  * Touch up's conversation as Explain draws its own (the Conversation: main in the head, a field's branch under the
  * field; `@panki/contracts` → `conversation.ts`): the run as its press (the spark and the template's name in the bubble),
- * a follow-up as its question at the right, one in the head that came from a field's branch marked at its head with the
- * forward sign and the field's name, pressed to go there, the commits of its branch that changed nothing folded before
- * it; then the reply as plain paragraphs and what it changed (`Changed`), or the failure with Try again. One on its way
- * is the spark turning where its reply will stand. `startedAgain`, under a field whose branch was reset, is the muted
+ * a follow-up as its question at the right; then the reply as plain paragraphs and what it changed (`Changed`), or the
+ * failure with Try again. One on its way is the spark turning where its reply will stand. A follow-up marked with its
+ * field (`about`: in the head, the commit a merge brought) is its branch drawn as one block (`MergedBranch`), its
+ * questions that changed nothing folded inside it. `startedAgain`, under a field whose branch was reset, is the muted
  * line before them.
  */
 export function TouchUpTurns({ turns, startedAgain = false, ...rest }: TurnsProps & { turns: readonly TouchUpTurn[]; startedAgain?: boolean }) {
   return (
     <>
       {startedAgain ? <p className="touch-up-again">{TOUCH_UP_WORDS.startedAgain}</p> : null}
-      {turns.map((turn) => (
-        <Fragment key={turn.id}>
-          {turn.folded && turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
-          <Turn turn={turn} {...rest} />
-        </Fragment>
-      ))}
+      {turns.map((turn) =>
+        turn.run === null && turn.about !== null ? (
+          <MergedBranch key={turn.id} turn={turn} about={turn.about} {...rest} />
+        ) : (
+          <Fragment key={turn.id}>
+            {turn.folded && turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
+            <Turn turn={turn} {...rest} />
+          </Fragment>
+        ),
+      )}
     </>
   );
 }
