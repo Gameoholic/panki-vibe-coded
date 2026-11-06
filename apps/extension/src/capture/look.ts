@@ -44,18 +44,16 @@ export type Where = { of: "line"; lineId: number; offset: number; length: number
  */
 export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; locked: boolean; hovered: boolean };
 
-/**
- * How far from its word the pointer may go before a popup opened by hover closes. The gap between the word and the
- * popup (under it, or over it) counts as on the word too, the word's own width of it, however wide the gap is
- * (`nearWord`): the pointer crossing it slowly into the popup never closes the popup on the way, while leaving
- * sideways still does.
- */
-const HOVER_MARGIN = 24;
 /** Where the popup stands on the screen, as drawn; null while there's none. */
 type PopupRect = () => DOMRect | null;
-/** Whether the pointer is on a hover popup's word, within `HOVER_MARGIN`, or in the gap between the word and the popup. */
+/**
+ * Whether the pointer is still on a hover popup's word: on the word's own box, or in the gap between the word and the
+ * popup (under it, or over it), the word's own width of it, however wide the gap is. So the pointer crossing the gap
+ * slowly into the popup never closes the popup on the way, and leaving the word any other way closes it at once:
+ * no margin round the word (a 24 px one kept the popup open with the pointer well off the word).
+ */
 function nearWord(word: DOMRect, at: At, popup: DOMRect | null): boolean {
-  if (within(word, at.x, at.y, HOVER_MARGIN)) return true;
+  if (within(word, at.x, at.y)) return true;
   if (!popup || at.x < word.left || at.x > word.right) return false;
   if (popup.top >= word.bottom) return at.y >= word.bottom && at.y <= popup.top;
   if (popup.bottom <= word.top) return at.y >= popup.bottom && at.y <= word.top;
