@@ -365,8 +365,10 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
             <span className="review-place">
               <Bone w="6em" h="1.5em" round />
             </span>
-            <Bone w="30%" h="3em" />
-            <Bone w="60%" h="1.1em" className="is-faint" />
+            <div className="review-body">
+              <Bone w="30%" h="3em" />
+              <Bone w="60%" h="1.1em" className="is-faint" />
+            </div>
           </div>
           <div className="review-actions">
             <Bone h="46px" />

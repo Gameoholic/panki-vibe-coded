@@ -3117,6 +3117,13 @@ mark.sub-mark {
 .review-part.size-small .review-words {
   font-size: 14px;
 }
+/* The words beside a clip, a size smaller than on a card alone so a long meaning takes less height: the full-screen
+   rail's, and on a wide window the page's column at the clip's right. */
+.review {
+  --beside-big: 28px;
+  --beside-normal: 16px;
+  --beside-small: 13px;
+}
 .review-part.tone-quiet .review-words {
   color: var(--muted);
 }
@@ -4454,8 +4461,13 @@ mark.sub-blur {
    their own height, and the card takes the rest. In the card every part takes its own height but a clip's, which takes
    what's left (a size container), its picture 16:9 as big as that fits with its bar under it. The back's parts hold
    their room on the front, so the clip is the same size on both sides. The chart, when it's open, hangs under all of
-   that, the page scrolling down to it, so opening it moves nothing above. On a phone, or where the card can't fit even
-   with the clip at its least, the page scrolls as it always did. */
+   that, the page scrolling down to it, so opening it moves nothing above. The parts stand in the card's body
+   (`.review-body`, which draws nothing of its own anywhere else): a card too tall for the window scrolls there, inside
+   the card, as the full-screen rail does, so the buttons never move and the page never grows. On a phone the page
+   scrolls as it always did. */
+.review-body {
+  display: contents;
+}
 @media (min-width: 641px) {
   .app:has(.main > .review.is-fit) {
     height: 100vh;
@@ -4514,32 +4526,49 @@ mark.sub-blur {
     margin: 0;
     padding-bottom: 16px;
   }
+  /* The card never grows past its share: with `min-height: auto` a flex item is at least as tall as its content, so
+     the body inside it would never be held to the window and never scroll. */
   .main > .review.is-fit > .review-card {
     flex: 1 1 0;
-    min-height: auto;
+    min-height: 0;
     padding: 12px 24px;
-    gap: 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
   }
-  .main > .review.is-fit > .review-card > * {
+  /* The body takes the card's room and scrolls inside it when the parts outgrow it (no bar, as the rail: reached
+     with the wheel), centred while they fit. It reaches 8 px into the card's padding and pads it back, so its parts
+     stand where they did while a spoiler's cover and a focus ring at its edge still have room before it clips. */
+  .main > .review.is-fit > .review-card > .review-body {
+    flex: 1 1 0;
+    min-height: 0;
+    align-self: stretch;
+    margin: -8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: safe center;
+    gap: 6px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .main > .review.is-fit > .review-card > .review-body > * {
     flex: none;
   }
   /* What holds the clip grows: its part, or the run of the back's parts or the row it's in, and then its part. */
-  .main > .review.is-fit > .review-card > :has(video.media-frame),
-  .main > .review.is-fit > .review-card > .review-answer > :has(video.media-frame) {
+  .main > .review.is-fit > .review-card > .review-body > :has(video.media-frame),
+  .main > .review.is-fit > .review-card > .review-body > .review-answer > :has(video.media-frame) {
     flex: 1 1 0;
     min-height: 240px;
     width: 100%;
   }
-  .main > .review.is-fit > .review-card > .review-answer:has(video.media-frame) {
+  .main > .review.is-fit > .review-card > .review-body > .review-answer:has(video.media-frame) {
     display: flex;
     flex-direction: column;
     align-items: center;
   }
-  .main > .review.is-fit > .review-card > .review-answer:has(video.media-frame) > * {
+  .main > .review.is-fit > .review-card > .review-body > .review-answer:has(video.media-frame) > * {
     flex: none;
   }
   .main > .review.is-fit .review-row:has(video.media-frame) {
@@ -4591,19 +4620,31 @@ mark.sub-blur {
   }
 }
 /* On a wide window the clip stands at the card's left, as tall as the card, and the card's other parts in a column at
-   its right: under one another they didn't fit with the clip any bigger than it was. */
+   its right: under one another they didn't fit with the clip any bigger than it was. The clip is placed by the card,
+   so the body scrolling under it leaves it where it is (the body is never positioned: an absolutely placed box whose
+   containing block is outside a scroller neither scrolls with it nor is clipped by it). The column's words are the
+   full-screen rail's sizes. */
 @media (min-width: 960px) {
   .main > .review.is-fit > .review-card:has(video.media-frame) {
     --clip-side: 52%;
     padding-left: calc(var(--clip-side) + 24px);
   }
-  .main > .review.is-fit > .review-card > .review-answer:has(video.media-frame) {
+  .main > .review.is-fit > .review-card:has(video.media-frame) .review-part.size-big .review-words {
+    font-size: var(--beside-big);
+  }
+  .main > .review.is-fit > .review-card:has(video.media-frame) .review-part.size-normal .review-words {
+    font-size: var(--beside-normal);
+  }
+  .main > .review.is-fit > .review-card:has(video.media-frame) .review-part.size-small .review-words {
+    font-size: var(--beside-small);
+  }
+  .main > .review.is-fit > .review-card > .review-body > .review-answer:has(video.media-frame) {
     display: grid;
     flex: none;
     min-height: 0;
   }
-  .main > .review.is-fit > .review-card > .review-part:has(video.media-frame),
-  .main > .review.is-fit > .review-card > .review-answer > .review-part:has(video.media-frame) {
+  .main > .review.is-fit > .review-card > .review-body > .review-part:has(video.media-frame),
+  .main > .review.is-fit > .review-card > .review-body > .review-answer > .review-part:has(video.media-frame) {
     position: absolute;
     top: 12px;
     bottom: 12px;
@@ -4685,13 +4726,13 @@ mark.sub-blur {
 }
 /* The card's words a size smaller than on the page, so a long meaning doesn't take the rail's height. */
 .main > .review.is-stage:has([data-staged]) .review-part.size-big .review-words {
-  font-size: 28px;
+  font-size: var(--beside-big);
 }
 .main > .review.is-stage:has([data-staged]) .review-part.size-normal .review-words {
-  font-size: 16px;
+  font-size: var(--beside-normal);
 }
 .main > .review.is-stage:has([data-staged]) .review-part.size-small .review-words {
-  font-size: 13px;
+  font-size: var(--beside-small);
 }
 /* The answers two to a row, each its name and key on a line with where it leads under them; Show answer across both. */
 .main > .review.is-stage:has([data-staged]) > .review-actions {
