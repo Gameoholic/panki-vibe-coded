@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   DEFAULT_SUBTITLE_STYLE,
   MediaId,
@@ -9,7 +9,7 @@ import {
   holdsPitch,
   isTyped,
   metaOf,
-  partsOn,
+  partsOnIn,
   pitchesOf,
   playsOn,
   wordsFieldOf,
@@ -17,6 +17,7 @@ import {
   type CardPlace,
   type CardSide,
   type CardType,
+  type Column,
   type LayoutPart,
   type ListenFirst,
   type ListenShow,
@@ -50,8 +51,8 @@ import { ScrollEdges } from "./ScrollEdges";
 export type CardEdit = {
   picked: string | null;
   onPick: (fieldId: string) => void;
-  /** Moving the parts on the side that's showing, by their place among that side's parts (`partsOn`). */
-  order: ReturnType<typeof useDragOrder>;
+  /** Moving the parts on the side that's showing, in each column, by their place among that side's parts in it (`partsOnIn`). */
+  order: Readonly<Record<Column, ReturnType<typeof useDragOrder>>>;
   /** The stage tag: whether it's the one picked, picking it, and moving it to a corner (dragged there, or by the arrow keys on it). */
   tagPicked: boolean;
   onPickTag: () => void;
@@ -290,6 +291,24 @@ export function ReviewCard({
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  const main = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the two columns stand side by side right now (app.css says where: a review on a wide window, the main
+   * column then a box of its own). Then the main column is what scrolls; anywhere else, the body.
+   */
+  const [split, setSplit] = useState(false);
+  const scroller = split ? main : body;
+  const checkSplit = useRef(() => setSplit(main.current !== null && getComputedStyle(main.current).display !== "contents"));
+  // After every drawing (a side column come or gone with the card), and whenever the card's size changes (the window
+  // crossing where the columns split).
+  useLayoutEffect(() => checkSplit.current());
+  useLayoutEffect(() => {
+    const el = card.current;
+    if (!el) return;
+    const watch = new ResizeObserver(() => checkSplit.current());
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
   /**
@@ -309,37 +328,41 @@ export function ReviewCard({
     setCarried(new Set());
     if (!revealed) setOpened(new Set());
   }, [revealed]);
-  // Turned back to its front (Hide back of card, an Undo), the body's scroll goes back to the top before it's drawn: the
-  // front can't be scrolled, so parts left scrolled out of view there could never be brought back. A new card is a new
-  // ReviewCard (the review keys it), its body already at the top.
+  // Turned back to its front (Hide back of card, an Undo), the scroll goes back to the top before it's drawn: the front
+  // can't be scrolled, so parts left scrolled out of view there could never be brought back. A new card is a new
+  // ReviewCard (the review keys it), already at the top.
   useLayoutEffect(() => {
-    if (!revealed && body.current) body.current.scrollTop = 0;
+    if (revealed) return;
+    if (body.current) body.current.scrollTop = 0;
+    if (main.current) main.current.scrollTop = 0;
   }, [revealed]);
   /**
-   * Whether the front's own parts are taller than the body's room. Then holding the back's room keeps nothing still
-   * (the body scrolls once turned whatever's done), so the front scrolls over its own parts alone (`is-front-tall`,
-   * app.css): the back's runs take no room and its scroll ends at the front's last part. Only where the body is a box
-   * of its own (a review that fits the window or fills the screen); everywhere else it's `display: contents` and never
-   * scrolls.
+   * Whether the front's own parts are taller than the room of what scrolls. Then holding the back's room keeps nothing
+   * still (it scrolls once turned whatever's done), so the front scrolls over its own parts alone (`is-front-tall`,
+   * app.css): the back's runs take no room and its scroll ends at the front's last part. Only where what scrolls is a
+   * box of its own (a review that fits the window or fills the screen); everywhere else it's `display: contents` and
+   * never scrolls.
    */
   const [frontTall, setFrontTall] = useState(false);
   useLayoutEffect(() => {
-    const el = body.current;
+    const el = scroller.current;
     if (!el || revealed) {
       setFrontTall(false);
       return;
     }
+    // Its blocks: the main column's alone where it scrolls by itself; both columns' where the body scrolls them as one.
+    const blocks = () => (split ? [...el.children] : [...el.querySelectorAll(":scope > .review-side > *, :scope > .review-main > *")]);
     // Measured as the sum of the front's own blocks, not as where its last one ends: a run of the back's parts may stand
-    // between two of them, and holds room there until the class takes it away. A part placed out of the body's flow (a
-    // clip placed by the card, or filling the screen) takes none of its room. A part that grows into what's left (a clip
-    // in the column) measures as the room itself once it's grown, which still fits.
+    // between two of them, and holds room there until the class takes it away. A part placed out of the flow (a clip
+    // filling the screen) takes none of its room. A part that grows into what's left (a clip in the column) measures as
+    // the room itself once it's grown, which still fits.
     const measure = () => {
       const style = getComputedStyle(el);
       if (style.display === "contents") return setFrontTall(false);
       const gap = parseFloat(style.rowGap) || 0;
       let need = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
       let count = 0;
-      for (const child of el.children) {
+      for (const child of blocks()) {
         if (child.classList.contains("review-answer")) continue;
         const own = getComputedStyle(child);
         if (own.position === "absolute" || own.position === "fixed" || own.display === "none") continue;
@@ -354,9 +377,9 @@ export function ReviewCard({
     // Its room changes with the window and the zoom; a part's height with a picture or a font arriving.
     const watch = new ResizeObserver(measure);
     watch.observe(el);
-    for (const child of el.children) watch.observe(child);
+    for (const child of blocks()) watch.observe(child);
     return () => watch.disconnect();
-  }, [revealed, values, listening, given, type, opened]);
+  }, [revealed, values, listening, given, type, opened, split, scroller]);
 
   /** In the Listen phase: on the front, never once it's turned. */
   const inListen = listening && !revealed;
@@ -705,7 +728,7 @@ export function ReviewCard({
   }
 
   /** One part: covered as a spoiler, held unseen for the back, or as it is; on a card being laid out, something to pick and move. */
-  function partView({ part, field, held }: Drawn): ReactNode {
+  function partView({ part, field, held }: Drawn, place?: CSSProperties): ReactNode {
     const hidden = covered(part);
     const veil = held ? "show" : veilOf(part);
     const inner = content(part, field, !edit && !held && !hidden && veil !== "hide");
@@ -717,22 +740,24 @@ export function ReviewCard({
     const reach = away ? { inert: true, "aria-hidden": true } : {};
     if (held) {
       return (
-        <div key={field.id} className={`${look} is-later`} aria-hidden="true">
+        <div key={field.id} className={`${look} is-later`} style={place} aria-hidden="true">
           {inner}
         </div>
       );
     }
     if (edit) {
-      const i = partsOn(layout, side).findIndex((p) => p.fieldId === field.id);
+      // Moved among the parts of its own column: which column it stands in is its own setting, never a drag's.
+      const order = edit.order[part.column];
+      const i = partsOnIn(layout, side, part.column).findIndex((p) => p.fieldId === field.id);
       return (
         <div
           key={field.id}
-          ref={edit.order.rowRef(i)}
-          style={edit.order.rowStyle(i)}
-          className={`${look} is-editable ${edit.picked === field.id ? "is-picked" : ""} ${hidden ? "is-covered" : ""} ${edit.order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+          ref={order.rowRef(i)}
+          style={{ ...place, ...order.rowStyle(i) }}
+          className={`${look} is-editable ${edit.picked === field.id ? "is-picked" : ""} ${hidden ? "is-covered" : ""} ${order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
           onClick={() => edit.onPick(field.id)}
         >
-          <Button className="btn-icon review-grip" aria-label={`Move ${field.name}`} {...edit.order.handleProps(i)}>
+          <Button className="btn-icon review-grip" aria-label={`Move ${field.name}`} {...order.handleProps(i)}>
             <Icon name="grip" />
           </Button>
           <div className="review-part-face">
@@ -750,6 +775,7 @@ export function ReviewCard({
           key={field.id}
           variant="spoiler"
           className={look}
+          style={place}
           data-part={field.id}
           aria-label={`${field.name}, covered: press to see it`}
           onClick={(e) => {
@@ -765,64 +791,93 @@ export function ReviewCard({
       );
     }
     return (
-      <div key={field.id} className={look} data-part={field.id} {...reach}>
+      <div key={field.id} className={look} style={place} data-part={field.id} {...reach}>
         {inner}
       </div>
     );
   }
 
-  // Rows: a part set beside the one above joins its row. Runs of rows that only ever show once the card is turned
-  // stand together, closer, as the back always has.
-  const rows: Drawn[][] = [];
-  for (const d of drawn) {
-    // Written over another part's words as its reading, it has no place of its own.
-    if (attached.has(d.field.id)) continue;
-    const last = rows[rows.length - 1];
-    if (d.part.beside && last) last.push(d);
-    else rows.push([d]);
-  }
-  const blocks: ReactNode[] = [];
-  let later: ReactNode[] = [];
-  const flush = () => {
-    if (later.length === 0) return;
-    blocks.push(
-      <div key={`later-${blocks.length}`} className="review-answer" aria-hidden={!revealed}>
-        {later}
+  // Rows, in each column: a part set beside the one above it in its column joins its row. Runs of rows that only ever
+  // show once the card is turned stand together, closer, as the back always has.
+  const rowsIn = (column: Column): Drawn[][] => {
+    const rows: Drawn[][] = [];
+    for (const d of drawn) {
+      // Written over another part's words as its reading, it has no place of its own.
+      if (attached.has(d.field.id) || d.part.column !== column) continue;
+      const last = rows[rows.length - 1];
+      if (d.part.beside && last) last.push(d);
+      else rows.push([d]);
+    }
+    return rows;
+  };
+  const sideRows = rowsIn("side");
+  const mainRows = rowsIn("main");
+  // Where the two columns stand as one (anywhere but a review split in two, app.css), every block takes its place in
+  // the card's order by its first part, so the card reads as it would with one column: before anything else on the
+  // card, hence below 0.
+  const placeOf = new Map(layout.map((p, i) => [p.fieldId, i - layout.length]));
+  const placed = (row: Drawn[]): CSSProperties => ({ order: placeOf.get(row[0]?.field.id ?? "") ?? 0 });
+  // The examples' switch goes under the example: after the last row holding a part of it the front shows, else its
+  // last, in the card's order, in that row's column.
+  const backOnly = (row: Drawn[]) => row.every((d) => d.part.front === "hide");
+  const inOrder = [...sideRows, ...mainRows].sort((a, b) => (placeOf.get(a[0]?.field.id ?? "") ?? 0) - (placeOf.get(b[0]?.field.id ?? "") ?? 0));
+  const exampleRows = examplePager === null ? [] : inOrder.filter((row) => row.some((d) => d.field.perExample));
+  const pagerAfter = exampleRows.filter((row) => !backOnly(row)).at(-1) ?? exampleRows.at(-1) ?? null;
+  let pagerPlaced = false;
+  /** A column's blocks: its rows, and its runs of the back's rows each in one block. */
+  const blocksOf = (rows: Drawn[][]): ReactNode[] => {
+    const blocks: ReactNode[] = [];
+    let later: ReactNode[] = [];
+    let laterAt: CSSProperties = {};
+    const flush = () => {
+      if (later.length === 0) return;
+      blocks.push(
+        <div key={`later-${blocks.length}`} className="review-answer" style={laterAt} aria-hidden={!revealed}>
+          {later}
+        </div>,
+      );
+      later = [];
+    };
+    for (const row of rows) {
+      const back = backOnly(row);
+      // A row of the back's stands where its run does. Any other is placed itself, and each part in it alike (one may be
+      // all that's drawn of it), which leaves them in their order in the row.
+      const place = back ? undefined : placed(row);
+      const parts = row.map((d) => partView(d, place)).filter((p) => p !== null);
+      if (parts.length === 0) continue;
+      const key = row[0]?.field.id ?? "";
+      const view =
+        parts.length === 1 ? (
+          parts[0]
+        ) : (
+          <div key={`row-${key}`} className="review-row" style={place}>
+            {parts}
+          </div>
+        );
+      if (back && later.length === 0) laterAt = placed(row);
+      const into = back ? later : (flush(), blocks);
+      into.push(view);
+      if (row === pagerAfter && examplePager !== null) {
+        into.push(
+          <div key="examples" className="review-examples" style={back ? undefined : place}>
+            {examplePager}
+          </div>,
+        );
+        pagerPlaced = true;
+      }
+    }
+    flush();
+    return blocks;
+  };
+  const sideBlocks = blocksOf(sideRows);
+  const mainBlocks = blocksOf(mainRows);
+  if (examplePager !== null && !pagerPlaced) {
+    mainBlocks.push(
+      <div key="examples" className="review-examples">
+        {examplePager}
       </div>,
     );
-    later = [];
-  };
-  // The examples' switch goes under the example: after the last row holding a part of it the front shows, else its last.
-  const backOnly = (row: Drawn[]) => row.every((d) => d.part.front === "hide");
-  const exampleRows = examplePager === null ? [] : rows.filter((row) => row.some((d) => d.field.perExample));
-  const pagerAfter = exampleRows.filter((row) => !backOnly(row)).at(-1) ?? exampleRows.at(-1) ?? null;
-  const pager = examplePager === null ? null : (
-    <div key="examples" className="review-examples">
-      {examplePager}
-    </div>
-  );
-  let pagerPlaced = false;
-  for (const row of rows) {
-    const parts = row.map(partView).filter((p) => p !== null);
-    if (parts.length === 0) continue;
-    const key = row[0]?.field.id ?? "";
-    const view =
-      parts.length === 1 ? (
-        parts[0]
-      ) : (
-        <div key={`row-${key}`} className="review-row">
-          {parts}
-        </div>
-      );
-    const into = backOnly(row) ? later : (flush(), blocks);
-    into.push(view);
-    if (row === pagerAfter && pager) {
-      into.push(pager);
-      pagerPlaced = true;
-    }
   }
-  flush();
-  if (pager && !pagerPlaced) blocks.push(pager);
 
   // The card is pressed like a button, so it answers to a button's keys; a key on something inside it is that thing's.
   // Where the page's own keys turn it (`keys` off: the review), it's pressed with a pointer alone and never takes the
@@ -846,14 +901,20 @@ export function ReviewCard({
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
       {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
-      {/* The parts in one box, so a review that fits the window or fills the screen can scroll them inside the card
-          (`.review-body`, app.css), with Panki's fades and thin bar over it; everywhere else the box draws nothing of
-          its own, and runs over nothing, so neither do they. The front holds the back's room unseen and can't be
-          scrolled, so it has no fades and no bar, unless its own parts don't fit: then it scrolls over them alone. */}
+      {/* The parts in one box, in their two columns: the side one, only while something in it shows or holds its room,
+          and the main one (`.review-body`, `.review-side`, `.review-main`, app.css). A review that fits the window or
+          fills the screen scrolls them inside the card, with Panki's fades and thin bar over it: the body as a whole
+          where the columns stand as one, the main column alone where they stand side by side. Everywhere else none of
+          the boxes draws anything of its own, and runs over nothing, so neither do the parts. The front holds the
+          back's room unseen and can't be scrolled, so it has no fades and no bar, unless its own parts don't fit: then
+          it scrolls over them alone. */}
       <div ref={body} className="review-body">
-        {blocks}
+        {sideBlocks.length > 0 ? <div className="review-side">{sideBlocks}</div> : null}
+        <div ref={main} className="review-main">
+          {mainBlocks}
+        </div>
       </div>
-      {revealed || frontTall ? <ScrollEdges of={body} /> : null}
+      {revealed || frontTall ? <ScrollEdges of={scroller} /> : null}
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>
   );

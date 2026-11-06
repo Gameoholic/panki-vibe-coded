@@ -925,6 +925,11 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       change.run(row.id, aiTemplateSnapshot(was), aiTemplateSnapshot(is), now);
     }
   },
+  () => {
+    // 44. Nothing. It stands for a step that ran on some databases and was then taken back: one that wrote a column on
+    // each type's first clip part. Those databases already count it, so it keeps the numbering, and the next step is
+    // 45 everywhere. What it wrote reads as a column a layout says (`layoutOf`), which is what it meant.
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1111,6 +1116,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
   const selectAnyType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ?`);
   const selectFields = db.prepare("SELECT id, name, kind, side, required, tells_apart AS tellsApart, per_example AS perExample FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
+  // Whether a field holds a clip on any card or example: what a layout from before columns needs to put its clip where
+  // the review drew it (`layoutOf`).
+  const selectHoldsClip = db.prepare(`
+    SELECT EXISTS (SELECT 1 FROM card_values v JOIN media m ON m.id = v.value WHERE v.field_id = ? AND m.kind = 'video')
+      OR EXISTS (SELECT 1 FROM card_example_values v JOIN media m ON m.id = v.value WHERE v.field_id = ? AND m.kind = 'video') AS yes`);
   const selectFieldIds = db.prepare("SELECT id, removed_at AS removedAt FROM card_fields WHERE type_id = ?");
   const insertType = db.prepare("INSERT OR IGNORE INTO card_types (id, name, created_at) VALUES (?, ?, ?)");
   const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, tells_apart, per_example, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -1434,7 +1444,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const { layout: kept, stageTag, listen, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; listen: string | null; mainField: string | null };
     const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
-    const layout = layoutOf(stored, keptLayout(kept));
+    const layout = layoutOf(stored, keptLayout(kept), (fieldId) => (selectHoldsClip.get(fieldId, fieldId) as { yes: number }).yes === 1);
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     // The main field while it's one of the fields there are (a field hidden since reads as none picked).

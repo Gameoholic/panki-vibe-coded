@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   CardLayout,
   NEW_PLACE,
@@ -6,7 +6,7 @@ import {
   holdsWords,
   isTyped,
   movePart,
-  partsOn,
+  partsOnIn,
   type Card,
   type CardField,
   type CardSide,
@@ -32,9 +32,10 @@ import { useDragOrder } from "../hooks/useDragOrder";
 import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { useUndoable } from "../hooks/useUndoable";
 import { restartOf, shortcutOf, useKeyBinds } from "../keys";
-import { LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { COLUMN_OPTIONS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import type { UnsavedGuard } from "../unsaved";
 import { waveOf } from "../waveform";
+import { reviewChromeOf } from "./ReviewView";
 import type { SaveStatus } from "./SrsTypeView";
 
 /** What's shown of the card: its Listen phase (while the type has Listen first on), its front, or its back. */
@@ -110,6 +111,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const [samples, setSamples] = useState<{ card: Card; deck: Deck }[]>([]);
   const [sampleId, setSampleId] = useState<string>(NO_SAMPLE);
   const fields = useMemo(() => new Map(type.fields.map((f) => [f.id, f])), [type.fields]);
+  /** What a review draws around its card on this device, as it last measured it: the card here is given the rest of the window. */
+  const [chrome] = useState(reviewChromeOf);
 
   // The type's own newest cards, from every deck that uses it, to show on it; the newest is shown to begin with.
   const deckKey = decks
@@ -182,12 +185,16 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   saveRef.current = save;
 
   const update = (fieldId: string, patch: Partial<Omit<LayoutPart, "fieldId">>) => change(draft.map((p) => (p.fieldId === fieldId ? { ...p, ...patch } : p)));
-  // Moved on the card, among the parts on the side shown: one order for both sides.
-  const onSide = partsOn(draft, side);
-  const cardOrder = useDragOrder(onSide.length, (from, to) => {
-    const [a, b] = [onSide[from], onSide[to]];
+  // Moved on the card, among the parts on the side shown in the same column: one order for both sides. Which column a
+  // part stands in is its own setting (Column), never a drag's.
+  const inMain = partsOnIn(draft, side, "main");
+  const inSide = partsOnIn(draft, side, "side");
+  const moveWithin = (parts: readonly LayoutPart[]) => (from: number, to: number) => {
+    const [a, b] = [parts[from], parts[to]];
     if (a && b) change(movePart(draft, a.fieldId, b.fieldId));
-  });
+  };
+  const mainOrder = useDragOrder(inMain.length, moveWithin(inMain));
+  const sideOrder = useDragOrder(inSide.length, moveWithin(inSide));
 
   const sample = samples.find((s) => s.card.id === sampleId) ?? null;
   /** Where the card opens in a review, as laid out now: its Listen phase when there's something on it to hear, else its front. */
@@ -226,7 +233,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   /** The picked part's choices: its two sides, then what its kind can change, then its place. */
   function choices(part: LayoutPart, field: CardField) {
     const id = part.fieldId;
-    const first = draft[0]?.fieldId === id;
+    // The first in its column has nothing above it to stand beside.
+    const first = draft.find((p) => p.column === part.column)?.fieldId === id;
     // Typed: words, a paragraph or a pitch accent, which all take a size, a colour and a name over them.
     const words = isTyped(field.kind);
     const media = field.kind === "media";
@@ -348,7 +356,13 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             }
           />
         ) : null}
-        {/* Written over another field's words, it has no place of its own: its position is off while it is. */}
+        {/* Its column: moved to the other one, it stands under whatever's above it there. Written over another field's
+            words, it has no place of its own: its column and its position are off while it is. */}
+        <Setting
+          id="part-column"
+          label="Column"
+          control={<Segmented idPrefix="part-column" label="Column" options={COLUMN_OPTIONS} value={part.column} disabled={above} onChange={(column) => update(id, { column, beside: false })} />}
+        />
         {first ? null : (
           <Setting
             id="part-beside"
@@ -400,52 +414,56 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             </Button>
           </span>
         </div>
-        <ReviewCard
-          // A card shown afresh, as a review would: nothing opened, nothing played.
-          key={`${sampleId}:${trying ? "try" : "edit"}`}
-          type={type}
-          layout={draft}
-          values={sample?.card.values ?? {}}
-          // What Panki AI wrote on the card previewed, marked as a review marks it: its own example's values are these.
-          sources={sample?.card.sources ?? {}}
-          files={sample?.card.files}
-          cues={sample?.card.cues}
-          srsType={ladder}
-          place={sample?.card.place ?? NEW_PLACE}
-          revealed={face === "back"}
-          listening={face === "listen"}
-          // Previewed, it goes on to its front as its sound or clip begins the play set to show it, as in a review.
-          onListened={() => {
-            if (trying) setFace("front");
-          }}
-          onPress={() => {
-            if (trying) setFace((now) => (now === "listen" ? "front" : now === "front" ? "back" : opening));
-          }}
-          srcOf={sample ? api.mediaUrl : undefined}
-          waveOf={waveOf}
-          subtitleStyle={subtitleStyle}
-          picturesOf={api.videoPictures}
-          tag={tag}
-          autoplay={trying}
-          // Tried as a review, its sounds and clips answer to their keys as a review's do.
-          shortcuts={trying ? mediaKeys : undefined}
-          restarts={trying ? restartKeys : undefined}
-          screenKey={trying ? screenKey : null}
-          // Previewed, the review's own button under it shows what's next, as a review's does, so there's no "Tap to reveal".
-          hint={!trying}
-          {...(trying
-            ? {}
-            : {
-                edit: {
-                  picked: tagPicked ? null : (part?.fieldId ?? null),
-                  onPick: setPicked,
-                  order: cardOrder,
-                  tagPicked,
-                  onPickTag: () => setPicked(TAG_PICKED),
-                  onMoveTag: (corner) => changeTag({ corner }),
-                },
-              })}
-        />
+        {/* The card in the review's own frame (`.card-frame`, app.css): as tall as a review draws it on this window, in the
+            same columns, its main column scrolling when it runs over, so what's laid out is what a review shows. */}
+        <div className="card-frame layout-frame" style={{ "--review-chrome": `${chrome}px` } as CSSProperties}>
+          <ReviewCard
+            // A card shown afresh, as a review would: nothing opened, nothing played.
+            key={`${sampleId}:${trying ? "try" : "edit"}`}
+            type={type}
+            layout={draft}
+            values={sample?.card.values ?? {}}
+            // What Panki AI wrote on the card previewed, marked as a review marks it: its own example's values are these.
+            sources={sample?.card.sources ?? {}}
+            files={sample?.card.files}
+            cues={sample?.card.cues}
+            srsType={ladder}
+            place={sample?.card.place ?? NEW_PLACE}
+            revealed={face === "back"}
+            listening={face === "listen"}
+            // Previewed, it goes on to its front as its sound or clip begins the play set to show it, as in a review.
+            onListened={() => {
+              if (trying) setFace("front");
+            }}
+            onPress={() => {
+              if (trying) setFace((now) => (now === "listen" ? "front" : now === "front" ? "back" : opening));
+            }}
+            srcOf={sample ? api.mediaUrl : undefined}
+            waveOf={waveOf}
+            subtitleStyle={subtitleStyle}
+            picturesOf={api.videoPictures}
+            tag={tag}
+            autoplay={trying}
+            // Tried as a review, its sounds and clips answer to their keys as a review's do.
+            shortcuts={trying ? mediaKeys : undefined}
+            restarts={trying ? restartKeys : undefined}
+            screenKey={trying ? screenKey : null}
+            // Previewed, the review's own button under it shows what's next, as a review's does, so there's no "Tap to reveal".
+            hint={!trying}
+            {...(trying
+              ? {}
+              : {
+                  edit: {
+                    picked: tagPicked ? null : (part?.fieldId ?? null),
+                    onPick: setPicked,
+                    order: { main: mainOrder, side: sideOrder },
+                    tagPicked,
+                    onPickTag: () => setPicked(TAG_PICKED),
+                    onMoveTag: (corner) => changeTag({ corner }),
+                  },
+                })}
+          />
+        </div>
         {/* With the Hold button on, it stands under the card on both its sides, a tap of it back to the card's start, as in a review; the review's own button beside it, without its key. */}
         {trying && chainOn ? (
           <div ref={previewActions} className="review-hold">

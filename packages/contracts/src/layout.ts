@@ -47,6 +47,17 @@ export type ListenSubtitles = z.infer<typeof ListenSubtitles>;
 /** The latest play of a sound or clip that can show the card out of its Listen phase: its sixth, five heard through first. */
 export const SHOW_ON_PLAY_MAX = 6;
 
+/**
+ * The card's two columns, one registry: the main one, and the side one, which stands at the card's left as tall as the
+ * card where a review has the room for the two side by side (a computer's window, wide enough). Anywhere narrower the
+ * parts of both stand under one another in the card's order, as if there were one. A clip is what the side column is
+ * for, but any part can stand there. How wide it is is the review's one magnitude (`app.css` → `--clip-side`), never
+ * the layout's.
+ */
+export const COLUMNS = ["main", "side"] as const;
+export const Column = z.enum(COLUMNS);
+export type Column = z.infer<typeof Column>;
+
 /** One field's part on the card. What doesn't apply to its kind (a size for a link, a look for words) is kept and unused. */
 export const LayoutPart = z.object({
   fieldId: z.uuid(),
@@ -61,7 +72,9 @@ export const LayoutPart = z.object({
   look: MediaLook,
   /** When a sound or a clip plays by itself (once a switch, `auto`, "as it comes into view"). */
   plays: AutoPlay,
-  /** It sits beside the one above it, in one row, rather than under it. */
+  /** The column it stands in (`Column`); the main one for a layout sent without it. */
+  column: Column.default("main"),
+  /** It sits beside the one above it in its column, in one row, rather than under it. */
   beside: z.boolean(),
   /**
    * The field this one's words are written small over, as its reading over a word, as the popup shows one; null for
@@ -145,6 +158,8 @@ export const sideOf = (part: Pick<LayoutPart, "front">): CardSide => (part.front
 
 /** The parts that are on a side, spoiler or not, in the card's order. */
 export const partsOn = (layout: readonly LayoutPart[], side: CardSide): LayoutPart[] => layout.filter((p) => p[side] !== "hide");
+/** The parts on a side that stand in a column, in the card's order: what a column's parts are moved among. */
+export const partsOnIn = (layout: readonly LayoutPart[], side: CardSide, column: Column): LayoutPart[] => partsOn(layout, side).filter((p) => p.column === column);
 
 /** A layout with one part moved to where another stands: after it when going down, before it when going up. */
 export function movePart(layout: readonly LayoutPart[], fieldId: string, toFieldId: string): LayoutPart[] {

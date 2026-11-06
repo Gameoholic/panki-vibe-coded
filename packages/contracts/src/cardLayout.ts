@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AutoPlay, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type StageTag } from "./layout";
+import { AutoPlay, Column, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type StageTag } from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -15,6 +15,7 @@ const KeptPart = z.object({
   plays: AutoPlay.optional().catch(undefined),
   /** Kept before `plays`: on was "as it comes into view", which is when the card comes up for a part on the front and when it's turned for one only on the back. */
   auto: z.boolean().optional().catch(undefined),
+  column: Column.optional().catch(undefined),
   beside: z.boolean().optional().catch(undefined),
   over: z.string().nullable().optional().catch(undefined),
   mark: z.string().nullable().optional().catch(undefined),
@@ -45,6 +46,7 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     label: false,
     look: "player",
     plays: "never",
+    column: "main",
     beside: false,
     over: null,
     mark: null,
@@ -63,8 +65,13 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
  * over another as its reading names another field the type still has, of words of one line as the part itself is, or
  * it's over none. A part's highlight names another field of words too, lit in this part's words, or in a clip's
  * subtitles; a clip's subtitles are on only for a Media field.
+ *
+ * A layout kept before a part could say which column it stands in (no part says) has its clip in the side column, as
+ * the review drew it then: the first part that shows a video in a picture (the Player or Plain look) of a field that
+ * holds a clip on some card (`holdsClip`, which only the API can tell), standing in no row; everything else in the main
+ * column. A layout that says, says for good.
  */
-export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] = []): LayoutPart[] {
+export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] = [], holdsClip: (fieldId: string) => boolean = () => false): LayoutPart[] {
   const defaults = defaultLayout(fields);
   const byId = new Map(defaults.map((p) => [p.fieldId, p]));
   const kindOf = new Map(fields.map((f) => [f.id, f.kind]));
@@ -77,9 +84,11 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
   const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(other) && (wordy(fieldId) || kindOf.get(fieldId) === "media");
   const placed = new Set<string>();
   const parts: LayoutPart[] = [];
+  let saysColumns = false;
   for (const raw of kept) {
     const read = KeptPart.safeParse(raw);
     if (!read.success) continue;
+    if (read.data.column !== undefined) saysColumns = true;
     const base = byId.get(read.data.fieldId);
     if (!base || placed.has(base.fieldId)) continue;
     placed.add(base.fieldId);
@@ -97,6 +106,7 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.label !== undefined ? { label: own.label } : {}),
       ...(own.look !== undefined ? { look: own.look } : {}),
       ...(plays !== undefined ? { plays } : {}),
+      ...(own.column !== undefined ? { column: own.column } : {}),
       ...(own.beside !== undefined ? { beside: own.beside } : {}),
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
       ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
@@ -110,6 +120,14 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
   for (const part of defaults) if (!placed.has(part.fieldId)) parts.push(part);
   const first = parts[0];
   if (first && !parts.some((p) => p.front !== "hide")) parts[0] = { ...first, front: "show" };
+  if (!saysColumns) {
+    // A clip in a row (set beside the part above it, or with the next part set beside it) stood in that row.
+    const clip = parts.findIndex(
+      (p, i) => kindOf.get(p.fieldId) === "media" && (p.look === "player" || p.look === "plain") && !p.beside && !parts[i + 1]?.beside && holdsClip(p.fieldId),
+    );
+    const part = parts[clip];
+    if (part) parts[clip] = { ...part, column: "side" };
+  }
   return parts;
 }
 
