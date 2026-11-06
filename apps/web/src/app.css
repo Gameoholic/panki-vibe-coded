@@ -5025,6 +5025,14 @@ mark.sub-blur {
   flex-wrap: wrap;
   gap: 4px 10px;
 }
+/* The card's chart while it's open, under the answers in the rail, the rail's width: no taller than four tenths of the
+   screen, so the card above it keeps room, taking less as the fit rules allow and scrolling inside itself. */
+.main > .review.is-stage > .review-chart {
+  margin-top: 0;
+}
+.main > .review.is-stage > .review-chart .canvas {
+  height: min(380px, 40dvh);
+}
 /* The Layout tab's card filling the screen: each grip on its part's corner, as on the page. */
 .main > .review.is-stage > .review-card.is-editing .btn-icon.review-grip {
   top: -8px;

@@ -259,6 +259,10 @@ export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHi
               <Icon name="undo" />
               <KeyCap bind={binds.undo} />
             </Button>
+            {/* The card's chart, the same on or off as on the page; open, it stands under the answers in the rail. */}
+            <Button className="btn-icon" aria-label="Chart" aria-pressed={chart.open} disabled={chart.onToggle === undefined} onClick={chart.onToggle}>
+              <Icon name="srs" />
+            </Button>
             {staged ? (
               <Button className="btn-icon" aria-label="Hide the card" onClick={stage.close}>
                 <Icon name="close" />
@@ -288,7 +292,8 @@ export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHi
           {buttons}
           {/* Under the answers on a phone: Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
           {full ? null : <div className="review-chart-row">{tools}</div>}
-          {chart.open && !full ? chartView : null}
+          {/* The card's chart while it's open: under the review on the page, under the answers in the rail. */}
+          {chart.open ? chartView : null}
         </>
       )}
       {children}
