@@ -168,7 +168,7 @@ const Stored = z.object({
   playerBarLayout: KeptBar.nullable().catch(null),
   /**
    * Whether the bar stays on the video as it plays, in full screen and out of it (`modules.ts` → `barKeptFull`,
-   * `barKeptNotFull`): null until each is set, read until then from the one switch that held both (`playerBarKept`).
+   * `barKeptNotFull`): null until each is set, read until then from the one switch that held both (`barKeptOf`).
    */
   playerBarKeptFull: z.boolean().nullable().catch(null),
   playerBarKeptNotFull: z.boolean().nullable().catch(null),
@@ -213,10 +213,13 @@ export const barOf = (store: Stored): BarLayout =>
   store.playerBarLayout ??
   DEFAULT_BAR.map((control) => (control.id === "speed" ? { ...control, shown: store.speedControl } : control.id === "endTime" ? { ...control, shown: store.endTime } : control));
 
-/** Whether the bar is kept shown in full screen and out of it, each as set or, until it is, as the one old switch said. */
+/**
+ * Whether the bar is kept shown in full screen and out of it, each as set or, until it is, from the one old switch:
+ * kept On, both On; otherwise each its default.
+ */
 export const barKeptOf = (store: Stored): { full: boolean; notFull: boolean } => ({
-  full: store.playerBarKeptFull ?? store.playerBarKept,
-  notFull: store.playerBarKeptNotFull ?? store.playerBarKept,
+  full: store.playerBarKeptFull ?? (store.playerBarKept || DEFAULT_MODULES.barKeptFull),
+  notFull: store.playerBarKeptNotFull ?? (store.playerBarKept || DEFAULT_MODULES.barKeptNotFull),
 });
 
 /** Which parts are on, as one value, as a page gets them. */

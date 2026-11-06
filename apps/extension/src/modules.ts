@@ -130,7 +130,8 @@ export const BAR_CONTROLS = {
   save: { name: "Save for later", side: "right", icon: "bookmark", shown: true, from: "panki" },
   // The autoplay switch is a button of the site's holding its own toggle: found by what it holds.
   autoplay: { name: "Autoplay", side: "right", icon: "autoplay", shown: true, from: "youtube", find: ".ytp-button:has(.ytp-autonav-toggle-button)" },
-  captions: { name: "Captions", side: "right", icon: "subtitles", shown: true, from: "youtube", find: ".ytp-subtitles-button" },
+  // Hidden to begin with: Panki's own subtitles are picked in its panel.
+  captions: { name: "Captions", side: "right", icon: "subtitles", shown: false, from: "youtube", find: ".ytp-subtitles-button" },
   settings: { name: "Settings", side: "right", icon: "gear", shown: true, from: "youtube", find: ".ytp-settings-button" },
   theater: { name: "Theatre mode", side: "right", icon: "theater", shown: true, from: "youtube", find: ".ytp-size-button" },
   fullscreen: { name: "Full screen", side: "right", icon: "expand", shown: true, from: "youtube", find: ".ytp-fullscreen-button" },
@@ -277,7 +278,8 @@ export const Modules = z.object({
   bar: BarLayout,
   /**
    * With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after
-   * the pointer rests: in full screen (`barKeptFull`) and out of it (`barKeptNotFull`), each its own. Off to begin with.
+   * the pointer rests: in full screen (`barKeptFull`) and out of it (`barKeptNotFull`), each its own. In full screen On
+   * to begin with, out of it Off.
    */
   barKeptFull: z.boolean(),
   barKeptNotFull: z.boolean(),
@@ -313,7 +315,7 @@ export const DEFAULT_MODULES: Modules = {
   shorts: true,
   playerBar: true,
   bar: DEFAULT_BAR,
-  barKeptFull: false,
+  barKeptFull: true,
   barKeptNotFull: false,
   shortSkip: true,
   shortSkipKey: "shift",

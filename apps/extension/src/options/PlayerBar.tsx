@@ -26,7 +26,7 @@ export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged:
         label="Custom player bar"
         control={<Toggle id="player-bar-on" says={{ on: "On", off: "Off" }} on={store.playerBar} onChange={(playerBar) => void writeStore({ playerBar }).then(onChanged)} />}
       />
-      {/* Off to begin with, both: the bar fades as YouTube's does. */}
+      {/* In full screen On to begin with; outside it Off, the bar fading as YouTube's does. */}
       <Setting
         id="player-bar-kept-full"
         label="Keep the bar visible in full screen"
