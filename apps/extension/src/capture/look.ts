@@ -53,7 +53,14 @@ type PopupRect = () => DOMRect | null;
  * no margin round the word (a 24 px one kept the popup open with the pointer well off the word).
  */
 function nearWord(word: DOMRect, at: At, popup: DOMRect | null): boolean {
-  if (within(word, at.x, at.y)) return true;
+  return within(word, at.x, at.y) || inGap(word, at, popup);
+}
+/**
+ * Whether the pointer is in the gap between a popup's word and the popup, the word's own width of it. The gap is the
+ * popup's, whatever lies in it: lines stacked under one another put the next line's words right there, and one of
+ * them pointed at on the way down would take the popup for itself.
+ */
+function inGap(word: DOMRect, at: At, popup: DOMRect | null): boolean {
   if (!popup || at.x < word.left || at.x > word.right) return false;
   if (popup.top >= word.bottom) return at.y >= word.bottom && at.y <= popup.top;
   if (popup.bottom <= word.top) return at.y >= popup.bottom && at.y <= word.top;
@@ -145,10 +152,12 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
      * is on a word where the key to hold is On hover. One that's kept open gives way only to another
      * word with the key held: the pointer crossing nothing, still on its own word, or only hovering, leaves it be, so
-     * one kept with Shift doesn't give way to the next word merely hovered.
+     * one kept with Shift doesn't give way to the next word merely hovered. A word lying in the gap between the open
+     * popup's word and the popup is passed over, hovered or with the key held: the pointer is on its way to the popup.
      */
     point(pointed: Pointed | null, at?: At, hover = false) {
       if (at) lastAt = at;
+      if (at && view?.word && pointed && pointed.id !== view.pointed.id && inGap(view.word, at, popup())) return;
       if (view?.locked && (hover || pointed === null || (at && view.word && within(view.word, at.x, at.y)))) return;
       if (pointed === null) {
         looker.close();
