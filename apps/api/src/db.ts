@@ -925,44 +925,6 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       change.run(row.id, aiTemplateSnapshot(was), aiTemplateSnapshot(is), now);
     }
   },
-  (db, now) => {
-    // 44. A card's layout has two columns, the main one and a side one at the card's left (`LayoutPart.column`). Before
-    // this step the review put a card's clip at its left by itself, on a wide window: the first part showing a video
-    // file in a picture (the Player or Plain look) stood there, the rest beside it. That place becomes the layout's:
-    // in each type, the first such part whose field holds a clip on any card or example goes in the side column, so
-    // every card looks as it did; a type whose cards hold no clip keeps everything in the main column, as it looked.
-    // Each type changed keeps its layout before and after, as a save does.
-    const types = db.prepare("SELECT id, layout FROM card_types").all() as { id: string; layout: string }[];
-    const fieldsOf = db.prepare("SELECT id, kind, side FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
-    const holdsClips = db.prepare(`
-      SELECT EXISTS (SELECT 1 FROM card_values v JOIN media m ON m.id = v.value WHERE v.field_id = ? AND m.kind = 'video')
-        OR EXISTS (SELECT 1 FROM card_example_values v JOIN media m ON m.id = v.value WHERE v.field_id = ? AND m.kind = 'video') AS yes`);
-    const update = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
-    const change = db.prepare("INSERT INTO card_type_layout_changes (type_id, from_layout, to_layout, at) VALUES (?, ?, ?, ?)");
-    const Fields = CardField.pick({ id: true, kind: true, side: true }).array();
-    for (const type of types) {
-      const fields = Fields.safeParse(fieldsOf.all(type.id));
-      if (!fields.success) continue;
-      let kept: unknown = [];
-      try {
-        kept = JSON.parse(type.layout);
-      } catch {
-        kept = [];
-      }
-      const layout = layoutOf(fields.data, Array.isArray(kept) ? kept : []);
-      const kinds = new Map(fields.data.map((f) => [f.id, f.kind]));
-      const clip = layout.find(
-        (part) =>
-          kinds.get(part.fieldId) === "media" &&
-          (part.look === "player" || part.look === "plain") &&
-          (holdsClips.get(part.fieldId, part.fieldId) as { yes: number }).yes === 1,
-      );
-      if (!clip) continue;
-      const after = JSON.stringify(layout.map((part) => (part.fieldId === clip.fieldId ? { ...part, column: "side" } : part)));
-      update.run(after, type.id);
-      change.run(type.id, type.layout, after, now);
-    }
-  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {

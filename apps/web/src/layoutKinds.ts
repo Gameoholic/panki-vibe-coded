@@ -1,4 +1,4 @@
-import { SHOW_ON_PLAY_MAX, type AutoPlay, type Column, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
+import { SHOW_ON_PLAY_MAX, type AutoPlay, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -20,11 +20,6 @@ export const TONE_OPTIONS: readonly { id: PartTone; label: string }[] = [
   { id: "normal", label: "Normal" },
   { id: "quiet", label: "Quiet" },
   { id: "accent", label: "Accent" },
-];
-/** The column a part stands in (the contracts' `COLUMNS`). */
-export const COLUMN_OPTIONS: readonly { id: Column; label: string }[] = [
-  { id: "main", label: "Main" },
-  { id: "side", label: "Side" },
 ];
 /** When a sound or a clip plays by itself in a review. */
 export const PLAY_OPTIONS: readonly { id: AutoPlay; label: string }[] = [

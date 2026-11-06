@@ -16,7 +16,7 @@ import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { shuffle } from "../shuffle";
-import { rememberShape, shapeOf } from "../skeletonMemory";
+import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
 import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
 import { waveOf } from "../waveform";
@@ -65,20 +65,6 @@ type Sitting = { id: string; ready: Promise<boolean>; ok: boolean | null; ended:
 type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
-/** Where the review fits the window rather than flowing down the page: a computer's, as `app.css` draws it (641 px up). */
-const FITS_FROM = "(min-width: 641px)";
-/** What's remembered of the review's frame on this device (`skeletonMemory.ts`): how much of the window it draws around its card. */
-const CHROME_SHAPE = "review-chrome";
-/**
- * Before a review has been drawn on this device, about what it draws around its card: the bar, the screen's header,
- * the counts and Show answer, with the gaps between.
- */
-const CHROME_GUESS = 210;
-/**
- * How much of the window the review draws around its card, in px, as last measured on this device: the window's height
- * less this is the card's, which the Layout tab gives the card it lays out.
- */
-export const reviewChromeOf = (): number => shapeOf(CHROME_SHAPE, CHROME_GUESS);
 /** "Coming up" at the end: the days ahead each row covers. */
 const COMING_UP: readonly { label: string; days: number }[] = [
   { label: "Tomorrow", days: 1 },
@@ -1007,22 +993,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     };
   });
 
-  // How much of the window the review draws around its card on this device, while it fits the window as it always
-  // stands (no question asked in the answers' place, nothing gone wrong): the Layout tab gives its card the rest
-  // (`reviewChromeOf`), so a card is laid out at the height the review draws it.
-  const fitted = card !== undefined && !stage.screen.full && asked === undefined && failure === null;
-  useEffect(() => {
-    const el = fitted ? place.current?.querySelector<HTMLElement>(":scope > .review-card") : null;
-    if (!el) return;
-    const measure = () => {
-      if (window.matchMedia(FITS_FROM).matches) rememberShape(CHROME_SHAPE, window.innerHeight - el.getBoundingClientRect().height);
-    };
-    measure();
-    const watch = new ResizeObserver(measure);
-    watch.observe(el);
-    return () => watch.disconnect();
-  }, [fitted, cardId]);
-
   if (today) {
     return (
       <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} onPick={pick} onMore={offerMore} onStart={start} />
@@ -1119,8 +1089,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
 
   // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
   const full = stage.screen.full;
-  // On the page, the review is its card's frame (`.card-frame`, app.css), as the Layout tab's drawing of the card is.
-  const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit card-frame";
+  const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit";
   // Undo and Chart: in the counts' row on a computer, under the answers on a phone, the CSS showing one of the two.
   // Pinned over the counts' row, they would cover "in play · waiting".
   const tools = (

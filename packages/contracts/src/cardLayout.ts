@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AutoPlay, Column, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type StageTag } from "./layout";
+import { AutoPlay, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type StageTag } from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -15,7 +15,6 @@ const KeptPart = z.object({
   plays: AutoPlay.optional().catch(undefined),
   /** Kept before `plays`: on was "as it comes into view", which is when the card comes up for a part on the front and when it's turned for one only on the back. */
   auto: z.boolean().optional().catch(undefined),
-  column: Column.optional().catch(undefined),
   beside: z.boolean().optional().catch(undefined),
   over: z.string().nullable().optional().catch(undefined),
   mark: z.string().nullable().optional().catch(undefined),
@@ -29,8 +28,8 @@ type FieldLike = Pick<CardField, "id" | "kind" | "side">;
 
 /**
  * Every field's part as the card looked before there were layouts: the Front fields first, the first of them that
- * holds words big and the others quieter, then the Back fields, shown once it's turned, every one in the main column.
- * A type nobody has laid out looks exactly as it always did.
+ * holds words big and the others quieter, then the Back fields, shown once it's turned. A type nobody has laid out
+ * looks exactly as it always did.
  */
 export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
   const front = fields.filter((f) => f.side === "front");
@@ -46,7 +45,6 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     label: false,
     look: "player",
     plays: "never",
-    column: "main",
     beside: false,
     over: null,
     mark: null,
@@ -99,7 +97,6 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.label !== undefined ? { label: own.label } : {}),
       ...(own.look !== undefined ? { look: own.look } : {}),
       ...(plays !== undefined ? { plays } : {}),
-      ...(own.column !== undefined ? { column: own.column } : {}),
       ...(own.beside !== undefined ? { beside: own.beside } : {}),
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
       ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
