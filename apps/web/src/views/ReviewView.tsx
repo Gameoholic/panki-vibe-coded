@@ -477,9 +477,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /**
    * The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh,
    * and has the id its answer will be given (so the same answer sent again is kept once). One that came on in its
-   * Listen phase (`listen`) is also timed to its front (`frontAt`).
+   * Listen phase (`listen`) is also timed from its Listen phase's start (`listenAt`: as it came on, or as Step back took
+   * it back there) to its front (`frontAt`).
    */
-  const shown = useRef<{ cardId: string | null; at: number; listen: boolean; frontAt: number | null; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, listen: false, frontAt: null, revealedAt: null, givenId: "" });
+  const shown = useRef<{ cardId: string | null; at: number; listen: boolean; listenAt: number; frontAt: number | null; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, listen: false, listenAt: 0, frontAt: null, revealedAt: null, givenId: "" });
   function startSitting(kind: "review" | "extra") {
     const s: Sitting = { id: crypto.randomUUID(), ready: Promise.resolve(false), ok: null, ended: false };
     s.ready = api.startSession(deck.id, { id: s.id, kind }).then(
@@ -522,7 +523,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }, []);
   // A card comes on screen: its clock starts. A card back for another go, even the same one, starts afresh.
   useEffect(() => {
-    shown.current = { cardId: cardId ?? null, at: performance.now(), listen: listening, frontAt: null, revealedAt: null, givenId: crypto.randomUUID() };
+    const at = performance.now();
+    shown.current = { cardId: cardId ?? null, at, listen: listening, listenAt: at, frontAt: null, revealedAt: null, givenId: crypto.randomUUID() };
   }, [cardId, turn]); // eslint-disable-line react-hooks/exhaustive-deps -- whether it opens listening is read as it comes on
 
   /** Done listening: from the Listen phase to the front, by its button, its key, or its sound or clip beginning the play that shows it. */
@@ -536,11 +538,21 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     shown.current.revealedAt ??= performance.now();
     setRevealed(true);
   }
-  /** The card turned back to its front (Hide back of card): a question asked about an answer goes with it. */
-  function hideAnswer() {
-    if (!revealed || busy) return;
-    setAsking(null);
-    setRevealed(false);
+  /** Whether Step back can run: on the back, or on the front of a card that has a Listen phase to go back to. */
+  const canStepBack = revealed || (!listening && listensHere);
+  /**
+   * Step back, the card a phase back: its back to its front (a question asked about an answer goes with it), its front to
+   * its Listen phase where it has one, a fresh one, its time counted from now as a Listen phase is.
+   */
+  function stepBack() {
+    if (busy || !canStepBack) return;
+    if (revealed) {
+      setAsking(null);
+      setRevealed(false);
+      return;
+    }
+    shown.current = { ...shown.current, listen: true, listenAt: performance.now(), frontAt: null };
+    setListenedTurn(null);
   }
 
   // Today's cards, as the Today screen shows them: the day's line split into reviews and new, and every other new card.
@@ -616,7 +628,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         answerId,
         // A sitting that failed to start is left out; one still starting is named, the API has it by the time this lands.
         sessionId: s && s.ok !== false ? s.id : undefined,
-        listenMs: t.listen ? span(t.at, frontAt) : undefined,
+        listenMs: t.listen ? span(t.listenAt, frontAt) : undefined,
         thinkMs: span(frontAt, revealedAt),
         decideMs: span(revealedAt, now),
         exampleId: exampleId ?? undefined,
@@ -762,13 +774,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         else reveal();
         return;
       }
-      // Turned back to its front by Hide back of card's own key (so Space tapped can be the clip's), held as long as it's set to be; its hold drawn on the Hide back of card button showing.
-      const hiding = revealed ? keyIn(binds.hide, key) : null;
-      if (hiding) {
+      // Step back's own key, a phase back, held as long as it's set to be; its hold drawn on the Step back button showing.
+      const stepping = canStepBack ? keyIn(binds.hide, key) : null;
+      if (stepping) {
         e.preventDefault();
         if (e.repeat || busy) return;
         const button = [...document.querySelectorAll<HTMLElement>("[data-hold='hide']")].find((el) => el.getClientRects().length > 0) ?? null;
-        hold.begin(e, button, hiding.holdMs, hideAnswer);
+        hold.begin(e, button, stepping.holdMs, stepBack);
         return;
       }
       // Done listening's own key while the card is listened to, Show back of card's on its front.
@@ -917,10 +929,10 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       stage={stage}
       staging={stagedOrder(type.layout, type.fields)}
       counts={<ReviewCounts counts={{ settings: deck.settings, togo, now: kindOf(card), line }} />}
-      revealed={revealed}
       busy={busy}
       binds={binds}
-      onHide={hideAnswer}
+      onStepBack={stepBack}
+      canStepBack={canStepBack}
       onUndo={() => void undo()}
       canUndo={given.length > 0}
       chart={{ open: chartOpen, onToggle: toggleChart }}

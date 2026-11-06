@@ -360,7 +360,7 @@ export function ReviewCard({
     setCarried(new Set());
     if (!revealed) setOpened(new Set());
   }, [revealed]);
-  // Turned back to its front (Hide back of card, an Undo), the scroll goes back to the top before it's drawn: the front
+  // Turned back to its front (Step back, an Undo), the scroll goes back to the top before it's drawn: the front
   // can't be scrolled, so parts left scrolled out of view there could never be brought back. A new card is a new
   // ReviewCard (the review keys it), already at the top.
   useLayoutEffect(() => {

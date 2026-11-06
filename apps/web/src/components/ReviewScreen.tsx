@@ -178,11 +178,12 @@ type Props = {
   stage: Stage;
   /** The counts' line (`ReviewCounts`). */
   counts: ReactNode;
-  revealed: boolean;
   busy: boolean;
   binds: KeyBinds;
-  /** Hide back of card: the card back to its front. */
-  onHide: () => void;
+  /** Step back: the card a phase back (its back to its front, its front to its Listen phase where it has one). */
+  onStepBack: () => void;
+  /** Whether there's a phase to step back to: greyed otherwise, keeping its place. */
+  canStepBack: boolean;
   /** Takes the last answer back; left out, Undo stands greyed. */
   onUndo?: () => void;
   canUndo: boolean;
@@ -206,7 +207,7 @@ type Props = {
 };
 
 /** The review's screen around its card: one drawing, the review's and the Layout tab's. */
-export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHide, onUndo, canUndo, chart, card, staging, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
+export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, card, staging, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
   // The clip that takes the screen's room while it's filled, marked for the stage's styles: of the fields the layout
   // names, the first whose part holds a clip in the Player look there to see (not a sound, not under a spoiler).
   useLayoutEffect(() => {
@@ -227,14 +228,12 @@ export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHi
   // Pinned over the counts' row, they would cover "in play · waiting".
   const tools = (
     <>
-      {/* While the answer shows: the card back to its front, its key's hold drawn on it. */}
-      {revealed ? (
-        <Button className="review-hide" data-hold="hide" disabled={busy} onClick={onHide}>
-          <Icon name="eyeOff" />
-          Hide back of card
-          <KeyCap bind={binds.hide} />
-        </Button>
-      ) : null}
+      {/* The card a phase back, its key's hold drawn on it; always in its place, greyed with nowhere to step back to. */}
+      <Button className="review-hide" data-hold="hide" disabled={busy || !canStepBack} onClick={onStepBack}>
+        <Icon name="back" />
+        Step back
+        <KeyCap bind={binds.hide} />
+      </Button>
       <Button className="review-undo" data-hold="undo" disabled={busy || !canUndo || onUndo === undefined} onClick={undo}>
         <Icon name="undo" />
         Undo
@@ -251,16 +250,14 @@ export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHi
       <div className="review-top">
         {counts}
         {!full ? <span className="review-tools">{tools}</span> : null}
-        {/* Filling the screen: Hide back of card, Undo, Chart, and the way out. */}
+        {/* Filling the screen: Step back, Undo, Chart, and the way out. */}
         {full ? (
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it. */}
-            {revealed ? (
-              <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={onHide}>
-                <Icon name="eyeOff" />
-                <KeyCap bind={binds.hide} />
-              </Button>
-            ) : null}
+            <Button className="btn-icon review-stage-hide" aria-label="Step back" data-hold="hide" disabled={busy || !canStepBack} onClick={onStepBack}>
+              <Icon name="back" />
+              <KeyCap bind={binds.hide} />
+            </Button>
             <Button className="btn-icon review-stage-undo" aria-label="Undo" data-hold="undo" disabled={busy || !canUndo || onUndo === undefined} onClick={undo}>
               <Icon name="undo" />
               <KeyCap bind={binds.undo} />

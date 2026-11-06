@@ -87,7 +87,7 @@ type Props = {
 /**
  * How a card type's cards look in a review, laid out on the card itself in the review's own screen (`ReviewScreen`):
  * one of the type's own cards on it, its deck's counts over it, played, opened and turned as a review does (Done
- * listening, Show back of card, Hide back of card, the Hold button, their keys). A press on a part picks it, a press on
+ * listening, Show back of card, Step back, the Hold button, their keys). A press on a part picks it, a press on
  * its player working the player as well; a part is moved by its grip. Its choices stand in a panel over the screen
  * (`FloatPanel`), with which side shows, Listen first and the card it's shown on. Saved by the header's Save, as the
  * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
@@ -217,6 +217,11 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const opening: Face = sample && listensFirst(type, sample.card.values, sample.card.files, listen, draft) ? "listen" : "front";
   /** The card on to its next: out of its Listen phase, or turned to its back. */
   const showNext = () => setFace(face === "listen" ? "front" : "back");
+  /** Step back, as in a review: the back to the front, the front to the Listen phase where the card opens on one. */
+  const canStepBack = face === "back" || (face === "front" && opening === "listen");
+  const stepBack = () => {
+    if (canStepBack) setFace(face === "back" ? "front" : "listen");
+  };
   /** The Hold button, while it's on (Settings → Keybinds): here it goes as far as the back, a card looked at giving no answer. */
   const chainOn = binds.holdChain.on;
   const holdStages: HoldStage[] = [
@@ -271,10 +276,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         showNext();
         return;
       }
-      const hiding = face === "back" ? keyIn(binds.hide, key) : null;
-      if (hiding) {
+      const stepping = canStepBack ? keyIn(binds.hide, key) : null;
+      if (stepping) {
         e.preventDefault();
-        if (!e.repeat) hold.begin(e, button("hide"), hiding.holdMs, () => setFace("front"));
+        if (!e.repeat) hold.begin(e, button("hide"), stepping.holdMs, stepBack);
         return;
       }
       const showing = face === "back" ? null : keyIn(face === "listen" ? binds.showCard : binds.reveal, key);
@@ -614,10 +619,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       stage={stage}
       staging={stagedOrder(draft, type.fields)}
       counts={<ReviewCounts counts={counted ? { ...counted, now: sample ? kindOf(sample.card) : null } : null} />}
-      revealed={face === "back"}
       busy={false}
       binds={binds}
-      onHide={() => setFace("front")}
+      onStepBack={stepBack}
+      canStepBack={canStepBack}
       canUndo={false}
       chart={{ open: false }}
       failure={null}
