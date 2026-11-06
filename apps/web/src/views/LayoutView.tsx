@@ -531,12 +531,12 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             in the card's order; greyed while no part is a clip in the Player style. */}
         <Setting
           id="layout-staged"
-          label="Full screen"
+          label="Full screen shows"
           why={staging.length === 0 ? "No clip in the Player style" : undefined}
           control={
             <Dropdown
               id="layout-staged-choice"
-              label="Full screen"
+              label="Full screen shows"
               anchored
               options={staging.map((id) => ({ id, label: fields.get(id)?.name ?? "" }))}
               value={staging[0] ?? ""}
