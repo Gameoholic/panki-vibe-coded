@@ -166,8 +166,14 @@ const Stored = z.object({
    */
   playerBar: z.boolean().catch(DEFAULT_MODULES.playerBar),
   playerBarLayout: KeptBar.nullable().catch(null),
-  /** Whether the bar stays on the video as it plays (`modules.ts` → `barKept`). */
-  playerBarKept: z.boolean().catch(DEFAULT_MODULES.barKept),
+  /**
+   * Whether the bar stays on the video as it plays, in full screen and out of it (`modules.ts` → `barKeptFull`,
+   * `barKeptNotFull`): null until each is set, read until then from the one switch that held both (`playerBarKept`).
+   */
+  playerBarKeptFull: z.boolean().nullable().catch(null),
+  playerBarKeptNotFull: z.boolean().nullable().catch(null),
+  /** The one switch for both before they were two: read into each until it's set, never written again. */
+  playerBarKept: z.boolean().catch(false),
   /** The speed button's and the end time's own switches, before they were rows of the player bar: read once into its layout, never written again. */
   speedControl: z.boolean().catch(true),
   endTime: z.boolean().catch(true),
@@ -207,6 +213,12 @@ export const barOf = (store: Stored): BarLayout =>
   store.playerBarLayout ??
   DEFAULT_BAR.map((control) => (control.id === "speed" ? { ...control, shown: store.speedControl } : control.id === "endTime" ? { ...control, shown: store.endTime } : control));
 
+/** Whether the bar is kept shown in full screen and out of it, each as set or, until it is, as the one old switch said. */
+export const barKeptOf = (store: Stored): { full: boolean; notFull: boolean } => ({
+  full: store.playerBarKeptFull ?? store.playerBarKept,
+  notFull: store.playerBarKeptNotFull ?? store.playerBarKept,
+});
+
 /** Which parts are on, as one value, as a page gets them. */
 export const modulesOf = (store: Stored): Modules => ({
   on: store.pankiOn,
@@ -231,7 +243,8 @@ export const modulesOf = (store: Stored): Modules => ({
   shorts: store.moduleShorts,
   playerBar: store.playerBar,
   bar: barOf(store),
-  barKept: store.playerBarKept,
+  barKeptFull: barKeptOf(store).full,
+  barKeptNotFull: barKeptOf(store).notFull,
   shortSkip: store.shortSkip,
   shortSkipKey: store.shortSkipKey,
   shortSkipSeconds: store.shortSkipSeconds,

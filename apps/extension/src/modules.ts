@@ -275,8 +275,12 @@ export const Modules = z.object({
    */
   playerBar: z.boolean(),
   bar: BarLayout,
-  /** With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after the pointer rests. Off to begin with. */
-  barKept: z.boolean(),
+  /**
+   * With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after
+   * the pointer rests: in full screen (`barKeptFull`) and out of it (`barKeptNotFull`), each its own. Off to begin with.
+   */
+  barKeptFull: z.boolean(),
+  barKeptNotFull: z.boolean(),
   /**
    * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube
    * utility): on, Shift, 2.5 s to begin with.
@@ -309,7 +313,8 @@ export const DEFAULT_MODULES: Modules = {
   shorts: true,
   playerBar: true,
   bar: DEFAULT_BAR,
-  barKept: false,
+  barKeptFull: false,
+  barKeptNotFull: false,
   shortSkip: true,
   shortSkipKey: "shift",
   shortSkipSeconds: 2.5,

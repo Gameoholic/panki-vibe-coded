@@ -24,22 +24,29 @@ const findOf = (id: BarControl): string | null => {
   return control.from === "youtube" ? `${PLAYER} ${BAR_SIDES[control.side].find} ${control.find}` : null;
 };
 /**
- * The bar kept on the video as it plays (`Modules.barKept`): the site marks its player `ytp-autohide` a few seconds after
- * the pointer rests and fades its bottom (the bar and the shade under it) by its opacity; this holds them shown. The
- * pointer still hides over the picture as the site does, which is the player's own and nothing of the bar's.
+ * The bar kept on the video as it plays (`Modules.barKeptFull`, `barKeptNotFull`): the site marks its player
+ * `ytp-autohide` a few seconds after the pointer rests and fades its bottom (the bar and the shade under it) by its
+ * opacity; this holds them shown, in full screen or out of it as each says. Full screen is judged as the page judges it,
+ * the watch page marked `[fullscreen]` by the site. The pointer still hides over the picture as the site does, which is
+ * the player's own and nothing of the bar's.
  */
-const KEEP_SHOWN = `${PLAYER}.ytp-autohide :is(.ytp-chrome-bottom, .ytp-gradient-bottom) { opacity: 1 !important; }`;
+const KEEP_SHOWN = (full: boolean) =>
+  `ytd-watch-flexy${full ? "[fullscreen]" : ":not([fullscreen])"} ${PLAYER}.ytp-autohide :is(.ytp-chrome-bottom, .ytp-gradient-bottom) { opacity: 1 !important; }`;
 /** The same, only while Panki's speed panel is open (`SpeedControl` → `BAR_HELD`), as the site holds its bar while its gear menu is. */
 const HOLD_SHOWN = `${PLAYER}.${BAR_HELD}.ytp-autohide :is(.ytp-chrome-bottom, .ytp-gradient-bottom) { opacity: 1 !important; }`;
 /** How a Panki control stands among the player's own: as tall as they are, its panel (the speed's) opening above it. */
 const AMONG_CONTROLS = "display: inline-flex; align-items: center; height: 100%; vertical-align: top; position: relative;";
 
+/** Whether the bar is kept shown in full screen and out of it. */
+export type BarKept = { full: boolean; notFull: boolean };
+const NOT_KEPT: BarKept = { full: false, notFull: false };
+
 export type BarNow = {
   /** The bar laid out by Panki: off, it's the site's own. */
   on: boolean;
   layout: BarLayout;
-  /** The bar kept on the video as it plays, rather than fading once the pointer rests. */
-  kept: boolean;
+  /** The bar kept on the video as it plays, rather than fading once the pointer rests: in full screen, and out of it. */
+  kept: BarKept;
   /** Whether a Panki control has anything to show this moment (a video, no ad). */
   shows: (id: PankiBarControl) => boolean;
   adPlaying: boolean;
@@ -61,12 +68,13 @@ export function createPlayerBar() {
   const before = new Map<Element, Element[]>();
 
   /** The rules hiding the controls hidden, and keeping the bar shown, on the page while there are any. */
-  function hide(ids: readonly BarControl[], kept: boolean, held: boolean) {
+  function hide(ids: readonly BarControl[], kept: BarKept, held: boolean) {
     const rules = ids.flatMap((id) => {
       const find = findOf(id);
       return find ? [`${find} { display: none !important; }`] : [];
     });
-    if (kept) rules.push(KEEP_SHOWN);
+    if (kept.full) rules.push(KEEP_SHOWN(true));
+    if (kept.notFull) rules.push(KEEP_SHOWN(false));
     if (held) rules.push(HOLD_SHOWN);
     const text = rules.join("\n");
     if (!text) {
@@ -170,7 +178,7 @@ export function createPlayerBar() {
     places,
     /** The bar as it should stand this moment. */
     apply(now: BarNow) {
-      hide(now.on ? now.layout.filter((control) => !control.shown).map((control) => control.id) : [], now.on && now.kept, now.on);
+      hide(now.on ? now.layout.filter((control) => !control.shown).map((control) => control.id) : [], now.on ? now.kept : NOT_KEPT, now.on);
       if (!now.adPlaying) arrange(now.on && barReordered(now.layout) ? now.layout : null);
       mount(now);
       typeOfTime();

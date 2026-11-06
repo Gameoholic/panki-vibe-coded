@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
 import { BAR_CONTROLS, BAR_FROM, BAR_SIDES, BAR_SIDE_IDS, barSide, type BarLayout } from "../modules";
-import { barOf, writeStore, type Stored } from "../storage";
+import { barKeptOf, barOf, writeStore, type Stored } from "../storage";
 import { BarControls, YOUTUBE_OWN } from "./BarControls";
 import { SceneTitle } from "./explainerScenes";
 import { PartRows } from "./PartRows";
@@ -15,6 +15,7 @@ import { PartRows } from "./PartRows";
  */
 export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const layout = barOf(store);
+  const kept = barKeptOf(store);
   const keep = (next: BarLayout) => void writeStore({ playerBarLayout: next }).then(onChanged);
   return (
     // A panel of its own on the YouTube tab, after YouTube utilities.
@@ -25,12 +26,25 @@ export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged:
         label="Custom player bar"
         control={<Toggle id="player-bar-on" says={{ on: "On", off: "Off" }} on={store.playerBar} onChange={(playerBar) => void writeStore({ playerBar }).then(onChanged)} />}
       />
-      {/* Off to begin with: the bar fades as YouTube's does. */}
+      {/* Off to begin with, both: the bar fades as YouTube's does. */}
       <Setting
-        id="player-bar-kept"
-        label="Keep the bar visible always"
+        id="player-bar-kept-full"
+        label="Keep the bar visible in full screen"
         control={
-          <Toggle id="player-bar-kept-on" says={{ on: "On", off: "Off" }} on={store.playerBarKept} disabled={!store.playerBar} onChange={(playerBarKept) => void writeStore({ playerBarKept }).then(onChanged)} />
+          <Toggle id="player-bar-kept-full-on" says={{ on: "On", off: "Off" }} on={kept.full} disabled={!store.playerBar} onChange={(playerBarKeptFull) => void writeStore({ playerBarKeptFull }).then(onChanged)} />
+        }
+      />
+      <Setting
+        id="player-bar-kept-not-full"
+        label="Keep the bar visible outside full screen"
+        control={
+          <Toggle
+            id="player-bar-kept-not-full-on"
+            says={{ on: "On", off: "Off" }}
+            on={kept.notFull}
+            disabled={!store.playerBar}
+            onChange={(playerBarKeptNotFull) => void writeStore({ playerBarKeptNotFull }).then(onChanged)}
+          />
         }
       />
       <BarPreview layout={store.playerBar ? layout : YOUTUBE_OWN} off={!store.playerBar} />

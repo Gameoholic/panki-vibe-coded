@@ -610,7 +610,7 @@ const ALL_OFF: Modules = { ...DEFAULT_MODULES, on: false, panel: false, lookup: 
 function active(): Modules {
   const now = modules.get();
   if (now.on && !updateNeeded()) return now;
-  const utilities = { shorts: now.shorts, playerBar: now.playerBar, bar: now.bar, barKept: now.barKept, shortSkip: now.shortSkip, shortSkipKey: now.shortSkipKey, shortSkipSeconds: now.shortSkipSeconds };
+  const utilities = { shorts: now.shorts, playerBar: now.playerBar, bar: now.bar, barKeptFull: now.barKeptFull, barKeptNotFull: now.barKeptNotFull, shortSkip: now.shortSkip, shortSkipKey: now.shortSkipKey, shortSkipSeconds: now.shortSkipSeconds };
   return { ...ALL_OFF, resume: now.resume, resumeTimed: now.resumeTimed, pill: now.pill, ...utilities };
 }
 
@@ -966,7 +966,7 @@ function place() {
     watching: on.on && video !== null && !ad && finish !== null && finish.videoId === watching && (finish.finished || finish.percent !== null),
     save: on.on && video !== null && saved !== null && saved.videoId === watching,
   };
-  playerBar.apply({ on: on.playerBar, layout: on.bar, kept: on.barKept, shows: (id) => barShows[id], adPlaying: ad, theme });
+  playerBar.apply({ on: on.playerBar, layout: on.bar, kept: { full: on.barKeptFull, notFull: on.barKeptNotFull }, shows: (id) => barShows[id], adPlaying: ad, theme });
 
   if (!showing.get() || !on.panel) {
     drawer.host.remove();
