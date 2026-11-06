@@ -513,6 +513,8 @@ type Props = {
   layout: PopupLayout;
   /** A press inside the popup: it stays open. */
   onKeep: () => void;
+  /** Its × was pressed: it closes. Drawn only while the popup is kept open (`View.locked`), the one time it needs closing by hand. */
+  onClose?: () => void;
   /** Add this word: the drawer opens on it. */
   onAdd: (found: Found) => void;
   /**
@@ -529,9 +531,10 @@ type Props = {
 /**
  * The popup: every word found where the pointer is, laid out as the viewer laid it out on the options page
  * (`LookupBody`). It stands under the word (over it, when there's more room there), inside the window, and the word
- * itself is lit. A press anywhere in it keeps it open.
+ * itself is lit. A press anywhere in it keeps it open; kept open, an × at its top right closes it, so a popup that
+ * stays once the pointer leaves (the key let go on the word, a press in it) is told apart from one that goes with it.
  */
-export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, explain }: Props) {
+export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, cards, explain }: Props) {
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
   const [lit, setLit] = useState<DOMRect | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -548,8 +551,13 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, expla
   return (
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
-      {/* Kept open or not, it looks the same: no border marks it kept. */}
-      <div ref={box} className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
+      {/* Kept open, its × is what marks it so: no border does. */}
+      <div ref={box} className={`look ${view.locked && onClose ? "is-kept" : ""}`.trim()} role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
+        {view.locked && onClose ? (
+          <Button className="btn-icon look-close" aria-label="Close" onClick={onClose}>
+            <Icon name="close" />
+          </Button>
+        ) : null}
         <LookupBody
           found={view.found}
           layout={layout}
