@@ -1,24 +1,25 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, branchAt, exampleFieldsOf, exampleShownOf, flowOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type HoldKind, type Outcome, type ReviewSessionEnd, type SrsAnswer, type SrsType, type Step, type SubtitleStyle } from "@panki/contracts";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { againPlaceOf, exampleFieldsOf, exampleShownOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
-import { Icon, type IconName } from "../components/Icon";
+import { Icon } from "../components/Icon";
 import { KeyCap, holdFor } from "../components/KeyCap";
 import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
 import { ReviewCard, listensFirst } from "../components/ReviewCard";
-import { HoldButton, ShowButton } from "../components/ShowButton";
+import { ReviewButtons, ReviewCounts, ReviewScreen, answerLead, stepFor } from "../components/ReviewScreen";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { keepDouble, useHold } from "../hooks/useHold";
 import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
-import { ScreenStageContext, useScreenStage } from "../hooks/useScreenStage";
+import { useScreenStage } from "../hooks/useScreenStage";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
+import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, nextFresh, startLine, togoOf, type Line } from "../reviewLine";
 import { shuffle } from "../shuffle";
-import { rememberShape, shapeOf } from "../skeletonMemory";
+import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
-import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdAsks, holdBack, isHold, placeName } from "../srsKinds";
+import { NEW_WORDS, answerClass, holdAsks, isHold } from "../srsKinds";
 import { waveOf } from "../waveform";
 import { count, langOf } from "../words";
 
@@ -65,30 +66,6 @@ type Sitting = { id: string; ready: Promise<boolean>; ok: boolean | null; ended:
 type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
-/** Where the review fits the window rather than flowing down the page: a computer's, as `app.css` draws it (641 px up). */
-const FITS_FROM = "(min-width: 641px)";
-/** What's remembered of the review's frame on this device (`skeletonMemory.ts`): how much of the window it draws around its card. */
-const CHROME_SHAPE = "review-chrome";
-/**
- * Before a review has been drawn on this device, a stand-in for what it draws around its card: the bar, the screen's
- * header, the counts, the answers and the answers set apart, with the gaps between, as a review measures on a computer.
- */
-const CHROME_GUESS = 250;
-/**
- * The least a review's card stands on a computer (`.review-card`'s min-height in `app.css`). A measure that leaves the
- * card less than this was taken of a card that wasn't drawn right (a broken build once wrote nearly the whole window),
- * so it's neither kept nor believed: the Layout tab would give its card no height at all.
- */
-const CARD_LEAST = 320;
-/**
- * How much of the window the review draws around its card, in px, as last measured on this device: the window's height
- * less this is the card's, which the Layout tab gives the card it lays out. A kept value that leaves the card less than
- * `CARD_LEAST` on this window reads as the guess.
- */
-export const reviewChromeOf = (): number => {
-  const kept = shapeOf(CHROME_SHAPE, CHROME_GUESS);
-  return window.innerHeight - kept >= CARD_LEAST ? kept : CHROME_GUESS;
-};
 /** "Coming up" at the end: the days ahead each row covers. */
 const COMING_UP: readonly { label: string; days: number }[] = [
   { label: "Tomorrow", days: 1 },
@@ -97,170 +74,10 @@ const COMING_UP: readonly { label: string; days: number }[] = [
   { label: "This week", days: 7 },
 ];
 
-/** The kinds of card a review counts down: never seen, inside an ask-again (it was forgotten, or is being learned), and a plain review. */
-const KINDS = ["new", "again", "review"] as const;
-type Kind = (typeof KINDS)[number];
-function kindOf(card: Card): Kind {
-  if (card.place.node.length > 0) return "again";
-  return isNew(card.place) ? "new" : "review";
-}
-/** Each kind as its count says it: "2 new", "0 again", "9 reviews". */
-const KIND_WORDS: Record<Kind, (n: number) => string> = {
-  new: () => "new",
-  again: () => "again",
-  review: (n) => (n === 1 ? "review" : "reviews"),
-};
-/**
- * The counts left to right in the order their cards come: the new ones before or after the reviews as the deck puts them (scattered among them, first),
- * and the ones asked again where they go back in: last at the end, between them anywhere.
- */
-function countOrder(settings: Deck["settings"]): readonly Kind[] {
-  const [front, back]: [Kind, Kind] = settings.newPlace === "last" ? ["review", "new"] : ["new", "review"];
-  if (againPlaceOf(settings) === "end") return [front, back, "again"];
-  return [front, "again", back];
-}
-
-/**
- * Whether a card comes back in this same review after an answer: only an ask-again with no wait (or a retry) keeps
- * it in. Reaching an end of the chart (up, down, go to a stage, burned) is the end of the card for this sitting, even
- * where the stage it lands on has no wait: it's due again at once, but for the next review, as the home will say. So
- * a card sent "Down one → Lesson · no wait" isn't asked again in this review as if the chart went on; this holds for
- * every SRS type.
- */
-const comesBack = (outcome: Outcome) => outcome.again && outcome.wait === 0;
-
-/** How many answers a card still takes to leave the review, each one the best answer; rules that loop are cut off at `STEPS_MAX`. */
-const STEPS_MAX = 9;
-function stepsLeft(srsType: SrsType, card: Card, best: string): number {
-  let place = card.place;
-  for (let steps = 1; steps < STEPS_MAX; steps++) {
-    const outcome = resolve(srsType, place, best);
-    if (!comesBack(outcome)) return steps;
-    place = outcome.place;
-  }
-  return STEPS_MAX;
-}
-
-/** A card never started that a review can start: new, but not inside an ask-again (it has been started, and comes back as due), and not put aside. */
-const isUnseen = (card: Card) => isNew(card.place) && card.place.node.length === 0 && card.hold === null;
-
-/** Each of `items` dropped somewhere at random among `among`, the items keeping their own order. */
-function scatter(items: readonly string[], among: readonly string[]): string[] {
-  const spots = items.map(() => Math.floor(Math.random() * (among.length + 1))).sort((a, b) => a - b);
-  const line = [...among];
-  spots.forEach((spot, i) => line.splice(spot + i, 0, items[i] ?? ""));
-  return line;
-}
-
-/**
- * The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones
- * where the deck's settings put them. A card still inside an ask-again (an earlier review was left with it there) is
- * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, or
- * anywhere, never shuffled in among the reviews at random. Not `capped`,
- * every card given is in it: the ones picked on the Today screen, new cards past today's count among them.
- */
-function buildQueue(cards: Card[], deck: Deck, capped = true): string[] {
-  const { newOrder, newPlace, reviewOrder } = deck.settings;
-  const overdue = cards.filter((c) => c.due).sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
-  // The order decides which cards make it under the day's limit, as well as when they show.
-  const allDue = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, capped ? deck.dueCount : undefined);
-  const again = allDue.filter((c) => kindOf(c) === "again").map((c) => c.id);
-  const due = allDue.filter((c) => kindOf(c) !== "again").map((c) => c.id);
-  const unseen = cards.filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt);
-  const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, capped ? deck.newCount : undefined).map((c) => c.id);
-  // Scattered: each new card lands somewhere at random among the reviews, the new ones keeping their own order.
-  const line = newPlace === "first" ? [...fresh, ...due] : newPlace === "last" ? [...due, ...fresh] : scatter(fresh, due);
-  if (againPlaceOf(deck.settings) === "end") return [...line, ...again];
-  return scatter(again, line);
-}
-
-/**
- * The line of a review: the cards in play, the first of them on screen, and the ones waiting to join. With no limit
- * on how many are in play, every card is in play from the start.
- */
-type Line = { active: string[]; waiting: string[] };
-function startLine(queue: string[], pool: number | null): Line {
-  const size = pool ?? queue.length;
-  return { active: queue.slice(0, size), waiting: queue.slice(size) };
-}
-/**
- * The line after the card on screen is answered. One asked again right away goes back in where the deck's settings
- * say (never straight back on screen while another card is in play); one that's done for now leaves, and the next
- * waiting card takes its place at the end.
- */
-function advance(line: Line, cardId: string, comesBack: boolean, againPlace: Deck["settings"]["againPlace"]): Line {
-  const active = line.active.slice(1);
-  if (!comesBack) return { active: [...active, ...line.waiting.slice(0, 1)], waiting: line.waiting.slice(1) };
-  const spot = active.length === 0 ? 0 : againPlace === "end" ? active.length : 1 + Math.floor(Math.random() * active.length);
-  active.splice(spot, 0, cardId);
-  return { active, waiting: line.waiting };
-}
-/**
- * The next new card for today, when a new one put aside leaves its place (as the deck's own count gives it to the
- * next): the first never started that isn't in the line already, in the deck's order; none when there's none left.
- */
-function nextFresh(cards: Iterable<Card>, line: Line, leaving: string, deck: Deck): string | null {
-  const taken = new Set([...line.active, ...line.waiting, leaving]);
-  const left = [...cards].filter((c) => isUnseen(c) && !taken.has(c.id)).sort((a, b) => a.createdAt - b.createdAt);
-  return (deck.settings.newOrder === "shuffled" ? shuffle(left) : left)[0]?.id ?? null;
-}
-/** A card joining the line: in play at the end when there's room, else the last to wait its turn. */
-function joinLine(line: Line, cardId: string, pool: number | null): Line {
-  if (pool === null || line.active.length < pool) return { active: [...line.active, cardId], waiting: line.waiting };
-  return { active: line.active, waiting: [...line.waiting, cardId] };
-}
-
-/**
- * Where an answer sends the card, under its name: which way it goes (so it's clear whether it moves up or down), by
- * how many stages, and the words, "Apprentice 3 · 1 d", "again
- * tomorrow", "Burned", or when a card put aside comes back, "back in 24 hours".
- */
-type Lead = { dir: "up" | "down" | "same" | "again" | "burn" | HoldKind; steps: number; words: string };
-/** The rule an answer follows for a card where it stands. */
-function stepFor(srsType: SrsType, card: Card, answerId: string): Step | undefined {
-  return branchAt(flowOf(srsType, stageIndex(srsType, card.place)), card.place.node)[answerId];
-}
-function answerLead(srsType: SrsType, card: Card, answerId: string): Lead {
-  const step = stepFor(srsType, card, answerId);
-  if (isHold(step)) return { dir: step.kind, steps: 0, words: holdBack(step) };
-  const r = resolve(srsType, card.place, answerId);
-  const by = stageIndex(srsType, r.place) - stageIndex(srsType, card.place);
-  // New again there's no wait to say: it waits for a day's new cards.
-  if (!r.burned && isNew(r.place) && !r.again) return { dir: by < 0 ? "down" : "same", steps: Math.abs(by), words: NEW_WORDS.name };
-  if (r.burned || r.wait === null) return { dir: "burn", steps: 0, words: srsType.burnedName };
-  if (r.again) return { dir: "again", steps: 0, words: `again ${againWords(r.wait)}` };
-  return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", steps: Math.abs(by), words: `${placeName(srsType, r.place)} · ${backWords(r.wait)}` };
-}
-
 /** The question before an answer that asks first: where it sends the card, or what putting it aside does. */
 function askWords(srsType: SrsType, card: Card, answerId: string): string {
-  const step = stepFor(srsType, card, answerId);
-  return isHold(step) ? holdAsks(step) : `This card goes to ${answerLead(srsType, card, answerId).words}.`;
-}
-
-/** The mark for each way a card can go: a chevron a stage up or down, one arrow going round when it's asked again, a check when it's burned, a dash when it stays, and a card put aside its own. */
-const LEAD_ICON: Record<Lead["dir"], IconName> = { up: "up", down: "down", again: "again", burn: "check", same: "minus", bury: HOLD_KINDS.bury.icon, suspend: HOLD_KINDS.suspend.icon };
-/** Chevrons drawn one a stage up to this many; past it, the count is written after them. */
-const CHEVRONS_MAX = 2;
-
-/**
- * The lead under an answer's name: its mark, then the words, all in the line's own colour, so it reads the same on a
- * plain answer and on the filled one (a coloured pill would look out of place, a green box on the blue Ok).
- */
-function Lead({ lead }: { lead: Lead }) {
-  const moves = lead.dir === "up" || lead.dir === "down";
-  const drawn = moves ? Math.min(CHEVRONS_MAX, lead.steps) : 1;
-  return (
-    <span className="to">
-      <span className="to-mark" aria-hidden="true">
-        {Array.from({ length: drawn }, (_, i) => (
-          <Icon key={i} name={LEAD_ICON[lead.dir]} />
-        ))}
-        {moves && lead.steps > CHEVRONS_MAX ? <span className="to-count">{lead.steps}</span> : null}
-      </span>
-      {lead.words}
-    </span>
-  );
+  const step = stepFor(srsType, card.place, answerId);
+  return isHold(step) ? holdAsks(step) : `This card goes to ${answerLead(srsType, card.place, answerId).words}.`;
 }
 
 /** The words a card goes by on the Today screen: its type's main field, else its first Front field of words (as a deck's list leads with it), else any words it holds. */
@@ -431,7 +248,7 @@ function chartOf(srsType: SrsType, card: Card, answerId: string | null): { scope
   const stage = srsType.stages[idx];
   const scope = idx < 0 ? LESSON_SCOPE : stage && srsType.overrides[stage.id] ? stage.id : "all";
   const now = card.place.node.length > 0 ? card.place.node.join(",") : "root";
-  const step = answerId === null ? undefined : stepFor(srsType, card, answerId);
+  const step = answerId === null ? undefined : stepFor(srsType, card.place, answerId);
   const next = answerId === null || step?.kind === "hidden" ? null : [...card.place.node, answerId].join(",");
   return { scope, now, next, stage: idx };
 }
@@ -451,9 +268,6 @@ function writeChartOpen(open: boolean) {
     // Nothing kept: it opens closed next time, which is only a press away.
   }
 }
-
-/** Carried by the card's clip that takes the screen's room while the review fills the screen (`app.css` → `.review.is-stage`). */
-const STAGED = "data-staged";
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
 export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, onAnswer, onUndo, onGoAdd, onHome }: Props) {
@@ -573,14 +387,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }, [atEnd, extraFirst, extraOrder.length, deck.id]);
   /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
   const stage = useScreenStage(place, card !== undefined);
-  /** Whether the card on screen has a clip to take the screen's room while it's filled: the first not under a spoiler, marked for the stage's styles. */
-  const [staged, setStaged] = useState(false);
-  useLayoutEffect(() => {
-    const clips = [...(place.current?.querySelectorAll<HTMLElement>(".review-card .media-player.media-video") ?? [])];
-    const first = clips.find((clip) => clip.closest(".btn-spoiler") === null) ?? null;
-    for (const clip of clips) clip.toggleAttribute(STAGED, clip === first);
-    if ((first !== null) !== staged) setStaged(first !== null);
-  });
   // Which of its examples the card on screen shows, as the deck says: picked once each time it comes up (its count of
   // answers changes with each), so a random one holds still while it's on screen.
   const exampleId = useMemo(
@@ -778,13 +584,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
    * answers it still takes to leave the review if each one is the best answer (its steps left, not just itself).
    */
   const best = mainAnswers(srsType.answers).at(-1)?.id ?? "";
-  const togo: Record<Kind, number> = { new: 0, again: 0, review: 0 };
-  for (const id of [...line.active, ...line.waiting]) {
-    const left = byId.get(id);
-    if (!left) continue;
-    const kind = kindOf(left);
-    togo[kind] += kind === "again" ? stepsLeft(srsType, left, best) : 1;
-  }
+  const togo = togoOf([...line.active, ...line.waiting], byId, srsType, best);
   // The main answers first, then the ones set apart: that's the order of the number keys too.
   const answers = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
   /** The answer waiting for a yes, when it's one that asks first. */
@@ -1017,23 +817,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     };
   });
 
-  // How much of the window the review draws around its card on this device, while it fits the window as it always
-  // stands (on a computer, nothing asked in the answers' place, nothing gone wrong): the Layout tab gives its card the
-  // rest (`reviewChromeOf`), so a card is laid out at the height the review draws it.
-  const fitted = card !== undefined && !stage.screen.full && asking === null && failure === null;
-  useEffect(() => {
-    const el = fitted ? place.current?.querySelector<HTMLElement>(":scope > .review-card") : null;
-    if (!el) return;
-    const measure = () => {
-      const height = el.getBoundingClientRect().height;
-      if (window.matchMedia(FITS_FROM).matches && height >= CARD_LEAST) rememberShape(CHROME_SHAPE, window.innerHeight - height);
-    };
-    measure();
-    const watch = new ResizeObserver(measure);
-    watch.observe(el);
-    return () => watch.disconnect();
-  }, [fitted, cardId]);
-
   if (today) {
     return (
       <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} onPick={pick} onMore={offerMore} onStart={start} />
@@ -1128,73 +911,22 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     );
   }
 
-  // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
-  const full = stage.screen.full;
-  const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit";
-  // Undo and Chart: in the counts' row on a computer, under the answers on a phone, the CSS showing one of the two.
-  // Pinned over the counts' row, they would cover "in play · waiting".
-  const tools = (
-    <>
-      {/* While the answer shows: the card back to its front, its key's hold drawn on it. */}
-      {revealed ? (
-        <Button className="review-hide" data-hold="hide" disabled={busy} onClick={hideAnswer}>
-          <Icon name="eyeOff" />
-          Hide back of card
-          <KeyCap bind={binds.hide} />
-        </Button>
-      ) : null}
-      <Button className="review-undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
-        <Icon name="undo" />
-        Undo
-        <KeyCap bind={binds.undo} />
-      </Button>
-      <Button className="review-chart-toggle" aria-pressed={chartOpen} onClick={toggleChart}>
-        <Icon name="srs" />
-        Chart
-      </Button>
-    </>
-  );
   return (
-    <section ref={place} className={`review ${look}`.trim()}>
-      <div className="review-top">
-        {/* What's left, by kind, each count with its word ("2 + 0 + 9" says nothing), in the order they come; the kind of the card on screen underlined. */}
-        <span className="review-counts" role="status">
-          {countOrder(deck.settings).map((kind) => (
-            <span key={kind} className={`review-count is-${kind} ${kindOf(card) === kind ? "is-now" : ""}`.trim()}>
-              <span className="review-n">{togo[kind]}</span> {KIND_WORDS[kind](togo[kind])}
-            </span>
-          ))}
-        </span>
-        {/* With a limit on how many are in play, say how many that is right now and how many wait their turn. */}
-        {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
-        {/* Filling the screen: Undo, the rail closed to leave the clip alone (until the screen is next filled), and the way out. */}
-        {!full ? <span className="review-tools">{tools}</span> : null}
-        {full ? (
-          <span className="review-stage-tools">
-            {/* Its key beside it, as the Undo outside full screen has it. */}
-            {revealed ? (
-              <Button className="btn-icon review-stage-hide" aria-label="Hide back of card" data-hold="hide" disabled={busy} onClick={hideAnswer}>
-                <Icon name="eyeOff" />
-                <KeyCap bind={binds.hide} />
-              </Button>
-            ) : null}
-            <Button className="btn-icon review-stage-undo" aria-label="Undo" data-hold="undo" disabled={busy || given.length === 0} onClick={() => void undo()}>
-              <Icon name="undo" />
-              <KeyCap bind={binds.undo} />
-            </Button>
-            {staged ? (
-              <Button className="btn-icon" aria-label="Hide the card" onClick={stage.close}>
-                <Icon name="close" />
-              </Button>
-            ) : null}
-            <Button className="btn-icon" aria-label="Leave full screen" onClick={stage.screen.toggle}>
-              <Icon name="unfull" />
-            </Button>
-          </span>
-        ) : null}
-      </div>
-      {/* Each card its own: what was opened or played on the last one doesn't carry over. Its clip fills the screen with the whole review (`useScreenStage`). */}
-      <ScreenStageContext.Provider value={stage.screen}>
+    <ReviewScreen
+      place={place}
+      stage={stage}
+      counts={<ReviewCounts counts={{ settings: deck.settings, togo, now: kindOf(card), line }} />}
+      revealed={revealed}
+      busy={busy}
+      binds={binds}
+      onHide={hideAnswer}
+      onUndo={() => void undo()}
+      canUndo={given.length > 0}
+      chart={{ open: chartOpen, onToggle: toggleChart }}
+      failure={failure}
+      hold={chainOn ? chain.view : null}
+      card={
+        // Each card its own: what was opened or played on the last one doesn't carry over.
         <ReviewCard
           key={`${card.id}-${exampleId ?? ""}`}
           type={type}
@@ -1237,90 +969,38 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
             ) : null
           }
         />
-      </ScreenStageContext.Provider>
-
-      {failure ? (
-        <p className="load-error" role="alert">
-          {failure}
-        </p>
-      ) : null}
-      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons and their keys. */}
-      {chainOn ? (
-        <div className="review-hold">
-          <HoldButton view={chain.view} />
-        </div>
-      ) : null}
-      {revealed && asked ? (
-        <div className="panel panel-alarm review-ask">
-          <p id="review-question" className="question">
-            {asked.name}? {askWords(srsType, card, asked.id)}
-          </p>
-          <div className="add-actions">
-            <Button id="review-cancel" disabled={busy} onClick={() => setAsking(null)}>
-              Cancel
-            </Button>
-            <Button id="review-yes" variant="primary" disabled={busy} onClick={() => answer(asked.id)}>
-              {asked.name}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="review-actions">
-            {revealed ? (
-              // An answer the chart doesn't offer at this point (its rule here is "Not offered") has no button; the others keep their keys.
-              answers.map((a, i) =>
-                a.aside || !offered(srsType, card.place, a.id) ? null : (
-                  <Button
-                    key={a.id}
-                    variant="answer"
-                    className={answerClass(answers, i)}
-                    data-answer={a.id}
-                    disabled={busy}
-                    onClick={() => press(a.id)}
-                    onMouseEnter={() => rest(a.id)}
-                    onMouseLeave={leave}
-                  >
-                    <span className="name">{a.name}</span>
-                    <Lead lead={answerLead(srsType, card, a.id)} />
-                    <KeyCap bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
-                  </Button>
-                ),
-              )
-            ) : (
-              // Listened to, Done listening stands in Show answer's place, with its key: the card's front, out of its Listen phase.
-              <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={listening ? showCard : reveal} />
-            )}
-          </div>
-          {/* The answers set apart hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. */}
-          {answers.some((a) => a.aside && offered(srsType, card.place, a.id)) ? (
-            <div className={revealed ? "review-asides" : "review-asides is-later"} aria-hidden={!revealed}>
-              {answers.map((a, i) =>
-                a.aside && offered(srsType, card.place, a.id) ? (
-                  <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={busy || !revealed} onClick={() => press(a.id)} onMouseEnter={() => rest(a.id)} onMouseLeave={leave}>
-                    <span className="name">{a.name}</span>
-                    <Lead lead={answerLead(srsType, card, a.id)} />
-                    <KeyCap bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
-                  </Button>
-                ) : null,
-              )}
+      }
+      buttons={<ReviewButtons srsType={srsType} place={card.place} revealed={revealed} listening={listening} binds={binds} busy={busy} onShow={listening ? showCard : reveal} onAnswer={press} onRest={rest} onLeave={leave} />}
+      ask={
+        revealed && asked ? (
+          <div className="panel panel-alarm review-ask">
+            <p id="review-question" className="question">
+              {asked.name}? {askWords(srsType, card, asked.id)}
+            </p>
+            <div className="add-actions">
+              <Button id="review-cancel" disabled={busy} onClick={() => setAsking(null)}>
+                Cancel
+              </Button>
+              <Button id="review-yes" variant="primary" disabled={busy} onClick={() => answer(asked.id)}>
+                {asked.name}
+              </Button>
             </div>
-          ) : null}
-          {/* Under the answers on a phone: Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
-          {full ? null : <div className="review-chart-row">{tools}</div>}
-          {/* The card's chart, while the Chart button is on: its box lit, and the box the answer under the mouse leads to. */}
-          {chartOpen && !full
-            ? (() => {
-                const glance = chartOf(srsType, card, revealed ? hover : null);
-                return (
-                  <div ref={chartPlace} className="review-chart">
-                    <FlowCanvas type={srsType} scope={glance.scope} onScope={() => undefined} onChange={() => undefined} onUndo={() => undefined} onRedo={() => undefined} canUndo={false} canRedo={false} glance={glance} />
-                  </div>
-                );
-              })()
-            : null}
-        </>
-      )}
-    </section>
+          </div>
+        ) : null
+      }
+      chartView={
+        // The card's chart, while the Chart button is on: its box lit, and the box the answer under the mouse leads to.
+        chartOpen
+          ? (() => {
+              const glance = chartOf(srsType, card, revealed ? hover : null);
+              return (
+                <div ref={chartPlace} className="review-chart">
+                  <FlowCanvas type={srsType} scope={glance.scope} onScope={() => undefined} onChange={() => undefined} onUndo={() => undefined} onRedo={() => undefined} canUndo={false} canRedo={false} glance={glance} />
+                </div>
+              );
+            })()
+          : null
+      }
+    />
   );
 }

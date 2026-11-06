@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { FloatPanel } from "./FloatPanel";
 
 /**
  * What's coming, drawn as its shape while it loads, wherever anything in the app loads: quiet blocks where the words, rows and tiles will be, a soft sweep passing over them. Each
@@ -17,11 +18,11 @@ export function Bone({ w = "100%", h = "0.9em", round = false, className = "" }:
 /**
  * The shapes a screen or a part of one takes while it loads, one registry: a list of rows (decks, types, SRS types), a
  * deck's cards, the rows of a panel in Settings (`kept-row`: storage, the extension, dictionaries), today's cards before
- * a review (`review-today`), panels of settings, setting rows inside a panel already there, the board's tiles, a review, a form, an
- * editor beside its card, a few lines in a panel, and one tile's body. A new kind of screen takes the one it looks
+ * a review (`review-today`), panels of settings, setting rows inside a panel already there, the board's tiles, a review, a card
+ * type's Layout (the review with its panel over it), a form, an editor beside its card, a few lines in a panel, and one tile's body. A new kind of screen takes the one it looks
  * like, or is one entry here built of its own classes.
  */
-export type SkeletonShape = "rows" | "picks" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "done" | "review" | "form" | "editor" | "lines" | "tile";
+export type SkeletonShape = "rows" | "picks" | "cards" | "kept" | "panels" | "settings" | "board" | "today" | "done" | "review" | "layout" | "form" | "editor" | "lines" | "tile";
 
 /** Widths that vary a little from row to row, so a list of blocks reads as a list of things and not a grid. */
 const WIDTHS = ["46%", "62%", "38%", "54%", "70%", "42%"];
@@ -46,6 +47,82 @@ function SettingRows({ count }: { count: number }) {
         </div>
       ))}
     </>
+  );
+}
+
+/** A count over the review: its number's room (a space in the number's own type) and a block for its words. */
+function CountShape({ w }: { w: string }) {
+  return (
+    <span className="review-count">
+      <span className="review-n">{" "}</span>
+      <Bone w={w} h="1em" />
+    </span>
+  );
+}
+
+/**
+ * The review's frame as `ReviewScreen` draws it: the counts with Undo and Chart at their right, the card taking the
+ * room, Show back of card under it, and the answers set apart holding their row when there are some (`asides`).
+ */
+function ReviewShape({ asides = false }: { asides?: boolean }) {
+  return (
+    <>
+      <div className="review-top">
+        <span className="review-counts">
+          <CountShape w="3.5em" />
+          <CountShape w="2.5em" />
+          <CountShape w="3em" />
+        </span>
+        <span className="review-tools">
+          <Bone w={REVIEW_TOOL_PX[0]} h={REVIEW_TOOL_H} />
+          <Bone w={REVIEW_TOOL_PX[1]} h={REVIEW_TOOL_H} />
+        </span>
+      </div>
+      <div className="review-card is-still skel-review-card">
+        <span className="review-place">
+          <Bone w="6em" h="1.5em" round />
+        </span>
+        <div className="review-body">
+          <Bone w="30%" h="3em" />
+          <Bone w="60%" h="1.1em" className="is-faint" />
+        </div>
+      </div>
+      <div className="review-actions">
+        <Bone h="46px" />
+      </div>
+      {asides ? (
+        <div className="review-asides">
+          <Bone w="9em" h={ASIDE_H} />
+          <Bone w="9em" h={ASIDE_H} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The review's Undo and Chart in the counts' row, and an answer set apart, as measured. */
+const REVIEW_TOOL_PX = ["77px", "79px"] as const;
+const REVIEW_TOOL_H = "30px";
+const ASIDE_H = "30px";
+/** The Layout tab's panel as measured: its header's buttons, and each of its rows' controls (a switch, a dropdown, a choice of sides, the chips of what isn't on the side). */
+const PANEL_BUTTON = "32px";
+const SWITCH = { w: "94px", h: "46px" };
+const TAG_SWITCH = { w: "119px", h: "46px" };
+const DROPDOWN = { w: "70px", h: "33px" };
+const SIDES = { w: "125px", h: "48px" };
+const AWAY_CHIP = { w: "94px", h: "28px" };
+
+/** A setting row as `Setting` draws it, its label's block and its control's. */
+function SettingShape({ label, control }: { label: string; control: { w: string; h: string } }) {
+  return (
+    <div className="setting">
+      <div className="setting-head">
+        <span className="setting-label">
+          <Bone w={label} h="1em" />
+        </span>
+        <Bone w={control.w} h={control.h} />
+      </div>
+    </div>
   );
 }
 
@@ -79,7 +156,8 @@ const BUTTON_CHAR_PX = 9;
 
 /**
  * `count` is how many rows, lines or tiles (for `done`, how many cards extra study offers, none for no bar); `parts`,
- * for `today`, how many tiles each of its panels holds (reviews, then new), and `firstReviews` whether the first is the
+ * for `today`, how many tiles each of its panels holds (reviews, then new), for `layout` how many chips stand for what
+ * isn't on the front and whether the answers set apart hold a row (1 or 0); `firstReviews` whether the first is the
  * reviews one, whose head alone carries a stage's chip; `words` and `start`, for `today`, what its bar will say (the
  * counts, Start's label), known from the deck, so their blocks are as wide as the words will be; `words`, for `done`,
  * what the button at its foot says, and `available` how many new cards extra study has.
@@ -351,30 +429,56 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
         </div>
       );
     case "review":
-      // The review's own frame (`ReviewView`, `.review.is-fit`): the counts, the card taking the room, Show answer under it.
+      // The review's own frame (`ReviewScreen`, `.review.is-fit`): the counts, the card taking the room, Show answer under it.
       return (
         <section className="skel-in review is-fit" {...status}>
-          <div className="review-top">
-            <span className="review-counts">
-              <Bone w="4.5em" h="1em" />
-              <Bone w="3.5em" h="1em" />
-              <Bone w="3.5em" h="1em" />
-            </span>
-          </div>
-          <div className="review-card is-still skel-review-card">
-            <span className="review-place">
-              <Bone w="6em" h="1.5em" round />
-            </span>
-            <div className="review-body">
-              <Bone w="30%" h="3em" />
-              <Bone w="60%" h="1.1em" className="is-faint" />
-            </div>
-          </div>
-          <div className="review-actions">
-            <Bone h="46px" />
-          </div>
+          <ReviewShape />
         </section>
       );
+    case "layout": {
+      // A card type's Layout tab: the review's frame it's drawn in, and its panel over it, where and as folded as it
+      // stands on this device (the real `FloatPanel`): the type's own panel (Listen first, the card previewed, the
+      // side), and the one for what isn't on the front with the stage tag. `parts` is how many chips stand for what
+      // isn't on the front, and whether the answers set apart hold a row, as last drawn here.
+      const [away = 0, asides = 0] = parts ?? [];
+      return (
+        <section className="skel-in review is-fit" {...status}>
+          <ReviewShape asides={asides > 0} />
+          <FloatPanel
+            id="layout-panel"
+            label="Layout"
+            title={
+              <span className="layout-part-title">
+                <Bone w="9em" h="1em" />
+              </span>
+            }
+            tools={
+              <>
+                <Bone w={PANEL_BUTTON} h={PANEL_BUTTON} />
+                <Bone w={PANEL_BUTTON} h={PANEL_BUTTON} />
+              </>
+            }
+          >
+            <section className="panel layout-panel">
+              <SettingShape label="5.5em" control={SWITCH} />
+              <SettingShape label="7em" control={DROPDOWN} />
+              <SettingShape label="2.5em" control={SIDES} />
+            </section>
+            <section className="panel layout-panel">
+              {away > 0 ? (
+                <div className="layout-away">
+                  <Bone w="6em" h="1em" />
+                  {times(away).map((i) => (
+                    <Bone key={i} w={AWAY_CHIP.w} h={AWAY_CHIP.h} />
+                  ))}
+                </div>
+              ) : null}
+              <SettingShape label="5.5em" control={TAG_SWITCH} />
+            </section>
+          </FloatPanel>
+        </section>
+      );
+    }
     case "form":
       return (
         <section className="skel-in panel skel-form" {...status}>

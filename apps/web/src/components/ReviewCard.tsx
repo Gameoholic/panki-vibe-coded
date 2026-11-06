@@ -45,8 +45,9 @@ import { ClipSubtitles, type ClipTime } from "./ClipSubtitles";
 import { ScrollEdges } from "./ScrollEdges";
 
 /**
- * The card being laid out (a card type's Layout): its parts are picked and moved instead of the card being turned,
- * nothing on it plays or opens, and a field this card leaves empty shows where it would stand.
+ * The card being laid out (a card type's Layout), used as a review uses it all the while: a press on a part picks it
+ * (a press on its player or its spoiler does what it does as well), each is moved by its grip, and a field this card
+ * leaves empty shows where it would stand.
  */
 export type CardEdit = {
   picked: string | null;
@@ -462,24 +463,21 @@ export function ReviewCard({
     const text = values[reading.field.id] ?? "";
     if (!text && !edit) return null;
     if (reading.held) return <span className="is-later">{text}</span>;
+    const drawn = readingDrawn(reading, text);
+    if (!edit) return drawn;
+    // Picked by a press, which reaches it after its word's part (picked by the same press), so the reading is the one
+    // picked; a spoiler over it still opens.
+    return (
+      <span className={`review-ruby-pick ${edit.picked === reading.field.id ? "is-picked" : ""} ${text ? "" : "review-blank"}`.replace(/\s+/g, " ").trim()} onClickCapture={() => edit.onPick(reading.field.id)}>
+        {drawn}
+      </span>
+    );
+  }
+  /** A reading's words as the side shows them: covered as a spoiler until pressed, or as they are (its name while the card leaves it empty). */
+  function readingDrawn(reading: Drawn, text: string): ReactNode {
     // Its words in one box, the same size covered or not, so nothing moves when a spoiler opens.
     // A reading Panki AI wrote is in the AI's ink, as any of its words are.
     const said = <span className={`review-ruby-text ${text && byAi(sources, reading.field.id) ? "is-ai" : ""}`.trim()}>{text || reading.field.name}</span>;
-    if (edit) {
-      // A spoiler on the side shown looks it on the card being laid out, its words faint under the cover.
-      const covering = reading.part[side] === "spoiler";
-      return (
-        <span
-          className={`review-ruby-pick ${edit.picked === reading.field.id ? "is-picked" : ""} ${covering ? "is-covered" : ""} ${text ? "" : "review-blank"}`.replace(/\s+/g, " ").trim()}
-          onClick={(e) => {
-            e.stopPropagation();
-            edit.onPick(reading.field.id);
-          }}
-        >
-          {said}
-        </span>
-      );
-    }
     if (covered(reading.part)) {
       // The words keep their place, unseen, and the cover is laid exactly over them: a button can't sit in a line as
       // words do, so as the words' own box it made the card taller, and the card jumped as it opened.
@@ -538,24 +536,22 @@ export function ReviewCard({
   /** Each sound and clip's key, and its restart keys, in the card's order across both sides, so turning the card changes none. */
   const keyOf = new Map<string, Shortcut>();
   const restartOf = new Map<string, readonly Heard[]>();
-  if (!edit) {
-    let place = 0;
-    for (const part of layout) {
-      const field = fields.get(part.fieldId);
-      if (!field || !playable(field)) continue;
-      const key = shortcuts[place];
-      const again = restarts[place];
-      place++;
-      if (key) keyOf.set(field.id, key);
-      if (again && again.length > 0) restartOf.set(field.id, again);
-    }
+  let slot = 0;
+  for (const part of layout) {
+    const field = fields.get(part.fieldId);
+    if (!field || !playable(field)) continue;
+    const key = shortcuts[slot];
+    const again = restarts[slot];
+    slot++;
+    if (key) keyOf.set(field.id, key);
+    if (again && again.length > 0) restartOf.set(field.id, again);
   }
 
   // What plays by itself: in the card's order, each once on a side, on the side its part says (`playsOn`: when the
   // card comes up, when it's turned, or both), a spoiler as it's opened; one that leaves the card while it plays is done.
   // The card comes up as its Listen phase starts; one the Listen phase hides plays as the front shows instead.
   const heardNow = (d: Drawn) => !d.held && veilOf(d.part) !== "hide";
-  const due = autoplay && !edit && srcOf ? drawn.filter((d) => heardNow(d) && playsOn(d.part.plays, side) && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
+  const due = autoplay && srcOf ? drawn.filter((d) => heardNow(d) && playsOn(d.part.plays, side) && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
   const next = due[0]?.field.id ?? null;
   const liveKey = drawn.filter(heardNow).map((d) => d.field.id).join(" ");
   useEffect(() => {
@@ -566,7 +562,7 @@ export function ReviewCard({
     }
     if (cued === null && next !== null) setCued(next);
   }, [cued, next, liveKey]);
-  // Playing by itself switched off while the card is up (the Layout tab's Preview left): nothing goes on playing by itself.
+  // Playing by itself switched off while the card is up: nothing goes on playing by itself.
   useEffect(() => {
     if (autoplay) return;
     setCued(null);
@@ -604,7 +600,7 @@ export function ReviewCard({
     return () => el.removeEventListener("play", onPlay, true);
   }, []);
   const shownBefore = useRef(values);
-  const switches = autoplay && !edit && srcOf !== undefined && examplePager !== null;
+  const switches = autoplay && srcOf !== undefined && examplePager !== null;
   useLayoutEffect(() => {
     const was = shownBefore.current;
     shownBefore.current = values;
@@ -699,7 +695,7 @@ export function ReviewCard({
             // Only while it's there to play: not under a spoiler, nor held unseen for the back.
             shortcut={live ? (keyOf.get(field.id) ?? null) : null}
             {...(live && restartOf.has(field.id) ? { restart: restartOf.get(field.id) } : {})}
-            screenKey={live && !edit ? screenKey : null}
+            screenKey={live ? screenKey : null}
           />
         );
       }
@@ -731,11 +727,11 @@ export function ReviewCard({
   function partView({ part, field, held }: Drawn, place?: CSSProperties): ReactNode {
     const hidden = covered(part);
     const veil = held ? "show" : veilOf(part);
-    const inner = content(part, field, !edit && !held && !hidden && veil !== "hide");
+    const inner = content(part, field, !held && !hidden && veil !== "hide");
     if (inner === null) return null;
     // In the Listen phase, blurred or unseen; out of reach unless it's a sound or a clip that's still there to hear.
     const veilClass = veil === "show" ? "" : VEIL_CLASS[veil][playable(field) ? "playing" : "still"];
-    const away = !edit && veilClass !== "" && veilClass !== VEIL_CLASS.blur.playing;
+    const away = veilClass !== "" && veilClass !== VEIL_CLASS.blur.playing;
     const look = `review-part size-${part.size} tone-${part.tone} ${part.bold ? "is-bold" : ""} ${veilClass}`.replace(/\s+/g, " ").trim();
     const reach = away ? { inert: true, "aria-hidden": true } : {};
     if (held) {
@@ -754,17 +750,34 @@ export function ReviewCard({
           key={field.id}
           ref={order.rowRef(i)}
           style={{ ...place, ...order.rowStyle(i) }}
-          className={`${look} is-editable ${edit.picked === field.id ? "is-picked" : ""} ${hidden ? "is-covered" : ""} ${order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
-          onClick={() => edit.onPick(field.id)}
+          className={`${look} is-editable ${edit.picked === field.id ? "is-picked" : ""} ${order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+          data-part={field.id}
+          // Heard on the way down, so a press on its player or its spoiler picks it as well as doing what it does.
+          onClickCapture={() => edit.onPick(field.id)}
         >
           <Button className="btn-icon review-grip" aria-label={`Move ${field.name}`} {...order.handleProps(i)}>
             <Icon name="grip" />
           </Button>
           <div className="review-part-face">
-            {/* What's in a part does nothing while it's laid out, but a reading over its words, which is picked by itself. */}
-            <div className="review-part-body" inert={!readingFor.has(field.id)}>
-              {inner}
-            </div>
+            {hidden ? (
+              <Button
+                variant="spoiler"
+                className="review-part-cover"
+                aria-label={`${field.name}, covered: press to see it`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpened((was) => new Set(was).add(field.id));
+                }}
+              >
+                <span className="review-part-body" inert>
+                  {inner}
+                </span>
+              </Button>
+            ) : (
+              <div className="review-part-body" {...reach}>
+                {inner}
+              </div>
+            )}
           </div>
         </div>
       );

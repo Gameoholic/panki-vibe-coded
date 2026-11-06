@@ -43,17 +43,18 @@ export const ScreenStageContext = createContext<ScreenStage | null>(null);
  * `present` is whether it's there (a review at its end shows its tally instead, and extra study or an answer undone
  * there brings it back). Leaving the screen filled by the browser's way (Escape) is kept as leaving it; the review
  * ending, or being left, isn't: the end's tally leaves the screen (it doesn't suit the full screen view), and the next review, or the card an Undo there brings back, fills it again. `open` is whether the rail
- * is shown: closed, it stays closed until the screen is filled again.
+ * is shown: closed, it stays closed until the screen is filled again. Not `kept` (the Layout tab, drawn as the review),
+ * the screen is filled only when asked, and filling or leaving it there is never kept for the next review.
  */
-export function useScreenStage(place: RefObject<HTMLElement | null>, present: boolean) {
+export function useScreenStage(place: RefObject<HTMLElement | null>, present: boolean, kept = true) {
   const [full, setFull] = useState(false);
   const [open, setOpen] = useState(true);
-  const keptNow = useRef(readKept());
+  const keptNow = useRef(kept ? readKept() : DEFAULT);
   /** The element last seen filling the screen. React keeps the review's element for the end's tally, out of the ref but still filling the screen. */
   const filled = useRef<Element | null>(null);
   function keep(next: Kept) {
     keptNow.current = next;
-    writeKept(next);
+    if (kept) writeKept(next);
   }
 
   function enter() {
@@ -122,3 +123,5 @@ export function useScreenStage(place: RefObject<HTMLElement | null>, present: bo
     close: () => setOpen(false),
   };
 }
+/** A review's stage, as `useScreenStage` gives it. */
+export type Stage = ReturnType<typeof useScreenStage>;

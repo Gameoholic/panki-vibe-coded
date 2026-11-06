@@ -73,7 +73,7 @@ export function clockPieces(stages: readonly Pick<HoldStage, "ms" | "tone" | "co
  * (`useHold`, so it's drawn and let go as every hold is). Let go, the card stays at the stage it reached, and a new hold
  * goes on from there; a tap of the button takes the card back to its start (Back to start, which has its own key in the
  * review: `keys.ts` → `holdReset`). Its key is heard by whoever has the keys (`keyDown`, `keyUp`: the review); the
- * button's own presses are the view's. The review and the Layout tab's Preview are both this.
+ * button's own presses are the view's. The review and the Layout tab are both this.
  */
 export function useHoldButton({ stages, at, rest, back, showing, bind, where }: Options) {
   const hold = useHold();

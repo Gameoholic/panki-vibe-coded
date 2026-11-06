@@ -967,18 +967,37 @@ export function App() {
         return <Skeleton shape={SKELETON_OF[kind]} />;
     }
   }
+  /**
+   * A card type's Layout tab is drawn as the review is, its panel over it (`Skeleton`'s `layout`); arriving at its
+   * address, its tabs stand over it already, as they will.
+   */
+  function layoutLoading(typeId: string, arrivingNow: boolean): ReactNode {
+    // As this device last drew it (`LayoutView`): the chips of what isn't on the front, and the answers set apart.
+    const shape = <Skeleton shape="layout" parts={[shapeOf(`layout-away:${typeId}`, 0), shapeOf(`layout-asides:${typeId}`, 0)]} />;
+    if (!arrivingNow) return shape;
+    return (
+      <>
+        <Segmented idPrefix="type-tab" label="Card type" options={TYPE_TABS} value="layout" disabled onChange={() => undefined} />
+        {shape}
+      </>
+    );
+  }
   const loading =
     arriving !== null
       ? arriving.kind === "deck"
         ? deckLoading(arriving.id, null, arriving.tab)
         : arriving.kind === "review"
           ? reviewLoading(arriving.id, null)
-          : plainLoading(arriving.kind)
+          : arriving.kind === "type" && arriving.id !== null && arriving.tab === "layout"
+            ? layoutLoading(arriving.id, true)
+            : plainLoading(arriving.kind)
       : screen.kind === "deck"
         ? deckLoading(screen.deck.id, screen.deck, screen.tab)
         : screen.kind === "review"
           ? reviewLoading(screen.deck.id, screen.deck, screen.begin)
-          : plainLoading(screen.kind);
+          : screen.kind === "type" && screen.tab === "layout" && screen.type !== null
+            ? layoutLoading(screen.type.id, false)
+            : plainLoading(screen.kind);
   let body: ReactNode;
   if (loadError) {
     body = (
@@ -1257,12 +1276,14 @@ export function App() {
   const head = headFor(screen);
   const back = head?.back;
   const tab = tabOf(screen);
-  // The SRS editor needs more room than a column (the preview sits beside it on a wide screen), and so does a card
-  // type's layout (the card with its choices beside it); the home and Stats too, for a board three tiles across.
-  // While an address is still arriving the frame already takes its screen's width, so nothing moves as it resolves.
+  // The SRS editor needs more room than a column (the preview sits beside it on a wide screen); the home and Stats too,
+  // for a board three tiles across. A card type's Layout tab is drawn as the review is, so it takes the review's width
+  // and top (`is-review`). While an address is still arriving the frame already takes its screen's width, so nothing
+  // moves as it resolves.
   const kindNow = arriving?.kind ?? screen.kind;
-  const layoutTab = arriving !== null ? (arriving.kind === "type" ? arriving.tab : null) : screen.kind === "type" ? screen.tab : null;
-  const wide = kindNow === "srsEdit" || (kindNow === "type" && layoutTab === "layout") || kindNow === "home" || kindNow === "stats";
+  const typeTab = arriving !== null ? (arriving.kind === "type" ? arriving.tab : null) : screen.kind === "type" ? screen.tab : null;
+  const reviewLook = kindNow === "review" || (kindNow === "type" && typeTab === "layout");
+  const wide = kindNow === "srsEdit" || kindNow === "home" || kindNow === "stats";
   // A template's screens stand as wide as Settings, whose tab lists them, so going between them never changes the width.
   const settingsWide = kindNow === "aiTemplate" || kindNow === "aiNew";
   // Before the sign-in is known, and while signed out, the bar is the brand alone: no tabs, no screen header. While
@@ -1273,7 +1294,7 @@ export function App() {
   const bareLook = bare && !checking;
 
   return (
-    <div className={`app ${kindNow === "home" ? "is-home" : ""} ${kindNow === "review" ? "is-review" : ""} ${wide ? "is-wide" : ""} ${settingsWide ? "is-settings" : ""} ${bareLook ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
+    <div className={`app ${kindNow === "home" ? "is-home" : ""} ${reviewLook ? "is-review" : ""} ${wide ? "is-wide" : ""} ${settingsWide ? "is-settings" : ""} ${bareLook ? "is-bare" : ""}`.replace(/\s+/g, " ").trim()}>
       <header className="brand">Panki</header>
       {bare && !checking ? null : (
         <nav className="tabs" aria-label="Sections">

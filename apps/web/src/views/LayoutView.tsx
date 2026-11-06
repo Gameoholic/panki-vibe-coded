@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CardLayout,
   NEW_PLACE,
   holdsLink,
   holdsWords,
   isTyped,
+  mainAnswers,
   movePart,
+  offered,
   partsOnIn,
   type Card,
   type CardField,
@@ -21,21 +23,26 @@ import {
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
+import { FloatPanel } from "../components/FloatPanel";
 import { Icon } from "../components/Icon";
 import { ReviewCard, listensFirst } from "../components/ReviewCard";
+import { ReviewButtons, ReviewCounts, ReviewScreen } from "../components/ReviewScreen";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
-import { HoldButton, ShowButton } from "../components/ShowButton";
+import { ShowButton } from "../components/ShowButton";
 import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
+import { keepDouble, useHold } from "../hooks/useHold";
 import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
+import { useScreenStage } from "../hooks/useScreenStage";
 import { useUndoable } from "../hooks/useUndoable";
-import { restartOf, shortcutOf, useKeyBinds } from "../keys";
+import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled } from "../keys";
 import { COLUMN_OPTIONS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { buildQueue, kindOf, startLine, togoOf } from "../reviewLine";
+import { rememberShape } from "../skeletonMemory";
 import type { UnsavedGuard } from "../unsaved";
 import { waveOf } from "../waveform";
-import { reviewChromeOf } from "./ReviewView";
 import type { SaveStatus } from "./SrsTypeView";
 
 /** What's shown of the card: its Listen phase (while the type has Listen first on), its front, or its back. */
@@ -45,11 +52,6 @@ const SIDES: readonly { id: CardSide; label: string }[] = [
   { id: "back", label: "Back" },
 ];
 const FACES: readonly { id: Face; label: string }[] = [{ id: "listen", label: "Listen" }, ...SIDES];
-/** Laying the card out, or using it as a review would. */
-const MODES: readonly { id: "edit" | "preview"; label: string }[] = [
-  { id: "edit", label: "Edit" },
-  { id: "preview", label: "Preview" },
-];
 /** How many of the type's newest cards can be shown on it while it's laid out. */
 const SAMPLES_MAX = 30;
 /** Shown with no card: each field's name where it stands. */
@@ -67,7 +69,7 @@ type Laid = { parts: LayoutPart[]; tag: StageTag; listen: ListenFirst };
 type Props = {
   /** The card type as it's saved. */
   type: CardType;
-  /** Every deck: the ones of this type lend their newest cards to show on it. */
+  /** Every deck: the ones of this type lend their newest cards to show on it, and their counts to the line over it. */
   decks: readonly Deck[];
   srsTypes: readonly SrsType[];
   onSave: (layout: CardLayout, tag: StageTag, listen: ListenFirst) => Promise<CardType>;
@@ -79,10 +81,12 @@ type Props = {
 };
 
 /**
- * How a card type's cards look in a review, laid out on the card itself: the card as a review shows it, front or
- * back, with one of the type's own cards on it; a part pressed on it is picked and its choices stand beside it (under
- * it on a phone); a part is moved by its grip; what isn't on the side shown waits under the card. "Preview" makes it a review card for a moment: pressed to turn, spoilers to open, sounds that play
- * by themselves. Saved by the header's Save, as the SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
+ * How a card type's cards look in a review, laid out on the card itself in the review's own screen (`ReviewScreen`):
+ * one of the type's own cards on it, its deck's counts over it, played, opened and turned as a review does (Done
+ * listening, Show back of card, Hide back of card, the Hold button, their keys). A press on a part picks it, a press on
+ * its player working the player as well; a part is moved by its grip. Its choices stand in a panel over the screen
+ * (`FloatPanel`), with which side shows, Listen first and the card it's shown on. Saved by the header's Save, as the
+ * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
   // The fields' parts, the stage tag and Listen first are laid out together, so one Undo steps back through all three.
@@ -98,23 +102,25 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [chosenFace, setFace] = useState<Face>("front");
-  // The Listen phase is there to look at only while Listen first is on; switched off on it, the front shows.
+  // The Listen phase is there only while Listen first is on; switched off on it, the front shows.
   const face: Face = chosenFace === "listen" && !listen.on ? "front" : chosenFace;
   /** The side whose parts are shown and moved: the Listen phase is the front's, blurred. */
   const side: CardSide = face === "listen" ? "front" : face;
-  const [trying, setTrying] = useState(false);
   const binds = useKeyBinds();
-  const mediaKeys = binds.media.map((bind) => shortcutOf(bind, binds));
-  const restartKeys = binds.restart.map((bind) => restartOf(bind, binds));
-  const screenKey = shortcutOf(binds.fullScreen, binds);
-  const [picked, setPicked] = useState<string | null>(type.layout[0]?.fieldId ?? null);
+  const keysOn = useKeybindsEnabled();
+  const hold = useHold();
+  const [picked, setPicked] = useState<string | null>(null);
   const [samples, setSamples] = useState<{ card: Card; deck: Deck }[]>([]);
+  /** Every card of each deck of this type, by the deck's id: what a review of it would count. */
+  const [deckCards, setDeckCards] = useState<ReadonlyMap<string, readonly Card[]>>(new Map());
   const [sampleId, setSampleId] = useState<string>(NO_SAMPLE);
   const fields = useMemo(() => new Map(type.fields.map((f) => [f.id, f])), [type.fields]);
-  /** What a review draws around its card on this device, as it last measured it: the card here is given the rest of the window. */
-  const [chrome] = useState(reviewChromeOf);
+  const place = useRef<HTMLElement | null>(null);
+  /** Full screen as a review fills it, asked for here alone: never kept for the next review, nor filled by itself. */
+  const stage = useScreenStage(place, true, false);
 
-  // The type's own newest cards, from every deck that uses it, to show on it; the newest is shown to begin with.
+  // The type's own cards, from every deck that uses it: the newest to show on it (the newest of all to begin with), and
+  // each deck's whole for its counts.
   const deckKey = decks
     .filter((d) => d.typeId === type.id)
     .map((d) => d.id)
@@ -123,17 +129,18 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     const using = decks.filter((d) => d.typeId === type.id);
     if (using.length === 0) return;
     let alive = true;
-    void Promise.all(using.map((deck) => api.listCards(deck.id).then((cards) => cards.map((card) => ({ card, deck })))))
+    void Promise.all(using.map((deck) => api.listCards(deck.id).then((cards) => ({ deck, cards }))))
       .then((lists) => {
         if (!alive) return;
+        setDeckCards(new Map(lists.map(({ deck, cards }) => [deck.id, cards])));
         const newest = lists
-          .flat()
+          .flatMap(({ deck, cards }) => cards.map((card) => ({ card, deck })))
           .sort((a, b) => b.card.createdAt - a.card.createdAt)
           .slice(0, SAMPLES_MAX);
         setSamples(newest);
         setSampleId((was) => (was === NO_SAMPLE ? (newest[0]?.card.id ?? NO_SAMPLE) : was));
       })
-      // Without its cards the card shows each field's name: nothing here needs them.
+      // Without its cards the card shows each field's name and the counts hold their room: nothing here needs them.
       .catch(() => undefined);
     return () => {
       alive = false;
@@ -199,23 +206,103 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const sample = samples.find((s) => s.card.id === sampleId) ?? null;
   /** Where the card opens in a review, as laid out now: its Listen phase when there's something on it to hear, else its front. */
   const opening: Face = sample && listensFirst(type, sample.card.values, sample.card.files, listen, draft) ? "listen" : "front";
-  /** The Hold button, while it's on (Settings → Keybinds): previewed, it goes as far as the back, a preview giving no answer. */
+  /** The card on to its next: out of its Listen phase, or turned to its back. */
+  const showNext = () => setFace(face === "listen" ? "front" : "back");
+  /** The Hold button, while it's on (Settings → Keybinds): here it goes as far as the back, a card looked at giving no answer. */
   const chainOn = binds.holdChain.on;
-  const previewStages: HoldStage[] = [
+  const holdStages: HoldStage[] = [
     ...(opening === "listen" ? [{ label: "Done listening", ms: binds.holdChain.listenMs, done: () => setFace("front") }] : []),
     { label: "Show back of card", ms: binds.holdChain.backMs, done: () => setFace("back") },
   ];
   const chain = useHoldButton({
-    stages: previewStages,
-    at: face === "listen" ? 0 : face === "front" ? previewStages.length - 1 : previewStages.length,
+    stages: holdStages,
+    at: face === "listen" ? 0 : face === "front" ? holdStages.length - 1 : holdStages.length,
     rest: "Back to start",
     back: () => setFace(opening),
-    showing: `${sampleId}:${trying ? "try" : "edit"}`,
+    showing: sampleId,
     bind: binds.holdButton,
-    where: () => previewActions.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null,
+    where: () => place.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null,
   });
-  const previewActions = useRef<HTMLDivElement | null>(null);
+
+  // The review's own keys turn the card here as they do there: Done listening's, Show back of card's and Hide back of
+  // card's, held as long as each is set to be, Enter, and the Hold button's with Back to start. A key pressed in the
+  // panel is the panel's.
+  const doubles = doubleKeys(binds);
+  useEffect(() => {
+    const kept = doubles.map(keepDouble);
+    return () => {
+      for (const letGo of kept) letGo();
+    };
+  }, [doubles.join("\n")]); // eslint-disable-line react-hooks/exhaustive-deps -- the keys are what the joined list says
+  useEffect(() => {
+    const own = (e: KeyboardEvent) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target instanceof Element && e.target.closest(".float-panel") !== null);
+    const button = (name: string) => place.current?.querySelector<HTMLElement>(`[data-hold='${name}']`) ?? null;
+    function onKey(e: KeyboardEvent) {
+      if (own(e) || e.metaKey) return;
+      const key = keyOf(e);
+      const resetting = chainOn ? keyIn(binds.holdReset, key) : null;
+      let reset = false;
+      if (resetting) {
+        e.preventDefault();
+        if (!e.repeat)
+          hold.begin(e, button("chain"), resetting.holdMs, () => {
+            reset = true;
+            setFace(opening);
+          });
+      }
+      if (chainOn && keyIn(binds.holdButton, key)) {
+        e.preventDefault();
+        if (!reset) chain.keyDown(e, key);
+        return;
+      }
+      if (reset) return;
+      if (keysOn && key === "Enter") {
+        if (e.target instanceof HTMLButtonElement || face === "back") return;
+        e.preventDefault();
+        showNext();
+        return;
+      }
+      const hiding = face === "back" ? keyIn(binds.hide, key) : null;
+      if (hiding) {
+        e.preventDefault();
+        if (!e.repeat) hold.begin(e, button("hide"), hiding.holdMs, () => setFace("front"));
+        return;
+      }
+      const showing = face === "back" ? null : keyIn(face === "listen" ? binds.showCard : binds.reveal, key);
+      if (showing) {
+        e.preventDefault();
+        if (!e.repeat) hold.begin(e, button("reveal"), showing.holdMs, showNext);
+      }
+    }
+    function onUp(e: KeyboardEvent) {
+      hold.release(e.key);
+      chain.keyUp(e);
+      if (own(e)) return;
+      const turning = [face === "listen" ? binds.showCard : binds.reveal, ...(chainOn ? [binds.holdButton] : [])];
+      if (turning.some((bind) => pressedIn(e, bind))) e.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+    };
+  });
+
+  /** The SRS type the card is counted and answered by: its deck's, else the first deck of this type's, else any. */
+  const countDeck = sample?.deck ?? decks.find((d) => d.typeId === type.id && deckCards.has(d.id)) ?? null;
+  const answersBy = (countDeck && srsTypes.find((t) => t.id === countDeck.srsTypeId)) ?? srsTypes[0];
   const ladder = (sample && srsTypes.find((t) => t.id === sample.deck.srsTypeId)) ?? srsTypes[0] ?? NO_LADDER;
+  /** What a review of the card's deck would count over it, as it would open now. */
+  const counted = useMemo(() => {
+    const cards = countDeck ? deckCards.get(countDeck.id) : undefined;
+    const by = countDeck ? srsTypes.find((t) => t.id === countDeck.srsTypeId) : undefined;
+    if (!countDeck || !cards || !by) return null;
+    const line = startLine(buildQueue(cards, countDeck), countDeck.settings.pool);
+    const best = mainAnswers(by.answers).at(-1)?.id ?? "";
+    return { settings: countDeck.settings, togo: togoOf([...line.active, ...line.waiting], new Map(cards.map((c) => [c.id, c])), by, best), line };
+  }, [countDeck, deckCards, srsTypes]);
+
   /** What a card is called in the list of cards to show: its first words. */
   const nameField = type.fields.find((f) => holdsWords(f.kind));
   const sampleOptions = [
@@ -223,9 +310,17 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     ...samples.map(({ card, deck }) => ({ id: card.id, label: (nameField && card.values[nameField.id]?.trim()) || "A card with no words", note: deck.name })),
   ];
   const away = draft.filter((p) => p[side] === "hide");
+  // What this tab's skeleton draws next time on this device (`Skeleton`'s `layout`): the chips of what isn't on the
+  // front in the panel, and whether the answers set apart hold a row under the card.
+  const awayOnFront = side === "front" ? away.length : null;
+  const asidesHeld = answersBy !== undefined && answersBy.answers.some((a) => a.aside && offered(answersBy, sample?.card.place ?? NEW_PLACE, a.id));
+  useEffect(() => {
+    if (awayOnFront !== null) rememberShape(`layout-away:${type.id}`, awayOnFront);
+  }, [awayOnFront, type.id]);
+  useEffect(() => rememberShape(`layout-asides:${type.id}`, asidesHeld ? 1 : 0), [asidesHeld, type.id]);
 
   const tagPicked = picked === TAG_PICKED;
-  const part = tagPicked ? undefined : (draft.find((p) => p.fieldId === picked) ?? draft[0]);
+  const part = tagPicked ? undefined : draft.find((p) => p.fieldId === picked);
   const field = part ? fields.get(part.fieldId) : undefined;
   /** The one sound or clip that shows the card by itself, if one does. */
   const shower = draft.find((p) => p.showOnPlay !== null);
@@ -253,7 +348,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       <Setting
         id="part-mark"
         label="Highlight"
-        control={<Dropdown id="part-mark-choice" label="Highlight" options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.mark ?? NOT_OVER} onChange={(mark) => update(id, { mark: mark === NOT_OVER ? null : mark })} />}
+        control={<Dropdown id="part-mark-choice" label="Highlight" anchored options={[{ id: NOT_OVER, label: "None" }, ...others]} value={part.mark ?? NOT_OVER} onChange={(mark) => update(id, { mark: mark === NOT_OVER ? null : mark })} />}
       />
     );
     return (
@@ -287,6 +382,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
               <Dropdown
                 id="part-show-on-play-choice"
                 label="Ends listening"
+                anchored
                 options={SHOW_ON_PLAY_OPTIONS}
                 value={part.showOnPlay ?? NEVER_BY_ITSELF}
                 disabled={!listen.on || part.listen === "hide" || (shower !== undefined && shower.fieldId !== id)}
@@ -299,7 +395,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           <Setting
             id="part-look"
             label="Player style"
-            control={<Dropdown id="part-look-choice" label="Player style" options={LOOK_OPTIONS} value={part.look} onChange={(look) => update(id, { look })} />}
+            control={<Dropdown id="part-look-choice" label="Player style" anchored options={LOOK_OPTIONS} value={part.look} onChange={(look) => update(id, { look })} />}
           />
         ) : null}
         {/* A reading above a word is the reading's size, under no field name: those are off while it is. */}
@@ -338,7 +434,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           <Setting
             id="part-auto"
             label="Plays by itself"
-            control={<Dropdown id="part-auto-when" label="Plays by itself" options={PLAY_OPTIONS} value={part.plays} onChange={(plays) => update(id, { plays })} />}
+            control={<Dropdown id="part-auto-when" label="Plays by itself" anchored options={PLAY_OPTIONS} value={part.plays} onChange={(plays) => update(id, { plays })} />}
           />
         ) : null}
         {oneLine ? (
@@ -349,6 +445,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
               <Dropdown
                 id="part-over-choice"
                 label="Reading above"
+                anchored
                 options={[{ id: NOT_OVER, label: "None" }, ...overable.map((f) => ({ id: f.id, label: f.name }))]}
                 value={part.over ?? NOT_OVER}
                 onChange={(over) => update(id, { over: over === NOT_OVER ? null : over })}
@@ -374,149 +471,156 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     );
   }
 
-  const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? null);
-  /**
-   * Listen first, the type's own: a panel of its own above whatever's picked, headed by the type's name, so it never
-   * reads as part of the picked field. When the card
-   * shows by itself is a sound's or clip's own, in its part's choices.
-   */
-  const typePanel = (
-    <section className="panel layout-panel" aria-labelledby="layout-type-title">
-      <h2 id="layout-type-title" className="layout-part-title">
-        {type.name}
-        <small>Card type</small>
+  /** The head of the picked thing's panel: its name, what it is, and a way to let it go. */
+  const pickedHead = (name: string, kind?: string) => (
+    <div className="layout-part-head">
+      <h2 id="layout-part-title" className="layout-part-title">
+        {name}
+        {kind ? <small>{kind}</small> : null}
       </h2>
-      <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
-    </section>
-  );
-  return (
-    <div className="layout-editor">
-      <section className="layout-stage" aria-label="The card">
-        <div className="layout-tools">
-          {/* Previewing, the card starts as a review starts it (listened to first, while there's something to hear), and is turned by pressing it, not from here. */}
-          <Segmented idPrefix="layout-side" label="Side of the card" options={listen.on ? FACES : SIDES} value={face} onChange={setFace} disabled={trying} />
-          <Segmented
-            idPrefix="layout-mode"
-            label="Mode"
-            options={MODES}
-            value={trying ? "preview" : "edit"}
-            onChange={(mode) => {
-              setTrying(mode === "preview");
-              if (mode === "preview") setFace(opening);
-            }}
-          />
-          <span className="layout-tools-end">
-            <Button id="layout-undo" className="btn-icon" aria-label="Undo" disabled={!history.canUndo} onClick={undo}>
-              <Icon name="undo" />
-            </Button>
-            <Button id="layout-redo" className="btn-icon" aria-label="Redo" disabled={!history.canRedo} onClick={redo}>
-              <Icon name="redo" />
-            </Button>
-          </span>
-        </div>
-        {/* The card in the review's own frame (`.card-frame`, app.css): as tall as a review draws it on this window, in the
-            same columns, its main column scrolling when it runs over, so what's laid out is what a review shows. */}
-        <div className="card-frame layout-frame" style={{ "--review-chrome": `${chrome}px` } as CSSProperties}>
-          <ReviewCard
-            // A card shown afresh, as a review would: nothing opened, nothing played.
-            key={`${sampleId}:${trying ? "try" : "edit"}`}
-            type={type}
-            layout={draft}
-            values={sample?.card.values ?? {}}
-            // What Panki AI wrote on the card previewed, marked as a review marks it: its own example's values are these.
-            sources={sample?.card.sources ?? {}}
-            files={sample?.card.files}
-            cues={sample?.card.cues}
-            srsType={ladder}
-            place={sample?.card.place ?? NEW_PLACE}
-            revealed={face === "back"}
-            listening={face === "listen"}
-            // Previewed, it goes on to its front as its sound or clip begins the play set to show it, as in a review.
-            onListened={() => {
-              if (trying) setFace("front");
-            }}
-            onPress={() => {
-              if (trying) setFace((now) => (now === "listen" ? "front" : now === "front" ? "back" : opening));
-            }}
-            srcOf={sample ? api.mediaUrl : undefined}
-            waveOf={waveOf}
-            subtitleStyle={subtitleStyle}
-            picturesOf={api.videoPictures}
-            tag={tag}
-            autoplay={trying}
-            // Tried as a review, its sounds and clips answer to their keys as a review's do.
-            shortcuts={trying ? mediaKeys : undefined}
-            restarts={trying ? restartKeys : undefined}
-            screenKey={trying ? screenKey : null}
-            // Previewed, the review's own button under it shows what's next, as a review's does, so there's no "Tap to reveal".
-            hint={!trying}
-            {...(trying
-              ? {}
-              : {
-                  edit: {
-                    picked: tagPicked ? null : (part?.fieldId ?? null),
-                    onPick: setPicked,
-                    order: { main: mainOrder, side: sideOrder },
-                    tagPicked,
-                    onPickTag: () => setPicked(TAG_PICKED),
-                    onMoveTag: (corner) => changeTag({ corner }),
-                  },
-                })}
-          />
-        </div>
-        {/* With the Hold button on, it stands under the card on both its sides, a tap of it back to the card's start, as in a review; the review's own button beside it, without its key. */}
-        {trying && chainOn ? (
-          <div ref={previewActions} className="review-hold">
-            <HoldButton view={chain.view} />
-          </div>
-        ) : null}
-        {trying && face !== "back" ? (
-          <div className="review-actions">
-            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={() => setFace(face === "listen" ? "front" : "back")} />
-          </div>
-        ) : null}
-        {!trying && away.length > 0 ? (
-          <div className="layout-away" aria-label={`Not on the ${side}`}>
-            <span className="layout-note">Not on the {side}:</span>
-            {away.map((p) => (
-              <Button key={p.fieldId} variant="chip" className="layout-away-chip" aria-pressed={part?.fieldId === p.fieldId} onClick={() => setPicked(p.fieldId)}>
-                {fields.get(p.fieldId)?.name}
-              </Button>
-            ))}
-          </div>
-        ) : null}
-        <div className="layout-sample">
-          <span className="layout-note">Previewed for</span>
-          <Dropdown id="layout-sample" label="Card previewed" options={sampleOptions} value={sampleId} onChange={setSampleId} />
-        </div>
-        {problem || saveFailure ? (
-          <p className="form-failure" role="alert">
-            {problem ?? saveFailure}
-          </p>
-        ) : null}
-      </section>
-
-      <div className="layout-side">
-        {typePanel}
-        {tagPicked ? (
-          // The stage tag isn't a field: its few choices are its own, the same on both sides, and its corner is where it's dragged.
-          <aside className="panel layout-panel" aria-labelledby="layout-part-title">
-            <h2 id="layout-part-title" className="layout-part-title">
-              Stage tag
-            </h2>
-            <Setting id="tag-shown" label="Shown" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
-            <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
-          </aside>
-        ) : part && field ? (
-          <aside className="panel layout-panel" aria-labelledby="layout-part-title">
-            <h2 id="layout-part-title" className="layout-part-title">
-              {field.name}
-              <small>{FIELD_KINDS[field.kind].name}</small>
-            </h2>
-            {choices(part, field)}
-          </aside>
-        ) : null}
-      </div>
+      <Button id="layout-unpick" className="btn-icon" aria-label="Close" onClick={() => setPicked(null)}>
+        <Icon name="close" />
+      </Button>
     </div>
+  );
+
+  const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? null);
+  const panel = (
+    <FloatPanel
+      id="layout-panel"
+      label="Layout"
+      title={
+        <span className="layout-part-title">
+          {type.name}
+          <small>Card type</small>
+        </span>
+      }
+      tools={
+        <>
+          <Button id="layout-undo" className="btn-icon" aria-label="Undo" disabled={!history.canUndo} onClick={undo}>
+            <Icon name="undo" />
+          </Button>
+          <Button id="layout-redo" className="btn-icon" aria-label="Redo" disabled={!history.canRedo} onClick={redo}>
+            <Icon name="redo" />
+          </Button>
+        </>
+      }
+    >
+      {/* The type's own: Listen first, the card it's shown on, and which side of it shows, in step with the card's own buttons. */}
+      <section className="panel layout-panel" aria-label="Card type">
+        <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
+        <Setting id="layout-sample-row" label="Previewed for" control={<Dropdown id="layout-sample" label="Card previewed" anchored options={sampleOptions} value={sampleId} onChange={setSampleId} />} />
+        <Setting id="layout-side-row" label="Side" control={<Segmented idPrefix="layout-side" label="Side of the card" options={listen.on ? FACES : SIDES} value={face} onChange={setFace} />} />
+      </section>
+      {tagPicked ? (
+        // The stage tag isn't a field: its few choices are its own, the same on both sides, and its corner is where it's dragged.
+        <section className="panel layout-panel" aria-labelledby="layout-part-title">
+          {pickedHead("Stage tag")}
+          <Setting id="tag-shown" label="Shown" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
+          <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
+        </section>
+      ) : part && field ? (
+        <section className="panel layout-panel" aria-labelledby="layout-part-title">
+          {pickedHead(field.name, FIELD_KINDS[field.kind].name)}
+          {choices(part, field)}
+        </section>
+      ) : (
+        // Nothing picked: what isn't on the side shown, each brought onto it by a press, and the stage tag.
+        <section className="panel layout-panel" aria-label={`Not on the ${side}`}>
+          {away.length > 0 ? (
+            <div className="layout-away">
+              <span className="layout-note">Not on the {side}</span>
+              {away.map((p) => (
+                <Button
+                  key={p.fieldId}
+                  variant="chip"
+                  className="layout-away-chip"
+                  onClick={() => {
+                    update(p.fieldId, side === "front" ? { front: "show" } : { back: "show" });
+                    setPicked(p.fieldId);
+                  }}
+                >
+                  <Icon name="add" />
+                  {fields.get(p.fieldId)?.name}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <Setting id="tag-shown" label="Stage tag" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
+        </section>
+      )}
+      {problem || saveFailure ? (
+        <p className="form-failure" role="alert">
+          {problem ?? saveFailure}
+        </p>
+      ) : null}
+    </FloatPanel>
+  );
+
+  return (
+    <ReviewScreen
+      place={place}
+      stage={stage}
+      counts={<ReviewCounts counts={counted ? { ...counted, now: sample ? kindOf(sample.card) : null } : null} />}
+      revealed={face === "back"}
+      busy={false}
+      binds={binds}
+      onHide={() => setFace("front")}
+      canUndo={false}
+      chart={{ open: false }}
+      failure={null}
+      hold={chainOn ? chain.view : null}
+      card={
+        <ReviewCard
+          // A card shown afresh, as a review would: nothing opened, nothing played.
+          key={sampleId}
+          type={type}
+          layout={draft}
+          values={sample?.card.values ?? {}}
+          // What Panki AI wrote on the card previewed, marked as a review marks it: its own example's values are these.
+          sources={sample?.card.sources ?? {}}
+          files={sample?.card.files}
+          cues={sample?.card.cues}
+          srsType={ladder}
+          place={sample?.card.place ?? NEW_PLACE}
+          revealed={face === "back"}
+          listening={face === "listen"}
+          // It goes on to its front as its sound or clip begins the play set to show it, as in a review.
+          onListened={() => {
+            if (face === "listen") setFace("front");
+          }}
+          srcOf={sample ? api.mediaUrl : undefined}
+          waveOf={waveOf}
+          subtitleStyle={subtitleStyle}
+          picturesOf={api.videoPictures}
+          tag={tag}
+          autoplay
+          shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
+          restarts={binds.restart.map((bind) => restartOf(bind, binds))}
+          screenKey={shortcutOf(binds.fullScreen, binds)}
+          hint={false}
+          keys={false}
+          edit={{
+            picked: tagPicked ? null : (part?.fieldId ?? null),
+            onPick: setPicked,
+            order: { main: mainOrder, side: sideOrder },
+            tagPicked,
+            onPickTag: () => setPicked(TAG_PICKED),
+            onMoveTag: (corner) => changeTag({ corner }),
+          }}
+        />
+      }
+      buttons={
+        answersBy ? (
+          <ReviewButtons srsType={answersBy} place={sample?.card.place ?? NEW_PLACE} revealed={face === "back"} listening={face === "listen"} binds={binds} busy={false} onShow={showNext} />
+        ) : face === "back" ? null : (
+          <div className="review-actions">
+            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={showNext} />
+          </div>
+        )
+      }
+    >
+      {panel}
+    </ReviewScreen>
   );
 }

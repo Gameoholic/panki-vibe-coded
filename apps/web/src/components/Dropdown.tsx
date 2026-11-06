@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { MeaningAccuracyId } from "@panki/contracts";
+import { useAnchored } from "../hooks/useAnchored";
 import { useDismiss } from "../hooks/useDismiss";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -28,6 +29,8 @@ type Common<T extends string | number> = {
   wide?: boolean;
   /** Headings over the list's two columns, the choices and their notes: what each column is (the field mapping's "Fill with" and "Source"). */
   columns?: { choice: string; note: string };
+  /** Its list opens in the window itself (`useAnchored`), never cut off by a box that scrolls around it: one in a `FloatPanel`. */
+  anchored?: boolean;
 };
 /** One choice: picking it closes the list. */
 type One<T extends string | number> = { value: T; onChange: (value: T) => void };
@@ -37,7 +40,7 @@ type Props<T extends string | number> = Common<T> & (One<T> | Many<T>);
 
 /** One value picked from a short list that drops under its button, or several ticked in it; a tap outside or Escape closes it. Never a native select. */
 export function Dropdown<T extends string | number>(props: Props<T>) {
-  const { id, label, options, placeholder = "", disabled = false, wide = false, columns } = props;
+  const { id, label, options, placeholder = "", disabled = false, wide = false, columns, anchored = false } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -47,6 +50,7 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
   const says = "values" in props ? props.summary : (current?.label ?? placeholder);
 
   useDismiss(rootRef, open, () => setOpen(false));
+  useAnchored(rootRef, menu, anchored && open && !disabled);
 
   return (
     <span ref={rootRef} className={`dropdown ${wide ? "is-wide" : ""}`.trim()}>
@@ -66,7 +70,15 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
       </Button>
       {open && !disabled ? (
         <>
-          <div ref={menu} className="menu dropdown-menu" role="listbox" aria-label={label} aria-multiselectable={many || undefined}>
+          <div
+            ref={menu}
+            className={`menu dropdown-menu ${anchored ? "is-anchored" : ""}`.trim()}
+            // In the window, at least as wide as its button, as it is when it opens in place.
+            style={anchored ? { minWidth: rootRef.current?.offsetWidth } : undefined}
+            role="listbox"
+            aria-label={label}
+            aria-multiselectable={many || undefined}
+          >
             {columns ? (
               <div className="dropdown-columns" aria-hidden="true">
                 <span>{columns.choice}</span>
