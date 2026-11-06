@@ -343,6 +343,12 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         label="Full screen in Theatre mode"
         control={<Toggle id="stage-full-on" says={{ on: "On", off: "Off" }} on={store.stageFull} disabled={off} onChange={(stageFull) => void writeStore({ stageFull }).then(onChanged)} />}
       />
+      {/* What F does on a video's page while the panel stands beside it: Theatre mode, or the site's own full screen. */}
+      <Setting
+        id="stage-key"
+        label="F key"
+        control={<Toggle id="stage-key-on" says={{ on: "Theatre mode", off: "YouTube's full screen" }} on={store.stageKey} disabled={off} onChange={(stageKey) => void writeStore({ stageKey }).then(onChanged)} />}
+      />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles"

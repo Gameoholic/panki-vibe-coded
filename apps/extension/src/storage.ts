@@ -137,6 +137,8 @@ const Stored = z.object({
   stageSide: StageSide.catch(DEFAULT_MODULES.stageSide),
   /** Whether Theatre mode is in the browser's full screen (options page, YouTube → Panki panel). */
   stageFull: z.boolean().catch(DEFAULT_MODULES.stageFull),
+  /** Whether F on a video's page enters and leaves Theatre mode (options page, YouTube → Panki panel). */
+  stageKey: z.boolean().catch(DEFAULT_MODULES.stageKey),
   moduleLookup: z.boolean().catch(DEFAULT_MODULES.lookup),
   moduleSeek: z.boolean().catch(DEFAULT_MODULES.seek),
   resumeHow: ResumeHow.catch(DEFAULT_MODULES.resume),
@@ -212,6 +214,7 @@ export const modulesOf = (store: Stored): Modules => ({
   besideRecs: store.besideRecs,
   stageSide: store.stageSide,
   stageFull: store.stageFull,
+  stageKey: store.stageKey,
   lookup: store.moduleLookup,
   seek: store.moduleSeek,
   resume: store.resumeHow,

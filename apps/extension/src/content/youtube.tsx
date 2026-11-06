@@ -3110,23 +3110,65 @@ const SKIP_HELD: Record<SkipKey, (e: KeyboardEvent) => boolean> = {
   ctrl: (e) => e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey,
   alt: (e) => e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey,
 };
+/** A key going down that's someone else's: typed into a field, or in Panki's own places, whose keys stop there. */
+function typedElsewhere(e: KeyboardEvent): boolean {
+  const at = e.target;
+  return inPanki(e) || (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select") !== null));
+}
+/** Nothing but the key itself held with it. */
+const bare = (e: KeyboardEvent) => !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey;
+
 /**
- * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on by the
- * seconds set, in place of the site's 5 s, and held down it goes on skipping. Heard before the site's own keys (the
- * window, capturing) and kept from them. There with Panki on or off; never while typing, in Panki's own places, or
- * while an ad plays.
+ * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on by the seconds set, in place of the
+ * site's 5 s, and held down it goes on skipping, kept from the site. There with Panki on or off; never while typing, in
+ * Panki's own places, or while an ad plays. Whether it took the key.
  */
+function shortSkip(e: KeyboardEvent): boolean {
+  const on = active();
+  if (!on.shortSkip || !video || (e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !SKIP_HELD[on.shortSkipKey](e)) return false;
+  if (typedElsewhere(e) || adPlaying()) return false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const end = Number.isFinite(video.duration) ? video.duration : Infinity;
+  video.currentTime = Math.max(0, Math.min(end, video.currentTime + (e.key === "ArrowLeft" ? -1 : 1) * on.shortSkipSeconds));
+  return true;
+}
+
+/**
+ * F as Theatre mode's key (`Modules.stageKey`), kept from the site, whose F is its full screen: it enters Theatre
+ * wherever the panel's own Theatre button is offered (the panel standing beside the video), and leaves it as that
+ * button does, its full screen with it (`fullByTheatre`), so the site never toggles a full screen of its own on the same
+ * press. Anywhere else, the panel under the player or the site's own full screen up, F is the site's as ever. The
+ * physical key, as the site hears it whatever the keyboard's language. Whether it took the key.
+ */
+function theatreKey(e: KeyboardEvent): boolean {
+  if (e.code !== "KeyF" || !bare(e)) return false;
+  const on = active();
+  if (!on.panel || !on.stageKey || siteFull() || typedElsewhere(e)) return false;
+  const inTheatre = theatre.get();
+  if (!inTheatre && placedAs.get() !== "beside") return false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  // Held down, once: a key's repeats would go in and out of it.
+  if (e.repeat) return true;
+  if (inTheatre) leaveStage();
+  else enterTheatre();
+  return true;
+}
+
+/** Theatre mode left with Esc (the site's own full screen takes Esc first, and leaves Theatre be). */
+function stageEscape(e: KeyboardEvent) {
+  if (e.key !== "Escape" || !bare(e) || placedAs.get() !== "stage" || siteFull() || typedElsewhere(e)) return;
+  leaveStage();
+}
+
+// The page's keys, one listener: heard before the site's own (the window, capturing), so a key Panki takes is kept
+// from the site.
 window.addEventListener(
   "keydown",
   (e) => {
-    const on = active();
-    if (!on.shortSkip || !video || (e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !SKIP_HELD[on.shortSkipKey](e)) return;
-    const at = e.target;
-    if (inPanki(e) || adPlaying() || (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select")))) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const end = Number.isFinite(video.duration) ? video.duration : Infinity;
-    video.currentTime = Math.max(0, Math.min(end, video.currentTime + (e.key === "ArrowLeft" ? -1 : 1) * on.shortSkipSeconds));
+    if (shortSkip(e) || theatreKey(e)) return;
+    stageEscape(e);
   },
   true,
 );
@@ -3164,14 +3206,6 @@ document.addEventListener("fullscreenchange", () => {
 });
 document.addEventListener("yt-navigate-start", () => {
   stageSettleUntil = Date.now() + 3000;
-});
-// The stage is left with Esc (the site's own full screen takes Esc first, and leaves the stage be). Not while typing,
-// nor from inside Panki's own places, whose keys stop there: a line being edited, a menu, take their own Esc.
-window.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" || placedAs.get() !== "stage" || siteFull() || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-  const at = e.target;
-  if (inPanki(e) || (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select")))) return;
-  leaveStage();
 });
 // The player's size changes with the window (and the site's theatre view): the words over it keep their share of it.
 window.addEventListener("resize", place);

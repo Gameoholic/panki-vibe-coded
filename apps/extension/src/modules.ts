@@ -236,6 +236,12 @@ export const Modules = z.object({
    * mode would take Theatre down with it).
    */
   stageFull: z.boolean(),
+  /**
+   * Whether F on a video's page is Theatre mode's key rather than the site's full screen (on to begin with): it enters
+   * Theatre wherever the panel's own Theatre button would, and leaves it as that button does; anywhere else (the panel
+   * under the player, the site's own full screen) F stays the site's (`content/youtube.tsx` → `theatreKey`).
+   */
+  stageKey: z.boolean(),
   /** Looking a word up by pointing at it, on every site. */
   lookup: z.boolean(),
   /** Panki's marks on a video's seek bar, all of them (each mark's own Shown / Hidden is under Seek bar). */
@@ -291,6 +297,7 @@ export const DEFAULT_MODULES: Modules = {
   besideRecs: "above",
   stageSide: "right",
   stageFull: true,
+  stageKey: true,
   lookup: true,
   seek: true,
   resume: "offer",
