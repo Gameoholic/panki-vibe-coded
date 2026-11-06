@@ -309,6 +309,12 @@ export function ReviewCard({
     setCarried(new Set());
     if (!revealed) setOpened(new Set());
   }, [revealed]);
+  // Turned back to its front (Hide back of card, an Undo), the body's scroll goes back to the top before it's drawn: the
+  // front can't be scrolled, so parts left scrolled out of view there could never be brought back. A new card is a new
+  // ReviewCard (the review keys it), its body already at the top.
+  useLayoutEffect(() => {
+    if (!revealed && body.current) body.current.scrollTop = 0;
+  }, [revealed]);
 
   /** In the Listen phase: on the front, never once it's turned. */
   const inListen = listening && !revealed;
@@ -800,11 +806,12 @@ export function ReviewCard({
       {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
       {/* The parts in one box, so a review that fits the window or fills the screen can scroll them inside the card
           (`.review-body`, app.css), with Panki's fades and thin bar over it; everywhere else the box draws nothing of
-          its own, and runs over nothing, so neither do they. */}
+          its own, and runs over nothing, so neither do they. Only the back scrolls: the front holds the back's room
+          unseen and can't be scrolled, so it has no fades and no bar. */}
       <div ref={body} className="review-body">
         {blocks}
       </div>
-      <ScrollEdges of={body} />
+      {revealed ? <ScrollEdges of={body} /> : null}
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>
   );

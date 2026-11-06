@@ -4587,6 +4587,14 @@ mark.sub-blur {
   overflow-y: auto;
   scrollbar-width: none;
 }
+/* The front never scrolls: the back's parts still hold their room there, so the front's parts stand exactly where they
+   will once it's turned (at the top when the whole card runs over, centred while it fits), but nothing past them can be
+   scrolled to, and no fade or bar is drawn (ReviewCard draws `ScrollEdges` on the back alone). `hidden` and not `clip`:
+   it stays a scroll container, as `auto` is, so the horizontal axis computes the same and nothing moves as the card
+   turns; ReviewCard puts its scroll back to the top as the card turns back. */
+.main > .review:is(.is-fit, .is-stage) > .review-card:not(.is-revealed) > .review-body {
+  overflow-y: hidden;
+}
 .main > .review:is(.is-fit, .is-stage) > .review-card > .review-body > * {
   flex: none;
 }
