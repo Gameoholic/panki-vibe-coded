@@ -682,6 +682,15 @@
   right: 0;
   width: auto;
 }
+/* The panel's menu (ui/PanelMenu.tsx), but for Subtitle style's page: narrow, under ≡ at the head's right edge, as wide
+   as its rows need (its rows of short choices size it), wherever the panel stands. */
+.strip-menu.is-panel,
+.strip.is-beside .strip-menu.is-panel {
+  left: auto;
+  right: 0;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
 /* The list in a box of its own height, so Jump to can float over its foot without scrolling with it. */
 .strip-list-box {
   position: relative;

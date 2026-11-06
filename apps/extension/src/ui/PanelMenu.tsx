@@ -30,7 +30,7 @@ type Page = "rows" | "style";
  * the panel is seen changing behind it. Subtitle style… takes the menu's place with the style's settings (the app's
  * `SubtitleStyleFields`, which its own Settings draw for a card's clip), each kept the moment it's changed, and while
  * they show the band on the video can be dragged. The Transcription menu's shape (`.strip-menu`), closed by a press
- * outside or Escape.
+ * outside or Escape; its rows under ≡ at the head's right edge, as wide as they need (`.is-panel`).
  */
 export function PanelMenu({ source, view, style }: Props) {
   const [open, setOpen] = useState(false);
@@ -69,7 +69,7 @@ export function PanelMenu({ source, view, style }: Props) {
           <SubtitleStyleFields idPrefix="subtitle" style={style.value} onChange={style.onChange} acrossWhy="Or drag the subtitles on the video while this is open." small />
         </div>
       ) : (
-        <div id="panki-panel-menu" className="strip-menu" role="dialog" aria-label="Panel settings">
+        <div id="panki-panel-menu" className="strip-menu is-panel" role="dialog" aria-label="Panel settings">
           {source || style ? (
             <div className="strip-menu-items">
               <p className="strip-menu-label">Subtitles</p>
@@ -116,7 +116,7 @@ export function PanelMenu({ source, view, style }: Props) {
             {/* The extension's own settings, on their YouTube tab. */}
             <Button variant="item" onClick={() => done(() => void askOptions("youtube"))}>
               <Icon name="settings" />
-              Options
+              Extension settings
             </Button>
           </div>
         </div>
