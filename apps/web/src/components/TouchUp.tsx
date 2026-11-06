@@ -39,8 +39,10 @@ import { WhyButton } from "./JudgedRow";
 /** What this says, one home. */
 export const TOUCH_UP_WORDS = {
   signedOut: "Sign in to Panki to touch up.",
-  /** Every positive line, a text field's and the Meaning's alike. */
-  nothing: "Nothing to change.",
+  /** Every positive verdict, a text field's and the Meaning's alike: the tag on its label's row (`NothingTag`). */
+  nothing: "Nothing to change",
+  /** The spark turning where a follow-up's reply will stand, for a screen reader. */
+  answering: "Panki AI is answering",
   /** A value written into a field that was empty, the Meaning of a dictionary with none among them. */
   proposes: "Panki AI proposes",
   couldBeBetter: "Could be better",
@@ -164,10 +166,13 @@ export function TouchUpBar({ calls, busy, canRun, pending, failure, burst, onRun
  */
 export type FollowTurn = { field: string | null; question: string; reply: string | null; failure: { message: string; retry: boolean } | null };
 
+/** A follow-up asked and not yet answered or failed: the one on its way. */
+export const followGoing = (turn: FollowTurn): boolean => turn.reply === null && turn.failure === null;
+
 /**
  * The follow-ups asked in one place, as Explain draws its own: the question a bubble at the right, the reply under it as
- * plain paragraphs, or the failure with Try again. One on its way is its question alone: the head's spark and Thinking
- * are the wait.
+ * plain paragraphs, or the failure with Try again. One on its way is its question with the spark turning under it,
+ * where its reply will stand, so the wait is where it was asked and not only in the head, which may be scrolled away.
  */
 export function FollowTurns({ turns, canRun, onRetry }: { turns: readonly FollowTurn[]; canRun: boolean; onRetry: (turn: FollowTurn) => void }) {
   return (
@@ -175,7 +180,11 @@ export function FollowTurns({ turns, canRun, onRetry }: { turns: readonly Follow
       {turns.map((turn, i) => (
         <div key={i} className="ai-explain-turn">
           <p className="ai-explain-question">{turn.question}</p>
-          {turn.reply !== null ? (
+          {followGoing(turn) ? (
+            <div className="touch-up-answering" role="status" aria-label={TOUCH_UP_WORDS.answering}>
+              <AiSpark working />
+            </div>
+          ) : turn.reply !== null ? (
             <AnswerText text={turn.reply} />
           ) : turn.failure ? (
             <div className="ai-explain-failure">
@@ -216,28 +225,72 @@ function Mark({ out, children, block }: { out?: "meh" | "bad"; children: string;
 }
 
 /**
- * What Touch up has to say under a field: the colour the two are drawn in, the field's box as the diff while a proposal
- * waits (none, and the field stands as it is), and the note under it.
+ * What Touch up has to say of a field: the colour the two are drawn in, the field's box as the diff while a proposal
+ * waits (none, and the field stands as it is), and the note under it; or, with nothing to change, no note at all but
+ * the tag on the label's row, `quiet` holding its why.
  */
-export type Shown = { tone: Tone; diff: ReactNode | null; note: ReactNode };
+export type Shown = { tone: Tone; diff: ReactNode | null; note: ReactNode | null; quiet: { why: string } | null };
+
+/**
+ * "Nothing to change" as a small tag at the right of its field's label row, in the good look, the spark before it and
+ * the chevron after: pressed, its why and the field's follow-ups open under the field (`Tied`), so a field that's fine
+ * takes no row of its own.
+ */
+function NothingTag({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <Button className={`touch-up-tag${open ? " is-open" : ""}`} aria-expanded={open} onClick={onToggle}>
+      <AiSpark />
+      {TOUCH_UP_WORDS.nothing}
+      <Icon name="down" />
+    </Button>
+  );
+}
+
+type TiedProps = {
+  shown: Shown;
+  /** What stands under the note, or in the tag's fold: the follow-ups asked at this field and the box to ask the next. */
+  more?: ReactNode;
+  /** The field itself, handed what goes at the right of its label's row (`TextField`'s `labelEnd`): the tag, or nothing. */
+  children: (labelEnd: ReactNode) => ReactNode;
+};
 
 /**
  * A field and its note as one shape, so a proposal is plainly its field's: the field's box
  * and the note's outline in the verdict's colour, the note hanging straight from the box's foot; while a proposal waits,
  * the box is the diff in the field's place (`.touch-up-tied.is-diffing`), and the field comes back as it's decided.
+ * With nothing to change there's no note: the box in the good colour, the tag on its label's row, and pressed, its why
+ * and `more` in a box of their own under the field (`.touch-up-open`).
  */
-export function Tied({ shown, children }: { shown: Shown; children: ReactNode }) {
+export function Tied({ shown, more, children }: TiedProps) {
+  const [open, setOpen] = useState(false);
+  if (shown.quiet) {
+    const why = shown.quiet.why.trim();
+    return (
+      <div className={`touch-up-tied is-quiet ${TONE_CLASS[shown.tone]}`}>
+        {children(<NothingTag open={open} onToggle={() => setOpen(!open)} />)}
+        <Fold open={open} className="touch-up-more">
+          <div className="touch-up-open">
+            {why !== "" ? <p className="touch-up-reason">{why}</p> : null}
+            {more}
+          </div>
+        </Fold>
+      </div>
+    );
+  }
   return (
     <div className={`touch-up-tied ${TONE_CLASS[shown.tone]}${shown.diff ? " is-diffing" : ""}`}>
-      {children}
+      {children(null)}
       {shown.diff ? <div className="touch-up-diff">{shown.diff}</div> : null}
-      <div className="touch-up-foot">{shown.note}</div>
+      <div className="touch-up-foot">
+        {shown.note}
+        {more}
+      </div>
     </div>
   );
 }
 
 /**
- * A note's why under its line, folded by the chevron a judged meaning's row has (`WhyButton`, the one piece): open under a proposal and the error, closed under "Nothing to change.". Nothing when there's no why.
+ * A note's why under its line, folded by the chevron a judged meaning's row has (`WhyButton`, the one piece): open to begin with under a proposal and the error. Nothing when there's no why.
  */
 function WithReason({ head, reason, open: start }: { head: ReactNode; reason: string; open: boolean }) {
   const [open, setOpen] = useState(start);
@@ -265,14 +318,17 @@ const head = (words: string) => (
   </span>
 );
 
-/** A line with nothing to press: "Nothing to change." (its why closed) or Panki's words for an error (open). */
-function Line({ words, why, open }: { words: string; why: string; open: boolean }) {
+/** A line with nothing to press: Panki's words for an error, its why open. */
+function Line({ words, why }: { words: string; why: string }) {
   return (
     <div className="touch-up-note">
-      <WithReason open={open} reason={why} head={head(words)} />
+      <WithReason open reason={why} head={head(words)} />
     </div>
   );
 }
+
+/** Nothing to change: no note, the tag on the label's row with its why. */
+const nothingShown = (why: string): Shown => ({ tone: "good", diff: null, note: null, quiet: { why } });
 
 /**
  * A proposal: its title, its why open, what else Accept does (`also`: the Sentence's clip on a video), and the two ways
@@ -307,17 +363,18 @@ type Ways = { waiting: boolean; onAccept: () => void; onDismiss: () => void; als
 const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string }): Shown => ({
   tone: "bad",
   diff: null,
-  note: <Line words={TOUCH_UP_ERRORS[verdict.error]} why={verdict.why} open />,
+  note: <Line words={TOUCH_UP_ERRORS[verdict.error]} why={verdict.why} />,
+  quiet: null,
 });
 
 /**
- * A text field as Panki draws its answer: good, a green "Nothing to change."; the error, red; meh or bad, the value it
+ * A text field as Panki draws its answer: good, the green "Nothing to change" tag; the error, red; meh or bad, the value it
  * holds struck in orange or red with the proposal under it in green, titled Could be better or Incorrect; written, the
  * value for an empty field in green under Panki AI proposes. `held` is what the field held as it was sent.
  */
 export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
-  if (verdict.kind === "good") return { tone: "good", diff: null, note: <Line words={TOUCH_UP_WORDS.nothing} why={verdict.why} open={false} /> };
+  if (verdict.kind === "good") return nothingShown(verdict.why);
   if (!ways.waiting) return null;
   const proposal = (tone: Tone, title: string): Shown => ({
     tone,
@@ -328,6 +385,7 @@ export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Sho
       </>
     ),
     note: <Proposal title={title} why={verdict.why} also={ways.also} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
+    quiet: null,
   });
   if (verdict.kind === "written") return proposal("accent", TOUCH_UP_WORDS.proposes);
   return proposal(verdict.kind, verdict.kind === "meh" ? TOUCH_UP_WORDS.couldBeBetter : TOUCH_UP_WORDS.incorrect);
@@ -399,14 +457,14 @@ function meaningTitle(verdict: Extract<MeaningVerdict, { kind: "change" | "propo
 }
 
 /**
- * The Meaning as Panki draws its answer: every meaning held good, a green "Nothing to change."; the error, red, the list
+ * The Meaning as Panki draws its answer: every meaning held good, the green "Nothing to change" tag; the error, red, the list
  * left unmarked; other meanings to tick or a proposed meaning, the Meaning's box as the diff (what goes struck, what
  * comes in green; the proposed meaning green under the struck ones), titled by `meaningTitle`. Its note says nothing of
  * what Accept does beyond the diff: Accept and Dismiss are the two ways out.
  */
 export function meaningShown(verdict: MeaningVerdict, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
-  if (verdict.kind === "good") return { tone: "good", diff: null, note: <Line words={TOUCH_UP_WORDS.nothing} why={verdict.why} open={false} /> };
+  if (verdict.kind === "good") return nothingShown(verdict.why);
   if (!ways.waiting) return null;
   const { tone, title } = meaningTitle(verdict);
   return {
@@ -418,6 +476,7 @@ export function meaningShown(verdict: MeaningVerdict, ways: Ways): Shown | null 
       </>
     ),
     note: <Proposal title={title} why={verdict.why} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
+    quiet: null,
   };
 }
 

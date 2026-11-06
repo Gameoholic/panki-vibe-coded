@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   AI_PROVIDERS,
   aiModelOf,
@@ -229,15 +229,54 @@ type FollowUpProps = {
   nested?: boolean;
   /** A small one, under a field's note. */
   small?: boolean;
+  /**
+   * Folded to one quiet line, "Ask a follow-up" with the most it can cost beside it, until it's pressed: then the box,
+   * the focus in it; Escape, or the focus leaving it, with nothing typed folds it back. Touch up's, where a box under
+   * every note would make the drawer twice as long.
+   */
+  folded?: boolean;
   onChange: (value: string) => void;
   onAsk: () => void;
 };
 
 /** A follow-up asked under an answer: the question, and Ask with the most it can cost beside it. Explain's and Touch up's alike. */
-export function FollowUp({ id, value, error, disabled, beside, nested = false, small = false, onChange, onAsk }: FollowUpProps) {
+export function FollowUp({ id, value, error, disabled, beside, nested = false, small = false, folded = false, onChange, onAsk }: FollowUpProps) {
+  // A question typed and left stands open: it's only the empty box that folds away.
+  const [open, setOpen] = useState(!folded || value.trim() !== "");
+  const line = useRef<HTMLDivElement>(null);
+  // Folded back by Escape, the focus goes to the line it folded into rather than out of the drawer.
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (open || !refocus.current) return;
+    refocus.current = false;
+    line.current?.querySelector("button")?.focus();
+  }, [open]);
+  const className = `ai-explain-ask${small ? " is-small" : ""}`;
+  if (folded && !open) {
+    return (
+      <div ref={line} className={`${className} is-folded`}>
+        <div className="ai-explain-go">
+          <Button className="ai-explain-button is-quiet" disabled={disabled} onClick={() => setOpen(true)}>
+            <AiSpark />
+            {RUN_WORDS.followUp}
+          </Button>
+          {beside ? <span className="btn-beside">{beside}</span> : null}
+        </div>
+      </div>
+    );
+  }
   const inside = (
     <>
-      <TextField id={`${id}-question`} label={RUN_WORDS.followUp} value={value} onChange={onChange} error={error} autoComplete="off" onEnter={nested ? () => (disabled ? undefined : onAsk()) : undefined} />
+      <TextField
+        id={`${id}-question`}
+        label={RUN_WORDS.followUp}
+        value={value}
+        onChange={onChange}
+        error={error}
+        autoComplete="off"
+        autoFocus={folded}
+        onEnter={nested ? () => (disabled ? undefined : onAsk()) : undefined}
+      />
       <div className="ai-explain-go">
         <Button type={nested ? "button" : "submit"} className="ai-explain-button" disabled={disabled} onClick={nested ? onAsk : undefined}>
           <AiSpark />
@@ -247,23 +286,35 @@ export function FollowUp({ id, value, error, disabled, beside, nested = false, s
       </div>
     </>
   );
-  const className = `ai-explain-ask${small ? " is-small" : ""}`;
+  /** Folding back, only while nothing is typed: Escape (kept from closing what it stands in) and the focus going elsewhere. */
+  const foldKeys = (e: KeyboardEvent<HTMLElement>) => {
+    if (!folded || e.key !== "Escape" || value.trim() !== "") return;
+    e.preventDefault();
+    e.stopPropagation();
+    refocus.current = true;
+    setOpen(false);
+  };
+  const foldBlur = (e: FocusEvent<HTMLElement>) => {
+    if (!folded || value.trim() !== "" || e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setOpen(false);
+  };
   if (!nested) {
     return (
-      <Form className={className} onSubmit={onAsk}>
+      <Form className={className} onSubmit={onAsk} onKeyDownCapture={foldKeys} onBlur={foldBlur}>
         {inside}
       </Form>
     );
   }
   // Ctrl+Enter sends the form it's in from any field: here it asks, and the card's form never hears it.
   const keep = (e: KeyboardEvent<HTMLDivElement>) => {
+    foldKeys(e);
     if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
     e.stopPropagation();
     if (!disabled) onAsk();
   };
   return (
-    <div className={className} role="group" aria-label={RUN_WORDS.followUp} onKeyDown={keep}>
+    <div className={className} role="group" aria-label={RUN_WORDS.followUp} onKeyDown={keep} onBlur={foldBlur}>
       {inside}
     </div>
   );

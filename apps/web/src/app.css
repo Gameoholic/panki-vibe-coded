@@ -7266,9 +7266,12 @@ mark.sub-blur {
 .touch-up-tied.is-accent {
   --accuracy: var(--accent);
 }
-/* The field's own box, never the follow-up's in the note under it (`:not(.touch-up-foot)`). */
-.touch-up-tied > :not(.touch-up-foot) .field-input:not(.field-behind) {
+/* The field's own box, never the follow-up's in the note or the tag's fold under it (`.touch-up-foot`, `.touch-up-more`);
+   its foot squared where the note hangs from it. */
+.touch-up-tied > :not(.touch-up-foot, .touch-up-more) .field-input:not(.field-behind) {
   border-color: var(--accuracy);
+}
+.touch-up-tied:not(.is-quiet) > :not(.touch-up-foot) .field-input:not(.field-behind) {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -7276,6 +7279,59 @@ mark.sub-blur {
    kept, and it's back as the proposal's decided. */
 .touch-up-tied.is-diffing > :not(.touch-up-foot) :is(.field-input, .field-marked, .field-lead) {
   display: none;
+}
+/* A field with nothing to change (TouchUp.tsx → `NothingTag`): no note, the field's box whole in the good colour and a
+   small tag at the right of its label's row, the spark before its words and the chevron after, in the verdict's
+   colour on its faint tint; pressed, its why and the field's follow-ups in a box of their own under the field. */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.btn.touch-up-tag {
+  flex: none;
+  gap: 5px;
+  padding: 2px 4px 2px 8px;
+  border: 0;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accuracy) 14%, transparent);
+  color: var(--accuracy);
+  font-size: 12px;
+  font-weight: 700;
+}
+.btn.touch-up-tag > .ai-spark {
+  width: 12px;
+  height: 12px;
+}
+.btn.touch-up-tag > .icon:last-child {
+  width: 13px;
+  height: 13px;
+  transition: transform 0.15s ease;
+}
+.btn.touch-up-tag.is-open > .icon:last-child {
+  transform: rotate(180deg);
+}
+.touch-up-open {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--accuracy);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
+}
+/* A follow-up on its way: the spark turning under its question, where the reply will stand (TouchUp.tsx → `FollowTurns`). */
+.touch-up-answering {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  color: var(--accent);
+}
+.touch-up-answering > .ai-spark {
+  width: 18px;
+  height: 18px;
 }
 .touch-up-diff {
   margin-top: 6px;
@@ -7392,6 +7448,24 @@ mark.sub-blur {
 }
 .ai-explain-ask.is-small .field-label {
   font-size: 12.5px;
+}
+/* Folded (AiRun.tsx → `FollowUp`'s `folded`): one quiet line, the spark and "Ask a follow-up" with no box round it,
+   its "Up to" beside it; pressed, the box above in its place. */
+.ai-explain-ask.is-folded {
+  padding-top: 0;
+  border-top: 0;
+}
+.btn.ai-explain-button.is-quiet {
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-color: transparent;
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .btn.ai-explain-button.is-quiet:hover:not(:disabled) {
+    background: transparent;
+    color: var(--fg);
+  }
 }
 /* An action's button and its arrow, one shape (AiRun.tsx → `TemplateMenu`): the arrow joined to the button's end, the
    templates' menu under both. */

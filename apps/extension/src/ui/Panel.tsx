@@ -76,6 +76,7 @@ import {
   TouchUpCost,
   fieldMarks,
   fieldShown,
+  followGoing,
   meaningShown,
   proposes,
   touchUpReason,
@@ -943,7 +944,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
 
   /**
    * What stands where follow-ups are asked, under the head or under a field's note: those asked there with their
-   * replies, the question before one over Ask before a run over, and the box to ask the next.
+   * replies (one on its way, its question with the spark turning under it), the question before one over Ask before a
+   * run over, and the next one to ask, folded to its quiet line until it's pressed. The box isn't there while a call is
+   * out: the spark under the question is the wait.
    */
   function followBlock(fieldId: string | null): ReactNode {
     if (touch.answer === null || touch.template === null) return null;
@@ -962,6 +965,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <FollowUp
             id={`panki-follow-${where.replace(":", "-")}`}
             nested
+            folded
             small={fieldId !== null}
             value={typed.text}
             error={typed.error}
@@ -1074,10 +1078,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   };
   const dismissAll = () => setTouch((was) => ({ ...was, hidden: allHidden(), decided: { ...was.decided, ...Object.fromEntries(pendingKeys.map((key) => [key, true])) } }));
 
-  /**
-   * What Touch up says under a field it has something for, as Panki draws it (`fieldShown`, `meaningShown`), and under
-   * the note, once the run has answered, the field's own follow-ups (AI step 5: the same follow-up, asked from here).
-   */
+  /** What Touch up says of a field it has something for, as Panki draws it (`fieldShown`, `meaningShown`). */
   function touchShown(field: CardField): Shown | null {
     const key = keyOfField(field.id);
     if (!key || !touch.answer || touch.hidden[key]) return null;
@@ -1085,39 +1086,47 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     if (key === "meaning" && meaningMoved) return null;
     const meaning = key === "meaning" ? meaningVerdict() : null;
     const verdict = key === "meaning" ? null : fieldVerdict(key);
-    const shown = meaning ? meaningShown(meaning, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;
-    if (!shown) return null;
-    return {
-      ...shown,
-      note: (
-        <>
-          {shown.note}
-          {followBlock(field.id)}
-        </>
-      ),
-    };
+    return meaning ? meaningShown(meaning, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;
   }
   /**
    * A field and what Touch up says about it as one shape, so a proposal is plainly its field's,
-   * in its verdict's colour, the field's box the diff while a proposal waits (`Tied`). Every field the same way.
+   * in its verdict's colour, the field's box the diff while a proposal waits (`Tied`), and, once the run has answered,
+   * the field's own follow-ups (AI step 5: the same follow-up, asked from here) under its note or in its tag's fold.
+   * Every field the same way. `box` is the field, handed what stands at the right of its label's row.
    */
-  function tied(field: CardField | null, box: ReactNode): ReactNode {
+  function tied(field: CardField | null, box: (labelEnd: ReactNode) => ReactNode): ReactNode {
     const shown = field ? touchShown(field) : null;
-    if (shown) return <Tied shown={shown}>{box}</Tied>;
+    if (field && shown) {
+      return (
+        <Tied shown={shown} more={followBlock(field.id)}>
+          {box}
+        </Tied>
+      );
+    }
     // The Meaning changed since it was judged: its note goes, and the follow-ups asked there stay, to ask of it as it stands.
     if (field && meaningMoved && keyOfField(field.id) === "meaning" && !touch.hidden.meaning) {
       return (
         <>
-          {box}
+          {box(null)}
           {followBlock(field.id)}
         </>
       );
     }
-    return box;
+    return box(null);
   }
-  /** A field Touch up's run is reworking: its words where they stand, dimmed under the sweep. A follow-up's head is its wait. */
-  const reworked = (fieldId: string | null, inside: ReactNode): ReactNode =>
-    touch.busy === "run" && fieldId !== null && keyOfField(fieldId) !== null ? <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting> : inside;
+  /** The field the follow-up on its way was asked from; null for none, or one asked under the head. */
+  const followingField = touch.busy === "follow" ? (touch.turns.find(followGoing)?.field ?? null) : null;
+  /**
+   * A field Touch up is working on, its words where they stand, dimmed under the sweep: every field it judges while a
+   * run is out, and the one field a follow-up was asked from while that's out (one asked under the head dims nothing:
+   * it's about the card as a whole, and the spark under its question is its wait).
+   */
+  const reworked = (fieldId: string | null, inside: ReactNode): ReactNode => {
+    if (fieldId === null || keyOfField(fieldId) === null) return inside;
+    if (touch.busy === "run") return <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting>;
+    if (followingField === fieldId) return <AiWaiting label={TOUCH_UP_WORDS.answering}>{inside}</AiWaiting>;
+    return inside;
+  };
   /** The mark after a field's name: the spark while the AI's words stand in it. */
   const marksOf = (field: CardField) => fieldMarks(aiHolds(field.id));
   /**
@@ -1529,13 +1538,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const lockable = clip !== null && sentenceField !== null;
     return (
       <div className="capture-sentence" onDoubleClick={pickInSentence}>
-        {tied(
-          sentenceField,
+        {tied(sentenceField, (labelEnd) =>
           reworked(
             sentenceField?.id ?? null,
             <TextField
               id="panki-sentence"
               label={sentenceField ? (sentenceField.required ? sentenceField.name : `${sentenceField.name} · optional`) : "The line"}
+              labelEnd={labelEnd}
               lead={sentenceField ? marksOf(sentenceField) : null}
               multiline
               readOnly={!sentenceField || still}
@@ -1817,13 +1826,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       return (
         <>
           {field.id === firstDictField?.id ? dictionaryBlock() : null}
-          {tied(
-            field,
+          {tied(field, (labelEnd) =>
             reworked(
               field.id,
               <TextField
                 id={`panki-field-${field.id}`}
                 label={field.required ? field.name : `${field.name} · optional`}
+                labelEnd={labelEnd}
                 lead={marksOf(field)}
                 multiline={FIELD_KINDS[field.kind].multiline}
                 lang={langOf(value)}

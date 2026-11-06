@@ -31,12 +31,14 @@ type Props = {
    * AI's spark on what it wrote (in the box before the value, in the accent, not after the label).
    */
   lead?: ReactNode;
+  /** At the right of the label's row, never in the box: what Touch up says of a field it has nothing to change in. */
+  labelEnd?: ReactNode;
   /** Names the field for the checks that drive the real UI. */
   "data-field"?: string;
 };
 
 /** A labelled text input, one line or several, with the app's own error bubble under it; never Chrome's "Please fill out this field." */
-export function TextField({ id, label, value, onChange, error, multiline = false, onEnter, type = "text", lang, autoFocus, autoComplete, readOnly = false, disabled = false, mark, className = "", lead, "data-field": dataField }: Props) {
+export function TextField({ id, label, value, onChange, error, multiline = false, onEnter, type = "text", lang, autoFocus, autoComplete, readOnly = false, disabled = false, mark, className = "", lead, labelEnd, "data-field": dataField }: Props) {
   const behind = useRef<HTMLDivElement>(null);
   const shared = {
     id,
@@ -93,11 +95,21 @@ export function TextField({ id, label, value, onChange, error, multiline = false
       {box}
     </div>
   );
+  const named = (
+    <label className="field-label" htmlFor={id}>
+      {label}
+    </label>
+  );
   return (
     <div className={`field ${error ? "field-invalid" : ""} ${lead ? "has-lead" : ""} ${className}`.trim()}>
-      <label className="field-label" htmlFor={id}>
-        {label}
-      </label>
+      {labelEnd ? (
+        <div className="field-label-row">
+          {named}
+          {labelEnd}
+        </div>
+      ) : (
+        named
+      )}
       {/* A mark inside the box stands over its padding, which makes room for it while it's there (`.has-lead`): the box
           stays one box, always in this holder, so a mark coming or going never makes it anew (and the cursor lost). */}
       <div className="field-leads">

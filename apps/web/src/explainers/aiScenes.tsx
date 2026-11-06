@@ -370,8 +370,8 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
   const sentenceShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.sentence, HEARD), HEARD, ways(!accepted, () => setAccepted(true))) : null;
   const explanationShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.explanation, ""), "", ways(true, nothing)) : null;
   /** A field Touch up reworks: dimmed under the sweep while it thinks, then tied to what it says of it. */
-  const touched = (shown: ReturnType<typeof fieldShown>, box: ReactNode) => {
-    const inside = shown ? <Tied shown={shown}>{box}</Tied> : box;
+  const touched = (shown: ReturnType<typeof fieldShown>, box: (labelEnd: ReactNode) => ReactNode) => {
+    const inside = shown ? <Tied shown={shown}>{box}</Tied> : box(null);
     return thinking ? <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting> : inside;
   };
   const button = <TouchUpButton name={template.name} canRun busy={thinking} thinking={thinking} burst={runs} onRun={nothing} />;
@@ -413,20 +413,20 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
                 </div>
                 <TouchUpBar calls={calls} busy={thinking} canRun pending={answered ? (accepted ? 1 : 2) : 0} failure={null} burst={0} onRun={nothing} onAcceptAll={nothing} onDismissAll={nothing} />
                 <TextField id={`${id}-word`} label="Word" lang="ja" value={WORD.term} onChange={nothing} />
-                {touched(
-                  sentenceShown,
+                {touched(sentenceShown, (labelEnd) => (
                   <TextField
                     id={`${id}-sentence`}
                     label="Sentence"
+                    labelEnd={labelEnd}
                     lang="ja"
                     multiline
                     value={accepted ? EXAMPLE_SENTENCE : HEARD}
                     mark={MARKED}
                     lead={fieldMarks(accepted)}
                     onChange={nothing}
-                  />,
-                )}
-                {touched(explanationShown, <TextField id={`${id}-explanation`} label="Explanation" value="" onChange={nothing} />)}
+                  />
+                ))}
+                {touched(explanationShown, (labelEnd) => <TextField id={`${id}-explanation`} label="Explanation" labelEnd={labelEnd} value="" onChange={nothing} />)}
               </div>
             </div>
           </section>
