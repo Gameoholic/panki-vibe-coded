@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
+  CORNER_MARK_IDS,
   DEFAULT_SUBTITLE_STYLE,
   MediaId,
+  TagCorner,
   aiOwns,
   byAi,
   holdsFile,
@@ -18,15 +20,16 @@ import {
   type CardSide,
   type CardType,
   type Column,
+  type CornerMarkId,
   type LayoutPart,
   type ListenFirst,
   type ListenShow,
   type MediaCues,
   type MediaKind,
+  type SparkMark,
   type SrsType,
   type StageTag,
   type SubtitleStyle,
-  type TagCorner,
   type ValueSource,
 } from "@panki/contracts";
 import { AiSpark } from "./AiWaiting";
@@ -54,11 +57,14 @@ export type CardEdit = {
   onPick: (fieldId: string) => void;
   /** Moving the parts on the side that's showing, in each column, by their place among that side's parts in it (`partsOnIn`). */
   order: Readonly<Record<Column, ReturnType<typeof useDragOrder>>>;
-  /** The stage tag: whether it's the one picked, picking it, and moving it to a corner (dragged there, or by the arrow keys on it). */
-  tagPicked: boolean;
-  onPickTag: () => void;
-  onMoveTag: (corner: TagCorner) => void;
+  /** The corner marks (the stage tag, the AI spark): which is picked, picking one, and moving one to a corner (dragged there, or by the arrow keys on it). */
+  markPicked: CornerMarkId | null;
+  onPickMark: (id: CornerMarkId) => void;
+  onMoveMark: (id: CornerMarkId, corner: TagCorner) => void;
 };
+
+/** A mark in a corner of the card, as the card has it now: its corner, whether it's laid out to show and has something to show here, its look and what it draws. */
+type CornerMark = { id: CornerMarkId; corner: TagCorner; shown: boolean; here: boolean; look: string; label: string; node: ReactNode };
 
 /** How far a press must move before it's a drag of the stage tag rather than a press that picks it. */
 const TAG_DRAG_PX = 4;
@@ -69,16 +75,17 @@ const AT_START_S = 0.25;
 const cornerOf = (top: boolean, left: boolean): TagCorner => (top ? (left ? "top-left" : "top-right") : left ? "bottom-left" : "bottom-right");
 
 /**
- * The stage tag in its corner of the card. On the card being laid out it's pressed to pick it, and dragged anywhere
- * on the card to settle in the corner nearest where it's let go (one of the four corners, never a free position); the arrow keys on it move it a corner over. Hidden, it's still there to pick while it's laid out,
- * faint; in a review it isn't drawn.
+ * A mark in its corner of the card (the stage tag, the AI spark). On the card being laid out it's pressed to pick it,
+ * and dragged anywhere on the card to settle in the corner nearest where it's let go (one of the four corners, never a
+ * free position); the arrow keys on it move it a corner over. Hidden, or with nothing to show on this card, it's still
+ * there to pick while it's laid out, faint; in a review it isn't drawn (`CornerMarks` leaves it out).
  */
-function StageTagSpot({ tag, edit, card, children }: { tag: StageTag; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null>; children: ReactNode }) {
+function CornerMarkSpot({ mark, edit, card }: { mark: CornerMark; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null> }) {
   const [held, setHeld] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
-  const look = `review-place is-${tag.corner} size-${tag.size}`;
-  if (!edit) return tag.shown ? <span className={look}>{children}</span> : null;
-  const top = tag.corner.startsWith("top");
-  const left = tag.corner.endsWith("left");
+  const look = `review-mark ${mark.look}`;
+  if (!edit) return <span className={look}>{mark.node}</span>;
+  const top = mark.corner.startsWith("top");
+  const left = mark.corner.endsWith("left");
   /** The corner the tag's middle is nearest to, as it's let go. */
   function settled(el: HTMLElement): TagCorner | null {
     const frame = card.current?.getBoundingClientRect();
@@ -89,11 +96,11 @@ function StageTagSpot({ tag, edit, card, children }: { tag: StageTag; edit: Card
   const keyed: Partial<Record<string, TagCorner>> = { ArrowUp: cornerOf(true, left), ArrowDown: cornerOf(false, left), ArrowLeft: cornerOf(top, true), ArrowRight: cornerOf(top, false) };
   return (
     <span
-      className={`${look} is-editable ${edit.tagPicked ? "is-picked" : ""} ${tag.shown ? "" : "is-hidden"} ${held ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+      className={`${look} is-editable ${edit.markPicked === mark.id ? "is-picked" : ""} ${mark.shown && mark.here ? "" : "is-hidden"} ${held ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
       role="button"
       tabIndex={0}
-      aria-label="Stage tag"
-      aria-pressed={edit.tagPicked}
+      aria-label={mark.label}
+      aria-pressed={edit.markPicked === mark.id}
       style={held ? { transform: `translate(${held.dx}px, ${held.dy}px)` } : undefined}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
@@ -111,9 +118,9 @@ function StageTagSpot({ tag, edit, card, children }: { tag: StageTag; edit: Card
         if (!held) return;
         if (Math.abs(held.dx) + Math.abs(held.dy) > TAG_DRAG_PX) {
           const to = settled(e.currentTarget);
-          if (to && to !== tag.corner) edit.onMoveTag(to);
+          if (to && to !== mark.corner) edit.onMoveMark(mark.id, to);
         }
-        edit.onPickTag();
+        edit.onPickMark(mark.id);
         setHeld(null);
       }}
       onLostPointerCapture={() => setHeld(null)}
@@ -121,18 +128,39 @@ function StageTagSpot({ tag, edit, card, children }: { tag: StageTag; edit: Card
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          edit.onPickTag();
+          edit.onPickMark(mark.id);
           return;
         }
         const to = keyed[e.key];
         if (!to) return;
         e.preventDefault();
-        if (to !== tag.corner) edit.onMoveTag(to);
+        if (to !== mark.corner) edit.onMoveMark(mark.id, to);
       }}
     >
-      {children}
+      {mark.node}
     </span>
   );
+}
+
+/**
+ * The card's corner marks, each corner a row of those standing in it in the registry's order (`CORNER_MARK_IDS`: the
+ * stage tag first): in a review only those laid out to show that have something to show; on the card being laid out
+ * every one, so each can be picked and moved.
+ */
+function CornerMarks({ marks, edit, card }: { marks: readonly CornerMark[]; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null> }) {
+  const order = (id: CornerMarkId) => CORNER_MARK_IDS.indexOf(id);
+  const drawn = marks.filter((m) => edit || (m.shown && m.here)).sort((a, b) => order(a.id) - order(b.id));
+  return TagCorner.options.map((corner) => {
+    const here = drawn.filter((m) => m.corner === corner);
+    if (here.length === 0) return null;
+    return (
+      <span key={corner} className={`review-corner is-${corner}`}>
+        {here.map((m) => (
+          <CornerMarkSpot key={m.id} mark={m} edit={edit} card={card} />
+        ))}
+      </span>
+    );
+  });
 }
 
 type Props = {
@@ -182,6 +210,8 @@ type Props = {
   picturesOf?: (videoId: string) => VideoPictures | null;
   /** A stage tag to draw in place of the type's own: one being laid out. */
   tag?: StageTag;
+  /** An AI spark to draw in place of the type's own: one being laid out. */
+  spark?: SparkMark;
   /**
    * The keys that play its sounds and clips, drawn on them, in the card's order (the layout's, both sides alike, so a
    * field keeps its key when the card is turned): a review, and a card tried as one, give this device's (`keys.ts`); a
@@ -281,6 +311,7 @@ export function ReviewCard({
   subtitleStyle = DEFAULT_SUBTITLE_STYLE,
   picturesOf,
   tag = type.tag,
+  spark = type.spark,
   shortcuts = [],
   restarts = [],
   screenKey = null,
@@ -902,18 +933,17 @@ export function ReviewCard({
   }
   const pressable = edit || !onPress ? {} : keys ? { role: "button", tabIndex: 0, onClick: onPress, onKeyDown } : { onClick: onPress };
 
-  // The spark once in the card's corner while the side shown holds anything Panki AI wrote (its
-  // words in the AI's ink, the spark out of the text), in the top corner the stage tag leaves free; on a card being laid
-  // out the tag stands in its corner even hidden, so the spark keeps clear of it there too, and follows it as it's moved.
+  // The spark once in its corner while the side shown holds anything Panki AI wrote (its words in the AI's ink, the
+  // spark out of the text).
   const aiShown = drawn.some((d) => !d.held && (values[d.field.id] ?? "") !== "" && byAi(sources, d.field.id));
-  const sparkCorner = (tag.shown || edit) && tag.corner === "top-right" ? "top-left" : "top-right";
+  const marks: CornerMark[] = [
+    { id: "tag", corner: tag.corner, shown: tag.shown, here: true, look: `review-place size-${tag.size}`, label: "Stage tag", node: <PlacePill type={srsType} place={place} /> },
+    { id: "spark", corner: spark.corner, shown: spark.shown, here: aiShown, look: "review-ai-mark", label: "AI spark", node: <AiSpark className="review-ai-corner" /> },
+  ];
 
   return (
     <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${frontTall ? "is-front-tall" : ""} ${inListen ? "is-listening" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
-      <StageTagSpot tag={tag} edit={edit} card={card}>
-        <PlacePill type={srsType} place={place} />
-      </StageTagSpot>
-      {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
+      <CornerMarks marks={marks} edit={edit} card={card} />
       {/* The parts in one box, in their two columns: the side one, only while something in it shows or holds its room,
           and the main one (`.review-body`, `.review-side`, `.review-main`, app.css). A review that fits the window or
           fills the screen scrolls them inside the card, with Panki's fades and thin bar over it: the body as a whole

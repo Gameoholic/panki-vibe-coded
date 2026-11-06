@@ -3045,18 +3045,17 @@ mark.review-mark {
   margin-right: 0.4em;
   vertical-align: -0.1em;
 }
+/* The AI spark among the card's corner marks (`.review-corner`), 4 px in from the corner's own edge, where it stood
+   when it was alone in a corner. */
+.review-mark.review-ai-mark {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+}
 .ai-spark.review-ai-corner {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  z-index: 1;
   width: 14px;
   height: 14px;
   color: var(--accent);
-}
-.ai-spark.review-ai-corner.is-top-left {
-  right: auto;
-  left: 18px;
 }
 .ai-spark.card-ai {
   width: 12px;
@@ -5155,19 +5154,34 @@ mark.sub-blur {
   display: inline-flex;
   border-radius: 999px;
 }
-.review-place.is-top-right {
+/* The card's corner marks (`ReviewCard` → `CornerMarks`: the stage tag, the AI spark), each corner a row of those in
+   it, the tag first; the stage tag alone where it stands by itself (the review's skeleton). */
+.review-corner {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.review-corner.is-top-right {
   left: auto;
   right: 14px;
 }
-.review-place.is-bottom-left {
+.review-corner.is-bottom-left {
   top: auto;
   bottom: 14px;
 }
-.review-place.is-bottom-right {
+.review-corner.is-bottom-right {
   top: auto;
   left: auto;
   bottom: 14px;
   right: 14px;
+}
+.review-corner > .review-place {
+  position: static;
+  inset: auto;
 }
 .review-place.size-small .pill {
   padding: 1px 7px;
@@ -5179,21 +5193,22 @@ mark.sub-blur {
 }
 /* Being laid out: pressed to pick it, carried anywhere on the card to settle in the nearest corner; hidden, still
    there to pick, faint. */
-.review-place.is-editable {
+.review-mark.is-editable {
+  position: relative;
   cursor: grab;
   touch-action: none;
   outline: 1px dashed transparent;
   outline-offset: 4px;
 }
-.review-place.is-editable.is-picked,
-.review-place.is-editable:focus-visible {
+.review-mark.is-editable.is-picked,
+.review-mark.is-editable:focus-visible {
   outline: 2px solid var(--accent);
 }
-.review-place.is-editable.is-dragging {
+.review-mark.is-editable.is-dragging {
   z-index: 3;
   cursor: grabbing;
 }
-.review-place.is-hidden {
+.review-mark.is-hidden {
   opacity: 0.45;
 }
 .summary {

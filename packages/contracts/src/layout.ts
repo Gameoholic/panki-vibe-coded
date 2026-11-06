@@ -138,6 +138,19 @@ export type StageTag = z.infer<typeof StageTag>;
 export const DEFAULT_STAGE_TAG: StageTag = { shown: true, size: "normal", corner: "top-left" };
 
 /**
+ * The marks a card carries in its corners, one registry, in the order they stand when two share a corner: the stage
+ * tag, then the AI spark (shown while the side shown holds anything Panki AI wrote). Each is laid out as the stage tag
+ * is: shown or not, and the corner it sits in. A new mark is one id here, its shape and its drawing.
+ */
+export const CORNER_MARK_IDS = ["tag", "spark"] as const;
+export type CornerMarkId = (typeof CORNER_MARK_IDS)[number];
+/** The AI spark on the card: shown or not, and its corner. */
+export const SparkMark = z.object({ shown: z.boolean(), corner: TagCorner });
+export type SparkMark = z.infer<typeof SparkMark>;
+/** Shown, top right: where it stood while the stage tag kept the top left. */
+export const DEFAULT_SPARK_MARK: SparkMark = { shown: true, corner: "top-right" };
+
+/**
  * Listen first, since a word known by its spelling and its video isn't yet known by ear, and understanding by hearing
  * matters more: a type's cards open in a review on a Listen phase before the
  * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Done listening, or the

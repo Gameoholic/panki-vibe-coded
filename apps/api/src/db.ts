@@ -46,6 +46,10 @@ import {
   resolve,
   sideOf,
   stageTagOf,
+  sparkMarkOf,
+  DEFAULT_STAGE_TAG,
+  type SparkMark,
+  type StageTag,
   listenFirstOf,
   stageIndex,
   starterStageCount,
@@ -1449,8 +1453,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     // The main field while it's one of the fields there are (a field hidden since reads as none picked).
     const mainField = keptMain !== null && fields.some((f) => f.id === keptMain) ? keptMain : null;
-    return CardType.parse({ ...base, fields, layout, tag: stageTagOf(keptTag(stageTag)), listen: listenFirstOf(keptTag(listen)), mainField });
+    // The card's corner marks are kept in one JSON: the stage tag, and the AI spark beside it as `spark`.
+    const marks = keptTag(stageTag);
+    const tag = stageTagOf(marks);
+    return CardType.parse({ ...base, fields, layout, tag, spark: sparkMarkOf(marks, tag), listen: listenFirstOf(keptTag(listen)), mainField });
   }
+  /** The corner marks as they're kept: the stage tag, with the AI spark beside it. */
+  const marksJson = (tag: StageTag, spark: SparkMark) => JSON.stringify({ ...tag, spark });
   /** The field a card of a type is told by in words (the contracts' `wordsFieldOf`); none when it has no such field. */
   function wordFieldOf(typeId: string | null | undefined): string | null {
     const row = typeId ? selectAnyType.get(typeId) : undefined;
@@ -1763,7 +1772,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
           type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
-          if (type.tag) updateTypeTag.run(JSON.stringify(type.tag), type.id);
+          if (type.tag || type.spark) {
+            const tag = type.tag ?? DEFAULT_STAGE_TAG;
+            updateTypeTag.run(marksJson(tag, type.spark ?? sparkMarkOf(null, tag)), type.id);
+          }
           if (type.listen) updateTypeListen.run(JSON.stringify(type.listen), type.id);
           if (type.mainField) updateTypeMainField.run(type.mainField, type.id);
         }
@@ -1796,8 +1808,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             insertLayoutChange.run(id, was, is, now);
           }
         }
-        // The stage tag when it's sent; what it was is in the whole type's log below.
-        if (update.tag && JSON.stringify(update.tag) !== JSON.stringify(before.tag)) updateTypeTag.run(JSON.stringify(update.tag), id);
+        // The stage tag and the AI spark when they're sent, kept together; what they were is in the whole type's log below.
+        const tag = update.tag ?? before.tag;
+        const spark = update.spark ?? before.spark;
+        if (JSON.stringify([tag, spark]) !== JSON.stringify([before.tag, before.spark])) updateTypeTag.run(marksJson(tag, spark), id);
         // Listen first when it's sent; what it was is in the whole type's log below.
         if (update.listen && JSON.stringify(update.listen) !== JSON.stringify(before.listen)) updateTypeListen.run(JSON.stringify(update.listen), id);
         // The main field when it's sent (null is none picked); what it was is in the whole type's log below.

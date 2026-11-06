@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AutoPlay, Column, DEFAULT_LISTEN_FIRST, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type StageTag } from "./layout";
+import { AutoPlay, Column, DEFAULT_LISTEN_FIRST, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type LayoutPart, type ListenFirst, type SparkMark, type StageTag } from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -144,6 +144,28 @@ export function stageTagOf(kept: unknown): StageTag {
   if (!read.success) return { ...DEFAULT_STAGE_TAG };
   const { shown, size, corner } = read.data;
   return { shown: shown ?? DEFAULT_STAGE_TAG.shown, size: size ?? DEFAULT_STAGE_TAG.size, corner: corner ?? DEFAULT_STAGE_TAG.corner };
+}
+
+/** The AI spark as it's kept, beside the stage tag (`spark` in the same JSON): anything missing or broken in it reads as the default's. */
+const KeptSpark = z.object({
+  spark: z
+    .object({
+      shown: z.boolean().optional().catch(undefined),
+      corner: TagCorner.optional().catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
+});
+
+/**
+ * A type's AI spark as it stands, from what's kept beside its stage tag. One never laid out stands where it always did:
+ * the top corner the tag leaves free (the top left while a shown tag is in the top right, else the top right).
+ */
+export function sparkMarkOf(kept: unknown, tag: StageTag): SparkMark {
+  const read = KeptSpark.safeParse(kept);
+  const spark = read.success ? read.data.spark : undefined;
+  const corner = tag.shown && tag.corner === "top-right" ? "top-left" : DEFAULT_SPARK_MARK.corner;
+  return { shown: spark?.shown ?? DEFAULT_SPARK_MARK.shown, corner: spark?.corner ?? corner };
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  CORNER_MARK_IDS,
   CardLayout,
   NEW_PLACE,
   holdsLink,
@@ -13,9 +14,11 @@ import {
   type CardField,
   type CardSide,
   type CardType,
+  type CornerMarkId,
   type Deck,
   type LayoutPart,
   type ListenFirst,
+  type SparkMark,
   type SrsType,
   type StageTag,
   type SubtitleStyle,
@@ -38,7 +41,7 @@ import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { useUndoable } from "../hooks/useUndoable";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled } from "../keys";
-import { COLUMN_OPTIONS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { COLUMN_OPTIONS, CORNER_MARK_NAMES, CORNER_OPTIONS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import { buildQueue, kindOf, startLine, togoOf } from "../reviewLine";
 import { rememberShape } from "../skeletonMemory";
 import type { UnsavedGuard } from "../unsaved";
@@ -60,11 +63,11 @@ const NO_SAMPLE = "";
 const NOT_OVER = "";
 /** The pill's ladder when no deck's is to hand: a new card says "New" whatever its type is. */
 const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: [], after: "burn", burnedName: "" };
-/** What's picked when it's the stage tag: no field's id is this. */
-const TAG_PICKED = "stage-tag";
+/** What's picked when it's a corner mark (the stage tag, the AI spark): no field's id is this. */
+const markPicked = (id: CornerMarkId) => `mark:${id}`;
 
-/** What's laid out here: every field's part, the stage tag, and Listen first. */
-type Laid = { parts: LayoutPart[]; tag: StageTag; listen: ListenFirst };
+/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark), and Listen first. */
+type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; listen: ListenFirst };
 
 type Props = {
   /** The card type as it's saved. */
@@ -72,7 +75,7 @@ type Props = {
   /** Every deck: the ones of this type lend their newest cards to show on it, and their counts to the line over it. */
   decks: readonly Deck[];
   srsTypes: readonly SrsType[];
-  onSave: (layout: CardLayout, tag: StageTag, listen: ListenFirst) => Promise<CardType>;
+  onSave: (layout: CardLayout, tag: StageTag, spark: SparkMark, listen: ListenFirst) => Promise<CardType>;
   onStatus: (status: SaveStatus) => void;
   /** Says whether there's unsaved work here, so leaving the screen can ask first (null when there's none). */
   onGuard: (guard: UnsavedGuard | null) => void;
@@ -89,16 +92,21 @@ type Props = {
  * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
-  // The fields' parts, the stage tag and Listen first are laid out together, so one Undo steps back through all three.
-  const history = useUndoable<Laid>({ parts: type.layout, tag: type.tag, listen: type.listen });
+  // The fields' parts, the corner marks and Listen first are laid out together, so one Undo steps back through them all.
+  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, listen: t.listen });
+  const history = useUndoable<Laid>(laidOf(type));
   const { undo, redo } = history;
   const draft = history.present.parts;
   const tag = history.present.tag;
+  const spark = history.present.spark;
   const listen = history.present.listen;
   const change = (parts: LayoutPart[]) => history.change({ ...history.present, parts });
   const changeTag = (patch: Partial<StageTag>) => history.change({ ...history.present, tag: { ...tag, ...patch } });
+  const changeSpark = (patch: Partial<SparkMark>) => history.change({ ...history.present, spark: { ...spark, ...patch } });
+  /** A corner mark's own: whether it's shown, and its corner (the stage tag's size is its alone). */
+  const changeMark = (id: CornerMarkId, patch: Partial<SparkMark>) => (id === "tag" ? changeTag(patch) : changeSpark(patch));
   const changeListen = (patch: Partial<ListenFirst>) => history.change({ ...history.present, listen: { ...listen, ...patch } });
-  const [saved, setSaved] = useState<Laid>({ parts: type.layout, tag: type.tag, listen: type.listen });
+  const [saved, setSaved] = useState<Laid>(laidOf(type));
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [chosenFace, setFace] = useState<Face>("front");
@@ -177,10 +185,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     setSaving(true);
     setSaveFailure(null);
     try {
-      const result = await onSave(parsed.data, tag, listen);
-      setSaved({ parts: result.layout, tag: result.tag, listen: result.listen });
+      const result = await onSave(parsed.data, tag, spark, listen);
+      setSaved(laidOf(result));
       // What the API keeps is the layout filled out against the fields; it takes the draft's place without a step.
-      history.amend(() => ({ parts: result.layout, tag: result.tag, listen: result.listen }));
+      history.amend(() => laidOf(result));
       return true;
     } catch (e) {
       setSaveFailure(e instanceof Error ? e.message : "Something went wrong.");
@@ -319,8 +327,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   }, [awayOnFront, type.id]);
   useEffect(() => rememberShape(`layout-asides:${type.id}`, asidesHeld ? 1 : 0), [asidesHeld, type.id]);
 
-  const tagPicked = picked === TAG_PICKED;
-  const part = tagPicked ? undefined : draft.find((p) => p.fieldId === picked);
+  /** The corner mark picked, if it's one: the stage tag or the AI spark. */
+  const pickedMark = CORNER_MARK_IDS.find((id) => picked === markPicked(id)) ?? null;
+  const part = pickedMark ? undefined : draft.find((p) => p.fieldId === picked);
+  const marks: Record<CornerMarkId, SparkMark> = { tag, spark };
   const field = part ? fields.get(part.fieldId) : undefined;
   /** The one sound or clip that shows the card by itself, if one does. */
   const shower = draft.find((p) => p.showOnPlay !== null);
@@ -512,12 +522,24 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         <Setting id="layout-sample-row" label="Previewed for" control={<Dropdown id="layout-sample" label="Card previewed" anchored options={sampleOptions} value={sampleId} onChange={setSampleId} />} />
         <Setting id="layout-side-row" label="Side" control={<Segmented idPrefix="layout-side" label="Side of the card" options={listen.on ? FACES : SIDES} value={face} onChange={setFace} />} />
       </section>
-      {tagPicked ? (
-        // The stage tag isn't a field: its few choices are its own, the same on both sides, and its corner is where it's dragged.
+      {pickedMark ? (
+        // A corner mark isn't a field: its few choices are its own, the same on both sides, its corner dragged to on the
+        // card or picked here; the stage tag has a size too.
         <section className="panel layout-panel" aria-labelledby="layout-part-title">
-          {pickedHead("Stage tag")}
-          <Setting id="tag-shown" label="Shown" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
-          <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
+          {pickedHead(CORNER_MARK_NAMES[pickedMark])}
+          <Setting
+            id={`${pickedMark}-shown`}
+            label="Shown"
+            control={<Toggle id={`${pickedMark}-shown-on`} says={{ on: "Shown", off: "Hidden" }} on={marks[pickedMark].shown} onChange={(shown) => changeMark(pickedMark, { shown })} />}
+          />
+          {pickedMark === "tag" ? (
+            <Setting id="tag-size" label="Size" control={<Segmented idPrefix="tag-size" label="Size" options={SIZE_OPTIONS} value={tag.size} onChange={(size) => changeTag({ size })} />} />
+          ) : null}
+          <Setting
+            id={`${pickedMark}-corner`}
+            label="Corner"
+            control={<Dropdown id={`${pickedMark}-corner-choice`} label="Corner" anchored options={CORNER_OPTIONS} value={marks[pickedMark].corner} onChange={(corner) => changeMark(pickedMark, { corner })} />}
+          />
         </section>
       ) : part && field ? (
         <section className="panel layout-panel" aria-labelledby="layout-part-title">
@@ -546,7 +568,14 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
               ))}
             </div>
           ) : null}
-          <Setting id="tag-shown" label="Stage tag" control={<Toggle id="tag-shown-on" says={{ on: "Shown", off: "Hidden" }} on={tag.shown} onChange={(shown) => changeTag({ shown })} />} />
+          {CORNER_MARK_IDS.map((id) => (
+            <Setting
+              key={id}
+              id={`${id}-shown`}
+              label={CORNER_MARK_NAMES[id]}
+              control={<Toggle id={`${id}-shown-on`} says={{ on: "Shown", off: "Hidden" }} on={marks[id].shown} onChange={(shown) => changeMark(id, { shown })} />}
+            />
+          ))}
         </section>
       )}
       {problem || saveFailure ? (
@@ -594,6 +623,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           subtitleStyle={subtitleStyle}
           picturesOf={api.videoPictures}
           tag={tag}
+          spark={spark}
           autoplay
           shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
           restarts={binds.restart.map((bind) => restartOf(bind, binds))}
@@ -601,12 +631,12 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           hint={false}
           keys={false}
           edit={{
-            picked: tagPicked ? null : (part?.fieldId ?? null),
+            picked: part?.fieldId ?? null,
             onPick: setPicked,
             order: { main: mainOrder, side: sideOrder },
-            tagPicked,
-            onPickTag: () => setPicked(TAG_PICKED),
-            onMoveTag: (corner) => changeTag({ corner }),
+            markPicked: pickedMark,
+            onPickMark: (id) => setPicked(markPicked(id)),
+            onMoveMark: (id, corner) => changeMark(id, { corner }),
           }}
         />
       }

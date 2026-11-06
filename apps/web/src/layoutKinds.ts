@@ -1,4 +1,4 @@
-import { SHOW_ON_PLAY_MAX, type AutoPlay, type Column, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone } from "@panki/contracts";
+import { SHOW_ON_PLAY_MAX, type AutoPlay, type Column, type CornerMarkId, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone, type TagCorner } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -57,6 +57,16 @@ export const SHOW_ON_PLAY_OPTIONS: readonly { id: number; label: string }[] = [
   ...Array.from({ length: SHOW_ON_PLAY_MAX - 1 }, (_, i) => ({ id: i + 2, label: `On ${PLAY_WORDS[i] ?? `play ${i + 2}`} play` })),
 ];
 /** A sound's or a clip's player style, by name alone. */
+/** A corner of the card, where a corner mark (the stage tag, the AI spark) sits. */
+export const CORNER_OPTIONS: readonly { id: TagCorner; label: string }[] = [
+  { id: "top-left", label: "Top left" },
+  { id: "top-right", label: "Top right" },
+  { id: "bottom-left", label: "Bottom left" },
+  { id: "bottom-right", label: "Bottom right" },
+];
+/** The corner marks by name, as the Layout tab's panel heads them. */
+export const CORNER_MARK_NAMES: Record<CornerMarkId, string> = { tag: "Stage tag", spark: "AI spark" };
+
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [
   { id: "player", label: "Player" },
   { id: "plain", label: "Plain" },
