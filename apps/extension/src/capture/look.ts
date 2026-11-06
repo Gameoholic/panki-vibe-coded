@@ -46,9 +46,6 @@ export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; loc
 
 /** Where the popup stands on the screen, as drawn; null while there's none. */
 type PopupRect = () => DOMRect | null;
-/** TEMPORARY, to be taken out: the looker's decisions written to the console, for the owner to paste. */
-const debug = (what: string, data: Record<string, unknown>) => console.debug(`[Panki look] ${what}`, JSON.stringify(data));
-const rectOf = (r: DOMRect | null) => (r ? [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)] : null);
 /**
  * Whether the pointer is still on a hover popup's word: on the word's own box, or in the gap between the word and the
  * popup (under it, or over it), the word's own width of it, however wide the gap is. So the pointer crossing the gap
@@ -136,9 +133,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     if (!shown.pointed.alive()) return true;
     const first = shown.found[0];
     const rect = first ? shown.pointed.measure(first.source.length) : null;
-    const gone = rect !== null && lastAt !== null && !nearWord(rect, lastAt, popup());
-    if (gone) debug("stale", { open: shown.pointed.id, lastAt, word: rectOf(rect), popup: rectOf(popup()) });
-    return gone;
+    return rect !== null && lastAt !== null && !nearWord(rect, lastAt, popup());
   };
   const tell = (next: View | null) => {
     view = next;
@@ -157,14 +152,16 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
      * is on a word where the key to hold is On hover. One that's kept open gives way only to another
      * word with the key held: the pointer crossing nothing, still on its own word, or only hovering, leaves it be, so
-     * one kept with Shift doesn't give way to the next word merely hovered. A word lying in the gap between the open
-     * popup's word and the popup is passed over, hovered or with the key held: the pointer is on its way to the popup.
+     * one kept with Shift doesn't give way to the next word merely hovered. Another word under the pointer while it's
+     * still on the open popup's word, or in the gap between that word and the popup, is passed over, hovered or with
+     * the key held: the pointer is on its way to the popup.
      */
     point(pointed: Pointed | null, at?: At, hover = false) {
       if (at) lastAt = at;
-      // TEMPORARY, to be taken out: what the looker sees as the pointer moves, for the owner's console.
-      debug("point", { pointed: pointed?.id ?? null, at, hover, open: view?.pointed.id ?? null, locked: view?.locked ?? null, hovered: view?.hovered ?? null, word: rectOf(view?.word ?? null), popup: rectOf(popup()), gap: at && view?.word ? inGap(view.word, at, popup()) : null });
-      if (at && view?.word && pointed && pointed.id !== view.pointed.id && inGap(view.word, at, popup())) return;
+      // Another word under the pointer while it's still on the open popup's word or in the gap to the popup is passed
+      // over: lines stacked with no room between them put the next line's word under the pointer at the open word's
+      // very bottom edge, before the gap begins.
+      if (at && view?.word && pointed && pointed.id !== view.pointed.id && nearWord(view.word, at, popup())) return;
       if (view?.locked && (hover || pointed === null || (at && view.word && within(view.word, at.x, at.y)))) return;
       if (pointed === null) {
         looker.close();
@@ -195,7 +192,6 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      */
     drift(at?: At) {
       if (at) lastAt = at;
-      debug("drift", { at, open: view?.pointed.id ?? null, locked: view?.locked ?? null, hovered: view?.hovered ?? null, word: rectOf(view?.word ?? null), popup: rectOf(popup()), near: at && view?.word ? nearWord(view.word, at, popup()) : null });
       if (!view) {
         if (askedByHover) looker.close();
         return;
@@ -231,7 +227,6 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
       if (view && !view.locked) tell({ ...view, locked: true });
     },
     close() {
-      debug("close", { open: view?.pointed.id ?? null, by: new Error().stack?.split("\n").slice(2, 5).join(" | ") });
       asked++;
       pointedId = null;
       askedByHover = false;
