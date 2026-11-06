@@ -345,10 +345,14 @@ export function TouchUpTurns({ turns, startedAgain = false, ...rest }: TurnsProp
 export type Tone = "good" | "meh" | "bad" | "accent";
 const TONE_CLASS: Record<Tone, string> = { good: `ai-accuracy is-${LOOK_OF.good}`, meh: `ai-accuracy is-${LOOK_OF.meh}`, bad: `ai-accuracy is-${LOOK_OF.bad}`, accent: "is-accent" };
 
-/** One stretch of the diff, git's way: what goes struck in its verdict's colour (`out`), what comes in green (`in`). */
-function Mark({ out, children, block }: { out?: "meh" | "bad"; children: string; block?: boolean }) {
+/**
+ * One stretch of the diff, git's way: what goes struck in its proposal's colour (`out`: orange or red for a judged value,
+ * the accent for one of Panki AI's own offered with no judgement), what comes in green (`in`).
+ */
+function Mark({ out, children, block }: { out?: Exclude<Tone, "good">; children: string; block?: boolean }) {
+  const look = out === "accent" ? "is-accent" : `ai-accuracy is-${LOOK_OF[out ?? "good"]}`;
   return (
-    <span className={`touch-up-d ai-accuracy ai-accuracy-lit is-${LOOK_OF[out ?? "good"]}${out ? " is-out" : " is-in"}${block ? " is-block" : ""}`} lang={langOf(children)}>
+    <span className={`touch-up-d ${look} ai-accuracy-lit${out ? " is-out" : " is-in"}${block ? " is-block" : ""}`} lang={langOf(children)}>
       {children}
     </span>
   );
@@ -498,13 +502,14 @@ const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string 
 });
 
 /**
- * A proposal for a text field as one paragraph with its changes lit (`textDiff`): kept text plain, what goes struck in
- * the verdict's colour, what comes in green. A rewrite (`DIFF_KEEP_MIN`) is the held value struck whole with the
- * proposal under it in green; an empty field filled, the proposal all green.
+ * A proposal for a text field as one paragraph with its changes lit (`textDiff`) against what the field held as it was
+ * asked: kept text plain, what goes struck in the proposal's colour (`out`), what comes in green. A rewrite
+ * (`DIFF_KEEP_MIN`) is the held value struck whole with the proposal under it in green; an empty field filled, the
+ * proposal all green.
  */
-function TextDiff({ held, proposed, out }: { held: string; proposed: string; out: "meh" | "bad" | null }) {
-  const runs = out === null ? null : textDiff(held, proposed);
-  if (out === null) return <Mark>{proposed}</Mark>;
+function TextDiff({ held, proposed, out }: { held: string; proposed: string; out: Exclude<Tone, "good"> }) {
+  if (held.trim() === "") return <Mark>{proposed}</Mark>;
+  const runs = textDiff(held, proposed);
   if (runs === null) {
     return (
       <>
@@ -523,16 +528,17 @@ function TextDiff({ held, proposed, out }: { held: string; proposed: string; out
 /**
  * A text field as Panki draws its answer: good, the green "Nothing to change" tag; the error, red; meh or bad, the
  * proposal as a diff of the value it holds (`TextDiff`), what goes struck in orange or red, titled Could be better or
- * Incorrect; written, the value for an empty field in green under Panki AI proposes. `held` is what the field held as
- * it was sent.
+ * Incorrect; written, a proposal with no judgement (a value for an empty field, or a follow-up's change, which carries
+ * none), under Panki AI proposes in the accent, as a diff of the value it holds where it holds one, what goes struck in
+ * the accent, and all green where it was empty. `held` is what the field held as the call that proposed it was asked.
  */
 export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
   if (verdict.kind === "good") return nothingShown(verdict.why);
   if (!ways.waiting) return null;
-  const proposal = (tone: Tone, title: string): Shown => ({
+  const proposal = (tone: Exclude<Tone, "good">, title: string): Shown => ({
     tone,
-    diff: <TextDiff held={held} proposed={verdict.proposed} out={verdict.kind === "written" ? null : verdict.kind} />,
+    diff: <TextDiff held={held} proposed={verdict.proposed} out={tone} />,
     note: <Proposal title={title} why={verdict.why} also={ways.also} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
     quiet: null,
   });

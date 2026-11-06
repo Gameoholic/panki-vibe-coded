@@ -7266,7 +7266,8 @@ mark.sub-blur {
   display: grid;
 }
 .touch-up-tied.is-accent,
-.touch-up-chip.is-accent {
+.touch-up-chip.is-accent,
+.touch-up-d.is-accent {
   --accuracy: var(--accent);
 }
 /* The field's own box, never the follow-up's in the note or the tag's fold under it (`.touch-up-foot`, `.touch-up-more`);

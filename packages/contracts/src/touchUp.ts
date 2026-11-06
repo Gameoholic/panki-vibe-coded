@@ -200,8 +200,9 @@ const plain = (words: string) => words.trim().replace(/\s+/g, " ").toLowerCase()
 /**
  * A text field's answer as Panki draws it, the one place it's decided: the error; good (the green line, its why
  * closed), a proposed value that's what the field already holds among them (never drawn as a proposal); meh or bad (the
- * value struck in orange or red, the proposal under it in green); written, for a field that was empty (the proposal in
- * green under "Panki AI proposes").
+ * proposal as a diff of the value, what goes struck in orange or red); written, a proposal with no judgement, for a field
+ * that was empty or a follow-up's change (under "Panki AI proposes", all green where the field was empty, else a diff of
+ * what it held).
  */
 export type FieldVerdict =
   | { kind: "error"; error: TouchUpErrorId; why: string }
