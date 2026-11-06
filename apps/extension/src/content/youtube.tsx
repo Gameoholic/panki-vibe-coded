@@ -21,6 +21,7 @@ import { clock } from "@web/words";
 import { isModifier, keyOf, pressed, sameKey } from "@web/keys";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
+import { KeyCap } from "@web/components/KeyCap";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
 import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
@@ -1881,6 +1882,8 @@ function App() {
   const pankiOn = useSyncExternalStore(modules.subscribe, () => modules.get().on);
   /** Panki's own switch is the strip's only while it isn't the pill's in the header bar: it stands in one place (`switchInPill`). */
   const switchHere = useSyncExternalStore(modules.subscribe, () => !switchInPill(modules.get()));
+  /** The panel's own key in full screen (`panelKey`), on the head's Hide panel button as its keycap. */
+  const panelKeyNow = useSyncExternalStore(modules.subscribe, () => modules.get().panelKey);
   const replaying = useSyncExternalStore(replay.subscribe, replay.mode);
   const cards = useSyncExternalStore(carded.subscribe, carded.get);
   /** Which parts are on; how the video stands in the account's watching; the offer to go on from where it was stopped. */
@@ -2813,6 +2816,15 @@ function App() {
               </span>
             ) : null}
             <div className="strip-tools">
+              {/* In full screen, the panel folded away from its own head, as its key and the column's handle fold it:
+                  the button carries the key as its keycap, so the key is learnt where it's used. */}
+              {stageNowHere ? (
+                <Button className="capture-tool strip-hide" onClick={togglePanel}>
+                  <Icon name="panelBeside" />
+                  Hide panel
+                  <KeyCap bind={{ key: panelKeyNow, holdMs: 0 }} />
+                </Button>
+              ) : null}
               {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
               {/* Panki altogether, on or off, here while it isn't the header bar pill's. */}

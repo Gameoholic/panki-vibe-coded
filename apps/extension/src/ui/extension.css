@@ -2538,6 +2538,11 @@
 .btn-switch.strip-switch[aria-checked="true"] .switch-knob {
   transform: translateX(12px);
 }
+/* Hide panel, in full screen, with its key as a keycap after its words, the keycap sized to the tool's type. */
+.btn.capture-tool.strip-hide .key {
+  margin-left: 2px;
+  font-size: 11px;
+}
 .capture-tool .icon {
   width: 14px;
   height: 14px;
