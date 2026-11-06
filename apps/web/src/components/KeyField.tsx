@@ -14,9 +14,12 @@ type Props = {
   /** A key pressed while it listens. */
   onChange: (key: string) => void;
   /** Whether taking the key off is being asked about, under the row (`Ask`): its trash is lit while it is. */
-  asking: boolean;
-  /** The trash pressed: the row asks before the key is taken off, or stops asking. */
-  onAsk: () => void;
+  asking?: boolean;
+  /**
+   * The trash pressed: the row asks before the key is taken off, or stops asking. Left out, the key can be changed and
+   * never taken off, so there's no trash (the extension's Toggle panel keybind, which always has one).
+   */
+  onAsk?: () => void;
   /** The trash stands with no key too: a key added to an action, not given one yet, is taken off with it. */
   removable?: boolean;
   /** It listens for its key from the start: one just added with +. */
@@ -33,7 +36,7 @@ type Props = {
  * row has asked: the question stands under the whole row, so the keys beside it stay where they are. Settings →
  * Keybinds is made of these.
  */
-export function KeyField({ id, label, value, onChange, asking, onAsk, removable = false, listen = false, disabled = false }: Props) {
+export function KeyField({ id, label, value, onChange, asking = false, onAsk, removable = false, listen = false, disabled = false }: Props) {
   const [listening, setListening] = useState(listen);
   const box = useRef<HTMLSpanElement>(null);
   const latest = useRef(onChange);
@@ -83,7 +86,7 @@ export function KeyField({ id, label, value, onChange, asking, onAsk, removable 
       <Button id={id} variant="chip" className="key-field-button" aria-pressed={listening} aria-label={`${label}: ${listening ? "press a key" : value ? keyWords(value) : "no key"}`} disabled={disabled} onClick={() => setListening((now) => !now)}>
         {listening ? "Press a key" : value ? <span className="key">{keyWords(value)}</span> : "None"}
       </Button>
-      {(value || removable) && !listening ? (
+      {onAsk && (value || removable) && !listening ? (
         <Button className="btn-icon is-danger key-field-clear" aria-label={`Take the key off ${label}`} aria-pressed={asking} disabled={disabled} onClick={onAsk}>
           <Icon name="trash" />
         </Button>

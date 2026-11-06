@@ -18,6 +18,7 @@ import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { RUN_WORDS, RunAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
 import { clock } from "@web/words";
+import { isModifier, keyOf, pressed, sameKey } from "@web/keys";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
@@ -3002,8 +3003,6 @@ function typedElsewhere(e: KeyboardEvent): boolean {
   const at = e.target;
   return inPanki(e) || (at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select") !== null));
 }
-/** Nothing but the key itself held with it. */
-const bare = (e: KeyboardEvent) => !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey;
 
 /**
  * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on by the seconds set, in place of the
@@ -3032,11 +3031,18 @@ function typingIn(place: Place): boolean {
  * The panel's own key in the site's full screen (`Modules.panelKey`, P to begin with): it toggles the panel, folded
  * away with the video alone filling the screen or brought back, as its handle does, and the flip is kept. Only while the full screen is Panki's, never
  * while typing (on the page, in the panel or the drawer, or anywhere else of Panki's, whose fields can't be told from
- * here), and kept from the site. Never Esc, which the browser keeps for leaving the full screen. The physical key, as
- * the site hears its own whatever the keyboard's language. Whether it took the key.
+ * here), and kept from the site. Never Esc, which the browser keeps for leaving the full screen. Shift, Ctrl or Alt by
+ * itself is heard as it's let go with nothing else pressed while it was down (`panelKeyUp`). Whether it took the key.
  */
 function panelKey(e: KeyboardEvent): boolean {
-  if (e.code !== active().panelKey || !bare(e) || placedAs.get() !== "stage") return false;
+  const key = active().panelKey;
+  if (isModifier(key)) {
+    // A key pressed while it's down makes it a combination, not the panel's key.
+    if (!isModifier(e.key)) modifierDown = null;
+    else if (!e.repeat) modifierDown = keyOf(e);
+    return false;
+  }
+  if (!panelKeyIs(e, key) || placedAs.get() !== "stage") return false;
   // The panel and the drawer are the column's: a button pressed there leaves the focus in them, and the key still works.
   const ours = [strip, drawer].find((place) => place.host === e.target);
   if (ours ? typingIn(ours) : typedElsewhere(e)) return false;
@@ -3047,16 +3053,46 @@ function panelKey(e: KeyboardEvent): boolean {
   return true;
 }
 
-// The page's keys, one listener: heard before the site's own (the window, capturing), so a key Panki takes is kept
-// from the site.
+/** Shift, Ctrl or Alt gone down with nothing else pressed since: the panel's key, when it's that one, as it's let go. */
+let modifierDown: string | null = null;
+/**
+ * Whether a press is the panel's key: `pressed`, as Panki's own keybinds are heard; a letter held with Shift isn't (Shift+P
+ * and Shift+N are the site's playlist keys). A letter is heard by where it is on the keyboard as well, so a keyboard
+ * set to another language (Hebrew's פ where P is) still reaches it, as the site hears its own.
+ */
+function panelKeyIs(e: KeyboardEvent, key: string): boolean {
+  const letter = /^(?:(?:Ctrl|Alt)\+)*([a-z])$/.exec(key)?.[1];
+  if (letter && e.shiftKey) return false;
+  if (pressed(e, key)) return true;
+  if (!letter || e.metaKey || e.code !== `Key${letter.toUpperCase()}`) return false;
+  return key === [e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null, letter].filter((part) => part !== null).join("+");
+}
+
+/** The panel's key when it's Shift, Ctrl or Alt by itself: let go with nothing else pressed while it was down. */
+function panelKeyUp(e: KeyboardEvent) {
+  const key = active().panelKey;
+  const was = modifierDown;
+  modifierDown = null;
+  if (!isModifier(key) || was === null || keyOf(e) !== was || !sameKey(was, key) || placedAs.get() !== "stage") return;
+  const ours = [strip, drawer].find((place) => place.host === e.target);
+  if (ours ? typingIn(ours) : typedElsewhere(e)) return;
+  togglePanel();
+}
+
+// The page's keys, one listener each way: heard before the site's own (the window, capturing), so a key Panki takes is
+// kept from the site.
 window.addEventListener(
   "keydown",
   (e) => {
-    if (shortSkip(e)) return;
+    if (shortSkip(e)) {
+      modifierDown = null;
+      return;
+    }
     panelKey(e);
   },
   true,
 );
+window.addEventListener("keyup", panelKeyUp, true);
 // The settings are everyone's, changed in Panki, and the viewer's own are changed on the options page; a card may have
 // been deleted in Panki: read again when this page gets the focus back, and when its tab is shown again (a switch of
 // tabs doesn't always bring a focus event, and a switch set on the options page would be ignored until the window was

@@ -59,16 +59,16 @@ export const PANEL_VIEWS: Record<PanelView, { name: string; icon: "panelUnder" |
 };
 export const PANEL_VIEW_IDS = PanelView.options;
 /**
- * The key that toggles the panel in full screen, one registry: letters YouTube's player doesn't use
- * by themselves (its own include K, J, L, F, C, I, M, T and the digits; Shift+P and Shift+N are its playlist's, which a
- * key held with Shift never reaches here). Kept as the physical key (`KeyboardEvent.code`), as the site hears its own
- * whatever the keyboard's language. P to begin with.
+ * The key that toggles the panel in full screen, set by pressing it (the web's `KeyField`) and kept as Panki's
+ * Settings → Keybinds keeps a key (`@web/keys` → `keyOf`: "p", "Ctrl+p", "Shift"), heard by `pressed`. P to begin with.
+ * A browser that kept a letter as its physical key ("KeyP", when it was one of a few letters picked from a list) reads
+ * as that letter.
  */
-export const PANEL_KEY_IDS = ["KeyP", "KeyH", "KeyB", "KeyG", "KeyQ", "KeyU", "KeyV", "KeyX", "KeyZ"] as const;
-export const PanelKey = z.enum(PANEL_KEY_IDS);
+export const PanelKey = z
+  .string()
+  .min(1)
+  .transform((key) => (/^Key[A-Z]$/.test(key) ? key.slice(3).toLowerCase() : key));
 export type PanelKey = z.infer<typeof PanelKey>;
-/** A key as its keycap reads. */
-export const panelKeyName = (key: PanelKey): string => key.slice(3);
 
 // A browser that kept `feedFilter` or `homeChips`, the chips that once sifted YouTube's home feed, keeps them unread.
 
@@ -296,7 +296,7 @@ export const DEFAULT_MODULES: Modules = {
   on: true,
   panel: true,
   panelView: "beside",
-  panelKey: "KeyP",
+  panelKey: "p",
   fullPanel: false,
   lookup: true,
   seek: true,

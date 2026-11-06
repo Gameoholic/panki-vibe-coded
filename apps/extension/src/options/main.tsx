@@ -9,6 +9,7 @@ import { Skeleton } from "@web/components/Skeleton";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
+import { KeyField } from "@web/components/KeyField";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { NumberField } from "@web/components/NumberField";
@@ -20,7 +21,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, PANEL_KEY_IDS, panelKeyName, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
@@ -305,7 +306,6 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
 // Whether transcribing starts by itself is switched in the strip's menu alone (Auto transcribe); what it does while
 // paused is an admin's, in Panki's Settings → Admin.
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
-const PANEL_KEY_OPTIONS = PANEL_KEY_IDS.map((id) => ({ id, label: panelKeyName(id) }));
 // What the choice made does, under it: the choice alone doesn't say.
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
@@ -327,8 +327,8 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
           right; its key toggles it (the handle at its edge does the same), named as an action as the app's keybinds are. */}
       <Setting
         id="panel-key"
-        label="Toggle panel"
-        control={<Dropdown id="panel-key-choice" label="Toggle panel" options={PANEL_KEY_OPTIONS} value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
+        label="Toggle panel keybind"
+        control={<KeyField id="panel-key-choice" label="Toggle panel keybind" value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
         why="Shows or hides the Panki panel in full screen."
       />
       <Setting
