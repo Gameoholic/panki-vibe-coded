@@ -5,6 +5,7 @@ export * from "./api";
 export * from "./auth";
 export * from "./card";
 export * from "./cardLayout";
+export * from "./conversation";
 export * from "./deck";
 export * from "./dictionary";
 export * from "./dictionaryRows";

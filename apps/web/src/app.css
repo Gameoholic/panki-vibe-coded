@@ -7413,6 +7413,42 @@ mark.sub-blur {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--line-strong);
 }
+/* A merged branch's questions that changed nothing, in the head (TouchUp.tsx → `FoldedTurns`): one quiet line in the
+   muted words with the chevron, pressed to open them where they stand; and the line under a field whose branch was
+   reset (`TouchUpTurns`' `startedAgain`), muted, nothing to press. */
+.btn.touch-up-folded {
+  justify-self: end;
+  gap: 4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.btn.touch-up-folded > .icon {
+  width: 13px;
+  height: 13px;
+  transition: transform 0.15s ease;
+}
+.btn.touch-up-folded.is-open > .icon {
+  transform: rotate(180deg);
+}
+@media (hover: hover) {
+  .btn.touch-up-folded:hover {
+    background: transparent;
+    color: var(--fg);
+  }
+}
+.touch-up-folded-turns {
+  display: grid;
+  gap: 12px;
+}
+.touch-up-again {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
 /* The capture drawer's fields, a row each (hooks/useHoist.ts): slid to their places as those whose proposal waits go
    to the top and come back, and lit round for a moment when a round's chip goes to one. */
 .capture-field {

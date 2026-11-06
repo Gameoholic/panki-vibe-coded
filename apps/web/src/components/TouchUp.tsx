@@ -78,6 +78,10 @@ export const TOUCH_UP_WORDS = {
   /** Before the chips of the fields a round changed (`Changed`), and in their place when it changed none. */
   changed: "Changed:",
   changedNothing: "Changed nothing",
+  /** The line a merged branch's questions that changed nothing are folded under, in the head. */
+  foldedNothing: (n: number) => `${n} ${wordFor(n, "question", "questions")} · Changed nothing`,
+  /** Under a field whose branch was reset when main moved on: its questions there are gone, until the next is asked. */
+  startedAgain: "Started again from the latest changes",
   /** Under a value Panki AI wrote and then changed by hand: taking the AI's mark off it, so it's the owner's. */
   unmarkAi: "Unmark as Panki AI's",
 };
@@ -172,9 +176,11 @@ export type ChipState = "live" | "accepted" | "dismissed" | "replaced";
 export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipState };
 
 /**
- * A round of Touch up's conversation as it's drawn (AI step 5): the run itself (`run`, the template it ran, by name), or
- * a follow-up asked under the head (`about` null) or from a field (its id and name); its reply once it's in, or why
- * there's none; and what it changed, once it's in, a chip a field (none for nothing).
+ * A turn of Touch up's conversation as it's drawn (AI step 5; a commit, `@panki/contracts` → `conversation.ts`, or the
+ * question on its way): the run itself (`run`, the template it ran, by name), or a follow-up, marked with the field it
+ * was asked under where that isn't plain (`about`: in the head, a merged branch's); its reply once it's in, or why
+ * there's none; what it changed, once it's in, a chip a field (none for nothing); and in the head, the commits of its
+ * branch that changed nothing and were merged with it (`folded`), under one quiet line before it.
  */
 export type TouchUpTurn = {
   id: number;
@@ -184,6 +190,7 @@ export type TouchUpTurn = {
   reply: string | null;
   failure: { message: string; retry: boolean } | null;
   changed: readonly ChangeChip[] | null;
+  folded?: readonly TouchUpTurn[];
 };
 
 /** A round asked and not yet answered or failed: the one on its way. */
@@ -212,61 +219,93 @@ function Changed({ chips, onGo }: { chips: readonly ChangeChip[]; onGo: (fieldId
   );
 }
 
-/**
- * Touch up's conversation, every round in order, as Explain draws its own: the run as its press (the spark and the
- * template's name in the bubble), a follow-up as its question at the right, one asked from a field marked at its head
- * with the forward sign and the field's name, pressed to go there; then the reply as plain paragraphs and what it
- * changed (`Changed`), or the failure with Try again. One on its way is the spark turning where its reply will stand.
- * The head draws every round, and a field draws its own under it as well, so a reply lands where it was asked too:
- * one round, two places.
- */
-export function TouchUpTurns({ turns, canRun, onRetry, onGo }: { turns: readonly TouchUpTurn[]; canRun: boolean; onRetry: (id: number) => void; onGo: (fieldId: string) => void }) {
+type TurnsProps = { canRun: boolean; onRetry: (id: number) => void; onGo: (fieldId: string) => void };
+
+/** One turn: its question (or the run's press), then its reply and what it changed, the spark while it's on its way, or the failure with Try again. */
+function Turn({ turn, canRun, onRetry, onGo }: TurnsProps & { turn: TouchUpTurn }) {
+  const about = turn.about;
+  return (
+    <div className="ai-explain-turn">
+      {turn.run !== null ? (
+        <p className="ai-explain-question is-run">
+          <AiSpark />
+          {turn.run}
+        </p>
+      ) : (
+        <>
+          {about ? (
+            <Button className="touch-up-about" onClick={() => onGo(about.id)}>
+              <Icon name="forward" />
+              {about.name}
+            </Button>
+          ) : null}
+          <p className="ai-explain-question">{turn.question}</p>
+        </>
+      )}
+      {turnGoing(turn) ? (
+        <div className="touch-up-answering" role="status" aria-label={TOUCH_UP_WORDS.answering}>
+          <AiSpark working />
+        </div>
+      ) : turn.failure ? (
+        <div className="ai-explain-failure">
+          <p className="form-failure" role="alert">
+            {turn.failure.message}
+          </p>
+          {turn.failure.retry ? (
+            <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn.id)}>
+              <AiSpark />
+              {TOUCH_UP_WORDS.tryAgain}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <AnswerText text={turn.reply ?? ""}>
+          <Changed chips={turn.changed ?? []} onGo={onGo} />
+        </AnswerText>
+      )}
+    </div>
+  );
+}
+
+/** A merged branch's questions that changed nothing, in the head: one quiet line, "2 questions · Changed nothing", opening them where they stand. */
+function FoldedTurns({ turns, ...rest }: TurnsProps & { turns: readonly TouchUpTurn[] }) {
+  const [open, setOpen] = useState(false);
   return (
     <>
-      {turns.map((turn) => {
-        const about = turn.about;
-        return (
-          <div key={turn.id} className="ai-explain-turn">
-            {turn.run !== null ? (
-              <p className="ai-explain-question is-run">
-                <AiSpark />
-                {turn.run}
-              </p>
-            ) : (
-              <>
-                {about ? (
-                  <Button className="touch-up-about" onClick={() => onGo(about.id)}>
-                    <Icon name="forward" />
-                    {about.name}
-                  </Button>
-                ) : null}
-                <p className="ai-explain-question">{turn.question}</p>
-              </>
-            )}
-            {turnGoing(turn) ? (
-              <div className="touch-up-answering" role="status" aria-label={TOUCH_UP_WORDS.answering}>
-                <AiSpark working />
-              </div>
-            ) : turn.failure ? (
-              <div className="ai-explain-failure">
-                <p className="form-failure" role="alert">
-                  {turn.failure.message}
-                </p>
-                {turn.failure.retry ? (
-                  <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn.id)}>
-                    <AiSpark />
-                    {TOUCH_UP_WORDS.tryAgain}
-                  </Button>
-                ) : null}
-              </div>
-            ) : (
-              <AnswerText text={turn.reply ?? ""}>
-                <Changed chips={turn.changed ?? []} onGo={onGo} />
-              </AnswerText>
-            )}
-          </div>
-        );
-      })}
+      <Button className={`touch-up-folded${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        {TOUCH_UP_WORDS.foldedNothing(turns.length)}
+        <Icon name="down" />
+      </Button>
+      <Fold open={open} arrives={false}>
+        <div className="touch-up-folded-turns">
+          {turns.map((turn) => (
+            <Turn key={turn.id} turn={turn} {...rest} />
+          ))}
+        </div>
+      </Fold>
+    </>
+  );
+}
+
+/**
+ * Touch up's conversation as Explain draws its own (the Conversation: main in the head, a field's branch under the
+ * field; `@panki/contracts` → `conversation.ts`): the run as its press (the spark and the template's name in the bubble),
+ * a follow-up as its question at the right, one in the head that came from a field's branch marked at its head with the
+ * forward sign and the field's name, pressed to go there, the commits of its branch that changed nothing folded before
+ * it; then the reply as plain paragraphs and what it changed (`Changed`), or the failure with Try again. One on its way
+ * is the spark turning where its reply will stand. `startedAgain`, under a field whose branch was reset, is the muted
+ * line before them.
+ */
+export function TouchUpTurns({ turns, startedAgain = false, ...rest }: TurnsProps & { turns: readonly TouchUpTurn[]; startedAgain?: boolean }) {
+  return (
+    <>
+      {startedAgain ? <p className="touch-up-again">{TOUCH_UP_WORDS.startedAgain}</p> : null}
+      {turns.map((turn) => (
+        <Fragment key={turn.id}>
+          {turn.folded && turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
+          <Turn turn={turn} {...rest} />
+        </Fragment>
+      ))}
     </>
   );
 }

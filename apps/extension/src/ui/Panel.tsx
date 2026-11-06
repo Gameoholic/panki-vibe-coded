@@ -3,6 +3,7 @@ import {
   APP_LANGUAGES,
   CaptureFacts,
   NEW_PLACE,
+  NO_CONVERSATION,
   NewCard,
   NewCardExample,
   OWNER,
@@ -14,14 +15,20 @@ import {
   answeredCall,
   apartOf,
   bareOf,
+  branchOf,
   cardPiece,
   cardProblems,
+  commit,
+  commitsOf,
   comparedOf,
   customOf,
   defaultTemplateOf,
   exampleFieldsOf,
   failedCall,
+  historyOf,
   isTyped,
+  mainRuns,
+  mapCommits,
   meaningsPiece,
   fieldVerdictOf,
   isError,
@@ -31,6 +38,7 @@ import {
   meaningWithout,
   readMeaning,
   startCall,
+  startConversation,
   tidyMeaning,
   templateById,
   templatesOf,
@@ -41,7 +49,8 @@ import {
   type AiTemplate,
   type AiVerdict,
   type CardField,
-  type ExplainMessage,
+  type Commit,
+  type Conversation,
   type FieldVerdict,
   type MeaningVerdict,
   type ForvoVoice,
@@ -83,7 +92,6 @@ import {
   proposes,
   touchUpReason,
   touchUpVerdicts,
-  turnGoing,
   type ChipState,
   type Shown,
   type Tone,
@@ -171,9 +179,9 @@ type TouchRead = { pieces: PromptPieces; gaps: PromptGaps; meanings: string[]; n
 
 /**
  * Touch up as the drawer holds it: its calls, whether one is on its way, how the last run came out, its answer as its
- * follow-ups have changed it, which of its proposals have been decided; and since AI step 5 its conversation, one per
- * run: the template it runs, what the run sent (its follow-ups send the same first prompt), everything said as it was
- * sent, and the follow-ups with their replies.
+ * follow-ups have changed it, which of its proposals have been decided; and since AI step 5 its Conversation, one per
+ * run (main and a branch per field, `@panki/contracts` → `conversation.ts`): the template it runs, what the run sent
+ * (its follow-ups send the same first prompt), and every commit, with the question on its way held apart.
  */
 type Touch = {
   calls: readonly AiCall[];
@@ -198,9 +206,12 @@ type Touch = {
   runs: number;
   template: AiTemplate | null;
   first: TouchRead | null;
-  said: readonly ExplainMessage[];
-  /** The conversation's rounds in order: the run's first, then every follow-up, wherever it was asked. */
-  turns: readonly Round[];
+  /** Main and a branch per field: every reply in, as a commit where its question was asked. What a follow-up sends is its `historyOf`. */
+  conversation: Conversation<Change>;
+  /** The question on its way, or the last that failed (with Try again), until the next is asked: drawn where it was asked, never a commit. */
+  asking: Asking | null;
+  /** Follow-ups asked since the run, for each call's name in Details ("Follow-up 3"). */
+  asked: number;
   /**
    * On a video, where Accept puts the clip for the Sentence proposed (`words`), worked out as the answer landed, so its
    * note says the times Accept will use: null ends when the words aren't in the subtitles kept. Null with no Sentence
@@ -220,36 +231,26 @@ const NO_TOUCH: Touch = {
   runs: 0,
   template: null,
   first: null,
-  said: [],
-  turns: [],
+  conversation: NO_CONVERSATION,
+  asking: null,
+  asked: 0,
   clipTo: null,
 };
-/** A proposal a round made, kept with the round: its key, the colour it was drawn in, and how it was decided, once it was. */
+/** A proposal a commit made, kept with the commit: its key, the colour it was drawn in, and how it was decided, once it was. */
 type Change = { key: TouchUpKey; tone: Tone; decided?: "accepted" | "dismissed" };
 /**
- * A round of Touch up's conversation as the drawer keeps it: the run (`run`, its template's name) or a follow-up asked
- * under the head (`field` null) or from a field (its id); the reply once it's in, or why there's none; and what it
- * changed, its proposals in the order the answer had them, null until it's in.
+ * A question on its way, not yet a commit: the run (`run`, its template's name) or a follow-up asked under the head
+ * (`field` null) or under a field (its id); `failure` once it failed, so it stands with Try again until the next is asked.
  */
-type Round = {
-  id: number;
-  run: string | null;
-  field: string | null;
-  question: string;
-  reply: string | null;
-  failure: { message: string; retry: boolean } | null;
-  changed: readonly Change[] | null;
-};
-/** A round to keep as the next is asked: the run's, and every follow-up answered; one that failed is let go. */
-const roundKept = (round: Round) => round.run !== null || round.changed !== null;
-/** The rounds with a key's proposal decided, on the latest round that proposed for it. */
-function settled(rounds: readonly Round[], key: TouchUpKey, how: "accepted" | "dismissed"): readonly Round[] {
-  let at = -1;
-  rounds.forEach((round, i) => {
-    if (round.changed?.some((change) => change.key === key)) at = i;
-  });
-  return rounds.map((round, i) =>
-    i === at && round.changed ? { ...round, changed: round.changed.map((change) => (change.key === key && !change.decided ? { ...change, decided: how } : change)) } : round,
+type Asking = { id: number; run: string | null; field: string | null; question: string; failure: { message: string; retry: boolean } | null };
+/** The Conversation with a key's proposal decided, on the latest commit that proposed for it. */
+function settled(conversation: Conversation<Change>, key: TouchUpKey, how: "accepted" | "dismissed"): Conversation<Change> {
+  const latest = commitsOf(conversation)
+    .filter((each) => each.changed.some((change) => change.key === key))
+    .at(-1);
+  if (!latest) return conversation;
+  return mapCommits(conversation, (each) =>
+    each.id === latest.id ? { ...each, changed: each.changed.map((change) => (change.key === key && !change.decided ? { ...change, decided: how } : change)) } : each,
   );
 }
 /** Where a follow-up is asked under the head, beside the fields' own (by their ids). */
@@ -799,6 +800,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const read = touchPieces(aiSettings);
     const times = (touchRuns.current.get(using.id) ?? 0) + 1;
     touchRuns.current.set(using.id, times);
+    const runId = ++roundIds.current;
     const call = startCall({
       label: times === 1 ? using.name : `${using.name} ${times}`,
       why,
@@ -823,9 +825,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       runs: was.runs + 1,
       template: using,
       first: read,
-      said: [],
-      // A run begins the conversation afresh: its first round is the run itself, the template it ran by name.
-      turns: [{ id: ++roundIds.current, run: using.name, field: null, question: "", reply: null, failure: null, changed: null }],
+      // A run begins the Conversation afresh: on its way it's the question in the head, the template it runs by name.
+      conversation: NO_CONVERSATION,
+      asking: { id: runId, run: using.name, field: null, question: "", failure: null },
+      asked: 0,
       clipTo: null,
     }));
     setFollows({});
@@ -840,10 +843,20 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       busy: false,
       answer: answer.ok ? answer.touchUp.answer : null,
       failure: answer.ok ? null : { message: answer.message, retry: answer.problem === "provider" },
-      // The model reads its own turn back as it wrote it, its JSON.
-      said: answer.ok ? [{ role: "assistant", text: answer.touchUp.raw || JSON.stringify(answer.touchUp.answer) }] : [],
-      // A run that failed has no round: the head says why, with Try again.
-      turns: answer.ok ? was.turns.map((round) => (round.run !== null ? { ...round, changed: changesOf(answer.touchUp.answer, read.now, read.meanings) } : round)) : [],
+      // The run in is main's first commit, the model reading its own turn back as it wrote it, its JSON. One that failed
+      // has no commit: the head says why, with Try again.
+      conversation: answer.ok
+        ? startConversation({
+            id: runId,
+            run: using.name,
+            field: null,
+            question: "",
+            reply: "",
+            said: [{ role: "assistant", text: answer.touchUp.raw || JSON.stringify(answer.touchUp.answer) }],
+            changed: changesOf(answer.touchUp.answer, read.now, read.meanings),
+          })
+        : NO_CONVERSATION,
+      asking: null,
       clipTo: answer.ok ? clipToOf(answer.touchUp.answer, read.now.values.sentence ?? "") : null,
     }));
     if (answer.ok) lockSentence();
@@ -859,20 +872,22 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const field = fieldId ? type?.fields.find((f) => f.id === fieldId) : undefined;
     return { question, ...(field ? { field: field.name } : {}), ...(now.pieces.card ? { card: now.pieces.card } : {}) };
   }
-  /** The follow-ups answered so far: one that failed is let go as the next is asked. */
-  const followsKept = touch.turns.filter((round) => round.run === null && round.changed !== null);
+  /** The follow-ups in the Conversation now, main's and every branch's (a branch's discarded ones no longer count). */
+  const followsKept = commitsOf(touch.conversation).filter((each) => each.run === null);
   /** Whether a follow-up can be asked now: the run answered, nothing on its way, and Max follow-ups not reached. */
   const canFollow = canTouch && touch.answer !== null && touch.template !== null && touch.busy === false && aiSettings !== null && followsKept.length < aiSettings.aiMaxFollowUps;
-  /** The most a follow-up can cost: the run's prompt, the conversation so far, and this one's Follow-up prompt. */
+  /** The most a follow-up can cost: the run's prompt, what it would be sent with where it's asked, and this one's Follow-up prompt. */
   const followCeiling = (fieldId: string | null, question: string) =>
     aiSettings && touchNow && touch.template && touch.first
-      ? ceilingOf(aiSettings, touch.template, touch.first.pieces, touch.said, askingOf(fieldId, question, touchNow), aiSettings.aiMaxTouchUpTokens)
+      ? ceilingOf(aiSettings, touch.template, touch.first.pieces, historyOf(touch.conversation, fieldId), askingOf(fieldId, question, touchNow), aiSettings.aiMaxTouchUpTokens)
       : 0;
 
   /**
-   * A follow-up, asked under the head or from a field's note: the run's conversation sent whole, with the card as it
-   * stands now. Its reply stands where it was asked; what it changes replaces that key's part (a proposal still waiting
-   * replaced, a decided one shown again as the new proposal), drawn against what the field holds now; the rest stays.
+   * A follow-up, asked under the head (on main) or under a field (on its branch): sent with its history where it's asked
+   * (`historyOf`: main's commits, then the branch's), with the card as it stands now. Its reply is a commit there
+   * (`commit`: one on a branch that changes a field merges the branch, and main's tip moving resets every other branch);
+   * what it changes replaces that key's part (a proposal still waiting replaced, a decided one shown again as the new
+   * proposal), drawn against what the field holds now; the rest stays.
    */
   async function followUp(fieldId: string | null, question: string, why: AiRunWhy) {
     if (!aiSettings || !canTouch || touch.busy || !touch.template || !touch.first) return;
@@ -880,9 +895,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const first = touch.first;
     const current = touchPieces(aiSettings);
     const asking = askingOf(fieldId, question, current);
-    const said = [...touch.said];
+    const said = historyOf(touch.conversation, fieldId);
     const call = startCall({
-      label: `Follow-up ${followsKept.length + 1}`,
+      label: `Follow-up ${touch.asked + 1}`,
       why,
       settings: aiSettings,
       template: using,
@@ -893,10 +908,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       now: Date.now(),
       maxAnswerTokens: aiSettings.aiMaxTouchUpTokens,
     });
-    const pending: Round = { id: ++roundIds.current, run: null, field: fieldId, question, reply: null, failure: null, changed: null };
-    // Accept and Dismiss stay pressable while it's out: the rounds are always taken as they stand, never from before.
-    const landed = (rounds: readonly Round[], round: Partial<Round>) => rounds.map((each) => (each.id === pending.id ? { ...each, ...round } : each));
-    setTouch((was) => ({ ...was, calls: [...was.calls, call], busy: "follow", turns: [...was.turns.filter(roundKept), pending] }));
+    const pending: Asking = { id: ++roundIds.current, run: null, field: fieldId, question, failure: null };
+    // Accept and Dismiss stay pressable while it's out: the Conversation is always taken as it stands, never from before.
+    setTouch((was) => ({ ...was, calls: [...was.calls, call], busy: "follow", asking: pending, asked: was.asked + 1 }));
     const answer = await askTouchUp({ templateId: using.id, pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: current.now, said, asking });
     const now = Date.now();
     if (!answer.ok) {
@@ -905,7 +919,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         ...was,
         calls: was.calls.map((each) => (each === call ? failed : each)),
         busy: false,
-        turns: landed(was.turns, { failure: { message: answer.message, retry: answer.problem === "provider" } }),
+        asking: { ...pending, failure: { message: answer.message, retry: answer.problem === "provider" } },
       }));
       readAi();
       return;
@@ -927,8 +941,19 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       },
       decided: without(was.decided),
       hidden: without(was.hidden),
-      said: [...said, { role: "user", text: followed.asked || question }, { role: "assistant", text: followed.raw || followed.reply }],
-      turns: landed(was.turns, { reply: followed.reply, changed: changesOf(followed.answer, current.now, first.meanings) }),
+      conversation: commit(was.conversation, fieldId, {
+        id: pending.id,
+        run: null,
+        field: fieldId,
+        question,
+        reply: followed.reply,
+        said: [
+          { role: "user", text: followed.asked || question },
+          { role: "assistant", text: followed.raw || followed.reply },
+        ],
+        changed: changesOf(followed.answer, current.now, first.meanings),
+      }),
+      asking: null,
       // A follow-up that changes the Sentence brings its own clip; one that doesn't leaves the last proposal's.
       clipTo: followed.answer.sentence ? clipToOf(followed.answer, current.now.values.sentence ?? "") : was.clipTo,
     }));
@@ -1001,53 +1026,66 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * How a round's proposal for a key stands, on its chip: decided as it was, or, on the latest round that proposed for
+   * How a commit's proposal for a key stands, on its chip: decided as it was, or, on the latest commit that proposed for
    * it, waiting while it waits; anything else was replaced (proposed for again, or the field changed under it).
    */
-  function chipState(round: Round, change: Change): ChipState {
+  function chipState(made: Commit<Change>, change: Change): ChipState {
     if (change.decided) return change.decided;
-    const latest = touch.turns.filter((each) => each.changed?.some((other) => other.key === change.key)).at(-1);
-    return latest?.id === round.id && waiting(change.key) ? "live" : "replaced";
+    const latest = commitsOf(touch.conversation)
+      .filter((each) => each.changed.some((other) => other.key === change.key))
+      .at(-1);
+    return latest?.id === made.id && waiting(change.key) ? "live" : "replaced";
   }
-  /** A round as it's drawn: the field it was asked from by name, what it changed as a chip a field in the card type's order. */
-  function turnOf(round: Round): TouchUpTurn {
+  /**
+   * A commit as it's drawn, or the question on its way: the field it was asked under by name where `marked` (in the
+   * head: a merged branch's commit), what it changed as a chip a field in the card type's order.
+   */
+  function turnOf(made: Commit<Change> | Asking, marked: boolean): TouchUpTurn {
     const fields = type?.fields ?? [];
-    const asked = round.field === null ? undefined : fields.find((f) => f.id === round.field);
+    const asked = !marked || made.field === null ? undefined : fields.find((f) => f.id === made.field);
     const place = (fieldId: string) => fields.findIndex((f) => f.id === fieldId);
+    const about = asked ? { id: asked.id, name: asked.name } : null;
+    if ("failure" in made) return { id: made.id, run: made.run, question: made.question, about, reply: null, failure: made.failure, changed: null };
     return {
-      id: round.id,
-      run: round.run,
-      question: round.question,
-      about: asked ? { id: asked.id, name: asked.name } : null,
-      reply: round.reply,
-      failure: round.failure,
-      changed:
-        round.changed === null
-          ? null
-          : round.changed
-              .flatMap((change) => {
-                const field = keyField(change.key);
-                return field ? [{ id: field.id, name: field.name, tone: change.tone, state: chipState(round, change) }] : [];
-              })
-              .sort((a, b) => place(a.id) - place(b.id)),
+      id: made.id,
+      run: made.run,
+      question: made.question,
+      about,
+      reply: made.reply,
+      failure: null,
+      changed: made.changed
+        .flatMap((change) => {
+          const field = keyField(change.key);
+          return field ? [{ id: field.id, name: field.name, tone: change.tone, state: chipState(made, change) }] : [];
+        })
+        .sort((a, b) => place(a.id) - place(b.id)),
     };
   }
   /** A follow-up asked again after it failed: the same question, from where it was asked. */
   function retryRound(id: number) {
-    const round = touch.turns.find((each) => each.id === id);
-    if (round) pressFollowUp(round.field, round.question, { kind: "retry" });
+    const failed = touch.asking;
+    if (failed && failed.id === id && failed.run === null) pressFollowUp(failed.field, failed.question, { kind: "retry" });
   }
   /**
-   * What stands where follow-ups are asked, under the head or under a field: the rounds, every one under the head (the
-   * run first) and a field's own under it as well, so a reply lands where it was asked; the question before one over
-   * Ask before a run over, and the next one to ask, folded to its quiet line until it's pressed. The box isn't there
-   * while a call is out: the spark under the question is the wait.
+   * What stands where follow-ups are asked: under the head, main (the run first, each commit a merge brought marked with
+   * its field and the ones of its branch that changed nothing folded before it); under a field, its branch's commits,
+   * after "Started again from the latest changes" while it was reset since a question was last asked there. Then the
+   * question on its way or failed, where it was asked; the question before one over Ask before a run over; and the next
+   * one to ask, folded to its quiet line until it's pressed. The box isn't there while a call is out: the spark under
+   * the question is the wait.
    */
   function followBlock(fieldId: string | null): ReactNode {
     const where = fieldId === null ? BAR : whereOf(fieldId);
-    const here = fieldId === null ? touch.turns : touch.turns.filter((round) => round.run === null && round.field === fieldId);
     const typed = follows[where] ?? { text: "" };
-    const rounds = <TouchUpTurns turns={here.map(turnOf)} canRun={canTouch && touch.busy === false} onRetry={retryRound} onGo={hoist.go} />;
+    const asking = touch.asking !== null && touch.asking.field === fieldId ? [turnOf(touch.asking, false)] : [];
+    const branch = fieldId === null ? null : branchOf(touch.conversation, fieldId);
+    const here =
+      branch === null
+        ? mainRuns(touch.conversation).map(({ commit: made, folded }) => ({ ...turnOf(made, true), folded: folded.map((each) => turnOf(each, false)) }))
+        : branch.commits.map((each) => turnOf(each, false));
+    const rounds = (
+      <TouchUpTurns turns={[...here, ...asking]} startedAgain={branch !== null && branch.reset && asking.length === 0} canRun={canTouch && touch.busy === false} onRetry={retryRound} onGo={hoist.go} />
+    );
     if (touch.answer === null || touch.template === null) return rounds;
     return (
       <>
@@ -1093,7 +1131,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return verdict !== null && proposes(verdict);
   }
   /** A proposal accepted or dismissed: gone from under its field, and its round's chip says which. */
-  const decide = (key: TouchUpKey, how: "accepted" | "dismissed") => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true }, turns: settled(was.turns, key, how) }));
+  const decide = (key: TouchUpKey, how: "accepted" | "dismissed") =>
+    setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true }, conversation: settled(was.conversation, key, how) }));
   /**
    * A value of the AI's written into its field, as typing there would, and remembered as the AI's (a fresh entry, so an
    * offer to mark it as the owner's that was put away comes back). `aiWords` are the AI's own among `text`, when they're
@@ -1174,7 +1213,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       ...was,
       hidden: allHidden(),
       decided: { ...was.decided, ...Object.fromEntries(pendingKeys.map((key) => [key, true])) },
-      turns: pendingKeys.reduce((rounds, key) => settled(rounds, key, "dismissed"), was.turns),
+      conversation: pendingKeys.reduce((conversation, key) => settled(conversation, key, "dismissed"), was.conversation),
     }));
 
   /**
@@ -1213,8 +1252,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       );
     }
     // A note gone (its proposal accepted or dismissed, every note put away, the Meaning changed since it was judged):
-    // the follow-ups asked at the field stay under it, the record of what was said there, and the next can be asked.
-    const asked = field !== null && touch.turns.some((round) => round.run === null && round.field === field.id);
+    // a field with a branch keeps it under it (its commits, or after a merge or a reset its line and the next to ask),
+    // as does one with a question on its way or failed there.
+    const asked = field !== null && (touch.conversation.branches.has(field.id) || touch.asking?.field === field.id);
     if (field && (asked || (meaningMoved && keyOfField(field.id) === "meaning" && !touch.hidden.meaning))) {
       return (
         <>
@@ -1226,7 +1266,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return box(null);
   }
   /** The field the follow-up on its way was asked from; null for none, or one asked under the head. */
-  const followingField = touch.busy === "follow" ? (touch.turns.find((round) => round.run === null && turnGoing(round))?.field ?? null) : null;
+  const followingField = touch.busy === "follow" && touch.asking !== null && touch.asking.failure === null ? touch.asking.field : null;
   /**
    * A field Touch up is working on, its words where they stand, dimmed under the sweep: every field it judges while a
    * run is out, and the one field a follow-up was asked from while that's out (one asked under the head dims nothing:
