@@ -1112,10 +1112,19 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const lastCall = touch.calls[touch.calls.length - 1];
   /** Where a value the AI wrote came from: Touch up, on the model the call ran on. */
   const aiSourceOf = (): AiValueSource | null => (lastCall ? { by: "ai", action: "touchUp", provider: lastCall.provider, model: lastCall.model } : null);
-  /** What Panki makes of a text field's answer, against what it held as it was sent (`fieldVerdictOf`); none when it wasn't answered. */
+  /** What a text field's key holds right now in the drawer, typed over or accepted since any call included. */
+  const heldNow = (key: FieldKey): string => {
+    const field = keyField(key);
+    return field ? (values[field.id] ?? "") : "";
+  };
+  /**
+   * What Panki makes of a text field's answer (`fieldVerdictOf`), against what the field holds now, worked out again on
+   * every draw: a proposal the field already holds is Nothing to change, and its diff is against the live value. None
+   * when it wasn't answered. (Details' rows say it against the card as the call sent it: `touchUpVerdicts`.)
+   */
   const fieldVerdict = (key: FieldKey) => {
     const part = touch.answer?.[key];
-    return part ? fieldVerdictOf(part, touch.now.values[key] ?? "") : null;
+    return part ? fieldVerdictOf(part, heldNow(key)) : null;
   };
   /** What Panki makes of the Meaning's answer, its rows against what the Meaning held as it was sent (`meaningVerdictOf`). */
   const meaningVerdict = () => (touch.answer?.meaning ? meaningVerdictOf(touch.answer.meaning, touch.now, touch.meanings) : null);
@@ -1233,8 +1242,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key, "dismissed"), also: clipNote(key) };
     if (key === "meaning" && meaningMoved) return null;
     const meaning = key === "meaning" ? meaningVerdict() : null;
-    const verdict = key === "meaning" ? null : fieldVerdict(key);
-    return meaning ? meaningShown(meaning, ways) : verdict ? fieldShown(verdict, touch.now.values[key] ?? "", ways) : null;
+    if (meaning) return meaningShown(meaning, ways);
+    // A proposal decided leaves its field as it is: once accepted the field holds it, which would read as Nothing to change.
+    if (key === "meaning" || touch.decided[key]) return null;
+    const verdict = fieldVerdict(key);
+    return verdict ? fieldShown(verdict, heldNow(key), ways) : null;
   }
   /**
    * A field and what Touch up says about it as one shape, so a proposal is plainly its field's,

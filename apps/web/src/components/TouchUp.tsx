@@ -502,8 +502,8 @@ const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string 
 });
 
 /**
- * A proposal for a text field as one paragraph with its changes lit (`textDiff`) against what the field held as it was
- * asked: kept text plain, what goes struck in the proposal's colour (`out`), what comes in green. A rewrite
+ * A proposal for a text field as one paragraph with its changes lit (`textDiff`) against what the field holds now: kept
+ * text plain, what goes struck in the proposal's colour (`out`), what comes in green. A rewrite
  * (`DIFF_KEEP_MIN`) is the held value struck whole with the proposal under it in green; an empty field filled, the
  * proposal all green.
  */
@@ -530,7 +530,7 @@ function TextDiff({ held, proposed, out }: { held: string; proposed: string; out
  * proposal as a diff of the value it holds (`TextDiff`), what goes struck in orange or red, titled Could be better or
  * Incorrect; written, a proposal with no judgement (a value for an empty field, or a follow-up's change, which carries
  * none), under Panki AI proposes in the accent, as a diff of the value it holds where it holds one, what goes struck in
- * the accent, and all green where it was empty. `held` is what the field held as the call that proposed it was asked.
+ * the accent, and all green where it was empty. `held` is what the field holds now, as it's drawn (the drawer's live value).
  */
 export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
