@@ -325,14 +325,12 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
       {/* The view itself is picked on the panel (`PanelView`). In the site's own full screen the panel stands at the
           right; its key toggles it (the handle at its edge does the same), named as an action as the app's keybinds are. */}
-      <div className="seek-group">
-        <h3 className="seek-group-title">Full screen</h3>
-        <Setting
-          id="panel-key"
-          label="Toggle panel"
-          control={<Dropdown id="panel-key-choice" label="Toggle panel" options={PANEL_KEY_OPTIONS} value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
-        />
-      </div>
+      <Setting
+        id="panel-key"
+        label="Toggle panel"
+        control={<Dropdown id="panel-key-choice" label="Toggle panel" options={PANEL_KEY_OPTIONS} value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
+        why="Shows or hides the Panki panel in full screen."
+      />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles"
