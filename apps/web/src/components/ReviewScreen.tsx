@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
+import { useLayoutEffect, type ReactNode, type RefObject } from "react";
 import { branchAt, flowOf, isNew, offered, resolve, stageIndex, type CardPlace, type Deck, type HoldKind, type SrsType, type Step } from "@panki/contracts";
 import type { HoldButtonView } from "../hooks/useHoldButton";
 import { ScreenStageContext, type Stage } from "../hooks/useScreenStage";
@@ -190,6 +190,8 @@ type Props = {
   chart: { open: boolean; onToggle?: () => void };
   /** The card (`ReviewCard`), filling the screen by the stage. */
   card: ReactNode;
+  /** The fields whose clip the full screen fills the screen with, the one to try first first (`stagedOrder`, the card type's layout). */
+  staging: readonly string[];
   failure: string | null;
   /** The Hold button, while it's on: under the card on both its sides. */
   hold: HoldButtonView | null;
@@ -204,19 +206,23 @@ type Props = {
 };
 
 /** The review's screen around its card: one drawing, the review's and the Layout tab's. */
-export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHide, onUndo, canUndo, chart, card, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
-  /** Whether the card on screen has a clip to take the screen's room while it's filled: the first not under a spoiler, marked for the stage's styles. */
-  const [staged, setStaged] = useState(false);
+export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHide, onUndo, canUndo, chart, card, staging, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
+  // The clip that takes the screen's room while it's filled, marked for the stage's styles: of the fields the layout
+  // names, the first whose part holds a clip in the Player look there to see (not a sound, not under a spoiler).
   useLayoutEffect(() => {
-    const clips = [...(place.current?.querySelectorAll<HTMLElement>(".review-card .media-player.media-video") ?? [])];
-    const first = clips.find((clip) => clip.closest(".btn-spoiler") === null) ?? null;
-    for (const clip of clips) clip.toggleAttribute(STAGED, clip === first);
-    if ((first !== null) !== staged) setStaged(first !== null);
+    const root = place.current;
+    if (!root) return;
+    const clipOf = (fieldId: string) => {
+      const clip = root.querySelector<HTMLElement>(`.review-card [data-part="${fieldId}"] .media-player.media-video`);
+      return clip && clip.closest(".btn-spoiler") === null ? clip : null;
+    };
+    const staged = staging.map(clipOf).find((clip) => clip !== null) ?? null;
+    for (const clip of root.querySelectorAll<HTMLElement>(".review-card .media-player.media-video")) clip.toggleAttribute(STAGED, clip === staged);
   });
   const undo = () => onUndo?.();
   // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
   const full = stage.screen.full;
-  const look = full ? `is-stage ${staged && !stage.open ? "is-closed" : ""}` : "is-fit";
+  const look = full ? "is-stage" : "is-fit";
   // Undo and Chart: in the counts' row on a computer, under the answers on a phone, the CSS showing one of the two.
   // Pinned over the counts' row, they would cover "in play · waiting".
   const tools = (
@@ -245,7 +251,7 @@ export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHi
       <div className="review-top">
         {counts}
         {!full ? <span className="review-tools">{tools}</span> : null}
-        {/* Filling the screen: Undo, the rail closed to leave the clip alone (until the screen is next filled), and the way out. */}
+        {/* Filling the screen: Hide back of card, Undo, Chart, and the way out. */}
         {full ? (
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it. */}
@@ -263,11 +269,6 @@ export function ReviewScreen({ place, stage, counts, revealed, busy, binds, onHi
             <Button className="btn-icon" aria-label="Chart" aria-pressed={chart.open} disabled={chart.onToggle === undefined} onClick={chart.onToggle}>
               <Icon name="srs" />
             </Button>
-            {staged ? (
-              <Button className="btn-icon" aria-label="Hide the card" onClick={stage.close}>
-                <Icon name="close" />
-              </Button>
-            ) : null}
             <Button className="btn-icon" aria-label="Leave full screen" onClick={stage.screen.toggle}>
               <Icon name="unfull" />
             </Button>

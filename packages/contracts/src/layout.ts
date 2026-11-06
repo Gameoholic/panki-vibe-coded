@@ -107,6 +107,12 @@ export const LayoutPart = z.object({
    * layout at most.
    */
   showOnPlay: z.number().int().min(2).max(SHOW_ON_PLAY_MAX).nullable().default(null),
+  /**
+   * The clip a review's full screen fills the screen with (its "Full screen"), picked: one part of a layout at most, a
+   * Media part in the Player look. None picked, or the picked one no longer such a part, it's the first such in the
+   * card's order (`cardLayout.ts` → `stagedOf`). Not picked to begin with.
+   */
+  staged: z.boolean().default(false),
 });
 export type LayoutPart = z.infer<typeof LayoutPart>;
 
@@ -120,7 +126,8 @@ export const CardLayout = z
   .max(200)
   .refine((parts) => new Set(parts.map((p) => p.fieldId)).size === parts.length, { message: "A field is on the card twice." })
   .refine((parts) => parts.length === 0 || parts.some((p) => p.front !== "hide"), { message: NOTHING_ON_FRONT })
-  .refine((parts) => parts.filter((p) => p.showOnPlay !== null).length <= 1, { message: "Only one sound or clip can show the card by itself." });
+  .refine((parts) => parts.filter((p) => p.showOnPlay !== null).length <= 1, { message: "Only one sound or clip can show the card by itself." })
+  .refine((parts) => parts.filter((p) => p.staged).length <= 1, { message: "Only one clip can fill the screen." });
 export type CardLayout = z.infer<typeof CardLayout>;
 
 /** A corner of the card. */

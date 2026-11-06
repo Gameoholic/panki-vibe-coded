@@ -23,6 +23,7 @@ const KeptPart = z.object({
   listen: ListenShow.optional().catch(undefined),
   listenSubtitles: ListenSubtitles.optional().catch(undefined),
   showOnPlay: z.number().int().min(2).max(SHOW_ON_PLAY_MAX).nullable().optional().catch(undefined),
+  staged: z.boolean().optional().catch(undefined),
 });
 
 type FieldLike = Pick<CardField, "id" | "kind" | "side">;
@@ -54,6 +55,7 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     listen: "show",
     listenSubtitles: "show",
     showOnPlay: null,
+    staged: false,
   });
   return [...front.map((f) => part(f, true)), ...back.map((f) => part(f, false))];
 }
@@ -115,6 +117,8 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.listenSubtitles !== undefined ? { listenSubtitles: own.listenSubtitles } : {}),
       // Only a sound or a clip shows the card by itself, and only the first that says so.
       showOnPlay: own.showOnPlay && kindOf.get(base.fieldId) === "media" && !parts.some((p) => p.showOnPlay !== null) ? own.showOnPlay : null,
+      // Only a sound or a clip fills the screen, and only the first picked to.
+      staged: own.staged === true && kindOf.get(base.fieldId) === "media" && !parts.some((p) => p.staged),
     });
   }
   for (const part of defaults) if (!placed.has(part.fieldId)) parts.push(part);
@@ -130,6 +134,24 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
   }
   return parts;
 }
+
+/** Whether a part can fill the screen in a review: a Media field's, in the Player look (whose own full screen it is). */
+const canStage = (part: LayoutPart, kindOf: (fieldId: string) => string | undefined) => kindOf(part.fieldId) === "media" && part.look === "player";
+
+/**
+ * The fields whose clip a review's full screen may fill the screen with, the one it tries first first: the part picked
+ * to (`LayoutPart.staged`) while it's still a Media part in the Player look, then every such part in the card's order.
+ * A card shows the first of them that holds a clip there to see (not a sound, not under a spoiler); the Layout tab's
+ * Full screen says the first.
+ */
+export function stagedOrder(layout: readonly LayoutPart[], fields: readonly Pick<CardField, "id" | "kind">[]): string[] {
+  const kinds = new Map(fields.map((f) => [f.id, f.kind]));
+  const can = layout.filter((p) => canStage(p, (id) => kinds.get(id)));
+  const picked = can.find((p) => p.staged);
+  return [...(picked ? [picked.fieldId] : []), ...can.filter((p) => p !== picked).map((p) => p.fieldId)];
+}
+/** The field a review's full screen fills the screen with, as laid out: the picked one, else the first that can (`stagedOrder`); none without one. */
+export const stagedOf = (layout: readonly LayoutPart[], fields: readonly Pick<CardField, "id" | "kind">[]): string | null => stagedOrder(layout, fields)[0] ?? null;
 
 /** The stage tag as it was kept: anything missing or broken in it reads as the default's, so a tag from before still reads. */
 const KeptTag = z.object({

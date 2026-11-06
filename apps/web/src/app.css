@@ -4996,7 +4996,8 @@ mark.sub-blur {
    the page's review. The card takes the room left between the counts above it and the buttons under it, never more,
    and a card that still runs over scrolls inside itself, the counts and the buttons staying where they are: the same
    body as the page's review, by one rule (above the page's block). Only when the counts and the buttons alone don't fit
-   does the rail itself scroll, with no bar. Closed, the clip is alone until the screen is next filled. A card without
+   does the rail itself scroll, with no bar. Which clip takes the screen is the card type's layout's to say (its Full
+   screen, `stagedOrder`), the rail always beside it. A card without
    a clip fills the screen as the review is, its card scrolling inside itself the same way. A clip only the back shows
    holds its room dark until the card is turned. */
 .main > .review.is-stage {
@@ -5134,21 +5135,15 @@ mark.sub-blur {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Closed: the review moves off the screen to its right, the clip taking all of it, until the screen is next filled. */
-.main > .review.is-stage.is-closed:has([data-staged]) {
-  --stage-right: 0px;
-  overflow: hidden;
-  padding-left: 100%;
-  background: var(--theater);
-}
-/* On a phone the clip's room is the top of the screen and the review under it. */
+/* On a phone the clip's room is the top of the screen and the review under it (after the rules above, which they
+   outweigh by coming later). */
 @media (max-width: 640px) {
-  .main > .review.is-stage:not(.is-closed):has([data-staged]) {
+  .main > .review.is-stage:has([data-staged]) {
     --stage-right: 0px;
     padding: calc(42dvh + 12px) 12px 12px;
     background: linear-gradient(to bottom, var(--theater) 42dvh, var(--bg) 0);
   }
-  .review.is-stage:not(.is-closed) .media.media-player[data-staged] {
+  .review.is-stage .media.media-player[data-staged] {
     bottom: auto;
     height: 42dvh;
   }

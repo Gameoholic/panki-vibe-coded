@@ -767,7 +767,7 @@ export function ReviewCard({
     const reach = away ? { inert: true, "aria-hidden": true } : {};
     if (held) {
       return (
-        <div key={field.id} className={`${look} is-later`} style={place} aria-hidden="true">
+        <div key={field.id} className={`${look} is-later`} style={place} data-part={field.id} aria-hidden="true">
           {inner}
         </div>
       );

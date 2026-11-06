@@ -10,6 +10,7 @@ import {
   movePart,
   offered,
   partsOnIn,
+  stagedOrder,
   type Card,
   type CardField,
   type CardSide,
@@ -318,6 +319,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     ...samples.map(({ card, deck }) => ({ id: card.id, label: (nameField && card.values[nameField.id]?.trim()) || "A card with no words", note: deck.name })),
   ];
   const away = draft.filter((p) => p[side] === "hide");
+  /** The fields whose clip the full screen can fill the screen with, the one it fills it with first (`stagedOrder`). */
+  const staging = stagedOrder(draft, type.fields);
   // What this tab's skeleton draws next time on this device (`Skeleton`'s `layout`): the chips of what isn't on the
   // front in the panel, and whether the answers set apart hold a row under the card.
   const awayOnFront = side === "front" ? away.length : null;
@@ -519,6 +522,25 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       {/* The type's own: Listen first, the card it's shown on, and which side of it shows, in step with the card's own buttons. */}
       <section className="panel layout-panel" aria-label="Card type">
         <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
+        {/* The clip a review's full screen fills the screen with (the Full screen key's): the one picked, else the first
+            in the card's order; greyed while no part is a clip in the Player style. */}
+        <Setting
+          id="layout-staged"
+          label="Full screen"
+          why={staging.length === 0 ? "No clip in the Player style" : undefined}
+          control={
+            <Dropdown
+              id="layout-staged-choice"
+              label="Full screen"
+              anchored
+              options={staging.map((id) => ({ id, label: fields.get(id)?.name ?? "" }))}
+              value={staging[0] ?? ""}
+              placeholder="None"
+              disabled={staging.length === 0}
+              onChange={(id) => change(draft.map((p) => ({ ...p, staged: p.fieldId === id })))}
+            />
+          }
+        />
         <Setting id="layout-sample-row" label="Previewed for" control={<Dropdown id="layout-sample" label="Card previewed" anchored options={sampleOptions} value={sampleId} onChange={setSampleId} />} />
         <Setting id="layout-side-row" label="Side" control={<Segmented idPrefix="layout-side" label="Side of the card" options={listen.on ? FACES : SIDES} value={face} onChange={setFace} />} />
       </section>
@@ -590,6 +612,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     <ReviewScreen
       place={place}
       stage={stage}
+      staging={stagedOrder(draft, type.fields)}
       counts={<ReviewCounts counts={counted ? { ...counted, now: sample ? kindOf(sample.card) : null } : null} />}
       revealed={face === "back"}
       busy={false}

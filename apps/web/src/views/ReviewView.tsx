@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, exampleFieldsOf, exampleShownOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, stagedOrder, exampleFieldsOf, exampleShownOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -915,6 +915,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     <ReviewScreen
       place={place}
       stage={stage}
+      staging={stagedOrder(type.layout, type.fields)}
       counts={<ReviewCounts counts={{ settings: deck.settings, togo, now: kindOf(card), line }} />}
       revealed={revealed}
       busy={busy}

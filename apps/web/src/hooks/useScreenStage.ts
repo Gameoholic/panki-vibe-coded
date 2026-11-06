@@ -3,9 +3,8 @@ import { createContext, useEffect, useRef, useState, type RefObject } from "reac
 /**
  * A review whose clip fills the screen, for reviewing in full screen throughout with the card condensed beside it:
  * the screen is filled by the whole review, not by one clip's player, so it stays filled as one card gives way to the
- * next. The card's clip takes the screen and the rest of the review stands in a rail at its right, which can be closed
- * to leave the clip alone until the screen is next filled (leaving full screen and filling it again brings the rail
- * back). Whether the screen is filled is this device's, kept across reviews: a
+ * next. The card's clip takes the screen and the rest of the review stands in a rail at its right, always. Whether the
+ * screen is filled is this device's, kept across reviews: a
  * review opened hours later fills it again, at the first key or press when the browser won't fill it unasked.
  */
 
@@ -42,13 +41,11 @@ export const ScreenStageContext = createContext<ScreenStage | null>(null);
  * The stage for a review: `place` is the review's own element, which fills the screen and stays while its cards change;
  * `present` is whether it's there (a review at its end shows its tally instead, and extra study or an answer undone
  * there brings it back). Leaving the screen filled by the browser's way (Escape) is kept as leaving it; the review
- * ending, or being left, isn't: the end's tally leaves the screen (it doesn't suit the full screen view), and the next review, or the card an Undo there brings back, fills it again. `open` is whether the rail
- * is shown: closed, it stays closed until the screen is filled again. Not `kept` (the Layout tab, drawn as the review),
+ * ending, or being left, isn't: the end's tally leaves the screen (it doesn't suit the full screen view), and the next review, or the card an Undo there brings back, fills it again. Not `kept` (the Layout tab, drawn as the review),
  * the screen is filled only when asked, and filling or leaving it there is never kept for the next review.
  */
 export function useScreenStage(place: RefObject<HTMLElement | null>, present: boolean, kept = true) {
   const [full, setFull] = useState(false);
-  const [open, setOpen] = useState(true);
   const keptNow = useRef(kept ? readKept() : DEFAULT);
   /** The element last seen filling the screen. React keeps the review's element for the end's tally, out of the ref but still filling the screen. */
   const filled = useRef<Element | null>(null);
@@ -72,8 +69,6 @@ export function useScreenStage(place: RefObject<HTMLElement | null>, present: bo
       const el = place.current;
       const now = el !== null && document.fullscreenElement === el;
       setFull(now);
-      // The rail closed is for this time the screen is filled: the next time, it's there again.
-      if (!now) setOpen(true);
       // Left while the review is still here: a choice, kept. Gone with the review's element: not a choice.
       if (now) {
         filled.current = el;
@@ -118,9 +113,6 @@ export function useScreenStage(place: RefObject<HTMLElement | null>, present: bo
 
   return {
     screen: { full, toggle } satisfies ScreenStage,
-    open,
-    /** The rail closed, leaving the clip alone, until the screen is next filled. */
-    close: () => setOpen(false),
   };
 }
 /** A review's stage, as `useScreenStage` gives it. */
