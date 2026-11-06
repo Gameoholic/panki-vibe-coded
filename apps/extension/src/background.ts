@@ -359,6 +359,10 @@ async function answer(
     await writeStore({ panelView: ask.view });
     return { ok: true };
   }
+  if (ask.kind === "fullPanel") {
+    await writeStore({ fullPanel: ask.shown });
+    return { ok: true };
+  }
   // Signed out is an answer here, not a failure: the pop-up greys Explain and says why.
   if (ask.kind === "aiState") return aiState(await readStore(), ask.fresh === true);
   const store = await readStore();

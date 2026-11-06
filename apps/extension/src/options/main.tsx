@@ -20,7 +20,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, BESIDE_RECS, BESIDE_RECS_IDS, PANEL_KEY_IDS, panelKeyName, SKIP_SECONDS_MAX, STAGE_SIDES, STAGE_SIDE_IDS, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, PANEL_KEY_IDS, panelKeyName, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
@@ -305,8 +305,6 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
 // Whether transcribing starts by itself is switched in the strip's menu alone (Auto transcribe); what it does while
 // paused is an admin's, in Panki's Settings → Admin.
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
-const BESIDE_RECS_OPTIONS = BESIDE_RECS_IDS.map((id) => ({ id, label: BESIDE_RECS[id] }));
-const STAGE_SIDE_OPTIONS = STAGE_SIDE_IDS.map((id) => ({ id, label: STAGE_SIDES[id] }));
 const PANEL_KEY_OPTIONS = PANEL_KEY_IDS.map((id) => ({ id, label: panelKeyName(id) }));
 // What the choice made does, under it: the choice alone doesn't say.
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
@@ -325,25 +323,14 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
     <section className="panel" aria-labelledby="transcribing-title">
       <SceneTitle id="panel" titleId="transcribing-title" store={store} />
       <Setting id="module-panel" label="Panki panel" control={<Toggle id="module-panel-on" says={{ on: "On", off: "Off" }} on={store.modulePanel} onChange={(modulePanel) => void writeStore({ modulePanel }).then(onChanged)} />} />
-      {/* The view itself is picked on the panel (`PanelView`); what Beside the video does with the site's recommendations is set here. */}
-      <Setting
-        id="beside-recs"
-        label="Beside the video"
-        control={<Segmented idPrefix="beside-recs" label="Beside the video" options={BESIDE_RECS_OPTIONS} value={store.besideRecs} disabled={off} onChange={(besideRecs) => void writeStore({ besideRecs }).then(onChanged)} />}
-        why="Where the Panki panel stands when its view is Beside the video."
-      />
-      {/* The site's own full screen, which the panel stands beside: where, and the key that hides it and shows it again (the handle at its edge does the same). */}
+      {/* The view itself is picked on the panel (`PanelView`). In the site's own full screen the panel stands at the
+          right; its key toggles it (the handle at its edge does the same), named as an action as the app's keybinds are. */}
       <div className="seek-group">
         <h3 className="seek-group-title">Full screen</h3>
         <Setting
-          id="stage-side"
-          label="Side"
-          control={<Segmented idPrefix="stage-side" label="Side" options={STAGE_SIDE_OPTIONS} value={store.stageSide} disabled={off} onChange={(stageSide) => void writeStore({ stageSide }).then(onChanged)} />}
-        />
-        <Setting
           id="panel-key"
-          label="Key to hide the panel"
-          control={<Dropdown id="panel-key-choice" label="Key to hide the panel" options={PANEL_KEY_OPTIONS} value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
+          label="Toggle panel"
+          control={<Dropdown id="panel-key-choice" label="Toggle panel" options={PANEL_KEY_OPTIONS} value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
         />
       </div>
       <Setting

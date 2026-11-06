@@ -3,11 +3,9 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 
-/** The grip at the column's inner edge in full screen: the column folded away, and back. */
+/** The grip at the column's inner edge in full screen (the column stands at the screen's right): the column folded away, and back. */
 export type ColumnHandle = {
   folded: boolean;
-  /** Which side of the screen the column stands at: the grip stands just off its other edge, on the video. */
-  side: "left" | "right";
   onToggle: () => void;
 };
 
@@ -22,8 +20,6 @@ export type ColumnHandle = {
  */
 export function Column({ handle }: { handle: ColumnHandle | null }) {
   const box = useRef<HTMLDivElement>(null);
-  // The chevron points where the press sends the column: off the screen's edge, or back in from it.
-  const out = handle !== null && (handle.side === "right") !== handle.folded;
   return (
     <>
       <div ref={box} className="panki-column">
@@ -34,16 +30,17 @@ export function Column({ handle }: { handle: ColumnHandle | null }) {
       <ScrollEdges of={box} />
       {handle ? (
         <Button
-          className={`btn-icon panki-column-handle is-${handle.side}`}
-          aria-label={handle.folded ? "Show panel" : "Hide panel"}
+          className="btn-icon panki-column-handle"
+          aria-label="Toggle panel"
           aria-expanded={!handle.folded}
           onClick={(event) => {
             handle.onToggle();
-            // Pressed with a mouse, the focus isn't left on it: the hide key is heard from the page, never from inside Panki.
+            // Pressed with a mouse, the focus isn't left on it: the panel's key is heard from the page, never from inside Panki.
             if (event.detail > 0) event.currentTarget.blur();
           }}
         >
-          <Icon name={out ? "forward" : "back"} />
+          {/* The chevron points where the press sends the column: back in from the screen's edge, or off it. */}
+          <Icon name={handle.folded ? "back" : "forward"} />
         </Button>
       ) : null}
     </>

@@ -199,6 +199,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pankiOn"), on: z.boolean() }),
   /** Where the Panki panel stands on a video's page, picked on the panel itself. */
   z.object({ kind: z.literal("panelView"), view: PanelView }),
+  /** In the site's full screen, the panel toggled by its key or its handle: shown or folded away. */
+  z.object({ kind: z.literal("fullPanel"), shown: z.boolean() }),
   /** Videos as their thumbnails are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   z.object({ kind: z.literal("glance"), videoIds: GlanceAsk.shape.videoIds }),
   /** A video saved for later with its name and channel as the page shows them (`about`), or its save taken back (null). */
@@ -545,6 +547,10 @@ export async function askPankiOn(on: boolean): Promise<void> {
 /** The Panki panel's view, picked on the panel, kept for every video from now on. */
 export async function askPanelView(view: PanelView): Promise<void> {
   await ask({ kind: "panelView", view });
+}
+/** The panel in full screen toggled, kept so the next full screen opens as this one was left. */
+export async function askFullPanel(shown: boolean): Promise<void> {
+  await ask({ kind: "fullPanel", shown });
 }
 /** Videos as their thumbnails are marked; none of them when it can't be asked. */
 export async function askGlance(videoIds: readonly string[]): Promise<Glanced> {

@@ -22,9 +22,9 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askFullPanel, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey, type StageSide } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -69,11 +69,6 @@ const UNDER_PLAYER = "ytd-watch-flexy #below";
 const BESIDE_PLAYER = "ytd-watch-flexy #secondary";
 /** That column is used only while it's there and at least this wide; a narrow window has none, and the drawer goes under the line instead. */
 const BESIDE_MIN = 300;
-/**
- * The site's recommendations in that column: hidden while the Panki panel stands beside the video in their place (the
- * options page's Beside the video), shown again the moment it doesn't. Nothing else of the column is touched.
- */
-const RECOMMENDATIONS = "ytd-watch-flexy #secondary #related";
 /** The player's own seek bar: the whole video from its left end to its right. The clip is marked on it. */
 const SEEK_BAR = "#movie_player .ytp-progress-bar";
 /**
@@ -199,19 +194,16 @@ const replay = createReplay();
 /** The line's place, with the screen itself in it. */
 const strip = mount(siteTheme());
 strip.host.style.cssText = UNDER;
-/** The column's handle in full screen, as it stands: folded or not, and the screen's side the column is at; null out of full screen. */
-type HandleNow = { folded: boolean; side: StageSide };
-const handleNow = cell<HandleNow | null>(null);
+/** The column's handle in full screen, as it stands: folded or not; null out of full screen. */
+const handleNow = cell<boolean | null>(null);
 /** The handle as it stands now, told to the column only when it changed. */
-function setHandle(next: HandleNow | null) {
-  const was = handleNow.get();
-  if (was === next || (was !== null && next !== null && was.folded === next.folded && was.side === next.side)) return;
-  handleNow.set(next);
+function setHandle(folded: boolean | null) {
+  if (handleNow.get() !== folded) handleNow.set(folded);
 }
 /** The column, its handle following `handleNow`. */
 function ColumnHere() {
-  const now = useSyncExternalStore(handleNow.subscribe, handleNow.get);
-  return <Column handle={now ? { ...now, onToggle: togglePanel } : null} />;
+  const folded = useSyncExternalStore(handleNow.subscribe, handleNow.get);
+  return <Column handle={folded === null ? null : { folded, onToggle: togglePanel }} />;
 }
 /**
  * The column the panel and the drawer stand in beside the video and in full screen: the two places are put in its
@@ -556,10 +548,10 @@ const inPlace = cell(false);
  */
 const placedAs = cell<PanelView | "stage">("under");
 /**
- * The panel folded away in the site's full screen (by its key, `panelKey`, or its handle), the video alone filling
- * the screen. This tab's alone: it lasts from one full screen to the next in this tab, and is never kept.
+ * In the site's full screen, the panel brought up by the drawer opening while the panel was folded away
+ * (`Modules.fullPanel` off): this tab's alone, never kept, let go as the drawer closes or the panel is toggled.
  */
-const panelFolded = cell(false);
+const upForDrawer = cell(false);
 const showing = cell(false);
 
 /** The player's video, as last found. */
@@ -764,19 +756,18 @@ function columnBeside(player: Element | null): HTMLElement | null {
 }
 
 /**
- * The Stage: the site's own full screen made Panki's, the video filling the screen but for the panel's column at the
- * right or the left. Whatever way the site enters its full screen (F, its button, a double-click on the player), the
+ * The Stage: the site's own full screen made Panki's, the video filling the screen but for the panel's column at its
+ * right. Whatever way the site enters its full screen (F, its button, a double-click on the player), the
  * whole page is what fills the screen (the page's root, or the site's app holding the watch page; never the player
  * alone) and the site lays it out as `ytd-watch-flexy[fullscreen]`, the player in the full-bleed container at its top.
  * Panki holds that container to the screen beside the panel by a few lines of CSS on the page (`STAGE_CSS`); the
- * player's node is never moved. The panel and the drawer stand in a column of Panki's own fixed at the other side,
+ * player's node is never moved. The panel and the drawer stand in a column of Panki's own fixed at the right,
  * inside what fills the screen (only that is drawn). Read from `document.fullscreenElement` alone, never a flag of
  * Panki's: leaving the full screen the site's way (Esc, its button, F again) leaves the Stage. The site's names it
  * leans on are these, together here: when the site renames them, this is where to look.
  */
 const WATCH_PAGE = "ytd-watch-flexy";
 const STAGE_CLASS = "panki-stage";
-const STAGE_LEFT_CLASS = "panki-stage-left";
 /**
  * What the Stage changes of the page, only while `html` carries `STAGE_CLASS` (taken off at once as the full screen is
  * left or the panel folded): the page doesn't scroll, its header bar is hidden, and the full-bleed container is fixed
@@ -792,13 +783,13 @@ html.${STAGE_CLASS} ${STAGED_PAGE} #full-bleed-container {
   width: auto !important; height: 100vh !important; min-height: 0 !important; max-height: none !important; margin: 0 !important;
   z-index: 2100 !important; background: #000 !important;
 }
-html.${STAGE_CLASS}.${STAGE_LEFT_CLASS} ${STAGED_PAGE} #full-bleed-container { left: var(--panki-stage-w) !important; right: 0 !important; }
 html.${STAGE_CLASS} ${STAGED_PAGE} #player-full-bleed-container { height: 100% !important; max-height: none !important; }
 `;
-/** Panki's column on the stage (`column`): fixed at one side of the screen, over the page, as tall as the screen. */
-const STAGE_COLUMN = "display: block; position: fixed; top: 0; bottom: 0; width: var(--panki-stage-w); z-index: 2101; background: var(--yt-spec-base-background, #0f0f0f);";
-/** The column folded away: as wide as nothing at the screen's edge, its handle alone standing off it on the video. */
-const STAGE_FOLDED = "display: block; position: fixed; top: 0; bottom: 0; width: 0; z-index: 2101;";
+/** Panki's column on the stage (`column`): fixed at the screen's right, over the page, as tall as the screen. */
+const STAGE_COLUMN =
+  "display: block; position: fixed; top: 0; bottom: 0; right: 0; width: var(--panki-stage-w); z-index: 2101; background: var(--yt-spec-base-background, #0f0f0f); border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
+/** The column folded away: as wide as nothing at the screen's right edge, its handle alone standing off it on the video. */
+const STAGE_FOLDED = "display: block; position: fixed; top: 0; bottom: 0; right: 0; width: 0; z-index: 2101;";
 let stageStyle: HTMLStyleElement | null = null;
 /** Whether the stage's layer is up this moment. */
 let staged = false;
@@ -817,15 +808,14 @@ window.addEventListener(
   { passive: true },
 );
 
-/** The stage's layer up or down: the page's few lines of CSS, the side, and the player told its room changed. */
-function setStaged(up: boolean, left: boolean) {
+/** The stage's layer up or down: the page's few lines of CSS, and the player told its room changed. */
+function setStaged(up: boolean) {
   const html = document.documentElement;
   if (up && !stageStyle) {
     stageStyle = document.createElement("style");
     stageStyle.textContent = STAGE_CSS;
     document.head.append(stageStyle);
   }
-  html.classList.toggle(STAGE_LEFT_CLASS, up && left);
   const changed = staged !== up;
   staged = up;
   if (up) stagedThisFull = true;
@@ -849,8 +839,8 @@ function fullHere(on: Modules): HTMLElement | null {
 
 /** Whether the stage's layer stands this moment, put up or down to match: in the site's full screen while it's Panki's, unless the panel is folded away. */
 function stageNow(full: HTMLElement | null, on: Modules): boolean {
-  const up = full !== null && !panelFolded.get();
-  setStaged(up, on.stageSide === "left");
+  const up = full !== null && (on.fullPanel || upForDrawer.get());
+  setStaged(up);
   return up;
 }
 
@@ -864,17 +854,16 @@ function afterFull() {
   setTimeout(back, 400);
 }
 
-/** The panel folded away in full screen, or brought back: by its key or its handle. */
+/**
+ * The panel in full screen folded away, or brought back, by its key or its handle: on the page at once, and kept, so
+ * the next full screen opens as this one is left.
+ */
 function togglePanel() {
-  panelFolded.set(!panelFolded.get());
-}
-
-/** The site's recommendations as Panki hid them, to be shown again: only ever the one element it hid itself. */
-let hiddenRecommendations: HTMLElement | null = null;
-function showRecommendations() {
-  if (!hiddenRecommendations) return;
-  hiddenRecommendations.style.removeProperty("display");
-  hiddenRecommendations = null;
+  const now = modules.get();
+  const shown = !(now.fullPanel || upForDrawer.get());
+  upForDrawer.set(false);
+  modules.set({ ...now, fullPanel: shown });
+  void askFullPanel(shown);
 }
 
 /** Puts Panki's two places where they belong right now: the line under the player or beside it; the drawer beside it, or under the line, or floating over a player that fills the screen. */
@@ -913,15 +902,13 @@ function place() {
   const home = columned ? column.host : under;
   inPlace.set(home !== null);
   placedAs.set(fullPanki ? "stage" : side ? "beside" : "under");
-  // Panki's column: in full screen at its side over the page, as tall as the screen, or folded away to its handle;
-  // beside the video first in the site's column, as tall as the player. Taken off the page the moment neither stands.
+  // Panki's column: in full screen at the screen's right over the page, as tall as the screen, or folded away to its
+  // handle; beside the video first in the site's column, as tall as the player. Taken off the page the moment neither stands.
   column.host.dataset.theme = theme;
   column.ground.classList.toggle("is-folded", fullPanki !== null && !stage);
-  setHandle(fullPanki ? { folded: !stage, side: on.stageSide } : null);
+  setHandle(fullPanki ? !stage : null);
   if (fullPanki) {
-    const left = on.stageSide === "left";
-    const at = !stage ? (left ? "left: 0;" : "right: 0;") : left ? "left: 0; border-right: 1px solid var(--yt-spec-10-percent-layer, #303030);" : "right: 0; border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
-    layColumn((stage ? STAGE_COLUMN : STAGE_FOLDED) + at);
+    layColumn(stage ? STAGE_COLUMN : STAGE_FOLDED);
     if (column.host.parentElement !== fullPanki) fullPanki.append(column.host);
   } else if (side && playerBox) {
     layColumn(`${BESIDE_COLUMN} height: ${Math.round(playerBox.getBoundingClientRect().height)}px;`);
@@ -941,15 +928,6 @@ function place() {
     const height = `${Math.round(tall)}px`;
     if (strip.host.style.getPropertyValue("--panki-beside-h") !== height) strip.host.style.setProperty("--panki-beside-h", height);
   }
-  // In the recommendations' place, as the options page says: hidden while the panel stands there, shown again otherwise.
-  const recommendations = side && on.besideRecs === "replace" ? document.querySelector(RECOMMENDATIONS) : null;
-  if (recommendations instanceof HTMLElement) {
-    if (hiddenRecommendations !== recommendations) {
-      showRecommendations();
-      recommendations.style.setProperty("display", "none");
-      hiddenRecommendations = recommendations;
-    }
-  } else showRecommendations();
   // Panki is on the player's seek bar while there's a clip to mark (a drawer is open), a transcript's reach, a run's
   // work, a card or where the video was stopped to mark, and the marks are switched on; the player keeps its bar when it
   // fills the screen.
@@ -1887,7 +1865,6 @@ function App() {
   /** The whole transcript is listed beside the video and in full screen alike. */
   const besideNow = placedView !== "under";
   const stageNowHere = placedView === "stage";
-  const stageLeft = useSyncExternalStore(modules.subscribe, () => modules.get().stageSide === "left");
   /** The view picked on the panel, kept for every video. */
   const viewPicked = useSyncExternalStore(modules.subscribe, () => modules.get().panelView);
   const pankiOn = useSyncExternalStore(modules.subscribe, () => modules.get().on);
@@ -2786,7 +2763,7 @@ function App() {
           </div>
         </div>
       ) : placed ? (
-        <div className={`strip ${listed !== null ? "is-beside" : ""} ${stageNowHere ? `is-stage ${stageLeft ? "is-left" : ""}` : ""}`.replace(/\s+/g, " ").trim()}>
+        <div className={`strip ${listed !== null ? "is-beside" : ""} ${stageNowHere ? "is-stage" : ""}`.replace(/\s+/g, " ").trim()}>
           {/* One row: the name, how transcribing stands (the Transcription menu, whose button is the status), and at its
               end the panel's one menu holding every other setting. Watching and Save for later are the player bar's. */}
           <div className="strip-head">
@@ -3052,8 +3029,8 @@ function typingIn(place: Place): boolean {
 }
 
 /**
- * The panel's own key in the site's full screen (`Modules.panelKey`, P to begin with): it folds the panel away, the
- * video alone filling the screen, and brings it back, as its handle does. Only while the full screen is Panki's, never
+ * The panel's own key in the site's full screen (`Modules.panelKey`, P to begin with): it toggles the panel, folded
+ * away with the video alone filling the screen or brought back, as its handle does, and the flip is kept. Only while the full screen is Panki's, never
  * while typing (on the page, in the panel or the drawer, or anywhere else of Panki's, whose fields can't be told from
  * here), and kept from the site. Never Esc, which the browser keeps for leaving the full screen. The physical key, as
  * the site hears its own whatever the keyboard's language. Whether it took the key.
@@ -3117,10 +3094,12 @@ document.addEventListener("fullscreenchange", () => {
 window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
-panelFolded.subscribe(place);
-// A card begun with the panel folded away in full screen: the drawer is in its column, so the column comes back.
+upForDrawer.subscribe(place);
+// A card begun with the panel folded away in full screen: the drawer is in its column, so the column comes back while
+// the drawer is open, and folds away again as it closes; what's kept is left as the key or the handle last left it.
 showing.subscribe(() => {
-  if (showing.get()) panelFolded.set(false);
+  if (!showing.get()) upForDrawer.set(false);
+  else if (!modules.get().fullPanel) upForDrawer.set(true);
 });
 carded.subscribe(place);
 // A part switched on or off, and where the video was stopped known: what's on the page follows.

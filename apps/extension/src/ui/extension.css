@@ -632,14 +632,8 @@
   color: var(--theater-ink);
   opacity: 0.6;
   pointer-events: auto;
-}
-.btn.btn-icon.panki-column-handle.is-right {
   right: 100%;
   border-radius: var(--radius) 0 0 var(--radius);
-}
-.btn.btn-icon.panki-column-handle.is-left {
-  left: 100%;
-  border-radius: 0 var(--radius) var(--radius) 0;
 }
 .btn.btn-icon.panki-column-handle:hover,
 .btn.btn-icon.panki-column-handle:focus-visible {

@@ -58,13 +58,8 @@ export const PANEL_VIEWS: Record<PanelView, { name: string; icon: "panelUnder" |
   beside: { name: "Beside the video", icon: "panelBeside" },
 };
 export const PANEL_VIEW_IDS = PanelView.options;
-/** In full screen, which side of the screen the panel's column stands at. The right to begin with, where the column beside the video is. */
-export const StageSide = z.enum(["left", "right"]);
-export type StageSide = z.infer<typeof StageSide>;
-export const STAGE_SIDES: Record<StageSide, string> = { left: "Panel on the left", right: "Panel on the right" };
-export const STAGE_SIDE_IDS = StageSide.options;
 /**
- * The key that hides the panel in full screen and shows it again, one registry: letters YouTube's player doesn't use
+ * The key that toggles the panel in full screen, one registry: letters YouTube's player doesn't use
  * by themselves (its own include K, J, L, F, C, I, M, T and the digits; Shift+P and Shift+N are its playlist's, which a
  * key held with Shift never reaches here). Kept as the physical key (`KeyboardEvent.code`), as the site hears its own
  * whatever the keyboard's language. P to begin with.
@@ -74,11 +69,6 @@ export const PanelKey = z.enum(PANEL_KEY_IDS);
 export type PanelKey = z.infer<typeof PanelKey>;
 /** A key as its keycap reads. */
 export const panelKeyName = (key: PanelKey): string => key.slice(3);
-/** Beside the video, the panel stands above the site's recommendations or in their place. Above them to begin with: nothing of the site's is taken away unasked. */
-export const BesideRecs = z.enum(["above", "replace"]);
-export type BesideRecs = z.infer<typeof BesideRecs>;
-export const BESIDE_RECS: Record<BesideRecs, string> = { above: "Above recommendations", replace: "Instead of recommendations" };
-export const BESIDE_RECS_IDS = BesideRecs.options;
 
 // A browser that kept `feedFilter` or `homeChips`, the chips that once sifted YouTube's home feed, keeps them unread.
 
@@ -237,13 +227,16 @@ export const Modules = z.object({
   on: z.boolean(),
   /** The Panki panel on a video's page: the line under the player, the drawer, the transcript over the video, transcribing. */
   panel: z.boolean(),
-  /** Where the panel stands on a video's page (`PanelView`), and beside the video, whether it takes the recommendations' place. */
+  /** Where the panel stands on a video's page (`PanelView`); beside the video, always above the site's recommendations. */
   panelView: PanelView,
-  besideRecs: BesideRecs,
-  /** In the site's full screen, the side the panel's column stands at (`content/youtube.tsx` → `stageNow`). */
-  stageSide: StageSide,
-  /** In the site's full screen, the key that hides the panel and shows it again (`content/youtube.tsx` → `panelKey`). */
+  /** In the site's full screen, the key that toggles the panel (`content/youtube.tsx` → `panelKey`). */
   panelKey: PanelKey,
+  /**
+   * In the site's full screen, whether the panel stands at the screen's right or is folded away, the video alone
+   * filling the screen: flipped by its key and its handle and kept, so a full screen opens as the last was left.
+   * Hidden to begin with.
+   */
+  fullPanel: z.boolean(),
   /** Looking a word up by pointing at it, on every site. */
   lookup: z.boolean(),
   /** Panki's marks on a video's seek bar, all of them (each mark's own Shown / Hidden is under Seek bar). */
@@ -297,9 +290,8 @@ export const DEFAULT_MODULES: Modules = {
   on: true,
   panel: true,
   panelView: "under",
-  besideRecs: "above",
-  stageSide: "right",
   panelKey: "KeyP",
+  fullPanel: false,
   lookup: true,
   seek: true,
   resume: "offer",
