@@ -1524,6 +1524,18 @@
 .yt-bar-words.is-finished .icon {
   animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
+/* Watching's tip (ui/WatchingControl.tsx), the app's `Tip`: above the progress bar over the control, as the player's own
+   tooltips stand, and in their colours, the player's dark room and its words. */
+.yt-watching-wrap {
+  position: relative;
+  display: inline-flex;
+  height: 100%;
+}
+.yt-watching-wrap .tip {
+  background: color-mix(in srgb, var(--theater) 82%, transparent);
+  color: var(--theater-ink);
+  white-space: nowrap;
+}
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
   display: inline-flex;
