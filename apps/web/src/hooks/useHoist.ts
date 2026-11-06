@@ -167,20 +167,18 @@ function scrollerOf(el: Element): HTMLElement | null {
   return null;
 }
 
+/**
+ * The one way to a row, whatever was pressed (a round's chip, the field's name on a follow-up): its scroller brought
+ * to it, then the row lit. The scroll is Panki's own, aimed afresh every frame at where the row stands now, so a fold
+ * closing above it or a row sliding as it goes doesn't leave it short (the browser's smooth scroll aims once, and was
+ * left short); it lands exactly, and stops at once if the scroller is moved by hand meanwhile.
+ */
 function goToRow(box: HTMLElement | null, key: string) {
   const row = box ? rowByKey(box, key) : null;
   if (!row) return;
-  const scroller = scrollerOf(row);
-  let wait = 0;
-  if (scroller) {
-    const top = Math.max(0, row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - GO_ABOVE);
-    const distance = Math.abs(top - scroller.scrollTop);
-    scroller.scrollTo({ top, behavior: reduced() ? "auto" : "smooth" });
-    wait = reduced() ? 0 : Math.min(420, 120 + distance / 4);
-  }
   const turn = (lighting.get(row) ?? 0) + 1;
   lighting.set(row, turn);
-  window.setTimeout(() => {
+  const light = () => {
     if (lighting.get(row) !== turn) return;
     row.classList.remove("is-lit");
     void row.offsetWidth;
@@ -188,7 +186,38 @@ function goToRow(box: HTMLElement | null, key: string) {
     window.setTimeout(() => {
       if (lighting.get(row) === turn) row.classList.remove("is-lit");
     }, LIT_MS);
-  }, wait);
+  };
+  const scroller = scrollerOf(row);
+  if (!scroller) {
+    light();
+    return;
+  }
+  const target = () => {
+    const room = scroller.scrollHeight - scroller.clientHeight;
+    return Math.min(room, Math.max(0, row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - GO_ABOVE));
+  };
+  const from = scroller.scrollTop;
+  const span = reduced() ? 0 : Math.min(GO_MS, 120 + Math.abs(target() - from) / 4);
+  const start = performance.now();
+  let set = from;
+  const step = (now: number) => {
+    if (lighting.get(row) !== turn) return;
+    // Moved by hand since the last frame: the scroll is theirs now, and the row is lit where it stands.
+    if (Math.abs(scroller.scrollTop - set) > 2) {
+      light();
+      return;
+    }
+    const t = span === 0 ? 1 : Math.min(1, (now - start) / span);
+    const eased = 1 - Math.pow(1 - t, 3);
+    set = Math.round(from + (target() - from) * eased);
+    scroller.scrollTop = set;
+    set = scroller.scrollTop;
+    if (t < 1) requestAnimationFrame(step);
+    else light();
+  };
+  requestAnimationFrame(step);
 }
-/** Each row's latest going-to, so an earlier one's timers leave a later light alone. */
+/** Each row's latest going-to, so an earlier one's scroll and timers leave a later one alone. */
 const lighting = new WeakMap<HTMLElement, number>();
+/** The longest a scroll to a row takes; a short way takes less. */
+const GO_MS = 420;
