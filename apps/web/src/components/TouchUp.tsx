@@ -289,7 +289,7 @@ function FoldedTurns({ turns, ...rest }: TurnsProps & { turns: readonly TouchUpT
 
 /**
  * A branch merged into main, in the head, as one block: its field's mark once at the top (the forward sign and the
- * field's name, pressed to go there), then a thin rule down its left edge holding, in order, its questions that changed
+ * field's name, pressed to go there) at the top right, then a thin rule down its right edge beside, in order, its questions that changed
  * nothing under their fold line and the commit that changed, none of them marked again.
  */
 function MergedBranch({ turn, about, ...rest }: TurnsProps & { turn: TouchUpTurn; about: { id: string; name: string } }) {
