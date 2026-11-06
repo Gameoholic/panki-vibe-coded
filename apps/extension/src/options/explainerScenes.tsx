@@ -294,27 +294,70 @@ function KnownScene({ store }: { store: Stored }) {
 const SENTENCE = "新しい喫茶店を見つけました";
 const PICKED = { from: SENTENCE.indexOf(IN_DECKS.words), to: SENTENCE.indexOf(IN_DECKS.words) + IN_DECKS.words.length };
 
-/** The Panki panel under the player, as the video page draws it: its head (the name, the status, the panel's menu) and its line of words. */
+/** The Panki panel's head, as the video page draws it: the name, the status, and the panel's menu at its end. */
+function StripHead() {
+  return (
+    <div className="strip-head">
+      <span className="strip-name">Panki</span>
+      <span className="strip-status">
+        <Button className="capture-tool strip-menu-button is-ready" aria-label="Transcription: Transcribed">
+          <i className="strip-menu-dot" aria-hidden="true" />
+          Transcribed
+          <Icon name="down" />
+        </Button>
+      </span>
+      <div className="strip-tools">
+        <Button className="capture-tool btn-icon" aria-label="Panel settings">
+          <Icon name="menu" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** The Panki panel under the player, as the video page draws it: its head and its line of words. */
 function Strip({ tokens, now, picked, shown = true, line }: { tokens: readonly Token[]; now: Span | null; picked: Span | null; shown?: boolean; line?: (el: HTMLDivElement | null) => void }) {
   return (
     <div className={`strip ex-strip ${shown ? "" : "is-away"}`.trim()}>
-      <div className="strip-head">
-        <span className="strip-name">Panki</span>
-        <span className="strip-status">
-          <Button className="capture-tool strip-menu-button is-ready" aria-label="Transcription: Transcribed">
-            <i className="strip-menu-dot" aria-hidden="true" />
-            Transcribed
-            <Icon name="down" />
-          </Button>
-        </span>
-        <div className="strip-tools">
-          <Button className="capture-tool btn-icon" aria-label="Panel settings">
-            <Icon name="menu" />
-          </Button>
-        </div>
-      </div>
+      <StripHead />
       <div ref={line} className="strip-rows">
         <Line tokens={tokens} picked={picked} now={now} onPick={nothing} />
+      </div>
+    </div>
+  );
+}
+
+/** A made-up video's transcript, its lines as the panel beside the video lists them: when each begins, and what's said. */
+const LINES: readonly { start: string; text: string }[] = [
+  { start: "0:04", text: "今日は駅の近くを散歩しました" },
+  { start: "0:09", text: SENTENCE },
+  { start: "0:13", text: "ケーキがとても美味しかったです" },
+  { start: "0:18", text: "店内は静かで本を読む人も多くいました" },
+  { start: "0:24", text: "また行きたいと思います" },
+];
+/** The line the scene picks its word in. */
+const PICK_LINE = LINES.findIndex((line) => line.text === SENTENCE);
+
+/**
+ * The Panki panel beside the video, as the video page draws it in the watch page's right column: its head, then every
+ * line with its time, the line being said lit; as tall as the player, as the page has it.
+ */
+function BesideStrip({ lit, now, picked, shown, list }: { lit: number | null; now: Span | null; picked: Span | null; shown: boolean; list: (el: HTMLDivElement | null) => void }) {
+  const tokens = useMemo(() => LINES.map((line) => tokensOf(line.text)), []);
+  return (
+    <div className={`strip ex-strip is-beside ${shown ? "" : "is-away"}`.trim()} style={{ "--panki-beside-h": "382px" } as CSSProperties}>
+      <StripHead />
+      <div className="strip-list-box">
+        <div ref={list} className="strip-list">
+          {LINES.map((line, i) => (
+            <div key={line.start} className={`strip-list-line ${lit === i ? "is-now" : ""}`.trim()} data-line={i}>
+              <Button className="strip-list-time" aria-label={`Go to ${line.start}`}>
+                {line.start}
+              </Button>
+              <Line tokens={tokens[i] ?? []} picked={i === PICK_LINE ? picked : null} now={i === lit ? now : null} onPick={nothing} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -323,22 +366,31 @@ function Strip({ tokens, now, picked, shown = true, line }: { tokens: readonly T
 /** The word tokens of a line, in order: where the word being said moves along. */
 const wordsOf = (tokens: readonly Token[]) => tokens.flatMap((token, i) => (token.word ? [i] : []));
 
-/** The Panki panel: the line following the video, a word clicked, the card made in the drawer, added. */
+/**
+ * The Panki panel: the line following the video, a word clicked, the card made in the drawer, added. As this browser
+ * has the panel: beside the video, every line listed and the drawer opening over it in the same column; or under the
+ * player, its line of words.
+ */
 function PanelScene({ store }: { store: Stored }) {
   const id = useId();
+  const beside = store.panelView === "beside";
   const tokens = useMemo(() => tokensOf(SENTENCE), []);
   const target = spanOver(tokens, PICKED.from, PICKED.to);
   const [shown, setShown] = useState(false);
   const [now, setNow] = useState<Span | null>(null);
+  const [lit, setLit] = useState<number | null>(null);
   const [picked, setPicked] = useState<Span | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [added, setAdded] = useState(false);
   const [paused, setPaused] = useState(false);
   const line = useRef<HTMLDivElement | null>(null);
   const card = useRef<HTMLDivElement | null>(null);
+  /** The line the word is picked in: the only one under the player, the picked line's row beside the video. */
+  const pickRow = () => (beside ? (line.current?.querySelector(`[data-line="${PICK_LINE}"]`) ?? null) : line.current);
   const script = async (t: Tools) => {
     setShown(false);
     setNow(null);
+    setLit(null);
     setPicked(null);
     setDrawer(false);
     setAdded(false);
@@ -346,6 +398,14 @@ function PanelScene({ store }: { store: Stored }) {
     await t.wait(200);
     setShown(true);
     t.frame(line.current?.closest(".strip") ?? null);
+    if (beside) {
+      // The lines before it said one by one, lit as they're said.
+      for (let i = 0; i < PICK_LINE; i++) {
+        setLit(i);
+        await t.wait(700);
+      }
+      setLit(PICK_LINE);
+    }
     await t.wait(450);
     for (const i of store.markUnder ? wordsOf(tokens).slice(0, 4) : []) {
       setNow([i, i]);
@@ -353,7 +413,7 @@ function PanelScene({ store }: { store: Stored }) {
     }
     if (!store.markUnder) await t.wait(1280);
     setNow(null);
-    await t.move(target ? line.current?.querySelector(`[data-at="${target[0]}"]`) ?? null : null);
+    await t.move(target ? (pickRow()?.querySelector(`[data-at="${target[0]}"]`) ?? null) : null);
     await t.click();
     setPicked(target);
     setDrawer(true);
@@ -371,21 +431,15 @@ function PanelScene({ store }: { store: Stored }) {
     t.frame();
     await t.wait(800);
   };
+  const keep = (el: HTMLDivElement | null) => {
+    line.current = el;
+  };
   return (
     <Stage site={WATCH} script={script}>
       <WatchPage
         paused={paused}
-        under={
-          <Strip
-            tokens={tokens}
-            now={now}
-            picked={picked}
-            shown={shown}
-            line={(el) => {
-              line.current = el;
-            }}
-          />
-        }
+        under={beside ? undefined : <Strip tokens={tokens} now={now} picked={picked} shown={shown} line={keep} />}
+        side={beside ? <BesideStrip lit={lit} now={now} picked={picked} shown={shown} list={keep} /> : undefined}
       >
         <div ref={card} className={`ex-drawer ${drawer ? "is-open" : ""}`.trim()}>
           <section className="panel capture" aria-label="Add to Panki">
@@ -407,6 +461,13 @@ function PanelScene({ store }: { store: Stored }) {
                 </div>
               ) : (
                 <div className="add-form">
+                  {/* Add right under the head, as the drawer has it; the × closes it. */}
+                  <div className="capture-live capture-ends">
+                    <Button variant="primary" className="capture-add">
+                      <Icon name="add" />
+                      Add to {IN_DECKS.deck}
+                    </Button>
+                  </div>
                   <div className="field capture-deck">
                     <span className="field-label">Deck</span>
                     <Dropdown id={`${id}-deck`} label="Deck" options={[{ id: "example", label: IN_DECKS.deck }]} value="example" onChange={nothing} />
@@ -414,16 +475,6 @@ function PanelScene({ store }: { store: Stored }) {
                   <TextField id={`${id}-word`} label="Word" lang="ja" value={IN_DECKS.words} onChange={nothing} />
                   <div className="capture-sentence">
                     <TextField id={`${id}-sentence`} label="Sentence" lang="ja" multiline value={SENTENCE} mark={PICKED} onChange={nothing} />
-                  </div>
-                  <div className="capture-live capture-ends">
-                    <Button size="lg" className="is-danger">
-                      <Icon name="trash" />
-                      Discard
-                    </Button>
-                    <Button variant="primary" size="lg" className="capture-add">
-                      <Icon name="add" />
-                      Add to {IN_DECKS.deck}
-                    </Button>
                   </div>
                 </div>
               )}

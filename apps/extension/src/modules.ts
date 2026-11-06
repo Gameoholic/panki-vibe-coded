@@ -47,7 +47,7 @@ export const AFTER_ADD_IDS = AfterAdd.options;
 /**
  * How the Panki panel stands on a video's page, picked on the panel itself as a view of it: under the player, two rows
  * following the video; or beside the video, in the watch page's right column, the whole transcript listed with its
- * times. One registry. Under the player to begin with. The site's own full screen (the Stage in the code) puts the panel
+ * times. One registry. Beside the video to begin with (a browser that picked keeps its pick: only a pick is written). The site's own full screen (the Stage in the code) puts the panel
  * in a column beside the video whichever view is picked: a full screen has no "under". A browser that kept "stage" as a
  * view reads as beside the video (`storage.ts`).
  */
@@ -293,7 +293,7 @@ export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
   on: true,
   panel: true,
-  panelView: "under",
+  panelView: "beside",
   panelKey: "KeyP",
   fullPanel: false,
   lookup: true,
