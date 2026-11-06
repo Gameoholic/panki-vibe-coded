@@ -56,7 +56,6 @@ export function BarControls({ layout, video, classOf }: { layout: BarLayout; vid
     ),
     captions: <span className="ytb-icon">{glyph("subtitles")}</span>,
     settings: <span className="ytb-icon">{glyph("gear")}</span>,
-    pankiTheatre: <span className="ytb-icon">{glyph("panelStage")}</span>,
     theater: <span className="ytb-icon">{glyph("theater")}</span>,
     fullscreen: <span className="ytb-icon">{glyph("expand")}</span>,
   };

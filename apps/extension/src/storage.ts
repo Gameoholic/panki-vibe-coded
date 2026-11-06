@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab } from "./messages";
-import { AfterAdd, BesideRecs, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PillLayout, StageSide, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
+import { AfterAdd, BesideRecs, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelKey, PanelView, PillLayout, StageSide, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -126,19 +126,18 @@ const Stored = z.object({
   pankiOn: z.boolean().catch(DEFAULT_MODULES.on),
   modulePanel: z.boolean().catch(DEFAULT_MODULES.panel),
   /** Where the Panki panel stands on a video's page, picked on the panel itself; beside the video, above the recommendations or in their place (options page, YouTube → Panki panel). */
-  // "stage" kept as a view of its own reads as beside the video, whose switch Theatre mode is.
+  // "stage" kept as a view of its own reads as beside the video, the view the site's full screen is closest to.
   panelView: z
     .string()
     .transform((view) => (view === "stage" ? "beside" : view))
     .pipe(PanelView)
     .catch(DEFAULT_MODULES.panelView),
   besideRecs: BesideRecs.catch(DEFAULT_MODULES.besideRecs),
-  /** On the Stage, the side the panel's column stands at (options page, YouTube → Panki panel). */
+  /** In the site's full screen, the side the panel's column stands at, and the key that hides and shows it (options page, YouTube → Panki panel). */
   stageSide: StageSide.catch(DEFAULT_MODULES.stageSide),
-  /** Whether Theatre mode is in the browser's full screen (options page, YouTube → Panki panel). */
-  stageFull: z.boolean().catch(DEFAULT_MODULES.stageFull),
-  /** Whether F on a video's page enters and leaves Theatre mode (options page, YouTube → Panki panel). */
-  stageKey: z.boolean().catch(DEFAULT_MODULES.stageKey),
+  panelKey: PanelKey.catch(DEFAULT_MODULES.panelKey),
+  // A browser that kept `stageFull` and `stageKey` (whether Panki's own Theatre mode took the browser's full screen,
+  // and whether F opened it) keeps them unread: the site's own full screen is the panel's now.
   moduleLookup: z.boolean().catch(DEFAULT_MODULES.lookup),
   moduleSeek: z.boolean().catch(DEFAULT_MODULES.seek),
   resumeHow: ResumeHow.catch(DEFAULT_MODULES.resume),
@@ -213,8 +212,7 @@ export const modulesOf = (store: Stored): Modules => ({
   panelView: store.panelView,
   besideRecs: store.besideRecs,
   stageSide: store.stageSide,
-  stageFull: store.stageFull,
-  stageKey: store.stageKey,
+  panelKey: store.panelKey,
   lookup: store.moduleLookup,
   seek: store.moduleSeek,
   resume: store.resumeHow,

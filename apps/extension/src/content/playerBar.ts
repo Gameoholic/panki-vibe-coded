@@ -11,7 +11,7 @@ import { BAR_HELD } from "../ui/SpeedControl";
  * - **Ordered**: only once the viewer has put YouTube's own controls in another order than YouTube's (`barReordered`);
  *   then each is moved among its own siblings, never into another box, and put back as it stood when the order is
  *   YouTube's again or the bar is the site's. Never while an ad plays.
- * - **Panki's own** (the speed button, when the video will end, Theatre mode): each a place of Panki's, put right after
+ * - **Panki's own** (the speed button, when the video will end): each a place of Panki's, put right after
  *   the control before it in the layout (the first of its side at the start of the side's box), and taken off when
  *   it's hidden, has nothing to show this moment, or the bar is the site's.
  *
@@ -40,7 +40,7 @@ export type BarNow = {
   layout: BarLayout;
   /** The bar kept on the video as it plays, rather than fading once the pointer rests. */
   kept: boolean;
-  /** Whether a Panki control has anything to show this moment (a video, no ad, the panel beside it). */
+  /** Whether a Panki control has anything to show this moment (a video, no ad). */
   shows: (id: PankiBarControl) => boolean;
   adPlaying: boolean;
   theme: "light" | "dark";
@@ -55,7 +55,7 @@ function barPlace(): Place {
 
 export function createPlayerBar() {
   /** Each of Panki's controls' place (the type holds it to one per control of `BAR_CONTROLS` that's Panki's). */
-  const places: Record<PankiBarControl, Place> = { endTime: barPlace(), speed: barPlace(), pankiTheatre: barPlace() };
+  const places: Record<PankiBarControl, Place> = { endTime: barPlace(), speed: barPlace() };
   let style: HTMLStyleElement | null = null;
   /** The site's own order of each box Panki has moved controls in, to put back. */
   const before = new Map<Element, Element[]>();

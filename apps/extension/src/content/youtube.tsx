@@ -25,7 +25,7 @@ import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
 import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askOpenPanki, askOptions, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANEL_VIEWS, PANEL_VIEW_IDS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey } from "../modules";
+import { DEFAULT_MODULES, OFFER_AWAY_MS, OFFER_MS, PANEL_VIEWS, PANEL_VIEW_IDS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey, type StageSide } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -40,7 +40,7 @@ import { linesOf } from "../transcribe/lines";
 import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
 import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
-import { inPanki, makePlace, mount } from "../ui/mount";
+import { inPanki, makePlace, mount, type Place } from "../ui/mount";
 import { Column } from "../ui/Column";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
@@ -121,7 +121,7 @@ const ROOM_USED = 0.78;
 /** Where the line stands: under the player. */
 const UNDER = "display: block; margin: 12px 0 0;";
 /**
- * Where the panel stands beside the video and in Theatre mode: in Panki's column (`column`, after the drawer while
+ * Where the panel stands beside the video and in full screen: in Panki's column (`column`, after the drawer while
  * that's open there), as tall as the column (`--panki-beside-h`), so it fills it once the drawer is scrolled past.
  */
 const COLUMN_PANEL = "display: block; flex: 1 0 auto;";
@@ -155,7 +155,7 @@ const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; botto
  * controls.
  */
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
-// The player's control bar, and the speed button, the end time and Theatre mode among its controls, are `playerBar.ts`'s.
+// The player's control bar, and the speed button and the end time among its controls, are `playerBar.ts`'s.
 /** How often the transcriber looks at the viewer's player. The lines are looked at every frame (`followLines`). */
 const FOLLOW_MS = 250;
 
@@ -198,13 +198,27 @@ const replay = createReplay();
 /** The line's place, with the screen itself in it. */
 const strip = mount(siteTheme());
 strip.host.style.cssText = UNDER;
+/** The column's handle in full screen, as it stands: folded or not, and the screen's side the column is at; null out of full screen. */
+type HandleNow = { folded: boolean; side: StageSide };
+const handleNow = cell<HandleNow | null>(null);
+/** The handle as it stands now, told to the column only when it changed. */
+function setHandle(next: HandleNow | null) {
+  const was = handleNow.get();
+  if (was === next || (was !== null && next !== null && was.folded === next.folded && was.side === next.side)) return;
+  handleNow.set(next);
+}
+/** The column, its handle following `handleNow`. */
+function ColumnHere() {
+  const now = useSyncExternalStore(handleNow.subscribe, handleNow.get);
+  return <Column handle={now ? { ...now, onToggle: togglePanel } : null} />;
+}
 /**
- * The column the panel and the drawer stand in beside the video and in Theatre mode: the two places are put in its
+ * The column the panel and the drawer stand in beside the video and in full screen: the two places are put in its
  * host and scroll inside it as one (`ui/Column.tsx`), so the drawer opening never makes it taller than its room.
  */
 const column = mount(siteTheme());
 column.ground.classList.add("is-column");
-column.root.render(<Column />);
+column.root.render(<ColumnHere />);
 /** The drawer's place: the same screen draws its panel in here, wherever on the page this is put. */
 const drawer = makePlace(siteTheme());
 /** The place of the clip's mark, on the player's seek bar. */
@@ -541,11 +555,10 @@ const inPlace = cell(false);
  */
 const placedAs = cell<PanelView | "stage">("under");
 /**
- * Theatre mode, switched in the panel's head while it stands beside the video: a built-in way between it and what was
- * on before, offered only beside the video so it's less of a mode. This page's alone: it lasts from one video to the next in this tab, and a page opened
- * afresh never fills the screen by itself, so it's never something to find a way out of.
+ * The panel folded away in the site's full screen (by its key, `panelKey`, or its handle), the video alone filling
+ * the screen. This tab's alone: it lasts from one full screen to the next in this tab, and is never kept.
  */
-const theatre = cell(false);
+const panelFolded = cell(false);
 const showing = cell(false);
 
 /** The player's video, as last found. */
@@ -618,8 +631,6 @@ function setPankiOn(on: boolean) {
 
 /** The panel's view picked on the panel: on the page at once, and kept for every video from now on. */
 function setPanelView(view: PanelView) {
-  // Theatre mode is the Beside view's own: another view picked ends it.
-  if (view !== "beside") theatre.set(false);
   modules.set({ ...modules.get(), panelView: view });
   void askPanelView(view);
 }
@@ -752,28 +763,25 @@ function columnBeside(player: Element | null): HTMLElement | null {
 }
 
 /**
- * The Stage (`PanelView` "stage"): the video filling the screen but for the panel's column at the
- * right or the left. It can't be the player's own full screen, which is the site's and holds the player alone, so it's
- * a layer of Panki's over the page: the site's theater mode turned on (its own button, as the viewer's press would),
- * which puts the player in the full-width container at the page's top, and that container held to the screen beside
- * the panel by a few lines of CSS on the page (`STAGE_CSS`); the player's node is never moved. The panel and the drawer
- * stand in a column of Panki's own fixed at the other side. The site's names it leans on are these four, together here:
- * when the site renames them, this is where to look.
+ * The Stage: the site's own full screen made Panki's, the video filling the screen but for the panel's column at the
+ * right or the left. Whatever way the site enters its full screen (F, its button, a double-click on the player), the
+ * whole page is what fills the screen (the page's root, or the site's app holding the watch page; never the player
+ * alone) and the site lays it out as `ytd-watch-flexy[fullscreen]`, the player in the full-bleed container at its top.
+ * Panki holds that container to the screen beside the panel by a few lines of CSS on the page (`STAGE_CSS`); the
+ * player's node is never moved. The panel and the drawer stand in a column of Panki's own fixed at the other side,
+ * inside what fills the screen (only that is drawn). Read from `document.fullscreenElement` alone, never a flag of
+ * Panki's: leaving the full screen the site's way (Esc, its button, F again) leaves the Stage. The site's names it
+ * leans on are these, together here: when the site renames them, this is where to look.
  */
 const WATCH_PAGE = "ytd-watch-flexy";
-/** The player's own theater button (its "t"). */
-const THEATER_BUTTON = "#movie_player .ytp-size-button";
 const STAGE_CLASS = "panki-stage";
 const STAGE_LEFT_CLASS = "panki-stage-left";
 /**
- * What the Stage changes of the page, only while `html` carries `STAGE_CLASS` (taken off at once on leaving, and while
- * the site's own full screen is up without Theatre): the page doesn't scroll, its header bar is hidden, and the
- * full-bleed container is fixed to the screen beside the panel's column (`--panki-stage-w`), black around the picture.
- * The player stands in that container in the site's theater mode and in its full screen alike (in full
- * screen `ytd-watch-flexy` carries `fullscreen` and `full-bleed-player`), so the Stage is the same
- * lines in both.
+ * What the Stage changes of the page, only while `html` carries `STAGE_CLASS` (taken off at once as the full screen is
+ * left or the panel folded): the page doesn't scroll, its header bar is hidden, and the full-bleed container is fixed
+ * to the screen beside the panel's column (`--panki-stage-w`), black around the picture.
  */
-const STAGED_PAGE = `${WATCH_PAGE}:is([theater], [fullscreen])`;
+const STAGED_PAGE = `${WATCH_PAGE}[fullscreen]`;
 const STAGE_CSS = `
 html.${STAGE_CLASS} { --panki-stage-w: min(420px, 38vw); }
 html.${STAGE_CLASS}, html.${STAGE_CLASS} body { overflow: hidden !important; }
@@ -788,22 +796,25 @@ html.${STAGE_CLASS} ${STAGED_PAGE} #player-full-bleed-container { height: 100% !
 `;
 /** Panki's column on the stage (`column`): fixed at one side of the screen, over the page, as tall as the screen. */
 const STAGE_COLUMN = "display: block; position: fixed; top: 0; bottom: 0; width: var(--panki-stage-w); z-index: 2101; background: var(--yt-spec-base-background, #0f0f0f);";
+/** The column folded away: as wide as nothing at the screen's edge, its handle alone standing off it on the video. */
+const STAGE_FOLDED = "display: block; position: fixed; top: 0; bottom: 0; width: 0; z-index: 2101;";
 let stageStyle: HTMLStyleElement | null = null;
 /** Whether the stage's layer is up this moment. */
 let staged = false;
-/** Theater mode was turned on by Panki for the stage, so it's turned off again on leaving; one the viewer had on stays. */
-let theaterByPanki = false;
-/** When Panki last pressed theater on, and how often for this stage: given up on after a few (the button gone, the site changed). */
-let theaterAskedAt = 0;
-let theaterTries = 0;
-const THEATER_TRIES = 3;
-const THEATER_WAIT_MS = 2500;
-/** Theater mode was seen on during this stage: seen off again after that (the viewer's own "t"), the stage goes with it. */
-let sawTheater = false;
-/** Until when theater mode coming and going is the site's own redrawing (a full screen left, another video), not the viewer. */
-let stageSettleUntil = 0;
-/** Where the page was scrolled to as Theatre mode was switched on: put back once it's left, so the page is as it stood. */
-let scrollBefore: number | null = null;
+/** The stage's layer went up during this full screen: once it's left, the page is scrolled back where it stood. */
+let stagedThisFull = false;
+/**
+ * Where the page was scrolled to the last time it wasn't in a full screen: the site's full screen is entered by the
+ * site (its F, its button) before Panki hears of it, so the place is kept all along rather than read on entering.
+ */
+let scrollWindowed = window.scrollY;
+window.addEventListener(
+  "scroll",
+  () => {
+    if (document.fullscreenElement === null) scrollWindowed = window.scrollY;
+  },
+  { passive: true },
+);
 
 /** The stage's layer up or down: the page's few lines of CSS, the side, and the player told its room changed. */
 function setStaged(up: boolean, left: boolean) {
@@ -816,121 +827,45 @@ function setStaged(up: boolean, left: boolean) {
   html.classList.toggle(STAGE_LEFT_CLASS, up && left);
   const changed = staged !== up;
   staged = up;
+  if (up) stagedThisFull = true;
   html.classList.toggle(STAGE_CLASS, up);
   // The player sizes itself to its container on the window's resize: told so once its container has moved.
   if (changed) requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 }
 
 /**
- * Theatre mode in the browser's own full screen (`Modules.stageFull`). The site's own full screen (its F, its button)
- * is the page's root as the full screen element, so
- * Panki asking for the root's is asking for the site's: the site lays its full screen out (`ytd-watch-flexy[fullscreen]`,
- * its theater mode dropped) and Theatre stands in that, its CSS keyed on it as on theater mode (`STAGED_PAGE`), the
- * panel's column beside the player. Theatre and its full screen never disagree: leaving Theatre leaves it, and leaving
- * it the browser's way (Esc, the player's own full screen button) leaves Theatre.
+ * The site's full screen, when it's Panki's this moment: Panki and its panel on, a watch page with its video, and what
+ * fills the screen is the whole watch page laid out as the site's full screen (never the player alone, or another
+ * page's full screen). Its element, which Panki's column goes inside (only what fills the screen is drawn), or null:
+ * then a full screen is the site's own, untouched.
  */
-const pankiFull = () => document.fullscreenElement === document.documentElement;
-/** Theatre mode asked for the full screen, and it's still to be left with it. */
-let fullByTheatre = false;
-/** The site's own full screen, its player alone filling the screen: not while it's Theatre's. */
-const siteFull = (): Element | null => (fullByTheatre ? null : document.fullscreenElement);
-
-/** Theatre mode switched on from the panel beside the video, or the player's bar: where the page was scrolled to is kept to go back to. */
-function enterTheatre() {
-  if (theatre.get()) return;
-  scrollBefore = window.scrollY;
-  // Asked in the press itself, which a browser only allows then; refused, Theatre fills the window through the site's
-  // theater mode, as it does without.
-  if (modules.get().stageFull && !document.fullscreenElement) {
-    fullByTheatre = true;
-    document.documentElement.requestFullscreen().catch(() => {
-      fullByTheatre = false;
-      place();
-    });
-  }
-  theatre.set(true);
+function fullHere(on: Modules): HTMLElement | null {
+  const full = document.fullscreenElement;
+  if (!(full instanceof HTMLElement) || !on.panel || video === null || location.pathname !== "/watch") return null;
+  const page = document.querySelector(WATCH_PAGE);
+  return page !== null && full.contains(page) && page.hasAttribute("fullscreen") ? full : null;
 }
-// Theatre left by any way (its button, Esc, another view picked, the site's theater mode turned off): its full screen with it.
-theatre.subscribe(() => {
-  if (theatre.get() || !fullByTheatre) return;
-  fullByTheatre = false;
-  if (pankiFull()) void document.exitFullscreen().catch(() => undefined);
-});
 
-/**
- * Theatre mode left (its switch again, Esc, the ×, the site's theater mode turned off by hand): back to exactly what
- * stood before, the panel beside the video, the site's theater mode off again if Panki turned it on (as the stage
- * comes down, `stageNow`), and the page scrolled where it was once its layout is back (it moves as theater mode goes).
- */
-function leaveStage() {
-  if (!theatre.get()) return;
-  theatre.set(false);
-  const y = scrollBefore;
-  scrollBefore = null;
-  if (y === null) return;
+/** Whether the stage's layer stands this moment, put up or down to match: in the site's full screen while it's Panki's, unless the panel is folded away. */
+function stageNow(full: HTMLElement | null, on: Modules): boolean {
+  const up = full !== null && !panelFolded.get();
+  setStaged(up, on.stageSide === "left");
+  return up;
+}
+
+/** The full screen left: if Panki's layer stood in it, the page scrolled back where it stood before, once the site's layout is back. */
+function afterFull() {
+  if (!stagedThisFull) return;
+  stagedThisFull = false;
+  const y = scrollWindowed;
   const back = () => window.scrollTo({ top: y, behavior: "instant" });
   requestAnimationFrame(back);
   setTimeout(back, 400);
 }
 
-/** The player's own theater button pressed, as the viewer's press would. */
-function pressTheater() {
-  const button = document.querySelector(THEATER_BUTTON);
-  if (button instanceof HTMLElement) button.click();
-}
-
-/**
- * Whether the stage stands this moment, its layer put up or down to match. Switched on (Theatre mode, while the view is
- * Beside the video, on a watch page with its video), it waits for theater mode, pressing it on (a few tries, a while apart); with it on, the layer goes up. Under
- * the site's own full screen the layer is down and the stage waits for it to be left (the viewer's F is the site's).
- * Theater mode turned off by the viewer while it stands leaves the stage. Not picked, it's down, and theater mode goes
- * back off if Panki turned it on. With Theatre's own full screen (`fullByTheatre`) none of that: it stands in the
- * site's full screen layout instead of theater mode.
- */
-function stageNow(placeable: boolean, isFull: boolean, on: Modules): boolean {
-  const picked = theatre.get() && on.panel && on.panelView === "beside" && video !== null && location.pathname === "/watch";
-  const theater = document.querySelector(WATCH_PAGE)?.hasAttribute("theater") ?? false;
-  if (!picked) {
-    setStaged(false, false);
-    // Only on a watch page, its player the page's own (elsewhere it may be the site's small player in a corner).
-    if (!isFull && location.pathname === "/watch") {
-      if (theaterByPanki && theater) pressTheater();
-      theaterByPanki = false;
-    }
-    theaterTries = 0;
-    sawTheater = false;
-    return false;
-  }
-  // Theatre in its full screen, the site's own: up once the page is in it, theater mode neither pressed nor watched
-  // (the site drops it for its full screen and puts it back after, its own business); it's left with the full screen.
-  if (fullByTheatre) {
-    const up = pankiFull() && placeable;
-    setStaged(up, on.stageSide === "left");
-    return up;
-  }
-  if (isFull || !placeable) {
-    setStaged(false, false);
-    return false;
-  }
-  if (!theater) {
-    setStaged(false, false);
-    const now = Date.now();
-    if (sawTheater && now > stageSettleUntil && now - theaterAskedAt > THEATER_WAIT_MS) {
-      // The viewer's own "t": the stage goes with theater mode, left as the next thing done (`place` is under way).
-      sawTheater = false;
-      theaterByPanki = false;
-      setTimeout(leaveStage, 0);
-    } else if (theaterTries < THEATER_TRIES && now - theaterAskedAt > THEATER_WAIT_MS) {
-      theaterAskedAt = now;
-      theaterTries++;
-      theaterByPanki = true;
-      pressTheater();
-    }
-    return false;
-  }
-  sawTheater = true;
-  setStaged(true, on.stageSide === "left");
-  return true;
+/** The panel folded away in full screen, or brought back: by its key or its handle. */
+function togglePanel() {
+  panelFolded.set(!panelFolded.get());
 }
 
 /** The site's recommendations as Panki hid them, to be shown again: only ever the one element it hid itself. */
@@ -956,32 +891,37 @@ function place() {
   strip.host.dataset.theme = theme;
   drawer.host.dataset.theme = theme;
   seek.host.dataset.theme = theme;
-  // The site's own full screen; Theatre's, the whole page's, lays Panki out as Theatre does.
-  const full = siteFull();
   const on = active();
+  // Anything filling the screen; and the site's full screen when it's Panki's (`fullHere`), the panel in its column
+  // beside the video whichever view is picked: a full screen has no "under".
+  const full = document.fullscreenElement;
+  const fullPanki = fullHere(on);
   // The Panki panel switched off: nothing of it is on the page, the line, the drawer or the transcript over the video.
   // Panki switched off altogether: the line's head alone stays, with the switch to turn it back on. An update needed:
-  // the head alone too, saying so.
-  const placeable = !full && video !== null && (on.panel || !modules.get().on || updateNeeded());
-  const under = placeable ? document.querySelector(UNDER_PLAYER) : null;
+  // the head alone too, saying so. None of it in a full screen that's the site's own.
+  const placeable = (full === null || fullPanki !== null) && video !== null && (on.panel || !modules.get().on || updateNeeded());
+  const under = placeable && fullPanki === null ? document.querySelector(UNDER_PLAYER) : null;
   // Beside the video, picked on the panel (`PanelView`): in the column beside the player while there is one; under it
   // as always where there isn't (theater mode, a narrow window), back beside it as soon as there is again. The
   // player's own node is never moved, only Panki's place.
   const playerBox = video ? document.querySelector(PLAYER) : null;
-  const stage = stageNow(placeable, full !== null, on);
-  const side = !stage && placeable && on.panel && on.panelView === "beside" ? columnBeside(playerBox) : null;
-  // Beside the video and on the stage the panel stands in Panki's column, the drawer over it while it's open.
-  const columned = stage || side !== null;
+  const stage = stageNow(fullPanki, on);
+  const side = fullPanki === null && placeable && on.panel && on.panelView === "beside" ? columnBeside(playerBox) : null;
+  // Beside the video and in full screen the panel stands in Panki's column, the drawer over it while it's open.
+  const columned = fullPanki !== null || side !== null;
   const home = columned ? column.host : under;
   inPlace.set(home !== null);
-  placedAs.set(stage ? "stage" : side ? "beside" : "under");
-  // Panki's column: on the stage at its side over the page, as tall as the screen; beside the video first in the
-  // site's column, as tall as the player. Taken off the page the moment neither stands.
+  placedAs.set(fullPanki ? "stage" : side ? "beside" : "under");
+  // Panki's column: in full screen at its side over the page, as tall as the screen, or folded away to its handle;
+  // beside the video first in the site's column, as tall as the player. Taken off the page the moment neither stands.
   column.host.dataset.theme = theme;
-  if (stage) {
-    const at = on.stageSide === "left" ? "left: 0; border-right: 1px solid var(--yt-spec-10-percent-layer, #303030);" : "right: 0; border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
-    layColumn(STAGE_COLUMN + at);
-    if (column.host.parentElement !== document.documentElement) document.documentElement.append(column.host);
+  column.ground.classList.toggle("is-folded", fullPanki !== null && !stage);
+  setHandle(fullPanki ? { folded: !stage, side: on.stageSide } : null);
+  if (fullPanki) {
+    const left = on.stageSide === "left";
+    const at = !stage ? (left ? "left: 0;" : "right: 0;") : left ? "left: 0; border-right: 1px solid var(--yt-spec-10-percent-layer, #303030);" : "right: 0; border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
+    layColumn((stage ? STAGE_COLUMN : STAGE_FOLDED) + at);
+    if (column.host.parentElement !== fullPanki) fullPanki.append(column.host);
   } else if (side && playerBox) {
     layColumn(`${BESIDE_COLUMN} height: ${Math.round(playerBox.getBoundingClientRect().height)}px;`);
     if (column.host.parentElement !== side) side.prepend(column.host);
@@ -1035,10 +975,9 @@ function place() {
   resume.host.dataset.theme = theme;
   resume.host.toggleAttribute("data-full", full !== null);
   // The player's control bar as laid out: a utility of the site's own, there with Panki on or off. The speed button
-  // with a video; when it will end too, but not while an ad plays (its time isn't the video's); Theatre mode only where
-  // it can be had, the panel standing beside the video (or filling the screen with it).
+  // with a video; when it will end too, but not while an ad plays (its time isn't the video's).
   const ad = adPlaying();
-  const barShows: Record<PankiBarControl, boolean> = { speed: video !== null, endTime: video !== null && !ad, pankiTheatre: video !== null && on.panel && (stage || side !== null) };
+  const barShows: Record<PankiBarControl, boolean> = { speed: video !== null, endTime: video !== null && !ad };
   playerBar.apply({ on: on.playerBar, layout: on.bar, kept: on.barKept, shows: (id) => barShows[id], adPlaying: ad, theme });
 
   if (!showing.get() || !on.panel) {
@@ -1048,7 +987,7 @@ function place() {
   const siteColumn = full || !video ? null : document.querySelector(BESIDE_PLAYER);
   const beside = siteColumn instanceof HTMLElement && siteColumn.offsetWidth >= BESIDE_MIN ? siteColumn : null;
   if (columned) {
-    // Beside the video and on the stage, the drawer stands over the panel in Panki's column, the two scrolling inside it
+    // Beside the video and in full screen, the drawer stands over the panel in Panki's column, the two scrolling inside it
     // as one: the card being made first, the transcript under it.
     if (drawer.host.nextElementSibling !== strip.host) strip.host.before(drawer.host);
   } else if (beside) {
@@ -1935,10 +1874,9 @@ function App() {
   const placed = useSyncExternalStore(inPlace.subscribe, inPlace.get);
   /** Whether the panel stands beside the video right now: its view, where the page has the column for it. */
   const placedView = useSyncExternalStore(placedAs.subscribe, placedAs.get);
-  /** The whole transcript is listed beside the video and on the stage alike. */
+  /** The whole transcript is listed beside the video and in full screen alike. */
   const besideNow = placedView !== "under";
   const stageNowHere = placedView === "stage";
-  const theatreOn = useSyncExternalStore(theatre.subscribe, theatre.get);
   const stageLeft = useSyncExternalStore(modules.subscribe, () => modules.get().stageSide === "left");
   /** The view picked on the panel, kept for every video. */
   const viewPicked = useSyncExternalStore(modules.subscribe, () => modules.get().panelView);
@@ -2807,14 +2745,8 @@ function App() {
   const barDrawn: Record<PankiBarControl, ReactNode> = {
     speed: video ? <SpeedControl key={watching ?? ""} video={video} /> : null,
     endTime: video ? <EndTime video={video} /> : null,
-    // Theatre mode among the player's own controls, as the panel's head has it: one press each way.
-    pankiTheatre: (
-      <Button className="yt-bar-button" aria-label={theatreOn ? "Leave Theatre mode" : "Theatre mode"} aria-pressed={theatreOn} onClick={() => (theatreOn ? leaveStage() : enterTheatre())}>
-        <Icon name="panelStage" />
-      </Button>
-    ),
   };
-  /** Panki itself, its settings, and leaving Theatre mode: the head's three small buttons, at the far end of its first line. */
+  /** Panki itself and its settings: the head's small buttons, at the far end of its first line. */
   const corner = (
     <>
       {/* Panki itself, the one the profile in use is signed in to, in a tab of its own. */}
@@ -2825,18 +2757,6 @@ function App() {
       <Button className="capture-tool btn-icon" aria-label="Panki settings" onClick={() => void askOptions("youtube")}>
         <Icon name="settings" />
       </Button>
-      {/* Theatre mode, the Beside view's own switch: one press fills the screen with the video but for this column, one more puts the page back as it stood. */}
-      {listed !== null ? (
-        <Button className="capture-tool btn-icon strip-theatre" aria-label="Theatre mode" aria-pressed={theatreOn} onClick={() => (theatreOn ? leaveStage() : enterTheatre())}>
-          <Icon name="panelStage" />
-        </Button>
-      ) : null}
-      {/* Theatre mode left, as Esc and its switch do: back to the panel beside the video, the page as it stood. */}
-      {stageNowHere ? (
-        <Button className="capture-tool btn-icon" aria-label="Leave Theatre mode" onClick={leaveStage}>
-          <Icon name="close" />
-        </Button>
-      ) : null}
     </>
   );
 
@@ -2884,7 +2804,7 @@ function App() {
                 onChange={setPanelView}
               />
             </span>
-            {/* Beside the video and in Theatre mode the column is narrow: the small buttons end the first line, the rest of the tools take a line of their own under it. */}
+            {/* Beside the video and in full screen the column is narrow: the small buttons end the first line, the rest of the tools take a line of their own under it. */}
             {listed !== null ? <span className="strip-corner">{corner}</span> : null}
             {/* A sentence taken before it was all said: the video is let run to its end (and started, if it stood
                 still), which would look like a fault if nothing said so. */}
@@ -3156,32 +3076,30 @@ function shortSkip(e: KeyboardEvent): boolean {
   return true;
 }
 
-/**
- * F as Theatre mode's key (`Modules.stageKey`), kept from the site, whose F is its full screen: it enters Theatre
- * wherever the panel's own Theatre button is offered (the panel standing beside the video), and leaves it as that
- * button does, its full screen with it (`fullByTheatre`), so the site never toggles a full screen of its own on the same
- * press. Anywhere else, the panel under the player or the site's own full screen up, F is the site's as ever. The
- * physical key, as the site hears it whatever the keyboard's language. Whether it took the key.
- */
-function theatreKey(e: KeyboardEvent): boolean {
-  if (e.code !== "KeyF" || !bare(e)) return false;
-  const on = active();
-  if (!on.panel || !on.stageKey || siteFull() || typedElsewhere(e)) return false;
-  const inTheatre = theatre.get();
-  if (!inTheatre && placedAs.get() !== "beside") return false;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  // Held down, once: a key's repeats would go in and out of it.
-  if (e.repeat) return true;
-  if (inTheatre) leaveStage();
-  else enterTheatre();
-  return true;
+/** Whether a field of a place of Panki's has the focus: its shadow root, closed to the page, is open to its maker. */
+function typingIn(place: Place): boolean {
+  const root = place.ground.getRootNode();
+  const at = root instanceof ShadowRoot ? root.activeElement : null;
+  return at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select") !== null);
 }
 
-/** Theatre mode left with Esc (the site's own full screen takes Esc first, and leaves Theatre be). */
-function stageEscape(e: KeyboardEvent) {
-  if (e.key !== "Escape" || !bare(e) || placedAs.get() !== "stage" || siteFull() || typedElsewhere(e)) return;
-  leaveStage();
+/**
+ * The panel's own key in the site's full screen (`Modules.panelKey`, P to begin with): it folds the panel away, the
+ * video alone filling the screen, and brings it back, as its handle does. Only while the full screen is Panki's, never
+ * while typing (on the page, in the panel or the drawer, or anywhere else of Panki's, whose fields can't be told from
+ * here), and kept from the site. Never Esc, which the browser keeps for leaving the full screen. The physical key, as
+ * the site hears its own whatever the keyboard's language. Whether it took the key.
+ */
+function panelKey(e: KeyboardEvent): boolean {
+  if (e.code !== active().panelKey || !bare(e) || placedAs.get() !== "stage") return false;
+  // The panel and the drawer are the column's: a button pressed there leaves the focus in them, and the key still works.
+  const ours = [strip, drawer].find((place) => place.host === e.target);
+  if (ours ? typingIn(ours) : typedElsewhere(e)) return false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  // Held down, once: a key's repeats would fold it and bring it back.
+  if (!e.repeat) togglePanel();
+  return true;
 }
 
 // The page's keys, one listener: heard before the site's own (the window, capturing), so a key Panki takes is kept
@@ -3189,8 +3107,8 @@ function stageEscape(e: KeyboardEvent) {
 window.addEventListener(
   "keydown",
   (e) => {
-    if (shortSkip(e) || theatreKey(e)) return;
-    stageEscape(e);
+    if (shortSkip(e)) return;
+    panelKey(e);
   },
   true,
 );
@@ -3218,22 +3136,24 @@ document.addEventListener("yt-navigate-finish", () => {
   feed.refresh();
   look();
 });
+// A full screen entered or left, by any way (the site's F, its button, a double-click, Esc): the Stage follows
+// `document.fullscreenElement` alone. The site lays its full screen out a moment after the change, so it's looked at
+// again once that's done; left, the page is scrolled back where it stood.
 document.addEventListener("fullscreenchange", () => {
-  // The site redraws its theater mode as its full screen comes and goes: not the viewer leaving the stage.
-  stageSettleUntil = Date.now() + 1500;
-  // Theatre's full screen left the browser's way (Esc, the player's own full screen button or F, which leave the same
-  // full screen since it's the site's own): Theatre goes with it, and the page is back as it stood.
-  if (fullByTheatre && document.fullscreenElement === null) leaveStage();
+  if (document.fullscreenElement === null) afterFull();
   place();
-});
-document.addEventListener("yt-navigate-start", () => {
-  stageSettleUntil = Date.now() + 3000;
+  requestAnimationFrame(place);
+  setTimeout(place, 300);
 });
 // The player's size changes with the window (and the site's theatre view): the words over it keep their share of it.
 window.addEventListener("resize", place);
 showing.subscribe(place);
 showingOver.subscribe(place);
-theatre.subscribe(place);
+panelFolded.subscribe(place);
+// A card begun with the panel folded away in full screen: the drawer is in its column, so the column comes back.
+showing.subscribe(() => {
+  if (showing.get()) panelFolded.set(false);
+});
 carded.subscribe(place);
 // A part switched on or off, and where the video was stopped known: what's on the page follows.
 modules.subscribe(() => {

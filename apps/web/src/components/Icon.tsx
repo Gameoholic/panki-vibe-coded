@@ -68,8 +68,6 @@ const ICONS = {
   /** Where the Panki panel stands on a video's page (the extension's `PANEL_VIEWS`): under the player, a frame with lines under it; beside the video, a frame with a column at its right. */
   panelUnder: ["M3 4h18v10H3z", "M3 18h18", "M3 21h12"],
   panelBeside: ["M3 5h12v9H3z", "M18 5h3v14h-3z", "M3 18h12"],
-  /** The Stage: the video filling the screen but for the panel's column. */
-  panelStage: ["M2 4h14v16H2z", "M18 4h4v16h-4z"],
   /** A video player's own controls, as the extension's player bar names and draws them (`modules.ts` → `BAR_CONTROLS`), in the shapes the site's 2025 player has. */
   /** When the video will end: a clock with an arrow running on from it. */
   ends: ["M14 3.2A9 9 0 1 0 20.8 14", "M12 7v5l3 2", "M17 7h5", "M19.5 4.5L22 7l-2.5 2.5"],

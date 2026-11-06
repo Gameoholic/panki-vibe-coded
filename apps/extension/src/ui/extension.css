@@ -580,8 +580,8 @@
 .strip-rows[hidden] {
   display: none;
 }
-/* The column the panel and the drawer stand in beside the video and in Theatre mode (`ui/Column.tsx`): its host is
-   as tall as the player (Beside the video) or the screen (Theatre mode), and the two scroll inside it as one, the
+/* The column the panel and the drawer stand in beside the video and in full screen (`ui/Column.tsx`): its host is
+   as tall as the player (Beside the video) or the screen (full screen), and the two scroll inside it as one, the
    drawer over the panel, with Panki's fade and bar; the fades are in the page's own background, which the column
    stands on. The body is at least the column's height, so the panel under the drawer fills it once scrolled to. */
 .panki-root.is-column {
@@ -600,6 +600,47 @@
   flex-direction: column;
   min-height: 100%;
 }
+/* Folded away in full screen: nothing of the column but its grip, its host as wide as nothing at the screen's edge. */
+.panki-root.is-column.is-folded > :not(.panki-column-handle) {
+  display: none;
+}
+/* The grip on the column's inner edge in full screen, just off it on the video, at its middle: pressed, the column
+   folds away and the grip stays at the screen's edge to bring it back. Quiet on the picture until pointed at. */
+.btn.btn-icon.panki-column-handle {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 20px;
+  min-width: 0;
+  height: 64px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--theater) 55%, transparent);
+  color: var(--theater-ink);
+  opacity: 0.6;
+  pointer-events: auto;
+}
+.btn.btn-icon.panki-column-handle.is-right {
+  right: 100%;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.btn.btn-icon.panki-column-handle.is-left {
+  left: 100%;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.btn.btn-icon.panki-column-handle:hover,
+.btn.btn-icon.panki-column-handle:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, var(--theater) 80%, transparent);
+  color: var(--theater-ink);
+}
+@media (hover: none) {
+  .btn.btn-icon.panki-column-handle {
+    opacity: 1;
+  }
+}
 /* The panel beside the video (`PanelView` "beside"): in the column beside the player and as tall
    as it (`--panki-beside-h`, written by the page as the player's height), its head on top and the whole transcript
    under it, scrolled inside the panel, never the page. */
@@ -614,7 +655,7 @@
 .strip.is-beside .strip-head {
   padding-right: 6px;
 }
-/* On the stage (`PanelView` "stage"): the panel is the screen's whole other side, its height the screen's, edge to edge;
+/* In full screen (the Stage in the code): the panel is the screen's whole other side, its height the screen's, edge to edge;
    the column it stands in draws the line between it and the video. */
 .strip.is-stage {
   border: 0;
@@ -622,7 +663,7 @@
   min-height: 100%;
   padding-top: 12px;
 }
-/* The column is narrow (beside the video, Theatre mode): the head is the name, the source, the view and the three small
+/* The column is narrow (beside the video, full screen): the head is the name, the source, the view and the small
    buttons at the far end on its first line, then the rest of the tools on a line of their own from the left, wrapping
    as a row; never a ragged stack at the right. */
 .strip-corner {
@@ -630,12 +671,6 @@
   align-items: center;
   gap: 6px;
   margin-left: auto;
-}
-/* Theatre mode's switch, lit while it's on. */
-.btn.strip-theatre[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 .strip.is-beside .strip-tools {
   flex: 1 0 100%;
@@ -1205,7 +1240,7 @@
 .btn.btn-ghost.yt-speed-step:disabled {
   opacity: 0.3;
 }
-/* Panki's buttons on the player's bar (the speed's −, its speed and +, Theatre mode with the Panki panel) hover as the
+/* Panki's buttons on the player's bar (the speed's −, its speed and +, an icon button of Panki's) hover as the
    site's own do: the icon or words stay white,
    and a lighter glass disc comes up behind them, as big as the button's room, a pill round words; pressed, a shade
    more; with the keyboard, the disc and a ring. They stand in Panki's closed shadow roots, where the site's own
@@ -1444,7 +1479,7 @@
   white-space: nowrap;
   opacity: 0.75;
 }
-/* One of Panki's buttons among the player's own (content/playerBar.ts: Theatre mode), of their kind: as tall as the bar,
+/* One of Panki's icon buttons among the player's own (content/playerBar.ts), of their kind: as tall as the bar,
    its icon white on the picture, lit while what it switches is on. */
 .btn.btn-ghost.yt-bar-button {
   height: 100%;

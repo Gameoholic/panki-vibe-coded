@@ -47,9 +47,9 @@ export const AFTER_ADD_IDS = AfterAdd.options;
 /**
  * How the Panki panel stands on a video's page, picked on the panel itself as a view of it: under the player, two rows
  * following the video; or beside the video, in the watch page's right column, the whole transcript listed with its
- * times. One registry. Under the player to begin with. Theatre mode (the Stage in the code: the video filling the
- * screen but for the panel's column) is a switch of the Beside view's own, so it's less of a mode; a browser that kept
- * "stage" as a view reads as beside the video (`storage.ts`).
+ * times. One registry. Under the player to begin with. The site's own full screen (the Stage in the code) puts the panel
+ * in a column beside the video whichever view is picked: a full screen has no "under". A browser that kept "stage" as a
+ * view reads as beside the video (`storage.ts`).
  */
 export const PanelView = z.enum(["under", "beside"]);
 export type PanelView = z.infer<typeof PanelView>;
@@ -58,11 +58,22 @@ export const PANEL_VIEWS: Record<PanelView, { name: string; icon: "panelUnder" |
   beside: { name: "Beside the video", icon: "panelBeside" },
 };
 export const PANEL_VIEW_IDS = PanelView.options;
-/** In Theatre mode, which side of the screen the panel's column stands at. The right to begin with, where the column beside the video is. */
+/** In full screen, which side of the screen the panel's column stands at. The right to begin with, where the column beside the video is. */
 export const StageSide = z.enum(["left", "right"]);
 export type StageSide = z.infer<typeof StageSide>;
 export const STAGE_SIDES: Record<StageSide, string> = { left: "Panel on the left", right: "Panel on the right" };
 export const STAGE_SIDE_IDS = StageSide.options;
+/**
+ * The key that hides the panel in full screen and shows it again, one registry: letters YouTube's player doesn't use
+ * by themselves (its own include K, J, L, F, C, I, M, T and the digits; Shift+P and Shift+N are its playlist's, which a
+ * key held with Shift never reaches here). Kept as the physical key (`KeyboardEvent.code`), as the site hears its own
+ * whatever the keyboard's language. P to begin with.
+ */
+export const PANEL_KEY_IDS = ["KeyP", "KeyH", "KeyB", "KeyG", "KeyQ", "KeyU", "KeyV", "KeyX", "KeyZ"] as const;
+export const PanelKey = z.enum(PANEL_KEY_IDS);
+export type PanelKey = z.infer<typeof PanelKey>;
+/** A key as its keycap reads. */
+export const panelKeyName = (key: PanelKey): string => key.slice(3);
 /** Beside the video, the panel stands above the site's recommendations or in their place. Above them to begin with: nothing of the site's is taken away unasked. */
 export const BesideRecs = z.enum(["above", "replace"]);
 export type BesideRecs = z.infer<typeof BesideRecs>;
@@ -114,7 +125,7 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  */
 export type BarSide = "left" | "right";
 type BarEntry = { name: string; side: BarSide; icon: IconName; shown: boolean } & ({ from: "youtube"; find: string } | { from: "panki" });
-export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "speed", "autoplay", "captions", "settings", "pankiTheatre", "theater", "fullscreen"] as const;
+export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "speed", "autoplay", "captions", "settings", "theater", "fullscreen"] as const;
 export const BarControl = z.enum(BAR_CONTROL_IDS);
 export type BarControl = z.infer<typeof BarControl>;
 export const BAR_CONTROLS = {
@@ -127,8 +138,6 @@ export const BAR_CONTROLS = {
   autoplay: { name: "Autoplay", side: "right", icon: "autoplay", shown: true, from: "youtube", find: ".ytp-button:has(.ytp-autonav-toggle-button)" },
   captions: { name: "Captions", side: "right", icon: "subtitles", shown: true, from: "youtube", find: ".ytp-subtitles-button" },
   settings: { name: "Settings", side: "right", icon: "gear", shown: true, from: "youtube", find: ".ytp-settings-button" },
-  // Panki's Theatre mode (the panel beside the video filling the screen), new with the editor: hidden to begin with, so the bar is as it was.
-  pankiTheatre: { name: "Theatre mode with the Panki panel", side: "right", icon: "panelStage", shown: false, from: "panki" },
   theater: { name: "Theatre mode", side: "right", icon: "theater", shown: true, from: "youtube", find: ".ytp-size-button" },
   fullscreen: { name: "Full screen", side: "right", icon: "expand", shown: true, from: "youtube", find: ".ytp-fullscreen-button" },
 } as const satisfies Record<BarControl, BarEntry>;
@@ -149,7 +158,7 @@ export const BarLayout = z.array(z.object({ id: BarControl, shown: z.boolean() }
 export type BarLayout = z.infer<typeof BarLayout>;
 /**
  * A bar as this browser kept it, read whatever it names: a control that's gone (Previous, Next, Chapter, Miniplayer,
- * Play on TV) is let go, Captions kept as "subtitles" for its first hour is Captions, and the rest made whole.
+ * Play on TV, and Panki's own Theatre mode, `pankiTheatre`, which the site's full screen took the place of) is let go, Captions kept as "subtitles" for its first hour is Captions, and the rest made whole.
  */
 export const KeptBar = z
   .array(z.object({ id: z.string(), shown: z.boolean() }))
@@ -227,21 +236,10 @@ export const Modules = z.object({
   /** Where the panel stands on a video's page (`PanelView`), and beside the video, whether it takes the recommendations' place. */
   panelView: PanelView,
   besideRecs: BesideRecs,
-  /** In Theatre mode, the side the panel's column stands at. */
+  /** In the site's full screen, the side the panel's column stands at (`content/youtube.tsx` → `stageNow`). */
   stageSide: StageSide,
-  /**
-   * Whether Theatre mode takes the page into the browser's own full screen, the panel's column with it (on to begin
-   * with); off, it fills the window. The site's own full screen is the page's root too, so the two are one: Theatre
-   * lives in it (`content/youtube.tsx` → `stageNow`), never fighting it (the site's full screen dropping its theater
-   * mode would take Theatre down with it).
-   */
-  stageFull: z.boolean(),
-  /**
-   * Whether F on a video's page is Theatre mode's key rather than the site's full screen (off to begin with): it enters
-   * Theatre wherever the panel's own Theatre button would, and leaves it as that button does; anywhere else (the panel
-   * under the player, the site's own full screen) F stays the site's (`content/youtube.tsx` → `theatreKey`).
-   */
-  stageKey: z.boolean(),
+  /** In the site's full screen, the key that hides the panel and shows it again (`content/youtube.tsx` → `panelKey`). */
+  panelKey: PanelKey,
   /** Looking a word up by pointing at it, on every site. */
   lookup: z.boolean(),
   /** Panki's marks on a video's seek bar, all of them (each mark's own Shown / Hidden is under Seek bar). */
@@ -296,8 +294,7 @@ export const DEFAULT_MODULES: Modules = {
   panelView: "under",
   besideRecs: "above",
   stageSide: "right",
-  stageFull: true,
-  stageKey: false,
+  panelKey: "KeyP",
   lookup: true,
   seek: true,
   resume: "offer",
