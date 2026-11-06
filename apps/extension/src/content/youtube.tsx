@@ -41,6 +41,7 @@ import { createProofreader, type ProofreadScope } from "../transcribe/proofreade
 import { createTranscriber } from "../transcribe/transcriber";
 import { Line, type LineLook } from "../ui/Line";
 import { inPanki, makePlace, mount } from "../ui/mount";
+import { Column } from "../ui/Column";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
@@ -119,8 +120,13 @@ const ROOM_USED = 0.78;
 
 /** Where the line stands: under the player. */
 const UNDER = "display: block; margin: 12px 0 0;";
-/** Where the panel stands in its Beside the video view: first in the column beside the player (after the drawer, while that's open there), as tall as the player (`--panki-beside-h`). */
-const BESIDE_PANEL = "display: block; margin: 0 0 16px;";
+/**
+ * Where the panel stands beside the video and in Theatre mode: in Panki's column (`column`, after the drawer while
+ * that's open there), as tall as the column (`--panki-beside-h`), so it fills it once the drawer is scrolled past.
+ */
+const COLUMN_PANEL = "display: block; flex: 1 0 auto;";
+/** Where Panki's column stands beside the video: first in the site's column beside the player, as tall as the player (its `height`, written as it's placed). */
+const BESIDE_COLUMN = "display: block; margin: 0 0 16px;";
 /**
  * Where the drawer stands: at the top of the column beside the player; under the line, no wider than a drawer, when
  * there's no such column; over a player that fills the screen. The room between it and its neighbours is handed to
@@ -192,6 +198,13 @@ const replay = createReplay();
 /** The line's place, with the screen itself in it. */
 const strip = mount(siteTheme());
 strip.host.style.cssText = UNDER;
+/**
+ * The column the panel and the drawer stand in beside the video and in Theatre mode: the two places are put in its
+ * host and scroll inside it as one (`ui/Column.tsx`), so the drawer opening never makes it taller than its room.
+ */
+const column = mount(siteTheme());
+column.ground.classList.add("is-column");
+column.root.render(<Column />);
 /** The drawer's place: the same screen draws its panel in here, wherever on the page this is put. */
 const drawer = makePlace(siteTheme());
 /** The place of the clip's mark, on the player's seek bar. */
@@ -773,11 +786,8 @@ html.${STAGE_CLASS} ${STAGED_PAGE} #full-bleed-container {
 html.${STAGE_CLASS}.${STAGE_LEFT_CLASS} ${STAGED_PAGE} #full-bleed-container { left: var(--panki-stage-w) !important; right: 0 !important; }
 html.${STAGE_CLASS} ${STAGED_PAGE} #player-full-bleed-container { height: 100% !important; max-height: none !important; }
 `;
-/** The stage's column of Panki's own: the drawer (while it's open) over the panel, fixed at one side of the screen, over the page. */
-const stageColumn = document.createElement("div");
-const STAGE_COLUMN = "position: fixed; top: 0; bottom: 0; width: var(--panki-stage-w); z-index: 2101; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; background: var(--yt-spec-base-background, #0f0f0f);";
-/** How the panel stands in the stage's column: as tall as the screen at least, the drawer over it scrolling the column. */
-const STAGE_PANEL = "display: block; flex: 1 0 auto;";
+/** Panki's column on the stage (`column`): fixed at one side of the screen, over the page, as tall as the screen. */
+const STAGE_COLUMN = "display: block; position: fixed; top: 0; bottom: 0; width: var(--panki-stage-w); z-index: 2101; background: var(--yt-spec-base-background, #0f0f0f);";
 let stageStyle: HTMLStyleElement | null = null;
 /** Whether the stage's layer is up this moment. */
 let staged = false;
@@ -934,6 +944,13 @@ function showRecommendations() {
 /** Puts Panki's two places where they belong right now: the line under the player or beside it; the drawer beside it, or under the line, or floating over a player that fills the screen. */
 let laidOut = "";
 let stripLaid = "";
+let columnLaid = "";
+/** Panki's column laid out as asked, its style written only when that changed. */
+function layColumn(layout: string) {
+  if (layout === columnLaid) return;
+  columnLaid = layout;
+  column.host.style.cssText = layout;
+}
 function place() {
   const theme = siteTheme();
   strip.host.dataset.theme = theme;
@@ -953,27 +970,32 @@ function place() {
   const playerBox = video ? document.querySelector(PLAYER) : null;
   const stage = stageNow(placeable, full !== null, on);
   const side = !stage && placeable && on.panel && on.panelView === "beside" ? columnBeside(playerBox) : null;
-  const home = stage ? stageColumn : (side ?? under);
+  // Beside the video and on the stage the panel stands in Panki's column, the drawer over it while it's open.
+  const columned = stage || side !== null;
+  const home = columned ? column.host : under;
   inPlace.set(home !== null);
   placedAs.set(stage ? "stage" : side ? "beside" : "under");
-  // The stage's column, at its side, over the page; taken off the page the moment the stage is down.
+  // Panki's column: on the stage at its side over the page, as tall as the screen; beside the video first in the
+  // site's column, as tall as the player. Taken off the page the moment neither stands.
+  column.host.dataset.theme = theme;
   if (stage) {
     const at = on.stageSide === "left" ? "left: 0; border-right: 1px solid var(--yt-spec-10-percent-layer, #303030);" : "right: 0; border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
-    const columnLayout = STAGE_COLUMN + at;
-    if (stageColumn.style.cssText !== columnLayout) stageColumn.style.cssText = columnLayout;
-    if (stageColumn.parentElement !== document.documentElement) document.documentElement.append(stageColumn);
-  }
+    layColumn(STAGE_COLUMN + at);
+    if (column.host.parentElement !== document.documentElement) document.documentElement.append(column.host);
+  } else if (side && playerBox) {
+    layColumn(`${BESIDE_COLUMN} height: ${Math.round(playerBox.getBoundingClientRect().height)}px;`);
+    if (column.host.parentElement !== side) side.prepend(column.host);
+  } else column.host.remove();
   // Each is moved only when it isn't there already: moving it takes the cursor out of whatever is being typed in it.
   if (!home) strip.host.remove();
   else if (strip.host.parentElement !== home) home.prepend(strip.host);
-  if (!stage) stageColumn.remove();
-  const stripLayout = stage ? STAGE_PANEL : side ? BESIDE_PANEL : UNDER;
+  const stripLayout = columned ? COLUMN_PANEL : UNDER;
   if (stripLayout !== stripLaid) {
     stripLaid = stripLayout;
     strip.host.style.cssText = stripLayout;
   }
-  // Beside the video, as tall as the player; on the stage, as tall as the screen: the transcript scrolls inside it.
-  const tall = stage ? stageColumn.clientHeight : side && playerBox ? playerBox.getBoundingClientRect().height : 0;
+  // As tall as the column (the player beside the video, the screen on the stage): the transcript scrolls inside it.
+  const tall = columned ? column.host.clientHeight : 0;
   if (tall > 0) {
     const height = `${Math.round(tall)}px`;
     if (strip.host.style.getPropertyValue("--panki-beside-h") !== height) strip.host.style.setProperty("--panki-beside-h", height);
@@ -1023,22 +1045,22 @@ function place() {
     drawer.host.remove();
     return;
   }
-  const column = full || !video ? null : document.querySelector(BESIDE_PLAYER);
-  const beside = column instanceof HTMLElement && column.offsetWidth >= BESIDE_MIN ? column : null;
-  if (stage) {
-    // On the stage, the drawer stands over the panel in the stage's own column.
+  const siteColumn = full || !video ? null : document.querySelector(BESIDE_PLAYER);
+  const beside = siteColumn instanceof HTMLElement && siteColumn.offsetWidth >= BESIDE_MIN ? siteColumn : null;
+  if (columned) {
+    // Beside the video and on the stage, the drawer stands over the panel in Panki's column, the two scrolling inside it
+    // as one: the card being made first, the transcript under it.
     if (drawer.host.nextElementSibling !== strip.host) strip.host.before(drawer.host);
   } else if (beside) {
+    // The panel under the player: the drawer at the top of the site's column beside it.
     if (drawer.host.parentElement !== beside) beside.prepend(drawer.host);
-    // With the panel beside the video too, the drawer stands over it: the card being made first, the transcript under it.
-    if (side === beside && drawer.host.nextElementSibling !== strip.host) drawer.host.after(strip.host);
   } else if (under) {
     if (drawer.host.previousElementSibling !== strip.host) strip.host.after(drawer.host);
   } else {
     const over = full ?? document.documentElement;
     if (drawer.host.parentElement !== over) over.append(drawer.host);
   }
-  const layout = stage || beside ? BESIDE : under ? BELOW : FLOATING;
+  const layout = columned || beside ? BESIDE : under ? BELOW : FLOATING;
   if (layout !== laidOut) {
     laidOut = layout;
     drawer.host.style.cssText = layout;

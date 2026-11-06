@@ -580,6 +580,26 @@
 .strip-rows[hidden] {
   display: none;
 }
+/* The column the panel and the drawer stand in beside the video and in Theatre mode (`ui/Column.tsx`): its host is
+   as tall as the player (Beside the video) or the screen (Theatre mode), and the two scroll inside it as one, the
+   drawer over the panel, with Panki's fade and bar; the fades are in the page's own background, which the column
+   stands on. The body is at least the column's height, so the panel under the drawer fills it once scrolled to. */
+.panki-root.is-column {
+  position: relative;
+  display: block;
+  height: 100%;
+  --scroll-surface: var(--yt-spec-base-background, var(--bg));
+}
+.panki-column {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.panki-column-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
 /* The panel beside the video (`PanelView` "beside"): in the column beside the player and as tall
    as it (`--panki-beside-h`, written by the page as the player's height), its head on top and the whole transcript
    under it, scrolled inside the panel, never the page. */

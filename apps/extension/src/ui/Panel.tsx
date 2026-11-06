@@ -1498,6 +1498,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         id="panki-meanings"
         label={field.name}
         wide
+        anchored
         disabled={still}
         options={options}
         values={[...dictTicked.map((n) => n - 1), ...(proposedOn ? [PROPOSED] : []), ...customIds]}
@@ -1651,6 +1652,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               id="panki-voice"
               label="Who says it"
               wide
+              anchored
               disabled={still}
               options={voices.list.map((v) => ({ id: v.id, label: voiceWords(v), note: count(v.votes, "vote", "votes") }))}
               value={now.id}
@@ -1723,7 +1725,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const chooser = (
       <div className="field capture-deck">
         <span className="field-label">Deck</span>
-        <Dropdown id="panki-deck" label="Deck" options={state.decks.map((d) => ({ id: d.id, label: d.name }))} value={deck?.id ?? ""} placeholder="Choose a deck" disabled={still} onChange={choose} />
+        <Dropdown id="panki-deck" label="Deck" options={state.decks.map((d) => ({ id: d.id, label: d.name }))} value={deck?.id ?? ""} placeholder="Choose a deck" disabled={still} onChange={choose} anchored />
       </div>
     );
     if (!deck) {
