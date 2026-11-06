@@ -524,7 +524,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         </>
       }
     >
-      {/* The type's own: Listen first, the card it's shown on, and which side of it shows, in step with the card's own buttons. */}
+      {/* The type's own settings, saved with the layout. */}
       <section className="panel layout-panel" aria-label="Card type">
         <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
         {/* The clip a review's full screen fills the screen with (the Full screen key's): the one picked, else the first
@@ -546,6 +546,13 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             />
           }
         />
+      </section>
+      {/* How the card is previewed here, nothing of the type's: the card it's shown on, and which side of it shows, in
+          step with the card's own buttons. */}
+      <section className="panel layout-panel" aria-labelledby="layout-preview-title">
+        <h2 id="layout-preview-title" className="layout-part-title">
+          Preview
+        </h2>
         <Setting id="layout-sample-row" label="Previewed for" control={<Dropdown id="layout-sample" label="Card previewed" anchored options={sampleOptions} value={sampleId} onChange={setSampleId} />} />
         <Setting id="layout-side-row" label="Side" control={<Segmented idPrefix="layout-side" label="Side of the card" options={listen.on ? FACES : SIDES} value={face} onChange={setFace} />} />
       </section>
