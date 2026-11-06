@@ -422,6 +422,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   font-size: 12px;
+  --scroll-surface: var(--surface-2);
 }
 .strip-menu-log ol {
   display: grid;

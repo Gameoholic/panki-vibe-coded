@@ -1,10 +1,11 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, verdictLine, type AiCall, type AiRunWhy, type AiVerdict, type PieceUse } from "@panki/contracts";
 import { count, estimateWords, langOf } from "../words";
 import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
+import { ScrollEdges } from "./ScrollEdges";
 
 /**
  * The AI's status, the one head over everything Panki AI does on a page, as the transcribing status on a video's page
@@ -139,6 +140,18 @@ function pretty(text: string): string {
     return text;
   }
 }
+/** A message as it went or came, in a box of its own height that scrolls inside itself. */
+function Message({ text, lang }: { text: string; lang?: string | undefined }) {
+  const box = useRef<HTMLPreElement>(null);
+  return (
+    <>
+      <pre ref={box} className="ai-details-prompt" lang={lang}>
+        {text}
+      </pre>
+      <ScrollEdges of={box} />
+    </>
+  );
+}
 
 /**
  * This call's own answer in the Log: a row a part of its fixed shape, its name, Panki's verdict as a small tag, the value and the why under it,
@@ -168,7 +181,7 @@ function AnswerView({ verdicts, raw }: { verdicts: readonly AiVerdict[]; raw: st
         <Icon name="down" />
       </Button>
       <Fold open={open} arrives={false}>
-        <pre className="ai-details-prompt">{pretty(raw)}</pre>
+        <Message text={pretty(raw)} />
       </Fold>
     </div>
   );
@@ -289,6 +302,7 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now);
+  const pieces = useRef<HTMLUListElement>(null);
   // A new call is the one shown: the latest is what the button says.
   useEffect(() => setPicked(null), [calls.length]);
   const at = picked ?? calls.length - 1;
@@ -342,11 +356,12 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
       </dl>
       {call.pieces.length > 0 ? (
         <Section title="Prompt context" count={`${sent} of ${asked} sent`}>
-          <ul className="ai-pieces">
+          <ul ref={pieces} className="ai-pieces">
             {call.pieces.map((use) => (
               <Piece key={use.name} use={use} open={expanded.has(use.name)} onToggle={() => toggle(use.name)} />
             ))}
           </ul>
+          <ScrollEdges of={pieces} />
         </Section>
       ) : null}
       <Section title="Log">
@@ -358,9 +373,7 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
               {part.verdicts ? (
                 <AnswerView verdicts={part.verdicts} raw={part.text} />
               ) : (
-                <pre className="ai-details-prompt" lang={langOf(part.text)}>
-                  {part.json ? pretty(part.text) : part.text}
-                </pre>
+                <Message text={part.json ? pretty(part.text) : part.text} lang={langOf(part.text)} />
               )}
             </li>
           ))}

@@ -8,6 +8,7 @@ import { Fold } from "@web/components/Fold";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { MODE_ICONS, ModeChip } from "@web/components/ModeChip";
+import { ScrollEdges } from "@web/components/ScrollEdges";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
@@ -336,16 +337,19 @@ function Log({ state }: { state: TranscribeState }) {
       {entries.length === 0 ? (
         <p className="strip-menu-log-empty">Nothing yet.</p>
       ) : (
-        <ol ref={listRef}>
-          {entries.map((entry, i) => (
-            <li key={`${entry.at}-${i}`}>
-              <time>{timeOfDay(entry.at)}</time>
-              <span>
-                <LogLine parts={entry.parts} />
-              </span>
-            </li>
-          ))}
-        </ol>
+        <>
+          <ol ref={listRef}>
+            {entries.map((entry, i) => (
+              <li key={`${entry.at}-${i}`}>
+                <time>{timeOfDay(entry.at)}</time>
+                <span>
+                  <LogLine parts={entry.parts} />
+                </span>
+              </li>
+            ))}
+          </ol>
+          <ScrollEdges of={listRef} />
+        </>
       )}
       <div className="strip-menu-log-foot">
         {copied ? <span role="status">{copied}</span> : null}

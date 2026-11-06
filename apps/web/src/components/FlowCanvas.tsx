@@ -6,6 +6,7 @@ import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { NumberField } from "./NumberField";
+import { ScrollEdges } from "./ScrollEdges";
 import { Segmented } from "./Segmented";
 import { Toggle } from "./Toggle";
 
@@ -357,7 +358,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest(".canvas-top, .canvas-bottom, .own-line, .menu, .edge-plus, input, .segmented, .btn-switch")) return;
+    if (target.closest(".canvas-top, .canvas-bottom, .own-line, .menu, .scroll-edges, .edge-plus, input, .segmented, .btn-switch")) return;
     const el = target.closest<HTMLElement>("[data-node], [data-label]");
     const id = el?.dataset.node ?? (el?.dataset.label ? labelKey(el.dataset.label) : undefined);
     if (el && id) {
@@ -839,6 +840,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
           )}
         </div>
       ) : null}
+      <ScrollEdges of={menuRef} />
     </div>
   );
 }

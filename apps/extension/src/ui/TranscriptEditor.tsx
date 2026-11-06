@@ -3,6 +3,7 @@ import { realignLine, type LineMark } from "@panki/contracts";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
+import { ScrollEdges } from "@web/components/ScrollEdges";
 import { clock } from "@web/words";
 import { stamp } from "../capture/words";
 import { LineText, type EditedRange } from "./LineText";
@@ -492,6 +493,7 @@ export function StripEditor({ lines, nowKey, start, actions, whole = false, onDo
           );
         })}
       </div>
+      <ScrollEdges of={listEl} />
     </div>
   );
 }

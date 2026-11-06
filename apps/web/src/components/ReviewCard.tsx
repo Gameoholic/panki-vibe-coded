@@ -41,6 +41,7 @@ import { MediaView } from "./MediaView";
 import { PitchAccents } from "./PitchAccent";
 import { PlacePill } from "./PlacePill";
 import { ClipSubtitles, type ClipTime } from "./ClipSubtitles";
+import { ScrollEdges } from "./ScrollEdges";
 
 /**
  * The card being laid out (a card type's Layout): its parts are picked and moved instead of the card being turned,
@@ -288,6 +289,7 @@ export function ReviewCard({
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
   const card = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const fields = new Map(type.fields.map((f) => [f.id, f]));
   const layout = (given ?? type.layout).filter((part) => fields.has(part.fieldId));
   /**
@@ -797,8 +799,12 @@ export function ReviewCard({
       </StageTagSpot>
       {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
       {/* The parts in one box, so a review that fits the window or fills the screen can scroll them inside the card
-          (`.review-body`, app.css); everywhere else the box draws nothing of its own. */}
-      <div className="review-body">{blocks}</div>
+          (`.review-body`, app.css), with Panki's fades and thin bar over it; everywhere else the box draws nothing of
+          its own, and runs over nothing, so neither do they. */}
+      <div ref={body} className="review-body">
+        {blocks}
+      </div>
+      <ScrollEdges of={body} />
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>
   );

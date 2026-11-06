@@ -22,6 +22,7 @@ import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Form } from "./Form";
 import { Icon } from "./Icon";
+import { ScrollEdges } from "./ScrollEdges";
 import { TextField } from "./TextField";
 
 /**
@@ -189,23 +190,26 @@ export function TemplateMenu({ id, rows, defaultId, chosenId, disabled, onPick, 
         <Icon name="down" />
       </Button>
       {open && !disabled ? (
-        <div ref={menu} className="menu ai-templates" role="listbox" aria-label={RUN_WORDS.templates}>
-          {ordered.map(({ template, cost }) => (
-            <Button
-              key={template.id}
-              variant="item"
-              role="option"
-              aria-pressed={template.id === chosenId}
-              onClick={() => {
-                setOpen(false);
-                onPick(template);
-              }}
-            >
-              <span className="dropdown-choice">{template.name}</span>
-              {cost ? <span className="dropdown-note">{cost}</span> : null}
-            </Button>
-          ))}
-        </div>
+        <>
+          <div ref={menu} className="menu ai-templates" role="listbox" aria-label={RUN_WORDS.templates}>
+            {ordered.map(({ template, cost }) => (
+              <Button
+                key={template.id}
+                variant="item"
+                role="option"
+                aria-pressed={template.id === chosenId}
+                onClick={() => {
+                  setOpen(false);
+                  onPick(template);
+                }}
+              >
+                <span className="dropdown-choice">{template.name}</span>
+                {cost ? <span className="dropdown-note">{cost}</span> : null}
+              </Button>
+            ))}
+          </div>
+          <ScrollEdges of={menu} />
+        </>
       ) : null}
     </span>
   );

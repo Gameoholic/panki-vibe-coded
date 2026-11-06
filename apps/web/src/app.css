@@ -1517,8 +1517,9 @@ canvas.media-frame {
   margin: 2px 6px 2px 0;
 }
 /* A press on a player, a link or a spoiler is its own, so the card under it doesn't answer as if it were being flipped. */
-.review-card:has(.media:active, .link-chip:active, .btn-spoiler:active):active {
+.review-card:has(.media:active, .link-chip:active, .btn-spoiler:active, .scroll-thumb:active):active {
   background: var(--surface);
+  --scroll-surface: var(--surface);
 }
 /* What a file is, told apart before it's pressed: a sound and a clip each in its own colour, a name and an icon when asked for. */
 .media-audio {
@@ -2075,6 +2076,100 @@ canvas.media-frame {
   .fold.is-out {
     animation-duration: 1ms;
   }
+}
+/* A box of Panki's own that scrolls inside itself (hooks/useScrollEdges.ts, components/ScrollEdges.tsx), never with
+   the browser's own bar: a fade at an edge with more past it, in the colour behind the box (`--scroll-surface`: the
+   surface, unless where the box stands says otherwise), and a thin bar at its right edge that takes no width, shown
+   while it's scrolled by hand, while the pointer is on it or its thumb is pulled, and gone a moment after. Both are
+   drawn on one element laid over the box (`.scroll-edges`, the box's next sibling), never inside it: what's inside a
+   scroller moves with its scroll a frame before a script can put it back, so a fade or a bar there would shake. Its
+   magnitudes are here, the time it stays is the hook's (`BAR_STAYS_MS`). */
+[data-scroll-edges] {
+  scrollbar-width: none;
+}
+.scroll-edges {
+  --scroll-bar: 4px;
+  --scroll-fade: 40px;
+  --scroll-inset: 2px;
+  display: none;
+  position: absolute;
+  pointer-events: none;
+}
+.scroll-edges.is-over {
+  display: block;
+}
+.scroll-edges::before,
+.scroll-edges::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: min(var(--scroll-fade), 30%);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.scroll-edges::before {
+  top: 0;
+  background: linear-gradient(var(--scroll-surface, var(--surface)), transparent);
+}
+.scroll-edges::after {
+  bottom: 0;
+  background: linear-gradient(transparent, var(--scroll-surface, var(--surface)));
+}
+.scroll-edges[data-more~="top"]::before,
+.scroll-edges[data-more~="bottom"]::after {
+  opacity: 1;
+}
+/* As long as the share of the box that shows, never shorter than a thumb can be pressed. */
+.scroll-thumb {
+  --scroll-thumb: max(24px, calc(var(--scroll-seen, 1) * 100%));
+  position: absolute;
+  top: calc(var(--scroll-at, 0) * (100% - var(--scroll-thumb)));
+  right: var(--scroll-inset);
+  width: var(--scroll-bar);
+  height: var(--scroll-thumb);
+  border-radius: calc(var(--scroll-bar) / 2);
+  background: var(--muted);
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 0.35s ease;
+}
+/* A wider place to take it by than it looks. */
+.scroll-thumb::before {
+  content: "";
+  position: absolute;
+  inset: -4px -6px;
+}
+.scroll-edges.is-scrolling .scroll-thumb,
+.scroll-edges.is-dragging .scroll-thumb {
+  opacity: 1;
+  pointer-events: auto;
+  transition-duration: 0.15s;
+}
+@media (hover: hover) {
+  :hover + .scroll-edges .scroll-thumb,
+  .scroll-edges:hover .scroll-thumb {
+    opacity: 1;
+    pointer-events: auto;
+    transition-duration: 0.15s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-edges::before,
+  .scroll-edges::after,
+  .scroll-thumb {
+    transition: none;
+  }
+}
+/* Where the colour behind a box isn't the surface: what stands on the second surface, and what draws its own. */
+.ai-details {
+  --scroll-surface: var(--surface-2);
+}
+.menu + .scroll-edges,
+.look + .scroll-edges,
+.ai-details-prompt + .scroll-edges {
+  --scroll-surface: var(--surface);
 }
 /* A dot breathing: something is going on by itself, and will stop by itself (the extension's `.live-dot` and its
    strip menu's button, the AI's status while it thinks). */
@@ -2878,6 +2973,7 @@ canvas.media-frame {
 }
 .review-card:active {
   background: var(--surface-2);
+  --scroll-surface: var(--surface-2);
 }
 /* The card's parts (components/ReviewCard.tsx), each as its type's layout has it: words in a size and a colour, a
    file as a player or a button, beside the one above in a row or under it. What only the back shows holds its room on
@@ -4450,6 +4546,7 @@ mark.sub-blur {
 .review-card.is-revealed:active,
 .review-card.is-still:active {
   background: var(--surface);
+  --scroll-surface: var(--surface);
 }
 /* The answers set apart hold their room on the front, unseen (as the back's parts do), so turning the card moves nothing. */
 .review-asides.is-later {
@@ -4469,7 +4566,7 @@ mark.sub-blur {
   display: contents;
 }
 /* The card's body in a review that fits the window and in one filling the screen alike. It takes the card's room and
-   scrolls inside it when the parts outgrow it (no bar: reached with the wheel or a finger), centred while they fit, so
+   scrolls inside it when the parts outgrow it (Panki's own fades and thin bar, `ScrollEdges`), centred while they fit, so
    the counts above and the buttons under the card stay where they are. It reaches 8 px into the card's padding and pads
    it back, so its parts stand where they did while a spoiler's cover and a focus ring at its edge still have room
    before it clips. Each block holds its card to its share (`flex: 1 1 0` and `min-height: 0`: at `auto` a flex item is

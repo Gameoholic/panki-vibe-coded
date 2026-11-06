@@ -1,9 +1,10 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { JudgedRow } from "@web/components/JudgedRow";
 import { Icon } from "@web/components/Icon";
 import { PitchAccent } from "@web/components/PitchAccent";
+import { ScrollEdges } from "@web/components/ScrollEdges";
 import { useCalled } from "@web/hooks/useCalled";
 import { type CalledCard, type MeaningAccuracy, type MeaningAccuracyId, type ProposedMeaning } from "@panki/contracts";
 import { AiSpark } from "@web/components/AiWaiting";
@@ -533,6 +534,7 @@ type Props = {
 export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, explain }: Props) {
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
   const [lit, setLit] = useState<DOMRect | null>(null);
+  const box = useRef<HTMLDivElement>(null);
   const anchor = view.word;
   if (!anchor) return null;
   const asks: ExplainSource | undefined = explain?.kind === "panki" ? { kind: "panki", pointed: view.pointed, more: explain.more } : explain;
@@ -547,7 +549,7 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, expla
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
       {/* Kept open or not, it looks the same: no border marks it kept. */}
-      <div className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
+      <div ref={box} className="look" role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
         <LookupBody
           found={view.found}
           layout={layout}
@@ -558,6 +560,7 @@ export function Lookup({ view, layout, onKeep, onAdd, split = null, cards, expla
           onShow={(word) => setLit(view.pointed.measure(word.source.length))}
         />
       </div>
+      <ScrollEdges of={box} onPointerDown={onKeep} />
     </>
   );
 }

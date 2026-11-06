@@ -21,6 +21,7 @@ import { clock } from "@web/words";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { Dropdown } from "@web/components/Dropdown";
+import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
 import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askModules, askOpenPanki, askOptions, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
@@ -1891,6 +1892,7 @@ function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waiti
           );
         })}
       </div>
+      <ScrollEdges of={list} />
     </div>
   );
 }

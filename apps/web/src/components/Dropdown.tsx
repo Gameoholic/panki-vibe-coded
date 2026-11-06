@@ -4,6 +4,7 @@ import { useDismiss } from "../hooks/useDismiss";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { JudgedRow } from "./JudgedRow";
+import { ScrollEdges } from "./ScrollEdges";
 
 type Common<T extends string | number> = {
   id: string;
@@ -37,6 +38,7 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
   const { id, label, options, placeholder = "", disabled = false, wide = false, columns } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const many = "values" in props;
   const isOn = (value: T) => ("values" in props ? props.values.includes(value) : props.value === value);
   const current = "values" in props ? null : options.find((o) => o.id === props.value);
@@ -61,47 +63,50 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
         <Icon name="down" />
       </Button>
       {open && !disabled ? (
-        <div className="menu dropdown-menu" role="listbox" aria-label={label} aria-multiselectable={many || undefined}>
-          {columns ? (
-            <div className="dropdown-columns" aria-hidden="true">
-              <span>{columns.choice}</span>
-              <span>{columns.note}</span>
-            </div>
-          ) : null}
-          {options.map((o) => {
-            const choice = (
-              <Button
-                key={o.id}
-                variant="item"
-                role="option"
-                aria-selected={isOn(o.id)}
-                aria-pressed={isOn(o.id)}
-                disabled={o.disabled === true}
-                onClick={() => {
-                  if ("values" in props) {
-                    props.onToggle(o.id);
-                    return;
-                  }
-                  props.onChange(o.id);
-                  setOpen(false);
-                }}
-              >
-                {/* Ticked or not, each choice of several keeps the tick's room, so their words stand in one column. */}
-                {many ? <Icon name="check" className={`dropdown-tick ${isOn(o.id) ? "" : "is-off"}`.trim()} /> : null}
-                {o.icon ? <Icon name={o.icon} className="dropdown-icon" /> : null}
-                <span className={o.judged ? "dropdown-choice ai-accuracy-words" : "dropdown-choice"}>{o.label}</span>
-                {o.note ? <span className="dropdown-note">{o.note}</span> : null}
-              </Button>
-            );
-            return o.judged ? (
-              <JudgedRow key={o.id} accuracy={o.judged.accuracy} reason={o.judged.reason}>
-                {choice}
-              </JudgedRow>
-            ) : (
-              choice
-            );
-          })}
-        </div>
+        <>
+          <div ref={menu} className="menu dropdown-menu" role="listbox" aria-label={label} aria-multiselectable={many || undefined}>
+            {columns ? (
+              <div className="dropdown-columns" aria-hidden="true">
+                <span>{columns.choice}</span>
+                <span>{columns.note}</span>
+              </div>
+            ) : null}
+            {options.map((o) => {
+              const choice = (
+                <Button
+                  key={o.id}
+                  variant="item"
+                  role="option"
+                  aria-selected={isOn(o.id)}
+                  aria-pressed={isOn(o.id)}
+                  disabled={o.disabled === true}
+                  onClick={() => {
+                    if ("values" in props) {
+                      props.onToggle(o.id);
+                      return;
+                    }
+                    props.onChange(o.id);
+                    setOpen(false);
+                  }}
+                >
+                  {/* Ticked or not, each choice of several keeps the tick's room, so their words stand in one column. */}
+                  {many ? <Icon name="check" className={`dropdown-tick ${isOn(o.id) ? "" : "is-off"}`.trim()} /> : null}
+                  {o.icon ? <Icon name={o.icon} className="dropdown-icon" /> : null}
+                  <span className={o.judged ? "dropdown-choice ai-accuracy-words" : "dropdown-choice"}>{o.label}</span>
+                  {o.note ? <span className="dropdown-note">{o.note}</span> : null}
+                </Button>
+              );
+              return o.judged ? (
+                <JudgedRow key={o.id} accuracy={o.judged.accuracy} reason={o.judged.reason}>
+                  {choice}
+                </JudgedRow>
+              ) : (
+                choice
+              );
+            })}
+          </div>
+          <ScrollEdges of={menu} />
+        </>
       ) : null}
     </span>
   );
