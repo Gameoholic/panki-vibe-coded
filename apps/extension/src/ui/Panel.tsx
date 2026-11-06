@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   APP_LANGUAGES,
   CaptureFacts,
@@ -42,6 +42,8 @@ import {
   type AiVerdict,
   type CardField,
   type ExplainMessage,
+  type FieldVerdict,
+  type MeaningVerdict,
   type ForvoVoice,
   type MediaCues,
   type FieldKey,
@@ -67,25 +69,29 @@ import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import {
-  FollowTurns,
   UnmarkAi,
   TOUCH_UP_WORDS,
   Tied,
   TouchUpBar,
   TouchUpButton,
   TouchUpCost,
+  TouchUpTurns,
   fieldMarks,
   fieldShown,
-  followGoing,
   meaningShown,
+  proposalTone,
   proposes,
   touchUpReason,
   touchUpVerdicts,
-  type FollowTurn,
+  turnGoing,
+  type ChipState,
   type Shown,
+  type Tone,
+  type TouchUpTurn,
 } from "@web/components/TouchUp";
 import { FIELD_KINDS } from "@web/fieldKinds";
 import { useCalled } from "@web/hooks/useCalled";
+import { useHoist } from "@web/hooks/useHoist";
 import { count, langOf, wordFor } from "@web/words";
 import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
 import { pick, spanOver, stamp, textOf } from "../capture/words";
@@ -193,7 +199,8 @@ type Touch = {
   template: AiTemplate | null;
   first: TouchRead | null;
   said: readonly ExplainMessage[];
-  turns: readonly FollowTurn[];
+  /** The conversation's rounds in order: the run's first, then every follow-up, wherever it was asked. */
+  turns: readonly Round[];
   /**
    * On a video, where Accept puts the clip for the Sentence proposed (`words`), worked out as the answer landed, so its
    * note says the times Accept will use: null ends when the words aren't in the subtitles kept. Null with no Sentence
@@ -217,6 +224,34 @@ const NO_TOUCH: Touch = {
   turns: [],
   clipTo: null,
 };
+/** A proposal a round made, kept with the round: its key, the colour it was drawn in, and how it was decided, once it was. */
+type Change = { key: TouchUpKey; tone: Tone; decided?: "accepted" | "dismissed" };
+/**
+ * A round of Touch up's conversation as the drawer keeps it: the run (`run`, its template's name) or a follow-up asked
+ * under the head (`field` null) or from a field (its id); the reply once it's in, or why there's none; and what it
+ * changed, its proposals in the order the answer had them, null until it's in.
+ */
+type Round = {
+  id: number;
+  run: string | null;
+  field: string | null;
+  question: string;
+  reply: string | null;
+  failure: { message: string; retry: boolean } | null;
+  changed: readonly Change[] | null;
+};
+/** A round to keep as the next is asked: the run's, and every follow-up answered; one that failed is let go. */
+const roundKept = (round: Round) => round.run !== null || round.changed !== null;
+/** The rounds with a key's proposal decided, on the latest round that proposed for it. */
+function settled(rounds: readonly Round[], key: TouchUpKey, how: "accepted" | "dismissed"): readonly Round[] {
+  let at = -1;
+  rounds.forEach((round, i) => {
+    if (round.changed?.some((change) => change.key === key)) at = i;
+  });
+  return rounds.map((round, i) =>
+    i === at && round.changed ? { ...round, changed: round.changed.map((change) => (change.key === key && !change.decided ? { ...change, decided: how } : change)) } : round,
+  );
+}
 /** Where a follow-up is asked under the head, beside the fields' own (by their ids). */
 const BAR = "bar";
 /** Where Touch up's own run asks first: under the button row. */
@@ -467,6 +502,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const touchGate = useAskFirst();
   /** How many runs each template has had in this drawer: its calls named "Touch up", then "Touch up 2". */
   const touchRuns = useRef(new Map<string, number>());
+  /** The last round's id in this drawer: each round of the conversation has its own. */
+  const roundIds = useRef(0);
   /** What Panki AI wrote into each field, by field id, once accepted. */
   const [aiWrote, setAiWrote] = useState<Record<string, AiWrote>>({});
   const frame = useRef<HTMLElement>(null);
@@ -734,6 +771,22 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const verdict = fieldVerdictOf(part, held);
     return "proposed" in verdict ? { words: verdict.proposed, ends: follow.endsFor(verdict.proposed) } : null;
   }
+  /**
+   * What an answer changed: each key it proposes for (never one it found nothing to change in, nor its error), with
+   * the colour its proposal is drawn in, against the card it was asked of.
+   */
+  function changesOf(answer: TouchUpAnswer, now: TouchUpNow, meanings: readonly string[]): Change[] {
+    return touchKeys.flatMap((key): Change[] => {
+      let verdict: FieldVerdict | MeaningVerdict | null = null;
+      if (key === "meaning") verdict = answer.meaning ? meaningVerdictOf(answer.meaning, now, meanings) : null;
+      else {
+        const part = answer[key];
+        verdict = part ? fieldVerdictOf(part, now.values[key] ?? "") : null;
+      }
+      const tone = verdict ? proposalTone(verdict) : null;
+      return tone ? [{ key, tone }] : [];
+    });
+  }
 
   /**
    * Touch up, asked: one call on the card as it stands (what was accepted before is the card's now), its answer's
@@ -771,7 +824,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       template: using,
       first: read,
       said: [],
-      turns: [],
+      // A run begins the conversation afresh: its first round is the run itself, the template it ran by name.
+      turns: [{ id: ++roundIds.current, run: using.name, field: null, question: "", reply: null, failure: null, changed: null }],
       clipTo: null,
     }));
     setFollows({});
@@ -788,6 +842,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       failure: answer.ok ? null : { message: answer.message, retry: answer.problem === "provider" },
       // The model reads its own turn back as it wrote it, its JSON.
       said: answer.ok ? [{ role: "assistant", text: answer.touchUp.raw || JSON.stringify(answer.touchUp.answer) }] : [],
+      // A run that failed has no round: the head says why, with Try again.
+      turns: answer.ok ? was.turns.map((round) => (round.run !== null ? { ...round, changed: changesOf(answer.touchUp.answer, read.now, read.meanings) } : round)) : [],
       clipTo: answer.ok ? clipToOf(answer.touchUp.answer, read.now.values.sentence ?? "") : null,
     }));
     if (answer.ok) lockSentence();
@@ -804,7 +860,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return { question, ...(field ? { field: field.name } : {}), ...(now.pieces.card ? { card: now.pieces.card } : {}) };
   }
   /** The follow-ups answered so far: one that failed is let go as the next is asked. */
-  const followsKept = touch.turns.filter((turn) => turn.reply !== null);
+  const followsKept = touch.turns.filter((round) => round.run === null && round.changed !== null);
   /** Whether a follow-up can be asked now: the run answered, nothing on its way, and Max follow-ups not reached. */
   const canFollow = canTouch && touch.answer !== null && touch.template !== null && touch.busy === false && aiSettings !== null && followsKept.length < aiSettings.aiMaxFollowUps;
   /** The most a follow-up can cost: the run's prompt, the conversation so far, and this one's Follow-up prompt. */
@@ -837,8 +893,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       now: Date.now(),
       maxAnswerTokens: aiSettings.aiMaxTouchUpTokens,
     });
-    const pending: FollowTurn = { field: fieldId, question, reply: null, failure: null };
-    setTouch((was) => ({ ...was, calls: [...was.calls, call], busy: "follow", turns: [...followsKept, pending] }));
+    const pending: Round = { id: ++roundIds.current, run: null, field: fieldId, question, reply: null, failure: null, changed: null };
+    // Accept and Dismiss stay pressable while it's out: the rounds are always taken as they stand, never from before.
+    const landed = (rounds: readonly Round[], round: Partial<Round>) => rounds.map((each) => (each.id === pending.id ? { ...each, ...round } : each));
+    setTouch((was) => ({ ...was, calls: [...was.calls, call], busy: "follow", turns: [...was.turns.filter(roundKept), pending] }));
     const answer = await askTouchUp({ templateId: using.id, pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: current.now, said, asking });
     const now = Date.now();
     if (!answer.ok) {
@@ -847,7 +905,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         ...was,
         calls: was.calls.map((each) => (each === call ? failed : each)),
         busy: false,
-        turns: [...followsKept, { ...pending, failure: { message: answer.message, retry: answer.problem === "provider" } }],
+        turns: landed(was.turns, { failure: { message: answer.message, retry: answer.problem === "provider" } }),
       }));
       readAi();
       return;
@@ -870,7 +928,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       decided: without(was.decided),
       hidden: without(was.hidden),
       said: [...said, { role: "user", text: followed.asked || question }, { role: "assistant", text: followed.raw || followed.reply }],
-      turns: [...followsKept, { ...pending, reply: followed.reply }],
+      turns: landed(was.turns, { reply: followed.reply, changed: changesOf(followed.answer, current.now, first.meanings) }),
       // A follow-up that changes the Sentence brings its own clip; one that doesn't leaves the last proposal's.
       clipTo: followed.answer.sentence ? clipToOf(followed.answer, current.now.values.sentence ?? "") : was.clipTo,
     }));
@@ -943,23 +1001,57 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * What stands where follow-ups are asked, under the head or under a field's note: those asked there with their
-   * replies (one on its way, its question with the spark turning under it), the question before one over Ask before a
-   * run over, and the next one to ask, folded to its quiet line until it's pressed. The box isn't there while a call is
-   * out: the spark under the question is the wait.
+   * How a round's proposal for a key stands, on its chip: decided as it was, or, on the latest round that proposed for
+   * it, waiting while it waits; anything else was replaced (proposed for again, or the field changed under it).
+   */
+  function chipState(round: Round, change: Change): ChipState {
+    if (change.decided) return change.decided;
+    const latest = touch.turns.filter((each) => each.changed?.some((other) => other.key === change.key)).at(-1);
+    return latest?.id === round.id && waiting(change.key) ? "live" : "replaced";
+  }
+  /** A round as it's drawn: the field it was asked from by name, what it changed as a chip a field in the card type's order. */
+  function turnOf(round: Round): TouchUpTurn {
+    const fields = type?.fields ?? [];
+    const asked = round.field === null ? undefined : fields.find((f) => f.id === round.field);
+    const place = (fieldId: string) => fields.findIndex((f) => f.id === fieldId);
+    return {
+      id: round.id,
+      run: round.run,
+      question: round.question,
+      about: asked ? { id: asked.id, name: asked.name } : null,
+      reply: round.reply,
+      failure: round.failure,
+      changed:
+        round.changed === null
+          ? null
+          : round.changed
+              .flatMap((change) => {
+                const field = keyField(change.key);
+                return field ? [{ id: field.id, name: field.name, tone: change.tone, state: chipState(round, change) }] : [];
+              })
+              .sort((a, b) => place(a.id) - place(b.id)),
+    };
+  }
+  /** A follow-up asked again after it failed: the same question, from where it was asked. */
+  function retryRound(id: number) {
+    const round = touch.turns.find((each) => each.id === id);
+    if (round) pressFollowUp(round.field, round.question, { kind: "retry" });
+  }
+  /**
+   * What stands where follow-ups are asked, under the head or under a field: the rounds, every one under the head (the
+   * run first) and a field's own under it as well, so a reply lands where it was asked; the question before one over
+   * Ask before a run over, and the next one to ask, folded to its quiet line until it's pressed. The box isn't there
+   * while a call is out: the spark under the question is the wait.
    */
   function followBlock(fieldId: string | null): ReactNode {
-    if (touch.answer === null || touch.template === null) return null;
     const where = fieldId === null ? BAR : whereOf(fieldId);
-    const here = touch.turns.filter((turn) => turn.field === fieldId);
+    const here = fieldId === null ? touch.turns : touch.turns.filter((round) => round.run === null && round.field === fieldId);
     const typed = follows[where] ?? { text: "" };
+    const rounds = <TouchUpTurns turns={here.map(turnOf)} canRun={canTouch && touch.busy === false} onRetry={retryRound} onGo={hoist.go} />;
+    if (touch.answer === null || touch.template === null) return rounds;
     return (
       <>
-        <FollowTurns
-          turns={here}
-          canRun={canTouch && touch.busy === false}
-          onRetry={(turn) => pressFollowUp(turn.field, turn.question, { kind: "retry" })}
-        />
+        {rounds}
         <RunAsk id={`panki-${where.replace(":", "-")}`} asked={touchGate.at(where)} onCancel={touchGate.cancel} />
         {canFollow ? (
           <FollowUp
@@ -1000,7 +1092,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const verdict = key === "meaning" ? meaningVerdict() : fieldVerdict(key);
     return verdict !== null && proposes(verdict);
   }
-  const decide = (key: TouchUpKey) => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true } }));
+  /** A proposal accepted or dismissed: gone from under its field, and its round's chip says which. */
+  const decide = (key: TouchUpKey, how: "accepted" | "dismissed") => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true }, turns: settled(was.turns, key, how) }));
   /**
    * A value of the AI's written into its field, as typing there would, and remembered as the AI's (a fresh entry, so an
    * offer to mark it as the owner's that was put away comes back). `aiWords` are the AI's own among `text`, when they're
@@ -1056,7 +1149,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         if (to?.ends) clip?.follow?.moveTo(to.ends);
       }
     }
-    decide(key);
+    decide(key, "accepted");
   }
   /** Where the clip goes for the Sentence proposed, as worked out when it landed; null off a video or for other words. */
   const clipToFor = (proposed: string) => (touch.clipTo && touch.clipTo.words === proposed ? touch.clipTo : null);
@@ -1076,13 +1169,29 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     for (const key of pendingKeys) accept(key);
     setTouch((was) => ({ ...was, hidden: allHidden() }));
   };
-  const dismissAll = () => setTouch((was) => ({ ...was, hidden: allHidden(), decided: { ...was.decided, ...Object.fromEntries(pendingKeys.map((key) => [key, true])) } }));
+  const dismissAll = () =>
+    setTouch((was) => ({
+      ...was,
+      hidden: allHidden(),
+      decided: { ...was.decided, ...Object.fromEntries(pendingKeys.map((key) => [key, true])) },
+      turns: pendingKeys.reduce((rounds, key) => settled(rounds, key, "dismissed"), was.turns),
+    }));
+
+  /**
+   * The card's fields in the drawer's order: those whose proposal waits at the top, in the card's own order, the rest
+   * under them in theirs, each sliding to its place as that changes (a proposal landing, accepted or dismissed); one
+   * being typed in stays where it is until it's left.
+   */
+  const hoist = useHoist(
+    type?.fields.map((field) => field.id) ?? [],
+    pendingKeys.flatMap((key) => keyField(key)?.id ?? []),
+  );
 
   /** What Touch up says of a field it has something for, as Panki draws it (`fieldShown`, `meaningShown`). */
   function touchShown(field: CardField): Shown | null {
     const key = keyOfField(field.id);
     if (!key || !touch.answer || touch.hidden[key]) return null;
-    const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key), also: clipNote(key) };
+    const ways = { waiting: waiting(key), onAccept: () => accept(key), onDismiss: () => decide(key, "dismissed"), also: clipNote(key) };
     if (key === "meaning" && meaningMoved) return null;
     const meaning = key === "meaning" ? meaningVerdict() : null;
     const verdict = key === "meaning" ? null : fieldVerdict(key);
@@ -1103,8 +1212,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         </Tied>
       );
     }
-    // The Meaning changed since it was judged: its note goes, and the follow-ups asked there stay, to ask of it as it stands.
-    if (field && meaningMoved && keyOfField(field.id) === "meaning" && !touch.hidden.meaning) {
+    // A note gone (its proposal accepted or dismissed, every note put away, the Meaning changed since it was judged):
+    // the follow-ups asked at the field stay under it, the record of what was said there, and the next can be asked.
+    const asked = field !== null && touch.turns.some((round) => round.run === null && round.field === field.id);
+    if (field && (asked || (meaningMoved && keyOfField(field.id) === "meaning" && !touch.hidden.meaning))) {
       return (
         <>
           {box(null)}
@@ -1115,7 +1226,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return box(null);
   }
   /** The field the follow-up on its way was asked from; null for none, or one asked under the head. */
-  const followingField = touch.busy === "follow" ? (touch.turns.find(followGoing)?.field ?? null) : null;
+  const followingField = touch.busy === "follow" ? (touch.turns.find((round) => round.run === null && turnGoing(round))?.field ?? null) : null;
   /**
    * A field Touch up is working on, its words where they stand, dimmed under the sweep: every field it judges while a
    * run is out, and the one field a follow-up was asked from while that's out (one asked under the head dims nothing:
@@ -1517,7 +1628,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             if (proposedOn) setMeaning(meaningWithout(meaningNow, listed, (run) => run.kind === "dictionary" && run.number === proposedId + 1));
             else if (proposed) {
               writeAi(field, meaningTicked(meaningNow, listed, proposedId + 1), proposed.meaning);
-              decide("meaning");
+              decide("meaning", "accepted");
             }
             return;
           }
@@ -1884,24 +1995,33 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     }
     return (
       // While the card is on its way everything but what says so goes quiet, and nothing in it answers a press.
-      <Form onSubmit={() => void add()} className={`add-form ${busy ? "is-working" : ""}`.trim()}>
+      <Form ref={hoist.ref} onSubmit={() => void add()} className={`add-form ${busy ? "is-working" : ""}`.trim()}>
         {top(deck.name)}
         {/* The clip comes first of the card: it's what stands level with the video it's cut from. */}
         {clip && clipNames !== "" ? cutBlock("clip", clip, clipNames) : null}
         {chooser}
         {/* With no field for the word, its sound still belongs up here with the rest that's cut from the video. */}
         {wordField ? null : wordBlock()}
-        {/* The card's own fields, in the card's own order: what the extension fills, and what's typed. */}
-        {/* Adding an example, the card's own fields stay as they are on it (but the one it's called by, which found it). */}
-        {type.fields.map((field) =>
-          asExample && !field.perExample && field.id !== leadField?.id ? (
-            <div key={field.id} className="card-kept" inert>
-              {fieldBlock(field)}
+        {/* The card's own fields, in the card's own order (but those whose Touch up proposal waits, at the top): what
+            the extension fills, and what's typed. Each in a row of its own, which slides as the order changes. */}
+        {hoist.order.map((fieldId) => {
+          const field = type.fields.find((f) => f.id === fieldId);
+          const block = field ? fieldBlock(field) : null;
+          if (!field || block === null) return null;
+          // Adding an example, the card's own fields stay as they are on it (but the one it's called by, which found it).
+          const kept = asExample && !field.perExample && field.id !== leadField?.id;
+          return (
+            <div key={field.id} className="capture-field" data-hoist={field.id}>
+              {kept ? (
+                <div className="card-kept" inert>
+                  {block}
+                </div>
+              ) : (
+                block
+              )}
             </div>
-          ) : (
-            <Fragment key={field.id}>{fieldBlock(field)}</Fragment>
-          ),
-        )}
+          );
+        })}
         {/* A deck that keeps no sentence still shows the line, to look at and to pick a word from. */}
         {sentenceField ? null : sentenceBlock()}
         {/* The card last, as everything above has made it: looked over, then added. */}

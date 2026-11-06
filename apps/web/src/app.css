@@ -7263,7 +7263,8 @@ mark.sub-blur {
 .touch-up-tied {
   display: grid;
 }
-.touch-up-tied.is-accent {
+.touch-up-tied.is-accent,
+.touch-up-chip.is-accent {
   --accuracy: var(--accent);
 }
 /* The field's own box, never the follow-up's in the note or the tag's fold under it (`.touch-up-foot`, `.touch-up-more`);
@@ -7322,7 +7323,130 @@ mark.sub-blur {
   border-radius: 10px;
   background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
 }
-/* A follow-up on its way: the spark turning under its question, where the reply will stand (TouchUp.tsx → `FollowTurns`). */
+/* Touch up's conversation (TouchUp.tsx → `TouchUpTurns`): a bubble stands out from the box it's in, the head's
+   second surface or a field's tinted note. The run's round is its press, the spark and the template's name; a
+   follow-up asked from a field has the forward sign and the field's name at its head, quiet, pressed to go there. */
+.touch-up .ai-explain-question {
+  background: var(--surface);
+}
+.touch-up-foot .ai-explain-question,
+.touch-up-open .ai-explain-question {
+  background: color-mix(in srgb, var(--fg) 8%, var(--surface));
+}
+.ai-explain-question.is-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.ai-explain-question.is-run > .ai-spark {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+.btn.touch-up-about {
+  justify-self: end;
+  gap: 2px;
+  margin-bottom: -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.btn.touch-up-about > .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.25;
+}
+@media (hover: hover) {
+  .btn.touch-up-about:hover {
+    background: transparent;
+    color: var(--fg);
+  }
+}
+/* What a round changed (TouchUp.tsx → `Changed`): "Changed:" in the muted words, then a chip a field, a dot in its
+   proposal's colour while it waits, a tick once accepted, a hollow dot once dismissed or replaced. */
+.touch-up-changed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.btn.touch-up-chip {
+  gap: 6px;
+  padding: 2px 9px 2px 8px;
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--fg);
+}
+@media (hover: hover) {
+  .btn.touch-up-chip:hover {
+    border-color: var(--accuracy);
+    background: color-mix(in srgb, var(--accuracy) 10%, var(--surface));
+  }
+}
+.touch-up-chip-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accuracy);
+}
+.btn.touch-up-chip > .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+  color: var(--good);
+}
+.btn.touch-up-chip:is(.is-accepted, .is-dismissed, .is-replaced) {
+  color: var(--muted);
+}
+.btn.touch-up-chip:is(.is-dismissed, .is-replaced) .touch-up-chip-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+/* The capture drawer's fields, a row each (hooks/useHoist.ts): slid to their places as those whose proposal waits go
+   to the top and come back, and lit round for a moment when a round's chip goes to one. */
+.capture-field {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.capture-field::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 14px;
+  pointer-events: none;
+}
+.capture-field.is-lit::after {
+  animation: capture-field-lit 1.5s ease-out;
+}
+@keyframes capture-field-lit {
+  0%,
+  45% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent),
+      0 0 24px 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-field.is-lit::after {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+}
+/* A follow-up on its way: the spark turning under its question, where the reply will stand (TouchUp.tsx → `TouchUpTurns`). */
 .touch-up-answering {
   display: flex;
   align-items: center;

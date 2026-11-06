@@ -35,15 +35,16 @@ import { Icon } from "../components/Icon";
 import { JudgedRow } from "../components/JudgedRow";
 import { PitchAccent } from "../components/PitchAccent";
 import { TextField } from "../components/TextField";
-import { Tied, TouchUpBar, TouchUpButton, TouchUpCost, fieldMarks, fieldShown } from "../components/TouchUp";
+import { Tied, TouchUpBar, TouchUpButton, TouchUpCost, TouchUpTurns, fieldMarks, fieldShown, type TouchUpTurn } from "../components/TouchUp";
+import { useHoist } from "../hooks/useHoist";
 import { hmsWords } from "../words";
 import { EXAMPLE_ANSWERS, EXAMPLE_SENTENCE, EXAMPLE_TRANSCRIPT, IN_DECKS, type HeardPart } from "./examples";
 import { WATCH, WATCHED, WatchPage } from "./site";
 
 /**
  * What Settings → Panki AI's explainers play (`components/Explainer.tsx`): each action at work on the video site, as the extension does it, made of the
- * same pieces (`AiStatus`, `JudgedRow`, `TemplateMenu`, `AnswerText`, `FollowUp`, `TouchUpButton`, `TouchUpBar`, `Tied`,
- * `fieldShown`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
+ * same pieces (`AiStatus`, `JudgedRow`, `TemplateMenu`, `AnswerText`, `FollowUp`, `TouchUpButton`, `TouchUpBar`,
+ * `TouchUpTurns`, `Tied`, `fieldShown`, `useHoist`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
  * player, whose looks are the extension's alone, so the scene draws it in shapes of its own (`app.css` → `.ex-under`),
  * its menu of the app's menu rows. They play as the account has Panki AI set: its default
  * template's name on the button, what a run can cost on the model an admin set, shown as Show the cost when a run is
@@ -307,10 +308,14 @@ const TOUCHED: { sentence: FieldAnswer; explanation: FieldAnswer } = {
   },
 };
 
+/** The made-up card's fields, by key, in its card type's order. */
+const SCENE_FIELDS = ["word", "sentence", "explanation"] as const;
+
 /**
  * Touch up: a card being added in the drawer beside a paused video, Touch up pressed, its fields reworked under the
- * spark, then the head with Accept all and a proposal under each field it's for; the sentence's accepted, its words
- * now Panki AI's, and the Explanation's proposal read on down the drawer.
+ * spark, then the head with Accept all and what the run changed, the fields with a proposal at the top, a proposal
+ * under each; the sentence's accepted, its words now Panki AI's, its field back in its place, and the Explanation's
+ * proposal read on down the drawer.
  */
 function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
   const id = useId();
@@ -369,10 +374,49 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
   const ways = (waiting: boolean, onAccept: () => void) => ({ waiting, onAccept, onDismiss: nothing });
   const sentenceShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.sentence, HEARD), HEARD, ways(!accepted, () => setAccepted(true))) : null;
   const explanationShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.explanation, ""), "", ways(true, nothing)) : null;
+  /** The fields as the drawer orders them: those whose proposal waits at the top, sliding back once decided. */
+  const hoist = useHoist(SCENE_FIELDS, answered ? (accepted ? ["explanation"] : ["sentence", "explanation"]) : []);
+  /** The run as the head's conversation has it: its press, then what it changed, a chip a field. */
+  const rounds: TouchUpTurn[] =
+    calls.length === 0
+      ? []
+      : [
+          {
+            id: 1,
+            run: template.name,
+            question: "",
+            about: null,
+            reply: null,
+            failure: null,
+            changed: answered
+              ? [
+                  { id: "sentence", name: "Sentence", tone: "meh", state: accepted ? "accepted" : "live" },
+                  { id: "explanation", name: "Explanation", tone: "accent", state: "live" },
+                ]
+              : null,
+          },
+        ];
   /** A field Touch up reworks: dimmed under the sweep while it thinks, then tied to what it says of it. */
   const touched = (shown: ReturnType<typeof fieldShown>, box: (labelEnd: ReactNode) => ReactNode) => {
     const inside = shown ? <Tied shown={shown}>{box}</Tied> : box(null);
     return thinking ? <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting> : inside;
+  };
+  const fields: Record<string, ReactNode> = {
+    word: <TextField id={`${id}-word`} label="Word" lang="ja" value={WORD.term} onChange={nothing} />,
+    sentence: touched(sentenceShown, (labelEnd) => (
+      <TextField
+        id={`${id}-sentence`}
+        label="Sentence"
+        labelEnd={labelEnd}
+        lang="ja"
+        multiline
+        value={accepted ? EXAMPLE_SENTENCE : HEARD}
+        mark={MARKED}
+        lead={fieldMarks(accepted)}
+        onChange={nothing}
+      />
+    )),
+    explanation: touched(explanationShown, (labelEnd) => <TextField id={`${id}-explanation`} label="Explanation" labelEnd={labelEnd} value="" onChange={nothing} />),
   };
   const button = <TouchUpButton name={template.name} canRun busy={thinking} thinking={thinking} burst={runs} onRun={nothing} />;
   const rows = templatesOf("touchUp", own).map((each) => ({ template: each, cost: null }));
@@ -394,7 +438,7 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
               </Button>
             </div>
             <div className="capture-body">
-              <div className="add-form">
+              <div ref={hoist.ref} className="add-form">
                 <div className="capture-live capture-ends">
                   <div className="capture-touch">
                     {rows.length < 2 ? (
@@ -411,22 +455,14 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
                     Add to {IN_DECKS.deck}
                   </Button>
                 </div>
-                <TouchUpBar calls={calls} busy={thinking} canRun pending={answered ? (accepted ? 1 : 2) : 0} failure={null} burst={0} onRun={nothing} onAcceptAll={nothing} onDismissAll={nothing} />
-                <TextField id={`${id}-word`} label="Word" lang="ja" value={WORD.term} onChange={nothing} />
-                {touched(sentenceShown, (labelEnd) => (
-                  <TextField
-                    id={`${id}-sentence`}
-                    label="Sentence"
-                    labelEnd={labelEnd}
-                    lang="ja"
-                    multiline
-                    value={accepted ? EXAMPLE_SENTENCE : HEARD}
-                    mark={MARKED}
-                    lead={fieldMarks(accepted)}
-                    onChange={nothing}
-                  />
+                <TouchUpBar calls={calls} busy={thinking} canRun pending={answered ? (accepted ? 1 : 2) : 0} failure={null} burst={0} onRun={nothing} onAcceptAll={nothing} onDismissAll={nothing}>
+                  <TouchUpTurns turns={rounds} canRun onRetry={nothing} onGo={hoist.go} />
+                </TouchUpBar>
+                {hoist.order.map((key) => (
+                  <div key={key} className="capture-field" data-hoist={key}>
+                    {fields[key]}
+                  </div>
                 ))}
-                {touched(explanationShown, (labelEnd) => <TextField id={`${id}-explanation`} label="Explanation" labelEnd={labelEnd} value="" onChange={nothing} />)}
               </div>
             </div>
           </section>

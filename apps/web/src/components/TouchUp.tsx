@@ -75,6 +75,9 @@ export const TOUCH_UP_WORDS = {
   acceptAll: "Accept all",
   dismissAll: "Dismiss all",
   tryAgain: "Try again",
+  /** Before the chips of the fields a round changed (`Changed`), and in their place when it changed none. */
+  changed: "Changed:",
+  changedNothing: "Changed nothing",
   /** Under a value Panki AI wrote and then changed by hand: taking the AI's mark off it, so it's the owner's. */
   unmarkAi: "Unmark as Panki AI's",
 };
@@ -161,46 +164,109 @@ export function TouchUpBar({ calls, busy, canRun, pending, failure, burst, onRun
 }
 
 /**
- * A follow-up in Touch up's conversation (AI step 5): asked under the head (`field` null) or from a field's note (the
- * field's id), what was asked, and the reply or why there's none. What it changes is a proposal under its field.
+ * How a proposal a round made stands now, on its chip: still waiting under its field, accepted, dismissed, or replaced
+ * (a later round proposed for the field again, or the field changed under it before it was decided).
  */
-export type FollowTurn = { field: string | null; question: string; reply: string | null; failure: { message: string; retry: boolean } | null };
-
-/** A follow-up asked and not yet answered or failed: the one on its way. */
-export const followGoing = (turn: FollowTurn): boolean => turn.reply === null && turn.failure === null;
+export type ChipState = "live" | "accepted" | "dismissed" | "replaced";
+/** A field a round changed, as its chip draws it: the field's id and name, its proposal's colour, how it stands. */
+export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipState };
 
 /**
- * The follow-ups asked in one place, as Explain draws its own: the question a bubble at the right, the reply under it as
- * plain paragraphs, or the failure with Try again. One on its way is its question with the spark turning under it,
- * where its reply will stand, so the wait is where it was asked and not only in the head, which may be scrolled away.
+ * A round of Touch up's conversation as it's drawn (AI step 5): the run itself (`run`, the template it ran, by name), or
+ * a follow-up asked under the head (`about` null) or from a field (its id and name); its reply once it's in, or why
+ * there's none; and what it changed, once it's in, a chip a field (none for nothing).
  */
-export function FollowTurns({ turns, canRun, onRetry }: { turns: readonly FollowTurn[]; canRun: boolean; onRetry: (turn: FollowTurn) => void }) {
+export type TouchUpTurn = {
+  id: number;
+  run: string | null;
+  question: string;
+  about: { id: string; name: string } | null;
+  reply: string | null;
+  failure: { message: string; retry: boolean } | null;
+  changed: readonly ChangeChip[] | null;
+};
+
+/** A round asked and not yet answered or failed: the one on its way. */
+export const turnGoing = (turn: { changed: readonly unknown[] | null; failure: unknown }): boolean => turn.changed === null && turn.failure === null;
+
+/** A chip's state in words, for a screen reader: the dot or the tick says it to the eye. */
+const CHIP_STATE_WORDS: Record<ChipState, string> = { live: "waiting", accepted: "accepted", dismissed: "dismissed", replaced: "replaced" };
+
+/**
+ * What a round changed, under its reply: "Changed:" and a chip a field, in the card type's order, the dot in its
+ * proposal's colour while it waits, a tick once accepted, hollow once dismissed or replaced; pressed, the drawer goes to
+ * the field. "Changed nothing" for a round that changed nothing. It stays as the round's record once all is decided.
+ */
+function Changed({ chips, onGo }: { chips: readonly ChangeChip[]; onGo: (fieldId: string) => void }) {
+  if (chips.length === 0) return <p className="touch-up-changed">{TOUCH_UP_WORDS.changedNothing}</p>;
+  return (
+    <div className="touch-up-changed">
+      {TOUCH_UP_WORDS.changed}
+      {chips.map((chip) => (
+        <Button key={chip.id} variant="chip" className={`touch-up-chip ${TONE_CLASS[chip.tone]} is-${chip.state}`} aria-label={`${chip.name}, ${CHIP_STATE_WORDS[chip.state]}`} onClick={() => onGo(chip.id)}>
+          {chip.state === "accepted" ? <Icon name="check" /> : <span className="touch-up-chip-dot" aria-hidden="true" />}
+          {chip.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Touch up's conversation, every round in order, as Explain draws its own: the run as its press (the spark and the
+ * template's name in the bubble), a follow-up as its question at the right, one asked from a field marked at its head
+ * with the forward sign and the field's name, pressed to go there; then the reply as plain paragraphs and what it
+ * changed (`Changed`), or the failure with Try again. One on its way is the spark turning where its reply will stand.
+ * The head draws every round, and a field draws its own under it as well, so a reply lands where it was asked too:
+ * one round, two places.
+ */
+export function TouchUpTurns({ turns, canRun, onRetry, onGo }: { turns: readonly TouchUpTurn[]; canRun: boolean; onRetry: (id: number) => void; onGo: (fieldId: string) => void }) {
   return (
     <>
-      {turns.map((turn, i) => (
-        <div key={i} className="ai-explain-turn">
-          <p className="ai-explain-question">{turn.question}</p>
-          {followGoing(turn) ? (
-            <div className="touch-up-answering" role="status" aria-label={TOUCH_UP_WORDS.answering}>
-              <AiSpark working />
-            </div>
-          ) : turn.reply !== null ? (
-            <AnswerText text={turn.reply} />
-          ) : turn.failure ? (
-            <div className="ai-explain-failure">
-              <p className="form-failure" role="alert">
-                {turn.failure.message}
+      {turns.map((turn) => {
+        const about = turn.about;
+        return (
+          <div key={turn.id} className="ai-explain-turn">
+            {turn.run !== null ? (
+              <p className="ai-explain-question is-run">
+                <AiSpark />
+                {turn.run}
               </p>
-              {turn.failure.retry ? (
-                <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn)}>
-                  <AiSpark />
-                  {TOUCH_UP_WORDS.tryAgain}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ))}
+            ) : (
+              <>
+                {about ? (
+                  <Button className="touch-up-about" onClick={() => onGo(about.id)}>
+                    <Icon name="forward" />
+                    {about.name}
+                  </Button>
+                ) : null}
+                <p className="ai-explain-question">{turn.question}</p>
+              </>
+            )}
+            {turnGoing(turn) ? (
+              <div className="touch-up-answering" role="status" aria-label={TOUCH_UP_WORDS.answering}>
+                <AiSpark working />
+              </div>
+            ) : turn.failure ? (
+              <div className="ai-explain-failure">
+                <p className="form-failure" role="alert">
+                  {turn.failure.message}
+                </p>
+                {turn.failure.retry ? (
+                  <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn.id)}>
+                    <AiSpark />
+                    {TOUCH_UP_WORDS.tryAgain}
+                  </Button>
+                ) : null}
+              </div>
+            ) : (
+              <AnswerText text={turn.reply ?? ""}>
+                <Changed chips={turn.changed ?? []} onGo={onGo} />
+              </AnswerText>
+            )}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -482,6 +548,22 @@ export function meaningShown(verdict: MeaningVerdict, ways: Ways): Shown | null 
 
 /** Whether a verdict is a proposal, the one thing that waits on Accept or Dismiss. */
 export const proposes = (verdict: FieldVerdict | MeaningVerdict): boolean => verdict.kind !== "error" && verdict.kind !== "good";
+
+/** The colour a proposal is drawn in, the same as its note's (a round's chip for it takes it); none for what isn't one. */
+export function proposalTone(verdict: FieldVerdict | MeaningVerdict): Tone | null {
+  switch (verdict.kind) {
+    case "meh":
+    case "bad":
+      return verdict.kind;
+    case "written":
+      return "accent";
+    case "change":
+    case "propose":
+      return meaningTitle(verdict).tone;
+    default:
+      return null;
+  }
+}
 
 /**
  * What a field's box carries before its value (`TextField`'s `lead`): the spark while Panki AI wrote what it holds, in

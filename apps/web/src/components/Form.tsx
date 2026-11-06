@@ -1,7 +1,9 @@
-import type { FormEvent, FormHTMLAttributes, KeyboardEvent } from "react";
+import type { FormEvent, FormHTMLAttributes, KeyboardEvent, Ref } from "react";
 
 type Props = Omit<FormHTMLAttributes<HTMLFormElement>, "onSubmit" | "noValidate" | "onKeyDown"> & {
   onSubmit: () => void;
+  /** The form element itself, for whoever lays out its rows (the capture drawer's hoisted fields). */
+  ref?: Ref<HTMLFormElement>;
 };
 
 /** The app's form: never the browser's validation bubbles. Each field says what's wrong in its own words. */

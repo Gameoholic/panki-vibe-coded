@@ -322,9 +322,10 @@ export function FollowUp({ id, value, error, disabled, beside, nested = false, s
 
 /**
  * What Panki AI wrote, as plain paragraphs (nothing the model writes reaches the page as markup), rising in as it
- * lands: Explain's answers and Touch up's replies alike.
+ * lands: Explain's answers and Touch up's replies alike. `children` stand under the words, rising in with them (what a
+ * Touch up round changed).
  */
-export function AnswerText({ text }: { text: string }) {
+export function AnswerText({ text, children }: { text: string; children?: ReactNode }) {
   const paragraphs = text
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
@@ -334,6 +335,7 @@ export function AnswerText({ text }: { text: string }) {
       {paragraphs.map((paragraph, i) => (
         <p key={i}>{paragraph}</p>
       ))}
+      {children}
     </div>
   );
 }
