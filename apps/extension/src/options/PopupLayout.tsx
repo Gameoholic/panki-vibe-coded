@@ -206,7 +206,7 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
       }
       if (pointedLast.current) setShown(pointedLast.current);
       pointedLast.current = null;
-    }, lookUp);
+    }, lookUp, () => over.current?.querySelector(".look")?.getBoundingClientRect() ?? null);
     looker.current = made;
     const page = listenOnPage(made, {
       // The sentences to try it on are a page's, so they take the key everywhere else takes, On hover too.

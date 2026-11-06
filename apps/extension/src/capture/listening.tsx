@@ -49,7 +49,11 @@ export function createListening(options: Options) {
   place.host.style.cssText = OVER_ALL;
   const root = createRoot(place.ground);
 
-  const looker = createLooker((view) => draw(view));
+  const looker = createLooker(
+    (view) => draw(view),
+    undefined,
+    () => place.ground.querySelector(".look")?.getBoundingClientRect() ?? null,
+  );
   function draw(view: View | null) {
     if (view === null) {
       root.render(null);

@@ -44,8 +44,23 @@ export type Where = { of: "line"; lineId: number; offset: number; length: number
  */
 export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; locked: boolean; hovered: boolean };
 
-/** How far from its word the pointer may go before a popup opened by hover closes: the popup stands just under the word, and the pointer crosses the gap to it. */
+/**
+ * How far from its word the pointer may go before a popup opened by hover closes. The gap between the word and the
+ * popup (under it, or over it) counts as on the word too, the word's own width of it, however wide the gap is
+ * (`nearWord`): the pointer crossing it slowly into the popup never closes the popup on the way, while leaving
+ * sideways still does.
+ */
 const HOVER_MARGIN = 24;
+/** Where the popup stands on the screen, as drawn; null while there's none. */
+type PopupRect = () => DOMRect | null;
+/** Whether the pointer is on a hover popup's word, within `HOVER_MARGIN`, or in the gap between the word and the popup. */
+function nearWord(word: DOMRect, at: At, popup: DOMRect | null): boolean {
+  if (within(word, at.x, at.y, HOVER_MARGIN)) return true;
+  if (!popup || at.x < word.left || at.x > word.right) return false;
+  if (popup.top >= word.bottom) return at.y >= word.bottom && at.y <= popup.top;
+  if (popup.bottom <= word.top) return at.y >= popup.bottom && at.y <= word.top;
+  return false;
+}
 /**
  * How often a popup opened by hover looks again at its word, ms: the word gone or changed, or no longer under the
  * pointer (the line moved on under a pointer that stood still), it closes. Moves alone never see that: subtitles
@@ -87,8 +102,11 @@ export function pointWith(looker: Looker, key: LookKey, e: { shiftKey: boolean; 
   else looker.release(at);
 }
 
-/** What's open and what's being asked about. `onView` is told every change; null is nothing showing. */
-export function createLooker(onView: (view: View | null) => void, find: Find = askWorker) {
+/**
+ * What's open and what's being asked about. `onView` is told every change; null is nothing showing. `popup` is where
+ * the popup stands as drawn, so the gap between a word and its hover popup counts as on the word.
+ */
+export function createLooker(onView: (view: View | null) => void, find: Find = askWorker, popup: PopupRect = () => null) {
   let view: View | null = null;
   let pointedId: string | null = null;
   /** Counts the look-ups, so an answer that comes after the pointer has moved on is let go. */
@@ -110,7 +128,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     if (!shown.pointed.alive()) return true;
     const first = shown.found[0];
     const rect = first ? shown.pointed.measure(first.source.length) : null;
-    return rect !== null && lastAt !== null && !within(rect, lastAt.x, lastAt.y, HOVER_MARGIN);
+    return rect !== null && lastAt !== null && !nearWord(rect, lastAt, popup());
   };
   const tell = (next: View | null) => {
     view = next;
@@ -168,7 +186,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
         return;
       }
       if (view.locked || !view.hovered) return;
-      if (at && view.word && within(view.word, at.x, at.y, HOVER_MARGIN)) return;
+      if (at && view.word && nearWord(view.word, at, popup())) return;
       looker.close();
     },
     /**
