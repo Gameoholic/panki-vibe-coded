@@ -72,6 +72,8 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
     frame = 0;
     if (!track()) return;
     const style = getComputedStyle(el);
+    // Back in the layout to be measured: hidden whole by `cut` the time before, it has no place to measure from.
+    bar.style.display = "";
     bar.style.borderRadius = style.borderRadius;
     bar.style.zIndex = style.zIndex;
     bar.style.width = `${el.clientWidth}px`;
@@ -96,7 +98,9 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
   /**
    * Cut where a box round it cuts the box: a box that clips (a fold on its way, a column that scrolls) clips only what
    * its own containing block holds, and the overlay's may lie outside it, so its fades would stand over what's around.
-   * Nothing of it left, it's hidden.
+   * Nothing of it left, it's out of the layout altogether, not merely invisible: a box that's hidden still stretches
+   * the scrollable room of its containing block (a bar for a message in the AI's closed Details stood far down the
+   * pop-up, unseen, and the pop-up scrolled a screen of nothing to reach it).
    */
   const cut = (landed: DOMRect) => {
     let top = landed.top;
@@ -121,7 +125,7 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
       }
     }
     const none = bottom - top < 1 || right - left < 1;
-    bar.style.visibility = none ? "hidden" : "";
+    bar.style.display = none ? "none" : "";
     const inset = [top - landed.top, landed.right - right, landed.bottom - bottom, left - landed.left].map((n) => Math.max(0, n));
     bar.style.clipPath = inset.every((n) => n < 0.5) ? "" : `inset(${inset.map((n) => `${n}px`).join(" ")})`;
   };
@@ -215,7 +219,7 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
     delete el.dataset.scrollEdges;
     bar.classList.remove("is-over", "is-scrolling", "is-dragging");
     bar.style.clipPath = "";
-    bar.style.visibility = "";
+    bar.style.display = "";
   };
 }
 
