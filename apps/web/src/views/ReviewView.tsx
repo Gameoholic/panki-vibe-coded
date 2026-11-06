@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, stagedOrder, exampleFieldsOf, exampleShownOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -387,13 +387,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }, [atEnd, extraFirst, extraOrder.length, deck.id]);
   /** The screen filled by the whole review, kept as the cards change and from one review to the next (`useScreenStage`). */
   const stage = useScreenStage(place, card !== undefined);
-  // Which of its examples the card on screen shows, as the deck says: picked once each time it comes up (its count of
-  // answers changes with each), so a random one holds still while it's on screen.
-  const exampleId = useMemo(
-    () => (card ? exampleShownOf(type, card, deck.settings.exampleShown, Math.random) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the card's id and count of answers are what make it another showing
-    [card?.id, card?.seen, card?.examples.length, type, deck.settings.exampleShown],
-  );
+  // Which of its examples the card on screen shows: the one Panki pinned it to as the review read its cards (the deck's
+  // Example shown), the same every time it comes up until an answer schedules it (`Card.shownExample`).
+  const exampleId = card?.shownExample ?? null;
   /**
    * The card's examples in the order its arrows turn through them (its own first, then each added, as Rotate goes), and
    * the one looked at by hand: none until an arrow is pressed, and none again on each showing. The answer counts for the one the review picked

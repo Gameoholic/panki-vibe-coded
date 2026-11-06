@@ -934,6 +934,21 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // each type's first clip part. Those databases already count it, so it keeps the numbering, and the next step is
     // 45 everywhere. What it wrote reads as a column a layout says (`layoutOf`), which is what it meant.
   },
+  (db) => {
+    // 45. A card's example is picked once per review of it, not each time it's shown: each pick is a row (the card, the
+    // example, null for its own, and when), never changed or deleted. The latest is the card's pin while no answer has
+    // scheduled the card since it was made (`selectLivePin`): an ask-again, a snooze, a suspend keep it, and an Undo of
+    // the answer that scheduled it brings it back.
+    db.exec(`
+      CREATE TABLE example_pins (
+        id INTEGER PRIMARY KEY,
+        card_id TEXT NOT NULL REFERENCES cards(id),
+        example_id TEXT REFERENCES card_examples(id),
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX example_pins_card_id ON example_pins (card_id, id)");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1201,6 +1216,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     d.id, d.name, d.type_id AS typeId, d.srs_type_id AS srsTypeId, d.settings, d.created_at AS createdAt,
     (SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.removed_at IS NULL) AS cardCount`;
   const selectDecks = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.removed_at IS NULL ORDER BY d.created_at ASC, d.id ASC`);
+  // A card's example pin (migration 45): its latest pick while it's live, that is while no answer has scheduled the card
+  // since (one that leaves it outside an ask-again, not undone) and the example it names is still there. A row with a
+  // null example is the card's own example pinned; no row, nothing live.
+  const selectLivePin = db.prepare(`
+    SELECT p.example_id AS exampleId FROM example_pins p LEFT JOIN card_examples e ON e.id = p.example_id
+    WHERE p.card_id = ? AND p.id = (SELECT MAX(x.id) FROM example_pins x WHERE x.card_id = p.card_id)
+      AND (p.example_id IS NULL OR e.removed_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM card_places q WHERE q.card_id = p.card_id AND q.reason = 'answer' AND q.undone_at IS NULL AND q.node_to = '[]' AND q.at > p.at)`);
+  const selectLastPin = db.prepare("SELECT example_id AS exampleId FROM example_pins WHERE card_id = ? ORDER BY id DESC LIMIT 1");
+  const insertPin = db.prepare("INSERT INTO example_pins (card_id, example_id, at) VALUES (?, ?, ?)");
   const selectDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ? AND d.removed_at IS NULL`);
   const selectAnyDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ?`);
   // The cheap reads a route makes before it does anything: a deck's counts walk every card of it, and aren't wanted there.
@@ -1645,10 +1670,27 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         files: held?.files ?? {},
         cues: held?.cues ?? {},
         examples: held?.examples ?? [],
+        shownExample: livePinOf(row.id)?.exampleId ?? null,
         place,
         ...scheduleOf(type, row, place, today),
       });
     });
+  }
+  /** A card's live example pin (`selectLivePin`): the example a review shows it with until it's scheduled; none while nothing's live. */
+  function livePinOf(cardId: string): { exampleId: string | null } | null {
+    return (selectLivePin.get(cardId) as { exampleId: string | null } | undefined) ?? null;
+  }
+  /**
+   * The example a card is pinned to now, by the deck's Example shown: Rotate the one after the one it was last pinned to
+   * (the first, its own, when it never was, or when that one's gone), Newest the newest it has, Random any. Its own is null.
+   */
+  function pickExample(card: Card, how: DeckSettings["exampleShown"]): string | null {
+    const all = [null, ...card.examples.map((e) => e.id)];
+    if (how === "newest") return all[all.length - 1] ?? null;
+    if (how === "random") return all[Math.floor(Math.random() * all.length)] ?? null;
+    const last = selectLastPin.get(card.id) as { exampleId: string | null } | undefined;
+    const at = last === undefined ? -1 : all.indexOf(last.exampleId);
+    return at < 0 ? null : (all[(at + 1) % all.length] ?? null);
   }
   /** Everything a card is read with, for one card. */
   function readsOfCard(cardId: string): CardReads {
@@ -2040,13 +2082,31 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     removeDeck(id: string, now: number): boolean {
       return removeDeck.run(now, id).changes > 0;
     },
+    /**
+     * A deck's cards, as a review reads them: every one a review would take now (due, or new and in play) that has
+     * examples to show, its type showing them, and no live pin is pinned to one here, by the deck's Example shown, and
+     * told with it (`Card.shownExample`), so the example stays the same however often the card comes up until it's scheduled.
+     */
     listCards(deckId: string, now: number): Card[] {
       const read: CardReads = {
         values: selectDeckValues.all(deckId) as ValueRow[],
         examples: selectDeckExamples.all(deckId) as ExampleRow[],
         exampleValues: selectDeckExampleValues.all(deckId) as ExampleValueRow[],
       };
-      return cardsFrom(selectCards.all(deckId) as CardRow[], read, srsTypeOfDeck(deckId), todayAt(now));
+      const cards = cardsFrom(selectCards.all(deckId) as CardRow[], read, srsTypeOfDeck(deckId), todayAt(now));
+      const deck = selectAnyDeck.get(deckId) as { typeId: string; settings: string } | undefined;
+      const fields = deck ? (selectFields.all(deck.typeId) as FieldRow[]) : [];
+      if (!deck || !fields.some((f) => f.perExample === 1)) return cards;
+      const how = deckSettingsFrom(deck.settings).exampleShown;
+      return transaction(() =>
+        cards.map((card) => {
+          const inPlay = card.due || (isNew(card.place) && card.place.node.length === 0 && card.hold === null);
+          if (!inPlay || card.examples.length === 0 || livePinOf(card.id) !== null) return card;
+          const exampleId = pickExample(card, how);
+          insertPin.run(card.id, exampleId, now);
+          return { ...card, shownExample: exampleId };
+        }),
+      );
     },
     /** The card, when it is in that deck. */
     getCard(deckId: string, cardId: string, now: number): Card | null {
@@ -2249,7 +2309,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
      * is kept as a hold instead, with its sitting and spans: the card's place and schedule stay as they were. An answer
      * sent again under the id it was given is kept once: the card is told as it stands.
      */
-    answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" | "no-example" | "given-elsewhere" {
+    answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" | "no-example" | "not-pinned" | "given-elsewhere" {
       return transaction(() => {
         const row = selectDeckCard.get(deckId, cardId) as CardRow | undefined;
         if (!row) return "no-card";
@@ -2266,6 +2326,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             return card;
           }
         }
+        // A card pinned to an example is answered for that example, whichever one was looked at.
+        const pin = livePinOf(cardId);
+        if (pin !== null && (answer.exampleId ?? null) !== pin.exampleId) return "not-pinned";
         const place = placeFrom(row);
         const extras: AnswerExtras = {
           givenId: answer.givenId ?? null,

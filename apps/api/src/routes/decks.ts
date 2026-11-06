@@ -253,6 +253,10 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
       res.status(400).json({ error: { message: "That example isn't one of this card's.", path: ["exampleId"] } });
       return;
     }
+    if (outcome === "not-pinned") {
+      res.status(409).json({ error: { message: "This card is shown with another example now. Open the review again.", path: ["exampleId"] } });
+      return;
+    }
     if (outcome === "given-elsewhere") {
       res.status(409).json({ error: { message: "That answer was given to another card.", path: ["givenId"] } });
       return;

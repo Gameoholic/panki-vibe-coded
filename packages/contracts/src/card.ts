@@ -219,6 +219,13 @@ export const Card = NewCard.omit({ source: true, sources: true }).extend({
   hold: CardHold.nullable().default(null),
   /** The examples added to it after its own, oldest first (`CardExample`); none from a Panki from before examples. */
   examples: z.array(CardExample).default([]),
+  /**
+   * The example a review shows it with, pinned by the API as a review reads its cards (by the deck's Example shown) and
+   * kept until an answer schedules it (an ask-again, a snooze, a suspend keep it; an Undo brings it back): one of
+   * `examples` by id, or null for its own (and for a card with none, or not pinned). Its answers are for this one,
+   * whichever was looked at.
+   */
+  shownExample: z.string().nullable().default(null),
 });
 
 /**
@@ -237,9 +244,10 @@ export const CardList = z.object({ cards: z.array(Card) });
 export const CardResponse = z.object({ card: Card });
 
 /**
- * Which example a review shows, as the deck says (`DeckSettings.exampleShown`): null is the card's own. In turn goes by
- * how many times it has been answered, so nothing has to be kept for it; `random` is the caller's, from 0 to 1. A type
- * with no field that's One per example shows its own, whatever examples the card was given.
+ * Which example a card is shown with outside a review, as the deck says (`DeckSettings.exampleShown`): null is the card's
+ * own. In turn goes by how many times it has been answered; `random` is the caller's, from 0 to 1. A type with no field
+ * that's One per example shows its own, whatever examples the card was given. A review shows the one the API pinned
+ * (`Card.shownExample`).
  */
 export function exampleShownOf(type: Pick<CardType, "fields">, card: Pick<Card, "examples" | "seen">, how: ExampleShown, random: () => number): string | null {
   if (exampleFieldsOf(type).length === 0 || card.examples.length === 0) return null;
