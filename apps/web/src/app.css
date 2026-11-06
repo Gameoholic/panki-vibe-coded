@@ -3243,6 +3243,16 @@ mark.sub-mark {
 .review-part.size-small :is(.media-player, .media-plain) {
   width: min(100%, 220px);
 }
+/* On a card a player never grows past its part: its picture and its bar take the player's width, not the bar's own
+   (a grid's column is otherwise as wide as its widest item), and a bar with more than fits wraps onto a second line
+   inside it (a narrow phone, the Layout tab's card keeping room for its grips). */
+.review-part .media {
+  grid-template-columns: minmax(0, 1fr);
+}
+.review-part .media-bar {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
 .review-part.size-big img.media-frame {
   max-height: 420px;
 }
@@ -4806,42 +4816,16 @@ mark.sub-blur {
     flex-direction: column;
     align-items: center;
   }
-  /* What holds the clip grows: its part, or the run of the back's parts or the row it's in, and then its part. */
-  :is(.main > .review.is-fit) > .review-card > .review-body > :is(.review-side, .review-main) > :has(video.media-frame),
-  :is(.main > .review.is-fit) > .review-card > .review-body > :is(.review-side, .review-main) > .review-answer > :has(video.media-frame) {
-    flex: 1 1 0;
-    min-height: 240px;
-    width: 100%;
-  }
-  :is(.main > .review.is-fit) > .review-card > .review-body > :is(.review-side, .review-main) > .review-answer:has(video.media-frame) {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  :is(.main > .review.is-fit) > .review-card > .review-body > :is(.review-side, .review-main) > .review-answer:has(video.media-frame) > * {
-    flex: none;
-  }
-  :is(.main > .review.is-fit) .review-row:has(video.media-frame) {
-    flex-wrap: nowrap;
-    align-items: stretch;
-  }
-  :is(.main > .review.is-fit) .review-row > .review-part {
-    align-content: center;
-  }
-  :is(.main > .review.is-fit) .review-row > .review-part:has(video.media-frame) {
-    width: auto;
-  }
-  :is(.main > .review.is-fit) .review-part:has(video.media-frame) {
-    container-type: size;
-    align-content: center;
-  }
-  /* As wide as a 16:9 picture with the bar under it (about 60 px with its gap) fits in the part's height. */
-  :is(.main > .review.is-fit) .review-part:has(video.media-frame) .media.media-player {
-    width: min(100cqw, calc((100cqh - 54px) * 16 / 9));
-    gap: 4px;
-  }
-  :is(.main > .review.is-fit) .review-part .media-player video.media-frame {
+  /* Every part in the card's column takes its own height, a clip its picture's by its Size, never grown to fill the
+     card: when the parts outgrow the card, the body scrolls (the rule above the block). Only the side column's clip
+     fills the card's height (below, on a wide window). A clip's picture is 16:9 at its Size's width (Big the
+     column's, Normal up to 480 px, Small up to 220 px), not held to the 260 px a picture is held to elsewhere, which
+     left a big clip a strip with bars at its sides. */
+  :is(.main > .review.is-fit) > .review-card .review-part video.media-frame {
     max-height: none;
+  }
+  :is(.main > .review.is-fit) > .review-card .review-part.size-normal :is(.media-player, .media-plain):has(video.media-frame) {
+    width: min(100%, 480px);
   }
   /* The Layout tab's card is the review's own size: no room is added for the parts' grips, each standing on its part's
      top left corner instead, inside the 8 px the card's body reaches into the card's padding, so none is clipped. Its
@@ -4884,7 +4868,7 @@ mark.sub-blur {
    stands in its two columns: the side one at its left, its share of the card (`--clip-side`, the one magnitude) and as
    tall as the card, its parts centred and never scrolled; the main one the rest, the one that scrolls when its parts
    outgrow the card, by the rules above it took from the body (with Panki's fades and bar: ReviewCard sees which box
-   scrolls). Under one another a clip didn't fit any bigger than it was. The main column's words, beside the side one,
+   scrolls). The main column's words, beside the side one,
    are the full-screen rail's sizes. Narrower, the two stand as one, in the card's order, the body scrolling them. The
    card is named with its side column (`:has`) so these outweigh the body's rules for the front above. */
 @media (min-width: 960px) {
@@ -4909,10 +4893,57 @@ mark.sub-blur {
     justify-content: safe center;
     gap: 6px;
   }
-  /* What holds a clip there takes all of the column's height, however short that is. */
+  /* The side column's clip fills the column: what holds it (its part, or the run of the back's parts or the row it's
+     in, and then its part) takes all of the column's height the other parts leave, however short that is, and the
+     player is as wide as a 16:9 picture with its bar under it (about 54 px) fits in it. Everything else in the column
+     takes its own height; a column whose parts outgrow it scrolls. */
+  /* It reaches 8 px past its own room and pads it back, as the main column does, so a part's grip and focus ring at
+     its edge aren't clipped by its scroll; its parts keep their room. */
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side {
+    flex-basis: calc(var(--clip-side) + 16px);
+    margin: -8px;
+    padding: 8px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side > *,
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side > .review-answer > * {
+    flex: none;
+  }
+  /* Never shorter than a player whose bar still fits on one line (a 440 px picture and its bar, the bar with every
+     keycap needing about 430 px): with less room left by the column's other parts, the column scrolls rather than the
+     bar wrapping out of its part. */
   :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side > :has(video.media-frame),
   :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side > .review-answer > :has(video.media-frame) {
-    min-height: 0;
+    flex: 1 1 0;
+    min-height: 302px;
+    width: 100%;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side > .review-answer:has(video.media-frame) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side .review-row:has(video.media-frame) {
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side .review-row > .review-part {
+    align-content: center;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side .review-row > .review-part:has(video.media-frame) {
+    width: auto;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side .review-part:has(video.media-frame) {
+    container-type: size;
+    align-content: center;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side .review-part:has(video.media-frame) .media.media-player {
+    width: min(100cqw, calc((100cqh - 54px) * 16 / 9));
+    gap: 4px;
+  }
+  :is(.main > .review.is-fit) > .review-card:has(> .review-body > .review-side) > .review-body > .review-side .review-part .media-player video.media-frame {
+    max-height: none;
   }
   /* A player's bar wider than the side column (a bar with many keycaps on a narrow window) wraps onto a second line
      rather than running out of the column. */
