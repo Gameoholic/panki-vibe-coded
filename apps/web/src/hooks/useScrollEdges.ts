@@ -39,9 +39,9 @@ export function useScrollEdges(box: RefObject<HTMLElement | null>, edges: RefObj
 }
 
 /**
- * Follows one box onto its bar until the returned stop. Where the box stands is read again whenever it, its parent or
- * its contents change size, its style or class changes, the window is resized or anything scrolls, and as the pointer
- * comes onto it.
+ * Follows one box onto its bar until the returned stop. Where the box stands is read again whenever it, its contents or
+ * any box it stands in change size, its style or class changes, the window is resized or anything scrolls, and as the
+ * pointer comes onto it; the bar is cut wherever a box round it cuts the box.
  */
 function follow(el: HTMLElement, bar: HTMLElement): () => void {
   const thumb = bar.firstElementChild instanceof HTMLElement ? bar.firstElementChild : null;
@@ -81,7 +81,7 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
     bar.style.top = `${top}px`;
     bar.style.left = `${left}px`;
     const at = el.getBoundingClientRect();
-    const landed = bar.getBoundingClientRect();
+    let landed = bar.getBoundingClientRect();
     const dy = at.top + el.clientTop - landed.top;
     const dx = at.left + el.clientLeft - landed.left;
     if (Math.abs(dy) > 0.5 || Math.abs(dx) > 0.5) {
@@ -89,7 +89,41 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
       left += dx;
       bar.style.top = `${top}px`;
       bar.style.left = `${left}px`;
+      landed = bar.getBoundingClientRect();
     }
+    cut(landed);
+  };
+  /**
+   * Cut where a box round it cuts the box: a box that clips (a fold on its way, a column that scrolls) clips only what
+   * its own containing block holds, and the overlay's may lie outside it, so its fades would stand over what's around.
+   * Nothing of it left, it's hidden.
+   */
+  const cut = (landed: DOMRect) => {
+    let top = landed.top;
+    let left = landed.left;
+    let bottom = landed.bottom;
+    let right = landed.right;
+    for (const a of chain) {
+      // The page's root and body hand their overflow to the window, which cuts everything anyway.
+      if (a === document.documentElement || a === document.body) continue;
+      const style = getComputedStyle(a);
+      const clipsY = style.overflowY !== "visible";
+      const clipsX = style.overflowX !== "visible";
+      if (!clipsY && !clipsX) continue;
+      const r = a.getBoundingClientRect();
+      if (clipsY) {
+        top = Math.max(top, r.top + a.clientTop);
+        bottom = Math.min(bottom, r.top + a.clientTop + a.clientHeight);
+      }
+      if (clipsX) {
+        left = Math.max(left, r.left + a.clientLeft);
+        right = Math.min(right, r.left + a.clientLeft + a.clientWidth);
+      }
+    }
+    const none = bottom - top < 1 || right - left < 1;
+    bar.style.visibility = none ? "hidden" : "";
+    const inset = [top - landed.top, landed.right - right, landed.bottom - bottom, left - landed.left].map((n) => Math.max(0, n));
+    bar.style.clipPath = inset.every((n) => n < 0.5) ? "" : `inset(${inset.map((n) => `${n}px`).join(" ")})`;
   };
   const soon = () => {
     if (!frame) frame = requestAnimationFrame(measure);
@@ -134,12 +168,16 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
   // A press on the thumb is the thumb's: the card or the chart under it doesn't take it as pressed.
   const onThumbClick = (e: MouseEvent) => e.stopPropagation();
 
+  // Every box it stands in, out through a shadow root to the page's root: whatever moves the box changes the size of
+  // one of them (something above it growing grows the box both stand in), and any of them may cut it.
+  let chain: Element[] = [];
   const sized = new ResizeObserver(soon);
   const watch = () => {
     sized.disconnect();
     sized.observe(el);
-    if (el.parentElement) sized.observe(el.parentElement);
     for (const child of el.children) sized.observe(child);
+    chain = ancestorsOf(el);
+    for (const a of chain) sized.observe(a);
   };
   watch();
   const changed = new MutationObserver((records) => {
@@ -176,5 +214,23 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
     window.removeEventListener("scroll", soon, { capture: true });
     delete el.dataset.scrollEdges;
     bar.classList.remove("is-over", "is-scrolling", "is-dragging");
+    bar.style.clipPath = "";
+    bar.style.visibility = "";
   };
+}
+
+/** The boxes an element stands in, innermost first, out through any shadow root (a closed one too) to the page's root. */
+function ancestorsOf(el: Element): Element[] {
+  const out: Element[] = [];
+  let at: Node | null = el.parentNode;
+  while (at) {
+    if (at instanceof ShadowRoot) {
+      at = at.host;
+      continue;
+    }
+    if (!(at instanceof Element)) break;
+    out.push(at);
+    at = at.parentNode;
+  }
+  return out;
 }
