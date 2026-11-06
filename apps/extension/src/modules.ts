@@ -237,7 +237,7 @@ export const Modules = z.object({
    */
   stageFull: z.boolean(),
   /**
-   * Whether F on a video's page is Theatre mode's key rather than the site's full screen (on to begin with): it enters
+   * Whether F on a video's page is Theatre mode's key rather than the site's full screen (off to begin with): it enters
    * Theatre wherever the panel's own Theatre button would, and leaves it as that button does; anywhere else (the panel
    * under the player, the site's own full screen) F stays the site's (`content/youtube.tsx` → `theatreKey`).
    */
@@ -297,7 +297,7 @@ export const DEFAULT_MODULES: Modules = {
   besideRecs: "above",
   stageSide: "right",
   stageFull: true,
-  stageKey: true,
+  stageKey: false,
   lookup: true,
   seek: true,
   resume: "offer",
