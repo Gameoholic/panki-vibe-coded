@@ -75,10 +75,20 @@ const CHROME_SHAPE = "review-chrome";
  */
 const CHROME_GUESS = 250;
 /**
- * How much of the window the review draws around its card, in px, as last measured on this device: the window's height
- * less this is the card's, which the Layout tab gives the card it lays out.
+ * The least a review's card stands on a computer (`.review-card`'s min-height in `app.css`). A measure that leaves the
+ * card less than this was taken of a card that wasn't drawn right (a broken build once wrote nearly the whole window),
+ * so it's neither kept nor believed: the Layout tab would give its card no height at all.
  */
-export const reviewChromeOf = (): number => shapeOf(CHROME_SHAPE, CHROME_GUESS);
+const CARD_LEAST = 320;
+/**
+ * How much of the window the review draws around its card, in px, as last measured on this device: the window's height
+ * less this is the card's, which the Layout tab gives the card it lays out. A kept value that leaves the card less than
+ * `CARD_LEAST` on this window reads as the guess.
+ */
+export const reviewChromeOf = (): number => {
+  const kept = shapeOf(CHROME_SHAPE, CHROME_GUESS);
+  return window.innerHeight - kept >= CARD_LEAST ? kept : CHROME_GUESS;
+};
 /** "Coming up" at the end: the days ahead each row covers. */
 const COMING_UP: readonly { label: string; days: number }[] = [
   { label: "Tomorrow", days: 1 },
@@ -1015,7 +1025,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     const el = fitted ? place.current?.querySelector<HTMLElement>(":scope > .review-card") : null;
     if (!el) return;
     const measure = () => {
-      if (window.matchMedia(FITS_FROM).matches) rememberShape(CHROME_SHAPE, window.innerHeight - el.getBoundingClientRect().height);
+      const height = el.getBoundingClientRect().height;
+      if (window.matchMedia(FITS_FROM).matches && height >= CARD_LEAST) rememberShape(CHROME_SHAPE, window.innerHeight - height);
     };
     measure();
     const watch = new ResizeObserver(measure);

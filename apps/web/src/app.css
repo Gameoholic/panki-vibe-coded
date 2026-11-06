@@ -4732,7 +4732,8 @@ mark.sub-blur {
      draws around its card as it last measured it here (`--review-chrome`, `ReviewView` → `reviewChromeOf`). Being laid
      out, it keeps room at each part's left for its grip, inside what scrolls, so a grip is never clipped. */
   .layout-frame {
-    height: calc(100dvh - var(--review-chrome));
+    /* Never less than a card's own least height, whatever was measured. */
+    height: max(320px, calc(100dvh - var(--review-chrome)));
     min-width: 0;
     display: flex;
     flex-direction: column;
