@@ -796,8 +796,8 @@ export function ReviewCard({
         <PlacePill type={srsType} place={place} />
       </StageTagSpot>
       {aiShown ? <AiSpark className={`review-ai-corner is-${sparkCorner}`} /> : null}
-      {/* The parts in one box, so a review that fits the window can scroll them inside the card (`.review-body`, app.css);
-          everywhere else the box draws nothing of its own. */}
+      {/* The parts in one box, so a review that fits the window or fills the screen can scroll them inside the card
+          (`.review-body`, app.css); everywhere else the box draws nothing of its own. */}
       <div className="review-body">{blocks}</div>
       {hint ? <div className="review-hint">Tap to reveal</div> : null}
     </div>

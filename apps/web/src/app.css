@@ -4463,10 +4463,41 @@ mark.sub-blur {
    their room on the front, so the clip is the same size on both sides. The chart, when it's open, hangs under all of
    that, the page scrolling down to it, so opening it moves nothing above. The parts stand in the card's body
    (`.review-body`, which draws nothing of its own anywhere else): a card too tall for the window scrolls there, inside
-   the card, as the full-screen rail does, so the buttons never move and the page never grows. On a phone the page
-   scrolls as it always did. */
+   the card, by the same rule as the full-screen rail's, so the buttons never move and the page never grows. On a phone
+   the page scrolls as it always did. */
 .review-body {
   display: contents;
+}
+/* The card's body in a review that fits the window and in one filling the screen alike. It takes the card's room and
+   scrolls inside it when the parts outgrow it (no bar: reached with the wheel or a finger), centred while they fit, so
+   the counts above and the buttons under the card stay where they are. It reaches 8 px into the card's padding and pads
+   it back, so its parts stand where they did while a spoiler's cover and a focus ring at its edge still have room
+   before it clips. Each block holds its card to its share (`flex: 1 1 0` and `min-height: 0`: at `auto` a flex item is
+   at least as tall as its content, so the body would never be held and never scroll) and gives it its own padding. A
+   clip filling the screen (`position: fixed`) and a clip placed by the card (`position: absolute`, the body never
+   positioned) are out of the body's reach: they neither scroll with it nor are clipped by it. */
+.main > .review:is(.is-fit, .is-stage) > .review-card > .review-body {
+  flex: 1 1 0;
+  min-height: 0;
+  align-self: stretch;
+  margin: -8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.main > .review:is(.is-fit, .is-stage) > .review-card > .review-body > * {
+  flex: none;
+}
+/* On a phone the page's review has no body of its own: its card grows with its parts and the page scrolls. */
+@media (max-width: 640px) {
+  .main > .review.is-fit > .review-card > .review-body {
+    display: contents;
+  }
 }
 @media (min-width: 641px) {
   .app:has(.main > .review.is-fit) {
@@ -4526,8 +4557,7 @@ mark.sub-blur {
     margin: 0;
     padding-bottom: 16px;
   }
-  /* The card never grows past its share: with `min-height: auto` a flex item is at least as tall as its content, so
-     the body inside it would never be held to the window and never scroll. */
+  /* The card held to its share, its body scrolling inside it (the rule above the block). */
   .main > .review.is-fit > .review-card {
     flex: 1 1 0;
     min-height: 0;
@@ -4535,26 +4565,6 @@ mark.sub-blur {
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-  /* The body takes the card's room and scrolls inside it when the parts outgrow it (no bar, as the rail: reached
-     with the wheel), centred while they fit. It reaches 8 px into the card's padding and pads it back, so its parts
-     stand where they did while a spoiler's cover and a focus ring at its edge still have room before it clips. */
-  .main > .review.is-fit > .review-card > .review-body {
-    flex: 1 1 0;
-    min-height: 0;
-    align-self: stretch;
-    margin: -8px;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: safe center;
-    gap: 6px;
-    overflow-y: auto;
-    scrollbar-width: none;
-  }
-  .main > .review.is-fit > .review-card > .review-body > * {
-    flex: none;
   }
   /* What holds the clip grows: its part, or the run of the back's parts or the row it's in, and then its part. */
   .main > .review.is-fit > .review-card > .review-body > :has(video.media-frame),
@@ -4663,10 +4673,13 @@ mark.sub-blur {
 /* A review filling the screen (hooks/useScreenStage.ts): the whole review is what fills it, so it stays filled as the
    cards change. The card's clip (`[data-staged]`, the first not under a spoiler) takes the screen's room at the left,
    fixed under everything else of the review, and the rest stands in a rail at the right. The rail fits the screen
-   whole, all of it on one page as it is at a lower zoom: wider on a wider screen, set
-   closer and a size smaller than the page's review, and with no scroll bar, a card that still runs over being reached
-   with the wheel. Closed, the clip is alone until the screen is next filled. A card without a clip fills the screen
-   as the review is. A clip only the back shows holds its room dark until the card is turned. */
+   whole, all of it on one page as it is at a lower zoom: wider on a wider screen, set closer and a size smaller than
+   the page's review. The card takes the room left between the counts above it and the buttons under it, never more,
+   and a card that still runs over scrolls inside itself, the counts and the buttons staying where they are: the same
+   body as the page's review, by one rule (above the page's block). Only when the counts and the buttons alone don't fit
+   does the rail itself scroll, with no bar. Closed, the clip is alone until the screen is next filled. A card without
+   a clip fills the screen as the review is, its card scrolling inside itself the same way. A clip only the back shows
+   holds its room dark until the card is turned. */
 .main > .review.is-stage {
   --stage-rail: clamp(360px, 28vw, 480px);
   display: flex;
@@ -4682,10 +4695,12 @@ mark.sub-blur {
   flex: none;
 }
 .main > .review.is-stage > .review-card {
-  flex: 1 0 auto;
+  flex: 1 1 0;
   min-height: 0;
   padding: 14px 12px;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .main > .review.is-stage > .review-top {
   flex-wrap: wrap;
