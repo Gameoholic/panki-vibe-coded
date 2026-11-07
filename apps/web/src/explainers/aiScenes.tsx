@@ -2,6 +2,7 @@ import { useId, useRef, useState, type CSSProperties, type ReactElement, type Re
 import {
   APP_LANGUAGES,
   DEFAULT_PANKI_AI,
+  NO_CONVERSATION,
   TRANSCRIBE_LANGUAGES,
   aiModelOf,
   answeredCall,
@@ -12,6 +13,7 @@ import {
   proofreadTokens,
   proofreadVerdicts,
   startCall,
+  startConversation,
   templatesOf,
   tokenCostMicros,
   type AiActionId,
@@ -26,16 +28,17 @@ import {
   type ProofreadLineAnswer,
   type Settings,
 } from "@panki/contracts";
-import { AnswerText, FollowUp, RUN_WORDS, TemplateMenu } from "../components/AiRun";
+import { AiConversation, type ChangeChip } from "../components/AiConversation";
+import { RUN_WORDS, TemplateMenu } from "../components/AiRun";
 import { AiStatus } from "../components/AiStatus";
 import { AiSpark, AiWaiting } from "../components/AiWaiting";
 import { Button } from "../components/Button";
 import { Stage, type Spot, type Tools } from "../components/Explainer";
 import { Icon } from "../components/Icon";
-import { JudgedRow } from "../components/JudgedRow";
+import { JudgedRow, meaningsChip } from "../components/JudgedRow";
 import { PitchAccent } from "../components/PitchAccent";
 import { TextField } from "../components/TextField";
-import { Tied, TouchUpBar, TouchUpButton, TouchUpCost, TouchUpTurns, fieldMarks, fieldShown, type TouchUpTurn } from "../components/TouchUp";
+import { Tied, TouchUpAll, TouchUpButton, TouchUpCost, fieldMarks, fieldShown } from "../components/TouchUp";
 import { useHoist } from "../hooks/useHoist";
 import { hmsWords } from "../words";
 import { EXAMPLE_ANSWERS, EXAMPLE_SENTENCE, EXAMPLE_TRANSCRIPT, IN_DECKS, type HeardPart } from "./examples";
@@ -43,8 +46,8 @@ import { WATCH, WATCHED, WatchPage } from "./site";
 
 /**
  * What Settings → Panki AI's explainers play (`components/Explainer.tsx`): each action at work on the video site, as the extension does it, made of the
- * same pieces (`AiStatus`, `JudgedRow`, `TemplateMenu`, `AnswerText`, `FollowUp`, `TouchUpButton`, `TouchUpBar`,
- * `TouchUpTurns`, `Tied`, `fieldShown`, `useHoist`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
+ * same pieces (`AiConversation`, `AiStatus`, `JudgedRow`, `TemplateMenu`, `TouchUpButton`, `TouchUpAll`, `Tied`,
+ * `fieldShown`, `useHoist`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
  * player, whose looks are the extension's alone, so the scene draws it in shapes of its own (`app.css` → `.ex-under`),
  * its menu of the app's menu rows. They play as the account has Panki AI set: its default
  * template's name on the button, what a run can cost on the model an admin set, shown as Show the cost when a run is
@@ -265,26 +268,33 @@ function ExplainScene({ ai, defaults, showCostOver }: SceneProps) {
                   ))}
                 </ol>
               </section>
-              <section className="ai-explain" aria-label="Panki AI">
-                <div className="ai-explain-start">
-                  <TemplateMenu id={id} rows={rows} defaultId={template.id} chosenId={template.id} disabled={false} onPick={nothing}>
-                    <Button className="ai-explain-button">
-                      <AiSpark />
-                      {template.name}
-                    </Button>
-                  </TemplateMenu>
-                  {beside ? <span className="btn-beside">{beside}</span> : null}
-                </div>
-                {calls.length > 0 ? <AiStatus calls={calls} burst={burst} /> : null}
-                {answered && ANSWER ? (
-                  <>
-                    <div className="ai-explain-turn">
-                      <AnswerText text={ANSWER.text} />
-                    </div>
-                    <FollowUp id={id} value="" disabled={false} beside={null} onChange={nothing} onAsk={nothing} />
-                  </>
-                ) : null}
-              </section>
+              <AiConversation
+                calls={calls}
+                burst={burst}
+                busy={calls.length > 0 && !answered}
+                before={
+                  <div className="ai-explain-start">
+                    <TemplateMenu id={id} rows={rows} defaultId={template.id} chosenId={template.id} disabled={false} onPick={nothing}>
+                      <Button className="ai-explain-button">
+                        <AiSpark />
+                        {template.name}
+                      </Button>
+                    </TemplateMenu>
+                    {beside ? <span className="btn-beside">{beside}</span> : null}
+                  </div>
+                }
+                failure={null}
+                onRunAgain={nothing}
+                conversation={answered && ANSWER ? startConversation({ id: 1, run: template.name, field: null, question: "", reply: ANSWER.text, said: [], changed: [ANSWER] }) : NO_CONVERSATION}
+                asking={calls.length > 0 && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
+                of={{
+                  chips: (made) => made.changed.map((each) => meaningsChip(each.meanings, each.proposedMeaning !== null, "live")),
+                  canRun: true,
+                  onRetry: nothing,
+                  onGo: nothing,
+                }}
+                foot={answered ? { id, asked: null, onCancel: nothing, follow: { value: "", disabled: false, beside: null, onChange: nothing, onAsk: nothing } } : null}
+              />
             </article>
           </PopupOver>
         ) : null}
@@ -377,25 +387,11 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
   /** The fields as the drawer orders them: those whose proposal waits at the top, sliding back once decided. */
   const hoist = useHoist(SCENE_FIELDS, answered ? (accepted ? ["explanation"] : ["sentence", "explanation"]) : []);
   /** The run as the head's conversation has it: its press, then what it changed, a chip a field. */
-  const rounds: TouchUpTurn[] =
-    calls.length === 0
-      ? []
-      : [
-          {
-            id: 1,
-            run: template.name,
-            question: "",
-            about: null,
-            reply: null,
-            failure: null,
-            changed: answered
-              ? [
-                  { id: "sentence", name: "Sentence", tone: "meh", state: accepted ? "accepted" : "live" },
-                  { id: "explanation", name: "Explanation", tone: "accent", state: "live" },
-                ]
-              : null,
-          },
-        ];
+  const changed: ChangeChip[] = [
+    { id: "sentence", name: "Sentence", tone: "meh", state: accepted ? "accepted" : "live" },
+    { id: "explanation", name: "Explanation", tone: "accent", state: "live" },
+  ];
+  const conversation = answered ? startConversation({ id: 1, run: template.name, field: null, question: "", reply: "", said: [], changed }) : NO_CONVERSATION;
   /** A field Touch up reworks: dimmed under the sweep while it thinks, then tied to what it says of it. */
   const touched = (shown: ReturnType<typeof fieldShown>, box: (labelEnd: ReactNode) => ReactNode) => {
     const inside = shown ? <Tied shown={shown}>{box}</Tied> : box(null);
@@ -455,9 +451,18 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
                     Add to {IN_DECKS.deck}
                   </Button>
                 </div>
-                <TouchUpBar calls={calls} busy={thinking} canRun pending={answered ? (accepted ? 1 : 2) : 0} failure={null} burst={0} onRun={nothing} onAcceptAll={nothing} onDismissAll={nothing}>
-                  <TouchUpTurns turns={rounds} canRun onRetry={nothing} onGo={hoist.go} />
-                </TouchUpBar>
+                <AiConversation
+                  className="field touch-up"
+                  calls={calls}
+                  burst={0}
+                  busy={thinking}
+                  failure={null}
+                  onRunAgain={nothing}
+                  tools={<TouchUpAll pending={answered ? (accepted ? 1 : 2) : 0} onAcceptAll={nothing} onDismissAll={nothing} />}
+                  conversation={conversation}
+                  asking={calls.length > 0 && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
+                  of={{ chips: (made) => made.changed, canRun: true, onRetry: nothing, onGo: hoist.go }}
+                />
                 {hoist.order.map((key) => (
                   <div key={key} className="capture-field" data-hoist={key}>
                     {fields[key]}

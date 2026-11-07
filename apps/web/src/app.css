@@ -7530,7 +7530,7 @@ mark.sub-blur {
   display: grid;
 }
 .touch-up-tied.is-accent,
-.touch-up-chip.is-accent,
+.ai-chip.is-accent,
 .touch-up-d.is-accent {
   --accuracy: var(--accent);
 }
@@ -7590,9 +7590,10 @@ mark.sub-blur {
   border-radius: 10px;
   background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
 }
-/* Touch up's conversation (TouchUp.tsx → `TouchUpTurns`): a bubble stands out from the box it's in, the head's
-   second surface or a field's tinted note. The run's round is its press, the spark and the template's name; a
-   follow-up asked from a field has the forward sign and the field's name at its head, quiet, pressed to go there. */
+/* Every action's conversation (AiConversation.tsx): a bubble stands out from the box it's in, Touch up's head's
+   second surface or a field's tinted note (the pop-up's own surface for Explain). The run is its press, the spark and
+   the template's name; a branch's follow-up has the forward sign and the field's name at its head, quiet, pressed to
+   go there. */
 .touch-up .ai-explain-question {
   background: var(--surface);
 }
@@ -7611,7 +7612,7 @@ mark.sub-blur {
   height: 14px;
   color: var(--accent);
 }
-.btn.touch-up-about {
+.btn.ai-about {
   justify-self: end;
   gap: 2px;
   margin-bottom: -4px;
@@ -7622,20 +7623,20 @@ mark.sub-blur {
   font-weight: 600;
   color: var(--muted);
 }
-.btn.touch-up-about > .icon {
+.btn.ai-about > .icon {
   width: 12px;
   height: 12px;
   stroke-width: 2.25;
 }
 @media (hover: hover) {
-  .btn.touch-up-about:hover {
+  .btn.ai-about:hover {
     background: transparent;
     color: var(--fg);
   }
 }
-/* What a round changed (TouchUp.tsx → `Changed`): "Changed:" in the muted words, then a chip a field, a dot in its
-   proposal's colour while it waits, a tick once accepted, a hollow dot once dismissed or replaced. */
-.touch-up-changed {
+/* What a reply changed (AiConversation.tsx → `Changed`): "Changed:" in the muted words, then a chip each, a dot in its
+   colour while it stands, a tick once accepted, a hollow dot once dismissed or replaced. */
+.ai-changed {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -7644,7 +7645,7 @@ mark.sub-blur {
   font-size: 12.5px;
   color: var(--muted);
 }
-.btn.touch-up-chip {
+.btn.ai-chip {
   gap: 6px;
   padding: 2px 9px 2px 8px;
   background: var(--surface);
@@ -7653,35 +7654,35 @@ mark.sub-blur {
   color: var(--fg);
 }
 @media (hover: hover) {
-  .btn.touch-up-chip:hover {
+  .btn.ai-chip:hover {
     border-color: var(--accuracy);
     background: color-mix(in srgb, var(--accuracy) 10%, var(--surface));
   }
 }
-.touch-up-chip-dot {
+.ai-chip-dot {
   flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--accuracy);
 }
-.btn.touch-up-chip > .icon {
+.btn.ai-chip > .icon {
   width: 12px;
   height: 12px;
   stroke-width: 2.5;
   color: var(--good);
 }
-.btn.touch-up-chip:is(.is-accepted, .is-dismissed, .is-replaced) {
+.btn.ai-chip:is(.is-accepted, .is-dismissed, .is-replaced) {
   color: var(--muted);
 }
-.btn.touch-up-chip:is(.is-dismissed, .is-replaced) .touch-up-chip-dot {
+.btn.ai-chip:is(.is-dismissed, .is-replaced) .ai-chip-dot {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--line-strong);
 }
-/* A merged branch's questions that changed nothing, in the head (TouchUp.tsx → `FoldedTurns`): one quiet line in the
-   muted words with the chevron, pressed to open them where they stand; and the line under a field whose branch was
-   reset (`TouchUpTurns`' `startedAgain`), muted, nothing to press. */
-.btn.touch-up-folded {
+/* A merged branch's questions that changed nothing, in the head (AiConversation.tsx → `FoldedTurns`): one quiet line in
+   the muted words with the chevron, pressed to open them where they stand; and the line under a field whose branch was
+   reset (`ConversationTurns`), muted, nothing to press. */
+.btn.ai-folded {
   justify-self: end;
   gap: 4px;
   padding: 0 4px;
@@ -7691,40 +7692,40 @@ mark.sub-blur {
   font-weight: 600;
   color: var(--muted);
 }
-.btn.touch-up-folded > .icon {
+.btn.ai-folded > .icon {
   width: 13px;
   height: 13px;
   transition: transform 0.15s ease;
 }
-.btn.touch-up-folded.is-open > .icon {
+.btn.ai-folded.is-open > .icon {
   transform: rotate(180deg);
 }
 @media (hover: hover) {
-  .btn.touch-up-folded:hover {
+  .btn.ai-folded:hover {
     background: transparent;
     color: var(--fg);
   }
 }
-.touch-up-folded-turns {
+.ai-folded-turns {
   display: grid;
   gap: 12px;
 }
-/* A branch merged into main, in the head (TouchUp.tsx → `MergedBranch`): its field's mark once at the top right, then
-   the branch's commits beside a thin rule down the right edge, the side its questions stand on, in the muted line colour. */
-.touch-up-merged {
+/* A branch merged into main, in the head (AiConversation.tsx → `MergedBranch`): its field's mark once at the top right,
+   then the branch's commits beside a thin rule down the right edge, the side its questions stand on, in the muted line colour. */
+.ai-merged {
   display: grid;
   gap: 8px;
 }
-.touch-up-merged > .btn.touch-up-about {
+.ai-merged > .btn.ai-about {
   margin-bottom: 0;
 }
-.touch-up-branch {
+.ai-branch {
   display: grid;
   gap: 12px;
   padding-right: 10px;
   border-right: 2px solid var(--line-strong);
 }
-.touch-up-again {
+.ai-again {
   margin: 0;
   font-size: 12.5px;
   color: var(--muted);
@@ -7764,14 +7765,14 @@ mark.sub-blur {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
   }
 }
-/* A follow-up on its way: the spark turning under its question, where the reply will stand (TouchUp.tsx → `TouchUpTurns`). */
-.touch-up-answering {
+/* A question on its way: the spark turning under it, where the reply will stand (AiConversation.tsx → `Turn`). */
+.ai-answering {
   display: flex;
   align-items: center;
   min-height: 22px;
   color: var(--accent);
 }
-.touch-up-answering > .ai-spark {
+.ai-answering > .ai-spark {
   width: 18px;
   height: 18px;
 }

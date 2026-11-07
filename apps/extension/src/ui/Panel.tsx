@@ -15,7 +15,6 @@ import {
   answeredCall,
   apartOf,
   bareOf,
-  branchOf,
   cardPiece,
   cardProblems,
   commit,
@@ -27,7 +26,6 @@ import {
   failedCall,
   historyOf,
   isTyped,
-  mainRuns,
   mapCommits,
   meaningsPiece,
   fieldVerdictOf,
@@ -64,7 +62,7 @@ import {
   type ValueSource,
   type ValueSources,
 } from "@panki/contracts";
-import { FollowUp, RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
+import { RUN_WORDS, RunAsk, TemplateMenu, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
@@ -81,10 +79,9 @@ import {
   UnmarkAi,
   TOUCH_UP_WORDS,
   Tied,
-  TouchUpBar,
+  TouchUpAll,
   TouchUpButton,
   TouchUpCost,
-  TouchUpTurns,
   fieldMarks,
   fieldShown,
   meaningShown,
@@ -92,11 +89,18 @@ import {
   proposes,
   touchUpReason,
   touchUpVerdicts,
-  type ChipState,
   type Shown,
-  type Tone,
-  type TouchUpTurn,
 } from "@web/components/TouchUp";
+import {
+  AiConversation,
+  CONVERSATION_WORDS,
+  ConversationTurns,
+  type Asking,
+  type ChipState,
+  type ConversationFoot,
+  type ConversationOf,
+  type Tone,
+} from "@web/components/AiConversation";
 import { FIELD_KINDS } from "@web/fieldKinds";
 import { useCalled } from "@web/hooks/useCalled";
 import { useHoist } from "@web/hooks/useHoist";
@@ -239,11 +243,6 @@ const NO_TOUCH: Touch = {
 };
 /** A proposal a commit made, kept with the commit: its key, the colour it was drawn in, and how it was decided, once it was. */
 type Change = { key: TouchUpKey; tone: Tone; decided?: "accepted" | "dismissed" };
-/**
- * A question on its way, not yet a commit: the run (`run`, its template's name) or a follow-up asked under the head
- * (`field` null) or under a field (its id); `failure` once it failed, so it stands with Try again until the next is asked.
- */
-type Asking = { id: number; run: string | null; field: string | null; question: string; failure: { message: string; retry: boolean } | null };
 /** The Conversation with a key's proposal decided, on the latest commit that proposed for it. */
 function settled(conversation: Conversation<Change>, key: TouchUpKey, how: "accepted" | "dismissed"): Conversation<Change> {
   const latest = commitsOf(conversation)
@@ -1041,76 +1040,60 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return latest?.id === made.id && waiting(change.key) ? "live" : "replaced";
   }
   /**
-   * A commit as it's drawn, or the question on its way: the field it was asked under by name where `marked` (in the
-   * head: a merged branch's commit), what it changed as a chip a field in the card type's order.
+   * Touch up's part of its conversation (`AiConversation`, every action's drawing): what a commit changed, a chip a
+   * field in the card type's order, the dot in its proposal's colour; a branch's field by name; a chip or a mark
+   * pressed going to the field (`useHoist`'s `go`); Try again asking a failed follow-up again from where it was asked.
    */
-  function turnOf(made: Commit<Change> | Asking, marked: boolean): TouchUpTurn {
-    const fields = type?.fields ?? [];
-    const asked = !marked || made.field === null ? undefined : fields.find((f) => f.id === made.field);
-    const place = (fieldId: string) => fields.findIndex((f) => f.id === fieldId);
-    const about = asked ? { id: asked.id, name: asked.name } : null;
-    if ("failure" in made) return { id: made.id, run: made.run, question: made.question, about, reply: null, failure: made.failure, changed: null };
-    return {
-      id: made.id,
-      run: made.run,
-      question: made.question,
-      about,
-      reply: made.reply,
-      failure: null,
-      changed: made.changed
+  const touchOf: ConversationOf<Change> = {
+    chips: (made) => {
+      const fields = type?.fields ?? [];
+      const place = (fieldId: string) => fields.findIndex((f) => f.id === fieldId);
+      return made.changed
         .flatMap((change) => {
           const field = keyField(change.key);
           return field ? [{ id: field.id, name: field.name, tone: change.tone, state: chipState(made, change) }] : [];
         })
-        .sort((a, b) => place(a.id) - place(b.id)),
-    };
-  }
-  /** A follow-up asked again after it failed: the same question, from where it was asked. */
-  function retryRound(id: number) {
-    const failed = touch.asking;
-    if (failed && failed.id === id && failed.run === null) pressFollowUp(failed.field, failed.question, { kind: "retry" });
-  }
+        .sort((a, b) => place(a.id) - place(b.id));
+    },
+    fieldName: (fieldId) => type?.fields.find((f) => f.id === fieldId)?.name ?? null,
+    canRun: canTouch && touch.busy === false,
+    onRetry: (failed: Asking) => {
+      if (failed.run === null) pressFollowUp(failed.field, failed.question, { kind: "retry" });
+    },
+    // `hoist` is made further down, from what waits: read at the press.
+    onGo: (fieldId) => hoist.go(fieldId),
+  };
   /**
-   * What stands where follow-ups are asked: under the head, main (the run first, each commit a merge brought marked with
-   * its field and the ones of its branch that changed nothing folded before it); under a field, its branch's commits,
-   * after "Started again from the latest changes" while it was reset since a question was last asked there. Then the
-   * question on its way or failed, where it was asked; the question before one over Ask before a run over; and the next
-   * one to ask, folded to its quiet line until it's pressed. The box isn't there while a call is out: the spark under
-   * the question is the wait.
+   * Where follow-ups are asked, under the head (main) or a field (its branch): the question before one over Ask before
+   * a run over, and the next one to ask, folded to its quiet line until it's pressed; none before the run has answered.
+   * The box isn't there while a call is out: the spark under the question is the wait.
    */
-  function followBlock(fieldId: string | null): ReactNode {
+  function footOf(fieldId: string | null): ConversationFoot | null {
+    if (touch.answer === null || touch.template === null) return null;
     const where = fieldId === null ? BAR : whereOf(fieldId);
     const typed = follows[where] ?? { text: "" };
-    const asking = touch.asking !== null && touch.asking.field === fieldId ? [turnOf(touch.asking, false)] : [];
-    const branch = fieldId === null ? null : branchOf(touch.conversation, fieldId);
-    const here =
-      branch === null
-        ? mainRuns(touch.conversation).map(({ commit: made, folded }) => ({ ...turnOf(made, true), folded: folded.map((each) => turnOf(each, false)) }))
-        : branch.commits.map((each) => turnOf(each, false));
-    const rounds = (
-      <TouchUpTurns turns={[...here, ...asking]} startedAgain={branch !== null && branch.reset && asking.length === 0} canRun={canTouch && touch.busy === false} onRetry={retryRound} onGo={hoist.go} />
-    );
-    if (touch.answer === null || touch.template === null) return rounds;
-    return (
-      <>
-        {rounds}
-        <RunAsk id={`panki-${where.replace(":", "-")}`} asked={touchGate.at(where)} onCancel={touchGate.cancel} />
-        {canFollow ? (
-          <FollowUp
-            id={`panki-follow-${where.replace(":", "-")}`}
-            nested
-            folded
-            small={fieldId !== null}
-            value={typed.text}
-            error={typed.error}
-            disabled={busy}
-            beside={RUN_WORDS.upTo(followCeiling(fieldId, typed.text.trim()), showCostOver)}
-            onChange={(text) => setFollows((was) => ({ ...was, [where]: { text } }))}
-            onAsk={() => askFollow(fieldId)}
-          />
-        ) : null}
-      </>
-    );
+    const id = where.replace(":", "-");
+    return {
+      id: `panki-follow-${id}`,
+      asked: touchGate.at(where),
+      onCancel: touchGate.cancel,
+      follow: canFollow
+        ? {
+            nested: true,
+            small: fieldId !== null,
+            value: typed.text,
+            error: typed.error,
+            disabled: busy,
+            beside: RUN_WORDS.upTo(followCeiling(fieldId, typed.text.trim()), showCostOver),
+            onChange: (text) => setFollows((was) => ({ ...was, [where]: { text } })),
+            onAsk: () => askFollow(fieldId),
+          }
+        : null,
+    };
+  }
+  /** What stands under a field where its follow-ups are asked: its branch, the question on its way there, and its foot. */
+  function followBlock(fieldId: string): ReactNode {
+    return <ConversationTurns conversation={touch.conversation} asking={touch.asking} where={fieldId} of={touchOf} foot={footOf(fieldId)} />;
   }
 
   const lastCall = touch.calls[touch.calls.length - 1];
@@ -1291,7 +1274,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const reworked = (fieldId: string | null, inside: ReactNode): ReactNode => {
     if (fieldId === null || keyOfField(fieldId) === null) return inside;
     if (touch.busy === "run") return <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting>;
-    if (followingField === fieldId) return <AiWaiting label={TOUCH_UP_WORDS.answering}>{inside}</AiWaiting>;
+    if (followingField === fieldId) return <AiWaiting label={CONVERSATION_WORDS.answering}>{inside}</AiWaiting>;
     return inside;
   };
   /** The mark after a field's name: the spark while the AI's words stand in it. */
@@ -2149,19 +2132,19 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         <RunAsk id="panki-touch-up" asked={touchGate.at(RUN)} onCancel={touchGate.cancel} />
         {/* Touch up once it has run, under the buttons: its head, Accept all and Dismiss all (AI step 3), then its follow-ups (step 5). */}
         {touchKeys.length > 0 ? (
-          <TouchUpBar
+          <AiConversation
+            className="field touch-up"
             calls={touch.calls}
-            busy={still}
-            canRun={canTouch}
-            pending={pendingKeys.length}
-            failure={touch.failure}
             burst={touch.calls.length - touch.runs}
-            onRun={() => pressTouchUp(touch.template ?? touchPreferred, { kind: "retry" })}
-            onAcceptAll={acceptAll}
-            onDismissAll={dismissAll}
-          >
-            {followBlock(null)}
-          </TouchUpBar>
+            busy={still}
+            failure={touch.failure}
+            onRunAgain={() => pressTouchUp(touch.template ?? touchPreferred, { kind: "retry" })}
+            tools={<TouchUpAll pending={pendingKeys.length} onAcceptAll={acceptAll} onDismissAll={dismissAll} />}
+            conversation={touch.conversation}
+            asking={touch.asking}
+            of={touchOf}
+            foot={footOf(null)}
+          />
         ) : null}
       </>
     );

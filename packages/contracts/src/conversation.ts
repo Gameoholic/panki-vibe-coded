@@ -1,9 +1,10 @@
 import type { ExplainMessage } from "./prompt";
 
 /**
- * Touch up's Conversation: **main** and **a branch per field**. Everything that's sent with a follow-up, and where each
- * question and reply is drawn in the capture drawer, follows from these few rules; this file is their one home, and
- * `docs/AI.md` (step 5, "The Conversation: main and a branch per field") says the same in the same words.
+ * Every Panki AI action's Conversation: **main** and, for Touch up alone, **a branch per field**. Everything that's sent
+ * with a follow-up, and where each question and reply is drawn (the web's `AiConversation`, every action's), follows
+ * from these few rules; this file is their one home, and `docs/AI.md` (step 5, "The Conversation: main and a branch per
+ * field") says the same in the same words. An action without branches (Explain) uses main alone.
  *
  * - **main** is the head's conversation. Every turn is a **commit**: a question and its reply. The run is main's first
  *   commit. A follow-up asked under the head is always a commit on main, whether it changed fields or not.
@@ -40,6 +41,8 @@ export type Commit<C> = {
   said: readonly ExplainMessage[];
   /** The fields its reply changed, each once; empty for a reply that changed nothing. */
   changed: readonly C[];
+  /** Its reply stopped at Max answer length, kept as it came: Panki says so under it. Only an action that keeps a cut reply (Explain) sets it. */
+  cut?: boolean;
 };
 
 /** A field's branch: the commit of main it stands on, its own commits, and whether it was reset since a question was last asked there. */

@@ -215,7 +215,7 @@ export function TemplateMenu({ id, rows, defaultId, chosenId, disabled, onPick, 
   );
 }
 
-type FollowUpProps = {
+export type FollowUpProps = {
   id: string;
   value: string;
   error?: string | undefined;

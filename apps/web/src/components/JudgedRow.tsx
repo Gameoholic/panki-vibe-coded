@@ -1,8 +1,22 @@
 import { useState, type ReactNode } from "react";
 import { ACCURACY_NAMES, type MeaningAccuracyId } from "@panki/contracts";
+import type { ChangeChip, ChipState } from "./AiConversation";
 import { Button } from "./Button";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
+
+/** Where the chip of an answer that judged the meanings goes when pressed: the meanings themselves. */
+export const MEANINGS_CHIP = "meanings";
+/**
+ * What an answer that judged the meanings changed, as its conversation's chip (`AiConversation`): "Meanings", its dot in
+ * how they came out (green when one fits, the accent for a meaning Panki AI proposes, orange when the best is close,
+ * red when none fits), standing while they're lit as it judged them and replaced once a later answer judged them again.
+ * Explain's in the pop-up, and its explainer's.
+ */
+export function meaningsChip(rows: readonly { accuracy: MeaningAccuracyId }[], proposed: boolean, state: ChipState): ChangeChip {
+  const tone = rows.some((row) => row.accuracy === "fits") ? "good" : proposed ? "accent" : rows.some((row) => row.accuracy === "close") ? "meh" : "bad";
+  return { id: MEANINGS_CHIP, name: "Meanings", tone, state };
+}
 
 /**
  * The chevron that unfolds a reason under what it's beside (`.judged-why`), turned over while it's open, in the
