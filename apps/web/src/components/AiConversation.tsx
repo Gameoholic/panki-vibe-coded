@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode, type Ref } from "react";
+import { Fragment, useEffect, useState, type ReactNode, type Ref } from "react";
 import { LOOK_OF, branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
 import { wordFor } from "../words";
 import { AnswerText, FollowUp, RunAsk, type Asked, type FollowUpProps } from "./AiRun";
@@ -29,6 +29,11 @@ export const CONVERSATION_WORDS = {
   changedNothing: "Changed nothing",
   /** The line a merged branch's questions that changed nothing are folded under, in the head. */
   foldedNothing: (n: number) => `${n} ${wordFor(n, "question", "questions")} · Changed nothing`,
+  /** The line main's conversation folds under, by what a press does. */
+  hide: "Hide conversation",
+  show: "Show conversation",
+  /** The line a field's branch folds under. */
+  followUps: (n: number) => `${n} ${wordFor(n, "follow-up", "follow-ups")}`,
 };
 
 /**
@@ -236,7 +241,8 @@ type PlaceProps<C> = {
 /**
  * One place of the conversation: main (the run first, each commit a merge brought as its branch's block, the ones of
  * its branch that changed nothing folded inside it) or a field's branch (its commits, nothing of them once it was reset); then the question on its way or failed,
- * where it was asked; then its foot. `AiConversation` draws main with it; Touch up draws each field's under the field.
+ * where it was asked, all of it folding under one quiet line (main's "Hide conversation" / "Show conversation" once
+ * there's more than the run, its chips folding with it; a branch's "2 follow-ups"); then its foot, never folded. `AiConversation` draws main with it; Touch up draws each field's under the field.
  */
 export function ConversationTurns<C>({ conversation, asking, where, of, foot = null }: PlaceProps<C>) {
   const branch = where === null ? null : branchOf(conversation, where);
@@ -252,17 +258,39 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
       if (asking !== null && asking.id === turn.id) of.onRetry(asking);
     },
   };
+  const turns = [...here, ...waiting];
+  /** Folded by its line, while this drawer or pop-up is open; open to begin with, and again as a question is asked here. */
+  const [open, setOpen] = useState(true);
+  const askedHere = waiting[0]?.id ?? null;
+  useEffect(() => {
+    if (askedHere !== null) setOpen(true);
+  }, [askedHere]);
+  // Main folds once there's more than the run to fold; a field's branch from its first question.
+  const folds = turns.length >= (where === null ? 2 : 1);
+  const drawn = turns.map((turn) =>
+    turn.run === null && turn.about !== null ? (
+      <MergedBranch key={turn.id} turn={turn} about={turn.about} {...rest} />
+    ) : (
+      <Fragment key={turn.id}>
+        {turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
+        <Turn turn={turn} {...rest} />
+      </Fragment>
+    ),
+  );
   return (
     <>
-      {[...here, ...waiting].map((turn) =>
-        turn.run === null && turn.about !== null ? (
-          <MergedBranch key={turn.id} turn={turn} about={turn.about} {...rest} />
-        ) : (
-          <Fragment key={turn.id}>
-            {turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
-            <Turn turn={turn} {...rest} />
-          </Fragment>
-        ),
+      {folds ? (
+        <>
+          <Button className={`ai-folded${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+            {where === null ? (open ? CONVERSATION_WORDS.hide : CONVERSATION_WORDS.show) : CONVERSATION_WORDS.followUps(turns.length)}
+            <Icon name="down" />
+          </Button>
+          <Fold open={open} arrives={false}>
+            <div className={`ai-turns${where === null ? "" : " is-branch"}`}>{drawn}</div>
+          </Fold>
+        </>
+      ) : (
+        drawn
       )}
       {foot ? (
         <>

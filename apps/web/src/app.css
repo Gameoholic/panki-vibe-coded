@@ -7692,6 +7692,15 @@ mark.sub-blur {
   display: grid;
   gap: 12px;
 }
+/* A place's whole conversation, folded under its line (AiConversation.tsx → `ConversationTurns`): the gap its box has,
+   main's in the head, a branch's under its field. */
+.ai-turns {
+  display: grid;
+  gap: 10px;
+}
+.ai-turns.is-branch {
+  gap: 8px;
+}
 /* A branch merged into main, in the head (AiConversation.tsx → `MergedBranch`): its field's mark once at the top right,
    then the branch's commits beside a thin rule down the right edge, the side its questions stand on, in the muted line colour. */
 .ai-merged {
