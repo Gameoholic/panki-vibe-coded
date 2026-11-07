@@ -69,6 +69,8 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [asking, setAsking] = useState(false);
   /** The field whose Delete is asking first (taking something away is confirmed), if one is. */
   const [deleting, setDeleting] = useState<string | null>(null);
+  const fieldDeleteAt = useRef<HTMLButtonElement>(null);
+  const typeDeleteAt = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!focusId) return;
@@ -265,7 +267,14 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                   <Button className="btn-icon field-grip" aria-label="Move" disabled={fields.length === 1} {...order.handleProps(i)}>
                     <Icon name="grip" />
                   </Button>
-                  <Button className="is-danger" aria-pressed={deleting === field.id} disabled={fields.length === 1} onClick={() => setDeleting((was) => (was === field.id ? null : field.id))}>
+                  <Button
+                    ref={deleting === field.id ? fieldDeleteAt : undefined}
+                    className="is-danger"
+                    aria-pressed={deleting === field.id}
+                    aria-expanded={deleting === field.id}
+                    disabled={fields.length === 1}
+                    onClick={() => setDeleting((was) => (was === field.id ? null : field.id))}
+                  >
                     <Icon name="trash" />
                     Delete
                   </Button>
@@ -274,6 +283,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                 {deleting === field.id ? (
                   <Ask
                     idPrefix={`field-delete-${field.id}`}
+                    anchor={fieldDeleteAt}
                     question={`Delete the “${fieldLabel(field)}” field?`}
                     go={{ words: "Delete field", busy: "Deleting…" }}
                     busy={false}
@@ -312,13 +322,30 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
       </Form>
 
       {type ? (
-        <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="type-delete-title">
+        <section className="panel" aria-labelledby="type-delete-title">
           <h2 id="type-delete-title" className="panel-title">
             Delete this type
           </h2>
+          {/* Always there; greyed while a deck uses it, why beside it: the app's way for a button that can't run. */}
+          <div className="add-actions add-actions-start">
+            <Button
+              ref={typeDeleteAt}
+              id="type-delete"
+              className="is-danger"
+              aria-pressed={asking}
+              aria-expanded={asking}
+              disabled={type.deckCount > 0}
+              onClick={() => setAsking(!asking)}
+            >
+              <Icon name="trash" />
+              Delete type…
+            </Button>
+            {type.deckCount > 0 ? <span className="btn-beside">Used by {count(type.deckCount, "deck", "decks")}.</span> : null}
+          </div>
           {asking && type.deckCount === 0 ? (
             <Ask
               idPrefix="type-delete"
+              anchor={typeDeleteAt}
               question={`Delete “${type.name}”?`}
               go={{ words: "Delete type", busy: "Deleting…" }}
               busy={busy}
@@ -326,16 +353,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
               onKeep={() => setAsking(false)}
               onGo={() => void remove()}
             />
-          ) : (
-            // Always there; greyed while a deck uses it, why beside it: the app's way for a button that can't run.
-            <div className="add-actions add-actions-start">
-              <Button id="type-delete" className="is-danger" disabled={type.deckCount > 0} onClick={() => setAsking(true)}>
-                <Icon name="trash" />
-                Delete type…
-              </Button>
-              {type.deckCount > 0 ? <span className="btn-beside">Used by {count(type.deckCount, "deck", "decks")}.</span> : null}
-            </div>
-          )}
+          ) : null}
         </section>
       ) : null}
     </>

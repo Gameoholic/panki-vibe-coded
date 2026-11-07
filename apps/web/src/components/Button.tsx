@@ -1,6 +1,8 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** The button itself, for what hangs from it (`Ask`'s `anchor`). */
+  ref?: Ref<HTMLButtonElement>;
   /**
    * `row` is a full-width list row you can press, like a deck in the list.
    * `tab` is one of the fixed places in the bar (Home, Settings); lit by `aria-current="page"`.

@@ -220,8 +220,9 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
   const [importing, setImporting] = useState<{ name: string; phase: "fetch" | "import"; progress: Progress | null } | null>(null);
   /** What went wrong, one line each: every file of an import that didn't go in says why, not only the last. */
   const [failures, setFailures] = useState<readonly string[]>([]);
-  /** The dictionary whose Delete was pressed: the question stands in its row. */
+  /** The dictionary whose Delete was pressed: the question hangs from it, its row tinted. */
   const [asking, setAsking] = useState<string | null>(null);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   /** The dictionary being cleared away, gone from the list already. */
   const [clearing, setClearing] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -419,8 +420,10 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
                   }}
                 />
                 <Button
+                  ref={asking === dictionary.id ? deleteAt : undefined}
                   className="is-danger"
                   aria-pressed={asking === dictionary.id}
+                  aria-expanded={asking === dictionary.id}
                   disabled={importing !== null || clearing !== null}
                   onClick={() => setAsking(asking === dictionary.id ? null : dictionary.id)}
                 >
@@ -429,17 +432,16 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
                 </Button>
               </div>
               {asking === dictionary.id ? (
-                <div className="dict-ask">
-                  <Ask
-                    idPrefix={`dict-${dictionary.id}-delete`}
-                    question={`Delete “${shownName(dictionary)}” from this browser?`}
-                    go={{ words: "Delete dictionary", busy: "Deleting…" }}
-                    busy={clearing !== null}
-                    failure={null}
-                    onKeep={() => setAsking(null)}
-                    onGo={() => void remove(dictionary)}
-                  />
-                </div>
+                <Ask
+                  idPrefix={`dict-${dictionary.id}-delete`}
+                  anchor={deleteAt}
+                  question={`Delete “${shownName(dictionary)}” from this browser?`}
+                  go={{ words: "Delete dictionary", busy: "Deleting…" }}
+                  busy={clearing !== null}
+                  failure={null}
+                  onKeep={() => setAsking(null)}
+                  onGo={() => void remove(dictionary)}
+                />
               ) : null}
             </div>
           ))}

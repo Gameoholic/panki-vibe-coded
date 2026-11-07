@@ -228,6 +228,7 @@ function DataTrackingPanel() {
   const [devices, setDevices] = useState<TrackingDevice[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const forgetAt = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -270,7 +271,7 @@ function DataTrackingPanel() {
 
   const kept = history !== null && history.videos > 0;
   return (
-    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="data-tracking-title">
+    <section className="panel" aria-labelledby="data-tracking-title">
       <h2 id="data-tracking-title" className="panel-title">
         Data tracking
       </h2>
@@ -300,10 +301,23 @@ function DataTrackingPanel() {
       ) : failure ? null : (
         <Skeleton shape="lines" count={1} />
       )}
+      <div className="add-actions add-actions-start">
+        {failure && !asking ? (
+          <span className="form-failure" role="alert">
+            {failure}
+          </span>
+        ) : null}
+        <Button ref={forgetAt} id="watch-forget" className="is-danger" aria-pressed={asking} aria-expanded={asking} disabled={!kept} onClick={() => setAsking(!asking)}>
+          <Icon name="trash" />
+          Forget my watch history…
+        </Button>
+      </div>
       {asking ? (
         <Ask
           idPrefix="watch-forget"
-          question="Forget your watch history? Your watch time and Continue watching start again from nothing."
+          anchor={forgetAt}
+          question="Forget your watch history?"
+          detail="Your watch time and Continue watching start again from nothing."
           typed="I understand"
           go={{ words: "Forget history", busy: "Forgetting…" }}
           busy={busy}
@@ -311,19 +325,7 @@ function DataTrackingPanel() {
           onKeep={() => setAsking(false)}
           onGo={() => void forget()}
         />
-      ) : (
-        <div className="add-actions add-actions-start">
-          {failure ? (
-            <span className="form-failure" role="alert">
-              {failure}
-            </span>
-          ) : null}
-          <Button id="watch-forget" className="is-danger" disabled={!kept} onClick={() => setAsking(true)}>
-            <Icon name="trash" />
-            Forget my watch history…
-          </Button>
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -381,6 +383,7 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
   useEffect(() => setShown(false), [saved]);
   /** Forget key asking first. */
   const [forgetting, setForgetting] = useState(false);
+  const forgetAt = useRef<HTMLButtonElement>(null);
 
   async function keep(next: string | null) {
     setBusy(true);
@@ -432,7 +435,7 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
             Save key
           </Button>
           {status === "settings" ? (
-            <Button id={`${id}-forget`} className="is-danger" aria-pressed={forgetting} disabled={busy} onClick={() => setForgetting((was) => !was)}>
+            <Button ref={forgetAt} id={`${id}-forget`} className="is-danger" aria-pressed={forgetting} aria-expanded={forgetting} disabled={busy} onClick={() => setForgetting((was) => !was)}>
               <Icon name="trash" />
               Forget key
             </Button>
@@ -440,17 +443,16 @@ function KeyPanel({ id, title, from, label, status, saved, schema, onSave, child
         </div>
       </Form>
       {forgetting && status === "settings" ? (
-        <div className="ask-box">
-          <Ask
-            idPrefix={`${id}-forget`}
-            question="Forget this key?"
-            go={{ words: "Forget key", busy: "Forgetting…" }}
-            busy={busy}
-            failure={null}
-            onKeep={() => setForgetting(false)}
-            onGo={() => void keep(null)}
-          />
-        </div>
+        <Ask
+          idPrefix={`${id}-forget`}
+          anchor={forgetAt}
+          question="Forget this key?"
+          go={{ words: "Forget key", busy: "Forgetting…" }}
+          busy={busy}
+          failure={null}
+          onKeep={() => setForgetting(false)}
+          onGo={() => void keep(null)}
+        />
       ) : null}
       {status !== undefined ? (
         <p className="setting-why">
@@ -1196,8 +1198,9 @@ function DictionariesPanel() {
   const [uploading, setUploading] = useState<string | null>(null);
   /** What went wrong, one line each: every file that didn't go up says why. */
   const [failures, setFailures] = useState<readonly string[]>([]);
-  /** The dictionary whose Delete was pressed: the question stands in its row. */
+  /** The dictionary whose Delete was pressed: the question hangs from it, its row tinted. */
   const [asking, setAsking] = useState<string | null>(null);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   const [removing, setRemoving] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -1263,9 +1266,21 @@ function DictionariesPanel() {
                 {dictionary.title}
                 <span className="row-sub">{[dictionary.revision, sizeWords(dictionary.bytes), `uploaded ${dateWords(dictionary.uploadedAt)}`].filter((part) => part !== "").join(" · ")}</span>
               </span>
+              <Button
+                ref={asking === dictionary.id ? deleteAt : undefined}
+                className="is-danger"
+                aria-pressed={asking === dictionary.id}
+                aria-expanded={asking === dictionary.id}
+                disabled={uploading !== null || removing}
+                onClick={() => setAsking(asking === dictionary.id ? null : dictionary.id)}
+              >
+                <Icon name="trash" />
+                Delete…
+              </Button>
               {asking === dictionary.id ? (
                 <Ask
                   idPrefix={`dictionary-delete-${dictionary.id}`}
+                  anchor={deleteAt}
                   question={`Delete “${dictionary.title}”?`}
                   detail="Its file is deleted here; where it's been added to the extension, it stays."
                   go={{ words: "Delete dictionary", busy: "Deleting…" }}
@@ -1274,12 +1289,7 @@ function DictionariesPanel() {
                   onKeep={() => setAsking(null)}
                   onGo={() => void remove(dictionary.id)}
                 />
-              ) : (
-                <Button className="is-danger" disabled={uploading !== null || removing} onClick={() => setAsking(dictionary.id)}>
-                  <Icon name="trash" />
-                  Delete…
-                </Button>
-              )}
+              ) : null}
             </div>
           ))}
         </div>
@@ -1332,6 +1342,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
   const zones = useMemo(() => zoneOptions(current.timeZone), [current.timeZone]);
   const [theme, setTheme] = useState<ThemeId>(readTheme);
   const [askingAll, setAskingAll] = useState(false);
+  const signOutAllAt = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [signOutFailure, setSignOutFailure] = useState<string | null>(null);
   const [tab, setTab] = useState<SettingsTab>(() => tabOfAddress(TABS) ?? "general");
@@ -1476,7 +1487,7 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
       </div>
 
       <div className="settings-tab" hidden={shown !== "account"}>
-        <section className={`panel ${askingAll ? "panel-alarm" : ""}`.trim()} aria-labelledby="signed-in-title">
+        <section className="panel" aria-labelledby="signed-in-title">
           <h2 id="signed-in-title" className="panel-title">
             Signed in
           </h2>
@@ -1498,29 +1509,30 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
               </div>
             ))}
           </div>
+          <div className="add-actions add-actions-start">
+            {signOutFailure && !askingAll ? (
+              <span className="form-failure" role="alert">
+                {signOutFailure}
+              </span>
+            ) : null}
+            <Button ref={signOutAllAt} id="sign-out-all" className="is-danger" aria-pressed={askingAll} aria-expanded={askingAll} disabled={busy} onClick={() => setAskingAll(!askingAll)}>
+              <Icon name="signOut" />
+              Sign out everywhere…
+            </Button>
+          </div>
           {askingAll ? (
             <Ask
               idPrefix="sign-out-all"
-              question="Sign out of every device? Each one, this one too, will ask for the password again."
+              anchor={signOutAllAt}
+              question="Sign out of every device?"
+              detail="Each one, this one too, will ask for the password again."
               go={{ words: "Sign out everywhere", busy: "Signing out…", icon: "signOut" }}
               busy={busy}
               failure={signOutFailure}
               onKeep={() => setAskingAll(false)}
               onGo={() => run(onSignOutAll)}
             />
-          ) : (
-            <div className="add-actions add-actions-start">
-              {signOutFailure ? (
-                <span className="form-failure" role="alert">
-                  {signOutFailure}
-                </span>
-              ) : null}
-              <Button id="sign-out-all" className="is-danger" disabled={busy} onClick={() => setAskingAll(true)}>
-                <Icon name="signOut" />
-                Sign out everywhere…
-              </Button>
-            </div>
-          )}
+          ) : null}
         </section>
       </div>
     </>

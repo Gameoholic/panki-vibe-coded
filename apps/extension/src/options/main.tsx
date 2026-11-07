@@ -2,7 +2,7 @@ import "../setup";
 import "@web/theme.css";
 import "@web/app.css";
 import "../ui/extension.css";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { APP_LANGUAGES, Login, type AppLanguage, type CardType, type Deck } from "@panki/contracts";
 import { Skeleton } from "@web/components/Skeleton";
@@ -136,6 +136,10 @@ function SignIn({ known, onDone, onCancel }: { known: string; onDone: () => void
  */
 function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
+  /** The profile whose Sign out is asking first (it's forgotten in this browser, its name with it), by its key. */
+  const [asking, setAsking] = useState<string | null>(null);
+  const signOutAt = useRef<HTMLButtonElement>(null);
+  const keyOf = (profile: Profile) => `${profile.address} ${profile.userName}`;
   const active = activeProfile(store);
   const rows = [...(active ? [active] : []), ...store.profiles];
   async function run(work: () => Promise<void>) {
@@ -161,9 +165,10 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
       <div className="kept-rows">
         {rows.map((profile) => {
           const inUse = active !== null && sameProfile(profile, active);
+          const key = keyOf(profile);
           return (
             // The one in use stands out in the accent, its words saying so; Switch on the others is a quiet button, never the primary look, which would read as the one selected.
-            <div key={`${profile.address} ${profile.userName}`} className={`kept-row ${inUse ? "is-current" : ""}`.trim()}>
+            <div key={key} className={`kept-row ${inUse ? "is-current" : ""} ${asking === key ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}>
               <Rename
                 id={`profile-${profile.address}-${profile.userName}`}
                 className="kept-name"
@@ -189,11 +194,36 @@ function Profiles({ store, onChanged }: { store: Stored; onChanged: () => void }
                     Switch
                   </Button>
                 )}
-                <Button className="is-danger" disabled={busy} onClick={() => void run(() => signOut(profile))}>
+                <Button
+                  ref={asking === key ? signOutAt : undefined}
+                  className="is-danger"
+                  aria-pressed={asking === key}
+                  aria-expanded={asking === key}
+                  disabled={busy}
+                  onClick={() => setAsking(asking === key ? null : key)}
+                >
                   <Icon name="signOut" />
                   Sign out
                 </Button>
               </span>
+              {asking === key ? (
+                <Ask
+                  idPrefix={`profile-${profile.address}-${profile.userName}-sign-out`}
+                  anchor={signOutAt}
+                  question={`Sign out of “${profileWords(profile)}”?`}
+                  detail="It's forgotten in this browser; signing in again brings it back."
+                  go={{ words: "Sign out", busy: "Signing out…", icon: "signOut" }}
+                  busy={busy}
+                  failure={null}
+                  onKeep={() => setAsking(null)}
+                  onGo={() =>
+                    void run(async () => {
+                      await signOut(profile);
+                      setAsking(null);
+                    })
+                  }
+                />
+              ) : null}
             </div>
           );
         })}
@@ -353,6 +383,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
  */
 function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
   const [asking, setAsking] = useState(false);
+  const offAt = useRef<HTMLButtonElement>(null);
   const on = store.videoTracking;
   /** How close to its end a video counts as finished, as Panki has it (the account's own); null until it's said, or signed out. */
   const [finished, setFinished] = useState<number | null>(null);
@@ -382,7 +413,7 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
     onChanged();
   }
   return (
-    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="data-tracking-title">
+    <section className="panel" aria-labelledby="data-tracking-title">
       <h2 id="data-tracking-title" className="panel-title">
         Data tracking
       </h2>
@@ -391,12 +422,13 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
         label="Video tracking"
         control={
           <Toggle
+            ref={offAt}
             id="video-tracking-on"
             says={{ on: "On", off: "Off" }}
             on={on === true}
-            disabled={on === null || asking}
-            // Turning it on just does it; turning it off asks first.
-            onChange={(next) => (next ? void change(true) : setAsking(true))}
+            disabled={on === null}
+            // Turning it on just does it; turning it off asks first, the question hanging from the switch.
+            onChange={(next) => (next ? void change(true) : setAsking(!asking))}
           />
         }
         why={VIDEO_TRACKING_WHY}
@@ -404,6 +436,7 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
       {asking ? (
         <Ask
           idPrefix="video-tracking-off"
+          anchor={offAt}
           question="Turn off video tracking?"
           detail={
             <>

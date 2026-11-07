@@ -29,7 +29,7 @@ type Props = {
 
 /**
  * A field that holds a file: press to choose one, or drop one on it. Once picked it shows as it will on the card,
- * with its name, and can be changed or deleted, Delete asking first in the field (`Ask`); a file the card already
+ * with its name, and can be changed or deleted, Delete asking first in a small panel hanging from it (`Ask`); a file the card already
  * holds shows the same way. Deleting takes it off the form: the card itself changes only once it's saved. What's wrong
  * is said in the app's own bubble, as in `TextField`.
  */
@@ -50,6 +50,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
 
   /** Whether Delete is asking first (anything that takes something off a card is confirmed). */
   const [asking, setAsking] = useState(false);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   const choose = () => input.current?.click();
   // What's in the field right now: the file just picked, or else the one the card already holds.
   const there = file && url ? { src: url, name: file.name } : !file && held ? { src: held, name: "On this card" } : null;
@@ -84,7 +85,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
               <Icon name="upload" />
               Replace
             </Button>
-            <Button className="is-danger" aria-pressed={asking} onClick={() => setAsking((was) => !was)}>
+            <Button ref={deleteAt} className="is-danger" aria-pressed={asking} aria-expanded={asking} onClick={() => setAsking((was) => !was)}>
               <Icon name="trash" />
               Delete
             </Button>
@@ -92,6 +93,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
           {asking ? (
             <Ask
               idPrefix={`${id}-delete`}
+              anchor={deleteAt}
               question={`Delete this ${KIND_WORDS[showing.kind]}?`}
               go={{ words: `Delete ${KIND_WORDS[showing.kind]}`, busy: "Deleting…" }}
               busy={false}

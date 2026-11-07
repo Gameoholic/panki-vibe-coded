@@ -396,6 +396,8 @@ type Unfolded = "details" | "log" | null;
 export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail, ai, editing }: Props) {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<Asking>(null);
+  /** Forget the transcript…, which its question hangs from. */
+  const forgetAt = useRef<HTMLButtonElement>(null);
   /** Whether Details or Log is unfolded: kept while the menu is closed, so it's there at the next look. */
   const [unfolded, setUnfolded] = useState<Unfolded>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -589,23 +591,22 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
                 <StretchForm key="redo" id="panki-redo" at={at} duration={duration} action="Re-transcribe" lead={<Icon name="again" />} widen={widen} onDone={(stretch) => done(() => onRetranscribe(stretch))} />
               ) : null}
               {hasAny ? (
-                <Button variant="item" className="is-danger" aria-pressed={asking === "forgetAll"} onClick={() => ask("forgetAll")}>
+                <Button ref={forgetAt} variant="item" className="is-danger" aria-pressed={asking === "forgetAll"} aria-expanded={asking === "forgetAll"} onClick={() => ask("forgetAll")}>
                   <Icon name="trash" />
                   Forget the transcript…
                 </Button>
               ) : null}
               {asking === "forgetAll" ? (
-                <div className="strip-menu-ask">
-                  <Ask
-                    idPrefix="panki-transcript-forget"
-                    question={MESSAGES.forgetAll}
-                    go={{ words: "Forget", busy: "Forgetting…" }}
-                    busy={false}
-                    failure={null}
-                    onKeep={() => setAsking(null)}
-                    onGo={() => done(onForget)}
-                  />
-                </div>
+                <Ask
+                  idPrefix="panki-transcript-forget"
+                  anchor={forgetAt}
+                  question={MESSAGES.forgetAll}
+                  go={{ words: "Forget", busy: "Forgetting…" }}
+                  busy={false}
+                  failure={null}
+                  onKeep={() => setAsking(null)}
+                  onGo={() => done(onForget)}
+                />
               ) : null}
             </div>
           ) : null}

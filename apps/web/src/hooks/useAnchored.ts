@@ -16,12 +16,16 @@ const EDGE = 8;
  * or exactly as wide, for a list whose choices wrap (`"same"`, a wide one's); never wider than the window. Set here,
  * every frame, never as a share in CSS: a share of a fixed element is a share of the window. Without one, the menu's
  * own CSS sizes it (the templates menu).
+ *
+ * It starts at its anchor's left edge; `align: "auto"` has it end at the anchor's right edge instead when the anchor
+ * stands in the window's right half, so it hangs back over the row the anchor is in rather than off past it (`Ask`).
  */
 export function useAnchored(
   anchor: RefObject<HTMLElement | null>,
   menu: RefObject<HTMLElement | null>,
   open: boolean,
   width?: "least" | "same",
+  align: "start" | "auto" = "start",
 ) {
   useEffect(() => {
     if (!open) return;
@@ -48,7 +52,9 @@ export function useAnchored(
         element.style.maxHeight = `${Math.min(natural, room)}px`;
         const height = Math.min(natural, room);
         const top = up ? at.top - GAP - height : at.bottom + GAP;
-        const left = Math.max(EDGE, Math.min(at.left, window.innerWidth - element.offsetWidth - EDGE));
+        const fromRight = align === "auto" && at.left + at.width / 2 > window.innerWidth / 2;
+        const start = fromRight ? at.right - element.offsetWidth : at.left;
+        const left = Math.max(EDGE, Math.min(start, window.innerWidth - element.offsetWidth - EDGE));
         // Where it lands against where it was put: a containing box other than the window shifts it by that much.
         element.style.top = `${top}px`;
         element.style.left = `${left}px`;
@@ -62,5 +68,5 @@ export function useAnchored(
     };
     place();
     return () => cancelAnimationFrame(frame);
-  }, [anchor, menu, open, width]);
+  }, [anchor, menu, open, width, align]);
 }

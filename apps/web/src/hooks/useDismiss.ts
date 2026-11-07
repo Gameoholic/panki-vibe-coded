@@ -8,9 +8,11 @@ import { useEffect, useRef, type RefObject } from "react";
  * root (the shadow root, or the document), where the path is whole, and on the window for presses anywhere else on
  * the page, where a path through the host is left to the first. (Heard on the window alone, a menu in a closed root
  * would close itself on every press inside it.) The app's `Dropdown` and the extension's
- * menus are all this; never a second way of closing on a press outside.
+ * menus are all this; never a second way of closing on a press outside. `inside` is one more element whose presses
+ * aren't outside: the button a panel placed elsewhere in the DOM hangs from (`Ask`), so pressing it again does what the
+ * button does rather than closing and opening the panel at once.
  */
-export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onDismiss: () => void) {
+export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onDismiss: () => void, inside?: RefObject<HTMLElement | null>) {
   const latest = useRef(onDismiss);
   latest.current = onDismiss;
   useEffect(() => {
@@ -19,7 +21,11 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, on
     if (!element) return;
     const root = element.getRootNode();
     const host = root instanceof ShadowRoot ? root.host : null;
-    const outside = (e: Event) => !e.composedPath().includes(element);
+    const outside = (e: Event) => {
+      const path = e.composedPath();
+      const also = inside?.current;
+      return !path.includes(element) && !(also && path.includes(also));
+    };
     const onDownInside = (e: Event) => {
       if (outside(e)) latest.current();
     };
@@ -38,5 +44,5 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, on
       window.removeEventListener("pointerdown", onDownOutside);
       window.removeEventListener("keydown", onKey);
     };
-  }, [ref, open]);
+  }, [ref, open, inside]);
 }

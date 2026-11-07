@@ -516,7 +516,7 @@ body {
 .panel > .panel-title {
   margin-bottom: 0;
 }
-/* A panel while it asks about something that hurts (deleting a deck), and a card's row while it asks to delete it. */
+/* A panel that warns (the disk nearly full), and a card's row while a question to delete it hangs from its Delete. */
 .panel-alarm,
 .card-row.is-asking {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
@@ -810,11 +810,8 @@ textarea.field-input.prompt-input {
 .field-row-tools .btn-icon {
   padding: 13px 10px; /* as tall as the name beside them */
 }
-/* Delete asks first under the field's row, the row tinted while it does; the tint reaches past the row's edges rather
+/* The row is tinted while the question to delete it hangs from its Delete; the tint reaches past the row's edges rather
    than pushing its controls in. */
-.field-row > .ask {
-  grid-column: 1 / -1;
-}
 .field-row.is-asking {
   margin: -10px;
   padding: 10px;
@@ -1129,9 +1126,6 @@ textarea.field-input.prompt-input {
 .card-example-tools {
   display: flex;
   gap: 6px;
-}
-.card-example .ask {
-  grid-column: 1 / -1;
 }
 @media (max-width: 640px) {
   .card-example {
@@ -4617,12 +4611,6 @@ mark.sub-blur {
   color: var(--danger);
 }
 /* The question that deletes a card, asked in its row, under all of it. */
-.card-ask {
-  grid-column: 1 / -1;
-  margin-top: 10px;
-  padding-top: 12px;
-  border-top: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
-}
 /* A card seen as a review would show it (`CardPreview`), in its row under all of it: the deck it's seen in, × at the
    right, the card under them. */
 .card-preview-row {
@@ -4632,8 +4620,8 @@ mark.sub-blur {
   border-top: 1px solid var(--line);
 }
 /* A card opened to change it: its form under its details, as its preview is, part of the row rather than a card of its
-   own in it (while it asks to delete, it keeps its alarm's tint). */
-.card-edit-row > .panel:not(.panel-alarm) {
+   own in it. */
+.card-edit-row > .panel {
   padding: 0;
   border: 0;
   background: none;
@@ -5589,8 +5577,11 @@ mark.sub-blur {
 .answer-name .field-error {
   grid-column: 1 / -1;
 }
-.answer-name .field-input {
+/* The box's holder (`.field-leads`) is what stands in the grid, on the second row before Delete. */
+.answer-name .field-leads {
   grid-row: 2;
+}
+.answer-name .field-input {
   width: 150px;
   font-weight: 700;
   color: var(--ans, var(--fg));
@@ -5601,12 +5592,7 @@ mark.sub-blur {
   align-self: stretch;
   margin-left: 4px;
 }
-/* Its question under the name, as wide as the answer and never widening it (`inline-size` containment: the question
-   wraps inside the answer's width instead of stretching it to its own). The answer is tinted while it asks. */
-.answer-name > .ask {
-  grid-column: 1 / -1;
-  contain: inline-size;
-}
+/* The answer is tinted while the question to delete it hangs from its Delete. */
 .answer-name.is-asking {
   margin: -8px;
   padding: 8px;
@@ -5635,8 +5621,9 @@ mark.sub-blur {
   display: grid;
   gap: 10px;
 }
-/* A row and its name share one grid (the field lends it its label, input and error, as the answers do): everything
-   beside the name sits on the input's own line, centred on it, so what's wrong hangs under the input and moves nothing. */
+/* One line a stage: its grip, its numbered dot, its name and Delete, the row and its name sharing one grid (the field
+   lends it its box and its error, as the answers do), so what's wrong hangs under the name and moves nothing. The
+   field's label is for a screen reader alone: the dot already says which stage it is. */
 .stage-row {
   --field-col: 3;
   display: grid;
@@ -5645,25 +5632,27 @@ mark.sub-blur {
   align-items: center;
   transition: transform 0.15s ease;
 }
-.stage-row > * {
-  grid-row: 2;
+.stage-row > *,
+.stage-row .field-leads {
+  grid-row: 1;
 }
 .stage-row .field {
   display: contents;
 }
-.stage-row .field-label,
-.stage-row .field-input,
+.stage-row .field-leads,
 .stage-row .field-error {
   grid-column: var(--field-col);
 }
-.stage-row .field-label {
-  grid-row: 1;
-}
-.stage-row .field-input {
+.stage-row .field-error {
   grid-row: 2;
 }
-.stage-row .field-error {
-  grid-row: 3;
+.stage-row .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .stage-rows.is-reordering {
   user-select: none;
@@ -5673,6 +5662,18 @@ mark.sub-blur {
 }
 .stage-row .stage-delete {
   align-self: stretch;
+}
+/* The stage a question to delete it hangs from, tinted past the row's edges as a field's row is. */
+.stage-row.is-asking {
+  margin: -6px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+/* In that question, where a stage's cards go: its words over the stages to choose from. */
+.stage-move-words {
+  margin: 0;
+  color: var(--muted);
 }
 .stage-row.is-dragging {
   transition: none;
@@ -5728,7 +5729,7 @@ mark.sub-blur {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
   .burned-row > .field-hint {
-    grid-row: 4;
+    grid-row: 3;
     grid-column: 2 / -1;
   }
 }
@@ -5751,12 +5752,28 @@ mark.sub-blur {
   display: grid;
   gap: 10px;
 }
-/* A question asked inside something with no box of its own to tint (a setting's row, a key in Admin): it brings one. */
-.ask-box {
+/* A question about taking something away (`Ask` with its `anchor`): a small panel hanging from the button that asked,
+   the chart menu's look with the danger colours at its edge, placed in the window by `useAnchored` so a box that
+   scrolls never cuts it off; as wide as it reads well, never past the window. */
+.menu.ask.ask-pop {
+  position: fixed;
+  z-index: 50;
+  width: min(300px, calc(100vw - 16px));
+  max-height: none;
   padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
-  border-radius: var(--radius-sm);
-  background: var(--danger-soft);
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  text-align: left;
+  white-space: normal;
+  font-weight: 400;
+  color: var(--fg);
+}
+.ask-pop .question {
+  font-size: 15px;
+  line-height: 1.35;
+}
+.ask-pop .add-actions {
+  gap: 8px;
 }
 /* What doing it changes and what it leaves, under the question (`Ask`'s `detail`): a heading and a list for each. */
 .ask-detail {
@@ -6304,14 +6321,6 @@ mark.sub-blur {
     height: 34px;
   }
 }
-/* The chart's menu while Delete step asks in it. */
-.menu.is-asking {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
-  background: var(--danger-soft);
-}
-.menu .ask .question {
-  font-size: 14px;
-}
 .menu-sep {
   height: 1px;
   margin: 4px 0;
@@ -6417,8 +6426,12 @@ mark.sub-blur {
   padding: 8px 0;
   border-top: 1px solid var(--line);
 }
+/* The row a question hangs from (`Ask`), tinted as the one it's about, out past the rows' edges as the one in use is. */
 .kept-row.is-asking {
-  flex-wrap: wrap;
+  margin-inline: -10px;
+  padding-inline: 10px;
+  border-radius: 10px;
+  background: var(--danger-soft);
 }
 /* The one of them in use (the extension's profile signed in with): lit in the accent, said in its words too. */
 /* Its tint reaches out past the rows' edges rather than pushing its words in, so every row's words line up. */
@@ -6435,10 +6448,6 @@ mark.sub-blur {
 .kept-in-use {
   color: var(--accent);
   font-weight: 700;
-}
-.kept-row.is-asking .add-actions,
-.kept-row.is-asking > .ask {
-  width: 100%;
 }
 .kept-name {
   min-width: 0;
@@ -6870,14 +6879,10 @@ mark.sub-blur {
   color: var(--danger);
 }
 .w-video.is-asking {
-  flex-wrap: wrap;
   margin: -6px;
   padding: 6px;
   border-radius: var(--radius-sm);
   background: var(--danger-soft);
-}
-.w-video > .ask {
-  flex: 1 1 100%;
 }
 /* ---------- Arranging the home's board ---------- */
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { POOL_MAX, againPlaceOf, type Deck, type DeckSettings, type SrsAnswer } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
@@ -100,6 +100,7 @@ function MadeOf({ id, label, name, onOpen }: { id: string; label: string; name: 
 /** A deck's settings: "About" (its name, and the card type and SRS type it's made of, shown and not changed), how its reviews run (saved a moment after each change), and at the bottom, delete, which asks once, here, with what it costs. */
 export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples, srsTypeName, srsAnswers, onOpenCardType, onOpenSrsType, onRename, onChangeSettings, onRemove }: Props) {
   const [asking, setAsking] = useState(false);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [own, patch, ownFailure] = useSavedSoon<DeckSettings>(deck.settings, onChangeSettings);
@@ -233,13 +234,20 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
         ) : null}
       </section>
 
-      <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby="deck-delete-title">
+      <section className="panel" aria-labelledby="deck-delete-title">
         <h2 id="deck-delete-title" className="panel-title">
           Danger Zone
         </h2>
+        <div className="add-actions add-actions-start">
+          <Button ref={deleteAt} id="deck-delete" className="is-danger" aria-pressed={asking} aria-expanded={asking} onClick={() => setAsking(!asking)}>
+            <Icon name="trash" />
+            Delete deck…
+          </Button>
+        </div>
         {asking ? (
           <Ask
             idPrefix="deck-delete"
+            anchor={deleteAt}
             question={`Delete “${deck.name}” and its ${cards}?`}
             go={{ words: "Delete deck", busy: "Deleting…" }}
             busy={busy}
@@ -247,14 +255,7 @@ export function DeckSettingsView({ deck, cardCount, cardTypeName, takesExamples,
             onKeep={() => setAsking(false)}
             onGo={() => void run(onRemove)}
           />
-        ) : (
-          <div className="add-actions add-actions-start">
-            <Button id="deck-delete" className="is-danger" onClick={() => setAsking(true)}>
-              <Icon name="trash" />
-              Delete deck…
-            </Button>
-          </div>
-        )}
+        ) : null}
       </section>
     </>
   );

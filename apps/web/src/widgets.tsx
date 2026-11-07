@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
 import type { ContinueVideo, Day, Deck, FinishedVideo, SavedVideo, Settings, SrsType, Stats } from "@panki/contracts";
 import { api } from "./api";
 import { Ask } from "./components/Ask";
@@ -237,8 +237,9 @@ const VIDEOS_SHOWN = 4;
 function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; onStale: () => void }) {
   const [gone, setGone] = useState<readonly string[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
-  /** The video whose trash is asking first, in its row. */
+  /** The video whose trash is asking first, the question hanging from it. */
   const [asking, setAsking] = useState<string | null>(null);
+  const removeAt = useRef<HTMLButtonElement>(null);
   async function putAway(videoId: string) {
     setAsking(null);
     setFailure(null);
@@ -267,12 +268,20 @@ function ContinueRows({ videos, onStale }: { videos: readonly ContinueVideo[]; o
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
             progress={{ share: v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : 0, left: leftWords(v.stoppedAtMs, v.lengthMs) }}
           />
-          <Button className="btn-icon is-danger w-video-x" aria-label="Remove from Continue watching" aria-pressed={asking === v.videoId} onClick={() => setAsking((was) => (was === v.videoId ? null : v.videoId))}>
+          <Button
+            ref={asking === v.videoId ? removeAt : undefined}
+            className="btn-icon is-danger w-video-x"
+            aria-label="Remove from Continue watching"
+            aria-pressed={asking === v.videoId}
+            aria-expanded={asking === v.videoId}
+            onClick={() => setAsking((was) => (was === v.videoId ? null : v.videoId))}
+          >
             <Icon name="trash" />
           </Button>
           {asking === v.videoId ? (
             <Ask
               idPrefix={`continue-remove-${v.videoId}`}
+              anchor={removeAt}
               question={REMOVE_CONTINUE.question}
               go={REMOVE_CONTINUE.go}
               busy={false}
@@ -313,7 +322,7 @@ function RecentRows({ videos }: { videos: readonly FinishedVideo[] }) {
   );
 }
 
-/** Removing a video from Continue watching, asked in its row (the tile here, the shelf on YouTube's home says the same). One home for the words. */
+/** Removing a video from Continue watching, asked from its trash (the tile here, the shelf on YouTube's home says the same). One home for the words. */
 const REMOVE_CONTINUE = { question: "Remove from Continue watching?", go: { words: "Remove", busy: "Removing…" } };
 
 /**
@@ -324,8 +333,9 @@ const REMOVE_CONTINUE = { question: "Remove from Continue watching?", go: { word
 function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale: () => void }) {
   const [gone, setGone] = useState<readonly string[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
-  /** The video whose trash is asking first, in its row. */
+  /** The video whose trash is asking first, the question hanging from it. */
   const [asking, setAsking] = useState<string | null>(null);
+  const removeAt = useRef<HTMLButtonElement>(null);
   async function unsave(videoId: string) {
     setAsking(null);
     setFailure(null);
@@ -348,12 +358,20 @@ function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale
             label="Saved for later"
             pictures={{ thumbnail: api.videoPictures(v.videoId).thumbnail, avatar: null }}
           />
-          <Button className="btn-icon is-danger w-video-x" aria-label="Remove from Saved for later" aria-pressed={asking === v.videoId} onClick={() => setAsking((was) => (was === v.videoId ? null : v.videoId))}>
+          <Button
+            ref={asking === v.videoId ? removeAt : undefined}
+            className="btn-icon is-danger w-video-x"
+            aria-label="Remove from Saved for later"
+            aria-pressed={asking === v.videoId}
+            aria-expanded={asking === v.videoId}
+            onClick={() => setAsking((was) => (was === v.videoId ? null : v.videoId))}
+          >
             <Icon name="trash" />
           </Button>
           {asking === v.videoId ? (
             <Ask
               idPrefix={`saved-remove-${v.videoId}`}
+              anchor={removeAt}
               question="Remove from Saved for later?"
               go={{ words: "Remove", busy: "Removing…" }}
               busy={false}

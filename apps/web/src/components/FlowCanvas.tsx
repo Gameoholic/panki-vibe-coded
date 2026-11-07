@@ -224,6 +224,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   const [selected, setSelected] = useState<string | null>(null);
   /** The box whose Delete step is asking first; kept by its id, so picking another box lets the question go. */
   const [deletingStep, setDeletingStep] = useState<string | null>(null);
+  const stepDeleteAt = useRef<HTMLButtonElement>(null);
   /** The stage dot under the pointer or the focus, so the card can say its name. */
   const [peek, setPeek] = useState<number | null>(null);
   /** The stage the default rules are worked out for on the chart, once one is chosen on their box. */
@@ -302,10 +303,11 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
-  // Escape lets go of the picked box; Delete takes its ask-again out, or sets it back to Stays.
+  // Escape lets go of the picked box; Delete takes its ask-again out, or sets it back to Stays. While Delete step asks,
+  // its question has the keys: Escape is its Cancel alone.
   useEffect(() => {
     const sel = selected;
-    if (!sel) return;
+    if (!sel || deletingStep === sel) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === "Escape") setSelected(null);
@@ -318,7 +320,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, type, scope, onChange, readOnly]);
+  }, [selected, deletingStep, type, scope, onChange, readOnly]);
   // A ladder that no longer ends has no end to show.
   useEffect(() => {
     if (scope === BURNED_SCOPE && type.after !== "burn") onScope("all");
@@ -712,7 +714,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
       </div>
 
       {selBox && menuStyle && (selPath || (choosingShown && scope === "all")) ? (
-        <div ref={menuRef} className={`menu ${selected !== null && deletingStep === selected ? "is-asking" : ""}`.trim()} role="group" aria-label={selPath ? "What the card does" : "Shown for"} style={menuStyle}>
+        <div ref={menuRef} className="menu" role="group" aria-label={selPath ? "What the card does" : "Shown for"} style={menuStyle}>
           {!selPath ? (
             <>
               <div className="menu-title">Show these rules for a card at</div>
@@ -755,9 +757,21 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               {readOnly ? null : (
                 <>
                   <div className="menu-sep" />
+                  <Button
+                    ref={stepDeleteAt}
+                    variant="item"
+                    className="is-danger"
+                    aria-pressed={selected !== null && deletingStep === selected}
+                    aria-expanded={selected !== null && deletingStep === selected}
+                    onClick={() => setDeletingStep(deletingStep === selected ? null : selected)}
+                  >
+                    <Icon name="trash" />
+                    Delete step
+                  </Button>
                   {selected !== null && deletingStep === selected ? (
                     <Ask
                       idPrefix="again-delete"
+                      anchor={stepDeleteAt}
                       question="Delete this step?"
                       go={{ words: "Delete step", busy: "Deleting…" }}
                       busy={false}
@@ -769,12 +783,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                         setSelected(null);
                       }}
                     />
-                  ) : (
-                    <Button variant="item" className="is-danger" onClick={() => setDeletingStep(selected)}>
-                      <Icon name="trash" />
-                      Delete step
-                    </Button>
-                  )}
+                  ) : null}
                 </>
               )}
             </>

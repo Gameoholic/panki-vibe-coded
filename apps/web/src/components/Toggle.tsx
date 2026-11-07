@@ -1,8 +1,11 @@
+import type { Ref } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 
 type Props = {
   id: string;
+  /** The switch itself, for a question that hangs from it (`Ask`'s `anchor`: turning Video tracking off). */
+  ref?: Ref<HTMLButtonElement>;
   /**
    * What it says in each state: the words always say what's true right now ("On" / "Off",
    * "Required" / "Optional", "Shown" / "Hidden"), never one label that stays the same when it flips. Both are asked
@@ -19,9 +22,9 @@ type Props = {
 };
 
 /** A setting that's on or off: its words say which it is, and the track shows it at a glance. Never a native checkbox. */
-export function Toggle({ id, says, on, onChange, disabled = false, icon, className }: Props) {
+export function Toggle({ id, ref, says, on, onChange, disabled = false, icon, className }: Props) {
   return (
-    <Button id={id} variant="switch" className={className} role="switch" aria-checked={on} disabled={disabled} onClick={() => onChange(!on)}>
+    <Button ref={ref} id={id} variant="switch" className={className} role="switch" aria-checked={on} disabled={disabled} onClick={() => onChange(!on)}>
       {icon ? <Icon name={icon} /> : null}
       {on ? says.on : says.off}
       <span className="switch-track" aria-hidden="true">

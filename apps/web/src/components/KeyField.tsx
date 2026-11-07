@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import { bindable, isModifier, keyOf } from "../keys";
 import { keyWords } from "../words";
@@ -13,8 +13,10 @@ type Props = {
   value: string | null;
   /** A key pressed while it listens. */
   onChange: (key: string) => void;
-  /** Whether taking the key off is being asked about, under the row (`Ask`): its trash is lit while it is. */
+  /** Whether taking the key off is being asked about (`Ask`, hanging from its trash): its trash is lit while it is. */
   asking?: boolean;
+  /** The trash, for the question to hang from (`Ask`'s `anchor`). */
+  askAt?: RefObject<HTMLButtonElement | null>;
   /**
    * The trash pressed: the row asks before the key is taken off, or stops asking. Left out, the key can be changed and
    * never taken off, so there's no trash (the extension's Toggle panel keybind, which always has one).
@@ -33,10 +35,10 @@ type Props = {
  * (but one the page keeps for itself), with Ctrl or Alt when either is held with it ("Ctrl+Z", `keys.ts` → `keyOf`);
  * Shift, Ctrl or Alt pressed and let go with nothing else is that key by itself; Escape, or a
  * press anywhere else, leaves it as it was. The trash takes the key off, once the
- * row has asked: the question stands under the whole row, so the keys beside it stay where they are. Settings →
+ * row has asked: the question hangs from the trash (`askAt`), so the keys beside it stay where they are. Settings →
  * Keybinds is made of these.
  */
-export function KeyField({ id, label, value, onChange, asking = false, onAsk, removable = false, listen = false, disabled = false }: Props) {
+export function KeyField({ id, label, value, onChange, asking = false, askAt, onAsk, removable = false, listen = false, disabled = false }: Props) {
   const [listening, setListening] = useState(listen);
   const box = useRef<HTMLSpanElement>(null);
   const latest = useRef(onChange);
@@ -87,7 +89,15 @@ export function KeyField({ id, label, value, onChange, asking = false, onAsk, re
         {listening ? "Press a key" : value ? <span className="key">{keyWords(value)}</span> : "None"}
       </Button>
       {onAsk && (value || removable) && !listening ? (
-        <Button className="btn-icon is-danger key-field-clear" aria-label={`Take the key off ${label}`} aria-pressed={asking} disabled={disabled} onClick={onAsk}>
+        <Button
+          ref={asking ? askAt : undefined}
+          className="btn-icon is-danger key-field-clear"
+          aria-label={`Take the key off ${label}`}
+          aria-pressed={asking}
+          aria-expanded={asking}
+          disabled={disabled}
+          onClick={onAsk}
+        >
           <Icon name="trash" />
         </Button>
       ) : null}

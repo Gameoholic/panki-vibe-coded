@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type FinishedVideo, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
@@ -172,8 +172,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   /**
    * One video as the site's own kind of card: its picture (with how much is left and Panki's bar along its foot, when
    * it was begun, or its length, as the site's own cards have it), its name, its channel, a line of Panki's; the whole
-   * card a link, and, on a shelf a video can be taken off, a trash at its corner that asks first, under the card's
-   * words (`Ask`), as everything that takes something away does, so it's plain that it removes. Recently watched's have none: it's a history.
+   * card a link, and, on a shelf a video can be taken off, a trash at its corner that asks first, in a small panel
+   * hanging from it (`Ask`), as everything that takes something away does, so it's plain that it removes. Recently watched's have none: it's a history.
    */
   function VideoCard({ videoId, title, channel, href, sub, progress, lengthMs = null, remove = null, save }: {
     videoId: string;
@@ -222,32 +222,32 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * A video's trash at its card's corner, and the question it asks first under the card's words; the card it stands in
+   * A video's trash at its card's corner, and the question it asks first hanging from it; the card it stands in
    * (`.yc`, Continue watching's lead too) is tinted while it asks.
    */
   function RemoveVideo({ videoId, shelf, onRemove }: { videoId: string; shelf: RemoveFrom; onRemove: () => void }) {
     const [asking, setAsking] = useState(false);
+    const removeAt = useRef<HTMLButtonElement>(null);
     const words = REMOVE_FROM[shelf];
     return (
       <>
-        <Button className="btn-icon is-danger yc-x" aria-label={words.label} aria-pressed={asking} onClick={() => setAsking((was) => !was)}>
+        <Button ref={removeAt} className="btn-icon is-danger yc-x" aria-label={words.label} aria-pressed={asking} aria-expanded={asking} onClick={() => setAsking((was) => !was)}>
           <Icon name="trash" />
         </Button>
         {asking ? (
-          <div className="yc-ask panel-alarm">
-            <Ask
-              idPrefix={`yc-${videoId}-remove`}
-              question={words.question}
-              go={{ words: "Remove", busy: "Removing…" }}
-              busy={false}
-              failure={null}
-              onKeep={() => setAsking(false)}
-              onGo={() => {
-                setAsking(false);
-                onRemove();
-              }}
-            />
-          </div>
+          <Ask
+            idPrefix={`yc-${videoId}-remove`}
+            anchor={removeAt}
+            question={words.question}
+            go={{ words: "Remove", busy: "Removing…" }}
+            busy={false}
+            failure={null}
+            onKeep={() => setAsking(false)}
+            onGo={() => {
+              setAsking(false);
+              onRemove();
+            }}
+          />
         ) : null}
       </>
     );

@@ -106,6 +106,11 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
   /** The answer whose Delete is asking first, if one is. */
   const [askingAnswer, setAskingAnswer] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  /** The Delete each question hangs from. */
+  const answerDeleteAt = useRef<HTMLButtonElement>(null);
+  const stageDeleteAt = useRef<HTMLButtonElement>(null);
+  const burnedDeleteAt = useRef<HTMLButtonElement>(null);
+  const typeDeleteAt = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
 
@@ -165,6 +170,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
   const n = draft.stages.length;
 
   function askRemoveStage(stageId: string) {
+    setAskingBurned(false);
     const cards = draft.cardCounts[stageId] ?? 0;
     if (cards === 0) {
       setAsking({ stageId, target: null });
@@ -213,7 +219,14 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
     <div key={answer.id} className={`answer-name ${answerClass(draft.answers, i)} ${locked ? "is-locked" : ""} ${askingAnswer === answer.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}>
       <TextField id={`answer-${answer.id}`} label={`Answer ${i + 1}`} autoComplete="off" value={answer.name} readOnly={locked} onChange={(name) => change(renameAnswer(draft, answer.id, name), `answer-${answer.id}`)} error={errors.answers[answer.id]} />
       {locked ? null : (
-        <Button className="answer-delete is-danger" aria-pressed={askingAnswer === answer.id} disabled={draft.answers.length <= ANSWERS_MIN} onClick={() => setAskingAnswer((was) => (was === answer.id ? null : answer.id))}>
+        <Button
+          ref={askingAnswer === answer.id ? answerDeleteAt : undefined}
+          className="answer-delete is-danger"
+          aria-pressed={askingAnswer === answer.id}
+          aria-expanded={askingAnswer === answer.id}
+          disabled={draft.answers.length <= ANSWERS_MIN}
+          onClick={() => setAskingAnswer((was) => (was === answer.id ? null : answer.id))}
+        >
           <Icon name="trash" />
           Delete
         </Button>
@@ -221,6 +234,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
       {askingAnswer === answer.id ? (
         <Ask
           idPrefix={`answer-delete-${answer.id}`}
+          anchor={answerDeleteAt}
           question={`Delete the “${answer.name.trim() || `Answer ${i + 1}`}” answer?`}
           go={{ words: "Delete answer", busy: "Deleting…" }}
           busy={false}
@@ -372,7 +386,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
         <p className="field-hint">Tap a box to change it, drag boxes around, press + on an arrow to ask again first. Drag the ground to pan, scroll to zoom. Ctrl+Z undoes.</p>
       </section>
 
-      <section className={`panel ${asking || askingBurned ? "panel-alarm" : ""}`.trim()} aria-labelledby="srs-stages-title">
+      <section className="panel" aria-labelledby="srs-stages-title">
         <h2 id="srs-stages-title" className="panel-title">
           Stages
         </h2>
@@ -380,7 +394,13 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
         <div className={`stage-rows ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
           {lessonLine}
           {draft.stages.map((stage, i) => (
-            <div key={stage.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`stage-row ${order.dragging === i ? "is-dragging" : ""}`.trim()} data-stage={stage.id}>
+            <div
+              key={stage.id}
+              ref={order.rowRef(i)}
+              style={order.rowStyle(i)}
+              className={`stage-row ${order.dragging === i ? "is-dragging" : ""} ${asking?.stageId === stage.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+              data-stage={stage.id}
+            >
               <Button className="btn-icon field-grip" aria-label="Move" disabled={n === 1} {...order.handleProps(i)}>
                 <Icon name="grip" />
               </Button>
@@ -389,9 +409,11 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
               </span>
               <TextField id={`stage-${stage.id}`} label={`Stage ${i + 1}`} autoComplete="off" value={stage.name} onChange={(name) => change(patchStage(draft, stage.id, { name }), `stage-name-${stage.id}`)} error={errors.stages[stage.id]} />
               <Button
+                ref={asking?.stageId === stage.id ? stageDeleteAt : undefined}
                 className="stage-delete is-danger"
                 aria-pressed={asking?.stageId === stage.id}
-                disabled={n === 1 || askingBurned || (asking !== null && asking.stageId !== stage.id)}
+                aria-expanded={asking?.stageId === stage.id}
+                disabled={n === 1}
                 onClick={() => (asking?.stageId === stage.id ? setAsking(null) : askRemoveStage(stage.id))}
               >
                 <Icon name="trash" />
@@ -400,13 +422,23 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             </div>
           ))}
           {draft.after === "burn" ? (
-            <div className="stage-row burned-row">
+            <div className={`stage-row burned-row ${askingBurned ? "is-asking" : ""}`.trim()}>
               <span className="stage-no is-burned">
                 <Icon name="flame" />
               </span>
               <TextField id="burned-name" label="Burned stage" autoComplete="off" value={draft.burnedName} onChange={(name) => change(edit(draft, (d) => void (d.burnedName = name)), "burned")} error={errors.burned} />
               <span className="field-hint">the card never comes back</span>
-              <Button id="remove-burned" className="stage-delete is-danger" aria-pressed={askingBurned} disabled={asking !== null} onClick={() => setAskingBurned((was) => !was)}>
+              <Button
+                ref={burnedDeleteAt}
+                id="remove-burned"
+                className="stage-delete is-danger"
+                aria-pressed={askingBurned}
+                aria-expanded={askingBurned}
+                onClick={() => {
+                  setAskingBurned((was) => !was);
+                  setAsking(null);
+                }}
+              >
                 <Icon name="trash" />
                 Delete
               </Button>
@@ -416,6 +448,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
         {askingBurned ? (
           <Ask
             idPrefix="burned-delete"
+            anchor={burnedDeleteAt}
             question={`Delete the “${draft.burnedName.trim() || "Burned"}” stage?`}
             go={{ words: "Delete stage", busy: "Deleting…" }}
             busy={false}
@@ -427,41 +460,34 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             }}
           />
         ) : null}
-        {asking && askingStage && asking.target === null ? (
+        {/* A stage that holds cards asks where they go, in the same question. */}
+        {asking && askingStage ? (
           <Ask
             idPrefix="stage-delete"
+            anchor={stageDeleteAt}
             question={`Delete the “${stageName(draft, askingIdx)}” stage?`}
+            detail={
+              asking.target === null ? null : (
+                <>
+                  <p className="stage-move-words">Its {count(draft.cardCounts[asking.stageId] ?? 0, "card", "cards")} move to</p>
+                  <div className="chips" role="group" aria-label="Move to">
+                    {draft.stages
+                      .filter((s) => s.id !== asking.stageId)
+                      .map((s) => (
+                        <Button key={s.id} variant="chip" aria-pressed={s.id === asking.target} onClick={() => setAsking({ ...asking, target: s.id })}>
+                          {stageName(draft, draft.stages.indexOf(s))}
+                        </Button>
+                      ))}
+                  </div>
+                </>
+              )
+            }
             go={{ words: "Delete stage", busy: "Deleting…" }}
             busy={false}
             failure={null}
             onKeep={() => setAsking(null)}
             onGo={confirmRemove}
           />
-        ) : null}
-        {asking && askingStage && asking.target !== null ? (
-          <div className="ask">
-            <p id="stage-move-question" className="question">
-              Where do the {count(draft.cardCounts[asking.stageId] ?? 0, "card", "cards")} on {stageName(draft, askingIdx)} go?
-            </p>
-            <div className="chips" role="group" aria-label="Move to">
-              {draft.stages
-                .filter((s) => s.id !== asking.stageId)
-                .map((s) => (
-                  <Button key={s.id} variant="chip" aria-pressed={s.id === asking.target} onClick={() => setAsking({ ...asking, target: s.id })}>
-                    {stageName(draft, draft.stages.indexOf(s))}
-                  </Button>
-                ))}
-            </div>
-            <div className="add-actions">
-              <Button id="stage-move-cancel" onClick={() => setAsking(null)}>
-                Cancel
-              </Button>
-              <Button id="stage-move-go" variant="danger" onClick={confirmRemove}>
-                <Icon name="trash" />
-                Move them and remove it
-              </Button>
-            </div>
-          </div>
         ) : null}
         {errors.stagesList ? (
           <p className="field-error" role="alert">
@@ -495,13 +521,30 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
 
       {/* A type never saved has nothing to delete: Discard does that. */}
       {saved === null ? null : (
-      <section className={`panel ${deleting ? "panel-alarm" : ""}`.trim()} aria-labelledby="srs-delete-title">
+      <section className="panel" aria-labelledby="srs-delete-title">
         <h2 id="srs-delete-title" className="panel-title">
           Delete this SRS type
         </h2>
+        {/* Always there; greyed while a deck uses it, why beside it. */}
+        <div className="add-actions add-actions-start">
+          <Button
+            ref={typeDeleteAt}
+            id="srs-delete"
+            className="is-danger"
+            aria-pressed={deleting}
+            aria-expanded={deleting}
+            disabled={draft.deckCount > 0}
+            onClick={() => setDeleting(!deleting)}
+          >
+            <Icon name="trash" />
+            Delete type…
+          </Button>
+          {draft.deckCount > 0 ? <span className="btn-beside">Used by {count(draft.deckCount, "deck", "decks")}.</span> : null}
+        </div>
         {deleting && draft.deckCount === 0 ? (
           <Ask
             idPrefix="srs-delete"
+            anchor={typeDeleteAt}
             question={`Delete “${draft.name}”?`}
             go={{ words: "Delete type", busy: "Deleting…" }}
             busy={busy}
@@ -509,16 +552,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             onKeep={() => setDeleting(false)}
             onGo={() => void remove()}
           />
-        ) : (
-          // Always there; greyed while a deck uses it, why beside it.
-          <div className="add-actions add-actions-start">
-            <Button id="srs-delete" className="is-danger" disabled={draft.deckCount > 0} onClick={() => setDeleting(true)}>
-              <Icon name="trash" />
-              Delete type…
-            </Button>
-            {draft.deckCount > 0 ? <span className="btn-beside">Used by {count(draft.deckCount, "deck", "decks")}.</span> : null}
-          </div>
-        )}
+        ) : null}
       </section>
       )}
     </div>

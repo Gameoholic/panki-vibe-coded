@@ -98,6 +98,7 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   const locked = template.builtin;
   const { action } = template;
 
@@ -235,10 +236,45 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
       </section>
 
       {kept ? (
-        <div className={`ai-template-foot ${deleting ? "ask-box" : ""}`.trim()}>
-          {deleting ? (
+        <div className="ai-template-foot">
+          <div className="add-actions add-actions-start">
+            {isDefault ? (
+              <Button id="ai-template-default" aria-pressed disabled>
+                <Icon name="star" />
+                Default
+              </Button>
+            ) : (
+              <Button id="ai-template-default" disabled={busy} onClick={() => void run(() => onMakeDefault(kept.id))}>
+                <Icon name="star" />
+                Make default
+              </Button>
+            )}
+            {/* One of Panki's own has Duplicate in the header, where Save would be. */}
+            {locked ? null : (
+              <>
+                <Button id="ai-template-duplicate" disabled={busy} onClick={() => onDuplicate(kept)}>
+                  <Icon name="copy" />
+                  Duplicate
+                </Button>
+                <Button
+                  ref={deleteAt}
+                  id="ai-template-delete"
+                  className="is-danger"
+                  aria-pressed={deleting}
+                  aria-expanded={deleting}
+                  disabled={busy}
+                  onClick={() => setDeleting(!deleting)}
+                >
+                  <Icon name="trash" />
+                  Delete…
+                </Button>
+              </>
+            )}
+          </div>
+          {deleting && !locked ? (
             <Ask
               idPrefix="ai-template-delete"
+              anchor={deleteAt}
               question={`Delete “${kept.name}”?`}
               detail={isDefault ? `${firstStarterOf(action).name} becomes the default.` : undefined}
               go={{ words: "Delete template", busy: "Deleting…" }}
@@ -247,34 +283,7 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
               onKeep={() => setDeleting(false)}
               onGo={() => void run(() => onRemove(kept.id))}
             />
-          ) : (
-            <div className="add-actions add-actions-start">
-              {isDefault ? (
-                <Button id="ai-template-default" aria-pressed disabled>
-                  <Icon name="star" />
-                  Default
-                </Button>
-              ) : (
-                <Button id="ai-template-default" disabled={busy} onClick={() => void run(() => onMakeDefault(kept.id))}>
-                  <Icon name="star" />
-                  Make default
-                </Button>
-              )}
-              {/* One of Panki's own has Duplicate in the header, where Save would be. */}
-              {locked ? null : (
-                <>
-                  <Button id="ai-template-duplicate" disabled={busy} onClick={() => onDuplicate(kept)}>
-                    <Icon name="copy" />
-                    Duplicate
-                  </Button>
-                  <Button id="ai-template-delete" className="is-danger" disabled={busy} onClick={() => setDeleting(true)}>
-                    <Icon name="trash" />
-                    Delete…
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { MediaId, byAi, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { AiSpark } from "./AiWaiting";
@@ -26,7 +26,7 @@ type Props = {
   empty?: ReactNode;
   /** When given, each row carries an edit button that opens its card's form under it, or closes it again. */
   onEdit?: (card: Card) => void;
-  /** When given, each row carries a delete button under the edit one, which asks in the row before the card goes. */
+  /** When given, each row carries a delete button under the edit one, which asks in a small panel hanging from it before the card goes. */
   onRemove?: (card: Card) => Promise<void>;
   /** When given, a card put aside (buried or suspended) carries a button among its tools that brings it back, where Suspend stands otherwise. */
   onLift?: (card: Card) => Promise<void>;
@@ -89,8 +89,8 @@ const aiOn = (card: Card, type: CardType) => type.fields.some((field) => (card.v
 /**
  * Cards as rows: the front fields on the first line, the first one that holds words big; the back fields under them; a
  * file where its field stands; at the top right the card's place and when it's next reviewed, then its tools one under
- * another, where cards can be changed: Preview, Edit, Flag, Suspend, Delete, held to the row's top. Delete asks in the
- * row itself before the card goes; Flag and Suspend don't, as Unflag and Unsuspend, standing
+ * another, where cards can be changed: Preview, Edit, Flag, Suspend, Delete, held to the row's top. Delete asks in a
+ * small panel hanging from it before the card goes, the row tinted while it does; Flag and Suspend don't, as Unflag and Unsuspend, standing
  * in their place once they're done, take them back at once. A card that's open has its form under it, as a preview is (Edit
  * pressed again closes it, as Preview does). A card put aside says so where its next review
  * would be, with Unsnooze or Unsuspend where Suspend stands; a suspended one is tinted red whole. A flagged one says so
@@ -103,6 +103,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
   const [asking, setAsking] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   function ask(cardId: string | null) {
     setAsking(cardId);
     setFailure(null);
@@ -235,7 +236,14 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                       </Button>
                     ) : null}
                     {onRemove ? (
-                      <Button className="card-tool is-danger" aria-pressed={asking === card.id} disabled={busy} onClick={() => ask(asking === card.id ? null : card.id)}>
+                      <Button
+                        ref={asking === card.id ? deleteAt : undefined}
+                        className="card-tool is-danger"
+                        aria-pressed={asking === card.id}
+                        aria-expanded={asking === card.id}
+                        disabled={busy}
+                        onClick={() => ask(asking === card.id ? null : card.id)}
+                      >
                         <Icon name="trash" />
                         Delete
                       </Button>
@@ -250,17 +258,16 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                   </p>
                 ) : null}
                 {asking === card.id ? (
-                  <div className="card-ask">
-                    <Ask
-                      idPrefix={`card-${card.id}-delete`}
-                      question={DELETE_CARD.question(type, card)}
-                      go={DELETE_CARD.go}
-                      busy={busy}
-                      failure={failure}
-                      onKeep={() => ask(null)}
-                      onGo={() => void remove(card)}
-                    />
-                  </div>
+                  <Ask
+                    idPrefix={`card-${card.id}-delete`}
+                    anchor={deleteAt}
+                    question={DELETE_CARD.question(type, card)}
+                    go={DELETE_CARD.go}
+                    busy={busy}
+                    failure={failure}
+                    onKeep={() => ask(null)}
+                    onGo={() => void remove(card)}
+                  />
                 ) : null}
               </li>
             );

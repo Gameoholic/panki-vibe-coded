@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type RefObject } from "react";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -35,10 +35,36 @@ const HOLD_STAGES = [
 ] as const satisfies readonly { id: keyof Omit<HoldChain, "on">; label: string }[];
 
 /** One of an action's keys, and how long it's held first. An added one can be taken off before it has a key, and one just added listens for it at once. */
-function KeyPair({ id, label, own, part, slot, binds, asking, onAsk, listen = false, disabled = false, keyOnly = false }: { id: string; label: string; own: Key; part: Part; slot: Slot; binds: KeyBinds; asking: boolean; onAsk: () => void; listen?: boolean; disabled?: boolean; keyOnly?: boolean }) {
+function KeyPair({
+  id,
+  label,
+  own,
+  part,
+  slot,
+  binds,
+  asking,
+  askAt,
+  onAsk,
+  listen = false,
+  disabled = false,
+  keyOnly = false,
+}: {
+  id: string;
+  label: string;
+  own: Key;
+  part: Part;
+  slot: Slot;
+  binds: KeyBinds;
+  asking: boolean;
+  askAt: RefObject<HTMLButtonElement | null>;
+  onAsk: () => void;
+  listen?: boolean;
+  disabled?: boolean;
+  keyOnly?: boolean;
+}) {
   return (
     <span className="key-pair">
-      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} asking={asking} onAsk={onAsk} removable={part !== "main"} listen={listen} disabled={disabled} />
+      <KeyField id={`key-${id}`} label={label} value={own.key} onChange={(key) => setKeyBinds(withKey(binds, slot, key, part))} asking={asking} askAt={askAt} onAsk={onAsk} removable={part !== "main"} listen={listen} disabled={disabled} />
       {/* The Hold button's key has no hold of its own: its stages' are the rows under it. */}
       {keyOnly ? null : (
         <Dropdown
@@ -64,6 +90,8 @@ function KeyRow({ id, label, bind, slot, binds, disabled = false, keyOnly = fals
   const [asking, setAsking] = useState<Part | null>(null);
   /** A key was just added with +: the last one listens for its key at once. */
   const [added, setAdded] = useState(false);
+  /** The trash the question hangs from. */
+  const askAt = useRef<HTMLButtonElement>(null);
   const labelOf = (part: Part) => (part === "main" ? label : `${label}, key ${part + 2}`);
   // An added key with none yet has nothing to lose: it goes at once.
   const ask = (part: Part) => () => (part !== "main" && bind.also[part]?.key === null ? setKeyBinds(withoutAdded(binds, slot, part)) : setAsking((was) => (was === part ? null : part)));
@@ -73,9 +101,23 @@ function KeyRow({ id, label, bind, slot, binds, disabled = false, keyOnly = fals
       label={label}
       control={
         <span className="key-controls">
-          <KeyPair id={id} label={labelOf("main")} own={bind} part="main" slot={slot} binds={binds} asking={asking === "main"} onAsk={ask("main")} disabled={disabled} keyOnly={keyOnly} />
+          <KeyPair id={id} label={labelOf("main")} own={bind} part="main" slot={slot} binds={binds} asking={asking === "main"} askAt={askAt} onAsk={ask("main")} disabled={disabled} keyOnly={keyOnly} />
           {bind.also.map((own, i) => (
-            <KeyPair key={i} id={`${id}-also-${i}`} label={labelOf(i)} own={own} part={i} slot={slot} binds={binds} asking={asking === i} onAsk={ask(i)} listen={added && i === bind.also.length - 1 && own.key === null} disabled={disabled} keyOnly={keyOnly} />
+            <KeyPair
+              key={i}
+              id={`${id}-also-${i}`}
+              label={labelOf(i)}
+              own={own}
+              part={i}
+              slot={slot}
+              binds={binds}
+              asking={asking === i}
+              askAt={askAt}
+              onAsk={ask(i)}
+              listen={added && i === bind.also.length - 1 && own.key === null}
+              disabled={disabled}
+              keyOnly={keyOnly}
+            />
           ))}
           {bind.also.length < ALSO_MAX ? (
             <Button
@@ -94,20 +136,19 @@ function KeyRow({ id, label, bind, slot, binds, disabled = false, keyOnly = fals
       }
     >
       {asking !== null ? (
-        <div className="ask-box">
-          <Ask
-            idPrefix={`key-${id}-${asking}-off`}
-            question={`Take the key off ${labelOf(asking)}?`}
-            go={{ words: "Take it off", busy: "Taking it off…" }}
-            busy={false}
-            failure={null}
-            onKeep={() => setAsking(null)}
-            onGo={() => {
-              setKeyBinds(asking === "main" ? withKey(binds, slot, null) : withoutAdded(binds, slot, asking));
-              setAsking(null);
-            }}
-          />
-        </div>
+        <Ask
+          idPrefix={`key-${id}-${asking}-off`}
+          anchor={askAt}
+          question={`Take the key off ${labelOf(asking)}?`}
+          go={{ words: "Take it off", busy: "Taking it off…" }}
+          busy={false}
+          failure={null}
+          onKeep={() => setAsking(null)}
+          onGo={() => {
+            setKeyBinds(asking === "main" ? withKey(binds, slot, null) : withoutAdded(binds, slot, asking));
+            setAsking(null);
+          }}
+        />
       ) : null}
     </Setting>
   );
@@ -122,6 +163,7 @@ export function KeysPanels() {
   const changed = JSON.stringify(binds) !== JSON.stringify(DEFAULT_KEYS);
   /** Reset to default keys is asking first. */
   const [resetting, setResetting] = useState(false);
+  const resetAt = useRef<HTMLButtonElement>(null);
   const enabled = useKeybindsEnabled();
   /** Keybinds off: every row of every other panel greyed, still readable. */
   const off = !enabled;
@@ -214,29 +256,29 @@ export function KeysPanels() {
         ))}
         <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} disabled={off} />
       </section>
-      {/* Every key set here goes at once, so it asks first, in place. */}
-      {changed && resetting ? (
-        <div className="ask-box">
-          <Ask
-            idPrefix="keys-reset"
-            question="Reset every key to its default?"
-            go={{ words: "Reset keys", busy: "Resetting…", icon: "reset" }}
-            busy={false}
-            failure={null}
-            onKeep={() => setResetting(false)}
-            onGo={() => {
-              setKeyBinds(DEFAULT_KEYS);
-              setResetting(false);
-            }}
-          />
-        </div>
-      ) : changed ? (
+      {/* Every key set here goes at once, so it asks first, hanging from the button. */}
+      {changed ? (
         <div className="add-actions add-actions-start">
-          <Button id="keys-reset" disabled={off} onClick={() => setResetting(true)}>
+          <Button ref={resetAt} id="keys-reset" aria-pressed={resetting} aria-expanded={resetting} disabled={off} onClick={() => setResetting(!resetting)}>
             <Icon name="reset" />
             Reset to default keys
           </Button>
         </div>
+      ) : null}
+      {changed && resetting ? (
+        <Ask
+          idPrefix="keys-reset"
+          anchor={resetAt}
+          question="Reset every key to its default?"
+          go={{ words: "Reset keys", busy: "Resetting…", icon: "reset" }}
+          busy={false}
+          failure={null}
+          onKeep={() => setResetting(false)}
+          onGo={() => {
+            setKeyBinds(DEFAULT_KEYS);
+            setResetting(false);
+          }}
+        />
       ) : null}
     </>
   );

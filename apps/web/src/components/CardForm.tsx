@@ -1,4 +1,4 @@
-import { Fragment, useId, useState, type ReactNode } from "react";
+import { Fragment, useId, useRef, useState, type ReactNode } from "react";
 import {
   CardUpdate,
   MEDIA_ENDINGS,
@@ -131,6 +131,7 @@ function OtherExamples({
   const [asking, setAsking] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   const fields = exampleFieldsOf(type);
   const exampleType: CardType = { ...type, fields };
   const lead = fields.find((f) => holdsWords(f.kind));
@@ -181,7 +182,17 @@ function OtherExamples({
                 <Icon name="edit" />
                 Edit
               </Button>
-              <Button className="is-danger" disabled={busy} onClick={() => setAsking(example.id)}>
+              <Button
+                ref={asking === example.id ? deleteAt : undefined}
+                className="is-danger"
+                aria-pressed={asking === example.id}
+                aria-expanded={asking === example.id}
+                disabled={busy}
+                onClick={() => {
+                  setAsking(asking === example.id ? null : example.id);
+                  setFailure(null);
+                }}
+              >
                 <Icon name="trash" />
                 Delete
               </Button>
@@ -189,6 +200,7 @@ function OtherExamples({
             {asking === example.id ? (
               <Ask
                 idPrefix={`example-delete-${example.id}`}
+                anchor={deleteAt}
                 question={DELETE_EXAMPLE.question}
                 go={DELETE_EXAMPLE.go}
                 busy={busy}
@@ -274,6 +286,7 @@ export function CardForm(props: Props) {
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
+  const deleteAt = useRef<HTMLButtonElement>(null);
   /** Fields of Panki AI's unmarked here: saved as the owner's. */
   const [marked, setMarked] = useState<Record<string, true>>({});
   const first = type.fields[0];
@@ -402,7 +415,7 @@ export function CardForm(props: Props) {
   ) : null;
 
   return (
-    <section className={`panel ${asking ? "panel-alarm" : ""}`.trim()} aria-labelledby={`${formId}-title`}>
+    <section className="panel" aria-labelledby={`${formId}-title`}>
       <h2 id={`${formId}-title`} className="panel-title">
         {"heading" in props && props.heading ? props.heading : card ? "Edit card" : "Add a card"}
       </h2>
@@ -494,6 +507,7 @@ export function CardForm(props: Props) {
         {asking && card ? (
           <Ask
             idPrefix={`${formId}-delete`}
+            anchor={deleteAt}
             question={"deleting" in props && props.deleting ? props.deleting.question : DELETE_CARD.question(type, card)}
             go={"deleting" in props && props.deleting ? props.deleting.go : DELETE_CARD.go}
             busy={busy}
@@ -501,27 +515,36 @@ export function CardForm(props: Props) {
             onKeep={() => setAsking(false)}
             onGo={() => void remove()}
           />
-        ) : (
-          <div className="add-actions">
-            {card ? (
-              <Button className="is-danger card-delete" onClick={() => setAsking(true)} disabled={busy}>
-                <Icon name="trash" />
-                {/* "Delete card…", or what this form deletes when it's an example's ("Delete example…"). */}
-                {("deleting" in props && props.deleting ? props.deleting.go : DELETE_CARD.go).words}…
-              </Button>
-            ) : null}
-            {failed}
-            {onCancel ? (
-              <Button onClick={onCancel} disabled={busy}>
-                Cancel
-              </Button>
-            ) : null}
-            <Button type="submit" variant="primary" disabled={busy || unresolved}>
-              {card ? null : <Icon name="add" />}
-              {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
+        ) : null}
+        <div className="add-actions">
+          {card ? (
+            <Button
+              ref={deleteAt}
+              className="is-danger card-delete"
+              aria-pressed={asking}
+              aria-expanded={asking}
+              onClick={() => {
+                setAsking(!asking);
+                setFailure(null);
+              }}
+              disabled={busy}
+            >
+              <Icon name="trash" />
+              {/* "Delete card…", or what this form deletes when it's an example's ("Delete example…"). */}
+              {("deleting" in props && props.deleting ? props.deleting.go : DELETE_CARD.go).words}…
             </Button>
-          </div>
-        )}
+          ) : null}
+          {asking ? null : failed}
+          {onCancel ? (
+            <Button onClick={onCancel} disabled={busy}>
+              Cancel
+            </Button>
+          ) : null}
+          <Button type="submit" variant="primary" disabled={busy || unresolved}>
+            {card ? null : <Icon name="add" />}
+            {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
+          </Button>
+        </div>
       </Form>
       {"onSaveExample" in props && props.onSaveExample && props.onRemoveExample && props.card.examples.length > 0 ? (
         <OtherExamples type={type} card={props.card} onSave={props.onSaveExample} onRemove={props.onRemoveExample} subtitleStyle={subtitleStyle} />
