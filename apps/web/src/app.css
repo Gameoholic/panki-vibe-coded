@@ -7707,26 +7707,6 @@ mark.sub-blur {
   padding-right: 10px;
   border-right: 2px solid var(--line-strong);
 }
-/* A field's branch's status at its head (AiConversation.tsx → `BranchTag`): the mode chip's shape, muted, on the
-   second surface; Unsynced in the accent's soft tint while the branch has questions of its own not yet merged. */
-.ai-branch-tag {
-  justify-self: start;
-  margin: 0;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--fg) 7%, transparent);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.45;
-}
-.ai-branch-tag.is-unsynced {
-  background: var(--accent-soft);
-  color: var(--fg);
-}
-.ai-branch-tag-was {
-  font-weight: 500;
-}
 /* The capture drawer's fields, a row each (hooks/useHoist.ts): slid to their places as those whose proposal waits go
    to the top and come back, and lit round for a moment when a round's chip goes to one. */
 .capture-field {
