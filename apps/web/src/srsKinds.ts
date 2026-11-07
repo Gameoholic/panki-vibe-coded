@@ -6,6 +6,7 @@ import {
   WaitUnit,
   isBurned,
   mainAnswers,
+  newColourOf,
   placeColour,
   stageColourAt,
   stageIndex,
@@ -13,6 +14,7 @@ import {
   type Card,
   type CardPlace,
   type HoldKind,
+  type NewColoured,
   type SrsAfter,
   type SrsAnswer,
   type SrsStage,
@@ -258,8 +260,13 @@ export function tintOf(colour: string): CSSProperties {
 export const BURNED_TINT = tintOf(BURNED_COLOUR);
 /** Stage `i`'s colour as a tint: its own, else the default ramp's (`stageColourAt`). */
 export const stageTint = (type: Pick<SrsType, "stages">, i: number): CSSProperties => tintOf(stageColourAt(type, i));
-/** Where a card stands as a tint: its stage's, the end's grey; none while it's new. */
-export function placeTint(type: Pick<SrsType, "stages" | "after">, place: CardPlace): CSSProperties | undefined {
+/**
+ * New as a place of its own (its row in the Stages panel, its box and chip on the chart) as a tint: its own colour, else
+ * Panki's accent, which is how New stands where it's drawn as a place.
+ */
+export const newTint = (type: NewColoured): CSSProperties => tintOf(newColourOf(type) ?? "var(--accent)");
+/** Where a card stands as a tint: its stage's, the end's grey, New's own colour; none while it's new and New has none. */
+export function placeTint(type: Pick<SrsType, "stages" | "after"> & NewColoured, place: CardPlace): CSSProperties | undefined {
   const colour = placeColour(type, place);
   return colour === null ? undefined : tintOf(colour);
 }

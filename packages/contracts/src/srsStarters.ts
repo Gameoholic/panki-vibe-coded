@@ -260,7 +260,7 @@ export function emptySrsType(mint: () => string): NewSrsType {
  * A new type that starts as another: the same stages, answers and rules under ids of its own (`mint`), so editing
  * one never touches the other. Its name says what it's a copy of until it's given one.
  */
-export function copySrsType(base: Pick<NewSrsType, "name" | "description" | "stages" | "answers" | "flow" | "overrides" | "lesson" | "after" | "growBy" | "burnedName">, mint: () => string): NewSrsType {
+export function copySrsType(base: Pick<NewSrsType, "name" | "description" | "stages" | "answers" | "flow" | "overrides" | "lesson" | "after" | "growBy" | "burnedName" | "newColour">, mint: () => string): NewSrsType {
   const stageIds = new Map(base.stages.map((s) => [s.id, mint()]));
   const answerIds = new Map(base.answers.map((a) => [a.id, mint()]));
   const copyStep = (step: Step): Step => {
@@ -282,5 +282,6 @@ export function copySrsType(base: Pick<NewSrsType, "name" | "description" | "sta
     after: base.after,
     growBy: base.growBy,
     burnedName: base.burnedName,
+    ...(base.newColour ? { newColour: base.newColour } : {}),
   };
 }

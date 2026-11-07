@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CardId } from "./card";
 import { DeckId } from "./deck";
-import { SrsStageId, SrsTypeId } from "./srs";
+import { HexColour, SrsStageId, SrsTypeId } from "./srs";
 import { VideoId } from "./transcription";
 import { SAVED_MAX, SavedVideo } from "./watching";
 
@@ -161,6 +161,8 @@ export const Stats = z.object({
       burnedName: z.string(),
       burned: Count,
       fresh: Count,
+      /** New's colour, when the type has one (`newColourOf`); its row is drawn plain without. */
+      newColour: HexColour.optional(),
     }),
   ),
   /** Reviews due on each of the next 7 days, today first (what's left of it). */

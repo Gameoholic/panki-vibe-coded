@@ -182,7 +182,7 @@ type Props = {
   /** What each file named in the values is, by its id (`Card.files`). Left out where a card holds no file yet, because it isn't made. */
   files?: Readonly<Record<string, MediaKind>>;
   /** Where the card stands, for the pill in its corner. */
-  srsType: Pick<SrsType, "stages" | "after" | "burnedName">;
+  srsType: Pick<SrsType, "stages" | "after" | "burnedName" | "newColour">;
   place: CardPlace;
   /** Turned to its back. */
   revealed: boolean;

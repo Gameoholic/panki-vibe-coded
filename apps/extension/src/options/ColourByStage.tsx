@@ -3,14 +3,15 @@ import { Swatches } from "@web/components/Swatches";
 import { MARK_SWATCHES, paintOf, type MarkPaint } from "../seekLook";
 
 const WAYS = [
-  { id: "stage", label: "By stage" },
-  { id: "one", label: "One colour" },
+  { id: "stage", label: "Use stage's colour" },
+  { id: "one", label: "Custom colour" },
 ] as const;
 
 /**
- * The colour of the words that are in the decks, as a `Setting`'s control: By stage (each word in its highest card's
- * stage's colour) or One colour, and under it the palette, greyed while By stage. The Highlight words that are in your
- * decks panel and the seek bar's Words that are in your decks mark both pick theirs with this.
+ * A colour by where cards stand, as a `Setting`'s control: Use stage's colour (each word in its highest card's stage's
+ * colour, each card in its own) or Custom colour, and under it the palette, greyed while the stage's is used. The
+ * Highlight words that are in your decks panel, and the seek bar's Words that are in your decks and Cards made from this
+ * video marks, pick theirs with this.
  */
 export function ColourByStage({ id, byStage, colour, disabled, onByStage, onColour }: { id: string; byStage: boolean; colour: MarkPaint; disabled: boolean; onByStage: (byStage: boolean) => void; onColour: (colour: MarkPaint) => void }) {
   return (

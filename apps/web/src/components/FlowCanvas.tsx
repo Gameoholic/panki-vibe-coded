@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { LESSON_IDX, MOVE_MAX, WAIT_MAX, isNew, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
-import { AGAIN_OPTIONS, BURNED_TINT, FAR_MOVE, NEW_WORDS, farOf, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stageTint, stepIcon, stepKey, stepLabel } from "../srsKinds";
+import { LESSON_IDX, MOVE_MAX, WAIT_MAX, isNew, newColourOf, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
+import { AGAIN_OPTIONS, BURNED_TINT, FAR_MOVE, NEW_WORDS, farOf, newTint, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stageTint, stepIcon, stepKey, stepLabel } from "../srsKinds";
 import { BURNED_SCOPE, LESSON_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setMove, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
@@ -251,6 +251,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
   });
   const ex = glance ? glance.stage : exampleIdx(type, scope, shown);
   const stage = type.stages[ex];
+  const newColour = newColourOf(type);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -538,10 +539,11 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
           {chart.boxes.map((box) => {
             if (box.kind === "root") {
               const tint = stageTint(type, ex);
-              // New has nothing to fill in: no name of its own, no wait (a card there waits for a day's new cards).
+              // New has nothing to fill in: no name of its own, no wait (a card there waits for a day's new cards); its
+              // colour is the type's, set in the Stages panel.
               if (scope === LESSON_SCOPE) {
                 return (
-                  <div key="root" className={`fnode root is-lesson ${glance?.now === box.id ? "is-now" : ""} ${drag?.id === box.id ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()} data-node="root" data-kind="root" style={boxStyle(box)}>
+                  <div key="root" className={`fnode root is-lesson ${newColour ? "is-tinted" : ""} ${glance?.now === box.id ? "is-now" : ""} ${drag?.id === box.id ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()} data-node="root" data-kind="root" style={{ ...boxStyle(box), ...(newColour ? newTint(type) : {}) }}>
                     <span className="t">{NEW_WORDS.name}</span>
                     <span className="s">{NEW_WORDS.note}</span>
                   </div>
@@ -643,7 +645,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               <span>Default rules</span>
               <small>every stage</small>
             </Button>
-            <Button variant="chip" className="rail-chip is-lesson" aria-pressed={scope === LESSON_SCOPE} onClick={() => onScope(LESSON_SCOPE)}>
+            <Button variant="chip" className={`rail-chip is-lesson ${newColour ? "is-tinted" : ""}`.trim()} style={newColour ? newTint(type) : undefined} aria-pressed={scope === LESSON_SCOPE} onClick={() => onScope(LESSON_SCOPE)}>
               <span>{NEW_WORDS.name}</span>
               <small>{NEW_WORDS.note}</small>
             </Button>

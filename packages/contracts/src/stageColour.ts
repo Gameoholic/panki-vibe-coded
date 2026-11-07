@@ -1,10 +1,10 @@
-import { isBurned, isNew, stageIndex, type CardPlace, type SrsLadder } from "./srs";
+import { isBurned, isNew, stageIndex, type CardPlace, type SrsLadder, type SrsType } from "./srs";
 
 /**
  * A stage's colour, one home for the app, the API and the extension alike. A stage's own colour (`SrsStage.colour`)
  * wins; one with none takes the default ramp's for its place on the ladder: light green at the first stage, through a
- * middle green, to dark green at the last. The end of the ladder (Burned) is grey, and New has no stage colour: it's
- * Panki's accent wherever it's drawn.
+ * middle green, to dark green at the last. The end of the ladder (Burned) is grey. New has a colour only when its type
+ * gives it one (`SrsType.newColour`); with none it's drawn plain, Panki's accent where it stands as a place of its own.
  */
 export const STAGE_RAMP = ["#a6e3a1", "#3fa860", "#1d6b3c"] as const;
 export const BURNED_COLOUR = "#9aa0b4";
@@ -25,6 +25,8 @@ export function rampColour(i: number, n: number): string {
 }
 
 type Colourable = Pick<SrsLadder, "stages">;
+/** What New's colour is read from: a type, or anything carrying its `newColour`. */
+export type NewColoured = Partial<Pick<SrsType, "newColour">>;
 
 /** The colour of stage `idx` (held to the ladder: past the top is the last stage's): its own, else the ramp's. */
 export function stageColourAt(type: Colourable, idx: number): string {
@@ -33,9 +35,14 @@ export function stageColourAt(type: Colourable, idx: number): string {
   return type.stages[i]?.colour?.toLowerCase() ?? rampColour(i, n);
 }
 
-/** Where a card stands, as a colour: its stage's, grey once burned, none while it's new. */
-export function placeColour(type: Pick<SrsLadder, "stages" | "after">, place: CardPlace): string | null {
+/** New's colour: the type's own, none when it has none. */
+export function newColourOf(type: NewColoured): string | null {
+  return type.newColour?.toLowerCase() ?? null;
+}
+
+/** Where a card stands, as a colour: its stage's, grey once burned, New's own while it's new (none when it has none). */
+export function placeColour(type: Pick<SrsLadder, "stages" | "after"> & NewColoured, place: CardPlace): string | null {
   if (isBurned(type, place)) return BURNED_COLOUR;
-  if (isNew(place)) return null;
+  if (isNew(place)) return newColourOf(type);
   return stageColourAt(type, stageIndex(type, place));
 }

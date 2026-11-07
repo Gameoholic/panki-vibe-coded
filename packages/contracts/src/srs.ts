@@ -153,6 +153,11 @@ const SrsShape = z.object({
   growBy: z.number().min(GROW_MIN).max(GROW_MAX),
   /** What the end of the ladder is called, when there is one. */
   burnedName: z.string().trim().min(1).max(40),
+  /**
+   * New's colour (Lesson in the code), as `#rrggbb`; left out, New has none: a plain pill, Panki's accent on the chart
+   * (`stageColour.ts` → `newColourOf`).
+   */
+  newColour: HexColour.optional(),
 });
 type SrsRules = Pick<z.infer<typeof SrsShape>, "stages" | "answers" | "flow" | "overrides" | "lesson">;
 

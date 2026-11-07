@@ -298,8 +298,10 @@ export function sourcesWithExample(type: Pick<CardType, "fields">, card: Pick<Ca
  * video's own time (a clip kept without an end is its start alone), and the card in words (its first Front field that
  * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark; a `suspended`
  * one apart, to be fixed from the video, and a `flagged` one apart too; each false from a Panki from before it was told.
+ * `colour`: where it stands as a colour (`stageColour.ts` → `placeColour`: its stage's, the end's grey, its type's New
+ * colour), none for a new card whose type has no New colour, and none from a Panki from before.
  */
-export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string(), suspended: z.boolean().default(false), flagged: z.boolean().default(false) });
+export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string(), suspended: z.boolean().default(false), flagged: z.boolean().default(false), colour: HexColour.optional() });
 export type VideoCard = z.infer<typeof VideoCard>;
 /** Every one of a video's, in the video's order. Read live from every card's source, so a card made before this was asked for is there too, and a deleted one is gone. */
 export const VideoCards = z.object({ cards: z.array(VideoCard) });
@@ -380,6 +382,8 @@ export const CalledCard = z.object({
    * server.
    */
   stage: z.object({ name: z.string(), colour: HexColour, again: z.boolean() }).nullable().optional(),
+  /** While it's new (`stage` null), its SRS type's New colour (`SrsType.newColour`), when the type has one. */
+  newColour: HexColour.optional(),
 });
 export type CalledCard = z.infer<typeof CalledCard>;
 /**
@@ -387,7 +391,8 @@ export type CalledCard = z.infer<typeof CalledCard>;
  * them where they stand in a video's subtitles and on pages. `suspended`: those of them whose every card is suspended,
  * marked in a colour of their own, never as a word that's in the decks. `flagged`: those of them with any card flagged,
  * in a colour of their own again, over a suspended word's. `colours`: each word's colour by the highest stage any of its
- * cards stands on (`stageColour.ts` → `placeColour`), a word whose every card is new left out. Each none from a Panki
+ * cards stands on (`stageColour.ts` → `placeColour`), a word whose every card is new in its type's New colour, or left
+ * out when that type has none. Each none from a Panki
  * from before.
  */
 export const WordsInCards = z.object({

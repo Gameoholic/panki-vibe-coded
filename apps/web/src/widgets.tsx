@@ -498,7 +498,11 @@ export const WIDGETS: readonly WidgetEntry[] = [
             return (
               <div key={ladder.srsTypeId} className="w-ladder">
                 {stats.ladders.length > 1 ? <p className="w-sub">{ladder.name}</p> : null}
-                <LadderRow name={NEW_WORDS.name} n={ladder.fresh} max={max} className="is-new" />
+                {ladder.newColour ? (
+                  <LadderRow name={NEW_WORDS.name} n={ladder.fresh} max={max} style={tintOf(ladder.newColour)} />
+                ) : (
+                  <LadderRow name={NEW_WORDS.name} n={ladder.fresh} max={max} className="is-new" />
+                )}
                 {ladder.stages.map((stage, i) => (
                   <LadderRow key={stage.id} name={stage.name || `Stage ${i + 1}`} n={stage.n} max={max} style={tintOf(stage.colour)} />
                 ))}

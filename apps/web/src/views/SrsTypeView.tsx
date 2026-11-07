@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, rampColour, stageColourAt, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, rampColour, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Swatches, hexOfCss, type Swatch } from "../components/Swatches";
@@ -14,8 +14,8 @@ import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { useUndoable } from "../hooks/useUndoable";
-import { addAnswer, addStage, edit, moveStage, patchAnswer, patchStage, removeAnswer, removeStage, renameAnswer, type Scope } from "../srsFlow";
-import { AFTER_OPTIONS, BURNED_TINT, NEW_WORDS, answerClass, stageName, stageTint, stageWaitWords } from "../srsKinds";
+import { addAnswer, addStage, edit, moveStage, patchAnswer, patchStage, removeAnswer, removeStage, renameAnswer, setNewColour, type Scope } from "../srsFlow";
+import { AFTER_OPTIONS, BURNED_TINT, NEW_WORDS, answerClass, newTint, stageName, stageTint, stageWaitWords } from "../srsKinds";
 import { PALETTE } from "../palette";
 import { count } from "../words";
 
@@ -33,27 +33,24 @@ const MESSAGES = {
 };
 
 /**
- * A stage's number in its colour, pressed to pick another: a panel hanging from it with the stage's default first, then
- * the palette, then a colour of one's own on the wheel; Reset to default while it has one of its own. A colour picked is
- * kept as `#rrggbb`, the default as none (`patchStage`'s `colour: null`), so a stage on the ramp stays on it.
+ * A rung's mark in its colour (a stage's number, New's ring), pressed to pick another: a panel hanging from it with the
+ * rung's default first (`fallback`: the ramp's for a stage, Panki's accent for New), then the palette, then a colour of
+ * one's own on the wheel; Reset to default while it has one of its own (`own`). A colour picked is kept as `#rrggbb`, the
+ * default as none (`onPick(null)`), so a stage on the ramp stays on it and New stays plain.
  */
-function StageColour({ type, i, onPick }: { type: SrsType; i: number; onPick: (colour: string | null) => void }) {
+function RungColour({ id, name, own, fallback, className = "", style, children, onPick }: { id: string; name: string; own: string | null; fallback: Swatch; className?: string; style: CSSProperties; children?: ReactNode; onPick: (colour: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   useDismiss(root, open, () => setOpen(false));
-  const own = type.stages[i]?.colour ?? null;
-  const fallback = rampColour(i, type.stages.length);
-  const swatches: Swatch[] = open
-    ? [{ id: fallback, name: "Default", css: fallback }, ...Object.values(PALETTE).map(({ name, css }) => ({ id: hexOfCss(css), name, css }))]
-    : [];
+  const swatches: Swatch[] = open ? [fallback, ...Object.values(PALETTE).map(({ name: colourName, css }) => ({ id: hexOfCss(css), name: colourName, css }))] : [];
   return (
     <span ref={root} className="stage-colour">
-      <Button className="stage-no" style={stageTint(type, i)} aria-label={`Colour of ${stageName(type, i)}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-        {i + 1}
+      <Button className={`stage-no ${className}`.trim()} style={style} aria-label={`Colour of ${name}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        {children}
       </Button>
       {open ? (
         <span className="stage-colour-pop">
-          <Swatches id={`stage-colour-${type.stages[i]?.id ?? i}`} swatches={swatches} value={stageColourAt(type, i)} onChange={(colour) => onPick(colour === fallback ? null : colour)} />
+          <Swatches id={id} swatches={swatches} value={own?.toLowerCase() ?? fallback.id} onChange={(colour) => onPick(colour === fallback.id ? null : colour)} />
           {own === null ? null : (
             <Button onClick={() => onPick(null)}>
               <Icon name="reset" />
@@ -65,6 +62,19 @@ function StageColour({ type, i, onPick }: { type: SrsType; i: number; onPick: (c
     </span>
   );
 }
+
+/** A stage's number in its colour: its own, else the default ramp's for its place. */
+function StageColour({ type, i, onPick }: { type: SrsType; i: number; onPick: (colour: string | null) => void }) {
+  const fallback = rampColour(i, type.stages.length);
+  return (
+    <RungColour id={`stage-colour-${type.stages[i]?.id ?? i}`} name={stageName(type, i)} own={type.stages[i]?.colour ?? null} fallback={{ id: fallback, name: "Default", css: fallback }} style={stageTint(type, i)} onPick={onPick}>
+      {i + 1}
+    </RungColour>
+  );
+}
+
+/** New's default: no colour of its own, drawn in Panki's accent where it stands as a place. */
+const NEW_DEFAULT: Swatch = { id: "default", name: "Default", css: "var(--accent)" };
 
 /** What the header shows: the name as it's typed, and whether what's on screen is what's saved. */
 export type SaveStatus = { name: string; state: SaveState; /** There are changes, and they can be saved as they stand. */ canSave: boolean };
@@ -92,7 +102,7 @@ const NO_ERRORS: Errors = { answers: {}, stages: {} };
 function updateOf(type: SrsType, moves: Record<string, string>): unknown {
   const stageIds = new Set(type.stages.map((s) => s.id));
   const pending = Object.fromEntries(Object.entries(moves).filter(([stageId]) => !stageIds.has(stageId)));
-  return { name: type.name, description: type.description, stages: type.stages, answers: type.answers, flow: type.flow, overrides: type.overrides, lesson: type.lesson, after: type.after, growBy: type.growBy, burnedName: type.burnedName, moves: pending };
+  return { name: type.name, description: type.description, stages: type.stages, answers: type.answers, flow: type.flow, overrides: type.overrides, lesson: type.lesson, after: type.after, growBy: type.growBy, burnedName: type.burnedName, newColour: type.newColour, moves: pending };
 }
 const sameShape = (a: SrsType, b: SrsType) => JSON.stringify(updateOf(a, {})) === JSON.stringify(updateOf(b, {}));
 
@@ -295,10 +305,25 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
       </div>
     </div>
   );
-  /** New heads the stages: every type's, before the first, with nothing of its own to set but its rules on the chart. */
-  const lessonLine = (
+  /**
+   * New heads the stages: every type's, before the first, with its colour to set (on a type of the owner's own) and its
+   * rules on the chart.
+   */
+  const lessonLine = (locked: boolean) => (
     <div className="stage-line lesson-line">
-      <span className="stage-no is-lesson" aria-hidden="true" />
+      {locked ? (
+        <span className="stage-no is-lesson" style={newTint(draft)} aria-hidden="true" />
+      ) : (
+        <RungColour
+          id="new-colour"
+          name={NEW_WORDS.name}
+          own={draft.newColour ?? null}
+          fallback={NEW_DEFAULT}
+          className="is-lesson"
+          style={newTint(draft)}
+          onPick={(colour) => change(setNewColour(draft, colour))}
+        />
+      )}
       <span className="stage-line-name">{NEW_WORDS.name}</span>
       <span className="field-hint">{NEW_WORDS.note}</span>
     </div>
@@ -341,7 +366,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             Stages
           </h2>
           <div className="stage-lines">
-            {lessonLine}
+            {lessonLine(true)}
             {draft.stages.map((stage, i) => (
               <div key={stage.id} className="stage-line">
                 <span className="stage-no" style={stageTint(draft, i)}>
@@ -429,7 +454,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
         </h2>
         <p className="field-hint">Drag to reorder. Pick a stage on the chart to name it and set how long it waits.</p>
         <div className={`stage-rows ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
-          {lessonLine}
+          {lessonLine(false)}
           {draft.stages.map((stage, i) => (
             <div
               key={stage.id}

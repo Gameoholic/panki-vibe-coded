@@ -44,7 +44,7 @@ const WORDS_OPTIONS = [
 /** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, then where the words that are in the decks are said. */
 const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
-  { id: "cards", name: "Cards" },
+  { id: "cards", name: "Cards made from this video" },
   { id: "suspended", name: "Suspended cards" },
   { id: "flagged", name: "Flagged cards" },
   { id: "clip", name: "Clip" },
@@ -74,12 +74,13 @@ const PREVIEW_LENGTH = 600;
 const PREVIEW_COVERED: readonly Stretch[] = [{ startMs: 0, endMs: 330_000 }];
 const PREVIEW_WORKING: Stretch = { startMs: 330_000, endMs: 346_000 };
 const PREVIEW_CARDS: readonly VideoCard[] = [
-  { cardId: "preview-1", startMs: 62_000, endMs: 66_000, words: "言葉", suspended: false, flagged: false },
-  { cardId: "preview-2", startMs: 148_000, endMs: 153_000, words: "景色", suspended: false, flagged: false },
+  { cardId: "preview-1", startMs: 62_000, endMs: 66_000, words: "言葉", suspended: false, flagged: false, colour: STAGE_RAMP[0] },
+  { cardId: "preview-2", startMs: 148_000, endMs: 153_000, words: "景色", suspended: false, flagged: false, colour: STAGE_RAMP[1] },
+  // A new card, its type with no New colour: Panki blue.
   { cardId: "preview-3", startMs: 166_000, endMs: 170_000, words: "例えば", suspended: false, flagged: false },
-  { cardId: "preview-6", startMs: 268_000, endMs: 273_000, words: "喫茶店", suspended: false, flagged: true },
-  { cardId: "preview-5", startMs: 372_000, endMs: 376_000, words: "敢えて", suspended: true, flagged: false },
-  { cardId: "preview-4", startMs: 432_000, endMs: 437_000, words: "大丈夫", suspended: false, flagged: false },
+  { cardId: "preview-6", startMs: 268_000, endMs: 273_000, words: "喫茶店", suspended: false, flagged: true, colour: STAGE_RAMP[1] },
+  { cardId: "preview-5", startMs: 372_000, endMs: 376_000, words: "敢えて", suspended: true, flagged: false, colour: STAGE_RAMP[0] },
+  { cardId: "preview-4", startMs: 432_000, endMs: 437_000, words: "大丈夫", suspended: false, flagged: false, colour: STAGE_RAMP[2] },
 ];
 const PREVIEW_PLAYED = 150;
 /** Where the made-up video was stopped the time before, for the Where you stopped preview. */
@@ -227,7 +228,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
             <h3 className="seek-group-title">
               <span
                 className={`seek-group-sample ${mark.shown ? "" : "is-off"}`.trim()}
-                style={{ background: id === "known" && look.known.byStage ? `linear-gradient(90deg, ${STAGE_RAMP.join(", ")})` : paintCss(mark.colour), height: `${MARK_SIZES[mark.size].px}px` }}
+                style={{ background: (id === "known" || id === "cards") && look[id].byStage ? `linear-gradient(90deg, ${STAGE_RAMP.join(", ")})` : paintCss(mark.colour), height: `${MARK_SIZES[mark.size].px}px` }}
                 aria-hidden="true"
               />
               {name}
@@ -237,13 +238,13 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
               id={`seek-${id}-colour`}
               label="Colour"
               control={
-                id === "known" ? (
+                id === "known" || id === "cards" ? (
                   <ColourByStage
                     id={`seek-${id}-colour`}
-                    byStage={look.known.byStage}
+                    byStage={look[id].byStage}
                     colour={mark.colour}
                     disabled={off || !mark.shown}
-                    onByStage={(byStage) => change("known", { byStage })}
+                    onByStage={(byStage) => change(id, { byStage })}
                     onColour={(colour) => change(id, { colour })}
                   />
                 ) : (

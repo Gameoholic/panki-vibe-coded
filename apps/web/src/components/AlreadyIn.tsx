@@ -112,7 +112,7 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
               <span className="already-card-words">
                 <span lang={langOf(card.words)}>{card.words}</span>
                 <span className="already-card-deck">{card.deck}</span>
-                {card.stage !== undefined ? <StagePill stage={card.stage} /> : null}
+                {card.stage !== undefined ? <StagePill stage={card.stage} newColour={card.newColour ?? null} /> : null}
                 {card.flagged ? <FlagTag /> : null}
                 {card.apart.map((value) => (
                   <span key={value.name} className="already-card-value">

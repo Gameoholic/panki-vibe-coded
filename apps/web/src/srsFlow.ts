@@ -214,6 +214,13 @@ export function patchStage(type: SrsType, id: string, patch: { name?: string; wa
     else if (patch.colour !== undefined) stage.colour = patch.colour;
   });
 }
+/** New's colour set, or none (null): New drawn plain again. */
+export function setNewColour(type: SrsType, colour: string | null): SrsType {
+  return edit(type, (draft) => {
+    if (colour === null) delete draft.newColour;
+    else draft.newColour = colour;
+  });
+}
 
 /** The rules as a tree for drawing: each node is an answer taken and the step it leads to, with children when it asks again. */
 export type TreeNode = { answer: SrsAnswer; step: Step; path: string[]; children: TreeNode[] };

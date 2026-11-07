@@ -5,7 +5,7 @@ import { Icon } from "@web/components/Icon";
 import { clock } from "@web/words";
 import type { KnownMoment } from "../capture/known";
 import { stamp } from "../capture/words";
-import { APART_MARK_IDS, seekVars, type ApartMarkId, type SeekLook, type WordsMarkId } from "../seekLook";
+import { APART_MARK_IDS, paintCss, seekVars, type ApartMarkId, type SeekLook, type WordsMarkId } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
 
 /**
@@ -235,6 +235,12 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
 
   /** A word that's in the decks in its stage's colour, its tick and its pin, while that mark goes By stage; nothing otherwise, the mark's one colour standing. */
   const stageColour = (said: KnownMoment): CSSProperties => (look.known.byStage ? ({ "--known-colour": said.colour, "--pin-colour": said.colour } as CSSProperties) : {});
+  /** A card taken from the video in its own stage's colour, its mark and its pin, while the cards' mark uses the stage's colour; Panki blue for a new card whose type has no New colour. */
+  const cardColour = (card: VideoCard): CSSProperties => {
+    if (!look.cards.byStage) return {};
+    const colour = card.colour ?? paintCss("accent");
+    return { "--cards-colour": colour, "--pin-colour": colour } as CSSProperties;
+  };
   const upOf = (id: WordsMarkId) => wordsOf(id) === "always" || (wordsOf(id) === "hover" && hover);
   const inertOf = (id: WordsMarkId) => look[id].click === "none";
   /** The pointer on a pin's words: kept from the bar, and the page told, so the player previews where a press goes. */
@@ -252,7 +258,7 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
     return (
       <div className={`seek-pins is-${id} is-${look[id].entrance}`}>
         {mine.map((pin, i) => {
-          const own = pin.pinned.of === "known" && pin.pinned.mark === "known" ? stageColour(pin.pinned.said) : {};
+          const own = pin.pinned.of === "known" ? (pin.pinned.mark === "known" ? stageColour(pin.pinned.said) : {}) : pin.pinned.of === "cards" ? cardColour(pin.pinned.card) : {};
           const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i, ...own } as CSSProperties;
           return (
             <Fragment key={pin.key}>
@@ -294,7 +300,7 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         saidBy(id).map((said) => <div key={`${id}-${said.startMs}`} className={`seek-known is-${id}`} style={across(said.startMs / 1000, said.endMs / 1000)} />),
       )}
       {look.cards.shown
-        ? others.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
+        ? others.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={{ ...across(card.startMs / 1000, card.endMs / 1000), ...cardColour(card) }} />)
         : null}
       {[...APART_MARK_IDS].reverse().flatMap((id) =>
         cardsBy(id).map((card) => <div key={`${card.cardId}-${card.startMs}`} className={`seek-card is-${id}`} style={across(card.startMs / 1000, card.endMs / 1000)} />),

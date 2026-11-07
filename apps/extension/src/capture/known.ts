@@ -10,7 +10,8 @@ import type { Token } from "./words";
 
 /**
  * Words already in the account's cards, marked where they stand: in subtitles and on pages, each switched apart, in
- * the colour of the highest stage any card of the word stands on (By stage, New in Panki blue) or in one colour that's
+ * the colour of the highest stage any card of the word stands on (By stage; New in its type's New colour, else Panki
+ * blue) or in one colour that's
  * chosen. What's known is the words every card is called by, from Panki through the worker (`askKnown`); the two switches and
  * the colours are this browser's settings (`local.ts`, `Local`'s `known`). A word in a line is one of them by the
  * pop-up's own check, the same function, so the two can't drift apart:
@@ -27,7 +28,8 @@ import type { Token } from "./words";
 
 /**
  * `suspended`: those of `words` whose every card is suspended; `flagged`: those with any card flagged; `colours`: each
- * word's highest card's stage's colour, a word whose every card is new left out. How they're marked is this browser's
+ * word's highest card's stage's colour, a word whose every card is new in its type's New colour, or left out when that
+ * type has none. How they're marked is this browser's
  * settings' (`KnownLook`).
  */
 export type KnownNow = KnownLook & { words: ReadonlySet<string>; suspended: ReadonlySet<string>; flagged: ReadonlySet<string>; colours: ReadonlyMap<string, string> };
@@ -116,7 +118,7 @@ export function knownAs({ words, suspended, flagged }: Pick<KnownNow, "words" | 
   return flagged.has(token.term) ? "flagged" : suspended.has(token.term) ? "suspended" : "known";
 }
 
-/** A word's stage's colour in CSS: its highest card's stage's, or Panki blue while every card of it is new. */
+/** A word's stage's colour in CSS: its highest card's stage's, else (every card of it new, its type with no New colour) Panki blue. */
 export const stageCssOf = (colours: ReadonlyMap<string, string>, term: string | undefined): string => (term !== undefined ? colours.get(term) : undefined) ?? paintCss("accent");
 
 /** The colour a word that's in the decks (`knownAs` "known") is marked in, as CSS: its stage's under By stage, else the one chosen. */

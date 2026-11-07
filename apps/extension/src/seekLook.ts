@@ -78,8 +78,9 @@ export type WordsLook = z.infer<typeof WordsLook>;
 export const SeekLook = z.object({
   // (A look kept with an old `bar`, Panki's own bar in the player's place, keeps it unread.)
   transcript: MarkLook,
-  // (A look kept with an old `snap`, a press near a card's mark landing on the card, keeps it unread.)
-  cards: WordsLook.extend({ words: CardWords }),
+  // (A look kept with an old `snap`, a press near a card's mark landing on the card, keeps it unread.) Each card in its
+  // own stage's colour (`byStage`, the API's `VideoCard.colour`; a look kept before it is given it) or all in `colour`.
+  cards: WordsLook.extend({ words: CardWords, byStage: z.boolean().default(true) }),
   clip: MarkLook,
   // Where the words that are in the decks are said, each tick in its word's stage's colour (`byStage`, as their
   // highlight is to begin with) or all in `colour`, with the cards' own settings for the words on pins over its ticks
@@ -105,14 +106,15 @@ export const APART_MARK_IDS = ["flagged", "suspended"] as const satisfies readon
 export type ApartMarkId = (typeof APART_MARK_IDS)[number];
 
 /**
- * As they stand to begin with: the transcript's thin white line, the cards a little thicker in orange on it, the clip in
+ * As they stand to begin with: the transcript's thin white line, the cards a little thicker on it, each in its stage's
+ * colour (orange when one colour is picked), the clip in
  * Panki's blue; the words in the decks thick and green, their words hidden; the suspended cards thick and red and the
  * flagged ones thick and yellow, their words always up. The transcript is white so a flagged card's yellow never lies
  * on a line of its own colour; a look already kept keeps the colours it has.
  */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
   transcript: { shown: true, colour: "white", size: "thin" },
-  cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
+  cards: { shown: true, byStage: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
   known: { shown: true, byStage: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
   suspended: { shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" },

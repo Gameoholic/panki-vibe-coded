@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { NEW_PLACE, BURNED_PLACE, SrsType } from "../src/srs";
 import { makeStarter } from "../src/srsStarters";
-import { BURNED_COLOUR, STAGE_RAMP, placeColour, rampColour, stageColourAt } from "../src/stageColour";
+import { BURNED_COLOUR, STAGE_RAMP, newColourOf, placeColour, rampColour, stageColourAt } from "../src/stageColour";
 
 /*
  * A stage's colour (`stageColour.ts`) and Panki Default's ladder. Run with `pnpm --dir packages/contracts test`.
@@ -51,4 +51,16 @@ test("a stage's own colour wins; a place is its stage's, grey burned, none new",
   assert.equal(placeColour(own, { stageId: first.id, past: 0, node: [], burned: false }), "#123456");
   assert.equal(placeColour(own, NEW_PLACE), null);
   assert.equal(placeColour(own, BURNED_PLACE), BURNED_COLOUR);
+});
+
+test("New's colour is the type's own, none without one; it never reaches a stage", () => {
+  const type = SrsType.parse({ ...makeStarter("anki", mint), createdAt: 0, builtin: false, deckCount: 0, cardCounts: {} });
+  assert.equal(newColourOf(type), null);
+  const coloured = SrsType.parse({ ...type, newColour: "#AABBCC" });
+  assert.equal(newColourOf(coloured), "#aabbcc");
+  assert.equal(placeColour(coloured, NEW_PLACE), "#aabbcc");
+  assert.equal(placeColour(coloured, { ...NEW_PLACE, node: [type.answers[0]?.id ?? ""] }), "#aabbcc");
+  assert.equal(placeColour(coloured, BURNED_PLACE), BURNED_COLOUR);
+  assert.equal(stageColourAt(coloured, 0), STAGE_RAMP[0]);
+  assert.equal(SrsType.safeParse({ ...type, newColour: "blue" }).success, false);
 });
