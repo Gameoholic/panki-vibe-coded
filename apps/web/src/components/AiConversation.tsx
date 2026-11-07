@@ -29,8 +29,15 @@ export const CONVERSATION_WORDS = {
   changedNothing: "Changed nothing",
   /** The line a merged branch's questions that changed nothing are folded under, in the head. */
   foldedNothing: (n: number) => `${n} ${wordFor(n, "question", "questions")} · Changed nothing`,
-  /** Under a field whose branch was reset when main moved on: its questions there are gone, until the next is asked. */
-  startedAgain: "Started again from the latest changes",
+  /** A field's branch standing on main's tip with no questions of its own. */
+  synced: "Synced",
+  /**
+   * The same, right after main moved on and cleared its questions there, until the next is asked there: by what moved it,
+   * a change made on another field's branch, or a question asked in the head.
+   */
+  cleared: (byField: boolean) => (byField ? "earlier follow-ups cleared after a change on another field" : "earlier follow-ups cleared after a question in the head"),
+  /** A field's branch with questions of its own not yet merged into main. */
+  unsynced: "Unsynced",
 };
 
 /**
@@ -225,6 +232,26 @@ function MergedBranch({ turn, about, ...rest }: TurnProps & { turn: Drawn; about
   );
 }
 
+/**
+ * A field's branch's status at its head, worked out from the Conversation, never kept: Unsynced while it has questions
+ * of its own not yet merged; else Synced, standing on main's tip, with why its earlier questions went right after a
+ * reset (what main's tip is: a commit merged from another field's branch, or a question in the head) until the next
+ * question there. Only a field with a branch (cut at its first question) has one.
+ */
+function BranchTag<C>({ conversation, where, asked }: { conversation: Conversation<C>; where: string; asked: boolean }) {
+  const branch = conversation.branches.get(where);
+  if (!branch) return null;
+  if (branch.commits.length > 0) return <p className="ai-branch-tag is-unsynced">{CONVERSATION_WORDS.unsynced}</p>;
+  const cleared = branch.reset && !asked;
+  const tip = conversation.main.at(-1);
+  return (
+    <p className="ai-branch-tag">
+      {CONVERSATION_WORDS.synced}
+      {cleared ? <span className="ai-branch-tag-was"> · {CONVERSATION_WORDS.cleared(tip?.field != null && tip.field !== where)}</span> : null}
+    </p>
+  );
+}
+
 type PlaceProps<C> = {
   conversation: Conversation<C>;
   asking: Asking | null;
@@ -237,8 +264,8 @@ type PlaceProps<C> = {
 
 /**
  * One place of the conversation: main (the run first, each commit a merge brought as its branch's block, the ones of
- * its branch that changed nothing folded inside it) or a field's branch (its commits, after "Started again from the
- * latest changes" while it was reset since a question was last asked there); then the question on its way or failed,
+ * its branch that changed nothing folded inside it) or a field's branch (its status at its head, `BranchTag`, then its
+ * commits); then the question on its way or failed,
  * where it was asked; then its foot. `AiConversation` draws main with it; Touch up draws each field's under the field.
  */
 export function ConversationTurns<C>({ conversation, asking, where, of, foot = null }: PlaceProps<C>) {
@@ -257,7 +284,7 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
   };
   return (
     <>
-      {branch !== null && branch.reset && waiting.length === 0 ? <p className="ai-again">{CONVERSATION_WORDS.startedAgain}</p> : null}
+      {where !== null ? <BranchTag conversation={conversation} where={where} asked={waiting.length > 0} /> : null}
       {[...here, ...waiting].map((turn) =>
         turn.run === null && turn.about !== null ? (
           <MergedBranch key={turn.id} turn={turn} about={turn.about} {...rest} />

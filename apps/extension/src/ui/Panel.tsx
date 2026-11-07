@@ -1250,10 +1250,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         </Tied>
       );
     }
-    // A note gone (its proposal accepted or dismissed, every note put away, the Meaning changed since it was judged):
-    // a field with a branch keeps it under it (its commits, or after a merge or a reset its line and the next to ask),
-    // as does one with a question on its way or failed there.
-    const asked = field !== null && (touch.conversation.branches.has(field.id) || touch.asking?.field === field.id);
+    // A note gone (its proposal accepted, dismissed or replaced, every note put away, the Meaning changed since it was
+    // judged): once a run has answered, every field Touch up judges keeps its follow-ups under it (its branch, the
+    // question on its way or failed there, and the next to ask), so a question about a field is always asked there.
+    const asked = field !== null && (touch.conversation.branches.has(field.id) || touch.asking?.field === field.id || (touch.answer !== null && keyOfField(field.id) !== null));
     if (field && (asked || (meaningMoved && keyOfField(field.id) === "meaning" && !touch.hidden.meaning))) {
       return (
         <>

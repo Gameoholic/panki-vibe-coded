@@ -17,7 +17,7 @@ import type { ExplainMessage } from "./prompt";
  *   that changed nothing are folded under one quiet line (`mainRuns`), the changing one shown with its field and what it
  *   changed. The branch is then empty again, standing on the new tip.
  * - **When main's tip moves, every other branch is reset to the new tip** (`reset`): its commits discarded, visually
- *   too, with one muted line under the field (`Branch.reset`), gone at the next question asked there. The tip moves on
+ *   too, the field's tag saying so (`Branch.reset`) until the next question asked there. The tip moves on
  *   every commit on main and on every merge, so a branch always stands on the tip and every merge is a fast-forward.
  * - **Accept and Dismiss are not commits**: they change the card, which every commit already sends as it stands.
  *
@@ -50,7 +50,7 @@ export type Branch<C> = {
   /** Main's tip when it was cut or last reset; null only on a conversation with no commits. */
   base: number | null;
   commits: readonly Commit<C>[];
-  /** Its commits were discarded when main's tip moved: "Started again from the latest changes" under the field until the next question there. */
+  /** Its commits were discarded when main's tip moved: its tag says so under the field until the next question there. */
   reset: boolean;
 };
 
