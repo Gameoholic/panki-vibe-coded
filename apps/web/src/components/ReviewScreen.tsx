@@ -11,8 +11,8 @@ import { KeyCap } from "./KeyCap";
 import { HoldButton, ShowButton } from "./ShowButton";
 
 /**
- * The review's screen, the one drawing of it: the counts over the card with Undo and Chart at their right (Hide back of
- * card before them while the back shows), the card, the Hold button's row, the buttons under the card, and the
+ * The review's screen, the one drawing of it: the counts over the card with Step back, Undo, Chart and the card's Flag
+ * at their right, the card, the Hold button's row, the buttons under the card, and the
  * card's chart hanging under all of it; filling the screen, the stage (`useScreenStage`). The review runs it, and a
  * card type's Layout tab draws its card in it, so what's laid out is what a review shows.
  */
@@ -112,11 +112,9 @@ export type ReviewFlag = { on: boolean; busy: boolean; onToggle?: () => void };
  * The buttons under the card: on its back the answers (the main ones in a row, the ones set apart under them), each
  * its name, where it sends the card and its key; otherwise Done listening or Show back of card. The answers set apart
  * hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. Without `onAnswer` the
- * answers stand greyed (a card looked at as a review shows it, which gives no answer). With `flag`, the card's Flag
- * stands at the end of the set-apart answers' row, across a hairline from them, on every SRS type: not an answer, so
- * it's there on the front and the back alike, pressed at once, the card answered as ever after.
+ * answers stand greyed (a card looked at as a review shows it, which gives no answer).
  */
-export function ReviewButtons({ srsType, place, revealed, listening, binds, busy, onShow, onAnswer, onRest, onLeave, flag = null }: {
+export function ReviewButtons({ srsType, place, revealed, listening, binds, busy, onShow, onAnswer, onRest, onLeave }: {
   srsType: SrsType;
   place: CardPlace;
   revealed: boolean;
@@ -128,7 +126,6 @@ export function ReviewButtons({ srsType, place, revealed, listening, binds, busy
   /** The mouse on an answer, and off it: its box on the chart lights up. */
   onRest?: (answerId: string) => void;
   onLeave?: () => void;
-  flag?: ReviewFlag | null;
 }) {
   // The main answers first, then the ones set apart: that's the order of the number keys too.
   const answers = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
@@ -162,7 +159,7 @@ export function ReviewButtons({ srsType, place, revealed, listening, binds, busy
           <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={onShow} />
         )}
       </div>
-      {asides || flag ? (
+      {asides ? (
         <div className={revealed ? "review-asides" : "review-asides is-later"}>
           {answers.map((a, i) =>
             a.aside && offered(srsType, place, a.id) ? (
@@ -183,17 +180,6 @@ export function ReviewButtons({ srsType, place, revealed, listening, binds, busy
               </Button>
             ) : null,
           )}
-          {flag ? (
-            <>
-              {asides ? <span className="review-asides-rule" aria-hidden="true" /> : null}
-              {/* Its words say how the card stands: Flag, or Flagged while it is. */}
-              <Button variant="chip" className="review-flag" data-hold="flag" aria-pressed={flag.on} disabled={flag.busy || flag.onToggle === undefined} onClick={flag.onToggle}>
-                <Icon name={FLAG_WORDS.icon} className={flag.on ? "is-flagged" : ""} />
-                <span className="name">{flag.on ? FLAG_WORDS.state : FLAG_WORDS.set}</span>
-                <KeyCap bind={binds.flag} />
-              </Button>
-            </>
-          ) : null}
         </div>
       ) : null}
     </>
@@ -220,6 +206,8 @@ type Props = {
   canUndo: boolean;
   /** The card's chart under the review, on or off; without `onToggle` the Chart button stands greyed. */
   chart: { open: boolean; onToggle?: () => void };
+  /** The card's Flag, after Chart: not an answer, so it's there on every side of the card and every SRS type. */
+  flag: ReviewFlag;
   /** The card (`ReviewCard`), filling the screen by the stage. */
   card: ReactNode;
   /** The fields whose clip the full screen fills the screen with, the one to try first first (`stagedOrder`, the card type's layout). */
@@ -238,7 +226,7 @@ type Props = {
 };
 
 /** The review's screen around its card: one drawing, the review's and the Layout tab's. */
-export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, card, staging, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
+export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, flag, card, staging, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
   // The clip that takes the screen's room while it's filled, marked for the stage's styles: of the fields the layout
   // names, the first whose part holds a clip in the Player look there to see (not a sound, not under a spoiler).
   useLayoutEffect(() => {
@@ -255,8 +243,12 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
   // Filling the screen, the review is the stage (`.is-stage`), its clip at the left and the rest in a rail, and not the page's fitted layout.
   const full = stage.screen.full;
   const look = full ? "is-stage" : "is-fit";
-  // Undo and Chart: in the counts' row on a computer, under the answers on a phone, the CSS showing one of the two.
-  // Pinned over the counts' row, they would cover "in play · waiting".
+  const flagOff = flag.busy || flag.onToggle === undefined;
+  // Its words say how the card stands: Flag, or Flagged while it is, the flag filled.
+  const flagWords = flag.on ? FLAG_WORDS.state : FLAG_WORDS.set;
+  const flagIcon = <Icon name={FLAG_WORDS.icon} className={flag.on ? "is-flagged" : ""} />;
+  // Step back, Undo, Chart and Flag: in the counts' row on a computer, under the answers on a phone, the CSS showing
+  // one of the two. Pinned over the counts' row, they would cover "in play · waiting".
   const tools = (
     <>
       {/* The card a phase back, its key's hold drawn on it; always in its place, greyed with nowhere to step back to. */}
@@ -274,6 +266,11 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
         <Icon name="srs" />
         Chart
       </Button>
+      <Button className="review-flag" data-hold="flag" aria-pressed={flag.on} disabled={flagOff} onClick={flag.onToggle}>
+        {flagIcon}
+        {flagWords}
+        <KeyCap bind={binds.flag} />
+      </Button>
     </>
   );
   return (
@@ -281,7 +278,7 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
       <div className="review-top">
         {counts}
         {!full ? <span className="review-tools">{tools}</span> : null}
-        {/* Filling the screen: Step back, Undo, Chart, and the way out. */}
+        {/* Filling the screen: Step back, Undo, Chart, Flag, and the way out. */}
         {full ? (
           <span className="review-stage-tools">
             {/* Its key beside it, as the Undo outside full screen has it. */}
@@ -296,6 +293,10 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
             {/* The card's chart, the same on or off as on the page; open, it stands under the answers in the rail. */}
             <Button className="btn-icon" aria-label="Chart" aria-pressed={chart.open} disabled={chart.onToggle === undefined} onClick={chart.onToggle}>
               <Icon name="srs" />
+            </Button>
+            <Button className="btn-icon review-stage-flag" aria-label={flagWords} data-hold="flag" aria-pressed={flag.on} disabled={flagOff} onClick={flag.onToggle}>
+              {flagIcon}
+              <KeyCap bind={binds.flag} />
             </Button>
             <Button className="btn-icon" aria-label="Leave full screen" onClick={stage.screen.toggle}>
               <Icon name="unfull" />
@@ -319,7 +320,7 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
       {ask ?? (
         <>
           {buttons}
-          {/* Under the answers on a phone: Undo, and the card's chart, on or off, kept on this device. Not while the review fills the screen, whose top row has Undo. */}
+          {/* Under the answers on a phone: Step back, Undo, the card's chart, on or off, kept on this device, and Flag. Not while the review fills the screen, whose top row has them. */}
           {full ? null : <div className="review-chart-row">{tools}</div>}
           {/* The card's chart while it's open: under the review on the page, under the answers in the rail. */}
           {chart.open ? chartView : null}

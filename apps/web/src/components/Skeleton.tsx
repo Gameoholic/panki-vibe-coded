@@ -62,11 +62,10 @@ function CountShape({ w }: { w: string }) {
 }
 
 /**
- * The review's frame as `ReviewScreen` draws it: the counts with Undo and Chart at their right, the card taking the
- * room, Show back of card under it, and the row under it: the answers set apart when there are some (`asides`), and
- * the card's Flag at its end (`flag`), which a review always has.
+ * The review's frame as `ReviewScreen` draws it: the counts with Step back, Undo, Chart and Flag at their right, the
+ * card taking the room, Show back of card under it, and the answers set apart under that when there are some (`asides`).
  */
-function ReviewShape({ asides = false, flag = true }: { asides?: boolean; flag?: boolean }) {
+function ReviewShape({ asides = false }: { asides?: boolean }) {
   return (
     <>
       <div className="review-top">
@@ -76,8 +75,9 @@ function ReviewShape({ asides = false, flag = true }: { asides?: boolean; flag?:
           <CountShape w="3em" />
         </span>
         <span className="review-tools">
-          <Bone w={REVIEW_TOOL_PX[0]} h={REVIEW_TOOL_H} />
-          <Bone w={REVIEW_TOOL_PX[1]} h={REVIEW_TOOL_H} />
+          {REVIEW_TOOL_PX.map((w, i) => (
+            <Bone key={i} w={w} h={REVIEW_TOOL_H} />
+          ))}
         </span>
       </div>
       <div className="review-card is-still skel-review-card">
@@ -92,27 +92,23 @@ function ReviewShape({ asides = false, flag = true }: { asides?: boolean; flag?:
       <div className="review-actions">
         <Bone h="46px" />
       </div>
-      {asides || flag ? (
+      {asides ? (
         <div className="review-asides">
-          {asides ? (
-            <>
-              <Bone w="9em" h={ASIDE_H} />
-              <Bone w="9em" h={ASIDE_H} />
-            </>
-          ) : null}
-          {asides && flag ? <span className="review-asides-rule" aria-hidden="true" /> : null}
-          {flag ? <Bone w={FLAG_W} h={ASIDE_H} /> : null}
+          <Bone w="9em" h={ASIDE_H} />
+          <Bone w="9em" h={ASIDE_H} />
         </div>
       ) : null}
     </>
   );
 }
 
-/** The review's Undo and Chart in the counts' row, an answer set apart, and the card's Flag (its words, its flag), as measured. */
-const REVIEW_TOOL_PX = ["77px", "79px"] as const;
+/**
+ * The review's Step back (with its key, Backspace to begin with), Undo, Chart and Flag (no key to begin with) in the
+ * counts' row, and an answer set apart: Undo and Chart as measured, Step back and Flag worked out from them.
+ */
+const REVIEW_TOOL_PX = ["180px", "77px", "79px", "72px"] as const;
 const REVIEW_TOOL_H = "30px";
 const ASIDE_H = "30px";
-const FLAG_W = "68px";
 /** The Layout tab's panel as measured: its header's buttons, and each of its rows' controls (a switch, a dropdown, a choice of sides, the chips of what isn't on the side). */
 const PANEL_BUTTON = "32px";
 const SWITCH = { w: "94px", h: "46px" };
@@ -448,12 +444,11 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
       // A card type's Layout tab: the review's frame it's drawn in, and its panel over it, where and as folded as it
       // stands on this device (the real `FloatPanel`): the type's own panel (Listen first, the card previewed, the
       // side), and the one for what isn't on the front with each corner mark's switch. `parts` is how many chips stand
-      // for what isn't on the front, and the row under the answers (none, Flag alone, or the answers set apart and
-      // Flag), as last drawn here.
+      // for what isn't on the front, and whether the answers set apart hold a row under the answers, as last drawn here.
       const [away = 0, asides = 0] = parts ?? [];
       return (
         <section className="skel-in review is-fit" {...status}>
-          <ReviewShape asides={asides > 1} flag={asides > 0} />
+          <ReviewShape asides={asides > 0} />
           <FloatPanel
             id="layout-panel"
             label="Layout"

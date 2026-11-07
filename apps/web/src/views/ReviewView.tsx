@@ -968,6 +968,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       onUndo={() => void undo()}
       canUndo={given.length > 0}
       chart={{ open: chartOpen, onToggle: toggleChart }}
+      flag={{ on: card.flaggedAt !== null, busy: flagging, onToggle: () => void toggleFlag() }}
       failure={failure}
       hold={chainOn ? chain.view : null}
       card={
@@ -1016,7 +1017,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           onAnswer={press}
           onRest={rest}
           onLeave={leave}
-          flag={{ on: card.flaggedAt !== null, busy: flagging, onToggle: () => void toggleFlag() }}
         />
       }
       ask={

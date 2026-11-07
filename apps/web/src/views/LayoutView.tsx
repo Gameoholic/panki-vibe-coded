@@ -350,10 +350,9 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   /** The fields whose clip the full screen can fill the screen with, the one it fills it with first (`stagedOrder`). */
   const staging = stagedOrder(draft, type.fields);
   // What this tab's skeleton draws next time on this device (`Skeleton`'s `layout`): the chips of what isn't on the
-  // front in the panel, and the row under the answers: none (no deck's answers), Flag alone, or the answers set apart
-  // with Flag after them.
+  // front in the panel, and whether the answers set apart hold a row under the answers (1) or not (0).
   const awayOnFront = side === "front" ? away.length : null;
-  const asidesHeld = answersBy === undefined ? 0 : answersBy.answers.some((a) => a.aside && offered(answersBy, sample?.card.place ?? NEW_PLACE, a.id)) ? 2 : 1;
+  const asidesHeld = answersBy !== undefined && answersBy.answers.some((a) => a.aside && offered(answersBy, sample?.card.place ?? NEW_PLACE, a.id)) ? 1 : 0;
   useEffect(() => {
     if (awayOnFront !== null) rememberShape(`layout-away:${type.id}`, awayOnFront);
   }, [awayOnFront, type.id]);
@@ -677,6 +676,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       canStepBack={canStepBack}
       canUndo={false}
       chart={{ open: false }}
+      // Greyed, as Undo and Chart are: a card looked at isn't flagged from here.
+      flag={{ on: (sample?.card.flaggedAt ?? null) !== null, busy: false }}
       failure={null}
       hold={chainOn ? chain.view : null}
       card={
@@ -746,9 +747,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             listening={face === "listen"}
             binds={binds}
             busy={false}
+            // Greyed: a card looked at gives no answer.
             onShow={showNext}
-            // Greyed, as the answers are: a card looked at gives no answer, and isn't flagged from here.
-            flag={{ on: (sample?.card.flaggedAt ?? null) !== null, busy: false }}
           />
         ) : face === "back" ? null : (
           <div className="review-actions">

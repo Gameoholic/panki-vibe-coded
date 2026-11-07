@@ -3648,15 +3648,18 @@ mark.sub-blur {
 .review-chart {
   margin-top: 12px;
 }
+/* Wrapping onto a second line on a phone too narrow for its four buttons, never wider than the screen. */
 .review-chart-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 4px;
   margin-top: 12px;
 }
 .btn.review-chart-toggle,
 .btn.review-hide,
-.btn.review-undo {
+.btn.review-undo,
+.btn.review-flag {
   padding: 4px 10px;
   font-size: 13px;
   color: var(--muted);
@@ -3664,6 +3667,13 @@ mark.sub-blur {
 .btn.review-chart-toggle[aria-pressed="true"] {
   color: var(--accent);
   background: var(--accent-soft);
+}
+/* The card's Flag, as quiet as the buttons beside it until it's on, then tinted whole in the highlighter's yellow, its
+   flag filled, saying Flagged; the same as an icon in the full-screen rail. */
+:is(.btn.review-flag, .btn-icon.review-stage-flag)[aria-pressed="true"] {
+  border-color: var(--flagged-edge);
+  background: var(--flagged-soft);
+  color: var(--flagged-ink);
 }
 .review-chart .canvas {
   height: 380px;
@@ -3739,33 +3749,9 @@ mark.sub-blur {
 .review-aside .to {
   font-size: 11px;
 }
-/* The card's Flag at the end of that row, across a hairline from the answers (it's none of them): as quiet as they are
-   until it's on, then tinted whole in the highlighter's yellow, its flag filled, saying Flagged. */
-.review-asides-rule {
-  align-self: stretch;
-  width: 1px;
-  background: var(--line);
-}
-.btn-chip.review-flag {
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.review-flag .name {
-  font-weight: 700;
-  color: var(--fg);
-}
-.btn-chip.review-flag[aria-pressed="true"] {
-  border-color: var(--flagged-edge);
-  background: var(--flagged-soft);
-  color: var(--flagged-ink);
-}
-.btn-chip.review-flag[aria-pressed="true"] .name {
-  color: var(--flagged-ink);
-}
 @media (hover: none) {
   .review-aside .key,
+  .review-hide .key,
   .review-flag .key,
   .review-undo .key {
     display: none;
@@ -3877,7 +3863,9 @@ mark.sub-blur {
    press and not as a count. */
 .btn-answer .key,
 .review-aside .key,
+.review-hide .key,
 .review-flag .key,
+.review-stage-tools .key,
 .review-hint .key,
 .review-actions > .btn-primary .key,
 .today-bar > .btn-primary .key,
@@ -4710,7 +4698,7 @@ mark.sub-blur {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-/* Undo and Chart in the counts' row are a computer's (below, in the fitted review); a phone has them under the answers. */
+/* Step back, Undo, Chart and Flag in the counts' row are a computer's (below, in the fitted review); a phone has them under the answers. */
 .review-tools {
   display: none;
 }
@@ -4728,9 +4716,8 @@ mark.sub-blur {
   --scroll-surface: var(--surface);
 }
 /* The answers set apart hold their room on the front, unseen (as the back's parts do), so turning the card moves
-   nothing; the card's Flag beside them stands on both sides. */
-.review-asides.is-later > .review-aside,
-.review-asides.is-later > .review-asides-rule {
+   nothing. */
+.review-asides.is-later > .review-aside {
   visibility: hidden;
 }
 /* The review on a computer fits the window, nothing scrolled to, everything on one screen with the buttons smaller
@@ -4840,7 +4827,7 @@ mark.sub-blur {
   .main > .review.is-fit > * {
     flex: none;
   }
-  /* Undo and Chart at the counts' right, in the row itself (pinned over it, they covered "in play · waiting"); a
+  /* Step back, Undo, Chart and Flag at the counts' right, in the row itself (pinned over it, they covered "in play · waiting"); a
      window too narrow for all of it wraps them under, never over. The row's height stays the words'. */
   .main > .review.is-fit > .review-top {
     flex-wrap: wrap;
@@ -4914,8 +4901,7 @@ mark.sub-blur {
     height: 100%;
     padding-block: 0;
   }
-  .main > .review.is-fit .btn-chip.review-aside,
-  .main > .review.is-fit .btn-chip.review-flag {
+  .main > .review.is-fit .btn-chip.review-aside {
     padding: 3px 10px;
   }
   .main > .review.is-fit .btn-answer {
@@ -5108,9 +5094,10 @@ mark.sub-blur {
   gap: 2px;
   margin-left: auto;
 }
-/* Undo with its keycap after its icon, when it has a key: a little wider than the icons beside it. */
+/* Step back, Undo and Flag with a keycap after the icon, when it has a key: a little wider than the icons beside them. */
 .btn-icon.review-stage-undo,
-.btn-icon.review-stage-hide {
+.btn-icon.review-stage-hide,
+.btn-icon.review-stage-flag {
   gap: 6px;
 }
 /* The clip, fixed over the screen's room under the rest of the review (`isolation` above keeps it on the review's own
@@ -5182,16 +5169,11 @@ mark.sub-blur {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
-.main > .review.is-stage:has([data-staged]) .btn-chip.review-aside,
-.main > .review.is-stage:has([data-staged]) .btn-chip.review-flag {
+.main > .review.is-stage:has([data-staged]) .btn-chip.review-aside {
   min-width: 0;
   justify-content: center;
   gap: 6px;
   padding: 5px 8px;
-}
-/* Two to a row, the hairline has no cell of its own. */
-.main > .review.is-stage:has([data-staged]) .review-asides-rule {
-  display: none;
 }
 .main > .review.is-stage:has([data-staged]) .review-aside .to {
   min-width: 0;
