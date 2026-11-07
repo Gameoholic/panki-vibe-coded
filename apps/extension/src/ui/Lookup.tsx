@@ -18,9 +18,8 @@ import { dictionaryOf, dictionaryPart, type BodyPart, type FrequencyWords, type 
 import { Explain, type ExplainExamples, type ExplainSource, type Judged, type Judgement, type MorePieces } from "./Explain";
 import { Glossary } from "./Glossary";
 
-/** How wide the popup is, at most, and how far it keeps from the word and the window's edges. */
+/** How wide the popup is, at most, and how far it keeps from the window's edges; from the word it keeps nothing. */
 const WIDTH = 420;
-const GAP = 6;
 const EDGE = 8;
 
 /** A reading with its pitch drawn over it, as the app draws one, small and quiet in the popup. */
@@ -530,9 +529,12 @@ type Props = {
 
 /**
  * The popup: every word found where the pointer is, laid out as the viewer laid it out on the options page
- * (`LookupBody`). It stands under the word (over it, when there's more room there), inside the window, and the word
- * itself is lit. A press anywhere in it keeps it open; kept open, an × at its top right closes it, so a popup that
- * stays once the pointer leaves (the key let go on the word, a press in it) is told apart from one that goes with it.
+ * (`LookupBody`). It stands flush under the word (over it, when there's more room there), no gap between them: the
+ * pointer goes from the word straight into the popup, and whatever stands under the word (the next line's words) is
+ * covered, never hovered or clicked on the way (a 6 px gap lit and clicked the next line's word, 2026-11-07). Inside
+ * the window, and the word itself is lit. A press anywhere in it keeps it open; kept open, an × at its top right
+ * closes it, so a popup that stays once the pointer leaves (the key let go on the word, a press in it) is told apart
+ * from one that goes with it.
  */
 export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, cards, explain }: Props) {
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
@@ -544,10 +546,10 @@ export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, car
   const mark = lit ?? anchor;
   const width = Math.min(WIDTH, window.innerWidth - EDGE * 2);
   const left = Math.max(EDGE, Math.min(anchor.left, window.innerWidth - width - EDGE));
-  const below = window.innerHeight - anchor.bottom - GAP - EDGE;
-  const above = anchor.top - GAP - EDGE;
+  const below = window.innerHeight - anchor.bottom - EDGE;
+  const above = anchor.top - EDGE;
   const under = below >= 240 || below >= above;
-  const place = under ? { top: anchor.bottom + GAP, maxHeight: below } : { bottom: window.innerHeight - anchor.top + GAP, maxHeight: above };
+  const place = under ? { top: anchor.bottom, maxHeight: below } : { bottom: window.innerHeight - anchor.top, maxHeight: above };
   return (
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />

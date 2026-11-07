@@ -46,28 +46,16 @@ export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; loc
 
 /** Where the popup stands on the screen, as drawn; null while there's none. */
 type PopupRect = () => DOMRect | null;
-/** TEMPORARY, to be taken out: the looker's decisions written to the console, for the owner to paste. */
-const debug = (what: string, data: Record<string, unknown>) => console.debug(`[Panki look] ${what}`, JSON.stringify(data));
-const rectOf = (r: DOMRect | null) => (r ? [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)] : null);
 /**
- * Whether the pointer is still on a hover popup's word: on the word's own box, or in the gap between the word and the
- * popup (under it, or over it), the word's own width of it, however wide the gap is. So the pointer crossing the gap
- * slowly into the popup never closes the popup on the way, and leaving the word any other way closes it at once:
- * no margin round the word (a 24 px one kept the popup open with the pointer well off the word).
+ * Whether the pointer is still on a hover popup's word: on the word's own box, or on the popup itself. The popup
+ * stands flush against the word (`Lookup.tsx`), so the pointer goes from the word straight into it, however slowly,
+ * and the line's own leave event, whose pointer is already in the popup, closes nothing; leaving the word any other
+ * way closes the popup at once. No margin round the word (a 24 px one kept the popup open with the pointer well off
+ * the word), and no gap to bridge: a gap was the next line's room, whose word was hovered, lit and clicked on the
+ * way through it.
  */
-function nearWord(word: DOMRect, at: At, popup: DOMRect | null): boolean {
-  return within(word, at.x, at.y) || inGap(word, at, popup);
-}
-/**
- * Whether the pointer is in the gap between a popup's word and the popup, the word's own width of it. The gap is the
- * popup's, whatever lies in it: lines stacked under one another put the next line's words right there, and one of
- * them pointed at on the way down would take the popup for itself.
- */
-function inGap(word: DOMRect, at: At, popup: DOMRect | null): boolean {
-  if (!popup || at.x < word.left || at.x > word.right) return false;
-  if (popup.top >= word.bottom) return at.y >= word.bottom && at.y <= popup.top;
-  if (popup.bottom <= word.top) return at.y >= popup.bottom && at.y <= word.top;
-  return false;
+function onWord(word: DOMRect, at: At, popup: DOMRect | null): boolean {
+  return within(word, at.x, at.y) || (popup !== null && within(popup, at.x, at.y));
 }
 /**
  * How often a popup opened by hover looks again at its word, ms: the word gone or changed, or no longer under the
@@ -112,7 +100,7 @@ export function pointWith(looker: Looker, key: LookKey, e: { shiftKey: boolean; 
 
 /**
  * What's open and what's being asked about. `onView` is told every change; null is nothing showing. `popup` is where
- * the popup stands as drawn, so the gap between a word and its hover popup counts as on the word.
+ * the popup stands as drawn, so the pointer on it counts as on the word (`onWord`).
  */
 export function createLooker(onView: (view: View | null) => void, find: Find = askWorker, popup: PopupRect = () => null) {
   let view: View | null = null;
@@ -136,9 +124,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     if (!shown.pointed.alive()) return true;
     const first = shown.found[0];
     const rect = first ? shown.pointed.measure(first.source.length) : null;
-    const gone = rect !== null && lastAt !== null && !nearWord(rect, lastAt, popup());
-    if (gone) debug("stale", { open: shown.pointed.id, lastAt, word: rectOf(rect), popup: rectOf(popup()) });
-    return gone;
+    return rect !== null && lastAt !== null && !onWord(rect, lastAt, popup());
   };
   const tell = (next: View | null) => {
     view = next;
@@ -157,18 +143,10 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hover`, the pointer
      * is on a word where the key to hold is On hover. One that's kept open gives way only to another
      * word with the key held: the pointer crossing nothing, still on its own word, or only hovering, leaves it be, so
-     * one kept with Shift doesn't give way to the next word merely hovered. Another word under the pointer while it's
-     * still on the open popup's word, or in the gap between that word and the popup, is passed over, hovered or with
-     * the key held: the pointer is on its way to the popup.
+     * one kept with Shift doesn't give way to the next word merely hovered.
      */
     point(pointed: Pointed | null, at?: At, hover = false) {
       if (at) lastAt = at;
-      // TEMPORARY, to be taken out: what the looker sees as the pointer moves, for the owner's console.
-      debug("point", { pointed: pointed?.id ?? null, at, hover, open: view?.pointed.id ?? null, locked: view?.locked ?? null, hovered: view?.hovered ?? null, word: rectOf(view?.word ?? null), popup: rectOf(popup()), near: at && view?.word ? nearWord(view.word, at, popup()) : null, inPopup });
-      // Another word under the pointer while it's still on the open popup's word or in the gap to the popup is passed
-      // over: lines stacked with no room between them put the next line's word under the pointer at the open word's
-      // very bottom edge, before the gap begins.
-      if (at && view?.word && pointed && pointed.id !== view.pointed.id && nearWord(view.word, at, popup())) return;
       if (view?.locked && (hover || pointed === null || (at && view.word && within(view.word, at.x, at.y)))) return;
       if (pointed === null) {
         looker.close();
@@ -199,13 +177,12 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
      */
     drift(at?: At) {
       if (at) lastAt = at;
-      debug("drift", { at, open: view?.pointed.id ?? null, locked: view?.locked ?? null, hovered: view?.hovered ?? null, word: rectOf(view?.word ?? null), popup: rectOf(popup()), near: at && view?.word ? nearWord(view.word, at, popup()) : null, inPopup });
       if (!view) {
         if (askedByHover) looker.close();
         return;
       }
       if (view.locked || !view.hovered) return;
-      if (at && view.word && nearWord(view.word, at, popup())) return;
+      if (at && view.word && onWord(view.word, at, popup())) return;
       looker.close();
     },
     /**
@@ -235,7 +212,6 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
       if (view && !view.locked) tell({ ...view, locked: true });
     },
     close() {
-      debug("close", { open: view?.pointed.id ?? null, by: new Error().stack?.split("\n").slice(2, 5).join(" | ") });
       asked++;
       pointedId = null;
       askedByHover = false;
