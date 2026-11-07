@@ -1,4 +1,4 @@
-import { againPlaceOf, isNew, resolve, type Card, type Deck, type Outcome, type SrsType } from "@panki/contracts";
+import { againPlaceOf, isNew, resolve, type Card, type Deck, type Outcome, type ReviewSettings, type SrsType } from "@panki/contracts";
 import { shuffle } from "./shuffle";
 
 /**
@@ -15,10 +15,11 @@ export function kindOf(card: Card): Kind {
   return isNew(card.place) ? "new" : "review";
 }
 /**
- * The counts left to right in the order their cards come: the new ones before or after the reviews as the deck puts them (scattered among them, first),
- * and the ones asked again where they go back in: last at the end, between them anywhere.
+ * The counts left to right in the order their cards come: the new ones before or after the reviews as the account's
+ * settings put them (scattered among them, first), and the ones asked again where they go back in: last at the end,
+ * between them anywhere.
  */
-export function countOrder(settings: Deck["settings"]): readonly Kind[] {
+export function countOrder(settings: ReviewSettings): readonly Kind[] {
   const [front, back]: [Kind, Kind] = settings.newPlace === "last" ? ["review", "new"] : ["new", "review"];
   if (againPlaceOf(settings) === "end") return [front, back, "again"];
   return [front, "again", back];
@@ -72,14 +73,14 @@ function scatter(items: readonly string[], among: readonly string[]): string[] {
 }
 
 /**
- * The session's cards, in order: what's due (soonest first) and what's new, as many as today allows, the new ones
- * where the deck's settings put them. A card still inside an ask-again (an earlier review was left with it there) is
- * due too, but stands where the deck puts cards asked again, as the count at the top has them: at the end, or
+ * The session's cards, in order: what's due (soonest first) and what's new, as many as the deck's day allows, the new
+ * ones where the account's review settings put them. A card still inside an ask-again (an earlier review was left with
+ * it there) is due too, but stands where cards asked again go, as the count at the top has them: at the end, or
  * anywhere, never shuffled in among the reviews at random. Not `capped`,
  * every card given is in it: the ones picked on the Today screen, new cards past today's count among them.
  */
-export function buildQueue(cards: readonly Card[], deck: Deck, capped = true): string[] {
-  const { newOrder, newPlace, reviewOrder } = deck.settings;
+export function buildQueue(cards: readonly Card[], deck: Deck, review: ReviewSettings, capped = true): string[] {
+  const { newOrder, newPlace, reviewOrder } = review;
   const overdue = cards.filter((c) => c.due).sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0));
   // The order decides which cards make it under the day's limit, as well as when they show.
   const allDue = (reviewOrder === "random" ? shuffle(overdue) : overdue).slice(0, capped ? deck.dueCount : undefined);
@@ -89,7 +90,7 @@ export function buildQueue(cards: readonly Card[], deck: Deck, capped = true): s
   const fresh = (newOrder === "shuffled" ? shuffle(unseen) : unseen).slice(0, capped ? deck.newCount : undefined).map((c) => c.id);
   // Scattered: each new card lands somewhere at random among the reviews, the new ones keeping their own order.
   const line = newPlace === "first" ? [...fresh, ...due] : newPlace === "last" ? [...due, ...fresh] : scatter(fresh, due);
-  if (againPlaceOf(deck.settings) === "end") return [...line, ...again];
+  if (againPlaceOf(review) === "end") return [...line, ...again];
   return scatter(again, line);
 }
 
@@ -103,11 +104,11 @@ export function startLine(queue: string[], pool: number | null): Line {
   return { active: queue.slice(0, size), waiting: queue.slice(size) };
 }
 /**
- * The line after the card on screen is answered. One asked again right away goes back in where the deck's settings
+ * The line after the card on screen is answered. One asked again right away goes back in where the account's settings
  * say (never straight back on screen while another card is in play); one that's done for now leaves, and the next
  * waiting card takes its place at the end.
  */
-export function advance(line: Line, cardId: string, comesBack: boolean, againPlace: Deck["settings"]["againPlace"]): Line {
+export function advance(line: Line, cardId: string, comesBack: boolean, againPlace: ReviewSettings["againPlace"]): Line {
   const active = line.active.slice(1);
   if (!comesBack) return { active: [...active, ...line.waiting.slice(0, 1)], waiting: line.waiting.slice(1) };
   const spot = active.length === 0 ? 0 : againPlace === "end" ? active.length : 1 + Math.floor(Math.random() * active.length);
@@ -116,12 +117,13 @@ export function advance(line: Line, cardId: string, comesBack: boolean, againPla
 }
 /**
  * The next new card for today, when a new one put aside leaves its place (as the deck's own count gives it to the
- * next): the first never started that isn't in the line already, in the deck's order; none when there's none left.
+ * next): the first never started that isn't in the line already, in the order Which new cards first says; none when
+ * there's none left.
  */
-export function nextFresh(cards: Iterable<Card>, line: Line, leaving: string, deck: Deck): string | null {
+export function nextFresh(cards: Iterable<Card>, line: Line, leaving: string, newOrder: ReviewSettings["newOrder"]): string | null {
   const taken = new Set([...line.active, ...line.waiting, leaving]);
   const left = [...cards].filter((c) => isUnseen(c) && !taken.has(c.id)).sort((a, b) => a.createdAt - b.createdAt);
-  return (deck.settings.newOrder === "shuffled" ? shuffle(left) : left)[0]?.id ?? null;
+  return (newOrder === "shuffled" ? shuffle(left) : left)[0]?.id ?? null;
 }
 /** A card joining the line: in play at the end when there's room, else the last to wait its turn. */
 export function joinLine(line: Line, cardId: string, pool: number | null): Line {

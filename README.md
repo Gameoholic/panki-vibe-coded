@@ -38,7 +38,7 @@ Before sharing with public:
 - redacat all repo history because i put some texts int his repo that probably private
 - Remove cronjob for running daily backups. Make it so the app triggers it, like whiteboard, minimal setup on sysadmin side.
 
-- Investigate youtube comments feature to learn from them. "Dive" into the video. meaning title, descirption, comments being analyzed and drilld on them. Deep Dive feature.
+- Investigate youtube comments feature to learn from them. "Dive" into the video. meaning title, descirption, comments being analyzed and drilld on them. Deep Dive feature. Right now its super hard and lazy for me to red comments.
 
 - Card type default that comes with Panki?
 

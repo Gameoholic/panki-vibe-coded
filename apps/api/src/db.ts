@@ -13,7 +13,10 @@ import {
   CardPlace,
   CardType,
   DEFAULT_DECK_SETTINGS,
+  DEFAULT_REVIEW_SETTINGS,
   DEFAULT_SETTINGS,
+  REVIEW_SETTING_KEYS,
+  ReviewSettings,
   DEFAULT_STARTER,
   Deck,
   DeckSettings,
@@ -987,6 +990,50 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // and every type that comes with the app, has none: New is drawn plain.
     db.exec("ALTER TABLE srs_types ADD COLUMN new_colour TEXT");
   },
+  (db, now) => {
+    // 49. How every review runs (today's cards first, where new cards come and in what order, which reviews first, where
+    // a card asked again comes back, cards at a time, the example shown) became the account's, the same for every deck.
+    // The account takes them once from its living deck with the most living cards (the oldest of those tied), each
+    // value that deck kept and that still fits its rule said as a setting of its own with its change row; what it never
+    // changed reads as the same default it read as on the deck. Every deck keeps what it stored, read by nothing.
+    const deck = db
+      .prepare(
+        `SELECT d.settings FROM decks d WHERE d.removed_at IS NULL
+         ORDER BY (SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.removed_at IS NULL) DESC, d.created_at ASC, d.id ASC LIMIT 1`,
+      )
+      .get() as { settings: string } | undefined;
+    if (!deck) return;
+    const stored = JSON.parse(deck.settings) as Record<string, unknown>;
+    const chosen = db.prepare("SELECT 1 FROM settings WHERE key = ?");
+    const insert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
+    const change = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES (?, ?, ?, ?)");
+    for (const key of REVIEW_SETTING_KEYS) {
+      if (!(key in stored) || chosen.get(key) !== undefined) continue;
+      const parsed = ReviewSettings.shape[key].safeParse(stored[key]);
+      if (!parsed.success) continue;
+      insert.run(key, JSON.stringify(parsed.data));
+      change.run(key, JSON.stringify(DEFAULT_REVIEW_SETTINGS[key]), JSON.stringify(parsed.data), now);
+    }
+  },
+  (db, now) => {
+    // 50. Before decks had settings of their own, Which new cards first (`newOrder`) was the account's, and a row of it
+    // may still be kept from then, read by nothing since. 49 left such a row standing, so the account would read it in
+    // place of what its deck said. The deck 49 took from decides it here too: what it kept, or the default where it
+    // changed nothing, with a change row from the old value.
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'newOrder'").get() as { value: string } | undefined;
+    if (!row) return;
+    const deck = db
+      .prepare(
+        `SELECT d.settings FROM decks d WHERE d.removed_at IS NULL
+         ORDER BY (SELECT COUNT(*) FROM cards c WHERE c.deck_id = d.id AND c.removed_at IS NULL) DESC, d.created_at ASC, d.id ASC LIMIT 1`,
+      )
+      .get() as { settings: string } | undefined;
+    const kept = ReviewSettings.shape.newOrder.safeParse(deck ? (JSON.parse(deck.settings) as Record<string, unknown>).newOrder : undefined);
+    const value = JSON.stringify(kept.success ? kept.data : DEFAULT_REVIEW_SETTINGS.newOrder);
+    if (row.value === value) return;
+    db.prepare("UPDATE settings SET value = ? WHERE key = 'newOrder'").run(value);
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('newOrder', ?, ?, ?)").run(row.value, value, now);
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1756,10 +1803,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     return (selectLivePin.get(cardId) as { exampleId: string | null } | undefined) ?? null;
   }
   /**
-   * The example a card is pinned to now, by the deck's Example shown: Rotate the one after the one it was last pinned to
+   * The example a card is pinned to now, by the account's Example shown: Rotate the one after the one it was last pinned to
    * (the first, its own, when it never was, or when that one's gone), Newest the newest it has, Random any. Its own is null.
    */
-  function pickExample(card: Card, how: DeckSettings["exampleShown"]): string | null {
+  function pickExample(card: Card, how: ReviewSettings["exampleShown"]): string | null {
     const all = [null, ...card.examples.map((e) => e.id)];
     if (how === "newest") return all[all.length - 1] ?? null;
     if (how === "random") return all[Math.floor(Math.random() * all.length)] ?? null;
@@ -2162,7 +2209,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     /**
      * A deck's cards, as a review reads them: every one a review would take now (due, or new and in play) that has
-     * examples to show, its type showing them, and no live pin is pinned to one here, by the deck's Example shown, and
+     * examples to show, its type showing them, and no live pin is pinned to one here, by the account's Example shown, and
      * told with it (`Card.shownExample`), so the example stays the same however often the card comes up until it's scheduled.
      */
     listCards(deckId: string, now: number): Card[] {
@@ -2171,11 +2218,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         examples: selectDeckExamples.all(deckId) as ExampleRow[],
         exampleValues: selectDeckExampleValues.all(deckId) as ExampleValueRow[],
       };
-      const cards = cardsFrom(selectCards.all(deckId) as CardRow[], read, srsTypeOfDeck(deckId), todayAt(now));
-      const deck = selectAnyDeck.get(deckId) as { typeId: string; settings: string } | undefined;
+      const today = todayAt(now);
+      const cards = cardsFrom(selectCards.all(deckId) as CardRow[], read, srsTypeOfDeck(deckId), today);
+      const deck = selectAnyDeck.get(deckId) as { typeId: string } | undefined;
       const fields = deck ? (selectFields.all(deck.typeId) as FieldRow[]) : [];
       if (!deck || !fields.some((f) => f.perExample === 1)) return cards;
-      const how = deckSettingsFrom(deck.settings).exampleShown;
+      const how = today.settings.exampleShown;
       return transaction(() =>
         cards.map((card) => {
           const inPlay = card.due || (isNew(card.place) && card.place.node.length === 0 && card.hold === null);

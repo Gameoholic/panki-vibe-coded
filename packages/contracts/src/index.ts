@@ -20,6 +20,7 @@ export * from "./pieces";
 export * from "./pitch";
 export * from "./prompt";
 export * from "./proofread";
+export * from "./reviewSettings";
 export * from "./space";
 export * from "./srs";
 export * from "./srsStarters";

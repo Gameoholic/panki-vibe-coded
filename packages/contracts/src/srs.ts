@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_REVIEW_SETTINGS, ReviewSettings } from "./reviewSettings";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
 import { TranscribeLanguage } from "./transcription";
 
@@ -401,9 +402,9 @@ export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number
 }
 
 /**
- * The settings that run every review of every deck, in the Settings tab. One row of defaults, changed in Settings.
- * What differs from deck to deck (how many new cards, where they go, how a review is paced) is the deck's own
- * `DeckSettings`.
+ * The account's settings, in the Settings tab: when its day turns over, its languages, and how every review of every
+ * deck runs (`ReviewSettings`). One row of defaults, changed in Settings. What differs from deck to deck (how many new
+ * cards and reviews a day, the Hold button's answer) is the deck's own `DeckSettings`.
  */
 /**
  * The languages Panki can speak to an account in, one registry: English alone for now, so its
@@ -472,6 +473,8 @@ export const Settings = z.object({
   aiDefaults: z.record(z.string().max(32), z.string().min(1).max(64)),
   // `dailyGoal` (minutes a day that kept the watch streak) is gone with the streak: a row kept of it is read by nothing.
   // `shareWatching` (Off, Minutes and streak, Also what I watch) is gone too: a row kept of it is read by nothing.
+  /** How every review runs, the same for every deck (`ReviewSettings`), each key a setting of its own. */
+  ...ReviewSettings.shape,
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = {
@@ -485,6 +488,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiAskOverMicros: 10_000,
   aiShowCostOverMicros: 0,
   aiDefaults: {},
+  ...DEFAULT_REVIEW_SETTINGS,
 };
 export const SettingsUpdate = Settings.omit({ videoTracking: true }).partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;

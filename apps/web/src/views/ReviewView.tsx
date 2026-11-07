@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { ExampleArrows } from "../components/ExampleArrows";
@@ -36,7 +36,9 @@ type Props = {
   srsType: SrsType;
   /** How a clip's subtitles look on the card: the account's. */
   subtitleStyle: SubtitleStyle;
-  /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the deck's `todayFirst` says, folded. */
+  /** How every review runs, the account's: today's cards first, the line's order, cards at a time. */
+  review: ReviewSettings;
+  /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the account's `todayFirst` says, folded. */
   begin?: ReviewBegin;
   /** The answer with the sitting it happened in and how long the card was on screen before and after the flip. */
   onAnswer: (cardId: string, answer: CardAnswer) => Promise<Card>;
@@ -94,7 +96,7 @@ function wordsOf(type: CardType, card: Card): string {
 type Today = { picked: ReadonlySet<string>; more: boolean };
 
 /**
- * Today's cards before the first one (a deck's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
+ * Today's cards before the first one (the account's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
  * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
  * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`). Extra study at the
  * end is this too, with how many to pick added: its new cards past today's, under its name, with how many in the bar after Show cards.
@@ -275,16 +277,16 @@ function writeChartOpen(open: boolean) {
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
-  const [line, setLine] = useState(() => startLine(buildQueue(cards, deck), deck.settings.pool));
+  const [line, setLine] = useState(() => startLine(buildQueue(cards, deck, review), review.pool));
   /**
-   * Today's cards first, while they're on screen (the deck's `todayFirst`, when there's anything to review); null once
+   * Today's cards first, while they're on screen (the account's `todayFirst`, when there's anything to review); null once
    * it's under way. Opened from the deck picker, its Start goes straight in and its Show cards opens on them.
    */
   const [today, setToday] = useState<Today | null>(() => {
     const queue = [...line.active, ...line.waiting];
-    const first = begin === "cards" || (begin !== "start" && deck.settings.todayFirst);
+    const first = begin === "cards" || (begin !== "start" && review.todayFirst);
     return first && queue.length > 0 ? { picked: new Set(queue), more: false } : null;
   });
   /** The line was picked by hand on the Today screen: a new card put aside then hands its place to no other. */
@@ -330,14 +332,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   /** How many more new cards extra study offers once the day's are done, as last set on the end screen; the deck's daily count to begin with. */
   const firstExtra = deck.settings.newPerDay > 0 ? deck.settings.newPerDay : EXTRA_START;
   const [extra, setExtra] = useState(firstExtra);
-  // The deck's new cards never started, in the order extra study takes them: oldest first, or shuffled once for a deck
-  // that shuffles its new cards, so the tiles at the end hold still while they're looked over.
+  // The deck's new cards never started, in the order extra study takes them: oldest first, or shuffled once where new
+  // cards are shuffled, so the tiles at the end hold still while they're looked over.
   const unseenIds = [...byId.values()].filter(isUnseen).sort((a, b) => a.createdAt - b.createdAt).map((c) => c.id);
   const unseenKey = unseenIds.join(" ");
   const extraOrder = useMemo(
-    () => (deck.settings.newOrder === "shuffled" ? shuffle(unseenIds) : unseenIds),
+    () => (review.newOrder === "shuffled" ? shuffle(unseenIds) : unseenIds),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the same cards keep the same order, however often they're read
-    [unseenKey, deck.settings.newOrder],
+    [unseenKey, review.newOrder],
   );
   /** Extra study's pick at the end, as today's cards hold theirs; null while it's the first of them, as many as the number says. */
   const [extraPick, setExtraPick] = useState<Today | null>(null);
@@ -379,7 +381,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     setGiven([]);
     setFailure(null);
     setExtraPick(null);
-    setLine(startLine(picked, deck.settings.pool));
+    setLine(startLine(picked, review.pool));
   }
   const cardId = today ? undefined : line.active[0];
   const card = cardId ? byId.get(cardId) : undefined;
@@ -579,7 +581,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   }
   /**
    * The review begins on what's picked: today's line as it was when every card is, else a line of the picked cards
-   * alone, in the deck's order, new cards past today's count among them. The sitting starts here, and the pick is kept
+   * alone, in the review's order, new cards past today's count among them. The sitting starts here, and the pick is kept
    * in the ledger with it: what today offered, what was left for later, what was added.
    */
   function start() {
@@ -590,7 +592,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     ledger.record("pick", { data: { deckId: deck.id, sessionId: sitting.current?.id, today: queue, left, added } });
     if (left.length > 0 || added.length > 0) {
       pickedByHand.current = true;
-      setLine(startLine(buildQueue(cardsOf([...today.picked]), deck, false), deck.settings.pool));
+      setLine(startLine(buildQueue(cardsOf([...today.picked]), deck, review, false), review.pool));
     }
     setToday(null);
   }
@@ -643,9 +645,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       // Not in a line picked by hand: the cards left out were left out on purpose.
       const handsOn = !pickedByHand.current && outcome.hold !== null && kindOf(card) === "new";
       setLine((l) => {
-        const next = advance(l, card.id, comesBack(outcome), againPlaceOf(deck.settings));
-        const joining = handsOn ? nextFresh(byId.values(), next, card.id, deck) : null;
-        return joining ? joinLine(next, joining, deck.settings.pool) : next;
+        const next = advance(l, card.id, comesBack(outcome), againPlaceOf(review));
+        const joining = handsOn ? nextFresh(byId.values(), next, card.id, review.newOrder) : null;
+        return joining ? joinLine(next, joining, review.pool) : next;
       });
       setAnswered((n) => n + 1);
       setTurn((n) => n + 1);
@@ -960,7 +962,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
       place={place}
       stage={stage}
       staging={stagedOrder(type.layout, type.fields)}
-      counts={<ReviewCounts counts={{ settings: deck.settings, togo, now: kindOf(card), line }} />}
+      counts={<ReviewCounts counts={{ settings: review, togo, now: kindOf(card), line }} />}
       busy={busy}
       binds={binds}
       onStepBack={stepBack}

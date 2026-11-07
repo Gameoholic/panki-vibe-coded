@@ -1,5 +1,5 @@
 import { useLayoutEffect, type ReactNode, type RefObject } from "react";
-import { branchAt, flowOf, isNew, offered, resolve, stageIndex, type CardPlace, type Deck, type HoldKind, type SrsType, type Step } from "@panki/contracts";
+import { branchAt, flowOf, isNew, offered, resolve, stageIndex, type CardPlace, type HoldKind, type ReviewSettings, type SrsType, type Step } from "@panki/contracts";
 import type { HoldButtonView } from "../hooks/useHoldButton";
 import { ScreenStageContext, type Stage } from "../hooks/useScreenStage";
 import type { KeyBinds } from "../keys";
@@ -76,7 +76,7 @@ const KIND_WORDS: Record<Kind, (n: number) => string> = {
  * kind of the card on screen underlined; with a limit on how many are in play, how many that is and how many wait.
  * With no deck (`counts` null) the line holds its room with nothing in it.
  */
-export function ReviewCounts({ counts }: { counts: { settings: Deck["settings"]; togo: Record<Kind, number>; now: Kind | null; line: Line } | null }) {
+export function ReviewCounts({ counts }: { counts: { settings: ReviewSettings; togo: Record<Kind, number>; now: Kind | null; line: Line } | null }) {
   if (counts === null) {
     // A count's own room, with nothing in it: the line stands as tall as it does with its counts.
     return (

@@ -27,6 +27,7 @@ import {
   type FlagMark,
   type LayoutPart,
   type ListenFirst,
+  type ReviewSettings,
   type SparkMark,
   type SrsType,
   type StageTag,
@@ -93,6 +94,8 @@ type Props = {
   onGuard: (guard: UnsavedGuard | null) => void;
   /** How a clip's subtitles look: the account's. */
   subtitleStyle: SubtitleStyle;
+  /** How every review runs, the account's: the order the line over the card counts in. */
+  review: ReviewSettings;
 };
 
 /**
@@ -103,7 +106,7 @@ type Props = {
  * (`FloatPanel`), with which side shows, Listen first and the card it's shown on. Saved by the header's Save, as the
  * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
-export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
+export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle, review }: Props) {
   // The fields' parts, the corner marks, the example arrows and Listen first are laid out together, so one Undo steps back through them all.
   const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, flag: t.flag, examples: t.examples, listen: t.listen });
   const history = useUndoable<Laid>(laidOf(type));
@@ -335,10 +338,10 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     const cards = countDeck ? deckCards.get(countDeck.id) : undefined;
     const by = countDeck ? srsTypes.find((t) => t.id === countDeck.srsTypeId) : undefined;
     if (!countDeck || !cards || !by) return null;
-    const line = startLine(buildQueue(cards, countDeck), countDeck.settings.pool);
+    const line = startLine(buildQueue(cards, countDeck, review), review.pool);
     const best = mainAnswers(by.answers).at(-1)?.id ?? "";
-    return { settings: countDeck.settings, togo: togoOf([...line.active, ...line.waiting], new Map(cards.map((c) => [c.id, c])), by, best), line };
-  }, [countDeck, deckCards, srsTypes]);
+    return { settings: review, togo: togoOf([...line.active, ...line.waiting], new Map(cards.map((c) => [c.id, c])), by, best), line };
+  }, [countDeck, deckCards, srsTypes, review]);
 
   /** What a card is called in the list of cards to show: its first words. */
   const nameField = type.fields.find((f) => holdsWords(f.kind));

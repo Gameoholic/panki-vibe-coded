@@ -2815,7 +2815,7 @@ canvas.media-frame {
     display: none;
   }
 }
-/* Today's cards before a review (ReviewView → TodayCards, a deck's todayFirst): Start at the top with what's left for
+/* Today's cards before a review (ReviewView → TodayCards, the account's todayFirst): Start at the top with what's left for
    later, then the reviews and the new cards as tiles, each a chip lit while it's picked and faint while it's left out. */
 .review-today {
   display: grid;

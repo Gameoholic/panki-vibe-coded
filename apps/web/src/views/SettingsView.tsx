@@ -65,6 +65,7 @@ import { Skeleton } from "../components/Skeleton";
 import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
 import { AiTemplatesTab } from "./AiTemplatesView";
 import { KeysPanels } from "./KeysSettings";
+import { ReviewsPanel } from "./ReviewsPanel";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
@@ -1332,8 +1333,8 @@ function DictionariesPanel() {
 
 /**
  * The theme first, kept on this device; then General: when the day turns over and in which
- * time zone, and the language videos are transcribed in. How a review runs is in each deck's own settings. Then
- * Immersion: whether watching is kept. Each change is saved a moment after
+ * time zone, and the language videos are transcribed in. Then Reviews: how every review runs, the same for every deck
+ * (what's each deck's own is in its settings). Each change is saved a moment after
  * it's made. Last, the devices signed in and the watch history. (What every account shares is an admin's own screen,
  * `AdminView`.)
  */
@@ -1447,6 +1448,8 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
             control={<Dropdown id="setting-language" label="Learning language" options={LANGUAGE_OPTIONS} value={current.language} onChange={(language) => patch({ language })} />}
           />
         </section>
+
+        <ReviewsPanel current={current} patch={patch} />
 
         {/* How a card's clip's subtitles look (a part's Subtitles in a card type's Layout): the app's own, apart from the extension's over YouTube. */}
         <section className="panel" aria-labelledby="card-subtitles-title">

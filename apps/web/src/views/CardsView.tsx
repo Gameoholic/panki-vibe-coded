@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { wordsFieldOf, type CalledCard, type Card, type CardExampleUpdate, type CardType, type CardUpdate, type Deck, type NewCard, type NewCardExample, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { wordsFieldOf, type CalledCard, type Card, type CardExampleUpdate, type CardType, type CardUpdate, type Deck, type ExampleShown, type NewCard, type NewCardExample, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { api } from "../api";
 import { ALL_CARDS, filterCards, filterOptions, type CardFilterId } from "../cardFilter";
 import { CARD_SORTS, CARD_SORT_IDS, readCardSort, sortCards, waysOf, writeCardSort, type CardSort } from "../cardSort";
@@ -52,6 +52,8 @@ type Props = {
   srsTypes: readonly SrsType[];
   /** How a clip's subtitles look (`Settings.subtitleStyle`), in a card's form and its preview. */
   subtitleStyle?: SubtitleStyle | undefined;
+  /** Which of a card's examples its preview shows, the account's Example shown. */
+  exampleShown: ExampleShown;
 };
 
 /**
@@ -85,6 +87,7 @@ export function CardsView({
   types,
   srsTypes,
   subtitleStyle,
+  exampleShown,
 }: Props) {
   /** The card seen as a review would show it, in its row; null for none. */
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -205,7 +208,7 @@ export function CardsView({
           previewed
             ? {
                 id: previewed.id,
-                view: <CardPreview key={previewed.id} card={previewed} type={type} decks={decks} types={types} srsTypes={srsTypes} subtitleStyle={subtitleStyle} onClose={() => setPreviewId(null)} />,
+                view: <CardPreview key={previewed.id} card={previewed} type={type} decks={decks} types={types} srsTypes={srsTypes} subtitleStyle={subtitleStyle} exampleShown={exampleShown} onClose={() => setPreviewId(null)} />,
               }
             : null
         }

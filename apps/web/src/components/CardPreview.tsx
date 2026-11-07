@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { NEW_PLACE, exampleShownOf, sourcesWithExample, valuesWithExample, type Card, type CardField, type CardType, type Deck, type SrsType, type SubtitleStyle, type ValueSources } from "@panki/contracts";
+import { NEW_PLACE, exampleShownOf, sourcesWithExample, valuesWithExample, type Card, type CardField, type CardType, type Deck, type ExampleShown, type SrsType, type SubtitleStyle, type ValueSources } from "@panki/contracts";
 import { api } from "../api";
 import { waveOf } from "../waveform";
 import { Button } from "./Button";
@@ -19,6 +19,8 @@ type Props = {
   types: readonly CardType[];
   srsTypes: readonly SrsType[];
   subtitleStyle?: SubtitleStyle | undefined;
+  /** Which of the card's examples it's shown with, the account's Example shown. */
+  exampleShown: ExampleShown;
   onClose: () => void;
 };
 
@@ -57,18 +59,18 @@ function carriedSources(from: CardType, to: CardType, sources: ValueSources): Va
 
 /**
  * One card as a review would show it in the deck picked: its own deck to begin with. In a deck of its own card type it's exactly that
- * deck's card, the example its Example shown picks; in another, the card type's fields take the values of this card's
+ * deck's card, the example the account's Example shown picks; in another, the card type's fields take the values of this card's
  * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. A card type with
  * Listen first opens it on its Listen phase, as a review does, and it shows its front as its sound or clip begins the play set to show it. Turned by a
  * press, round from its Listen phase to its back; nothing plays by itself.
  */
-export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle, onClose }: Props) {
+export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle, exampleShown, onClose }: Props) {
   const [deckId, setDeckId] = useState(card.deckId);
   const deck = decks.find((d) => d.id === deckId) ?? null;
   const shownType = deck ? (deck.typeId === type.id ? type : (types.find((t) => t.id === deck.typeId) ?? null)) : null;
   const srsType = deck ? (srsTypes.find((s) => s.id === deck.srsTypeId) ?? null) : null;
-  // The example the deck shows, picked once for each deck looked at, as a review picks it once each time the card comes up.
-  const exampleId = useMemo(() => (deck && deck.typeId === type.id ? exampleShownOf(type, card, deck.settings.exampleShown, Math.random) : null), [deck, type, card]);
+  // The example a review shows, picked once for each deck looked at, as a review picks it once each time the card comes up.
+  const exampleId = useMemo(() => (deck && deck.typeId === type.id ? exampleShownOf(type, card, exampleShown, Math.random) : null), [deck, type, card, exampleShown]);
   const values = shownType === null ? {} : shownType.id === type.id ? valuesWithExample(type, card, exampleId) : carried(type, shownType, card.values);
   /** Where it opens: its Listen phase in a deck whose card type listens first and with something to hear, else its front. */
   const opening: Face = shownType && listensFirst(shownType, values, card.files) ? "listen" : "front";

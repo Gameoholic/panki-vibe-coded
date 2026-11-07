@@ -397,12 +397,12 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
         </div>
       );
     case "panels":
-      // As Settings and a deck's settings draw theirs: panels of setting rows under a small title; `tabs` is the
-      // Segmented row over the app's Settings, which a deck's settings don't have.
+      // As Settings and a deck's settings draw theirs: panels of setting rows under a small title, `parts` how many rows
+      // each panel holds; `tabs` is the Segmented row over the app's Settings, which a deck's settings don't have.
       return (
         <div className="skel-in skel-panels" {...status}>
           {tabs ? <Bone h="42px" /> : null}
-          {[4, 3].map((rows, i) => (
+          {(parts ?? [4, 3]).map((rows, i) => (
             <section key={i} className="panel">
               <h2 className="panel-title">
                 <Bone w="7em" h="0.8em" />

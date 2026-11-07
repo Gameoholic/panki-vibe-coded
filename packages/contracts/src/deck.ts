@@ -15,40 +15,16 @@ export const NewDeck = z.object({
 });
 
 /**
- * How a review of one deck runs; each deck has its own. Only what was changed is stored, the rest reads as
- * `DEFAULT_DECK_SETTINGS`, so a new setting is no migration.
+ * What of a review is each deck's own: how many new cards and reviews a day, and the Hold button's answer. Only what was
+ * changed is stored, the rest reads as `DEFAULT_DECK_SETTINGS`, so a new setting is no migration. How every review runs,
+ * the same for every deck, is the account's (`ReviewSettings`); a deck that kept those keys from before keeps them,
+ * read by nothing.
  */
-export const POOL_MAX = 99;
 export const DeckSettings = z.object({
   /** New cards started a day in this deck. */
   newPerDay: z.number().int().min(0).max(999),
-  /** Where the day's new cards sit among the reviews: before them, after them, or scattered at random among them. */
-  newPlace: z.enum(["first", "last", "scattered"]),
-  /** New cards in the order they were added, or shuffled. */
-  newOrder: z.enum(["added", "shuffled"]),
   /** Reviews of this deck a day at most, new cards not counted; null is no limit. */
   reviewsPerDay: z.number().int().min(1).max(9999).nullable(),
-  /** Which due cards come first: at random, or the longest overdue. */
-  reviewOrder: z.enum(["random", "overdue"]),
-  /**
-   * Where a card asked again in the same review goes back in: the end of the line, or anywhere at random. With a
-   * `pool` it's always anywhere, whatever is stored: the pool is the line, so it comes back within the cards in play
-   * (`againPlaceOf`). A deck that kept "A few cards on" (`soon`), a choice that's gone, reads as
-   * the default.
-   */
-  againPlace: z.enum(["end", "random"]),
-  /** How many different cards are in play at once: the next one only joins when one of them is done for now. Null is all of them. */
-  pool: z.number().int().min(1).max(POOL_MAX).nullable(),
-  /**
-   * Which of a card's examples a review shows (a card's own, then each one added to it, `Card.examples`): each in turn,
-   * one review after another; the newest; or one at random.
-   */
-  exampleShown: z.enum(["rotate", "newest", "random"]),
-  /**
-   * Whether a review opens on today's cards (the reviews and the new ones, each ticked) before the first one, to untick
-   * what's left for the next review and to add new cards past today's count; off, it starts straight in, as it always did.
-   */
-  todayFirst: z.boolean(),
   /**
    * The answer the Hold button gives in this deck once it's held past the back of a card: one of
    * the deck's SRS type's answers, by its id; none, the hold stops at the back. The deck's, since a device's keys know
@@ -58,10 +34,7 @@ export const DeckSettings = z.object({
   holdAnswer: SrsAnswerId.nullable(),
 });
 export type DeckSettings = z.infer<typeof DeckSettings>;
-export type ExampleShown = DeckSettings["exampleShown"];
-export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, newPlace: "last", newOrder: "added", reviewsPerDay: null, reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", todayFirst: true, holdAnswer: null };
-/** Where a card asked again really goes back in: with only so many cards in play, anywhere among them. */
-export const againPlaceOf = (settings: Pick<DeckSettings, "againPlace" | "pool">): DeckSettings["againPlace"] => (settings.pool === null ? settings.againPlace : "random");
+export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, reviewsPerDay: null, holdAnswer: null };
 
 export const Deck = NewDeck.extend({
   settings: DeckSettings,
@@ -77,7 +50,7 @@ export const Deck = NewDeck.extend({
   dueAvailable: z.number().int().nonnegative(),
 });
 
-/** What a deck's settings can change: the name, the SRS type its cards follow, and any of how its reviews run. The rules are NewDeck's and DeckSettings', never restated. */
+/** What a deck's settings can change: the name, the SRS type its cards follow, and any of its own settings. The rules are NewDeck's and DeckSettings', never restated. */
 export const DeckUpdate = z.object({
   name: NewDeck.shape.name.optional(),
   srsTypeId: SrsTypeId.optional(),

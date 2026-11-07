@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
+  DEFAULT_SETTINGS,
   copySrsType,
   defaultTemplateOf,
   emptySrsType,
-  exampleFieldsOf,
   templateById,
   templatesOf,
   type AiActionId,
@@ -122,6 +122,9 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   admin: "panels",
   stats: "board",
 };
+/** The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display, General, Reviews), and a deck's settings (About, Reviews). */
+const SETTINGS_ROWS = [2, 3, 7] as const;
+const DECK_SETTINGS_ROWS = [3, 3] as const;
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
 const SKELETON_ROWS_MAX = 12;
 
@@ -923,7 +926,7 @@ export function App() {
    */
   const rowsOf = (name: string, guess: number) => Math.min(shapeOf(name, guess), SKELETON_ROWS_MAX);
   function deckLoading(deckId: string, deck: Deck | null, tab: DeckTab): ReactNode {
-    const body = tab === "settings" ? <Skeleton shape="panels" /> : <Skeleton shape="cards" count={Math.min(Math.max(deck ? deck.cardCount : shapeOf(`cards:${deckId}`, 5), 1), SKELETON_ROWS_MAX)} />;
+    const body = tab === "settings" ? <Skeleton shape="panels" parts={DECK_SETTINGS_ROWS} /> :<Skeleton shape="cards" count={Math.min(Math.max(deck ? deck.cardCount : shapeOf(`cards:${deckId}`, 5), 1), SKELETON_ROWS_MAX)} />;
     if (deck) return body;
     // Still arriving: the deck's own tabs and buttons aren't up yet, so their room is held too.
     return (
@@ -940,8 +943,8 @@ export function App() {
   function reviewLoading(deckId: string, deck: Deck | null, begin?: ReviewBegin): ReactNode {
     const due = deck ? deck.dueCount : shapeOf(`due:${deckId}`, 4);
     const fresh = deck ? deck.newCount : shapeOf(`new:${deckId}`, 3);
-    // An arriving deck's settings aren't known yet: today first is how every deck begins.
-    const todayFirst = begin === "cards" || (begin !== "start" && (deck ? deck.settings.todayFirst : true));
+    // Settings not in yet: today first is how every account begins.
+    const todayFirst = begin === "cards" || (begin !== "start" && (settings ?? DEFAULT_SETTINGS).todayFirst);
     // Nothing to review: its end, extra study's bar there as it was last time on this device.
     if (due + fresh === 0) {
       return <Skeleton shape="done" count={shapeOf(`extra:${deckId}`, 0)} available={shapeOf(`extra-all:${deckId}`, 0)} words={deck && deck.cardCount === 0 ? "Add a card" : "Home"} />;
@@ -966,6 +969,7 @@ export function App() {
         // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
         return <Board stats={null} ctx={null} />;
       case "settings":
+        return <Skeleton shape="panels" tabs parts={SETTINGS_ROWS} />;
       case "admin":
         return <Skeleton shape="panels" tabs />;
       default:
@@ -1104,6 +1108,7 @@ export function App() {
                     types={types}
                     srsTypes={srsTypes}
                     subtitleStyle={settings?.subtitleStyle}
+                    exampleShown={(settings ?? DEFAULT_SETTINGS).exampleShown}
                   />
                 )}
               </>
@@ -1114,7 +1119,6 @@ export function App() {
                 deck={deck}
                 cardCount={cards?.length ?? deck.cardCount}
                 cardTypeName={type?.name ?? "Missing"}
-                takesExamples={type ? exampleFieldsOf(type).length > 0 : false}
                 srsTypeName={srsType?.name ?? "Missing"}
                 srsAnswers={srsType?.answers ?? []}
                 onOpenCardType={type ? () => go({ kind: "type", type, tab: "fields" }) : undefined}
@@ -1155,6 +1159,7 @@ export function App() {
               type={type}
               srsType={srsType}
               subtitleStyle={settings.subtitleStyle}
+              review={settings}
               begin={screen.begin}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}
@@ -1195,6 +1200,7 @@ export function App() {
                   onStatus={setEditStatus}
                   onGuard={setGuard}
                   subtitleStyle={settings.subtitleStyle}
+                  review={settings}
                 />
               )
             ) : (
