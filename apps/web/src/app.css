@@ -4141,9 +4141,10 @@ mark.sub-blur {
   color: var(--tint-fg, var(--muted));
   white-space: nowrap;
 }
+/* New with no colour of its type's own wears Panki's accent, as the extension tints a new card's word. */
 .pill.is-new {
-  background: var(--surface-2);
-  color: var(--muted);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .pill.ans-down,
 .pill.ans-mid,
