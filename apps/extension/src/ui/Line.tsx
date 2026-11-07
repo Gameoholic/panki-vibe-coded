@@ -25,6 +25,35 @@ if (typeof window !== "undefined") {
   window.addEventListener("keyup", keys, { capture: true });
 }
 
+/** How far past a box that clips it a word may stand and still count as shown whole, px: a rounding, never a sliver. */
+const CUT_SLACK = 1;
+
+/**
+ * Whether a word stands whole inside every box that clips it (the list beside the video, the column it scrolls in):
+ * a word cut by a scroller's edge, its sliver under the edge's fade, isn't pointed at, since its pop-up would hang
+ * from a word that can't be seen. Walks out through the shadow roots Panki's places are.
+ */
+export function shownWhole(word: Element): boolean {
+  const box = word.getBoundingClientRect();
+  if (box.width === 0 && box.height === 0) return false;
+  for (let el: Element | null = parentOf(word); el; el = parentOf(el)) {
+    const { overflowX, overflowY } = getComputedStyle(el);
+    if (overflowX === "visible" && overflowY === "visible") continue;
+    const outer = el.getBoundingClientRect();
+    const left = outer.left + el.clientLeft;
+    const top = outer.top + el.clientTop;
+    if (box.left < left - CUT_SLACK || box.right > left + el.clientWidth + CUT_SLACK) return false;
+    if (box.top < top - CUT_SLACK || box.bottom > top + el.clientHeight + CUT_SLACK) return false;
+  }
+  return true;
+}
+/** An element's parent, or the host of the shadow root it stands at the top of. */
+function parentOf(el: Element): Element | null {
+  if (el.parentElement) return el.parentElement;
+  const place = el.parentNode;
+  return place instanceof ShadowRoot ? place.host : null;
+}
+
 /** Pointing at the line's words to look them up: the line says which word the pointer is on, and asks before a press picks. */
 export type LineLook = {
   /** The pointer moved over the line, or the line was drawn again under it: onto word `at` (its button), or off every word (null). */
@@ -65,7 +94,8 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
   const root = useRef<HTMLDivElement>(null);
   const onMove = (target: EventTarget | null, e: PointerAt) => {
     if (!look) return;
-    const button = target instanceof Element ? target.closest<HTMLElement>("[data-at]") : null;
+    const under = target instanceof Element ? target.closest<HTMLElement>("[data-at]") : null;
+    const button = under && shownWhole(under) ? under : null;
     look.move(button ? Number(button.dataset.at) : null, button, e);
   };
   // Drawn again with other words (the subtitles moving on as the video plays) while the pointer stands over it: what

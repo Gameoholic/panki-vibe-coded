@@ -44,7 +44,7 @@ import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
 import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
 import { createTranscriber } from "../transcribe/transcriber";
-import { Line, type LineLook } from "../ui/Line";
+import { Line, shownWhole, type LineLook } from "../ui/Line";
 import { inPanki, makePlace, mount, type Place } from "../ui/mount";
 import { Column } from "../ui/Column";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
@@ -1585,10 +1585,10 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
       id: `line:${place.lineId}:${place.offset}`,
       text: text.slice(token.start, token.start + 32),
       measure: () => button.getBoundingClientRect(),
-      // The same button can be drawn again with another word in it as the line moves on.
+      // The same button can be drawn again with another word in it as the line moves on, or scrolled out of sight.
       alive: (() => {
         const was = button.textContent;
-        return () => button.isConnected && button.textContent === was;
+        return () => button.isConnected && button.textContent === was && shownWhole(button);
       })(),
       context: { text, at: token.start },
       where: { of: "line", lineId: place.lineId, offset: place.offset, length: token.end - token.start },
