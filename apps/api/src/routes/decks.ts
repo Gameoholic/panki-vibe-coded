@@ -3,6 +3,7 @@ import {
   CardAnswer,
   CardExampleId,
   CardExampleUpdate,
+  CardFlagUpdate,
   CardId,
   NewHold,
   CardUpdate,
@@ -427,6 +428,29 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
       return;
     }
     const card = dbOf(res).liftHold(deckId, cardId.data, now());
+    if (!card) {
+      res.status(404).json({ error: { message: "That card isn't in this deck." } });
+      return;
+    }
+    res.json({ card });
+  });
+
+  // A card flagged, or its flag taken off, by hand: from a review or from its row in the deck. Each change is kept as a
+  // row and never deleted; the same again changes nothing, so a retry is harmless.
+  router.put("/:deckId/cards/:cardId/flag", (req, res) => {
+    const deckId = deckIdFrom(req, res);
+    if (!deckId) return;
+    const cardId = CardId.safeParse(req.params.cardId);
+    if (!cardId.success) {
+      res.status(400).json({ error: { message: "That card id isn't valid." } });
+      return;
+    }
+    const change = CardFlagUpdate.safeParse(req.body);
+    if (!change.success) {
+      res.status(400).json({ error: { message: "A flag is set or taken off, from a review or the deck's cards." } });
+      return;
+    }
+    const card = dbOf(res).flagCard(deckId, cardId.data, change.data, signedIn(res).device, now());
     if (!card) {
       res.status(404).json({ error: { message: "That card isn't in this deck." } });
       return;

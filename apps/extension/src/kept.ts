@@ -51,7 +51,7 @@ const signedIn = (token: string | null): string => {
 
 /** The registry. A new thing kept of Panki's is one entry here. */
 export const KEPT = {
-  /** The words the account's cards are called by, and those only suspended cards are: marked in subtitles and on pages (`capture/known.ts`). */
+  /** The words the account's cards are called by, those only suspended cards are and those a flagged card is: marked in subtitles and on pages (`capture/known.ts`). */
   words: entry({ schema: WordsInCards, kinds: ["words"], scope: "signIn", lifeMs: MINUTE, ask: (address, token) => panki.wordsInCards({ address, token: signedIn(token) }) }),
   /** Panki AI as it stands for everyone and for the account: what Explain, Touch up and Proofread are worked out from. */
   ai: entry({ schema: AiShown, kinds: ["shared", "account"], scope: "signIn", lifeMs: MINUTE, ask: async (address, token) => aiShownOf(await panki.ai({ address, token: signedIn(token) })) }),

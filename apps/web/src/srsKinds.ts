@@ -50,6 +50,13 @@ export const HOLD_KINDS: Record<HoldKind, { icon: IconName; state: string; lift:
   bury: { icon: "moon", state: "snoozed", lift: "Unsnooze" },
   suspend: { icon: "pause", state: "suspended", lift: "Unsuspend" },
 };
+/**
+ * A card flagged by hand, in words and looks: not one of the holds above (it puts nothing aside and schedules nothing,
+ * the card answered as ever), a mark of the owner's own that a card wants something, more example sentences say. Its
+ * mark, what it is while it stands (on a card's row, a card already there, the review's switch), and the buttons that
+ * set it and take it off (a card's row). One home for every word of it.
+ */
+export const FLAG_WORDS = { icon: "flag", state: "Flagged", set: "Flag", lift: "Unflag" } as const satisfies { icon: IconName; state: string; set: string; lift: string };
 export type HoldStep = Extract<Step, { kind: HoldKind }>;
 export const isHold = (step: Step | undefined): step is HoldStep => step?.kind === "bury" || step?.kind === "suspend";
 /** When a card put aside comes back, under the answer that does it: "back in 24 hours", "back tomorrow", "until brought back". */

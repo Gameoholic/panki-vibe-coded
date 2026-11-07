@@ -17,6 +17,8 @@ import {
   type CardLayout,
   type ListenFirst,
   type SparkMark,
+  type FlagMark,
+  type CardFlagUpdate,
   type StageTag,
   type CardType,
   type CardUpdate,
@@ -608,9 +610,9 @@ export function App() {
     return saved;
   }, []);
 
-  /** A card type's layout, corner marks and Listen first, saved: the fields go along as they are, so only the layout (and the sides it gives them), the stage tag, the AI spark and Listen first change. */
-  const saveLayout = useCallback(async (type: CardType, layout: CardLayout, tag: StageTag, spark: SparkMark, listen: ListenFirst) => {
-    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout, tag, spark, listen });
+  /** A card type's layout, corner marks and Listen first, saved: the fields go along as they are, so only the layout (and the sides it gives them), the stage tag, the AI spark, the flag and Listen first change. */
+  const saveLayout = useCallback(async (type: CardType, layout: CardLayout, tag: StageTag, spark: SparkMark, flag: FlagMark, listen: ListenFirst) => {
+    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout, tag, spark, flag, listen });
     setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
     setScreen((s) => (s.kind === "type" && s.type?.id === saved.id ? { ...s, type: saved } : s));
     return saved;
@@ -749,6 +751,13 @@ export function App() {
     setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
     // A card back in reviews changes what a review would show.
     loadLists();
+  }
+
+  /** A card flagged or its flag taken off, from its row in the deck (no deck screen, nothing to do) or a review of `deck`. */
+  async function flagCard(deck: Deck, cardId: string, change: CardFlagUpdate) {
+    const saved = await api.flagCard(deck.id, cardId, change);
+    setCards((prev) => prev?.map((c) => (c.id === saved.id ? saved : c)) ?? null);
+    return saved;
   }
 
   async function answerCard(deck: Deck, cardId: string, answer: CardAnswer) {
@@ -1092,6 +1101,7 @@ export function App() {
                     onRemove={removeCard}
                     onLift={liftHold}
                     onSuspend={suspendCard}
+                    onFlag={(card, flagged) => flagCard(deck, card.id, { flagged, from: "cards" }).then(() => undefined)}
                     onAddExample={addExample}
                     onSaveExample={saveExample}
                     onRemoveExample={removeExample}
@@ -1153,6 +1163,7 @@ export function App() {
               begin={screen.begin}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}
+              onFlag={(cardId, change) => flagCard(deck, cardId, change)}
               onGoAdd={() => openDeck(deck)}
               onHome={() => go(HOME)}
             />
@@ -1185,7 +1196,7 @@ export function App() {
                   type={type}
                   decks={decks}
                   srsTypes={srsTypes}
-                  onSave={(layout, tag, spark, listen) => saveLayout(type, layout, tag, spark, listen)}
+                  onSave={(layout, tag, spark, flag, listen) => saveLayout(type, layout, tag, spark, flag, listen)}
                   onStatus={setEditStatus}
                   onGuard={setGuard}
                   subtitleStyle={settings.subtitleStyle}

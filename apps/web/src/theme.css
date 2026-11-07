@@ -78,8 +78,8 @@
   /* A word lit in words over a picture (the word picked, in a clip's subtitles): the theme's accent, seen through. */
   --theater-mark: color-mix(in srgb, var(--accent) 45%, transparent);
   /* What Panki marks on a video's own bar can be coloured (the extension's seekLook.ts → MARK_COLOURS): these, the same
-     whatever the theme, since they lie on a picture. A transcript's reach is yellow to begin with, the cards
-     taken from it orange. */
+     whatever the theme, since they lie on a picture. A transcript's reach is white to begin with, the cards
+     taken from it orange, the flagged ones yellow. */
   --mark-yellow: #f2c230;
   --mark-orange: #ff6b1a;
   --mark-red: #ff4d5e;
@@ -93,6 +93,13 @@
      amber with dark ink, the same whatever the theme, as a sign is. */
   --flag: #f2c230;
   --flag-ink: #12131a;
+  /* A card flagged by hand (`srsKinds.ts` → `FLAG_WORDS`): a highlighter's yellow, the marks' own, the same whatever the
+     theme; tinted through the surface where a whole row or tag is flagged, and its words in an ink leaning to the
+     text's colour, so they read on any surface. Made of tokens, so no theme names them. */
+  --flagged: var(--mark-yellow);
+  --flagged-soft: color-mix(in srgb, var(--flagged) 22%, var(--surface));
+  --flagged-edge: color-mix(in srgb, var(--flagged) 70%, var(--line));
+  --flagged-ink: color-mix(in srgb, var(--flagged) 35%, var(--fg));
   /* A meaning Panki AI judged close (`.ai-accuracy.is-close`, Touch up's meh): a golden orange, between the flag's
      amber and the marks' red-orange, the same whatever the theme: plainly orange, never read as yellow. */
   --close: #fb8c00;

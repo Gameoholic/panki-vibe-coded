@@ -2,6 +2,7 @@ import { useState } from "react";
 import { likenessOf, type ApartValue, type CalledCard } from "@panki/contracts";
 import { langOf, listWords } from "../words";
 import { Button } from "./Button";
+import { FlagTag } from "./FlagTag";
 import { Icon } from "./Icon";
 
 type Props = {
@@ -67,7 +68,7 @@ const decksOf = (cards: readonly CalledCard[]) => listWords([...new Set(cards.ma
 /**
  * Said under the field a card is called by, while what's typed or picked there is what a card already holds: a warning, in amber, when one of them is the same in every field its type compares (the same
  * word and meaning: "“生” is already in Mining, with the same Meaning."); otherwise a quieter notice that the word is in
- * the decks. Under it, every card called so, each with its deck and what it holds in the fields compared, and a way
+ * the decks. Under it, every card called so, each with its deck, Flagged where it is, what it holds in the fields compared, and a way
  * to open it, at the row's right with a magnifying glass, apart from what resolves the warning: opening only looks. A warning holds Add back until it's
  * resolved (`useAddAnyway`); what resolves it is in a row of its own at its foot: Add as an additional example, which
  * puts what's being added onto the card that's there, and Add anyway. The app's form, the extension's drawer and its
@@ -110,6 +111,7 @@ export function AlreadyIn({ cards, onOpen, openWords = "Open", mine = [], compar
               <span className="already-card-words">
                 <span lang={langOf(card.words)}>{card.words}</span>
                 <span className="already-card-deck">{card.deck}</span>
+                {card.flagged ? <FlagTag /> : null}
                 {card.apart.map((value) => (
                   <span key={value.name} className="already-card-value">
                     {value.name}: <span lang={langOf(value.value)}>{value.value}</span>

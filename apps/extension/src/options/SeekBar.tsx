@@ -38,11 +38,12 @@ const WORDS_OPTIONS = [
   { id: "off", label: "Hidden" },
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
-/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the clip, then where the words that are in the decks are said. */
+/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, then where the words that are in the decks are said. */
 const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
   { id: "cards", name: "Cards" },
   { id: "suspended", name: "Suspended cards" },
+  { id: "flagged", name: "Flagged cards" },
   { id: "clip", name: "Clip" },
   { id: "known", name: "Words that are in your decks" },
 ];
@@ -59,7 +60,7 @@ const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
     [271, "大丈夫"],
     [298, "例えば"],
   ] as const
-).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false }));
+).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false, flagged: false }));
 
 /**
  * A made-up video for the preview, ten minutes long, never one of the account's: most of it transcribed and a little more on
@@ -70,11 +71,12 @@ const PREVIEW_LENGTH = 600;
 const PREVIEW_COVERED: readonly Stretch[] = [{ startMs: 0, endMs: 330_000 }];
 const PREVIEW_WORKING: Stretch = { startMs: 330_000, endMs: 346_000 };
 const PREVIEW_CARDS: readonly VideoCard[] = [
-  { cardId: "preview-1", startMs: 62_000, endMs: 66_000, words: "言葉", suspended: false },
-  { cardId: "preview-2", startMs: 148_000, endMs: 153_000, words: "景色", suspended: false },
-  { cardId: "preview-3", startMs: 166_000, endMs: 170_000, words: "例えば", suspended: false },
-  { cardId: "preview-5", startMs: 372_000, endMs: 376_000, words: "敢えて", suspended: true },
-  { cardId: "preview-4", startMs: 432_000, endMs: 437_000, words: "大丈夫", suspended: false },
+  { cardId: "preview-1", startMs: 62_000, endMs: 66_000, words: "言葉", suspended: false, flagged: false },
+  { cardId: "preview-2", startMs: 148_000, endMs: 153_000, words: "景色", suspended: false, flagged: false },
+  { cardId: "preview-3", startMs: 166_000, endMs: 170_000, words: "例えば", suspended: false, flagged: false },
+  { cardId: "preview-6", startMs: 268_000, endMs: 273_000, words: "喫茶店", suspended: false, flagged: true },
+  { cardId: "preview-5", startMs: 372_000, endMs: 376_000, words: "敢えて", suspended: true, flagged: false },
+  { cardId: "preview-4", startMs: 432_000, endMs: 437_000, words: "大丈夫", suspended: false, flagged: false },
 ];
 const PREVIEW_PLAYED = 150;
 /** Where the made-up video was stopped the time before, for the Where you stopped preview. */
@@ -234,7 +236,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
               label="Thickness"
               control={<Segmented idPrefix={`seek-${id}-size`} label={`${name} thickness`} options={SIZE_OPTIONS} value={mark.size} disabled={off || !mark.shown} onChange={(size) => change(id, { size })} />}
             />
-            {id === "cards" || id === "suspended" || id === "known" ? <WordsRows id={id} look={look[id]} off={off} onChange={(patch) => change(id, patch)} /> : null}
+            {id === "cards" || id === "suspended" || id === "flagged" || id === "known" ? <WordsRows id={id} look={look[id]} off={off} onChange={(patch) => change(id, patch)} /> : null}
           </div>
         );
       })}

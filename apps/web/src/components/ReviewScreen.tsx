@@ -4,7 +4,7 @@ import type { HoldButtonView } from "../hooks/useHoldButton";
 import { ScreenStageContext, type Stage } from "../hooks/useScreenStage";
 import type { KeyBinds } from "../keys";
 import { countOrder, type Kind, type Line } from "../reviewLine";
-import { HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdBack, isHold, placeName } from "../srsKinds";
+import { FLAG_WORDS, HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, holdBack, isHold, placeName } from "../srsKinds";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { KeyCap } from "./KeyCap";
@@ -103,12 +103,20 @@ export function ReviewCounts({ counts }: { counts: { settings: Deck["settings"];
 }
 
 /**
+ * The card's flag in a review (`FLAG_WORDS`): whether it's flagged, and pressing it. Without `onToggle` it stands greyed
+ * (a card looked at as a review shows it); `busy` while a change of it is on its way.
+ */
+export type ReviewFlag = { on: boolean; busy: boolean; onToggle?: () => void };
+
+/**
  * The buttons under the card: on its back the answers (the main ones in a row, the ones set apart under them), each
  * its name, where it sends the card and its key; otherwise Done listening or Show back of card. The answers set apart
  * hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. Without `onAnswer` the
- * answers stand greyed (a card looked at as a review shows it, which gives no answer).
+ * answers stand greyed (a card looked at as a review shows it, which gives no answer). With `flag`, the card's Flag
+ * stands at the end of the set-apart answers' row, across a hairline from them, on every SRS type: not an answer, so
+ * it's there on the front and the back alike, pressed at once, the card answered as ever after.
  */
-export function ReviewButtons({ srsType, place, revealed, listening, binds, busy, onShow, onAnswer, onRest, onLeave }: {
+export function ReviewButtons({ srsType, place, revealed, listening, binds, busy, onShow, onAnswer, onRest, onLeave, flag = null }: {
   srsType: SrsType;
   place: CardPlace;
   revealed: boolean;
@@ -120,10 +128,12 @@ export function ReviewButtons({ srsType, place, revealed, listening, binds, busy
   /** The mouse on an answer, and off it: its box on the chart lights up. */
   onRest?: (answerId: string) => void;
   onLeave?: () => void;
+  flag?: ReviewFlag | null;
 }) {
   // The main answers first, then the ones set apart: that's the order of the number keys too.
   const answers = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
   const off = busy || onAnswer === undefined;
+  const asides = answers.some((a) => a.aside && offered(srsType, place, a.id));
   return (
     <>
       <div className="review-actions">
@@ -152,17 +162,38 @@ export function ReviewButtons({ srsType, place, revealed, listening, binds, busy
           <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={onShow} />
         )}
       </div>
-      {answers.some((a) => a.aside && offered(srsType, place, a.id)) ? (
-        <div className={revealed ? "review-asides" : "review-asides is-later"} aria-hidden={!revealed}>
+      {asides || flag ? (
+        <div className={revealed ? "review-asides" : "review-asides is-later"}>
           {answers.map((a, i) =>
             a.aside && offered(srsType, place, a.id) ? (
-              <Button key={a.id} variant="chip" className="review-aside" data-answer={a.id} disabled={off || !revealed} onClick={() => onAnswer?.(a.id)} onMouseEnter={() => onRest?.(a.id)} onMouseLeave={onLeave}>
+              <Button
+                key={a.id}
+                variant="chip"
+                className="review-aside"
+                data-answer={a.id}
+                aria-hidden={!revealed}
+                disabled={off || !revealed}
+                onClick={() => onAnswer?.(a.id)}
+                onMouseEnter={() => onRest?.(a.id)}
+                onMouseLeave={onLeave}
+              >
                 <span className="name">{a.name}</span>
                 <LeadView lead={answerLead(srsType, place, a.id)} />
                 <KeyCap bind={binds.answers[i]} extra={a.confirm ? binds.confirmMs : 0} />
               </Button>
             ) : null,
           )}
+          {flag ? (
+            <>
+              {asides ? <span className="review-asides-rule" aria-hidden="true" /> : null}
+              {/* Its words say how the card stands: Flag, or Flagged while it is. */}
+              <Button variant="chip" className="review-flag" data-hold="flag" aria-pressed={flag.on} disabled={flag.busy || flag.onToggle === undefined} onClick={flag.onToggle}>
+                <Icon name={FLAG_WORDS.icon} className={flag.on ? "is-flagged" : ""} />
+                <span className="name">{flag.on ? FLAG_WORDS.state : FLAG_WORDS.set}</span>
+                <KeyCap bind={binds.flag} />
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </>

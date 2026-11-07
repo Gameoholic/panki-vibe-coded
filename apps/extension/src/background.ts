@@ -126,25 +126,26 @@ function onPanki(url: string | undefined, store: Stored): boolean {
 }
 
 /**
- * The words already in the cards: every card is called by, those only suspended cards are among them, kept as
- * `kept.ts` keeps them (`words`). Where and how they're marked is the page's to read from this browser's settings
+ * The words already in the cards: every card is called by, those only suspended cards are and those a flagged card is
+ * among them, kept as `kept.ts` keeps them (`words`). Where and how they're marked is the page's to read from this browser's settings
  * (`Local`'s `known`). Signed out, with Panki off, or with nothing of this browser's marking them, there are none; nor
  * on Panki's own pages, where every word is the cards' own: it's for other sites alone.
  */
 async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
-  const off: Known = { ok: true, words: [], suspended: [] };
+  const off: Known = { ok: true, words: [], suspended: [], flagged: [] };
   if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
-  // The seek bar's mark of where they're said wants the words too, whatever the two highlights say.
-  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !store.seekLook.known.shown && !store.seekLook.suspended.shown) || !store.address || !store.token) return off;
-  let words: { words: string[]; suspended: string[] };
+  // The seek bar's marks of where they're said want the words too, whatever the two highlights say.
+  const seek = store.seekLook;
+  if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !seek.known.shown && !seek.suspended.shown && !seek.flagged.shown) || !store.address || !store.token) return off;
+  let words: { words: string[]; suspended: string[]; flagged: string[] };
   try {
     words = await readKept("words", store);
   } catch (e) {
     console.error("Panki:", e);
     return off;
   }
-  return { ok: true, words: words.words, suspended: words.suspended };
+  return { ok: true, words: words.words, suspended: words.suspended, flagged: words.flagged };
 }
 
 /** Panki's own addresses, as the browser matches them: the sign-in in use and every profile kept, each allowed as it was signed in to. */

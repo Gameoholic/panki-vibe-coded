@@ -39,6 +39,8 @@ type Props = {
   onLift: (cardId: string) => Promise<void>;
   /** Suspends a card, from its row, until it's brought back. */
   onSuspend: (cardId: string) => Promise<void>;
+  /** Flags a card from its row, or takes its flag off. */
+  onFlag: (card: Card, flagged: boolean) => Promise<void>;
   /** What's typed in the add form, given as another example to a card that's already there (in this deck or another). */
   onAddExample: (to: CalledCard, example: NewCardExample) => Promise<Card>;
   /** One of a card's other examples, changed or deleted from its form. */
@@ -57,7 +59,7 @@ type Props = {
  * add form above them when asked for. A card called the same as another, in this deck or any other, says so on its
  * row, and pressed, the list shows that word's cards alone, those in other decks named over them. A card's edit
  * button opens it where it stands in the list: its fields to change, Save, and Delete, which asks first; the delete button under it deletes it from the row, asking there first. A card is suspended from its row, and
- * one put aside is brought back from it.
+ * one put aside is brought back from it; it's flagged and unflagged there too.
  */
 export function CardsView({
   deckId,
@@ -75,6 +77,7 @@ export function CardsView({
   onRemove,
   onLift,
   onSuspend,
+  onFlag,
   onAddExample,
   onSaveExample,
   onRemoveExample,
@@ -196,6 +199,7 @@ export function CardsView({
         onRemove={(card) => onRemove(card.id)}
         onLift={(card) => onLift(card.id)}
         onSuspend={(card) => onSuspend(card.id)}
+        onFlag={onFlag}
         onPreview={(card) => setPreviewId((was) => (was === card.id ? null : card.id))}
         previewing={
           previewed

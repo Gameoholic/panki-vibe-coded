@@ -60,6 +60,7 @@ import {
   type NewCard,
   type NewCardExample,
   type NewHold,
+  type CardFlagUpdate,
   type NewCardType,
   type NewDeck,
   type NewReviewSession,
@@ -270,6 +271,9 @@ export const api = {
   /** Brings a card put aside (buried or suspended) back into reviews; its schedule stands as it was. */
   liftHold: (deckId: string, cardId: string): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/hold`, send("DELETE"), (b) => CardResponse.parse(b).card),
+  /** Flags a card or takes its flag off, from a review (with its sitting) or its row in the deck; the same again changes nothing. */
+  flagCard: (deckId: string, cardId: string, change: CardFlagUpdate): Promise<Card> =>
+    request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/flag`, send("PUT", change), (b) => CardResponse.parse(b).card),
   /**
    * Gives Panki a file (a sound, a clip, a picture) under an id minted here, so sending it again is harmless. `mime` is
    * what the contracts' `mediaMimeFor` makes of the file; the API checks it against the file's own first bytes.

@@ -45,11 +45,14 @@ type Props = {
   look?: LineLook | null;
   /** A double-click on word `at`: the word is to be fixed (a transcript's word heard wrong). None where words can't be. */
   onFix?: ((at: number) => void) | null;
-  /** Which words are already in the cards and how (`capture/known.ts` → `knownAs`), and the tints they get (`tintOf`): any card's, or only suspended cards'; none, and nothing is. */
-  known?: { at: (at: number) => KnownAs | null; colour: string; suspendedColour: string } | null;
+  /** Which words are already in the cards and how (`capture/known.ts` → `knownAs`), and the tints they get (`tintOf`): any card's, only suspended cards', or a flagged card's; none, and nothing is. */
+  known?: { at: (at: number) => KnownAs | null; colour: string; suspendedColour: string; flaggedColour: string } | null;
   /** Which words Panki AI's Proofread edited (AI step 6): lit in the accent with the spark after them, under the player and over the video. */
   edited?: ((at: number) => boolean) | null;
 };
+
+/** How a word already in the cards is marked on its button (`extension.css` → `.tok.is-known`), by how it's known. */
+const KNOWN_CLASS: Record<KnownAs | "none", string> = { none: "", known: "is-known", suspended: "is-known is-suspended", flagged: "is-known is-flagged" };
 
 /** A line as words to press: one press picks a word, a press on the word beside it widens the pick to both. */
 export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null, known = null, edited = null }: Props) {
@@ -81,7 +84,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
       ref={root}
       className={`line ${small ? "is-small" : ""}`.trim()}
       lang={langOf(text)}
-      style={known ? ({ "--known": known.colour, "--known-suspended": known.suspendedColour } as CSSProperties) : undefined}
+      style={known ? ({ "--known": known.colour, "--known-suspended": known.suspendedColour, "--known-flagged": known.flaggedColour } as CSSProperties) : undefined}
       onPointerMove={(e) => onMove(e.target, e)}
       onPointerLeave={(e) => look?.move(null, null, e)}
     >
@@ -90,7 +93,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
           <Button
             key={token.start}
             data-at={i}
-            className={`tok ${within(now, i) ? "is-now" : ""} ${known?.at(i) === "known" ? "is-known" : known?.at(i) === "suspended" ? "is-known is-suspended" : ""} ${edited?.(i) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}
+            className={`tok ${within(now, i) ? "is-now" : ""} ${KNOWN_CLASS[known?.at(i) ?? "none"]} ${edited?.(i) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}
             aria-pressed={within(picked, i)}
             onClick={() => {
               if (look?.press(i)) return;

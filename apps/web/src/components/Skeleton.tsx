@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { CORNER_MARK_IDS } from "@panki/contracts";
 import { FloatPanel } from "./FloatPanel";
 
 /**
@@ -62,9 +63,10 @@ function CountShape({ w }: { w: string }) {
 
 /**
  * The review's frame as `ReviewScreen` draws it: the counts with Undo and Chart at their right, the card taking the
- * room, Show back of card under it, and the answers set apart holding their row when there are some (`asides`).
+ * room, Show back of card under it, and the row under it: the answers set apart when there are some (`asides`), and
+ * the card's Flag at its end (`flag`), which a review always has.
  */
-function ReviewShape({ asides = false }: { asides?: boolean }) {
+function ReviewShape({ asides = false, flag = true }: { asides?: boolean; flag?: boolean }) {
   return (
     <>
       <div className="review-top">
@@ -90,20 +92,27 @@ function ReviewShape({ asides = false }: { asides?: boolean }) {
       <div className="review-actions">
         <Bone h="46px" />
       </div>
-      {asides ? (
+      {asides || flag ? (
         <div className="review-asides">
-          <Bone w="9em" h={ASIDE_H} />
-          <Bone w="9em" h={ASIDE_H} />
+          {asides ? (
+            <>
+              <Bone w="9em" h={ASIDE_H} />
+              <Bone w="9em" h={ASIDE_H} />
+            </>
+          ) : null}
+          {asides && flag ? <span className="review-asides-rule" aria-hidden="true" /> : null}
+          {flag ? <Bone w={FLAG_W} h={ASIDE_H} /> : null}
         </div>
       ) : null}
     </>
   );
 }
 
-/** The review's Undo and Chart in the counts' row, and an answer set apart, as measured. */
+/** The review's Undo and Chart in the counts' row, an answer set apart, and the card's Flag (its words, its flag), as measured. */
 const REVIEW_TOOL_PX = ["77px", "79px"] as const;
 const REVIEW_TOOL_H = "30px";
 const ASIDE_H = "30px";
+const FLAG_W = "68px";
 /** The Layout tab's panel as measured: its header's buttons, and each of its rows' controls (a switch, a dropdown, a choice of sides, the chips of what isn't on the side). */
 const PANEL_BUTTON = "32px";
 const SWITCH = { w: "94px", h: "46px" };
@@ -438,12 +447,13 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
     case "layout": {
       // A card type's Layout tab: the review's frame it's drawn in, and its panel over it, where and as folded as it
       // stands on this device (the real `FloatPanel`): the type's own panel (Listen first, the card previewed, the
-      // side), and the one for what isn't on the front with the stage tag. `parts` is how many chips stand for what
-      // isn't on the front, and whether the answers set apart hold a row, as last drawn here.
+      // side), and the one for what isn't on the front with each corner mark's switch. `parts` is how many chips stand
+      // for what isn't on the front, and the row under the answers (none, Flag alone, or the answers set apart and
+      // Flag), as last drawn here.
       const [away = 0, asides = 0] = parts ?? [];
       return (
         <section className="skel-in review is-fit" {...status}>
-          <ReviewShape asides={asides > 0} />
+          <ReviewShape asides={asides > 1} flag={asides > 0} />
           <FloatPanel
             id="layout-panel"
             label="Layout"
@@ -473,7 +483,9 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
                   ))}
                 </div>
               ) : null}
-              <SettingShape label="5.5em" control={TAG_SWITCH} />
+              {CORNER_MARK_IDS.map((id) => (
+                <SettingShape key={id} label="5.5em" control={TAG_SWITCH} />
+              ))}
             </section>
           </FloatPanel>
         </section>

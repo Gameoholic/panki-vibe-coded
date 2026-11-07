@@ -117,6 +117,8 @@ const ICONS = {
   sync: ["M12 3v4", "M12 17v4", "M8 12h8", "M5 8l3 4-3 4", "M19 8l-3 4 3 4"],
   /** Made the default. */
   star: ["M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"],
+  /** A flag on its pole: a card flagged by hand, Flag and Unflag (`srsKinds.ts` → `FLAG_WORDS`); filled in the highlighter's yellow by `className="is-flagged"`. */
+  flag: ["M5 21V4", "M5 4h12l-2.5 4.5L17 13H5"],
   /** A sun: a card put aside brought back, Unsnooze and Unsuspend. */
   wake: ["M12 3v2", "M12 19v2", "M3 12h2", "M19 12h2", "M12 8a4 4 0 1 0 0 8 4 4 0 1 0 0-8z"],
   /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live), the download with a chunk's head start (Hybrid). */

@@ -560,6 +560,19 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
           />
         }
       />
+      {/* A word a flagged card is, marked apart again, over a suspended one's. */}
+      <Setting
+        id="known-flagged-colour"
+        label="Flagged cards' colour"
+        control={
+          <Swatches
+            id="known-flagged-colour"
+            value={store.knownFlaggedColour}
+            disabled={!store.knownSubtitles && !store.knownPages}
+            onChange={(knownFlaggedColour) => void writeStore({ knownFlaggedColour }).then(onChanged)}
+          />
+        }
+      />
     </section>
   );
 }

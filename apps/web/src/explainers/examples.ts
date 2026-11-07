@@ -17,6 +17,7 @@ export const IN_DECKS: CalledCard = {
   deck: "Example deck",
   words: "喫茶店",
   apart: [],
+  flagged: false,
 };
 
 /** The sentence the examples' words stand in: on a page, in a video's subtitles. */

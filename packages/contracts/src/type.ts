@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CardLayout, DEFAULT_LISTEN_FIRST, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, ListenFirst, SparkMark, StageTag } from "./layout";
+import { CardLayout, DEFAULT_FLAG_MARK, DEFAULT_LISTEN_FIRST, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, FlagMark, ListenFirst, SparkMark, StageTag } from "./layout";
 import { MediaId, type MediaKind } from "./media";
 import { youtubeMetaOf, type YouTubeLink, type YouTubeMeta } from "./youtube";
 
@@ -100,6 +100,8 @@ export const NewCardType = z.object({
   tag: StageTag.optional(),
   /** Where its cards' AI spark sits and whether it shows (`layout.ts` → `SparkMark`, kept beside the tag); left out, as it stands. */
   spark: SparkMark.optional(),
+  /** Where a flagged card's flag sits and whether it shows (`layout.ts` → `FlagMark`, kept beside the tag); left out, as it stands. */
+  flag: FlagMark.optional(),
   /** Whether its cards open on a Listen phase in a review, and how (`layout.ts` → `ListenFirst`); left out, as it stands (or off). */
   listen: ListenFirst.optional(),
   /**
@@ -120,6 +122,8 @@ export const CardType = NewCardType.extend({
   tag: StageTag.default(DEFAULT_STAGE_TAG),
   /** The AI spark as it stands (`cardLayout.ts` → `sparkMarkOf`); from an older server, the default. */
   spark: SparkMark.default(DEFAULT_SPARK_MARK),
+  /** The flag as it stands (`cardLayout.ts` → `flagMarkOf`); from an older server, the default. */
+  flag: FlagMark.default(DEFAULT_FLAG_MARK),
   /** Listen first as it stands; a type it was never switched on for (or an older server) has it off. */
   listen: ListenFirst.default(DEFAULT_LISTEN_FIRST),
   /** Its main field as it stands, a field of words it has; null when none is picked (or from an older server). */

@@ -189,6 +189,17 @@ export type CardHold = z.infer<typeof CardHold>;
 export const NewHold = z.object({ kind: z.literal("suspend") });
 export type NewHold = z.infer<typeof NewHold>;
 
+/** Where a card was flagged or unflagged from: a review of its deck, or its row in its deck's list. */
+export const FlagFrom = z.enum(["review", "cards"]);
+export type FlagFrom = z.infer<typeof FlagFrom>;
+/**
+ * A card flagged by hand, or its flag taken off: a mark of the owner's own that it wants something (more example
+ * sentences, say), apart from its schedule and from putting it aside. Each change is kept as a row with where it was
+ * pressed and, in a review, its sitting; the card's flag is the latest. Flagging a card already flagged changes nothing.
+ */
+export const CardFlagUpdate = z.object({ flagged: z.boolean(), from: FlagFrom, sessionId: z.uuid().optional() });
+export type CardFlagUpdate = z.infer<typeof CardFlagUpdate>;
+
 export const Card = NewCard.omit({ source: true, sources: true }).extend({
   deckId: DeckId,
   /** Each value's source, as kept or as worked out for one kept before (`legacySourceOf`); none from a Panki from before. */
@@ -217,6 +228,11 @@ export const Card = NewCard.omit({ source: true, sources: true }).extend({
    * null when it's in play. A Panki from before holds sends none, and the extension, loaded by hand, may be talking to one.
    */
   hold: CardHold.nullable().default(null),
+  /**
+   * Derived on every read: when it was flagged (`CardFlagUpdate`), its latest flag standing; null while it isn't. A
+   * flag stays through answers, snoozes and suspends until it's taken off by hand. None from a Panki from before flags.
+   */
+  flaggedAt: z.number().int().nonnegative().nullable().default(null),
   /** The examples added to it after its own, oldest first (`CardExample`); none from a Panki from before examples. */
   examples: z.array(CardExample).default([]),
   /**
@@ -280,10 +296,10 @@ export function sourcesWithExample(type: Pick<CardType, "fields">, card: Pick<Ca
 /**
  * A living card of the account's taken from a video: where in it, its clip as its source keeps it, in ms of the
  * video's own time (a clip kept without an end is its start alone), and the card in words (its first Front field that
- * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark; `suspended`
- * one apart, to be fixed from the video, false from a Panki from before it was told.
+ * holds text; empty when it has none). The extension marks it on the video's bar, its words over the mark; a `suspended`
+ * one apart, to be fixed from the video, and a `flagged` one apart too; each false from a Panki from before it was told.
  */
-export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string(), suspended: z.boolean().default(false) });
+export const VideoCard = Stretch.extend({ cardId: CardId, words: z.string(), suspended: z.boolean().default(false), flagged: z.boolean().default(false) });
 export type VideoCard = z.infer<typeof VideoCard>;
 /** Every one of a video's, in the video's order. Read live from every card's source, so a card made before this was asked for is there too, and a deleted one is gone. */
 export const VideoCards = z.object({ cards: z.array(VideoCard) });
@@ -356,14 +372,17 @@ export const CalledCard = z.object({
   typeId: CardTypeId.optional(),
   words: z.string(),
   apart: z.array(ApartValue).default([]),
+  /** Whether it's flagged (`Card.flaggedAt`); false from an older server. */
+  flagged: z.boolean().default(false),
 });
 export type CalledCard = z.infer<typeof CalledCard>;
 /**
  * The words every living card of the account is called by (its type's `wordsFieldOf`), each once: the extension marks
  * them where they stand in a video's subtitles and on pages. `suspended`: those of them whose every card is suspended,
- * marked in a colour of their own, never as a word that's in the decks; none from a Panki from before.
+ * marked in a colour of their own, never as a word that's in the decks. `flagged`: those of them with any card flagged,
+ * in a colour of their own again, over a suspended word's. Each none from a Panki from before.
  */
-export const WordsInCards = z.object({ words: z.array(z.string()), suspended: z.array(z.string()).default([]) });
+export const WordsInCards = z.object({ words: z.array(z.string()), suspended: z.array(z.string()).default([]), flagged: z.array(z.string()).default([]) });
 export type WordsInCards = z.infer<typeof WordsInCards>;
 
 /** The newest of them first. */

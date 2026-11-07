@@ -109,7 +109,7 @@ export const OptionsTab = z.enum(["account", "decks", "youtube"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
 /** Words that are in your decks, as this browser marks them: in Panki's subtitles, on every page, and in which colours. */
-export const KnownLook = z.object({ subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint, suspendedColour: MarkPaint });
+export const KnownLook = z.object({ subtitles: z.boolean(), pages: z.boolean(), colour: MarkPaint, suspendedColour: MarkPaint, flaggedColour: MarkPaint });
 export type KnownLook = z.infer<typeof KnownLook>;
 
 /**
@@ -294,8 +294,11 @@ const LookState = z.union([
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 export type LookState = z.infer<typeof LookState>;
-/** The words every card is called by and those only suspended cards are; none while nothing of this browser's marks them. */
-const Known = z.union([z.object({ ok: z.literal(true), words: z.array(z.string()), suspended: z.array(z.string()) }), z.object({ ok: z.literal(false), message: z.string() })]);
+/** The words every card is called by, those only suspended cards are and those a flagged card is; none while nothing of this browser's marks them. */
+const Known = z.union([
+  z.object({ ok: z.literal(true), words: z.array(z.string()), suspended: z.array(z.string()), flagged: z.array(z.string()) }),
+  z.object({ ok: z.literal(false), message: z.string() }),
+]);
 export type Known = z.infer<typeof Known>;
 const Looked = z.union([z.object({ ok: z.literal(true), found: z.array(Found) }), z.object({ ok: z.literal(false), message: z.string() })]);
 const Latticed = z.union([z.object({ ok: z.literal(true), lattice: Lattice }), z.object({ ok: z.literal(false), message: z.string() })]);

@@ -3,11 +3,12 @@ import { MediaId, byAi, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, ty
 import { api } from "../api";
 import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
-import { HOLD_KINDS, dueWords } from "../srsKinds";
+import { FLAG_WORDS, HOLD_KINDS, dueWords } from "../srsKinds";
 import { count, langOf } from "../words";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { DELETE_CARD } from "./CardForm";
+import { FlagTag } from "./FlagTag";
 import { Icon } from "./Icon";
 import { LinkView } from "./LinkView";
 import { MediaView } from "./MediaView";
@@ -31,6 +32,8 @@ type Props = {
   onLift?: (card: Card) => Promise<void>;
   /** When given, each row not put aside carries a suspend button among its tools. */
   onSuspend?: (card: Card) => Promise<void>;
+  /** When given, each row carries Flag among its tools, Unflag on one that's flagged: the card flagged or not, as asked. */
+  onFlag?: (card: Card, flagged: boolean) => Promise<void>;
   /** The card that's open, and the form that changes it, drawn in its row under all of it. */
   editing?: { id: string; form: ReactNode } | null;
   /** When given, each row carries a Preview button that asks for its card to be shown as a review would show it. */
@@ -86,13 +89,15 @@ const aiOn = (card: Card, type: CardType) => type.fields.some((field) => (card.v
 /**
  * Cards as rows: the front fields on the first line, the first one that holds words big; the back fields under them; a
  * file where its field stands; at the top right the card's place and when it's next reviewed, then its tools one under
- * another, where cards can be changed: Preview, Edit, Suspend, Delete, held to the row's top. Delete asks in the row
- * itself before the card goes; Suspend doesn't, as Unsuspend, standing
- * in its place once it's done, takes it back at once. A card that's open has its form under it, as a preview is (Edit
+ * another, where cards can be changed: Preview, Edit, Flag, Suspend, Delete, held to the row's top. Delete asks in the
+ * row itself before the card goes; Flag and Suspend don't, as Unflag and Unsuspend, standing
+ * in their place once they're done, take them back at once. A card that's open has its form under it, as a preview is (Edit
  * pressed again closes it, as Preview does). A card put aside says so where its next review
- * would be, with Unsnooze or Unsuspend where Suspend stands; a suspended one is tinted red whole.
+ * would be, with Unsnooze or Unsuspend where Suspend stands; a suspended one is tinted red whole. A flagged one says so
+ * under where it stands, its schedule as it was, and is tinted in the highlighter's yellow, unless it's suspended too,
+ * whose red it keeps.
  */
-export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, onSuspend, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
+export function CardList({ cards, type, srsType, title, empty = null, onEdit, onRemove, onLift, onSuspend, onFlag, editing = null, onPreview, previewing = null, tools = null, twins = {}, onTwins, filter = null }: Props) {
   const titleId = useId();
   /** The card whose row is asking whether to delete it, how that's going, and why it didn't. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -115,7 +120,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
       setBusy(false);
     }
   }
-  /** The card being suspended or brought back, and why the last one wasn't. */
+  /** The card being suspended, flagged or brought back, and why the last one wasn't. */
   const [holding, setHolding] = useState<string | null>(null);
   const [holdFailure, setHoldFailure] = useState<{ cardId: string; message: string } | null>(null);
   async function hold(card: Card, change: ((card: Card) => Promise<void>) | undefined) {
@@ -159,11 +164,14 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
             const twin = itsTwins.length > 0 ? twinWords(card, itsTwins) : null;
             const when = srsType ? dueWords(srsType, card, now) : null;
             const ai = aiOn(card, type);
-            const state = srsType || twin || card.examples.length > 0 || ai;
+            const flagged = card.flaggedAt !== null;
+            const state = srsType || twin || card.examples.length > 0 || ai || flagged;
+            const tooled = onEdit || onRemove || onPreview || onSuspend || onFlag;
+            const tint = card.hold?.kind === "suspend" ? "is-suspended" : flagged ? "is-flagged" : "";
             return (
               <li
                 key={card.id}
-                className={`card-row ${state ? "has-state" : ""} ${onEdit || onRemove || onPreview || onSuspend ? "has-tools" : ""} ${card.hold?.kind === "suspend" ? "is-suspended" : ""} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
+                className={`card-row ${state ? "has-state" : ""} ${tooled ? "has-tools" : ""} ${tint} ${asking === card.id ? "is-asking" : ""}`.replace(/\s+/g, " ").trim()}
               >
                 <div className="card-row-ja">{front.map((field) => cell(card, field, field.id === lead?.id ? "card-word" : "card-front"))}</div>
                 <div className="card-meaning">{back.map((field) => cell(card, field, "card-back"))}</div>
@@ -176,6 +184,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                       </span>
                     ) : null}
                     {srsType && when !== null ? <span className={`due ${card.due ? "is-now" : ""}`.trim()}>{when}</span> : null}
+                    {flagged ? <FlagTag /> : null}
                     {/* Its own example and each one added to it. */}
                     {card.examples.length > 0 ? <span className="card-example-count">{count(card.examples.length + 1, "example", "examples")}</span> : null}
                     {twin && onTwins ? (
@@ -191,7 +200,7 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                     ) : null}
                   </div>
                 ) : null}
-                {onEdit || onRemove || onPreview || onSuspend ? (
+                {tooled ? (
                   <div className="card-tools">
                     {/* Each with its word beside its icon. */}
                     {onPreview ? (
@@ -204,6 +213,13 @@ export function CardList({ cards, type, srsType, title, empty = null, onEdit, on
                       <Button className="card-tool" aria-pressed={editing?.id === card.id} onClick={() => onEdit(card)}>
                         <Icon name="edit" />
                         Edit
+                      </Button>
+                    ) : null}
+                    {/* One place for both: Unflag on a flagged card, Flag on the rest. */}
+                    {onFlag ? (
+                      <Button className="card-tool" disabled={holding === card.id} onClick={() => void hold(card, (c) => onFlag(c, !flagged))}>
+                        <Icon name={FLAG_WORDS.icon} />
+                        {flagged ? FLAG_WORDS.lift : FLAG_WORDS.set}
                       </Button>
                     ) : null}
                     {/* One place for both: Unsuspend (or Unsnooze) on a card put aside, Suspend on the rest. */}

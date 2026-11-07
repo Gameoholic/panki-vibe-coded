@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -19,7 +19,7 @@ import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, nextFresh, 
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
-import { NEW_WORDS, answerClass, holdAsks, isHold } from "../srsKinds";
+import { FLAG_WORDS, NEW_WORDS, answerClass, holdAsks, isHold } from "../srsKinds";
 import { waveOf } from "../waveform";
 import { count, langOf } from "../words";
 
@@ -41,6 +41,8 @@ type Props = {
   onAnswer: (cardId: string, answer: CardAnswer) => Promise<Card>;
   /** An answer taken back, by the id it was given; the card as it stood before it. */
   onUndo: (cardId: string, givenId: string) => Promise<Card>;
+  /** The card on screen flagged or its flag taken off; the card as it then stands. */
+  onFlag: (cardId: string, change: CardFlagUpdate) => Promise<Card>;
   onGoAdd: () => void;
   onHome: () => void;
 };
@@ -145,6 +147,8 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
         <span className="today-word" lang={langOf(words)}>
           {words}
         </span>
+        {/* A flagged card's flag, filled, before where it stands. */}
+        {card.flaggedAt !== null ? <Icon name={FLAG_WORDS.icon} className="is-flagged today-flag" /> : null}
         <PlacePill type={srsType} place={card.place} />
       </Button>
     );
@@ -270,7 +274,7 @@ function writeChartOpen(open: boolean) {
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, onAnswer, onUndo, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck), deck.settings.pool));
   /**
@@ -299,6 +303,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
   const [listenedTurn, setListenedTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
+  /** A change of the card's flag on its way: apart from `busy`, since it answers nothing and holds nothing else back. */
+  const [flagging, setFlagging] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   /** The answer a mouse is on, whose box on the chart lights up; null with none under it. */
@@ -681,6 +687,25 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
     }
   }
 
+  /**
+   * The card on screen flagged, or its flag taken off: at once, on its front or its back, with its sitting. It answers
+   * nothing, so the card stays where it is in the review, to be answered as ever; Undo leaves it be.
+   */
+  async function toggleFlag() {
+    if (!card || flagging) return;
+    setFlagging(true);
+    setFailure(null);
+    const s = sitting.current;
+    try {
+      const saved = await onFlag(card.id, { flagged: card.flaggedAt === null, from: "review", sessionId: s && s.ok !== false ? s.id : undefined });
+      setById((m) => new Map(m).set(saved.id, saved));
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setFlagging(false);
+    }
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -728,6 +753,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
         return;
       }
       if (!card) return;
+      // Flag's key, on the front and the back alike, held as long as it's set to be; its hold drawn on the Flag button.
+      const flagKey = pressedIn(e, binds.flag);
+      if (flagKey) {
+        e.preventDefault();
+        if (e.repeat) return;
+        hold.begin(e, place.current?.querySelector<HTMLElement>("[data-hold='flag']") ?? null, flagKey.holdMs, () => void toggleFlag());
+        return;
+      }
       // Another of the card's examples, either way, with its key held as long as it's set to be; a player's line with the
       // focus keeps its own arrows (← and → are the examples' to begin with).
       const onLine = e.target instanceof HTMLElement && e.target.closest("[role='slider']") !== null;
@@ -946,6 +979,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           files={card.files}
           srsType={srsType}
           place={card.place}
+          flagged={card.flaggedAt !== null}
           revealed={revealed}
           listening={listening}
           onListened={showCard}
@@ -981,7 +1015,21 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           }
         />
       }
-      buttons={<ReviewButtons srsType={srsType} place={card.place} revealed={revealed} listening={listening} binds={binds} busy={busy} onShow={listening ? showCard : reveal} onAnswer={press} onRest={rest} onLeave={leave} />}
+      buttons={
+        <ReviewButtons
+          srsType={srsType}
+          place={card.place}
+          revealed={revealed}
+          listening={listening}
+          binds={binds}
+          busy={busy}
+          onShow={listening ? showCard : reveal}
+          onAnswer={press}
+          onRest={rest}
+          onLeave={leave}
+          flag={{ on: card.flaggedAt !== null, busy: flagging, onToggle: () => void toggleFlag() }}
+        />
+      }
       ask={
         revealed && asked ? (
           <div className="panel panel-alarm review-ask">

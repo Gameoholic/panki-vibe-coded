@@ -60,6 +60,8 @@ export type KeyBinds = {
   fullScreen: Bind;
   /** Takes the review's last answer back, as its Undo button does (no key until one is set). */
   undo: Bind;
+  /** Flags the card on screen, or takes its flag off, as the review's Flag does, on its front and its back (no key until one is set). */
+  flag: Bind;
   /** Shows the card's previous or next example, as the arrows under its example do. */
   examplePrev: Bind;
   exampleNext: Bind;
@@ -118,6 +120,7 @@ export const DEFAULT_KEYS: KeyBinds = {
   restart: Array.from({ length: SLOTS }, (_, i) => (i === 0 ? one(RESTART_START.key, RESTART_START.holdMs) : one(null, 0))),
   fullScreen: one("f", 0),
   undo: one(null, 0),
+  flag: one(null, 0),
   // ← and → step through a card's examples, at a press.
   examplePrev: one("ArrowLeft", 0),
   exampleNext: one("ArrowRight", 0),
@@ -178,7 +181,7 @@ export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKe
 
 /** Every review key but the home's and today's Start, and the Hold button's two: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
-  return [binds.reveal, binds.showCard, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.examplePrev, binds.exampleNext];
+  return [binds.reveal, binds.showCard, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.flag, binds.examplePrev, binds.exampleNext];
 }
 /**
  * The keys held on the review, each with how long: every review key that's a hold, and the Hold button's while it's on,
@@ -324,10 +327,11 @@ function read(): KeyBinds {
     // Kept before Done listening had a key of its own: Show back of card's, which was its until then.
     const showCard = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.showCard, undefined) : reveal;
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
+    const flag = "flag" in raw ? bindOf(raw.flag, DEFAULT_KEYS.flag, undefined) : DEFAULT_KEYS.flag;
     // Kept before the examples had keys to begin with (`ARROWS_KEPT`): one left with none gets its arrow, unless that
     // arrow already does something else on the review here.
     const arrowed = "kept" in raw && typeof raw.kept === "number" && raw.kept >= ARROWS_KEPT;
-    const rest = [reveal, hide, ...answers, ...media, ...restart, fullScreen, undo];
+    const rest = [reveal, hide, ...answers, ...media, ...restart, fullScreen, undo, flag];
     const exampleOf = (name: "examplePrev" | "exampleNext"): Bind => {
       const fallback = DEFAULT_KEYS[name];
       const kept = name in raw ? bindOf((raw as Record<string, unknown>)[name], fallback, undefined) : fallback;
@@ -347,7 +351,7 @@ function read(): KeyBinds {
     const holdButton = shifted || !onOldSpace || takenBy([showCard, ...rest, examplePrev, exampleNext], DEFAULT_KEYS.holdButton) ? keptHold : DEFAULT_KEYS.holdButton;
     const holdReset = "holdReset" in raw ? bindOf(raw.holdReset, DEFAULT_KEYS.holdReset, undefined) : DEFAULT_KEYS.holdReset;
     const holdChain = holdChainOf("holdChain" in raw ? raw.holdChain : undefined);
-    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
+    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -405,12 +409,12 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, showCard: next.showCard, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs, holdButton: next.holdButton, holdReset: next.holdReset, holdChain: next.holdChain } });
+  ledger.record("keys", { data: { reveal: next.reveal, showCard: next.showCard, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs, holdButton: next.holdButton, holdReset: next.holdReset, holdChain: next.holdChain } });
 }
 
-/** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, an example's either way, Start's, the home's Review door's, the Hold button's and its Back to start's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
-export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "examplePrev" | "exampleNext" | "start" | "homeReview" | "holdButton" | "holdReset" } | { kind: "answers" | "media" | "restart"; index: number };
-const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "examplePrev", "exampleNext", "start", "homeReview", "holdButton", "holdReset"] as const;
+/** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, Flag's, an example's either way, Start's, the home's Review door's, the Hold button's and its Back to start's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" | "holdButton" | "holdReset" } | { kind: "answers" | "media" | "restart"; index: number };
+const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview", "holdButton", "holdReset"] as const;
 /** The Hold button's two, heard only while it's on. */
 const HOLD_KINDS: readonly Slot["kind"][] = ["holdButton", "holdReset"];
 /**

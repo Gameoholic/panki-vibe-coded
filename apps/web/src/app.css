@@ -2908,6 +2908,17 @@ canvas.media-frame {
 .btn-chip.today-card[aria-pressed="false"] {
   opacity: 0.45;
 }
+/* A flagged card's flag in its tile's top right corner, taking no room, so every tile stays one height. */
+.btn-chip.today-card {
+  position: relative;
+}
+.today-card > .today-flag {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+}
 .today-word {
   display: -webkit-box;
   max-width: 100%;
@@ -3734,8 +3745,34 @@ mark.sub-blur {
 .review-aside .to {
   font-size: 11px;
 }
+/* The card's Flag at the end of that row, across a hairline from the answers (it's none of them): as quiet as they are
+   until it's on, then tinted whole in the highlighter's yellow, its flag filled, saying Flagged. */
+.review-asides-rule {
+  align-self: stretch;
+  width: 1px;
+  background: var(--line);
+}
+.btn-chip.review-flag {
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.review-flag .name {
+  font-weight: 700;
+  color: var(--fg);
+}
+.btn-chip.review-flag[aria-pressed="true"] {
+  border-color: var(--flagged-edge);
+  background: var(--flagged-soft);
+  color: var(--flagged-ink);
+}
+.btn-chip.review-flag[aria-pressed="true"] .name {
+  color: var(--flagged-ink);
+}
 @media (hover: none) {
   .review-aside .key,
+  .review-flag .key,
   .review-undo .key {
     display: none;
   }
@@ -3846,6 +3883,7 @@ mark.sub-blur {
    press and not as a count. */
 .btn-answer .key,
 .review-aside .key,
+.review-flag .key,
 .review-hint .key,
 .review-actions > .btn-primary .key,
 .today-bar > .btn-primary .key,
@@ -4640,6 +4678,38 @@ mark.sub-blur {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
   background: var(--danger-soft);
 }
+/* A flagged card, tinted in the highlighter's yellow whole, its Unflag where Flag stands among its tools (one suspended
+   too keeps its red, and says both). */
+.card-row.is-flagged {
+  border-color: var(--flagged-edge);
+  background: var(--flagged-soft);
+}
+/* A card's flag said (FlagTag): the flag filled in the highlighter's yellow, its words in its ink, on a tag tinted the
+   same; filled, and with no warning sign, so it's never read as Duplicate's amber outline. */
+.flag-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 6px;
+  border: 1px solid var(--flagged-edge);
+  background: var(--flagged-soft);
+  color: var(--flagged-ink);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.flag-tag > .icon {
+  width: 13px;
+  height: 13px;
+}
+/* The flag icon filled in the highlighter's yellow, its pole and edge in the flag's ink. */
+.icon.is-flagged path:last-child {
+  fill: var(--flagged);
+}
+.icon.is-flagged {
+  color: var(--flagged-ink);
+}
 .card-lift-error {
   grid-column: 1 / -1;
   margin-top: 6px;
@@ -4673,8 +4743,10 @@ mark.sub-blur {
   background: var(--surface);
   --scroll-surface: var(--surface);
 }
-/* The answers set apart hold their room on the front, unseen (as the back's parts do), so turning the card moves nothing. */
-.review-asides.is-later {
+/* The answers set apart hold their room on the front, unseen (as the back's parts do), so turning the card moves
+   nothing; the card's Flag beside them stands on both sides. */
+.review-asides.is-later > .review-aside,
+.review-asides.is-later > .review-asides-rule {
   visibility: hidden;
 }
 /* The review on a computer fits the window, nothing scrolled to, everything on one screen with the buttons smaller
@@ -4858,7 +4930,8 @@ mark.sub-blur {
     height: 100%;
     padding-block: 0;
   }
-  .main > .review.is-fit .btn-chip.review-aside {
+  .main > .review.is-fit .btn-chip.review-aside,
+  .main > .review.is-fit .btn-chip.review-flag {
     padding: 3px 10px;
   }
   .main > .review.is-fit .btn-answer {
@@ -5125,11 +5198,16 @@ mark.sub-blur {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
-.main > .review.is-stage:has([data-staged]) .btn-chip.review-aside {
+.main > .review.is-stage:has([data-staged]) .btn-chip.review-aside,
+.main > .review.is-stage:has([data-staged]) .btn-chip.review-flag {
   min-width: 0;
   justify-content: center;
   gap: 6px;
   padding: 5px 8px;
+}
+/* Two to a row, the hairline has no cell of its own. */
+.main > .review.is-stage:has([data-staged]) .review-asides-rule {
+  display: none;
 }
 .main > .review.is-stage:has([data-staged]) .review-aside .to {
   min-width: 0;
@@ -5159,8 +5237,8 @@ mark.sub-blur {
   display: inline-flex;
   border-radius: 999px;
 }
-/* The card's corner marks (`ReviewCard` → `CornerMarks`: the stage tag, the AI spark), each corner a row of those in
-   it, the tag first; the stage tag alone where it stands by itself (the review's skeleton). */
+/* The card's corner marks (`ReviewCard` → `CornerMarks`: the stage tag, the AI spark, the flag), each corner a row of
+   those in it, the tag first; the stage tag alone where it stands by itself (the review's skeleton). */
 .review-corner {
   position: absolute;
   top: 14px;
@@ -5187,6 +5265,11 @@ mark.sub-blur {
 .review-corner > .review-place {
   position: static;
   inset: auto;
+}
+/* A flagged card's flag among them (`FlagTag`), as its row says it. */
+.review-mark.review-flag-mark {
+  display: inline-flex;
+  border-radius: 6px;
 }
 .review-place.size-small .pill {
   padding: 1px 7px;

@@ -5,11 +5,15 @@ import { Icon } from "@web/components/Icon";
 import { clock } from "@web/words";
 import type { KnownMoment } from "../capture/known";
 import { stamp } from "../capture/words";
-import { seekVars, type SeekLook, type WordsMarkId } from "../seekLook";
+import { APART_MARK_IDS, seekVars, type ApartMarkId, type SeekLook, type WordsMarkId } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
 
-/** What a pin's words belong to: a card taken from the video (one that's suspended apart), or a word that's in the decks, said in it. */
-export type Pinned = { of: "cards" | "suspended"; card: VideoCard } | { of: "known"; said: KnownMoment };
+/**
+ * What a pin's words belong to: a card taken from the video, by the mark it goes by (flagged or suspended apart, else
+ * the cards'), or a word that's in the decks, said in it, with the mark its tick goes by (`mark`: one only suspended
+ * cards are, or one a flagged card is, apart, else the words in the decks').
+ */
+export type Pinned = { of: "cards" | ApartMarkId; card: VideoCard } | { of: "known"; mark: "known" | ApartMarkId; said: KnownMoment };
 
 /** The open clip as it's marked on the bar: its two ends, and what pulling one does. */
 export type ClipMark = {
@@ -88,16 +92,20 @@ const wordsOnPin = (pinned: Pinned) => (pinned.of === "known" ? pinned.said.word
 
 /**
  * Which mark's settings a pin goes by, and which layer it's drawn in: its own, but for where a word only suspended
- * cards are is said, which is the Suspended cards mark's, red, its words up and pressed as that mark says (its tick is
- * red, so its word goes by that mark too, not by Words that are in your decks').
+ * cards are, or a flagged card is, is said, which is that mark's, its words up and pressed as that mark says (its tick
+ * is that mark's colour, so its word goes by that mark too, not by Words that are in your decks').
  */
-export const markOf = (pinned: Pinned): WordsMarkId => (pinned.of === "known" && pinned.said.suspended ? "suspended" : pinned.of);
+export const markOf = (pinned: Pinned): WordsMarkId => (pinned.of === "known" ? pinned.mark : pinned.of);
+
+/** Whether a card, or where a word is said, is flagged or only suspended cards are, by the mark it'd go by. */
+const isOf = (mark: ApartMarkId, of: { suspended: boolean; flagged: boolean }) => (mark === "flagged" ? of.flagged : of.suspended);
 
 /**
  * The pins, each in the lowest lane where it touches none already laid; one with no room in any is left out. The
- * suspended cards' come first, then the rest of the cards', so a word that's in the decks never takes a card's place;
- * all are laid together, so none touch. A lane is every stretch taken in it, not only its last: the pins don't come
- * in the video's order (the suspended first), and one laid far to the right mustn't shut the lane to those left of it.
+ * flagged cards' come first, then the suspended, then the rest of the cards', so a word that's in the decks never takes
+ * a card's place; all are laid together, so none touch. A lane is every stretch taken in it, not only its last: the
+ * pins don't come in the video's order (the flagged first), and one laid far to the right mustn't shut the lane to
+ * those left of it.
  */
 function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
   const taken: { left: number; right: number }[][] = Array.from({ length: PIN.lanes }, () => []);
@@ -133,8 +141,9 @@ function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
  * viewer set (`look.cards.click`: nothing, and then it isn't a thing to press at all, or the video to the card's
  * sentence or its word). The words that are in the decks have pins of their own the same way, with the same settings
  * of their own (`look.known`, the same settings as the cards'), laid in the same lanes after the cards'.
- * The suspended cards are a mark of their own while it's shown (`look.suspended`, its pins laid first, so they can be
- * fixed from the video), the rest of the cards without them; hidden, they're cards like any. Nothing changes as the
+ * The flagged cards are a mark of their own while it's shown (`look.flagged`, its pins laid first, so they can be acted
+ * on from the video), and the suspended ones likewise (`look.suspended`, laid next), the rest of the cards without them;
+ * a card both is the flagged mark's; one whose mark is hidden is a card like any. Nothing changes as the
  * video plays through a card: no card lights or rises by itself as it's played, and a press on the bar near a card's
  * mark doesn't snap to the card, the words doing that job. Only the pins and the clip's two ends take a press.
  * Everywhere else on the bar a press goes through to the player, which seeks as ever.
@@ -158,17 +167,22 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
   }, [known]);
   /** When a mark's words stand: never while the mark itself is hidden. */
   const wordsOf = (id: WordsMarkId) => (look[id].shown ? look[id].words : "off");
-  // The suspended cards are their own mark while it's shown, and only then, where they were taken from and where their
-  // word is said alike; hidden, they're cards and words in the decks like the rest.
-  const apart = look.suspended.shown;
-  const suspended = apart ? cards.filter((card) => card.suspended) : [];
-  const others = apart ? cards.filter((card) => !card.suspended) : cards;
-  const saidSuspended = apart ? inDecks.filter((said) => said.suspended) : [];
-  const saidOthers = apart ? inDecks.filter((said) => !said.suspended) : inDecks;
+  // The flagged and the suspended cards are each their own mark while it's shown, and only then, where they were taken
+  // from and where their word is said alike, the first that fits winning; hidden, they're cards and words in the decks
+  // like the rest.
+  const apartOf = (of: { suspended: boolean; flagged: boolean }): ApartMarkId | null => APART_MARK_IDS.find((id) => look[id].shown && isOf(id, of)) ?? null;
+  const cardMark = (card: VideoCard): "cards" | ApartMarkId => apartOf(card) ?? "cards";
+  const saidMark = (said: KnownMoment): "known" | ApartMarkId => apartOf(said) ?? "known";
+  const cardsBy = (mark: "cards" | ApartMarkId) => cards.filter((card) => cardMark(card) === mark);
+  const saidBy = (mark: "known" | ApartMarkId) => inDecks.filter((said) => saidMark(said) === mark);
+  const others = cardsBy("cards");
+  const saidOthers = saidBy("known");
   const pinned: Pinned[] = [
-    ...(wordsOf("suspended") === "off" ? [] : [...suspended.map((card): Pinned => ({ of: "suspended", card })), ...saidSuspended.map((said): Pinned => ({ of: "known", said }))]),
+    ...APART_MARK_IDS.flatMap((id) =>
+      wordsOf(id) === "off" ? [] : [...cardsBy(id).map((card): Pinned => ({ of: id, card })), ...saidBy(id).map((said): Pinned => ({ of: "known", mark: id, said }))],
+    ),
     ...(wordsOf("cards") === "off" ? [] : others.map((card): Pinned => ({ of: "cards", card }))),
-    ...(wordsOf("known") === "off" ? [] : saidOthers.map((said): Pinned => ({ of: "known", said }))),
+    ...(wordsOf("known") === "off" ? [] : saidOthers.map((said): Pinned => ({ of: "known", mark: "known", said }))),
   ];
   const pins = !known || pinned.length === 0 || width === 0 ? [] : layPins(pinned, length, width);
   const highest = pins.reduce((lane, pin) => Math.max(lane, pin.lane), -1);
@@ -270,19 +284,20 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
       {look.known.shown ? saidOthers.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
-      {/* Where a word only suspended cards are is said: the Suspended cards mark's. */}
-      {saidSuspended.map((said) => (
-        <div key={said.startMs} className="seek-known is-suspended" style={across(said.startMs / 1000, said.endMs / 1000)} />
-      ))}
+      {/* Where a word only suspended cards are, or a flagged card is, is said: that mark's, the flagged over the suspended. */}
+      {[...APART_MARK_IDS].reverse().flatMap((id) =>
+        saidBy(id).map((said) => <div key={`${id}-${said.startMs}`} className={`seek-known is-${id}`} style={across(said.startMs / 1000, said.endMs / 1000)} />),
+      )}
       {look.cards.shown
         ? others.map((card) => <div key={`${card.cardId}-${card.startMs}`} className="seek-card" style={across(card.startMs / 1000, card.endMs / 1000)} />)
         : null}
-      {suspended.map((card) => (
-        <div key={`${card.cardId}-${card.startMs}`} className="seek-card is-suspended" style={across(card.startMs / 1000, card.endMs / 1000)} />
-      ))}
+      {[...APART_MARK_IDS].reverse().flatMap((id) =>
+        cardsBy(id).map((card) => <div key={`${card.cardId}-${card.startMs}`} className={`seek-card is-${id}`} style={across(card.startMs / 1000, card.endMs / 1000)} />),
+      )}
       {pinsOf("known")}
       {pinsOf("cards")}
       {pinsOf("suspended")}
+      {pinsOf("flagged")}
       {/* Where it was stopped: a white tick across the bar and a tag over it with the time, under the cards' words when they rise. */}
       {stop !== null && stop > 0 && stop < length ? (
         <>

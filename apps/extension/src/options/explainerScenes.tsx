@@ -799,12 +799,13 @@ function UtilitiesScene({ store }: { store: Stored }) {
 
 /** How long the video being watched is, in seconds (`WATCHED.length`, 18:40): what the seek bar's marks are laid along. */
 const SEEK_LENGTH = 18 * 60 + 40;
-/** The cards taken from the video: one of them the example deck's own word, one suspended. */
+/** The cards taken from the video: one of them the example deck's own word, one suspended, one flagged. */
 const SEEK_CARDS: readonly VideoCard[] = [
-  { cardId: "explain-1", startMs: 95_000, endMs: 99_000, words: "言葉", suspended: false },
-  { cardId: "explain-2", startMs: 262_000, endMs: 267_000, words: IN_DECKS.words, suspended: false },
-  { cardId: "explain-3", startMs: 541_000, endMs: 545_000, words: "敢えて", suspended: true },
-  { cardId: "explain-4", startMs: 803_000, endMs: 808_000, words: "大丈夫", suspended: false },
+  { cardId: "explain-1", startMs: 95_000, endMs: 99_000, words: "言葉", suspended: false, flagged: false },
+  { cardId: "explain-2", startMs: 262_000, endMs: 267_000, words: IN_DECKS.words, suspended: false, flagged: false },
+  { cardId: "explain-3", startMs: 541_000, endMs: 545_000, words: "敢えて", suspended: true, flagged: false },
+  { cardId: "explain-5", startMs: 712_000, endMs: 716_000, words: "待ち合わせ", suspended: false, flagged: true },
+  { cardId: "explain-4", startMs: 803_000, endMs: 808_000, words: "大丈夫", suspended: false, flagged: false },
 ];
 /** Where it says words that are in the decks. */
 const SEEK_IN_DECKS: readonly KnownMoment[] = (
@@ -815,7 +816,7 @@ const SEEK_IN_DECKS: readonly KnownMoment[] = (
     [690, "電車"],
     [910, "勉強"],
   ] as const
-).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false }));
+).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false, flagged: false }));
 /** Where it was stopped the time before, in seconds. */
 const SEEK_STOP = 640;
 

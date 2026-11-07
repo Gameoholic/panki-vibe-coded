@@ -101,6 +101,8 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
           files={card.files}
           srsType={srsType}
           place={deckId === card.deckId ? card.place : NEW_PLACE}
+          // The card's flag is its own, whichever deck it's seen in.
+          flagged={card.flaggedAt !== null}
           revealed={face === "back"}
           listening={face === "listen"}
           onListened={() => setFace({ deckId, face: "front" })}

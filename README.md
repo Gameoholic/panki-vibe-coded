@@ -44,12 +44,7 @@ Before sharing with public:
 
 
     
-- Cards that appear green now should optionally appear greener the more examples we hafve for this card (ideally 3 examples per card (the 3 is customizable, can set it to 0)) Maybe we can add a signal to like mark a word to make it apepar differnetly liek "Request additional example" if i think while reviewing the card could benefit from mroe examples? Or maybe if the word has >=3 exampels fo rhtt meanignwe flag it int he "the cardw it hths iemangi anrlead yexists ad as adaitional exmaple" thing to know we have alot .obivously nto jstu meanign i mtalkgi anbot uthe duolicate logic its dynamic i sjut gave meanign ehre as ane xample.
-
 - reminder to do reviews today to eke pthe streak (autoamtically activates aftert having a strrreak of >5 ) (have it schangeablei n settigns per user, and have it for reviews and for video watching) draft an artifact to sohw me how it'd look like. maybe we can even ahve streaks for "target" of watching or doigmn revies in roder otuphodl the streak (obviosuly wil lrequire changes to the way that the strre akwidgetrts are shown os it mgith eb bea bigger hcnag.e how is the estsreak stored today/ isit calcualted ydhamically meanign we can esayily ad docnditios nto the streak featurelogic and/or widgets? or is it litrally a "streak" table in the database in which case that's kinda weird. not jsut streak but liekw atchtitme and all that etc. is it all calcualted dynamically every time? or is it stored like wit ha sepcific logic). we coudl edit the widgets per user like to see the sepcific conditiosn ro wahtever i guess.and for reviews it'd be like for example "did ALL my reviews" or "did at least 5 reviews". obvbiosuyl if theres no revies to do in abatch or the last 2 reviews we ned will noyl come at the last 5m intues of the ad ay itd be bad so need a way to like soft cap it or soemthing (maybe if i complete a full batch regardless itll finsih it). we need like a builder for this cuz like also do we rseparrte revies from new cards? what if iwant a streak for new cards? also wanikani has like "savign grace" and shit we could optioanly ldo that int he buidler too.
-
-- disconnect wanikani+ from wanikani. make my own grading.
-
 
 
 https://www.youtube.com/watch?v=JfvEIHYU24o

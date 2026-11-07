@@ -9,6 +9,7 @@ import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
 import { ALSO_MAX, DEFAULT_KEYS, DOUBLE_PRESS, HOLD_TIMES, PRESS_KINDS, setKeyBinds, setKeybindsEnabled, useKeyBindsSet, useKeybindsEnabled, withAdded, withHoldChain, withKey, withoutAdded, withPart, type Bind, type HoldChain, type Key, type KeyBinds, type Part, type Slot } from "../keys";
+import { FLAG_WORDS } from "../srsKinds";
 import { HoldButtonScene } from "./HoldButtonScene";
 
 const seconds = (ms: number) => `${ms / 1000} s`;
@@ -197,6 +198,7 @@ export function KeysPanels() {
           control={<Segmented idPrefix="key-confirm" label="Extra hold for answers that require confirmation" options={EXTRA_OPTIONS} value={String(binds.confirmMs)} disabled={off} onChange={(id) => setKeyBinds({ ...binds, confirmMs: holdOf(id, binds.confirmMs) })} />}
         />
         <KeyRow id="undo" label="Undo" bind={binds.undo} slot={{ kind: "undo" }} binds={binds} disabled={off} />
+        <KeyRow id="flag" label={FLAG_WORDS.set} bind={binds.flag} slot={{ kind: "flag" }} binds={binds} disabled={off} />
         <KeyRow id="example-prev" label="Previous example" bind={binds.examplePrev} slot={{ kind: "examplePrev" }} binds={binds} disabled={off} />
         <KeyRow id="example-next" label="Next example" bind={binds.exampleNext} slot={{ kind: "exampleNext" }} binds={binds} disabled={off} />
       </section>

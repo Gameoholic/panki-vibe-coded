@@ -17,6 +17,7 @@ import {
   type CardType,
   type CornerMarkId,
   type Deck,
+  type FlagMark,
   type LayoutPart,
   type ListenFirst,
   type SparkMark,
@@ -64,11 +65,11 @@ const NO_SAMPLE = "";
 const NOT_OVER = "";
 /** The pill's ladder when no deck's is to hand: a new card says "New" whatever its type is. */
 const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: [], after: "burn", burnedName: "" };
-/** What's picked when it's a corner mark (the stage tag, the AI spark): no field's id is this. */
+/** What's picked when it's a corner mark (the stage tag, the AI spark, the flag): no field's id is this. */
 const markPicked = (id: CornerMarkId) => `mark:${id}`;
 
-/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark), and Listen first. */
-type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; listen: ListenFirst };
+/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark, the flag), and Listen first. */
+type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; flag: FlagMark; listen: ListenFirst };
 
 type Props = {
   /** The card type as it's saved. */
@@ -76,7 +77,7 @@ type Props = {
   /** Every deck: the ones of this type lend their newest cards to show on it, and their counts to the line over it. */
   decks: readonly Deck[];
   srsTypes: readonly SrsType[];
-  onSave: (layout: CardLayout, tag: StageTag, spark: SparkMark, listen: ListenFirst) => Promise<CardType>;
+  onSave: (layout: CardLayout, tag: StageTag, spark: SparkMark, flag: FlagMark, listen: ListenFirst) => Promise<CardType>;
   onStatus: (status: SaveStatus) => void;
   /** Says whether there's unsaved work here, so leaving the screen can ask first (null when there's none). */
   onGuard: (guard: UnsavedGuard | null) => void;
@@ -94,18 +95,22 @@ type Props = {
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
   // The fields' parts, the corner marks and Listen first are laid out together, so one Undo steps back through them all.
-  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, listen: t.listen });
+  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, flag: t.flag, listen: t.listen });
   const history = useUndoable<Laid>(laidOf(type));
   const { undo, redo } = history;
   const draft = history.present.parts;
   const tag = history.present.tag;
   const spark = history.present.spark;
+  const flag = history.present.flag;
   const listen = history.present.listen;
   const change = (parts: LayoutPart[]) => history.change({ ...history.present, parts });
   const changeTag = (patch: Partial<StageTag>) => history.change({ ...history.present, tag: { ...tag, ...patch } });
-  const changeSpark = (patch: Partial<SparkMark>) => history.change({ ...history.present, spark: { ...spark, ...patch } });
   /** A corner mark's own: whether it's shown, and its corner (the stage tag's size is its alone). */
-  const changeMark = (id: CornerMarkId, patch: Partial<SparkMark>) => (id === "tag" ? changeTag(patch) : changeSpark(patch));
+  const changeMark = (id: CornerMarkId, patch: Partial<SparkMark>) => {
+    if (id === "tag") changeTag(patch);
+    else if (id === "spark") history.change({ ...history.present, spark: { ...spark, ...patch } });
+    else history.change({ ...history.present, flag: { ...flag, ...patch } });
+  };
   const changeListen = (patch: Partial<ListenFirst>) => history.change({ ...history.present, listen: { ...listen, ...patch } });
   const [saved, setSaved] = useState<Laid>(laidOf(type));
   const [saving, setSaving] = useState(false);
@@ -186,7 +191,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     setSaving(true);
     setSaveFailure(null);
     try {
-      const result = await onSave(parsed.data, tag, spark, listen);
+      const result = await onSave(parsed.data, tag, spark, flag, listen);
       setSaved(laidOf(result));
       // What the API keeps is the layout filled out against the fields; it takes the draft's place without a step.
       history.amend(() => laidOf(result));
@@ -328,18 +333,19 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   /** The fields whose clip the full screen can fill the screen with, the one it fills it with first (`stagedOrder`). */
   const staging = stagedOrder(draft, type.fields);
   // What this tab's skeleton draws next time on this device (`Skeleton`'s `layout`): the chips of what isn't on the
-  // front in the panel, and whether the answers set apart hold a row under the card.
+  // front in the panel, and the row under the answers: none (no deck's answers), Flag alone, or the answers set apart
+  // with Flag after them.
   const awayOnFront = side === "front" ? away.length : null;
-  const asidesHeld = answersBy !== undefined && answersBy.answers.some((a) => a.aside && offered(answersBy, sample?.card.place ?? NEW_PLACE, a.id));
+  const asidesHeld = answersBy === undefined ? 0 : answersBy.answers.some((a) => a.aside && offered(answersBy, sample?.card.place ?? NEW_PLACE, a.id)) ? 2 : 1;
   useEffect(() => {
     if (awayOnFront !== null) rememberShape(`layout-away:${type.id}`, awayOnFront);
   }, [awayOnFront, type.id]);
-  useEffect(() => rememberShape(`layout-asides:${type.id}`, asidesHeld ? 1 : 0), [asidesHeld, type.id]);
+  useEffect(() => rememberShape(`layout-asides:${type.id}`, asidesHeld), [asidesHeld, type.id]);
 
-  /** The corner mark picked, if it's one: the stage tag or the AI spark. */
+  /** The corner mark picked, if it's one: the stage tag, the AI spark or the flag. */
   const pickedMark = CORNER_MARK_IDS.find((id) => picked === markPicked(id)) ?? null;
   const part = pickedMark ? undefined : draft.find((p) => p.fieldId === picked);
-  const marks: Record<CornerMarkId, SparkMark> = { tag, spark };
+  const marks: Record<CornerMarkId, SparkMark> = { tag, spark, flag };
   const field = part ? fields.get(part.fieldId) : undefined;
   /** The one sound or clip that shows the card by itself, if one does. */
   const shower = draft.find((p) => p.showOnPlay !== null);
@@ -660,6 +666,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           picturesOf={api.videoPictures}
           tag={tag}
           spark={spark}
+          flag={flag}
+          flagged={(sample?.card.flaggedAt ?? null) !== null}
           autoplay
           shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
           restarts={binds.restart.map((bind) => restartOf(bind, binds))}
@@ -678,7 +686,17 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       }
       buttons={
         answersBy ? (
-          <ReviewButtons srsType={answersBy} place={sample?.card.place ?? NEW_PLACE} revealed={face === "back"} listening={face === "listen"} binds={binds} busy={false} onShow={showNext} />
+          <ReviewButtons
+            srsType={answersBy}
+            place={sample?.card.place ?? NEW_PLACE}
+            revealed={face === "back"}
+            listening={face === "listen"}
+            binds={binds}
+            busy={false}
+            onShow={showNext}
+            // Greyed, as the answers are: a card looked at gives no answer, and isn't flagged from here.
+            flag={{ on: (sample?.card.flaggedAt ?? null) !== null, busy: false }}
+          />
         ) : face === "back" ? null : (
           <div className="review-actions">
             <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={showNext} />

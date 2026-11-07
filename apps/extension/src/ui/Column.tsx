@@ -1,24 +1,15 @@
 import { useRef } from "react";
-import { Button } from "@web/components/Button";
-import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
-
-/** The grip at the column's inner edge in full screen (the column stands at the screen's right): the column folded away, and back. */
-export type ColumnHandle = {
-  folded: boolean;
-  onToggle: () => void;
-};
 
 /**
  * The column the Panki panel and the capture drawer stand in beside the video (the Beside the video view as tall as the
  * player, the site's full screen as tall as the screen): one box of Panki's that scrolls inside itself, the drawer over
  * the panel, so opening the drawer never makes the column taller than the room it had. The two places themselves are
  * put in the column's host by the page and drawn here through the slot; the column is only their scroller, with Panki's
- * fade and thin bar (`ScrollEdges`) in place of the browser's. In full screen it has a `handle`: a thin grip on its
- * inner edge, over the video, that folds the column away (the video alone filling the screen, the grip staying at the
- * screen's edge) and brings it back; folded, the page leaves the column's host as wide as nothing (`is-folded`).
+ * fade and thin bar (`ScrollEdges`) in place of the browser's. In full screen, folded away, the page leaves its host as
+ * wide as nothing and hides everything in it (`is-folded`); the button in the video's corner brings it back (`ui/PanelButton.tsx`).
  */
-export function Column({ handle }: { handle: ColumnHandle | null }) {
+export function Column() {
   const box = useRef<HTMLDivElement>(null);
   return (
     <>
@@ -28,21 +19,6 @@ export function Column({ handle }: { handle: ColumnHandle | null }) {
         </div>
       </div>
       <ScrollEdges of={box} />
-      {handle ? (
-        <Button
-          className="btn-icon panki-column-handle"
-          aria-label="Toggle panel"
-          aria-expanded={!handle.folded}
-          onClick={(event) => {
-            handle.onToggle();
-            // Pressed with a mouse, the focus isn't left on it: the panel's key is heard from the page, never from inside Panki.
-            if (event.detail > 0) event.currentTarget.blur();
-          }}
-        >
-          {/* The chevron points where the press sends the column: back in from the screen's edge, or off it. */}
-          <Icon name={handle.folded ? "back" : "forward"} />
-        </Button>
-      ) : null}
     </>
   );
 }

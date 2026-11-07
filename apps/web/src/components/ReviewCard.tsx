@@ -21,6 +21,7 @@ import {
   type CardType,
   type Column,
   type CornerMarkId,
+  type FlagMark,
   type LayoutPart,
   type ListenFirst,
   type ListenShow,
@@ -36,8 +37,10 @@ import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
 import type { Heard, Shortcut } from "../keys";
+import { CORNER_MARK_NAMES } from "../layoutKinds";
 import { langOf } from "../words";
 import { Button } from "./Button";
+import { FlagTag } from "./FlagTag";
 import { Icon } from "./Icon";
 import { LinkView, type VideoPictures } from "./LinkView";
 import type { Wave } from "./MediaLooks";
@@ -212,6 +215,10 @@ type Props = {
   tag?: StageTag;
   /** An AI spark to draw in place of the type's own: one being laid out. */
   spark?: SparkMark;
+  /** A flag to draw in place of the type's own: one being laid out. */
+  flag?: FlagMark;
+  /** The card is flagged (`Card.flaggedAt`): its flag stands in its corner, as the type lays it out. Not by default. */
+  flagged?: boolean;
   /**
    * The keys that play its sounds and clips, drawn on them, in the card's order (the layout's, both sides alike, so a
    * field keeps its key when the card is turned): a review, and a card tried as one, give this device's (`keys.ts`); a
@@ -312,6 +319,8 @@ export function ReviewCard({
   picturesOf,
   tag = type.tag,
   spark = type.spark,
+  flag = type.flag,
+  flagged = false,
   shortcuts = [],
   restarts = [],
   screenKey = null,
@@ -939,6 +948,7 @@ export function ReviewCard({
   const marks: CornerMark[] = [
     { id: "tag", corner: tag.corner, shown: tag.shown, here: true, look: `review-place size-${tag.size}`, label: "Stage tag", node: <PlacePill type={srsType} place={place} /> },
     { id: "spark", corner: spark.corner, shown: spark.shown, here: aiShown, look: "review-ai-mark", label: "AI spark", node: <AiSpark className="review-ai-corner" /> },
+    { id: "flag", corner: flag.corner, shown: flag.shown, here: flagged, look: "review-flag-mark", label: CORNER_MARK_NAMES.flag, node: <FlagTag /> },
   ];
 
   return (

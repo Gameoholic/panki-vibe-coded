@@ -136,9 +136,12 @@
 .btn.tok.is-known:not([aria-pressed="true"]) {
   background: var(--known);
 }
-/* One only suspended cards are, in their own tint. */
+/* One only suspended cards are, in their own tint; one a flagged card is, in its own again. */
 .btn.tok.is-known.is-suspended:not([aria-pressed="true"]) {
   background: var(--known-suspended);
+}
+.btn.tok.is-known.is-flagged:not([aria-pressed="true"]) {
+  background: var(--known-flagged);
 }
 /* At the far end of the line's head: Transcribe or Stop, and a clip taken off the video itself, for when there are no
    words to press. */
@@ -611,40 +614,57 @@
   flex-direction: column;
   min-height: 100%;
 }
-/* Folded away in full screen: nothing of the column but its grip, its host as wide as nothing at the screen's edge. */
-.panki-root.is-column.is-folded > :not(.panki-column-handle) {
+/* Folded away in full screen: nothing of the column shown, its host as wide as nothing at the screen's edge. */
+.panki-root.is-column.is-folded > * {
   display: none;
 }
-/* The grip on the column's inner edge in full screen, just off it on the video, at its middle: pressed, the column
-   folds away and the grip stays at the screen's edge to bring it back. Quiet on the picture until pointed at. */
-.btn.btn-icon.panki-column-handle {
-  position: absolute;
-  top: 50%;
-  z-index: 1;
-  width: 20px;
+/* The Panki panel's button in the video's top-right corner in full screen, while the panel is folded away
+   (ui/PanelButton.tsx): a round disc of the player's own dark glass with the panel's icon in white, as the site draws
+   its playlist button there, a shade lighter under the pointer and darker pressed; with the keyboard, a ring. It
+   stands in Panki's own place over the player, where the site's stylesheet can't reach, so its look is said again
+   here. Its tip hangs under it, flush with its right edge, so it never runs off the screen. */
+.yt-corner {
+  position: relative;
+  display: inline-flex;
+  pointer-events: auto;
+}
+.btn.btn-ghost.yt-corner-button {
+  width: 48px;
+  height: 48px;
   min-width: 0;
-  height: 64px;
   min-height: 0;
   padding: 0;
   border: 0;
-  transform: translateY(-50%);
-  background: color-mix(in srgb, var(--theater) 55%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--theater) 50%, transparent);
   color: var(--theater-ink);
-  opacity: 0.6;
-  pointer-events: auto;
-  right: 100%;
-  border-radius: var(--radius) 0 0 var(--radius);
+  transition: background-color 0.1s;
 }
-.btn.btn-icon.panki-column-handle:hover,
-.btn.btn-icon.panki-column-handle:focus-visible {
-  opacity: 1;
-  background: color-mix(in srgb, var(--theater) 80%, transparent);
-  color: var(--theater-ink);
+.btn.btn-ghost.yt-corner-button .icon {
+  width: 24px;
+  height: 24px;
 }
-@media (hover: none) {
-  .btn.btn-icon.panki-column-handle {
-    opacity: 1;
+@media (hover: hover) {
+  .btn.btn-ghost.yt-corner-button:hover {
+    background: color-mix(in srgb, var(--theater) 35%, var(--theater-ink) 15%);
+    color: var(--theater-ink);
   }
+}
+.btn.btn-ghost.yt-corner-button:active {
+  background: color-mix(in srgb, var(--theater) 70%, transparent);
+  color: var(--theater-ink);
+}
+.btn.btn-ghost.yt-corner-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--theater-ink);
+}
+.yt-corner .tip {
+  left: auto;
+  right: 0;
+  transform: none;
+  background: color-mix(in srgb, var(--theater) 82%, transparent);
+  color: var(--theater-ink);
+  white-space: nowrap;
 }
 /* The panel beside the video (`PanelView` "beside"): in the column beside the player and as tall
    as it (`--panki-beside-h`, written by the page as the player's height), its head on top and the whole transcript
@@ -2697,6 +2717,12 @@
   height: var(--suspended-size);
   background: var(--suspended-colour);
 }
+/* Where a word a flagged card is is said: the Flagged cards mark's (seekLook.ts → `flagged`). */
+.seek-known.is-flagged {
+  bottom: calc(100% + 3.5px - var(--flagged-size) / 2);
+  height: var(--flagged-size);
+  background: var(--flagged-colour);
+}
 /* Where a card was taken from (each card's clip), centred on the same line, in a colour of
    their own; the one the video is at, glowing. */
 .seek-card {
@@ -2712,6 +2738,12 @@
   bottom: calc(100% + 3.5px - var(--suspended-size) / 2);
   height: var(--suspended-size);
   background: var(--suspended-colour);
+}
+/* A flagged card's, its own mark (seekLook.ts → `flagged`), over the rest. */
+.seek-card.is-flagged {
+  bottom: calc(100% + 3.5px - var(--flagged-size) / 2);
+  height: var(--flagged-size);
+  background: var(--flagged-colour);
 }
 /* A card's words on a pin over its mark: a small glass tag on the picture, edged in the cards' colour, a hairline stem
    down to its mark, one lane over another where they'd touch (SeekMark → PIN). They come in as the viewer's entrance
@@ -2740,6 +2772,9 @@
 }
 .seek-pins.is-suspended {
   --pin-colour: var(--suspended-colour);
+}
+.seek-pins.is-flagged {
+  --pin-colour: var(--flagged-colour);
 }
 /* Every pin stands over every stem, so a stem coming up from the bar to a pin in a higher lane passes behind the words
    in its way, never across them. */

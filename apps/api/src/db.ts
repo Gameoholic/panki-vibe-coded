@@ -47,7 +47,9 @@ import {
   sideOf,
   stageTagOf,
   sparkMarkOf,
+  flagMarkOf,
   DEFAULT_STAGE_TAG,
+  type FlagMark,
   type SparkMark,
   type StageTag,
   listenFirstOf,
@@ -63,6 +65,7 @@ import {
   type CardAnswer,
   type CardExample,
   type CardExampleUpdate,
+  type CardFlagUpdate,
   type CardSource,
   type NewCardExample,
   type CardHold,
@@ -89,6 +92,7 @@ import {
   type VideoGlance,
   type WatchedVideo,
   type Watching,
+  type WordsInCards,
 } from "@panki/contracts";
 import { hashOf, whileUnchanged } from "./kept";
 import { addDays, checkTimeZone, dayReader, dayStartAt, daysBetween, streakOf, type Day } from "./time";
@@ -949,6 +953,24 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
     db.exec("CREATE INDEX example_pins_card_id ON example_pins (card_id, id)");
   },
+  (db) => {
+    // 46. A card can be flagged by hand, a mark of its own apart from its schedule and from putting it aside: each change
+    // is a row, a flag or an unflag, with when, the sign-in it came from, where it was pressed (a review, or the card's
+    // row in its deck's list) and, in a review, its sitting; never changed or deleted. The latest row is the card's
+    // flag. Every card from before has none: none is flagged.
+    db.exec(`
+      CREATE TABLE card_flags (
+        id INTEGER PRIMARY KEY,
+        card_id TEXT NOT NULL REFERENCES cards(id),
+        kind TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        device TEXT NOT NULL,
+        place TEXT NOT NULL,
+        session_id TEXT REFERENCES review_sessions(id)
+      )
+    `);
+    db.exec("CREATE INDEX card_flags_card_id ON card_flags (card_id, id)");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -985,10 +1007,13 @@ type IdRow = { id: string; removedAt: number | null };
 type SettingRow = { key: string; value: string };
 /** A card's last card_places row, joined on; every column null when it has none (a new card). */
 type PlaceRow = { placeId: number | null; stageId: string | null; past: number | null; node: string | null; burned: number | null };
-/** `suspendedAt` is when its latest suspend not lifted was made, `buriedUntil` when the last of its buries not lifted ends; null when there's none. */
-type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null; suspendedAt: number | null; buriedUntil: number | null };
-/** A living card holding some words in a field: which field, and its deck with the deck's type and name. */
-type CalledRow = { cardId: string; fieldId: string; value: string; deckId: string; createdAt: number; typeId: string | null; deckName: string };
+/**
+ * `suspendedAt` is when its latest suspend not lifted was made, `buriedUntil` when the last of its buries not lifted
+ * ends, `flaggedAt` when its standing flag was set; null when there's none.
+ */
+type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null; suspendedAt: number | null; buriedUntil: number | null; flaggedAt: number | null };
+/** A living card holding some words in a field: which field, its deck with the deck's type and name, and whether it's flagged (1 or 0). */
+type CalledRow = { cardId: string; fieldId: string; value: string; deckId: string; createdAt: number; typeId: string | null; deckName: string; flagged: number };
 /** What a read at one moment needs of the clock: the settings as they are, and how much of today's allowance is used. */
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
@@ -1159,6 +1184,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // A card's place is its last card_places row (the highest id) that wasn't undone; the reads below join it on or look
   // it up. An undone answer is passed over by every read of where a card stands and of what was answered.
   const lastPlaceOf = (card: string) => `(SELECT MAX(q.id) FROM card_places q WHERE q.card_id = ${card} AND q.undone_at IS NULL)`;
+  /** When a card's flag was set, while its latest flag row (`card_flags`) is a flag; null otherwise. The one reading of whether a card is flagged. */
+  const flaggedAtOf = (card: string) => `(SELECT CASE WHEN f.kind = 'flag' THEN f.at END FROM card_flags f WHERE f.card_id = ${card} ORDER BY f.id DESC LIMIT 1)`;
   const srsTypeColumns = `
     t.id, t.name, t.description, t."after", t.grow_by AS growBy, t.burned_name AS burnedName, t.flow, t.overrides, t.lesson, t.created_at AS createdAt, t.builtin IS NOT NULL AS builtin,
     (SELECT COUNT(*) FROM decks d WHERE d.srs_type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
@@ -1249,7 +1276,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     (SELECT COUNT(*) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer' AND a.undone_at IS NULL) AS seen,
     (SELECT MAX(a.at) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer' AND a.undone_at IS NULL) AS lastAt,
     (SELECT MAX(h.at) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspendedAt,
-    (SELECT MAX(h.until) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'bury' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS buriedUntil`;
+    (SELECT MAX(h.until) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'bury' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS buriedUntil,
+    ${flaggedAtOf("c.id")} AS flaggedAt`;
   const cardsWithPlace = `FROM cards c LEFT JOIN card_places p ON p.card_id = c.id AND p.id = ${lastPlaceOf("c.id")}`;
   // A deleted card is out of everything from the moment it leaves: the lists, the counts, a review, the ladder, and
   // whatever is later done to its deck's cards (a switch of SRS type, a stage taken away). Only an insert's read-back
@@ -1310,10 +1338,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // Where in a video the living cards were taken from. A source keeps the video's address, not its id: the id written
   // in it narrows the rows here, and the contracts' reader of an address says for certain which video it names.
   // A card's examples taken from a video mark it there too, each where its own clip was.
-  // Each card suspended or not by the same reading as a card's own hold (`cardColumns` → `suspendedAt`).
+  // Each card suspended or not by the same reading as a card's own hold (`cardColumns` → `suspendedAt`), and flagged or
+  // not by the card's own (`flaggedAtOf`).
   const selectVideoSources = db.prepare(`
     SELECT cardId, typeId, url, startMs, endMs,
-      EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = src.cardId AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspended
+      EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = src.cardId AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspended,
+      ${flaggedAtOf("src.cardId")} IS NOT NULL AS flagged
     FROM (
       SELECT s.card_id AS cardId, d.type_id AS typeId, s.url, s.start_ms AS startMs, s.end_ms AS endMs
       FROM card_sources s JOIN cards c ON c.id = s.card_id JOIN decks d ON d.id = c.deck_id
@@ -1326,7 +1356,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // The living cards holding these words in some field, newest first; which of them are called by it (the field is
   // their type's words field) is the type's to say, read after.
   const selectCalled = db.prepare(`
-    SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName
+    SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName,
+      ${flaggedAtOf("c.id")} IS NOT NULL AS flagged
     FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
     WHERE v.value = ? AND c.removed_at IS NULL AND d.removed_at IS NULL
     ORDER BY c.created_at DESC, c.id DESC`);
@@ -1349,6 +1380,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const countHoldsSince = db.prepare("SELECT COUNT(*) AS n FROM card_holds WHERE card_id = ? AND undone_at IS NULL AND at >= ? AND id <> ?");
   const undoPlace = db.prepare("UPDATE card_places SET undone_at = ? WHERE id = ? AND undone_at IS NULL");
   const undoHold = db.prepare("UPDATE card_holds SET undone_at = ? WHERE id = ? AND undone_at IS NULL");
+  const insertFlag = db.prepare("INSERT INTO card_flags (card_id, kind, at, device, place, session_id) VALUES (?, ?, ?, ?, ?, ?)");
 
   const reviewSessionColumns = "s.id, s.deck_id AS deckId, s.kind, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow";
   const insertReviewSession = db.prepare("INSERT OR IGNORE INTO review_sessions (id, deck_id, kind, started_at, device, user_agent) VALUES (?, ?, ?, ?, ?, ?)");
@@ -1478,13 +1510,14 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     // The main field while it's one of the fields there are (a field hidden since reads as none picked).
     const mainField = keptMain !== null && fields.some((f) => f.id === keptMain) ? keptMain : null;
-    // The card's corner marks are kept in one JSON: the stage tag, and the AI spark beside it as `spark`.
+    // The card's corner marks are kept in one JSON: the stage tag, the AI spark beside it as `spark`, the flag as `flag`.
     const marks = keptTag(stageTag);
     const tag = stageTagOf(marks);
-    return CardType.parse({ ...base, fields, layout, tag, spark: sparkMarkOf(marks, tag), listen: listenFirstOf(keptTag(listen)), mainField });
+    const spark = sparkMarkOf(marks, tag);
+    return CardType.parse({ ...base, fields, layout, tag, spark, flag: flagMarkOf(marks, spark), listen: listenFirstOf(keptTag(listen)), mainField });
   }
-  /** The corner marks as they're kept: the stage tag, with the AI spark beside it. */
-  const marksJson = (tag: StageTag, spark: SparkMark) => JSON.stringify({ ...tag, spark });
+  /** The corner marks as they're kept: the stage tag, with the AI spark and the flag beside it. */
+  const marksJson = (tag: StageTag, spark: SparkMark, flag: FlagMark) => JSON.stringify({ ...tag, spark, flag });
   /** The field a card of a type is told by in words (the contracts' `wordsFieldOf`); none when it has no such field. */
   function wordFieldOf(typeId: string | null | undefined): string | null {
     const row = typeId ? selectAnyType.get(typeId) : undefined;
@@ -1814,9 +1847,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
           type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
-          if (type.tag || type.spark) {
+          if (type.tag || type.spark || type.flag) {
             const tag = type.tag ?? DEFAULT_STAGE_TAG;
-            updateTypeTag.run(marksJson(tag, type.spark ?? sparkMarkOf(null, tag)), type.id);
+            const spark = type.spark ?? sparkMarkOf(null, tag);
+            updateTypeTag.run(marksJson(tag, spark, type.flag ?? flagMarkOf(null, spark)), type.id);
           }
           if (type.listen) updateTypeListen.run(JSON.stringify(type.listen), type.id);
           if (type.mainField) updateTypeMainField.run(type.mainField, type.id);
@@ -1850,10 +1884,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             insertLayoutChange.run(id, was, is, now);
           }
         }
-        // The stage tag and the AI spark when they're sent, kept together; what they were is in the whole type's log below.
+        // The stage tag, the AI spark and the flag when they're sent, kept together; what they were is in the whole type's log below.
         const tag = update.tag ?? before.tag;
         const spark = update.spark ?? before.spark;
-        if (JSON.stringify([tag, spark]) !== JSON.stringify([before.tag, before.spark])) updateTypeTag.run(marksJson(tag, spark), id);
+        const flag = update.flag ?? before.flag;
+        if (JSON.stringify([tag, spark, flag]) !== JSON.stringify([before.tag, before.spark, before.flag])) updateTypeTag.run(marksJson(tag, spark, flag), id);
         // Listen first when it's sent; what it was is in the whole type's log below.
         if (update.listen && JSON.stringify(update.listen) !== JSON.stringify(before.listen)) updateTypeListen.run(JSON.stringify(update.listen), id);
         // The main field when it's sent (null is none picked); what it was is in the whole type's log below.
@@ -2200,15 +2235,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       if (!selectDeckCard.get(deckId, cardId)) return false;
       return removeExample.run(now, exampleId, cardId).changes > 0;
     },
-    /** The living cards taken from a video: each one's clip as its source keeps it, the card in words, and whether it's suspended, in the video's order. */
+    /** The living cards taken from a video: each one's clip as its source keeps it, the card in words, and whether it's suspended and whether flagged, in the video's order. */
     videoCards(videoId: string): VideoCard[] {
-      const rows = selectVideoSources.all(videoId, videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null; suspended: number }[];
+      const rows = selectVideoSources.all(videoId, videoId) as { cardId: string; typeId: string | null; url: string; startMs: number; endMs: number | null; suspended: number; flagged: number }[];
       const fieldOf = new Map<string | null, string | null>();
       return rows
         .filter((row) => youtubeLinkOf(row.url)?.videoId === videoId)
         .map((row) => {
           if (!fieldOf.has(row.typeId)) fieldOf.set(row.typeId, wordFieldOf(row.typeId));
-          return { cardId: row.cardId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: wordsOf(row.cardId, fieldOf.get(row.typeId) ?? null), suspended: row.suspended === 1 };
+          return { cardId: row.cardId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: wordsOf(row.cardId, fieldOf.get(row.typeId) ?? null), suspended: row.suspended === 1, flagged: row.flagged === 1 };
         });
     },
     /**
@@ -2224,7 +2259,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           if (found.has(row.cardId)) continue;
           const type = typeOf(row.typeId);
           if (!type || wordsFieldOf(type)?.id !== row.fieldId) continue;
-          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, ...(row.typeId ? { typeId: row.typeId } : {}), words: row.value, apart: apartOfCard(row.cardId, type), createdAt: row.createdAt });
+          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, ...(row.typeId ? { typeId: row.typeId } : {}), words: row.value, apart: apartOfCard(row.cardId, type), flagged: row.flagged === 1, createdAt: row.createdAt });
         }
       }
       return [...found.values()]
@@ -2235,23 +2270,29 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /**
      * The words every living card in a living deck is called by (its type's words field), each once, exactly as they
      * stand: what `cardsCalled` matches a word against, so the extension's marks and its pop-up's "in your decks" say
-     * the same; and those whose every card is suspended, by the same reading as a card's own hold (`cardColumns` →
-     * `suspendedAt`), marked apart.
+     * the same; those whose every card is suspended, by the same reading as a card's own hold (`cardColumns` →
+     * `suspendedAt`), marked apart; and those with any card flagged (`flaggedAtOf`), marked apart again. The state
+     * header's `words` hash is worked out from this whole answer, so a flag changes it.
      */
-    wordsInCards(): { words: string[]; suspended: string[] } {
+    wordsInCards(): WordsInCards {
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
       const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
-      if (fieldIds.length === 0) return { words: [], suspended: [] };
+      if (fieldIds.length === 0) return { words: [], suspended: [], flagged: [] };
       const rows = db
         .prepare(
           `SELECT v.value AS words,
-            MIN(EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL)) AS allSuspended
+            MIN(EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL)) AS allSuspended,
+            MAX(${flaggedAtOf("c.id")} IS NOT NULL) AS anyFlagged
           FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
           WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL
           GROUP BY v.value`,
         )
-        .all(...fieldIds) as { words: string; allSuspended: number }[];
-      return { words: rows.map((row) => row.words), suspended: rows.filter((row) => row.allSuspended === 1).map((row) => row.words) };
+        .all(...fieldIds) as { words: string; allSuspended: number; anyFlagged: number }[];
+      return {
+        words: rows.map((row) => row.words),
+        suspended: rows.filter((row) => row.allSuspended === 1).map((row) => row.words),
+        flagged: rows.filter((row) => row.anyFlagged === 1).map((row) => row.words),
+      };
     },
     /**
      * This account's kinds of the state header (`kept.ts`): its settings with its Panki AI templates, and the words in its
@@ -2271,7 +2312,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       if (fieldIds.length === 0) return {};
       const rows = db
         .prepare(
-          `SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName
+          `SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName,
+            ${flaggedAtOf("c.id")} IS NOT NULL AS flagged
           FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
           WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL
           ORDER BY c.created_at DESC, c.id DESC`,
@@ -2294,7 +2336,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (row.deckId !== deckId) continue;
         const others = (byWords.get(row.value) ?? []).filter((other) => other.cardId !== row.cardId && !toldApart(apartOfRow(row), apartOfRow(other)));
         if (others.length === 0) continue;
-        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, ...(other.typeId ? { typeId: other.typeId } : {}), words: other.value, apart: apartOfRow(other) }));
+        twins[row.cardId] = others.slice(0, CALLED_CARDS_MAX).map((other) => ({ cardId: other.cardId, deckId: other.deckId, deck: other.deckName, ...(other.typeId ? { typeId: other.typeId } : {}), words: other.value, apart: apartOfRow(other), flagged: other.flagged === 1 }));
       }
       return twins;
     },
@@ -2378,11 +2420,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         return card;
       });
     },
-    /**
-     * Brings a card put aside back into reviews: each hold on it that still stands is lifted, with the time. Its place
-     * and schedule were never touched, so it's due again at once if it fell due meanwhile. Bringing back a card that
-     * isn't put aside changes nothing. Null when the card isn't in that deck.
-     */
     /** Suspends a card from its deck's list: kept as a hold, its place and schedule untouched. Null when the card isn't in that deck. */
     suspendCard(deckId: string, cardId: string, now: number): Card | null {
       return transaction(() => {
@@ -2393,6 +2430,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
       });
     },
+    /**
+     * Brings a card put aside back into reviews: each hold on it that still stands is lifted, with the time. Its place
+     * and schedule were never touched, so it's due again at once if it fell due meanwhile. Bringing back a card that
+     * isn't put aside changes nothing. Null when the card isn't in that deck.
+     */
     liftHold(deckId: string, cardId: string, now: number): Card | null {
       return transaction(() => {
         if (!selectDeckCard.get(deckId, cardId)) return null;
@@ -2400,6 +2442,23 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         liftHolds.run(now, cardId, now);
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         return cardFrom(row, srsTypeOfDeck(deckId), today);
+      });
+    },
+    /**
+     * Flags a card or takes its flag off: a row each time it really changes (`card_flags`), with the sign-in it came
+     * from, where it was pressed and its sitting, its schedule and holds untouched. The same again changes nothing, so a
+     * retry is harmless. A sitting that isn't this deck's isn't named. Null when the card isn't in that deck.
+     */
+    flagCard(deckId: string, cardId: string, change: CardFlagUpdate, device: string, now: number): Card | null {
+      return transaction(() => {
+        const before = selectDeckCard.get(deckId, cardId) as CardRow | undefined;
+        if (!before) return null;
+        if ((before.flaggedAt !== null) !== change.flagged) {
+          const sessionId = change.sessionId && selectReviewSession.get(change.sessionId, deckId) ? change.sessionId : null;
+          insertFlag.run(cardId, change.flagged ? "flag" : "unflag", now, device, change.from, sessionId);
+        }
+        const row = selectDeckCard.get(deckId, cardId) as CardRow;
+        return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
       });
     },
     /** Idempotent: the same id again returns the sitting that already exists, as it is. Null when that id is a sitting of another deck. */

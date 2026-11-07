@@ -56,8 +56,7 @@ export const SHOW_ON_PLAY_OPTIONS: readonly { id: number; label: string }[] = [
   { id: NEVER_BY_ITSELF, label: "Never" },
   ...Array.from({ length: SHOW_ON_PLAY_MAX - 1 }, (_, i) => ({ id: i + 2, label: `On ${PLAY_WORDS[i] ?? `play ${i + 2}`} play` })),
 ];
-/** A sound's or a clip's player style, by name alone. */
-/** A corner of the card, where a corner mark (the stage tag, the AI spark) sits. */
+/** A corner of the card, where a corner mark (the stage tag, the AI spark, the flag) sits. */
 export const CORNER_OPTIONS: readonly { id: TagCorner; label: string }[] = [
   { id: "top-left", label: "Top left" },
   { id: "top-right", label: "Top right" },
@@ -65,7 +64,7 @@ export const CORNER_OPTIONS: readonly { id: TagCorner; label: string }[] = [
   { id: "bottom-right", label: "Bottom right" },
 ];
 /** The corner marks by name, as the Layout tab's panel heads them. */
-export const CORNER_MARK_NAMES: Record<CornerMarkId, string> = { tag: "Stage tag", spark: "AI spark" };
+export const CORNER_MARK_NAMES: Record<CornerMarkId, string> = { tag: "Stage tag", spark: "AI spark", flag: "Flag" };
 
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [
   { id: "player", label: "Player" },

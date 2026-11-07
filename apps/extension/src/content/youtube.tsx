@@ -48,6 +48,7 @@ import { Line, type LineLook } from "../ui/Line";
 import { inPanki, makePlace, mount, type Place } from "../ui/mount";
 import { Column } from "../ui/Column";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
+import { PanelButton } from "../ui/PanelButton";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
 import type { PieceLimits } from "../ui/Explain";
@@ -155,6 +156,25 @@ const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; botto
  * controls.
  */
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
+/**
+ * Where the Panki panel's button stands while the panel is folded away in full screen: the video's top-right corner,
+ * where the site draws its playlist button, over the player's own top chrome; to the left of the site's own buttons
+ * there when it draws any (`--panki-corner-right`, written as it's placed). It fades with the player's controls as
+ * the site fades them (`CORNER_CSS`).
+ */
+const TOP_CORNER =
+  "display: block; position: absolute; top: 12px; right: var(--panki-corner-right, 12px); z-index: 62; pointer-events: none; transition: opacity 0.25s cubic-bezier(0.4, 0, 1, 1);";
+/** The site's own buttons at the video's top-right corner in full screen (a playlist's): Panki's stands left of them. */
+const CORNER_BUTTONS = ".ytp-chrome-top-buttons";
+/** The room from the screen's edge to the button, and between it and the site's own, in px. */
+const CORNER_GAP = 12;
+/**
+ * The button hidden with the player's controls: the site marks its player `ytp-autohide` a few seconds after the
+ * pointer rests, and this fades the button as the site fades its own top chrome, unless the player bar is kept shown
+ * in full screen (`Modules.barKeptFull`, `data-kept` on the button's place). On the page once the button first stands.
+ */
+const CORNER_CSS = `${PLAYER}.ytp-autohide > [data-panki="panel-button"]:not([data-kept]) { opacity: 0 !important; pointer-events: none !important; }`;
+let cornerStyle: HTMLStyleElement | null = null;
 // The player's control bar, and the speed button and the end time among its controls, are `playerBar.ts`'s.
 /** How often the transcriber looks at the viewer's player. The lines are looked at every frame (`followLines`). */
 const FOLLOW_MS = 250;
@@ -198,24 +218,19 @@ const replay = createReplay();
 /** The line's place, with the screen itself in it. */
 const strip = mount(siteTheme());
 strip.host.style.cssText = UNDER;
-/** The column's handle in full screen, as it stands: folded or not; null out of full screen. */
-const handleNow = cell<boolean | null>(null);
-/** The handle as it stands now, told to the column only when it changed. */
-function setHandle(folded: boolean | null) {
-  if (handleNow.get() !== folded) handleNow.set(folded);
-}
-/** The column, its handle following `handleNow`. */
-function ColumnHere() {
-  const folded = useSyncExternalStore(handleNow.subscribe, handleNow.get);
-  return <Column handle={folded === null ? null : { folded, onToggle: togglePanel }} />;
-}
 /**
  * The column the panel and the drawer stand in beside the video and in full screen: the two places are put in its
  * host and scroll inside it as one (`ui/Column.tsx`), so the drawer opening never makes it taller than its room.
  */
 const column = mount(siteTheme());
 column.ground.classList.add("is-column");
-column.root.render(<ColumnHere />);
+column.root.render(<Column />);
+/** Whether the panel stands folded away in the site's full screen this moment: then its button is in the video's corner. */
+const foldedNow = cell(false);
+/** The Panki panel's button in the video's top-right corner, while the panel is folded away in full screen (`ui/PanelButton.tsx`). */
+const corner = makePlace(siteTheme());
+corner.host.style.cssText = TOP_CORNER;
+corner.host.dataset.panki = "panel-button";
 /** The drawer's place: the same screen draws its panel in here, wherever on the page this is put. */
 const drawer = makePlace(siteTheme());
 /** The place of the clip's mark, on the player's seek bar. */
@@ -483,7 +498,7 @@ function wordMoment(card: VideoCard): number | null {
  * when pressing them does nothing.
  */
 function pinTarget(pinned: Pinned): number | null {
-  // As the mark it's drawn with says: a suspended word's pin goes by Suspended cards (`markOf`).
+  // As the mark it's drawn with says: a suspended word's pin goes by Suspended cards, a flagged one's by Flagged cards (`markOf`).
   const click = transcriber.state().prefs.seek[markOf(pinned)].click;
   if (click === "none") return null;
   if (pinned.of === "known") return (click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000;
@@ -800,7 +815,7 @@ html.${STAGE_CLASS} ${STAGED_PAGE} #player-full-bleed-container { height: 100% !
 /** Panki's column on the stage (`column`): fixed at the screen's right, over the page, as tall as the screen. */
 const STAGE_COLUMN =
   "display: block; position: fixed; top: 0; bottom: 0; right: 0; width: var(--panki-stage-w); z-index: 2101; background: var(--yt-spec-base-background, #0f0f0f); border-left: 1px solid var(--yt-spec-10-percent-layer, #303030);";
-/** The column folded away: as wide as nothing at the screen's right edge, its handle alone standing off it on the video. */
+/** The column folded away: as wide as nothing at the screen's right edge, nothing of it shown; the button in the video's corner brings it back. */
 const STAGE_FOLDED = "display: block; position: fixed; top: 0; bottom: 0; right: 0; width: 0; z-index: 2101;";
 let stageStyle: HTMLStyleElement | null = null;
 /** Whether the stage's layer is up this moment. */
@@ -867,8 +882,8 @@ function afterFull() {
 }
 
 /**
- * The panel in full screen folded away, or brought back, by its key or its handle: on the page at once, and kept, so
- * the next full screen opens as this one is left.
+ * The panel in full screen folded away, or brought back, by its key, Hide panel on its head or the button in the
+ * video's corner: on the page at once, and kept, so the next full screen opens as this one is left.
  */
 function togglePanel() {
   const now = modules.get();
@@ -914,11 +929,12 @@ function place() {
   const home = columned ? column.host : under;
   inPlace.set(home !== null);
   placedAs.set(fullPanki ? "stage" : side ? "beside" : "under");
-  // Panki's column: in full screen at the screen's right over the page, as tall as the screen, or folded away to its
-  // handle; beside the video first in the site's column, as tall as the player. Taken off the page the moment neither stands.
+  // Panki's column: in full screen at the screen's right over the page, as tall as the screen, or folded away to
+  // nothing; beside the video first in the site's column, as tall as the player. Taken off the page the moment neither stands.
   column.host.dataset.theme = theme;
-  column.ground.classList.toggle("is-folded", fullPanki !== null && !stage);
-  setHandle(fullPanki ? !stage : null);
+  const folded = fullPanki !== null && !stage;
+  column.ground.classList.toggle("is-folded", folded);
+  if (foldedNow.get() !== folded) foldedNow.set(folded);
   if (fullPanki) {
     layColumn(stage ? STAGE_COLUMN : STAGE_FOLDED);
     if (column.host.parentElement !== fullPanki) fullPanki.append(column.host);
@@ -959,6 +975,25 @@ function place() {
   if (overThere instanceof HTMLElement && overThere.clientHeight > 0) over.host.style.setProperty("--sub-scale", String(overThere.clientHeight / SUBTITLE_REF_HEIGHT));
   const area = player?.querySelector(CAPTION_AREA);
   if (area instanceof HTMLElement) area.style.opacity = overThere ? "0" : "";
+  // The panel's button in the video's top-right corner while the panel is folded away in full screen: in the player,
+  // which fills the screen then, left of the site's own buttons at that corner when it draws any; shown and hidden
+  // with the player's controls (`CORNER_CSS`), or kept shown with the bar as the player bar's switch says.
+  const cornering = folded && player instanceof HTMLElement ? player : null;
+  if (!cornering) corner.host.remove();
+  else {
+    if (!cornerStyle) {
+      cornerStyle = document.createElement("style");
+      cornerStyle.textContent = CORNER_CSS;
+      document.head.append(cornerStyle);
+    }
+    if (corner.host.parentElement !== cornering) cornering.append(corner.host);
+    corner.host.dataset.theme = theme;
+    corner.host.toggleAttribute("data-kept", on.playerBar && on.barKeptFull);
+    const own = cornering.querySelector(CORNER_BUTTONS)?.getBoundingClientRect();
+    const right = own && own.width > 0 ? Math.round(cornering.getBoundingClientRect().right - own.left) + CORNER_GAP : CORNER_GAP;
+    const value = `${right}px`;
+    if (corner.host.style.getPropertyValue("--panki-corner-right") !== value) corner.host.style.setProperty("--panki-corner-right", value);
+  }
   // The offer to go on from the stop, in the player's corner while it stands.
   const offering = offered.get() !== null ? player : null;
   if (!offering) resume.host.remove();
@@ -1534,7 +1569,12 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
   const known = useKnown();
   const knownHere =
     known.subtitles && known.words.size > 0
-      ? { at: (i: number) => knownAs(known, tokens[i] ?? {}), colour: tintOf(paintCss(known.colour)), suspendedColour: tintOf(paintCss(known.suspendedColour)) }
+      ? {
+          at: (i: number) => knownAs(known, tokens[i] ?? {}),
+          colour: tintOf(paintCss(known.colour)),
+          suspendedColour: tintOf(paintCss(known.suspendedColour)),
+          flaggedColour: tintOf(paintCss(known.flaggedColour)),
+        }
       : null;
   /** A word of the row as something pointed at: looked up from its first letter on, through the end of the row. */
   const pointedAt = (i: number, button: HTMLElement): Pointed | null => {
@@ -1884,6 +1924,8 @@ function App() {
   const switchHere = useSyncExternalStore(modules.subscribe, () => !switchInPill(modules.get()));
   /** The panel's own key in full screen (`panelKey`), on the head's Hide panel button as its keycap. */
   const panelKeyNow = useSyncExternalStore(modules.subscribe, () => modules.get().panelKey);
+  /** The panel folded away in full screen: its button stands in the video's corner. */
+  const foldedHere = useSyncExternalStore(foldedNow.subscribe, foldedNow.get);
   const replaying = useSyncExternalStore(replay.subscribe, replay.mode);
   const cards = useSyncExternalStore(carded.subscribe, carded.get);
   /** Which parts are on; how the video stands in the account's watching; the offer to go on from where it was stopped. */
@@ -1899,8 +1941,9 @@ function App() {
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
   // Where the words that are in the decks are said, for the seek bar: read off Panki's transcript, only while a mark that
-  // shows them is (Words that are in your decks, or Suspended cards, which has where a suspended card's word is said).
-  const saidShown = tx.prefs.seek.known.shown || tx.prefs.seek.suspended.shown;
+  // shows them is (Words that are in your decks, or Suspended cards or Flagged cards, which have where such a card's
+  // word is said).
+  const saidShown = tx.prefs.seek.known.shown || tx.prefs.seek.suspended.shown || tx.prefs.seek.flagged.shown;
   const spoken = useMemo(() => (tx.transcript && saidShown ? linesOf(tx.transcript.words) : null), [tx.transcript, saidShown]);
   const inDecks = useKnownMoments(spoken);
   /** Where the line was split by hand, from the popup: a word taken as longer or shorter than the dictionary would. Kept by caption line, so it stays put as the rows move on. */
@@ -2816,8 +2859,8 @@ function App() {
               </span>
             ) : null}
             <div className="strip-tools">
-              {/* In full screen, the panel folded away from its own head, as its key and the column's handle fold it:
-                  the button carries the key as its keycap, so the key is learnt where it's used. */}
+              {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the
+                  video's corner brings it back): the button carries the key as its keycap, so the key is learnt where it's used. */}
               {stageNowHere ? (
                 <Button className="capture-tool strip-hide" onClick={togglePanel}>
                   <Icon name="panelBeside" />
@@ -2946,6 +2989,8 @@ function App() {
       )}
       {/* Where the video was stopped the time before, offered on the picture for a few seconds as it opens, as Netflix offers to skip an intro. */}
       {createPortal(offer !== null ? <ResumeOffer at={offer.at} jumped={offer.jumped} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
+      {/* The panel folded away in full screen: its button in the video's top-right corner, as the site's playlist button stands there, brings it back. */}
+      {createPortal(foldedHere ? <PanelButton onOpen={togglePanel} /> : null, corner.ground)}
       {/* Panki's own controls on the player's bar, each in its place there (`playerBar.ts` puts them where the layout says): a YouTube utility, drawn for whichever player the page has. */}
       {PANKI_BAR_IDS.map((id) => createPortal(barDrawn[id], playerBar.places[id].ground, id))}
       {/* The drawer is drawn into its own place on the page; it's one screen with the line, so they share what's picked. */}
@@ -3062,7 +3107,7 @@ function typingIn(place: Place): boolean {
 
 /**
  * The panel's own key in the site's full screen (`Modules.panelKey`, P to begin with): it toggles the panel, folded
- * away with the video alone filling the screen or brought back, as its handle does, and the flip is kept. Only while the full screen is Panki's, never
+ * away with the video alone filling the screen or brought back, as Hide panel and the button in the video's corner do, and the flip is kept. Only while the full screen is Panki's, never
  * while typing (on the page, in the panel or the drawer, or anywhere else of Panki's, whose fields can't be told from
  * here), and kept from the site. Never Esc, which the browser keeps for leaving the full screen. Shift, Ctrl or Alt by
  * itself is heard as it's let go with nothing else pressed while it was down (`panelKeyUp`). Whether it took the key.
@@ -3169,7 +3214,7 @@ function listen() {
   showingOver.subscribe(place);
   upForDrawer.subscribe(place);
   // A card begun with the panel folded away in full screen: the drawer is in its column, so the column comes back
-  // while the drawer is open, and folds away again as it closes; what's kept is left as the key or the handle last left it.
+  // while the drawer is open, and folds away again as it closes; what's kept is left as the key or a button last left it.
   showing.subscribe(() => {
     if (!showing.get()) upForDrawer.set(false);
     else if (!modules.get().fullPanel) upForDrawer.set(true);

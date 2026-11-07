@@ -1,11 +1,11 @@
 import { holdsFile, metaOf, type Card, type CardType, type SrsType } from "@panki/contracts";
 import { kanaOf, looksLikeRomaji } from "./romaji";
-import { placeName } from "./srsKinds";
+import { FLAG_WORDS, HOLD_KINDS, placeName } from "./srsKinds";
 
 /**
  * Searching a deck's cards by anything on them, fuzzily: every
  * field's words (a video's title and channel for a field that holds one), its other examples' too, and where it stands
- * (its stage's name, New, the end). Each word of what's typed must be found somewhere on the card, as a whole value, as
+ * (its stage's name, New, the end; snoozed, suspended, flagged). Each word of what's typed must be found somewhere on the card, as a whole value, as
  * part of one, or failing that its letters in order with others between them (行く finds 行きます, "apprnt" finds
  * Apprentice). Katakana and hiragana count as one, as do full- and half-width letters and capitals; a word typed in
  * romaji is also looked for as the hiragana it reads as ("yobun" finds よぶん; one typed part-way, "yob", as far as it
@@ -67,6 +67,9 @@ function textsOf(card: Card, type: CardType, srsType: SrsType | undefined): stri
   valuesOf(card.values);
   for (const example of card.examples) valuesOf(example.values);
   if (srsType) texts.push(placeName(srsType, card.place));
+  // How it stands besides: put aside, flagged.
+  if (card.hold) texts.push(HOLD_KINDS[card.hold.kind].state);
+  if (card.flaggedAt !== null) texts.push(FLAG_WORDS.state);
   return texts.map(plain);
 }
 

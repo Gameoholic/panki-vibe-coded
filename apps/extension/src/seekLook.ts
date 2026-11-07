@@ -91,27 +91,40 @@ export const SeekLook = z.object({
   // new clip, a better example), with the cards' own settings:
   // thick, their words always standing, red to begin with; a look kept before it is given it.
   suspended: WordsLook.default({ shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
+  // The cards taken from the video that are flagged (a card that wants more example sentences, say), apart from the
+  // rest and over a suspended one, to be acted on from the video: thick, their words always standing, in a
+  // highlighter's yellow to begin with; a look kept before it is given it.
+  flagged: WordsLook.default({ shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
 });
 export type SeekLook = z.infer<typeof SeekLook>;
 /** Which mark is which, by its key in `SeekLook`. */
 export type SeekMarkId = keyof SeekLook;
 /** The marks with words that can stand on pins over them: one set of settings for each (`WordsLook`). */
-export type WordsMarkId = "cards" | "suspended" | "known";
-export const WORDS_MARK_IDS = ["cards", "suspended", "known"] as const satisfies readonly WordsMarkId[];
+export type WordsMarkId = "cards" | "suspended" | "flagged" | "known";
+export const WORDS_MARK_IDS = ["cards", "suspended", "flagged", "known"] as const satisfies readonly WordsMarkId[];
+/** The marks a card, or where its word is said, goes by apart from the rest while each is shown: the first that fits wins, so a card both flagged and suspended is marked as flagged. */
+export const APART_MARK_IDS = ["flagged", "suspended"] as const satisfies readonly WordsMarkId[];
+export type ApartMarkId = (typeof APART_MARK_IDS)[number];
 
-/** As they were drawn before they could be set: the transcript's thin yellow line, the cards a little thicker in orange on it, the clip in Panki's blue; the words in the decks thick and green, their words hidden; and the suspended cards thick and red, their words always up. */
+/**
+ * As they stand to begin with: the transcript's thin white line, the cards a little thicker in orange on it, the clip in
+ * Panki's blue; the words in the decks thick and green, their words hidden; the suspended cards thick and red and the
+ * flagged ones thick and yellow, their words always up. The transcript is white so a flagged card's yellow never lies
+ * on a line of its own colour; a look already kept keeps the colours it has.
+ */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
-  transcript: { shown: true, colour: "yellow", size: "thin" },
+  transcript: { shown: true, colour: "white", size: "thin" },
   cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
   known: { shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
   suspended: { shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
+  flagged: { shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
 };
 
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */
 export function seekVars(look: SeekLook): Record<string, string> {
   const vars: Record<string, string> = {};
-  for (const id of ["transcript", "cards", "clip", "known", "suspended"] as const satisfies readonly SeekMarkId[]) {
+  for (const id of ["transcript", "cards", "clip", "known", "suspended", "flagged"] as const satisfies readonly SeekMarkId[]) {
     vars[`--${id}-colour`] = paintCss(look[id].colour);
     vars[`--${id}-size`] = `${MARK_SIZES[look[id].size].px}px`;
   }

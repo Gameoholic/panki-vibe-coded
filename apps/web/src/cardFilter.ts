@@ -1,5 +1,5 @@
 import { isBurned, isNew, stageIndex, type CalledCard, type Card, type SrsType } from "@panki/contracts";
-import { NEW_WORDS, stageName } from "./srsKinds";
+import { FLAG_WORDS, NEW_WORDS, stageName } from "./srsKinds";
 
 /** What narrowing a deck's cards needs besides the cards: the deck's SRS type, and each card's duplicates. */
 type Context = { srsType: SrsType | undefined; twins: Readonly<Record<string, readonly CalledCard[]>> };
@@ -25,6 +25,7 @@ export const CARD_FILTERS = {
   new: { label: NEW_WORDS.name, keeps: (card) => isNew(card.place) && !card.hold },
   suspended: { label: "Suspended", keeps: (card) => card.hold?.kind === "suspend" },
   snoozed: { label: "Snoozed", keeps: (card) => card.hold?.kind === "bury" },
+  flagged: { label: FLAG_WORDS.state, keeps: (card) => card.flaggedAt !== null },
   burned: { label: (srsType) => srsType?.burnedName ?? "Burned", keeps: (card, { srsType }) => srsType !== undefined && isBurned(srsType, card.place), offered: ranked },
   duplicates: { label: "Duplicates", keeps: (card, { twins }) => (twins[card.id]?.length ?? 0) > 0 },
   examples: { label: "With other examples", keeps: (card) => card.examples.length > 0 },
