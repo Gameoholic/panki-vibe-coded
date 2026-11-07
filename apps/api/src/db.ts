@@ -43,7 +43,9 @@ import {
   legacySourceOf,
   mainAnswers,
   makeStarter,
+  placeColour,
   resolve,
+  stageColourAt,
   sideOf,
   stageTagOf,
   sparkMarkOf,
@@ -973,6 +975,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
     db.exec("CREATE INDEX card_flags_card_id ON card_flags (card_id, id)");
   },
+  (db) => {
+    // 47. A stage can have a colour of its own, `#rrggbb`. Every stage from before has none: it takes the default ramp's
+    // colour for its place on the ladder (`stageColour.ts`), and the types that come with the app get theirs as they're
+    // brought up to date on start.
+    db.exec("ALTER TABLE srs_stages ADD COLUMN colour TEXT");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1004,7 +1012,7 @@ type ExampleRow = { id: string; cardId: string; createdAt: number; url: string |
 type ExampleValueRow = { exampleId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null; source: string | null; capture: string | null };
 /** What a card is read with, beside its row. */
 type CardReads = { values: ValueRow[]; examples: ExampleRow[]; exampleValues: ExampleValueRow[] };
-type StageRow = { id: string; name: string; n: number; unit: string };
+type StageRow = { id: string; name: string; n: number; unit: string; colour: string | null };
 type IdRow = { id: string; removedAt: number | null };
 type SettingRow = { key: string; value: string };
 /** A card's last card_places row, joined on; every column null when it has none (a new card). */
@@ -1194,7 +1202,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectSrsTypes = db.prepare(`SELECT ${srsTypeColumns} FROM srs_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectSrsType = db.prepare(`SELECT ${srsTypeColumns} FROM srs_types t WHERE t.id = ? AND t.removed_at IS NULL`);
   const selectAnySrsType = db.prepare(`SELECT ${srsTypeColumns} FROM srs_types t WHERE t.id = ?`);
-  const selectStages = db.prepare("SELECT id, name, wait_n AS n, wait_unit AS unit FROM srs_stages WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
+  const selectStages = db.prepare("SELECT id, name, wait_n AS n, wait_unit AS unit, colour FROM srs_stages WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
   const selectStageIds = db.prepare("SELECT id, removed_at AS removedAt FROM srs_stages WHERE type_id = ?");
   const selectAnswers = db.prepare("SELECT id, name, aside, confirm FROM srs_answers WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
   const selectAnswerIds = db.prepare("SELECT id, removed_at AS removedAt FROM srs_answers WHERE type_id = ?");
@@ -1214,8 +1222,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectBuiltins = db.prepare("SELECT id, builtin FROM srs_types WHERE builtin IS NOT NULL");
   const markBuiltin = db.prepare("UPDATE srs_types SET builtin = ? WHERE id = ?");
   const decksOnSrsType = db.prepare("SELECT COUNT(*) AS n FROM decks WHERE srs_type_id = ? AND removed_at IS NULL");
-  const insertStage = db.prepare("INSERT INTO srs_stages (id, type_id, name, wait_n, wait_unit, position) VALUES (?, ?, ?, ?, ?, ?)");
-  const updateStage = db.prepare("UPDATE srs_stages SET name = ?, wait_n = ?, wait_unit = ?, position = ?, removed_at = NULL WHERE id = ?");
+  const insertStage = db.prepare("INSERT INTO srs_stages (id, type_id, name, wait_n, wait_unit, position, colour) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const updateStage = db.prepare("UPDATE srs_stages SET name = ?, wait_n = ?, wait_unit = ?, position = ?, colour = ?, removed_at = NULL WHERE id = ?");
   const hideStage = db.prepare("UPDATE srs_stages SET removed_at = ? WHERE id = ?");
   const insertAnswer = db.prepare("INSERT INTO srs_answers (id, type_id, name, position, aside, confirm) VALUES (?, ?, ?, ?, ?, ?)");
   const updateAnswer = db.prepare("UPDATE srs_answers SET name = ?, position = ?, aside = ?, confirm = ?, removed_at = NULL WHERE id = ?");
@@ -1359,8 +1367,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // their type's words field) is the type's to say, read after.
   const selectCalled = db.prepare(`
     SELECT v.card_id AS cardId, v.field_id AS fieldId, v.value, c.deck_id AS deckId, c.created_at AS createdAt, d.type_id AS typeId, d.name AS deckName,
-      ${flaggedAtOf("c.id")} IS NOT NULL AS flagged
+      ${flaggedAtOf("c.id")} IS NOT NULL AS flagged,
+      d.srs_type_id AS srsTypeId, p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned
     FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
+    LEFT JOIN card_places p ON p.id = ${lastPlaceOf("c.id")}
     WHERE v.value = ? AND c.removed_at IS NULL AND d.removed_at IS NULL
     ORDER BY c.created_at DESC, c.id DESC`);
   /** The card types the living decks use: whose words fields a deck's duplicates are looked for in. */
@@ -1561,7 +1571,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
 
   function srsTypeFrom(row: unknown): SrsType {
     const base = row as { id: string; flow: string; overrides: string; lesson: string | null };
-    const stages = (selectStages.all(base.id) as StageRow[]).map((s) => ({ id: s.id, name: s.name, wait: { n: s.n, unit: s.unit } }));
+    const stages = (selectStages.all(base.id) as StageRow[]).map((s) => ({ id: s.id, name: s.name, wait: { n: s.n, unit: s.unit }, ...(s.colour ? { colour: s.colour } : {}) }));
     const answers = (selectAnswers.all(base.id) as { id: string; name: string; aside: number; confirm: number }[]).map((a) => ({ id: a.id, name: a.name, aside: a.aside === 1, confirm: a.confirm === 1 }));
     const cardCounts = Object.fromEntries((selectStageCounts.all(base.id) as { stageId: string; n: number }[]).map((r) => [r.stageId, r.n]));
     const first = stages[0]?.id;
@@ -1623,6 +1633,22 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   function placeFrom(row: PlaceRow): CardPlace {
     if (row.placeId === null) return NEW_PLACE;
     return CardPlace.parse({ stageId: row.stageId, past: row.past, node: JSON.parse(row.node ?? "[]"), burned: row.burned === 1 });
+  }
+  /** Where a card stands as its pill says it (`CalledCard.stage`): its stage's name, or the end's, and its colour; null while it's new. */
+  function stageOfPlace(type: SrsType, place: CardPlace): CalledCard["stage"] {
+    const colour = placeColour(type, place);
+    if (colour === null) return null;
+    const idx = stageIndex(type, place);
+    const name = isBurned(type, place) ? type.burnedName : type.stages[idx]?.name || `Stage ${idx + 1}`;
+    return { name, colour, again: place.node.length > 0 };
+  }
+  /** Each SRS type read once for one read that may meet it many times. */
+  function srsTypesById(): (srsTypeId: string) => SrsType | null {
+    const known = new Map<string, SrsType | null>();
+    return (srsTypeId) => {
+      if (!known.has(srsTypeId)) known.set(srsTypeId, selectAnySrsType.get(srsTypeId) ? srsTypeOf(srsTypeId) : null);
+      return known.get(srsTypeId) ?? null;
+    };
   }
   function recordPlace(cardId: string, now: number, reason: PlaceReason, answerId: string | null, from: CardPlace, to: CardPlace, extras: AnswerExtras = NO_EXTRAS) {
     insertPlace.run(
@@ -1924,7 +1950,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return transaction(() => {
         const inserted = insertSrsType.run(type.id, type.name, type.description, type.after, type.growBy, type.burnedName, JSON.stringify(type.flow), JSON.stringify(type.overrides), JSON.stringify(type.lesson), now).changes > 0;
         if (inserted) {
-          type.stages.forEach((s, i) => insertStage.run(s.id, type.id, s.name, s.wait.n, s.wait.unit, i));
+          type.stages.forEach((s, i) => insertStage.run(s.id, type.id, s.name, s.wait.n, s.wait.unit, i, s.colour ?? null));
           type.answers.forEach((a, i) => insertAnswer.run(a.id, type.id, a.name, i, a.aside ? 1 : 0, a.confirm ? 1 : 0));
         }
         return srsTypeFrom(selectAnySrsType.get(type.id));
@@ -1952,8 +1978,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (Object.keys(needsMoves).length > 0) return { needsMoves };
         updateSrsTypeRow.run(update.name, update.description, update.after, update.growBy, update.burnedName, JSON.stringify(update.flow), JSON.stringify(update.overrides), JSON.stringify(update.lesson), id);
         syncList(selectStageIds.all(id) as IdRow[], update.stages, {
-          update: (s, i) => updateStage.run(s.name, s.wait.n, s.wait.unit, i, s.id),
-          insert: (s, i) => insertStage.run(s.id, id, s.name, s.wait.n, s.wait.unit, i),
+          update: (s, i) => updateStage.run(s.name, s.wait.n, s.wait.unit, i, s.colour ?? null, s.id),
+          insert: (s, i) => insertStage.run(s.id, id, s.name, s.wait.n, s.wait.unit, i, s.colour ?? null),
           hide: (stageId) => hideStage.run(now, stageId),
         });
         syncList(selectAnswerIds.all(id) as IdRow[], update.answers, {
@@ -2257,13 +2283,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
      */
     cardsCalled(words: readonly string[]): CalledCard[] {
       const typeOf = typesById();
+      const srsOf = srsTypesById();
       const found = new Map<string, CalledCard & { createdAt: number }>();
       for (const word of new Set(words)) {
-        for (const row of selectCalled.all(word) as CalledRow[]) {
+        for (const row of selectCalled.all(word) as (CalledRow & PlaceRow & { srsTypeId: string })[]) {
           if (found.has(row.cardId)) continue;
           const type = typeOf(row.typeId);
           if (!type || wordsFieldOf(type)?.id !== row.fieldId) continue;
-          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, ...(row.typeId ? { typeId: row.typeId } : {}), words: row.value, apart: apartOfCard(row.cardId, type), flagged: row.flagged === 1, createdAt: row.createdAt });
+          const srs = srsOf(row.srsTypeId);
+          const stage = srs ? { stage: stageOfPlace(srs, placeFrom(row)) } : {};
+          found.set(row.cardId, { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, ...(row.typeId ? { typeId: row.typeId } : {}), words: row.value, apart: apartOfCard(row.cardId, type), flagged: row.flagged === 1, ...stage, createdAt: row.createdAt });
         }
       }
       return [...found.values()]
@@ -2275,27 +2304,49 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
      * The words every living card in a living deck is called by (its type's words field), each once, exactly as they
      * stand: what `cardsCalled` matches a word against, so the extension's marks and its pop-up's "in your decks" say
      * the same; those whose every card is suspended, by the same reading as a card's own hold (`cardColumns` →
-     * `suspendedAt`), marked apart; and those with any card flagged (`flaggedAtOf`), marked apart again. The state
-     * header's `words` hash is worked out from this whole answer, so a flag changes it.
+     * `suspendedAt`), marked apart; and those with any card flagged (`flaggedAtOf`), marked apart again; and each
+     * word's colour, its highest card's stage's (the end above every stage, a new card below them all; `placeColour`),
+     * a word whose every card is new left out. The state header's `words` hash is worked out from this whole answer, so
+     * a flag, an answer or a stage's colour changes it.
      */
     wordsInCards(): WordsInCards {
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
       const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
-      if (fieldIds.length === 0) return { words: [], suspended: [], flagged: [] };
+      if (fieldIds.length === 0) return { words: [], suspended: [], flagged: [], colours: {} };
       const rows = db
         .prepare(
-          `SELECT v.value AS words,
-            MIN(EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL)) AS allSuspended,
-            MAX(${flaggedAtOf("c.id")} IS NOT NULL) AS anyFlagged
+          `SELECT v.value AS words, d.srs_type_id AS srsTypeId,
+            EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspended,
+            ${flaggedAtOf("c.id")} IS NOT NULL AS flagged,
+            p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned
           FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
+          LEFT JOIN card_places p ON p.id = ${lastPlaceOf("c.id")}
           WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL
-          GROUP BY v.value`,
+          ORDER BY v.value`,
         )
-        .all(...fieldIds) as { words: string; allSuspended: number; anyFlagged: number }[];
+        .all(...fieldIds) as (PlaceRow & { words: string; srsTypeId: string; suspended: number; flagged: number })[];
+      const srsOf = srsTypesById();
+      const byWords = new Map<string, { allSuspended: boolean; anyFlagged: boolean; rank: number; colour: string | null }>();
+      for (const row of rows) {
+        const was = byWords.get(row.words) ?? { allSuspended: true, anyFlagged: false, rank: -Infinity, colour: null };
+        const srs = srsOf(row.srsTypeId);
+        const place = placeFrom(row);
+        // The highest stage wins: burned above every stage, new below them all.
+        const rank = !srs ? -Infinity : isBurned(srs, place) ? Infinity : stageIndex(srs, place);
+        const higher = rank > was.rank;
+        byWords.set(row.words, {
+          allSuspended: was.allSuspended && row.suspended === 1,
+          anyFlagged: was.anyFlagged || row.flagged === 1,
+          rank: higher ? rank : was.rank,
+          colour: higher && srs ? placeColour(srs, place) : was.colour,
+        });
+      }
+      const all = [...byWords.entries()];
       return {
-        words: rows.map((row) => row.words),
-        suspended: rows.filter((row) => row.allSuspended === 1).map((row) => row.words),
-        flagged: rows.filter((row) => row.anyFlagged === 1).map((row) => row.words),
+        words: all.map(([words]) => words),
+        suspended: all.filter(([, word]) => word.allSuspended).map(([words]) => words),
+        flagged: all.filter(([, word]) => word.anyFlagged).map(([words]) => words),
+        colours: Object.fromEntries(all.flatMap(([words, word]) => (word.colour === null ? [] : [[words, word.colour]]))),
       };
     },
     /**
@@ -2756,7 +2807,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           .map(({ type, stages, burned, fresh }) => ({
             srsTypeId: type.id,
             name: type.name,
-            stages: type.stages.map((s) => ({ id: s.id, name: s.name, n: stages.get(s.id) ?? 0 })),
+            stages: type.stages.map((s, i) => ({ id: s.id, name: s.name, n: stages.get(s.id) ?? 0, colour: stageColourAt(type, i) })),
             burnedName: type.burnedName,
             burned,
             fresh,

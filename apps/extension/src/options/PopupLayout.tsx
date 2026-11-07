@@ -21,8 +21,6 @@ import { FREQUENCY_OPTIONS, MEANINGS_ABOUT, MEANINGS_NAME, MEANINGS_OPTIONS, PAR
 import { dictionaryOf, moveBodyPart, popupLayoutOf, withMeanings, type BodyPart, type PartShow, type PopupLayout } from "../popupLayout";
 import { writeStore } from "../storage";
 import { Lookup, LookupBody } from "../ui/Lookup";
-import { tintOf } from "../capture/known";
-import { paintCss, type MarkPaint } from "../seekLook";
 import { KindChips } from "./DataKinds";
 import { pointWords } from "./Dictionary";
 import { EXAMPLE_CARDS, EXAMPLE_EXPLAIN } from "./examples";
@@ -74,8 +72,8 @@ type Props = {
   lookKey: LookKey;
   /** Changes whenever a dictionary is imported, removed, switched or moved on this page: they're read again. */
   dictionariesChanged: number;
-  /** Words that are in your decks' Highlight globally and its colour, as set on this tab: the example word is tinted by them. */
-  known: { on: boolean; colour: MarkPaint };
+  /** Words that are in your decks' Highlight globally and the tint it gives the example word, as set on this tab (`exampleTint`). */
+  known: { on: boolean; tint: string };
   onSaved: () => void;
 };
 
@@ -348,7 +346,7 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
             <span className="layout-note">{pointAt} a word to try it</span>
             <p ref={tryText} className="popup-try-text" lang="ja">
               {tryBefore}
-              <span style={known.on ? { background: tintOf(paintCss(known.colour)) } : undefined}>
+              <span style={known.on ? { background: known.tint } : undefined}>
                 {IN_DECKS.words}
               </span>
               {tryAfter}

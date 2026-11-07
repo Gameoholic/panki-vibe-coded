@@ -4157,10 +4157,6 @@ mark.sub-blur {
   background: var(--surface-2);
   color: var(--muted);
 }
-.pill.is-done {
-  background: var(--good-soft);
-  color: var(--good);
-}
 .pill.ans-down,
 .pill.ans-mid,
 .pill.ans-up,
@@ -5693,10 +5689,6 @@ mark.sub-blur {
   background: var(--tint-bg);
   color: var(--tint-fg);
 }
-.stage-no.is-burned {
-  background: var(--good-soft);
-  color: var(--good);
-}
 .stage-no.is-burned .icon {
   width: 14px;
   height: 14px;
@@ -5705,6 +5697,176 @@ mark.sub-blur {
 .stage-no.is-lesson {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 2px var(--accent);
+}
+/* A stage's number on a type of the owner's own is a button: pressed, its colour is picked in a panel hanging from it. */
+.stage-colour {
+  position: relative;
+  display: inline-grid;
+}
+.btn.btn-ghost.stage-no {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: var(--tint-bg);
+  color: var(--tint-fg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 45%, transparent);
+}
+.btn.btn-ghost.stage-no[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--fg);
+}
+@media (hover: hover) {
+  .btn.btn-ghost.stage-no:hover {
+    background: color-mix(in srgb, var(--tint) 45%, var(--surface));
+  }
+}
+.stage-colour-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 6;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.stage-colour-pop .swatches {
+  justify-content: flex-start;
+}
+.stage-colour-pop .colour-pop {
+  position: static;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+/* A colour picked (components/Swatches.tsx): a round swatch each, the one on ringed, its name after them; the last
+   swatch a colour of one's own, the whole wheel of hues until one is picked, then that colour (the hues are the
+   spectrum itself, not colours of the app's). */
+.swatches {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.swatch-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn.btn-ghost.swatch {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.btn.btn-ghost.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--fg);
+  transform: scale(1.1);
+}
+@media (hover: hover) {
+  .btn.btn-ghost.swatch:hover {
+    background: var(--swatch);
+    transform: scale(1.12);
+  }
+}
+.swatch-name {
+  min-width: 80px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.btn.btn-ghost.swatch.is-own {
+  background: conic-gradient(hsl(0 90% 60%), hsl(60 90% 60%), hsl(120 90% 55%), hsl(180 90% 55%), hsl(240 90% 65%), hsl(300 90% 62%), hsl(360 90% 60%));
+}
+.btn.btn-ghost.swatch.is-own.has-colour {
+  background: var(--swatch);
+}
+/* The wheel (components/ColourWheel.tsx), opened under the swatches: a disc of hues, more vivid out from its middle,
+   dimmed as the line under it says; beside it the colour as it stands, the line, and its hex. */
+.colour-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 6;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.colour-wheel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+.colour-disc {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  flex: none;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle closest-side, hsl(0 0% 100%), hsl(0 0% 100% / 0)),
+    conic-gradient(hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%));
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.colour-disc:focus-visible,
+.colour-line:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.colour-disc-dim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--theater);
+  pointer-events: none;
+}
+.colour-knob {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--theater-ink);
+  box-shadow: 0 0 0 1px var(--theater), 0 2px 6px color-mix(in srgb, var(--theater) 40%, transparent);
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.colour-side {
+  display: grid;
+  gap: 12px;
+  width: 180px;
+}
+.colour-now {
+  height: 36px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
+}
+.colour-line {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
 }
 /* The stages of a type that's only for looking at: number, name, wait, nothing to fill in. */
 .stage-lines {
@@ -6199,8 +6361,15 @@ mark.sub-blur {
   border-radius: 50%;
   background: var(--accent);
 }
-.rail-chip.is-burned {
-  color: var(--good);
+/* A stage's chip, and Burned's, in its colour (srsKinds.ts → stageTint, BURNED_TINT) until it's the one picked. */
+.rail-chip.is-tinted:not([aria-pressed="true"]) {
+  background: var(--tint-bg);
+  color: var(--tint-fg);
+}
+@media (hover: hover) {
+  .rail-chip.is-tinted:not([aria-pressed="true"]):hover {
+    background: color-mix(in srgb, var(--tint) 40%, var(--surface));
+  }
 }
 .tools {
   display: flex;
@@ -6811,9 +6980,6 @@ mark.sub-blur {
 }
 .w-row.is-new .w-bar-fill {
   background: var(--line-strong);
-}
-.w-row.is-burned .w-bar-fill {
-  background: var(--muted);
 }
 .w-row-n {
   text-align: right;

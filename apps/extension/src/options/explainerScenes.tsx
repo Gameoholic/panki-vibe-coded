@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import type { VideoCard } from "@panki/contracts";
+import { STAGE_RAMP, type VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { ExplainedTitle, Stage, type Site, type Spot, type Tools } from "@web/components/Explainer";
@@ -9,7 +9,7 @@ import { IN_DECKS } from "@web/explainers/examples";
 import { SiteTop, WATCH, WATCHED, WatchPage, videoAt } from "@web/explainers/site";
 import newsPicture from "@web/explainers/thumbs/news-picture.png";
 import { hourWords } from "@web/words";
-import { tintOf, type KnownMoment } from "../capture/known";
+import type { KnownMoment } from "../capture/known";
 import { HOVER_KEEP } from "../capture/look";
 import { keyWordOf, type LookKey } from "../lookSettings";
 import { spanOver, tokensOf, type Span, type Token } from "../capture/words";
@@ -19,7 +19,6 @@ import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
 import { barShows, barSide, isPankiBar, resumeTo, type BarControl, type BarLayout } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
-import { paintCss } from "../seekLook";
 import { barOf, type Stored } from "../storage";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
@@ -27,7 +26,7 @@ import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
 import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { SpeedControl } from "../ui/SpeedControl";
 import { BarControls, YOUTUBE_OWN } from "./BarControls";
-import { EXAMPLE_CARDS } from "./examples";
+import { EXAMPLE_CARDS, exampleTint } from "./examples";
 
 /**
  * What each explainer plays (the web's `components/Explainer.tsx`): one entry per panel, the feature being used on a
@@ -92,7 +91,7 @@ function useLookups(): { dictionaries: DictionaryRecord[]; found: Record<WordId,
 }
 
 /** The tint a word in the decks gets on a page, in this browser's colour for it (`capture/known.ts`). */
-const knownTint = (store: Stored) => tintOf(paintCss(store.knownColour));
+const knownTint = (store: Stored) => exampleTint({ byStage: store.knownByStage, colour: store.knownColour });
 
 // ---------- A news site
 
@@ -816,7 +815,7 @@ const SEEK_IN_DECKS: readonly KnownMoment[] = (
     [690, "電車"],
     [910, "勉強"],
   ] as const
-).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false, flagged: false }));
+).map(([at, words], i) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false, flagged: false, colour: STAGE_RAMP[i % STAGE_RAMP.length] ?? STAGE_RAMP[0] }));
 /** Where it was stopped the time before, in seconds. */
 const SEEK_STOP = 640;
 

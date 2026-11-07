@@ -4,7 +4,7 @@ import { ClientName } from "./auth";
 import { DeckId, type ExampleShown } from "./deck";
 import { ExtensionFingerprint } from "./extension";
 import { MediaCues, MediaKind } from "./media";
-import { CardPlace, HoldKind } from "./srs";
+import { CardPlace, HexColour, HoldKind } from "./srs";
 import { Stretch } from "./transcription";
 import { CardFieldId, CardTypeId, VALUE_MAX, exampleFieldsOf, holdsWords, wordsFieldOf, type CardType } from "./type";
 
@@ -374,15 +374,28 @@ export const CalledCard = z.object({
   apart: z.array(ApartValue).default([]),
   /** Whether it's flagged (`Card.flaggedAt`); false from an older server. */
   flagged: z.boolean().default(false),
+  /**
+   * Where it stands, as its pill says it (`PlacePill`): its stage's name (or the end's), its colour
+   * (`stageColour.ts` → `placeColour`), and whether it's inside an ask-again; null while it's new; none from an older
+   * server.
+   */
+  stage: z.object({ name: z.string(), colour: HexColour, again: z.boolean() }).nullable().optional(),
 });
 export type CalledCard = z.infer<typeof CalledCard>;
 /**
  * The words every living card of the account is called by (its type's `wordsFieldOf`), each once: the extension marks
  * them where they stand in a video's subtitles and on pages. `suspended`: those of them whose every card is suspended,
  * marked in a colour of their own, never as a word that's in the decks. `flagged`: those of them with any card flagged,
- * in a colour of their own again, over a suspended word's. Each none from a Panki from before.
+ * in a colour of their own again, over a suspended word's. `colours`: each word's colour by the highest stage any of its
+ * cards stands on (`stageColour.ts` → `placeColour`), a word whose every card is new left out. Each none from a Panki
+ * from before.
  */
-export const WordsInCards = z.object({ words: z.array(z.string()), suspended: z.array(z.string()).default([]), flagged: z.array(z.string()).default([]) });
+export const WordsInCards = z.object({
+  words: z.array(z.string()),
+  suspended: z.array(z.string()).default([]),
+  flagged: z.array(z.string()).default([]),
+  colours: z.record(z.string(), HexColour).default({}),
+});
 export type WordsInCards = z.infer<typeof WordsInCards>;
 
 /** The newest of them first. */

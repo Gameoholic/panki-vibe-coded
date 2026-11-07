@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { LESSON_IDX, MOVE_MAX, WAIT_MAX, isNew, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
-import { AGAIN_OPTIONS, FAR_MOVE, NEW_WORDS, farOf, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stepIcon, stepKey, stepLabel, tintStyle } from "../srsKinds";
+import { AGAIN_OPTIONS, BURNED_TINT, FAR_MOVE, NEW_WORDS, farOf, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stageTint, stepIcon, stepKey, stepLabel } from "../srsKinds";
 import { BURNED_SCOPE, LESSON_SCOPE, flattenAgain, getStep, hasOwnRules, patchStage, scopeFlow, setAgainCapped, setAgainNow, setMove, setStep, setStepWait, syncToDefault, tree, wrapInAgain, type Scope, type TreeNode } from "../srsFlow";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
@@ -447,7 +447,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
             key={s.id}
             variant="chip"
             className="stage-dot"
-            style={tintStyle(i, type.stages.length)}
+            style={stageTint(type, i)}
             aria-label={stageName(type, i)}
             aria-pressed={pickedIdx === i}
             disabled={readOnly}
@@ -537,7 +537,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
           })}
           {chart.boxes.map((box) => {
             if (box.kind === "root") {
-              const tint = tintStyle(ex, type.stages.length);
+              const tint = stageTint(type, ex);
               // New has nothing to fill in: no name of its own, no wait (a card there waits for a day's new cards).
               if (scope === LESSON_SCOPE) {
                 return (
@@ -648,13 +648,13 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
               <small>{NEW_WORDS.note}</small>
             </Button>
             {type.stages.map((s, i) => (
-              <Button key={s.id} variant="chip" className={`rail-chip ${hasOwnRules(type, s.id) ? "has-dot" : ""}`.trim()} aria-pressed={scope === s.id} onClick={() => onScope(s.id)}>
+              <Button key={s.id} variant="chip" className={`rail-chip is-tinted ${hasOwnRules(type, s.id) ? "has-dot" : ""}`.trim()} style={stageTint(type, i)} aria-pressed={scope === s.id} onClick={() => onScope(s.id)}>
                 <span>{stageName(type, i)}</span>
                 <small>{stageWaitWords(s)}</small>
               </Button>
             ))}
             {type.after === "burn" ? (
-              <Button variant="chip" className="rail-chip is-burned" aria-pressed={scope === BURNED_SCOPE} onClick={() => onScope(BURNED_SCOPE)}>
+              <Button variant="chip" className="rail-chip is-tinted" style={BURNED_TINT} aria-pressed={scope === BURNED_SCOPE} onClick={() => onScope(BURNED_SCOPE)}>
                 <span>{type.burnedName}</span>
                 <small>never comes back</small>
               </Button>
@@ -728,7 +728,7 @@ export function FlowCanvas({ type, scope, onScope, onChange, onUndo, onRedo, can
                     setSelected(null);
                   }}
                 >
-                  <span className="stage-swatch" style={tintStyle(i, type.stages.length)} />
+                  <span className="stage-swatch" style={stageTint(type, i)} />
                   {stageName(type, i)}
                   <small className="item-note">{stageWaitWords(s)}</small>
                 </Button>

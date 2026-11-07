@@ -1,10 +1,13 @@
 import type { CSSProperties } from "react";
 import {
+  BURNED_COLOUR,
   BURY_WAIT,
   STAY,
   WaitUnit,
   isBurned,
   mainAnswers,
+  placeColour,
+  stageColourAt,
   stageIndex,
   waitMinutes,
   type Card,
@@ -21,8 +24,8 @@ import type { IconName } from "./components/Icon";
 
 /**
  * The SRS in words and looks, one home: the units a wait is counted in, the steps an answer can be set to, how a
- * stage, a place and a wait are phrased, and the colour a stage takes from its place on the ladder. The ids are the
- * contracts'; nothing else in the app names one.
+ * stage, a place and a wait are phrased, and a stage's colour as a tint (the colour itself is the contracts'
+ * `stageColour.ts`). The ids are the contracts'; nothing else in the app names one.
  */
 export const WAIT_UNITS: Record<WaitUnit, { one: string; many: string; short: string }> = {
   min: { one: "minute", many: "minutes", short: "m" },
@@ -65,7 +68,7 @@ export function holdBack(step: HoldStep): string {
 }
 /**
  * The line under a box on the chart that puts a card aside, for a card at `place` (the stage it's shown for): "then
- * comes back as Guru 1", "skipped until unsuspended" (the button that brings it back, in its deck's list). Short enough for the box's one line.
+ * comes back as Familiar 1", "skipped until unsuspended" (the button that brings it back, in its deck's list). Short enough for the box's one line.
  */
 export function holdNote(kind: HoldKind, place: string): string {
   return kind === "bury" ? `then comes back as ${place}` : "skipped until unsuspended";
@@ -239,16 +242,26 @@ export function answerClass(answers: readonly SrsAnswer[], i: number): "ans-down
   const at = main.indexOf(answer);
   return main.length > 1 && at === 0 ? "ans-down" : at === main.length - 1 ? "ans-up" : "ans-mid";
 }
-/** A stage's colour comes from its place on the ladder: a hue ramp from the first stage to the last; lightness and saturation are theme tokens. */
-const TINT = { hue: 228, span: 66 };
-export function tintStyle(i: number, n: number): CSSProperties {
-  const t = n <= 1 ? 0 : Math.min(1, Math.max(0, i) / (n - 1));
-  const h = Math.round(TINT.hue + t * TINT.span);
-  return { "--tint-bg": `hsl(${h} var(--tint-s) var(--tint-l))`, "--tint-fg": `hsl(${h} var(--tint-fs) var(--tint-fl))` } as CSSProperties;
+/**
+ * A colour as what a tinted thing reads: `--tint`, the colour itself; `--tint-bg`, a soft fill of it in the surface;
+ * `--tint-fg`, words of it in the text's colour; how much of it each takes is the theme's (`--tint-soft`, `--tint-ink`),
+ * so a stage's one colour reads on every theme.
+ */
+export function tintOf(colour: string): CSSProperties {
+  return {
+    "--tint": colour,
+    "--tint-bg": `color-mix(in srgb, ${colour} var(--tint-soft), var(--surface))`,
+    "--tint-fg": `color-mix(in srgb, ${colour} var(--tint-ink), var(--fg))`,
+  } as CSSProperties;
 }
-export function placeTint(type: Named, place: CardPlace): CSSProperties | undefined {
-  if (isBurned(type, place)) return undefined;
-  return tintStyle(Math.min(stageIndex(type, place), type.stages.length - 1), type.stages.length);
+/** The end of the ladder's grey as a tint (Burned's own row, chip and bar). */
+export const BURNED_TINT = tintOf(BURNED_COLOUR);
+/** Stage `i`'s colour as a tint: its own, else the default ramp's (`stageColourAt`). */
+export const stageTint = (type: Pick<SrsType, "stages">, i: number): CSSProperties => tintOf(stageColourAt(type, i));
+/** Where a card stands as a tint: its stage's, the end's grey; none while it's new. */
+export function placeTint(type: Pick<SrsType, "stages" | "after">, place: CardPlace): CSSProperties | undefined {
+  const colour = placeColour(type, place);
+  return colour === null ? undefined : tintOf(colour);
 }
 
 export const AFTER_OPTIONS: readonly { id: Exclude<SrsAfter, "burn">; label: string }[] = [

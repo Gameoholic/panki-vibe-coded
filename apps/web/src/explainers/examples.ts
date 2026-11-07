@@ -1,4 +1,4 @@
-import type { CalledCard, MeaningAccuracy, ProposedMeaning } from "@panki/contracts";
+import { STAGE_RAMP, type CalledCard, type MeaningAccuracy, type ProposedMeaning } from "@panki/contracts";
 
 /**
  * The made-up examples Panki shows its features at work with, one home: the extension's options page (the Pop-up
@@ -9,7 +9,8 @@ import type { CalledCard, MeaningAccuracy, ProposedMeaning } from "@panki/contra
 /**
  * A word that stands for one already in the decks wherever the pop-up dictionary is shown at work: on the pop-up it's a
  * card of an example deck, whose Open in Panki opens nothing, so the word's highlight and the
- * "already in your decks" message are seen at work. The drawer at work adds its card to the same deck.
+ * "already in your decks" message are seen at work, on Panki Default's Familiar 1 in its colour. The drawer at work adds
+ * its card to the same deck.
  */
 export const IN_DECKS: CalledCard = {
   cardId: "00000000-0000-4000-8000-000000000001",
@@ -18,6 +19,7 @@ export const IN_DECKS: CalledCard = {
   words: "喫茶店",
   apart: [],
   flagged: false,
+  stage: { name: "Familiar 1", colour: STAGE_RAMP[1], again: false },
 };
 
 /** The sentence the examples' words stand in: on a page, in a video's subtitles. */

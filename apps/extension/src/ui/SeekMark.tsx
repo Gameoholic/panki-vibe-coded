@@ -233,6 +233,8 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
     };
   }
 
+  /** A word that's in the decks in its stage's colour, its tick and its pin, while that mark goes By stage; nothing otherwise, the mark's one colour standing. */
+  const stageColour = (said: KnownMoment): CSSProperties => (look.known.byStage ? ({ "--known-colour": said.colour, "--pin-colour": said.colour } as CSSProperties) : {});
   const upOf = (id: WordsMarkId) => wordsOf(id) === "always" || (wordsOf(id) === "hover" && hover);
   const inertOf = (id: WordsMarkId) => look[id].click === "none";
   /** The pointer on a pin's words: kept from the bar, and the page told, so the player previews where a press goes. */
@@ -250,7 +252,8 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
     return (
       <div className={`seek-pins is-${id} is-${look[id].entrance}`}>
         {mine.map((pin, i) => {
-          const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i } as CSSProperties;
+          const own = pin.pinned.of === "known" && pin.pinned.mark === "known" ? stageColour(pin.pinned.said) : {};
+          const place = { "--x": `${pin.x - pin.left}px`, "--at": `${pin.x}px`, "--left": `${pin.left}px`, "--lane": pin.lane, "--i": i, ...own } as CSSProperties;
           return (
             <Fragment key={pin.key}>
               {/* The stem apart from its words, so each comes in its own way. */}
@@ -283,7 +286,9 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         ? covered.map((stretch) => <div key={stretch.startMs} className="seek-covered" style={across(stretch.startMs / 1000, stretch.endMs / 1000)} />)
         : null}
       {look.transcript.shown && working ? <div className="seek-working" style={across(working.startMs / 1000, working.endMs / 1000)} /> : null}
-      {look.known.shown ? saidOthers.map((said) => <div key={said.startMs} className="seek-known" style={across(said.startMs / 1000, said.endMs / 1000)} />) : null}
+      {look.known.shown
+        ? saidOthers.map((said) => <div key={said.startMs} className="seek-known" style={{ ...across(said.startMs / 1000, said.endMs / 1000), ...stageColour(said) }} />)
+        : null}
       {/* Where a word only suspended cards are, or a flagged card is, is said: that mark's, the flagged over the suspended. */}
       {[...APART_MARK_IDS].reverse().flatMap((id) =>
         saidBy(id).map((said) => <div key={`${id}-${said.startMs}`} className={`seek-known is-${id}`} style={across(said.startMs / 1000, said.endMs / 1000)} />),

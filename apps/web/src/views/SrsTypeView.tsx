@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
+import { ANSWERS_MAX, ANSWERS_MIN, DESCRIPTION_MAX, GROW_MAX, GROW_MIN, SrsTypeUpdate, rampColour, stageColourAt, type SrsType, type SrsTypeUpdate as Update } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
+import { Swatches, hexOfCss, type Swatch } from "../components/Swatches";
+import { useDismiss } from "../hooks/useDismiss";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { FlowPreview } from "../components/FlowPreview";
 import { Icon } from "../components/Icon";
@@ -13,7 +15,8 @@ import { Toggle } from "../components/Toggle";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { useUndoable } from "../hooks/useUndoable";
 import { addAnswer, addStage, edit, moveStage, patchAnswer, patchStage, removeAnswer, removeStage, renameAnswer, type Scope } from "../srsFlow";
-import { AFTER_OPTIONS, NEW_WORDS, answerClass, stageName, stageWaitWords, tintStyle } from "../srsKinds";
+import { AFTER_OPTIONS, BURNED_TINT, NEW_WORDS, answerClass, stageName, stageTint, stageWaitWords } from "../srsKinds";
+import { PALETTE } from "../palette";
 import { count } from "../words";
 
 /** What a field says when it's wrong. One home. */
@@ -28,6 +31,40 @@ const MESSAGES = {
   stageLong: "Keep it under 60 characters.",
   burned: "Give the Burned stage a name.",
 };
+
+/**
+ * A stage's number in its colour, pressed to pick another: a panel hanging from it with the stage's default first, then
+ * the palette, then a colour of one's own on the wheel; Reset to default while it has one of its own. A colour picked is
+ * kept as `#rrggbb`, the default as none (`patchStage`'s `colour: null`), so a stage on the ramp stays on it.
+ */
+function StageColour({ type, i, onPick }: { type: SrsType; i: number; onPick: (colour: string | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLSpanElement>(null);
+  useDismiss(root, open, () => setOpen(false));
+  const own = type.stages[i]?.colour ?? null;
+  const fallback = rampColour(i, type.stages.length);
+  const swatches: Swatch[] = open
+    ? [{ id: fallback, name: "Default", css: fallback }, ...Object.values(PALETTE).map(({ name, css }) => ({ id: hexOfCss(css), name, css }))]
+    : [];
+  return (
+    <span ref={root} className="stage-colour">
+      <Button className="stage-no" style={stageTint(type, i)} aria-label={`Colour of ${stageName(type, i)}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        {i + 1}
+      </Button>
+      {open ? (
+        <span className="stage-colour-pop">
+          <Swatches id={`stage-colour-${type.stages[i]?.id ?? i}`} swatches={swatches} value={stageColourAt(type, i)} onChange={(colour) => onPick(colour === fallback ? null : colour)} />
+          {own === null ? null : (
+            <Button onClick={() => onPick(null)}>
+              <Icon name="reset" />
+              Reset to default
+            </Button>
+          )}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 /** What the header shows: the name as it's typed, and whether what's on screen is what's saved. */
 export type SaveStatus = { name: string; state: SaveState; /** There are changes, and they can be saved as they stand. */ canSave: boolean };
@@ -307,7 +344,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             {lessonLine}
             {draft.stages.map((stage, i) => (
               <div key={stage.id} className="stage-line">
-                <span className="stage-no" style={tintStyle(i, n)}>
+                <span className="stage-no" style={stageTint(draft, i)}>
                   {i + 1}
                 </span>
                 <span className="stage-line-name">{stageName(draft, i)}</span>
@@ -316,7 +353,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
             ))}
             {draft.after === "burn" ? (
               <div className="stage-line">
-                <span className="stage-no is-burned">
+                <span className="stage-no is-burned" style={BURNED_TINT}>
                   <Icon name="flame" />
                 </span>
                 <span className="stage-line-name">{draft.burnedName}</span>
@@ -404,9 +441,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
               <Button className="btn-icon field-grip" aria-label="Move" disabled={n === 1} {...order.handleProps(i)}>
                 <Icon name="grip" />
               </Button>
-              <span className="stage-no" style={tintStyle(i, n)}>
-                {i + 1}
-              </span>
+              <StageColour type={draft} i={i} onPick={(colour) => change(patchStage(draft, stage.id, { colour }))} />
               <TextField id={`stage-${stage.id}`} label={`Stage ${i + 1}`} autoComplete="off" value={stage.name} onChange={(name) => change(patchStage(draft, stage.id, { name }), `stage-name-${stage.id}`)} error={errors.stages[stage.id]} />
               <Button
                 ref={asking?.stageId === stage.id ? stageDeleteAt : undefined}
@@ -423,7 +458,7 @@ export function SrsTypeView({ type, isNew, onSave, onRemove, onCopy, onStatus, o
           ))}
           {draft.after === "burn" ? (
             <div className={`stage-row burned-row ${askingBurned ? "is-asking" : ""}`.trim()}>
-              <span className="stage-no is-burned">
+              <span className="stage-no is-burned" style={BURNED_TINT}>
                 <Icon name="flame" />
               </span>
               <TextField id="burned-name" label="Burned stage" autoComplete="off" value={draft.burnedName} onChange={(name) => change(edit(draft, (d) => void (d.burnedName = name)), "burned")} error={errors.burned} />

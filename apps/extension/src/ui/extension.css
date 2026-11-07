@@ -3723,137 +3723,18 @@
 .seek-group-sample.is-off {
   opacity: 0.3;
 }
+/* The words in the decks' colour (options/ColourByStage.tsx): By stage or One colour, the palette under it. */
+.colour-by-stage {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
 /* Where you stopped last: its stroke is the tag's white tick, standing up where the others lie along. */
 .seek-group-sample.is-stop {
   width: 3px;
   height: 14px;
   background: var(--fg);
 }
-/* A mark's colour: a round swatch each from the palette, the one on ringed, its name after them. */
-.mark-swatches {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.mark-swatch-row {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.btn.btn-ghost.mark-swatch {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 50%;
-  border: 2px solid var(--surface);
-  background: var(--swatch);
-  box-shadow: 0 0 0 1px var(--line-strong);
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease;
-}
-.btn.btn-ghost.mark-swatch[aria-pressed="true"] {
-  box-shadow: 0 0 0 2px var(--fg);
-  transform: scale(1.1);
-}
-@media (hover: hover) {
-  .btn.btn-ghost.mark-swatch:hover {
-    background: var(--swatch);
-    transform: scale(1.12);
-  }
-}
-.mark-swatch-name {
-  min-width: 80px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-}
-/* The last swatch, a colour of the viewer's own: the whole wheel of hues until one is picked, then that colour. The
-   hues are the spectrum itself, not colours of the app's. */
-.mark-swatches {
-  position: relative;
-}
-.btn.btn-ghost.mark-swatch.is-own {
-  background: conic-gradient(hsl(0 90% 60%), hsl(60 90% 60%), hsl(120 90% 55%), hsl(180 90% 55%), hsl(240 90% 65%), hsl(300 90% 62%), hsl(360 90% 60%));
-}
-.btn.btn-ghost.mark-swatch.is-own.has-colour {
-  background: var(--swatch);
-}
-/* The wheel, opened under the swatches: a disc of hues, more vivid out from its middle, dimmed as the line under it
-   says; beside it the colour as it stands, the line, and its hex. */
-.colour-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 6;
-  padding: 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-}
-.colour-wheel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-}
-.colour-disc {
-  position: relative;
-  width: 160px;
-  height: 160px;
-  flex: none;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle closest-side, hsl(0 0% 100%), hsl(0 0% 100% / 0)),
-    conic-gradient(hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%), hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%));
-  cursor: crosshair;
-  touch-action: none;
-  box-shadow: 0 0 0 1px var(--line-strong);
-}
-.colour-disc:focus-visible,
-.colour-line:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-.colour-disc-dim {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--theater);
-  pointer-events: none;
-}
-.colour-knob {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--theater-ink);
-  box-shadow: 0 0 0 1px var(--theater), 0 2px 6px color-mix(in srgb, var(--theater) 40%, transparent);
-  translate: -50% -50%;
-  pointer-events: none;
-}
-.colour-side {
-  display: grid;
-  gap: 12px;
-  width: 180px;
-}
-.colour-now {
-  height: 36px;
-  border-radius: 10px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
-}
-.colour-line {
-  position: relative;
-  height: 14px;
-  border-radius: 7px;
-  cursor: pointer;
-  touch-action: none;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
-}
-
 /* ---------- The options page's explainers (options/explainerScenes.tsx) ----------
    The explainer itself (`explain-*`, `@web/components/Explainer`) and the video site the scenes play
    on (`.ex-yt`, `.ex-video`, `.ex-thumb`, the drawer's place, the band over the video) are the app's (app.css):

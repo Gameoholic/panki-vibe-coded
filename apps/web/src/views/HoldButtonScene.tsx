@@ -17,9 +17,9 @@ import { answerClass } from "../srsKinds";
  */
 
 /**
- * The example deck the picture plays on, made as the window opens (never as Settings loads): its SRS type Wanikani+, as
- * it comes with the app; its card type a word on the front, blurred while listening, and its reading and meaning on the
- * back; two cards, one after the other, on Apprentice 2.
+ * The example deck the picture plays on, made as the window opens (never as Settings loads): its SRS type Panki
+ * Default, as it comes with the app; its card type a word on the front, blurred while listening, and its reading and
+ * meaning on the back; two cards, one after the other, on Learning 2.
  */
 function exampleDeck() {
   const mint = () => crypto.randomUUID();

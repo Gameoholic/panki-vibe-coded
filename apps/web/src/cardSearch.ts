@@ -6,8 +6,8 @@ import { FLAG_WORDS, HOLD_KINDS, placeName } from "./srsKinds";
  * Searching a deck's cards by anything on them, fuzzily: every
  * field's words (a video's title and channel for a field that holds one), its other examples' too, and where it stands
  * (its stage's name, New, the end; snoozed, suspended, flagged). Each word of what's typed must be found somewhere on the card, as a whole value, as
- * part of one, or failing that its letters in order with others between them (行く finds 行きます, "apprnt" finds
- * Apprentice). Katakana and hiragana count as one, as do full- and half-width letters and capitals; a word typed in
+ * part of one, or failing that its letters in order with others between them (行く finds 行きます, "lrnng" finds
+ * Learning). Katakana and hiragana count as one, as do full- and half-width letters and capitals; a word typed in
  * romaji is also looked for as the hiragana it reads as ("yobun" finds よぶん; one typed part-way, "yob", as far as it
  * goes; `romaji.ts`). The best matches come first; cards that match alike keep the order picked
  * over the list.

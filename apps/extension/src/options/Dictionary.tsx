@@ -6,6 +6,7 @@ import { Dropdown } from "@web/components/Dropdown";
 import { Icon } from "@web/components/Icon";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
+import { Swatches } from "@web/components/Swatches";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useDragOrder } from "@web/hooks/useDragOrder";
@@ -29,13 +30,14 @@ import {
 import { HOVER_KEEP } from "../capture/look";
 import { LOOK_KEYS, hostOf, keyWordOf, permissionsFor, type LookKey, type LookWhere } from "../lookSettings";
 import { PankiError, panki, type Door } from "../panki";
+import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { writeStore, type Stored } from "../storage";
 import { Pitch } from "../ui/Lookup";
 import { Rename } from "../ui/Rename";
 import { aboutOf, type About } from "./about";
 import { KindChips } from "./DataKinds";
+import { ColourByStage } from "./ColourByStage";
 import { SceneTitle } from "./explainerScenes";
-import { Swatches } from "./Swatches";
 
 /** What these say when something's wrong. One home. */
 const MESSAGES = {
@@ -526,7 +528,7 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
 
 /**
  * Words already in the cards, marked where they stand (`capture/known.ts`): on pages and in
- * Panki's subtitles, each its own switch, and the colour, picked as the seek bar's marks pick theirs. Kept the
+ * Panki's subtitles, each its own switch, and the colour, by stage or one picked as the seek bar's marks pick theirs. Kept the
  * moment it's changed; a page takes it up as it gets the focus back. Its two switches are named as Looking up words
  * names its two keys, "globally" and "in Panki subtitles", in the same order: one name for each place everywhere.
  */
@@ -547,7 +549,16 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
       <Setting
         id="known-colour"
         label="Colour"
-        control={<Swatches id="known-colour" value={store.knownColour} disabled={!store.knownSubtitles && !store.knownPages} onChange={(knownColour) => void writeStore({ knownColour }).then(onChanged)} />}
+        control={
+          <ColourByStage
+            id="known-colour"
+            byStage={store.knownByStage}
+            colour={store.knownColour}
+            disabled={!store.knownSubtitles && !store.knownPages}
+            onByStage={(knownByStage) => void writeStore({ knownByStage }).then(onChanged)}
+            onColour={(knownColour) => void writeStore({ knownColour }).then(onChanged)}
+          />
+        }
       />
       {/* A word whose every card is suspended, marked apart. */}
       <Setting
@@ -556,9 +567,13 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
         control={
           <Swatches
             id="known-suspended-colour"
+            swatches={MARK_SWATCHES}
             value={store.knownSuspendedColour}
             disabled={!store.knownSubtitles && !store.knownPages}
-            onChange={(knownSuspendedColour) => void writeStore({ knownSuspendedColour }).then(onChanged)}
+            onChange={(value) => {
+              const knownSuspendedColour = paintOf(value);
+              if (knownSuspendedColour) void writeStore({ knownSuspendedColour }).then(onChanged);
+            }}
           />
         }
       />
@@ -569,9 +584,13 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
         control={
           <Swatches
             id="known-flagged-colour"
+            swatches={MARK_SWATCHES}
             value={store.knownFlaggedColour}
             disabled={!store.knownSubtitles && !store.knownPages}
-            onChange={(knownFlaggedColour) => void writeStore({ knownFlaggedColour }).then(onChanged)}
+            onChange={(value) => {
+              const knownFlaggedColour = paintOf(value);
+              if (knownFlaggedColour) void writeStore({ knownFlaggedColour }).then(onChanged);
+            }}
           />
         }
       />

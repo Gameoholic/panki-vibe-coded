@@ -156,7 +156,8 @@ export const Stats = z.object({
     z.object({
       srsTypeId: SrsTypeId,
       name: z.string(),
-      stages: z.array(z.object({ id: SrsStageId, name: z.string(), n: Count })),
+      /** Each stage with its colour as it stands (`stageColourAt`). */
+      stages: z.array(z.object({ id: SrsStageId, name: z.string(), n: Count, colour: z.string() })),
       burnedName: z.string(),
       burned: Count,
       fresh: Count,

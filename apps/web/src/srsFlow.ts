@@ -170,12 +170,15 @@ export function renameAnswer(type: SrsType, id: string, name: string): SrsType {
   });
 }
 
-/** A new stage at the end waits twice as long as the last one. */
+/**
+ * A new stage at the end waits twice as long as the last one, and takes its colour when it has one of its own (one on
+ * the default ramp leaves the new one on it too).
+ */
 export function addStage(type: SrsType, id: string): SrsType {
   return edit(type, (draft) => {
     const last = draft.stages[draft.stages.length - 1];
     const wait: Wait = last ? { n: Math.min(WAIT_MAX, Math.max(1, last.wait.n * 2)), unit: last.wait.unit } : { n: 1, unit: "d" };
-    draft.stages.push({ id, name: "", wait });
+    draft.stages.push({ id, name: "", wait, ...(last?.colour ? { colour: last.colour } : {}) });
   });
 }
 function stripStage(flow: Flow, id: string) {
@@ -200,12 +203,15 @@ export function moveStage(type: SrsType, from: number, to: number): SrsType {
     if (moved) draft.stages.splice(to, 0, moved);
   });
 }
-export function patchStage(type: SrsType, id: string, patch: { name?: string; wait?: Partial<Wait> }): SrsType {
+/** A stage changed: its name, its wait, or its colour (`colour` null takes it back to the default ramp's). */
+export function patchStage(type: SrsType, id: string, patch: { name?: string; wait?: Partial<Wait>; colour?: string | null }): SrsType {
   return edit(type, (draft) => {
     const stage = draft.stages.find((s) => s.id === id);
     if (!stage) return;
     if (patch.name !== undefined) stage.name = patch.name;
     if (patch.wait) Object.assign(stage.wait, patch.wait);
+    if (patch.colour === null) delete stage.colour;
+    else if (patch.colour !== undefined) stage.colour = patch.colour;
   });
 }
 

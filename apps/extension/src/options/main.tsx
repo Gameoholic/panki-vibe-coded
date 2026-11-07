@@ -30,6 +30,7 @@ import { deviceTheme } from "../ui/mount";
 import { setVideoTracking, videoTrackingOn } from "../watch/tracking";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
 import { SceneTitle } from "./explainerScenes";
+import { exampleTint } from "./examples";
 import { PopupLayoutPanel } from "./PopupLayout";
 import { PillParts } from "./PillPanel";
 import { PlayerBarPanel } from "./PlayerBar";
@@ -796,7 +797,7 @@ function Options() {
             {/* Pop-up dictionary, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads. */}
             <Looking store={store} onChanged={refresh} />
             <KnownWords store={store} onChanged={refresh} />
-            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, colour: store.knownColour }} onSaved={refresh} />
+            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour }) }} onSaved={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
           </div>

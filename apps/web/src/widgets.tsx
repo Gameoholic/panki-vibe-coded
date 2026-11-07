@@ -6,7 +6,7 @@ import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
 import { LinkView } from "./components/LinkView";
 import { Tip } from "./components/Tip";
-import { NEW_WORDS, tintStyle } from "./srsKinds";
+import { BURNED_TINT, NEW_WORDS, tintOf } from "./srsKinds";
 import { count, dateWords, durationWords, langOf, leftWords } from "./words";
 
 /**
@@ -494,16 +494,15 @@ export const WIDGETS: readonly WidgetEntry[] = [
       return (
         <div className="w-ladders">
           {stats.ladders.map((ladder) => {
-            const n = ladder.stages.length;
             const max = Math.max(ladder.fresh, ladder.burned, ...ladder.stages.map((s) => s.n));
             return (
               <div key={ladder.srsTypeId} className="w-ladder">
                 {stats.ladders.length > 1 ? <p className="w-sub">{ladder.name}</p> : null}
                 <LadderRow name={NEW_WORDS.name} n={ladder.fresh} max={max} className="is-new" />
                 {ladder.stages.map((stage, i) => (
-                  <LadderRow key={stage.id} name={stage.name || `Stage ${i + 1}`} n={stage.n} max={max} style={tintStyle(i, n)} />
+                  <LadderRow key={stage.id} name={stage.name || `Stage ${i + 1}`} n={stage.n} max={max} style={tintOf(stage.colour)} />
                 ))}
-                <LadderRow name={ladder.burnedName} n={ladder.burned} max={max} className="is-burned" />
+                <LadderRow name={ladder.burnedName} n={ladder.burned} max={max} className="is-burned" style={BURNED_TINT} />
               </div>
             );
           })}

@@ -133,19 +133,19 @@ function onPanki(url: string | undefined, store: Stored): boolean {
  */
 async function known(sender: chrome.runtime.MessageSender): Promise<Known> {
   const store = await readStore();
-  const off: Known = { ok: true, words: [], suspended: [], flagged: [] };
+  const off: Known = { ok: true, words: [], suspended: [], flagged: [], colours: {} };
   if (onPanki(sender.url ?? sender.tab?.url, store)) return off;
   // The seek bar's marks of where they're said want the words too, whatever the two highlights say.
   const seek = store.seekLook;
   if (!store.pankiOn || (!store.knownSubtitles && !store.knownPages && !seek.known.shown && !seek.suspended.shown && !seek.flagged.shown) || !store.address || !store.token) return off;
-  let words: { words: string[]; suspended: string[]; flagged: string[] };
+  let words: { words: string[]; suspended: string[]; flagged: string[]; colours: Record<string, string> };
   try {
     words = await readKept("words", store);
   } catch (e) {
     console.error("Panki:", e);
     return off;
   }
-  return { ok: true, words: words.words, suspended: words.suspended, flagged: words.flagged };
+  return { ok: true, words: words.words, suspended: words.suspended, flagged: words.flagged, colours: words.colours };
 }
 
 /** Panki's own addresses, as the browser matches them: the sign-in in use and every profile kept, each allowed as it was signed in to. */

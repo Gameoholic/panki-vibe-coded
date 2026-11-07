@@ -3,7 +3,7 @@ import { DEFAULT_DECK_SETTINGS, mainAnswers, type SrsType } from "@panki/contrac
 import { count } from "../words";
 import { Dropdown } from "./Dropdown";
 import { Tip } from "./Tip";
-import { longSpan, spanWords, tintStyle } from "../srsKinds";
+import { longSpan, spanWords, stageTint } from "../srsKinds";
 import { ASAP, forecast, journey, type JourneyStep } from "../srsPreview";
 
 type Props = {
@@ -14,8 +14,7 @@ type Props = {
 const CHART = { w: 300, h: 64, pad: 2, foot: 14, head: 4, tail: 14 };
 
 function StepPill({ type, idx, wait, again }: { type: SrsType; idx: number; wait: number; again: boolean }) {
-  const n = type.stages.length;
-  const style = again ? undefined : tintStyle(Math.min(idx, n - 1), n);
+  const style = again ? undefined : stageTint(type, idx);
   return (
     <span className={`jstep ${again ? "is-again" : ""}`.trim()} style={style}>
       {again ? "again · " : ""}

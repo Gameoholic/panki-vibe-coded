@@ -20,7 +20,13 @@ export const waitMinutes = (wait: Wait) => wait.n * MINUTES_PER_UNIT[wait.unit];
 
 /** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, but for the next review: reaching a stage is the end of the chart for that sitting, only an ask-again with no wait keeps a card in the one under way. */
 export const StageWait = Wait.extend({ n: z.number().int().min(0).max(WAIT_MAX) });
-export const SrsStage = z.object({ id: SrsStageId, name: z.string().trim().max(60), wait: StageWait });
+/** A colour as `#rrggbb`. */
+export const HexColour = z.string().regex(/^#[0-9a-f]{6}$/i);
+/**
+ * `colour` is the stage's own, as `#rrggbb`; left out, the stage takes the default ramp's colour for its place on the
+ * ladder (`stageColour.ts` → `stageColourAt`), so a type kept before stages had colours reads as it was.
+ */
+export const SrsStage = z.object({ id: SrsStageId, name: z.string().trim().max(60), wait: StageWait, colour: HexColour.optional() });
 export type SrsStage = z.infer<typeof SrsStage>;
 /**
  * One button on the review screen. An `aside` answer is a rare one (start over, already knew it): it sits apart from
@@ -47,7 +53,7 @@ export function mainAnswers<A extends { aside?: boolean | undefined }>(answers: 
  * sent all the same, it does nothing (`STAY`). `bury` and `suspend` put the card aside where it stands (`HoldKind`):
  * a bury for its `wait`, a suspend until it's brought back. `lesson` sends the card back to Lesson (New on screen), a
  * new card again that waits for a day's new cards: the one way back there once a card has left it. No type that comes
- * with the app takes it: Wanikani+'s Reset goes to the first stage instead.
+ * with the app takes it: Panki Default's Reset goes to the first stage instead.
  */
 export type Step =
   | { kind: "move"; by: number }
@@ -64,7 +70,7 @@ export type Flow = Record<string, Step>;
 /**
  * How many stages one move goes up or down at most: as many as a ladder can have (`STAGES_MAX`), since the far move on
  * the chart is as many as you set (↑1 and ↑X, X set on the chart). A lower cap makes a built-in type whose move is
- * longer, Wanikani+'s Easy of three, fail its own rule.
+ * longer, Panki Default's Easy of three, fail its own rule.
  */
 export const MOVE_MAX = 30;
 export const Step: z.ZodType<Step, Step> = z.lazy(() =>
@@ -119,7 +125,7 @@ export const SrsAfter = z.enum(["burn", "repeat", "grow"]);
 export type SrsAfter = z.infer<typeof SrsAfter>;
 
 export const STAGES_MAX = 30;
-/** How long a type's description can be: 500, room enough for Wanikani+'s own. */
+/** How long a type's description can be: 500, room enough for Panki Default's own. */
 export const DESCRIPTION_MAX = 500;
 export const ANSWERS_MIN = 2;
 export const ANSWERS_MAX = 6;

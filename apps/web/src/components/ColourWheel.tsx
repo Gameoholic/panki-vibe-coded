@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { TextField } from "@web/components/TextField";
+import { TextField } from "./TextField";
 
 /** A colour as hue (0 to 360, from the top of the wheel clockwise), saturation and value (0 to 1 each). */
 type Hsv = { h: number; s: number; v: number };
@@ -36,7 +36,7 @@ const clamp = (x: number) => Math.max(0, Math.min(1, x));
 const STEP = { hue: 5, share: 0.05 } as const;
 
 /**
- * A colour of the viewer's own, picked on a wheel: around it the hue, out from its middle how vivid, and under it a
+ * A colour of one's own, picked on a wheel: around it the hue, out from its middle how vivid, and under it a
  * line from dark to bright; or typed as a hex. Seen as it's moved, kept as it's let go (`onPick`), so a drag isn't a
  * hundred writes. Never the browser's own colour picker. The arrow keys move whichever has the focus.
  */

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import type { Stretch, VideoCard } from "@panki/contracts";
+import { STAGE_RAMP, type Stretch, type VideoCard } from "@panki/contracts";
 import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
+import { Swatches } from "@web/components/Swatches";
 import { Toggle } from "@web/components/Toggle";
 import { OFFER_AWAY_MS, OFFER_MS, RESUME_BACK_MAX, RESUME_HOW, RESUME_HOW_IDS, RESUME_TIMED, RESUME_TIMED_IDS, resumeTo, type ResumeHow } from "../modules";
 import { ResumeOffer } from "../ui/ResumeOffer";
@@ -11,9 +12,11 @@ import {
   CARD_CLICK_IDS,
   MARK_SIZES,
   MARK_SIZE_IDS,
+  MARK_SWATCHES,
   PIN_ENTRANCES,
   PIN_ENTRANCE_IDS,
   paintCss,
+  paintOf,
   type CardWords,
   type MarkLook,
   type SeekLook,
@@ -24,8 +27,8 @@ import {
 import type { KnownMoment } from "../capture/known";
 import { writeStore, type Stored } from "../storage";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
+import { ColourByStage } from "./ColourByStage";
 import { SceneTitle } from "./explainerScenes";
-import { Swatches } from "./Swatches";
 
 const SIZE_OPTIONS = MARK_SIZE_IDS.map((id) => ({ id, label: MARK_SIZES[id].name }));
 const ENTRANCE_OPTIONS = PIN_ENTRANCE_IDS.map((id) => ({ id, label: PIN_ENTRANCES[id] }));
@@ -60,7 +63,7 @@ const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
     [271, "大丈夫"],
     [298, "例えば"],
   ] as const
-).map(([at, words]) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false, flagged: false }));
+).map(([at, words], i) => ({ startMs: at * 1000, endMs: at * 1000 + 600, words, lineMs: (at - 2) * 1000, suspended: false, flagged: false, colour: STAGE_RAMP[i % STAGE_RAMP.length] ?? STAGE_RAMP[0] }));
 
 /**
  * A made-up video for the preview, ten minutes long, never one of the account's: most of it transcribed and a little more on
@@ -224,13 +227,39 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
             <h3 className="seek-group-title">
               <span
                 className={`seek-group-sample ${mark.shown ? "" : "is-off"}`.trim()}
-                style={{ background: paintCss(mark.colour), height: `${MARK_SIZES[mark.size].px}px` }}
+                style={{ background: id === "known" && look.known.byStage ? `linear-gradient(90deg, ${STAGE_RAMP.join(", ")})` : paintCss(mark.colour), height: `${MARK_SIZES[mark.size].px}px` }}
                 aria-hidden="true"
               />
               {name}
             </h3>
             <Setting id={`seek-${id}-shown`} label="Visibility" control={<Toggle id={`seek-${id}-shown-on`} says={{ on: "Shown", off: "Hidden" }} on={mark.shown} disabled={off} onChange={(shown) => change(id, { shown })} />} />
-            <Setting id={`seek-${id}-colour`} label="Colour" control={<Swatches id={`seek-${id}-colour`} value={mark.colour} disabled={off || !mark.shown} onChange={(colour) => change(id, { colour })} />} />
+            <Setting
+              id={`seek-${id}-colour`}
+              label="Colour"
+              control={
+                id === "known" ? (
+                  <ColourByStage
+                    id={`seek-${id}-colour`}
+                    byStage={look.known.byStage}
+                    colour={mark.colour}
+                    disabled={off || !mark.shown}
+                    onByStage={(byStage) => change("known", { byStage })}
+                    onColour={(colour) => change(id, { colour })}
+                  />
+                ) : (
+                  <Swatches
+                    id={`seek-${id}-colour`}
+                    swatches={MARK_SWATCHES}
+                    value={mark.colour}
+                    disabled={off || !mark.shown}
+                    onChange={(value) => {
+                      const colour = paintOf(value);
+                      if (colour) change(id, { colour });
+                    }}
+                  />
+                )
+              }
+            />
             <Setting
               id={`seek-${id}-size`}
               label="Thickness"

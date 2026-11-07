@@ -19,7 +19,7 @@ import { HoldButton, ShowButton } from "./ShowButton";
 
 /**
  * Where an answer sends the card, under its name: which way it goes (so it's clear whether it moves up or down), by
- * how many stages, and the words, "Apprentice 3 · 1 d", "again
+ * how many stages, and the words, "Learning 3 · 1 d", "again
  * tomorrow", "Burned", or when a card put aside comes back, "back in 24 hours".
  */
 type Lead = { dir: "up" | "down" | "same" | "again" | "burn" | HoldKind; steps: number; words: string };

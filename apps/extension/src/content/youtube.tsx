@@ -2,7 +2,7 @@ import "../setup";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
-import { knownAs, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
+import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
@@ -1571,7 +1571,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
     known.subtitles && known.words.size > 0
       ? {
           at: (i: number) => knownAs(known, tokens[i] ?? {}),
-          colour: tintOf(paintCss(known.colour)),
+          tintAt: (i: number) => tintOf(knownCssOf(known, tokens[i] ?? {})),
           suspendedColour: tintOf(paintCss(known.suspendedColour)),
           flaggedColour: tintOf(paintCss(known.flaggedColour)),
         }

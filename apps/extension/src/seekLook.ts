@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { Swatch } from "@web/components/Swatches";
+import { PALETTE } from "@web/palette";
 
 /**
  * How Panki's marks on a video's own seek bar look, this browser's viewer's to set on the options page (YouTube → Seek
@@ -7,28 +9,24 @@ import { z } from "zod";
  * choosing from both. The shapes live here, apart from `storage.ts`, so a page's script carries no storage code; the worker hands them to the page with the transcript (`TranscribePrefs.seek`).
  */
 
-/** The colours a mark can be: the palette in the app's `theme.css` (`--mark-*`), and the theme's own accent. */
+/** The colours a mark can be: the app's palette (`@web/palette`, `theme.css`'s `--mark-*`), and the theme's own accent. */
 export const MarkColour = z.enum(["yellow", "orange", "red", "pink", "violet", "blue", "cyan", "green", "white", "accent"]);
 export type MarkColour = z.infer<typeof MarkColour>;
-export const MARK_COLOURS: Record<MarkColour, { name: string; css: string }> = {
-  yellow: { name: "Yellow", css: "var(--mark-yellow)" },
-  orange: { name: "Orange", css: "var(--mark-orange)" },
-  red: { name: "Red", css: "var(--mark-red)" },
-  pink: { name: "Pink", css: "var(--mark-pink)" },
-  violet: { name: "Violet", css: "var(--mark-violet)" },
-  blue: { name: "Blue", css: "var(--mark-blue)" },
-  cyan: { name: "Cyan", css: "var(--mark-cyan)" },
-  green: { name: "Green", css: "var(--mark-green)" },
-  white: { name: "White", css: "var(--mark-white)" },
-  accent: { name: "Panki blue", css: "var(--accent)" },
-};
+export const MARK_COLOURS: Record<MarkColour, { name: string; css: string }> = { ...PALETTE, accent: { name: "Panki blue", css: "var(--accent)" } };
 export const MARK_COLOUR_IDS = MarkColour.options;
-/** A colour of the viewer's own, picked on the wheel (`options/ColourWheel.tsx`): `#rrggbb`. */
+/** The palette as the app's `Swatches` picks from it. */
+export const MARK_SWATCHES: readonly Swatch[] = MARK_COLOUR_IDS.map((id) => ({ id, name: MARK_COLOURS[id].name, css: MARK_COLOURS[id].css }));
+/** A colour of the viewer's own, picked on the wheel (the app's `components/ColourWheel.tsx`): `#rrggbb`. */
 export const CustomColour = z.string().regex(/^#[0-9a-f]{6}$/i);
 /** A mark's colour: one of the palette's, or one of the viewer's own. */
 export const MarkPaint = z.union([MarkColour, CustomColour]);
 export type MarkPaint = z.infer<typeof MarkPaint>;
 const isPalette = (paint: MarkPaint): paint is MarkColour => MarkColour.safeParse(paint).success;
+/** What `Swatches` picked, as a mark's colour; null for anything that isn't one. */
+export const paintOf = (value: string): MarkPaint | null => {
+  const paint = MarkPaint.safeParse(value);
+  return paint.success ? paint.data : null;
+};
 /** How a mark's colour is written in CSS: the palette's token, or the viewer's own colour as it is. */
 export const paintCss = (paint: MarkPaint): string => (isPalette(paint) ? MARK_COLOURS[paint].css : paint);
 /** What a mark's colour is called: the palette's name, or the viewer's own colour as it's written. */
@@ -83,10 +81,10 @@ export const SeekLook = z.object({
   // (A look kept with an old `snap`, a press near a card's mark landing on the card, keeps it unread.)
   cards: WordsLook.extend({ words: CardWords }),
   clip: MarkLook,
-  // Where the words that are in the decks are said (green like their highlight), with the cards' own settings for the
-  // words on pins over its ticks (shown, thick, the words hidden to begin with); a look kept before either is given
-  // what it lacks.
-  known: WordsLook.default({ shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
+  // Where the words that are in the decks are said, each tick in its word's stage's colour (`byStage`, as their
+  // highlight is to begin with) or all in `colour`, with the cards' own settings for the words on pins over its ticks
+  // (shown, thick, the words hidden to begin with); a look kept before any of them is given what it lacks.
+  known: WordsLook.extend({ byStage: z.boolean().default(true) }).default({ shown: true, byStage: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
   // The cards taken from the video that are suspended, apart from the rest, to be fixed from the video right away (a
   // new clip, a better example), with the cards' own settings:
   // thick, their words always standing, red to begin with; a look kept before it is given it.
@@ -116,7 +114,7 @@ export const DEFAULT_SEEK_LOOK: SeekLook = {
   transcript: { shown: true, colour: "white", size: "thin" },
   cards: { shown: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
   clip: { shown: true, colour: "accent", size: "medium" },
-  known: { shown: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
+  known: { shown: true, byStage: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
   suspended: { shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
   flagged: { shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
 };

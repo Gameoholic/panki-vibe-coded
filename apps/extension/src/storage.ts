@@ -81,6 +81,8 @@ const Stored = z.object({
    */
   knownSubtitles: z.boolean().catch(false),
   knownPages: z.boolean().catch(false),
+  /** Each word tinted in its highest card's stage's colour (New in Panki blue), or all in `knownColour`. By stage to begin with. */
+  knownByStage: z.boolean().catch(true),
   knownColour: MarkPaint.catch("green"),
   /** The words only suspended cards are, in a colour of their own; red to begin with, as their mark on the seek bar is. */
   knownSuspendedColour: MarkPaint.catch("red"),
@@ -266,7 +268,7 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   prefs: prefsOf,
   source: (store) => sourceOf(store.subtitleSource),
   modules: modulesOf,
-  known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
+  known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, byStage: store.knownByStage, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
   look: (store) => ({ key: store.lookKey, subtitleKey: store.lookKeySubtitles, where: store.lookWhere, sites: store.lookSites, layout: store.popupLayout }),
   // Unsettled is off: it's settled as the worker starts (`watch/tracking.ts`), and every page told then.
   tracking: (store) => store.videoTracking === true,

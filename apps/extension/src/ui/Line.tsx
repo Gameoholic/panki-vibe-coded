@@ -45,8 +45,12 @@ type Props = {
   look?: LineLook | null;
   /** A double-click on word `at`: the word is to be fixed (a transcript's word heard wrong). None where words can't be. */
   onFix?: ((at: number) => void) | null;
-  /** Which words are already in the cards and how (`capture/known.ts` → `knownAs`), and the tints they get (`tintOf`): any card's, only suspended cards', or a flagged card's; none, and nothing is. */
-  known?: { at: (at: number) => KnownAs | null; colour: string; suspendedColour: string; flaggedColour: string } | null;
+  /**
+   * Which words are already in the cards and how (`capture/known.ts` → `knownAs`), and the tints they get (`tintOf`): a
+   * word that's in the decks its own (`tintAt`, its stage's or the one chosen), only suspended cards' or a flagged
+   * card's one for the line; none, and nothing is.
+   */
+  known?: { at: (at: number) => KnownAs | null; tintAt: (at: number) => string; suspendedColour: string; flaggedColour: string } | null;
   /** Which words Panki AI's Proofread edited (AI step 6): lit in the accent with the spark after them, under the player and over the video. */
   edited?: ((at: number) => boolean) | null;
 };
@@ -84,7 +88,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
       ref={root}
       className={`line ${small ? "is-small" : ""}`.trim()}
       lang={langOf(text)}
-      style={known ? ({ "--known": known.colour, "--known-suspended": known.suspendedColour, "--known-flagged": known.flaggedColour } as CSSProperties) : undefined}
+      style={known ? ({ "--known-suspended": known.suspendedColour, "--known-flagged": known.flaggedColour } as CSSProperties) : undefined}
       onPointerMove={(e) => onMove(e.target, e)}
       onPointerLeave={(e) => look?.move(null, null, e)}
     >
@@ -95,6 +99,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
             data-at={i}
             className={`tok ${within(now, i) ? "is-now" : ""} ${KNOWN_CLASS[known?.at(i) ?? "none"]} ${edited?.(i) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}
             aria-pressed={within(picked, i)}
+            style={known?.at(i) === "known" ? ({ "--known": known.tintAt(i) } as CSSProperties) : undefined}
             onClick={() => {
               if (look?.press(i)) return;
               onPick(pick(picked, i));
