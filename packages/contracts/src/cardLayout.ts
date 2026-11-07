@@ -1,5 +1,30 @@
 import { z } from "zod";
-import { AutoPlay, Column, DEFAULT_FLAG_MARK, DEFAULT_LISTEN_FIRST, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, FaceShow, SHOW_ON_PLAY_MAX, ListenShow, ListenSubtitles, MediaLook, PartSize, PartTone, TagCorner, type FlagMark, type LayoutPart, type ListenFirst, type SparkMark, type StageTag } from "./layout";
+import {
+  AutoPlay,
+  Column,
+  DEFAULT_FLAG_MARK,
+  DEFAULT_LISTEN_FIRST,
+  DEFAULT_SPARK_MARK,
+  DEFAULT_STAGE_TAG,
+  EXAMPLES_SLOT,
+  ExamplesPlace,
+  FaceShow,
+  SHOW_ON_PLAY_MAX,
+  ListenShow,
+  ListenSubtitles,
+  MediaLook,
+  PartSize,
+  PartTone,
+  TagCorner,
+  movePart,
+  partsOnIn,
+  type CardSide,
+  type FlagMark,
+  type LayoutPart,
+  type ListenFirst,
+  type SparkMark,
+  type StageTag,
+} from "./layout";
 import { holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
@@ -206,6 +231,118 @@ export function flagMarkOf(kept: unknown, spark: SparkMark): FlagMark {
   const read = KeptFlag.safeParse(kept);
   const flag = read.success ? read.data.flag : undefined;
   return { shown: flag?.shown ?? DEFAULT_FLAG_MARK.shown, corner: flag?.corner ?? spark.corner };
+}
+
+/** The example arrows as they're kept, beside the stage tag (`examples` in the same JSON). */
+const KeptExamples = z.object({ examples: ExamplesPlace.nullable().optional().catch(undefined) });
+
+/**
+ * A type's example arrows as they're laid out, from what's kept beside its stage tag: null for a type nobody laid them
+ * out on, which has them where the example is (`examplesAt`), and for a place that doesn't read or follows a field the
+ * type no longer has.
+ */
+export function examplesPlaceOf(kept: unknown, fields: readonly Pick<CardField, "id">[]): ExamplesPlace | null {
+  const read = KeptExamples.safeParse(kept);
+  const place = read.success ? (read.data.examples ?? null) : null;
+  if (!place) return null;
+  return place.after === null || fields.some((f) => f.id === place.after) ? place : null;
+}
+
+type ExampleFieldLike = Pick<CardField, "id" | "perExample">;
+/** The parts of a type's fields that are One per example, in the card's order. */
+const exampleParts = (layout: readonly LayoutPart[], fields: readonly ExampleFieldLike[]) => {
+  const ids = new Set(fields.filter((f) => f.perExample).map((f) => f.id));
+  return layout.filter((p) => ids.has(p.fieldId));
+};
+
+/**
+ * Where the example arrows stand: as laid out, else (null, nobody laid them out) right after the example, the last One
+ * per example part the front shows, else the last at all, in its column, where they always stood. None for a type with
+ * no field that's One per example.
+ */
+export function examplesAt(layout: readonly LayoutPart[], fields: readonly ExampleFieldLike[], place: ExamplesPlace | null): ExamplesPlace | null {
+  const parts = exampleParts(layout, fields);
+  if (parts.length === 0) return null;
+  if (place) return place;
+  const last = parts.filter((p) => p.front !== "hide").at(-1) ?? parts.at(-1);
+  return last ? { column: last.column, after: last.fieldId } : null;
+}
+
+/** Whether the example arrows show on a side: always on the back, on the front while a part of the example shows there; held unseen for the back otherwise. */
+export const examplesOn = (layout: readonly LayoutPart[], fields: readonly ExampleFieldLike[], side: CardSide): boolean =>
+  side === "back" || exampleParts(layout, fields).some((p) => p.front !== "hide");
+
+/**
+ * Where the example arrows stand among a column's items (`ids`, field ids in the card's order: its parts, or its rows by
+ * their first part): how many come before them, those no later in the card's order than the part they follow, and any
+ * set beside the last of those, so a row is never split.
+ */
+export function examplesIndex(layout: readonly LayoutPart[], ids: readonly string[], place: ExamplesPlace): number {
+  const at = new Map(layout.map((p, i) => [p.fieldId, i]));
+  const until = place.after === null ? -1 : (at.get(place.after) ?? -1);
+  let k = 0;
+  while (k < ids.length && (at.get(ids[k] ?? "") ?? Infinity) <= until) k++;
+  while (k > 0 && k < ids.length && layout[at.get(ids[k] ?? "") ?? -1]?.beside) k++;
+  return k;
+}
+
+/**
+ * What's moved among in a column on a side, in its order: its parts on that side (`partsOnIn`), and the example arrows
+ * (`EXAMPLES_SLOT`) where they stand while they show there.
+ */
+export function columnOrder(layout: readonly LayoutPart[], fields: readonly ExampleFieldLike[], side: CardSide, column: Column, place: ExamplesPlace | null): string[] {
+  const ids = partsOnIn(layout, side, column).map((p) => p.fieldId);
+  const at = examplesAt(layout, fields, place);
+  if (!at || at.column !== column || !examplesOn(layout, fields, side)) return ids;
+  const k = examplesIndex(layout, ids, at);
+  return [...ids.slice(0, k), EXAMPLES_SLOT, ...ids.slice(k)];
+}
+
+/**
+ * An item of a column moved to where another stands (`from`, `to`: places in its `columnOrder`). A part moves in the
+ * card's order as `movePart` moves it, past the parts it passed. The example arrows then stand after the item before
+ * them in the column (or before its first part), so they stay where they're seen; arrows nobody laid out stay so while
+ * a part moves, still following the example.
+ */
+export function moveInColumn(
+  layout: readonly LayoutPart[],
+  fields: readonly ExampleFieldLike[],
+  side: CardSide,
+  column: Column,
+  place: ExamplesPlace | null,
+  from: number,
+  to: number,
+): { layout: LayoutPart[]; examples: ExamplesPlace | null } {
+  const order = columnOrder(layout, fields, side, column, place);
+  const moving = order[from];
+  if (moving === undefined || order[to] === undefined || from === to) return { layout: [...layout], examples: place };
+  const next = order.filter((_, i) => i !== from);
+  next.splice(to, 0, moving);
+  let moved = [...layout];
+  if (moving !== EXAMPLES_SLOT) {
+    const was = order.filter((id) => id !== EXAMPLES_SLOT).indexOf(moving);
+    const parts = next.filter((id) => id !== EXAMPLES_SLOT);
+    const now = parts.indexOf(moving);
+    // Past the arrows alone, no part moves.
+    const target = now > was ? parts[now - 1] : now < was ? parts[now + 1] : undefined;
+    if (target !== undefined) moved = movePart(layout, moving, target);
+    if (place === null) return { layout: moved, examples: null };
+  }
+  const k = next.indexOf(EXAMPLES_SLOT);
+  const at = examplesAt(moved, fields, place);
+  if (k < 0 || !at) return { layout: moved, examples: place };
+  const before = next[k - 1];
+  if (before !== undefined) return { layout: moved, examples: { column, after: before } };
+  // First in the column: after whatever stands right before its first part in the card's order.
+  const first = next[k + 1];
+  const i = first === undefined ? -1 : moved.findIndex((p) => p.fieldId === first);
+  return { layout: moved, examples: { column, after: i < 0 ? at.after : (moved[i - 1]?.fieldId ?? null) } };
+}
+
+/** The example arrows moved to a column: the same place in the card's order, under whatever stands above it there. */
+export function examplesToColumn(layout: readonly LayoutPart[], fields: readonly ExampleFieldLike[], place: ExamplesPlace | null, column: Column): ExamplesPlace | null {
+  const at = examplesAt(layout, fields, place);
+  return at ? { column, after: at.after } : place;
 }
 
 /**

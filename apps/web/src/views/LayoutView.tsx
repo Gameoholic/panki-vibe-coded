@@ -2,21 +2,28 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CORNER_MARK_IDS,
   CardLayout,
+  EXAMPLES_SLOT,
   NEW_PLACE,
+  columnOrder,
+  examplesAt,
+  examplesToColumn,
   holdsLink,
   holdsWords,
   isTyped,
   mainAnswers,
-  movePart,
+  moveInColumn,
   offered,
-  partsOnIn,
+  sourcesWithExample,
   stagedOrder,
+  valuesWithExample,
   type Card,
   type CardField,
   type CardSide,
   type CardType,
+  type Column,
   type CornerMarkId,
   type Deck,
+  type ExamplesPlace,
   type FlagMark,
   type LayoutPart,
   type ListenFirst,
@@ -28,6 +35,7 @@ import {
 import { api } from "../api";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
+import { ExampleArrows } from "../components/ExampleArrows";
 import { FloatPanel } from "../components/FloatPanel";
 import { Icon } from "../components/Icon";
 import { ReviewCard, listensFirst } from "../components/ReviewCard";
@@ -43,7 +51,7 @@ import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { useUndoable } from "../hooks/useUndoable";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled } from "../keys";
-import { COLUMN_OPTIONS, CORNER_MARK_NAMES, CORNER_OPTIONS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { COLUMN_OPTIONS, CORNER_MARK_NAMES, CORNER_OPTIONS, EXAMPLE_ARROWS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import { buildQueue, kindOf, startLine, togoOf } from "../reviewLine";
 import { rememberShape } from "../skeletonMemory";
 import type { UnsavedGuard } from "../unsaved";
@@ -68,8 +76,10 @@ const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: []
 /** What's picked when it's a corner mark (the stage tag, the AI spark, the flag): no field's id is this. */
 const markPicked = (id: CornerMarkId) => `mark:${id}`;
 
-/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark, the flag), and Listen first. */
-type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; flag: FlagMark; listen: ListenFirst };
+/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark, the flag), the example arrows, and Listen first. */
+type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; flag: FlagMark; examples: ExamplesPlace | null; listen: ListenFirst };
+/** What a Save sends: the layout as it reads, and everything else the tab lays out. */
+export type LaidOut = { layout: CardLayout; tag: StageTag; spark: SparkMark; flag: FlagMark; examples: ExamplesPlace | null; listen: ListenFirst };
 
 type Props = {
   /** The card type as it's saved. */
@@ -77,7 +87,7 @@ type Props = {
   /** Every deck: the ones of this type lend their newest cards to show on it, and their counts to the line over it. */
   decks: readonly Deck[];
   srsTypes: readonly SrsType[];
-  onSave: (layout: CardLayout, tag: StageTag, spark: SparkMark, flag: FlagMark, listen: ListenFirst) => Promise<CardType>;
+  onSave: (laid: LaidOut) => Promise<CardType>;
   onStatus: (status: SaveStatus) => void;
   /** Says whether there's unsaved work here, so leaving the screen can ask first (null when there's none). */
   onGuard: (guard: UnsavedGuard | null) => void;
@@ -94,14 +104,15 @@ type Props = {
  * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle }: Props) {
-  // The fields' parts, the corner marks and Listen first are laid out together, so one Undo steps back through them all.
-  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, flag: t.flag, listen: t.listen });
+  // The fields' parts, the corner marks, the example arrows and Listen first are laid out together, so one Undo steps back through them all.
+  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, flag: t.flag, examples: t.examples, listen: t.listen });
   const history = useUndoable<Laid>(laidOf(type));
   const { undo, redo } = history;
   const draft = history.present.parts;
   const tag = history.present.tag;
   const spark = history.present.spark;
   const flag = history.present.flag;
+  const examples = history.present.examples;
   const listen = history.present.listen;
   const change = (parts: LayoutPart[]) => history.change({ ...history.present, parts });
   const changeTag = (patch: Partial<StageTag>) => history.change({ ...history.present, tag: { ...tag, ...patch } });
@@ -191,7 +202,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     setSaving(true);
     setSaveFailure(null);
     try {
-      const result = await onSave(parsed.data, tag, spark, flag, listen);
+      const result = await onSave({ layout: parsed.data, tag, spark, flag, examples, listen });
       setSaved(laidOf(result));
       // What the API keeps is the layout filled out against the fields; it takes the draft's place without a step.
       history.amend(() => laidOf(result));
@@ -206,18 +217,24 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   saveRef.current = save;
 
   const update = (fieldId: string, patch: Partial<Omit<LayoutPart, "fieldId">>) => change(draft.map((p) => (p.fieldId === fieldId ? { ...p, ...patch } : p)));
-  // Moved on the card, among the parts on the side shown in the same column: one order for both sides. Which column a
-  // part stands in is its own setting (Column), never a drag's.
-  const inMain = partsOnIn(draft, side, "main");
-  const inSide = partsOnIn(draft, side, "side");
-  const moveWithin = (parts: readonly LayoutPart[]) => (from: number, to: number) => {
-    const [a, b] = [parts[from], parts[to]];
-    if (a && b) change(movePart(draft, a.fieldId, b.fieldId));
+  // Moved on the card, among the parts on the side shown in the same column and the example arrows where they stand
+  // there: one order for both sides. Which column a part or the arrows stand in is its own setting (Column), never a drag's.
+  const itemsIn = (column: Column) => columnOrder(draft, type.fields, side, column, examples);
+  const moveWithin = (column: Column) => (from: number, to: number) => {
+    const moved = moveInColumn(draft, type.fields, side, column, examples, from, to);
+    history.change({ ...history.present, parts: moved.layout, examples: moved.examples });
   };
-  const mainOrder = useDragOrder(inMain.length, moveWithin(inMain));
-  const sideOrder = useDragOrder(inSide.length, moveWithin(inSide));
+  const mainOrder = useDragOrder(itemsIn("main").length, moveWithin("main"));
+  const sideOrder = useDragOrder(itemsIn("side").length, moveWithin("side"));
 
   const sample = samples.find((s) => s.card.id === sampleId) ?? null;
+  /** The previewed card's examples, its own first, and which is shown: switched by the example arrows as in a review. */
+  const exampleIds: (string | null)[] = [null, ...(sample?.card.examples.map((e) => e.id) ?? [])];
+  const [browsed, setBrowsed] = useState(0);
+  useEffect(() => setBrowsed(0), [sampleId]);
+  const exampleId = exampleIds[browsed % exampleIds.length] ?? null;
+  /** Where the example arrows stand as laid out now; none for a type with no field that's One per example. */
+  const examplesHere = examplesAt(draft, type.fields, examples);
   /** Where the card opens in a review, as laid out now: its Listen phase when there's something on it to hear, else its front. */
   const opening: Face = sample && listensFirst(type, sample.card.values, sample.card.files, listen, draft) ? "listen" : "front";
   /** The card on to its next: out of its Listen phase, or turned to its back. */
@@ -344,6 +361,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
 
   /** The corner mark picked, if it's one: the stage tag, the AI spark or the flag. */
   const pickedMark = CORNER_MARK_IDS.find((id) => picked === markPicked(id)) ?? null;
+  /** The example arrows picked, while the type has them. */
+  const examplesPicked = picked === EXAMPLES_SLOT && examplesHere !== null;
   const part = pickedMark ? undefined : draft.find((p) => p.fieldId === picked);
   const marks: Record<CornerMarkId, SparkMark> = { tag, spark, flag };
   const field = part ? fields.get(part.fieldId) : undefined;
@@ -582,6 +601,25 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             control={<Dropdown id={`${pickedMark}-corner-choice`} label="Corner" anchored options={CORNER_OPTIONS} value={marks[pickedMark].corner} onChange={(corner) => changeMark(pickedMark, { corner })} />}
           />
         </section>
+      ) : examplesPicked && examplesHere ? (
+        // The example arrows aren't a field: where they stand in their column is dragged on the card, their column picked
+        // here; they show where the example does.
+        <section className="panel layout-panel" aria-labelledby="layout-part-title">
+          {pickedHead(EXAMPLE_ARROWS)}
+          <Setting
+            id="examples-column"
+            label="Column"
+            control={
+              <Segmented
+                idPrefix="examples-column"
+                label="Column"
+                options={COLUMN_OPTIONS}
+                value={examplesHere.column}
+                onChange={(column) => history.change({ ...history.present, examples: examplesToColumn(draft, type.fields, examples, column) })}
+              />
+            }
+          />
+        </section>
       ) : part && field ? (
         <section className="panel layout-panel" aria-labelledby="layout-part-title">
           {pickedHead(field.name, FIELD_KINDS[field.kind].name)}
@@ -647,9 +685,9 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           key={sampleId}
           type={type}
           layout={draft}
-          values={sample?.card.values ?? {}}
-          // What Panki AI wrote on the card previewed, marked as a review marks it: its own example's values are these.
-          sources={sample?.card.sources ?? {}}
+          values={sample ? valuesWithExample(type, sample.card, exampleId) : {}}
+          // What Panki AI wrote on the card previewed, marked as a review marks it, for the example shown.
+          sources={sample ? sourcesWithExample(type, sample.card, exampleId) : {}}
           files={sample?.card.files}
           cues={sample?.card.cues}
           srsType={ladder}
@@ -667,6 +705,19 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           tag={tag}
           spark={spark}
           flag={flag}
+          examples={examples}
+          // The arrows wherever the type has them, so they can be placed whatever the card previewed holds.
+          examplePager={
+            examplesHere ? (
+              <ExampleArrows
+                at={browsed % exampleIds.length}
+                count={exampleIds.length}
+                prev={binds.examplePrev}
+                next={binds.exampleNext}
+                onStep={(by) => setBrowsed((at) => (at + by + exampleIds.length) % exampleIds.length)}
+              />
+            ) : null
+          }
           flagged={(sample?.card.flaggedAt ?? null) !== null}
           autoplay
           shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
@@ -680,6 +731,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
             order: { main: mainOrder, side: sideOrder },
             markPicked: pickedMark,
             onPickMark: (id) => setPicked(markPicked(id)),
+            examplesPicked,
+            onPickExamples: () => setPicked(EXAMPLES_SLOT),
             onMoveMark: (id, corner) => changeMark(id, { corner }),
           }}
         />

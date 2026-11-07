@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
+import { ExampleArrows } from "../components/ExampleArrows";
 import { FlowCanvas } from "../components/FlowCanvas";
 import { Icon } from "../components/Icon";
 import { KeyCap, holdFor } from "../components/KeyCap";
@@ -998,19 +999,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, begin, o
           keys={false}
           examplePager={
             exampleIds.length > 1 ? (
-              <>
-                <Button className="btn-icon review-example-step" data-hold="example-prev" aria-label="Previous example" onClick={() => stepExample(-1)}>
-                  <Icon name="back" />
-                  <KeyCap bind={binds.examplePrev} />
-                </Button>
-                <span className="review-examples-at">
-                  {Math.max(0, exampleIds.indexOf(onScreen)) + 1} / {exampleIds.length}
-                </span>
-                <Button className="btn-icon review-example-step" data-hold="example-next" aria-label="Next example" onClick={() => stepExample(1)}>
-                  <KeyCap bind={binds.exampleNext} />
-                  <Icon name="forward" />
-                </Button>
-              </>
+              <ExampleArrows at={Math.max(0, exampleIds.indexOf(onScreen))} count={exampleIds.length} prev={binds.examplePrev} next={binds.exampleNext} onStep={stepExample} />
             ) : null
           }
         />

@@ -65,6 +65,8 @@ export const CORNER_OPTIONS: readonly { id: TagCorner; label: string }[] = [
 ];
 /** The corner marks by name, as the Layout tab's panel heads them. */
 export const CORNER_MARK_NAMES: Record<CornerMarkId, string> = { tag: "Stage tag", spark: "AI spark", flag: "Flag" };
+/** The arrows that switch between a card's examples (‹ 1 / 3 ›), by name, as the Layout tab's panel heads them. */
+export const EXAMPLE_ARROWS = "Example arrows";
 
 export const LOOK_OPTIONS: readonly { id: MediaLook; label: string }[] = [
   { id: "player", label: "Player" },

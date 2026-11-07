@@ -164,6 +164,19 @@ export type FlagMark = SparkMark;
 export const DEFAULT_FLAG_MARK: FlagMark = { shown: true, corner: "top-right" };
 
 /**
+ * Where a card's example arrows stand (‹ 1 / 3 ›, switching between its examples), laid out apart from the fields as the
+ * corner marks are, since they're none of them: in a column, right after a part in the card's order (`after`, its
+ * field's id; null, before every part). In the column they stand after the last of its parts that comes no later than
+ * that one in the card's order, and after the whole row it's in (`cardLayout.ts` → `examplesIndex`), so a part moved or
+ * set apart never leaves them nowhere. On the front only while an example's part shows there (a field that's One per
+ * example), held for the back otherwise; always on the back. Only a type with such a field has them.
+ */
+export const ExamplesPlace = z.object({ column: Column, after: z.uuid().nullable() });
+export type ExamplesPlace = z.infer<typeof ExamplesPlace>;
+/** What's moved among in a column in place of a part's field id, for the example arrows: never a field's id, which is a uuid. */
+export const EXAMPLES_SLOT = "examples";
+
+/**
  * Listen first, since a word known by its spelling and its video isn't yet known by ear, and understanding by hearing
  * matters more: a type's cards open in a review on a Listen phase before the
  * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Done listening, or the

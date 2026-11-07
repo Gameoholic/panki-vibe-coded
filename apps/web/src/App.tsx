@@ -14,12 +14,7 @@ import {
   type Card,
   type CardAnswer,
   type CardExampleUpdate,
-  type CardLayout,
-  type ListenFirst,
-  type SparkMark,
-  type FlagMark,
   type CardFlagUpdate,
-  type StageTag,
   type CardType,
   type CardUpdate,
   type Deck,
@@ -58,7 +53,7 @@ import { CardsView } from "./views/CardsView";
 import { DeckSettingsView } from "./views/DeckSettingsView";
 import { DecksView } from "./views/DecksView";
 import { HomeView, type HomeTool } from "./views/HomeView";
-import { LayoutView } from "./views/LayoutView";
+import { LayoutView, type LaidOut } from "./views/LayoutView";
 import { LoginView } from "./views/LoginView";
 import { ReviewPickView } from "./views/ReviewPickView";
 import { ReviewView, type ReviewBegin } from "./views/ReviewView";
@@ -610,9 +605,9 @@ export function App() {
     return saved;
   }, []);
 
-  /** A card type's layout, corner marks and Listen first, saved: the fields go along as they are, so only the layout (and the sides it gives them), the stage tag, the AI spark, the flag and Listen first change. */
-  const saveLayout = useCallback(async (type: CardType, layout: CardLayout, tag: StageTag, spark: SparkMark, flag: FlagMark, listen: ListenFirst) => {
-    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, layout, tag, spark, flag, listen });
+  /** A card type's layout, corner marks, example arrows and Listen first, saved: the fields go along as they are, so only the layout (and the sides it gives them), the stage tag, the AI spark, the flag, the example arrows and Listen first change. */
+  const saveLayout = useCallback(async (type: CardType, laid: LaidOut) => {
+    const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, ...laid });
     setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
     setScreen((s) => (s.kind === "type" && s.type?.id === saved.id ? { ...s, type: saved } : s));
     return saved;
@@ -1196,7 +1191,7 @@ export function App() {
                   type={type}
                   decks={decks}
                   srsTypes={srsTypes}
-                  onSave={(layout, tag, spark, flag, listen) => saveLayout(type, layout, tag, spark, flag, listen)}
+                  onSave={(laid) => saveLayout(type, laid)}
                   onStatus={setEditStatus}
                   onGuard={setGuard}
                   subtitleStyle={settings.subtitleStyle}

@@ -2,10 +2,15 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import {
   CORNER_MARK_IDS,
   DEFAULT_SUBTITLE_STYLE,
+  EXAMPLES_SLOT,
   MediaId,
   TagCorner,
   aiOwns,
   byAi,
+  columnOrder,
+  examplesAt,
+  examplesIndex,
+  examplesOn,
   holdsFile,
   holdsLink,
   holdsPitch,
@@ -21,6 +26,7 @@ import {
   type CardType,
   type Column,
   type CornerMarkId,
+  type ExamplesPlace,
   type FlagMark,
   type LayoutPart,
   type ListenFirst,
@@ -37,7 +43,7 @@ import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
 import type { Heard, Shortcut } from "../keys";
-import { CORNER_MARK_NAMES } from "../layoutKinds";
+import { CORNER_MARK_NAMES, EXAMPLE_ARROWS } from "../layoutKinds";
 import { langOf } from "../words";
 import { Button } from "./Button";
 import { FlagTag } from "./FlagTag";
@@ -58,8 +64,11 @@ import { ScrollEdges } from "./ScrollEdges";
 export type CardEdit = {
   picked: string | null;
   onPick: (fieldId: string) => void;
-  /** Moving the parts on the side that's showing, in each column, by their place among that side's parts in it (`partsOnIn`). */
+  /** Moving the parts on the side that's showing, in each column, by their place among that side's items in it (`columnOrder`: its parts, and the example arrows where they stand). */
   order: Readonly<Record<Column, ReturnType<typeof useDragOrder>>>;
+  /** The example arrows: whether they're picked, and picking them. */
+  examplesPicked: boolean;
+  onPickExamples: () => void;
   /** The corner marks (the stage tag, the AI spark): which is picked, picking one, and moving one to a corner (dragged there, or by the arrow keys on it). */
   markPicked: CornerMarkId | null;
   onPickMark: (id: CornerMarkId) => void;
@@ -240,11 +249,13 @@ type Props = {
    */
   hint?: boolean;
   /**
-   * What switches between the card's examples (the review's arrows): drawn right after the last part of the
-   * example the front shows (a field that's One per example), or its last part at all, so it stands under the example
-   * whatever the layout; at the card's end when none is drawn. None by default.
+   * What switches between the card's examples (the review's arrows), drawn where the type lays them out (`examples`,
+   * `cardLayout.ts` → `examplesAt`: right after the example to begin with), held for the back while no part of the
+   * example shows on the front. None by default; a type with no field that's One per example draws none.
    */
   examplePager?: ReactNode;
+  /** Where the example arrows stand in place of the type's own: one being laid out. */
+  examples?: ExamplesPlace | null;
   /**
    * Where each value came from (`Card.sources`): a value Panki AI wrote is drawn in the AI's ink, its name (when the
    * layout shows it) carries the spark, and the spark stands once in the card's corner. None by default.
@@ -327,6 +338,7 @@ export function ReviewCard({
   hint = true,
   keys = true,
   examplePager = null,
+  examples = type.examples,
   sources,
 }: Props) {
   const side: CardSide = revealed ? "back" : "front";
@@ -782,9 +794,9 @@ export function ReviewCard({
       );
     }
     if (edit) {
-      // Moved among the parts of its own column: which column it stands in is its own setting, never a drag's.
+      // Moved among the items of its own column: which column it stands in is its own setting, never a drag's.
       const order = edit.order[part.column];
-      const i = partsOnIn(layout, side, part.column).findIndex((p) => p.fieldId === field.id);
+      const i = itemsIn(part.column).indexOf(field.id);
       return (
         <div
           key={field.id}
@@ -863,22 +875,63 @@ export function ReviewCard({
     }
     return rows;
   };
-  const sideRows = rowsIn("side");
-  const mainRows = rowsIn("main");
   // Where the two columns stand as one (anywhere but a review split in two, app.css), every block takes its place in
   // the card's order by its first part, so the card reads as it would with one column: before anything else on the
-  // card, hence below 0.
-  const placeOf = new Map(layout.map((p, i) => [p.fieldId, i - layout.length]));
-  const placed = (row: Drawn[]): CSSProperties => ({ order: placeOf.get(row[0]?.field.id ?? "") ?? 0 });
-  // The examples' switch goes under the example: after the last row holding a part of it the front shows, else its
-  // last, in the card's order, in that row's column.
+  // card, hence below 0. Every other number, so the example arrows take the one right after the row they follow.
+  const placeOf = new Map(layout.map((p, i) => [p.fieldId, 2 * (i - layout.length)]));
+  const orderOf = (row: Drawn[]) => placeOf.get(row[0]?.field.id ?? "") ?? 0;
+  const placed = (row: Drawn[]): CSSProperties => ({ order: orderOf(row) });
   const backOnly = (row: Drawn[]) => row.every((d) => d.part.front === "hide");
-  const inOrder = [...sideRows, ...mainRows].sort((a, b) => (placeOf.get(a[0]?.field.id ?? "") ?? 0) - (placeOf.get(b[0]?.field.id ?? "") ?? 0));
-  const exampleRows = examplePager === null ? [] : inOrder.filter((row) => row.some((d) => d.field.perExample));
-  const pagerAfter = exampleRows.filter((row) => !backOnly(row)).at(-1) ?? exampleRows.at(-1) ?? null;
-  let pagerPlaced = false;
-  /** A column's blocks: its rows, and its runs of the back's rows each in one block. */
-  const blocksOf = (rows: Drawn[][]): ReactNode[] => {
+  /** Where the example arrows stand, as the type lays them out; none without arrows to draw. */
+  const examplesPlace = examplePager === null ? null : examplesAt(layout, type.fields, examples);
+  /** The arrows stand with the back's parts while no part of the example shows on the front: held there unseen, as they are. */
+  const examplesBack = !examplesOn(layout, type.fields, "front");
+  /** What's moved among in a column on the side shown: its parts, and the arrows where they stand while they show (as the Layout tab lists them). */
+  const itemsIn = (column: Column): string[] =>
+    examplePager === null ? partsOnIn(layout, side, column).map((p) => p.fieldId) : columnOrder(layout, type.fields, side, column, examples);
+  /** A column's rows, with the example arrows where they stand among them, and the place in the card's order they take there. */
+  const entriesIn = (column: Column): { entries: (Drawn[] | typeof EXAMPLES_SLOT)[]; examplesOrder: number } => {
+    const rows = rowsIn(column);
+    if (!examplesPlace || examplesPlace.column !== column) return { entries: rows, examplesOrder: 0 };
+    const k = examplesIndex(layout, rows.map((row) => row[0]?.field.id ?? ""), examplesPlace);
+    const before = rows[k - 1];
+    const after = rows[k];
+    const at = examplesPlace.after === null ? -1 : layout.findIndex((p) => p.fieldId === examplesPlace.after);
+    const examplesOrder = before ? orderOf(before) + 1 : after ? orderOf(after) - 1 : 2 * (at - layout.length) + 1;
+    return { entries: [...rows.slice(0, k), EXAMPLES_SLOT, ...rows.slice(k)], examplesOrder };
+  };
+  /** The example arrows as a block of the card; on the card being laid out, something to pick and move in its column while they show on the side shown. */
+  function examplesView(column: Column, place: CSSProperties | undefined): ReactNode {
+    const held = side === "front" && examplesBack;
+    if (!edit || held) {
+      return (
+        <div key="examples" className="review-examples" style={place}>
+          {examplePager}
+        </div>
+      );
+    }
+    const order = edit.order[column];
+    const i = itemsIn(column).indexOf(EXAMPLES_SLOT);
+    return (
+      <div
+        key="examples"
+        ref={order.rowRef(i)}
+        style={{ ...place, ...order.rowStyle(i) }}
+        className={`review-part is-editable ${edit.examplesPicked ? "is-picked" : ""} ${order.dragging === i ? "is-dragging" : ""}`.replace(/\s+/g, " ").trim()}
+        onClickCapture={edit.onPickExamples}
+      >
+        <Button className="btn-icon review-grip" aria-label={`Move ${EXAMPLE_ARROWS}`} {...order.handleProps(i)}>
+          <Icon name="grip" />
+        </Button>
+        <div className="review-part-face">
+          <div className="review-examples">{examplePager}</div>
+        </div>
+      </div>
+    );
+  }
+  /** A column's blocks: its rows and the example arrows, and its runs of the back's each in one block. */
+  const blocksOf = (column: Column): ReactNode[] => {
+    const { entries, examplesOrder } = entriesIn(column);
     const blocks: ReactNode[] = [];
     let later: ReactNode[] = [];
     let laterAt: CSSProperties = {};
@@ -891,7 +944,14 @@ export function ReviewCard({
       );
       later = [];
     };
-    for (const row of rows) {
+    for (const row of entries) {
+      if (row === EXAMPLES_SLOT) {
+        const place = { order: examplesOrder };
+        if (examplesBack && later.length === 0) laterAt = place;
+        const into = examplesBack ? later : (flush(), blocks);
+        into.push(examplesView(column, examplesBack ? undefined : place));
+        continue;
+      }
       const back = backOnly(row);
       // A row of the back's stands where its run does. Any other is placed itself, and each part in it alike (one may be
       // all that's drawn of it), which leaves them in their order in the row.
@@ -910,27 +970,12 @@ export function ReviewCard({
       if (back && later.length === 0) laterAt = placed(row);
       const into = back ? later : (flush(), blocks);
       into.push(view);
-      if (row === pagerAfter && examplePager !== null) {
-        into.push(
-          <div key="examples" className="review-examples" style={back ? undefined : place}>
-            {examplePager}
-          </div>,
-        );
-        pagerPlaced = true;
-      }
     }
     flush();
     return blocks;
   };
-  const sideBlocks = blocksOf(sideRows);
-  const mainBlocks = blocksOf(mainRows);
-  if (examplePager !== null && !pagerPlaced) {
-    mainBlocks.push(
-      <div key="examples" className="review-examples">
-        {examplePager}
-      </div>,
-    );
-  }
+  const sideBlocks = blocksOf("side");
+  const mainBlocks = blocksOf("main");
 
   // The card is pressed like a button, so it answers to a button's keys; a key on something inside it is that thing's.
   // Where the page's own keys turn it (`keys` off: the review), it's pressed with a pointer alone and never takes the

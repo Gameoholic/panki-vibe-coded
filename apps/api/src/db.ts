@@ -48,7 +48,9 @@ import {
   stageTagOf,
   sparkMarkOf,
   flagMarkOf,
+  examplesPlaceOf,
   DEFAULT_STAGE_TAG,
+  type ExamplesPlace,
   type FlagMark,
   type SparkMark,
   type StageTag,
@@ -1094,8 +1096,8 @@ function canonical(value: unknown): unknown {
 
 /** A card type as its change log keeps it: everything that can be edited, the fields in order with their layout, and its stage tag. */
 function typeSnapshot(type: CardType): string {
-  const { name, fields, layout, tag, listen, mainField } = type;
-  return JSON.stringify(canonical({ name, fields, layout, tag, listen, mainField }));
+  const { name, fields, layout, tag, spark, flag, examples, listen, mainField } = type;
+  return JSON.stringify(canonical({ name, fields, layout, tag, spark, flag, examples, listen, mainField }));
 }
 
 /** The type as its change log keeps it: everything that can be edited, stages and answers in order. */
@@ -1510,14 +1512,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const fields = stored.map((f) => ({ ...f, side: sides.get(f.id) ?? f.side }));
     // The main field while it's one of the fields there are (a field hidden since reads as none picked).
     const mainField = keptMain !== null && fields.some((f) => f.id === keptMain) ? keptMain : null;
-    // The card's corner marks are kept in one JSON: the stage tag, the AI spark beside it as `spark`, the flag as `flag`.
+    // What the card carries apart from its fields is kept in one JSON: the stage tag, the AI spark beside it as `spark`,
+    // the flag as `flag`, the example arrows as `examples`.
     const marks = keptTag(stageTag);
     const tag = stageTagOf(marks);
     const spark = sparkMarkOf(marks, tag);
-    return CardType.parse({ ...base, fields, layout, tag, spark, flag: flagMarkOf(marks, spark), listen: listenFirstOf(keptTag(listen)), mainField });
+    return CardType.parse({ ...base, fields, layout, tag, spark, flag: flagMarkOf(marks, spark), examples: examplesPlaceOf(marks, fields), listen: listenFirstOf(keptTag(listen)), mainField });
   }
-  /** The corner marks as they're kept: the stage tag, with the AI spark and the flag beside it. */
-  const marksJson = (tag: StageTag, spark: SparkMark, flag: FlagMark) => JSON.stringify({ ...tag, spark, flag });
+  /** What the card carries apart from its fields, as it's kept: the stage tag, with the AI spark, the flag and the example arrows beside it. */
+  const marksJson = (tag: StageTag, spark: SparkMark, flag: FlagMark, examples: ExamplesPlace | null) => JSON.stringify({ ...tag, spark, flag, examples });
   /** The field a card of a type is told by in words (the contracts' `wordsFieldOf`); none when it has no such field. */
   function wordFieldOf(typeId: string | null | undefined): string | null {
     const row = typeId ? selectAnyType.get(typeId) : undefined;
@@ -1847,10 +1850,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
           type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
-          if (type.tag || type.spark || type.flag) {
+          if (type.tag || type.spark || type.flag || type.examples) {
             const tag = type.tag ?? DEFAULT_STAGE_TAG;
             const spark = type.spark ?? sparkMarkOf(null, tag);
-            updateTypeTag.run(marksJson(tag, spark, type.flag ?? flagMarkOf(null, spark)), type.id);
+            updateTypeTag.run(marksJson(tag, spark, type.flag ?? flagMarkOf(null, spark), type.examples ?? null), type.id);
           }
           if (type.listen) updateTypeListen.run(JSON.stringify(type.listen), type.id);
           if (type.mainField) updateTypeMainField.run(type.mainField, type.id);
@@ -1884,11 +1887,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             insertLayoutChange.run(id, was, is, now);
           }
         }
-        // The stage tag, the AI spark and the flag when they're sent, kept together; what they were is in the whole type's log below.
+        // The stage tag, the AI spark, the flag and the example arrows when they're sent, kept together; what they were is in the whole type's log below.
         const tag = update.tag ?? before.tag;
         const spark = update.spark ?? before.spark;
         const flag = update.flag ?? before.flag;
-        if (JSON.stringify([tag, spark, flag]) !== JSON.stringify([before.tag, before.spark, before.flag])) updateTypeTag.run(marksJson(tag, spark, flag), id);
+        const examples = update.examples === undefined ? before.examples : update.examples;
+        if (JSON.stringify([tag, spark, flag, examples]) !== JSON.stringify([before.tag, before.spark, before.flag, before.examples])) updateTypeTag.run(marksJson(tag, spark, flag, examples), id);
         // Listen first when it's sent; what it was is in the whole type's log below.
         if (update.listen && JSON.stringify(update.listen) !== JSON.stringify(before.listen)) updateTypeListen.run(JSON.stringify(update.listen), id);
         // The main field when it's sent (null is none picked); what it was is in the whole type's log below.
