@@ -27,6 +27,8 @@ if (typeof window !== "undefined") {
 
 /** How far past a box that clips it a word may stand and still count as shown whole, px: a rounding, never a sliver. */
 const CUT_SLACK = 1;
+/** The overflow values of a box that scrolls. */
+const SCROLLS = new Set(["auto", "scroll"]);
 
 /**
  * Whether a word stands whole inside every box that clips it (the list beside the video, the column it scrolls in):
@@ -37,8 +39,16 @@ export function shownWhole(word: Element): boolean {
   const box = word.getBoundingClientRect();
   if (box.width === 0 && box.height === 0) return false;
   for (let el: Element | null = parentOf(word); el; el = parentOf(el)) {
+    // The page's own scroller is the window: its box runs with the page's scroll, so it's judged against the viewport.
+    if (el === document.documentElement || el === document.body) {
+      if (box.right < -CUT_SLACK || box.bottom < -CUT_SLACK || box.left > window.innerWidth + CUT_SLACK || box.top > window.innerHeight + CUT_SLACK) return false;
+      continue;
+    }
+    // Only a box that scrolls cuts a word at its edge; one that merely hides its overflow (the site's own frames,
+    // wrappers of no size of their own) is left alone, since what it hides isn't drawn at all.
     const { overflowX, overflowY } = getComputedStyle(el);
-    if (overflowX === "visible" && overflowY === "visible") continue;
+    if (!SCROLLS.has(overflowX) && !SCROLLS.has(overflowY)) continue;
+    if (el.clientWidth === 0 || el.clientHeight === 0) continue;
     const outer = el.getBoundingClientRect();
     const left = outer.left + el.clientLeft;
     const top = outer.top + el.clientTop;
