@@ -2863,7 +2863,6 @@ function App() {
             <div className="strip-tools">
               {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the
                   screen's corner brings it back): an icon button like the menu's, its words and the key in its tip, so the key is learnt where it's used. */}
-              {stageNowHere ? <HidePanelButton bind={{ key: panelKeyNow, holdMs: 0 }} onHide={togglePanel} /> : null}
               {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
               {/* Panki altogether, on or off, here while it isn't the header bar pill's. */}
@@ -2876,6 +2875,9 @@ function App() {
                 view={{ value: viewPicked, onChange: setPanelView }}
                 style={overVideo ? { value: tx.prefs.style, onChange: setStyle, onStyling: setStyling } : null}
               />
+              {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the screen's
+                  corner brings it back): a chevron at the head's very end pointing the way it folds, its words and key in a tip. */}
+              {stageNowHere ? <HidePanelButton bind={{ key: panelKeyNow, holdMs: 0 }} onHide={togglePanel} /> : null}
             </div>
           </div>
           {/* The strip opened as the editor stands in the rows' place, the lines around the moment each its own text; beside the video, every line. */}

@@ -2518,32 +2518,37 @@
 .btn-switch.strip-switch[aria-checked="true"] .switch-knob {
   transform: translateX(12px);
 }
-/* Hide panel, in full screen (ui/PanelButton.tsx → HidePanelButton): an icon button like the menu's ≡ beside it, its words and
-   its key in a tip hanging under it, ending flush with its right edge so the column never cuts it; the key drawn as a
-   keycap of the tip's own size. */
+/* Hide panel, in full screen (ui/PanelButton.tsx → HidePanelButton): a quiet chevron at the very end of the head's tools,
+   pointing the way the panel folds, muted until pointed at; its words and key in a tip hanging under it, ending flush
+   with its right edge so the column never cuts it, in the player's dark glass (the theme's light bubble read as a
+   white block over a dark video). */
 .strip-hide {
   position: relative;
   display: inline-flex;
 }
+.btn.capture-tool.strip-hide-button {
+  border-color: transparent;
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .btn.capture-tool.strip-hide-button:hover {
+    color: var(--fg);
+    background: var(--surface-2);
+  }
+}
 .strip-hide .tip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   transform: translateX(-100%);
   white-space: nowrap;
+  background: color-mix(in srgb, var(--theater) 88%, transparent);
+  color: var(--theater-ink);
+  font-weight: 600;
 }
-.strip-hide .tip .key {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border: 1px solid currentColor;
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
+.strip-hide .tip .strip-hide-key {
+  font-weight: 500;
+  opacity: 0.7;
 }
 .capture-tool .icon {
   width: 14px;
