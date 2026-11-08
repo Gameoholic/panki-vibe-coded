@@ -643,9 +643,7 @@
   box-shadow: 0 0 0 2px var(--theater-ink);
 }
 .yt-corner .tip {
-  left: auto;
-  right: 0;
-  transform: none;
+  transform: translateX(-100%);
   background: color-mix(in srgb, var(--theater) 82%, transparent);
   color: var(--theater-ink);
   white-space: nowrap;
@@ -2520,10 +2518,32 @@
 .btn-switch.strip-switch[aria-checked="true"] .switch-knob {
   transform: translateX(12px);
 }
-/* Hide panel, in full screen, with its key as a keycap after its words, the keycap sized to the tool's type. */
-.btn.capture-tool.strip-hide .key {
-  margin-left: 2px;
-  font-size: 11px;
+/* Hide panel, in full screen (ui/PanelButton.tsx → HidePanelButton): an icon button like the menu's ≡ beside it, its words and
+   its key in a tip hanging under it, ending flush with its right edge so the column never cuts it; the key drawn as a
+   keycap of the tip's own size. */
+.strip-hide {
+  position: relative;
+  display: inline-flex;
+}
+.strip-hide .tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transform: translateX(-100%);
+  white-space: nowrap;
+}
+.strip-hide .tip .key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
 }
 .capture-tool .icon {
   width: 14px;

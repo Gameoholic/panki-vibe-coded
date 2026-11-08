@@ -362,6 +362,12 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         control={<KeyField id="panel-key-choice" label="Toggle panel keybind" value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
         why="Shows or hides the Panki panel in full screen."
       />
+      {/* The button in the screen's top-right corner that brings the folded panel back (`ui/PanelButton.tsx`); the key works whatever this says. */}
+      <Setting
+        id="panel-button"
+        label="Panel button over the video"
+        control={<Toggle id="panel-button-on" says={{ on: "Shown", off: "Hidden" }} on={store.panelButton} disabled={off} onChange={(panelButton) => void writeStore({ panelButton }).then(onChanged)} />}
+      />
       <Setting
         id="transcribe-over-video"
         label="Replace YouTube subtitles"

@@ -21,7 +21,6 @@ import { clock } from "@web/words";
 import { isModifier, keyOf, pressed, sameKey } from "@web/keys";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { KeyCap } from "@web/components/KeyCap";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
 import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
@@ -48,7 +47,7 @@ import { Line, shownWhole, type LineLook } from "../ui/Line";
 import { inPanki, makePlace, mount, type Place } from "../ui/mount";
 import { Column } from "../ui/Column";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
-import { PanelButton } from "../ui/PanelButton";
+import { HidePanelButton, PanelButton } from "../ui/PanelButton";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
 import type { PieceLimits } from "../ui/Explain";
@@ -980,7 +979,7 @@ function place() {
   // fills the screen (only what fills it is drawn), fixed over everything of the site's, left of the site's own buttons
   // at that corner when it draws any there; shown and hidden with the player's controls (`CORNER_CSS`), or kept
   // shown with the bar as the player bar's switch says.
-  const cornering = folded ? fullPanki : null;
+  const cornering = folded && on.panelButton ? fullPanki : null;
   if (!cornering) corner.host.remove();
   else {
     if (!cornerStyle) {
@@ -2863,14 +2862,8 @@ function App() {
             ) : null}
             <div className="strip-tools">
               {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the
-                  video's corner brings it back): the button carries the key as its keycap, so the key is learnt where it's used. */}
-              {stageNowHere ? (
-                <Button className="capture-tool strip-hide" onClick={togglePanel}>
-                  <Icon name="panelBeside" />
-                  Hide panel
-                  <KeyCap bind={{ key: panelKeyNow, holdMs: 0 }} />
-                </Button>
-              ) : null}
+                  screen's corner brings it back): an icon button like the menu's, its words and the key in its tip, so the key is learnt where it's used. */}
+              {stageNowHere ? <HidePanelButton bind={{ key: panelKeyNow, holdMs: 0 }} onHide={togglePanel} /> : null}
               {/* A newer build of the extension on Panki: said first among the tools (`ui/UpdateNotice.tsx`). */}
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
               {/* Panki altogether, on or off, here while it isn't the header bar pill's. */}

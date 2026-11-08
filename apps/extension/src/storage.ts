@@ -142,6 +142,8 @@ const Stored = z.object({
   panelKey: PanelKey.catch(DEFAULT_MODULES.panelKey),
   /** In the site's full screen, whether the panel stands or is folded away, as its key or its handle last left it; hidden to begin with. */
   fullPanel: z.boolean().catch(DEFAULT_MODULES.fullPanel),
+  /** In the site's full screen, whether the button in the screen's corner that brings the folded panel back is shown (options page, YouTube → Panki panel). */
+  panelButton: z.boolean().catch(DEFAULT_MODULES.panelButton),
   // A browser that kept `stageFull` and `stageKey` (whether Panki's own Theatre mode took the browser's full screen,
   // and whether F opened it), `stageSide` (which side of the full screen the panel stood at) or `besideRecs` (whether
   // the panel beside the video took the recommendations' place) keeps them unread: the panel stands at the right in
@@ -235,6 +237,7 @@ export const modulesOf = (store: Stored): Modules => ({
   panelView: store.panelView,
   panelKey: store.panelKey,
   fullPanel: store.fullPanel,
+  panelButton: store.panelButton,
   lookup: store.moduleLookup,
   seek: store.moduleSeek,
   resume: store.resumeHow,

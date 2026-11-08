@@ -238,6 +238,8 @@ export const Modules = z.object({
    * Hidden to begin with.
    */
   fullPanel: z.boolean(),
+  /** In the site's full screen, whether the button that brings the folded panel back stands in the screen's top-right corner (`ui/PanelButton.tsx`); shown to begin with. */
+  panelButton: z.boolean(),
   /** Looking a word up by pointing at it, on every site. */
   lookup: z.boolean(),
   /** Panki's marks on a video's seek bar, all of them (each mark's own Shown / Hidden is under Seek bar). */
@@ -298,6 +300,7 @@ export const DEFAULT_MODULES: Modules = {
   panelView: "beside",
   panelKey: "p",
   fullPanel: false,
+  panelButton: true,
   lookup: true,
   seek: true,
   resume: "offer",
