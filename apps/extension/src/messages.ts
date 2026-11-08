@@ -58,7 +58,7 @@ import {
   VideoGlance,
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
-import { LookKey, LookWhere } from "./lookSettings";
+import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { Modules, PanelView } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
@@ -136,7 +136,7 @@ export const Local = z.object({
    * as kept. Whether it works on a page, and the layout filled out against the dictionaries, are `lookState`'s, asked
    * again whenever these change.
    */
-  look: z.object({ key: LookKey, subtitleKey: LookKey, where: LookWhere, sites: z.array(z.string()), layout: PopupLayout.nullable() }),
+  look: z.object({ key: LookKey, subtitleKey: LookKey, delay: HoverDelay, subtitleDelay: HoverDelay, where: LookWhere, sites: z.array(z.string()), layout: PopupLayout.nullable() }),
   /** This browser's Video tracking (`watch/tracking.ts`); off until it's settled. */
   tracking: z.boolean(),
   /** The drawer's own: what fills each deck's fields, which decks are switched on to be added to, the deck it opens on. */

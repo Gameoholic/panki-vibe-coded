@@ -198,6 +198,8 @@ function holdKey(t: Tools, key: LookKey): string | null {
   t.hold(name);
   return name;
 }
+/** How long the pointer stands on a word before its pop-up opens: a moment, and On hover's Hover delay as this browser has it. */
+const restOn = (store: Stored) => 200 + (store.lookKey === "hover" ? store.lookDelayMs : 0);
 /** The pop-up kept open as this browser keeps it: the key let go on the word, or, opened by hover, Shift pressed. */
 async function keepOpen(t: Tools, held: string | null) {
   if (held) {
@@ -219,7 +221,7 @@ function PopupScene({ store }: { store: Stored }) {
     await t.move([34, 44], 400);
     await t.move(p.el("kissa"));
     const key = holdKey(t, store.lookKey);
-    await t.wait(200);
+    await t.wait(restOn(store));
     await p.point(t, "kissa");
     await t.wait(1300);
     await t.move(p.el("mitsuke"), 450);
@@ -262,7 +264,7 @@ function KnownScene({ store }: { store: Stored }) {
     await t.wait(700);
     await t.move(p.el("kissa"));
     const key = holdKey(t, store.lookKey);
-    await t.wait(200);
+    await t.wait(restOn(store));
     await p.point(t, "kissa");
     await t.wait(1600);
     if (key) t.letGo(key);
@@ -271,7 +273,7 @@ function KnownScene({ store }: { store: Stored }) {
     await t.wait(250);
     await t.move(p.el("mitsuke"));
     holdKey(t, store.lookKey);
-    await t.wait(200);
+    await t.wait(restOn(store));
     await p.point(t, "mitsuke");
     await t.wait(1300);
     if (key) t.letGo(key);

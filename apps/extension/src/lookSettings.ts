@@ -22,6 +22,15 @@ export const LOOK_KEYS: readonly { id: LookKey; label: string }[] = [
 ];
 export const keyWordOf = (key: LookKey) => LOOK_KEYS.find((k) => k.id === key)?.label ?? "Shift";
 
+/**
+ * How long the pointer rests on a word before On hover opens its pop-up, ms (Hover delay, one for each key to hold):
+ * sweeping across words on the way to one opens nothing, so the word wanted can be reached across a transcript's lines
+ * without every word passed over taking its place. The bounds and the step the field moves by, one home; 0 opens at
+ * once.
+ */
+export const HOVER_DELAY = { default: 300, max: 2000, step: 50 } as const;
+export const HoverDelay = z.number().int().min(0).max(HOVER_DELAY.max);
+
 /** Where pointing at a word works: every site, only the ones listed, every site but those, or nowhere. */
 export const LookWhere = z.enum(["everywhere", "only", "except", "nowhere"]);
 export type LookWhere = z.infer<typeof LookWhere>;

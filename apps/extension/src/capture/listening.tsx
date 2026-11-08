@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { dictionariesAre } from "../dictionary/useWords";
 import type { Found } from "../dictionary/found";
-import type { LookKey } from "../lookSettings";
 import { localNow, onLocal } from "../local";
 import { askLookState } from "../messages";
 import { popupLayoutOf, type PopupLayout } from "../popupLayout";
@@ -43,7 +42,8 @@ const OVER_ALL = "position: fixed; inset: 0; z-index: 2147483647; pointer-events
 export function createListening(options: Options) {
   /** What the worker says of this page: nothing works here until it has. */
   let here: { on: boolean; subtitlesOn: boolean; layout: PopupLayout } = { on: false, subtitlesOn: false, layout: popupLayoutOf(null, []) };
-  const keys = (): { key: LookKey; subtitleKey: LookKey } => localNow().look;
+  /** The keys to hold and their Hover delays, globally and in Panki's subtitles, as this browser has them. */
+  const keys = () => localNow().look;
   const place = makePlace(options.theme?.() ?? "light");
   place.host.style.cssText = OVER_ALL;
   const root = createRoot(place.ground);
@@ -101,6 +101,7 @@ export function createListening(options: Options) {
     start() {
       page = listenOnPage(looker, {
         key: (target) => (options.subtitlesAt?.(target) ? keys().subtitleKey : keys().key),
+        delay: (target) => (options.subtitlesAt?.(target) ? keys().subtitleDelay : keys().delay),
         on: (target) => (options.subtitlesAt?.(target) ? here.subtitlesOn : here.on),
         whereAt: options.whereAt,
         inPopup: (e) => e.composedPath().includes(place.host),

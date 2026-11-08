@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
-import { LookKey, LookWhere } from "./lookSettings";
+import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelKey, PanelView, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
@@ -73,6 +73,9 @@ const Stored = z.object({
    * hover here, `readStore`.)
    */
   lookKeySubtitles: LookKey.catch("shift"),
+  /** How long the pointer rests on a word before On hover opens its pop-up, ms: Hover delay globally, and in Panki subtitles. */
+  lookDelayMs: HoverDelay.catch(HOVER_DELAY.default),
+  lookDelayMsSubtitles: HoverDelay.catch(HOVER_DELAY.default),
   /**
    * Words already in the account's cards, marked where they stand, each place switched apart and the colour chosen: in
    * Panki's subtitles (its lines under and over the player: Highlight in Panki subtitles), on every page Panki is on,
@@ -272,7 +275,15 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   source: (store) => sourceOf(store.subtitleSource),
   modules: modulesOf,
   known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, byStage: store.knownByStage, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
-  look: (store) => ({ key: store.lookKey, subtitleKey: store.lookKeySubtitles, where: store.lookWhere, sites: store.lookSites, layout: store.popupLayout }),
+  look: (store) => ({
+    key: store.lookKey,
+    subtitleKey: store.lookKeySubtitles,
+    delay: store.lookDelayMs,
+    subtitleDelay: store.lookDelayMsSubtitles,
+    where: store.lookWhere,
+    sites: store.lookSites,
+    layout: store.popupLayout,
+  }),
   // Unsettled is off: it's settled as the worker starts (`watch/tracking.ts`), and every page told then.
   tracking: (store) => store.videoTracking === true,
   drawer: (store) => ({ maps: store.maps, mappingOn: store.mappingOn, defaultDeckId: store.defaultDeckId }),

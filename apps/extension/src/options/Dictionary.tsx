@@ -4,6 +4,7 @@ import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Icon } from "@web/components/Icon";
+import { NumberField } from "@web/components/NumberField";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Swatches } from "@web/components/Swatches";
@@ -28,7 +29,7 @@ import {
   type Progress,
 } from "../dictionary/store";
 import { HOVER_KEEP } from "../capture/look";
-import { LOOK_KEYS, hostOf, keyWordOf, permissionsFor, type LookKey, type LookWhere } from "../lookSettings";
+import { HOVER_DELAY, LOOK_KEYS, hostOf, keyWordOf, permissionsFor, type LookKey, type LookWhere } from "../lookSettings";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { writeStore, type Stored } from "../storage";
@@ -611,6 +612,20 @@ const usageWords = (key: LookKey) =>
   key === "hover" ? `Point at a word to look it up. Press ${HOVER_KEEP} or click the word to keep the pop-up open.` : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the pop-up open.`;
 
 /**
+ * Hover delay, under each Key to hold: how long the pointer rests on a word before On hover opens its pop-up, in ms
+ * (`HOVER_DELAY`); greyed while that key isn't On hover, since no other key waits.
+ */
+function HoverDelayRow({ id, label, value, disabled, onChange }: { id: string; label: string; value: number; disabled: boolean; onChange: (ms: number) => void }) {
+  return (
+    <Setting
+      id={id}
+      label="Hover delay"
+      control={<NumberField id={`${id}-ms`} label={label} value={value} min={0} max={HOVER_DELAY.max} step={HOVER_DELAY.step} suffix="ms" disabled={disabled} onChange={onChange} />}
+    />
+  );
+}
+
+/**
  * How looking a word up works: where on the web, and with which key held. Kept the moment
  * it's changed. Working on a site other than YouTube needs the browser's leave to read its pages, asked for here,
  * straight from the press that needs it (the browser only asks then).
@@ -721,6 +736,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} disabled={off || store.lookWhere === "nowhere"} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
           why={usageWords(store.lookKey)}
         />
+        <HoverDelayRow id="look-delay" label="Hover delay globally" value={store.lookDelayMs} disabled={off || store.lookWhere === "nowhere" || store.lookKey !== "hover"} onChange={(lookDelayMs) => void writeStore({ lookDelayMs }).then(onChanged)} />
       </div>
       {/* The same choice again for Panki's subtitles alone; which those are is said under it, since a card's clip in a review is one. */}
       <div className="seek-group">
@@ -739,6 +755,13 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
             />
           }
           why="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
+        />
+        <HoverDelayRow
+          id="look-delay-subtitles"
+          label="Hover delay in Panki subtitles"
+          value={store.lookDelayMsSubtitles}
+          disabled={off || store.lookKeySubtitles !== "hover"}
+          onChange={(lookDelayMsSubtitles) => void writeStore({ lookDelayMsSubtitles }).then(onChanged)}
         />
       </div>
     </section>

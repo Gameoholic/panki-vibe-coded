@@ -68,8 +68,9 @@ const isFixed = (part: string): part is Fixed => (FIXED as readonly string[]).in
 type Props = {
   /** The layout as it was last saved; null when it never was. */
   kept: PopupLayout | null;
-  /** The key held to look a word up, as it's set above. */
+  /** The key held to look a word up, as it's set above, and its Hover delay (ms). */
   lookKey: LookKey;
+  lookDelay: number;
   /** Changes whenever a dictionary is imported, removed, switched or moved on this page: they're read again. */
   dictionariesChanged: number;
   /** Words that are in your decks' Highlight globally and the tint it gives the example word, as set on this tab (`exampleTint`). */
@@ -86,7 +87,7 @@ type Props = {
  * Save, beside the words that say whether there's anything to save; leaving the page unsaved asks first, and Ctrl+Z
  * undoes.
  */
-export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, known, onSaved }: Props) {
+export function PopupLayoutPanel({ kept, lookKey, lookDelay, dictionariesChanged, known, onSaved }: Props) {
   const [dictionaries, setDictionaries] = useState<DictionaryRecord[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
@@ -107,7 +108,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, known, on
   return (
     <section className="panel popup-layout" aria-labelledby="popup-layout-title">
       {dictionaries ? (
-        <Editor kept={kept} lookKey={lookKey} dictionaries={dictionaries} known={known} onSaved={onSaved} />
+        <Editor kept={kept} lookKey={lookKey} lookDelay={lookDelay} dictionaries={dictionaries} known={known} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
           Pop-up dictionary layout
@@ -122,7 +123,7 @@ export function PopupLayoutPanel({ kept, lookKey, dictionariesChanged, known, on
   );
 }
 
-function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLayout | null; lookKey: LookKey; dictionaries: readonly DictionaryRecord[]; known: Props["known"]; onSaved: () => void }) {
+function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { kept: PopupLayout | null; lookKey: LookKey; lookDelay: number; dictionaries: readonly DictionaryRecord[]; known: Props["known"]; onSaved: () => void }) {
   const parts = withMeanings(dictionaries);
   const history = useUndoable<PopupLayout>(popupLayoutOf(kept, parts));
   const { change, undo, redo } = history;
@@ -189,6 +190,8 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
   const over = useRef<HTMLDivElement>(null);
   const keyNow = useRef(lookKey);
   keyNow.current = lookKey;
+  const delayNow = useRef(lookDelay);
+  delayNow.current = lookDelay;
   const looker = useRef<Looker | null>(null);
   // The word pointed at goes on the popup being laid out once the popup it opened has closed. Changed while that one is
   // open, the popup being laid out would grow or shrink, the page would move under the pointer, and a page that moves
@@ -207,8 +210,9 @@ function Editor({ kept, lookKey, dictionaries, known, onSaved }: { kept: PopupLa
     }, lookUp, () => over.current?.querySelector(".look")?.getBoundingClientRect() ?? null);
     looker.current = made;
     const page = listenOnPage(made, {
-      // The sentences to try it on are a page's, so they take the key everywhere else takes, On hover too.
+      // The sentences to try it on are a page's, so they take the key everywhere else takes, On hover and its delay too.
       key: () => keyNow.current,
+      delay: () => delayNow.current,
       // Tried here whatever the settings say: this page's own sentences.
       on: () => true,
       whereAt: (target) => (target instanceof Node && tryText.current?.contains(target) ? { of: "page" } : null),
