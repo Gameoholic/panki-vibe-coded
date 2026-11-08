@@ -64,15 +64,17 @@ export function PanelButton({ onOpen }: { onOpen: () => void }) {
  */
 export function HidePanelButton({ bind, onHide }: { bind: Key; onHide: () => void }) {
   const { tip, handlers } = useTip();
+  /** The key as the site's own tips write one, "(P)"; nothing while the panel has no key. */
+  const key = bind.key ? `(${keyWords(bind.key)})` : null;
   return (
     <span className="strip-hide">
-      <Button className="capture-tool btn-icon strip-hide-button" aria-label={`${PRESS_WORDS.hide} (${keyWords(bind.key)})`} onClick={onHide} {...handlers}>
+      <Button className="capture-tool btn-icon strip-hide-button" aria-label={key ? `${PRESS_WORDS.hide} ${key}` : PRESS_WORDS.hide} onClick={onHide} {...handlers}>
         <Icon name="chevrons" />
       </Button>
       {tip ? (
         <Tip x={tip.x} y={tip.y}>
           {PRESS_WORDS.hide}
-          <span className="strip-hide-key">({keyWords(bind.key)})</span>
+          {key ? <span className="strip-hide-key">{key}</span> : null}
         </Tip>
       ) : null}
     </span>
