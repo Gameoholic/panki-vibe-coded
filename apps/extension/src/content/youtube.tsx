@@ -157,13 +157,14 @@ const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; botto
  */
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
 /**
- * Where the Panki panel's button stands while the panel is folded away in full screen: the video's top-right corner,
- * where the site draws its playlist button, over the player's own top chrome; to the left of the site's own buttons
- * there when it draws any (`--panki-corner-right`, written as it's placed). It fades with the player's controls as
- * the site fades them (`CORNER_CSS`).
+ * Where the Panki panel's button stands while the panel is folded away in full screen: the screen's top-right corner,
+ * where the site draws its playlist button, fixed inside what fills the screen (as Panki's column is), over everything
+ * of the site's there, so no layer the site lays over its player in full screen covers or clips it; to the left of the
+ * site's own buttons in that corner when it draws any (`--panki-corner-right`, written as it's placed). It fades with
+ * the player's controls as the site fades them (`CORNER_CSS`).
  */
 const TOP_CORNER =
-  "display: block; position: absolute; top: 12px; right: var(--panki-corner-right, 12px); z-index: 62; pointer-events: none; transition: opacity 0.25s cubic-bezier(0.4, 0, 1, 1);";
+  "display: block; position: fixed; top: 12px; right: var(--panki-corner-right, 12px); z-index: 2102; pointer-events: none; transition: opacity 0.25s cubic-bezier(0.4, 0, 1, 1);";
 /** The site's own buttons at the video's top-right corner in full screen (a playlist's): Panki's stands left of them. */
 const CORNER_BUTTONS = ".ytp-chrome-top-buttons";
 /** The room from the screen's edge to the button, and between it and the site's own, in px. */
@@ -173,7 +174,7 @@ const CORNER_GAP = 12;
  * pointer rests, and this fades the button as the site fades its own top chrome, unless the player bar is kept shown
  * in full screen (`Modules.barKeptFull`, `data-kept` on the button's place). On the page once the button first stands.
  */
-const CORNER_CSS = `${PLAYER}.ytp-autohide > [data-panki="panel-button"]:not([data-kept]) { opacity: 0 !important; pointer-events: none !important; }`;
+const CORNER_CSS = `html:has(${PLAYER}.ytp-autohide) [data-panki="panel-button"]:not([data-kept]) { opacity: 0 !important; pointer-events: none !important; }`;
 let cornerStyle: HTMLStyleElement | null = null;
 // The player's control bar, and the speed button and the end time among its controls, are `playerBar.ts`'s.
 /** How often the transcriber looks at the viewer's player. The lines are looked at every frame (`followLines`). */
@@ -227,7 +228,7 @@ column.ground.classList.add("is-column");
 column.root.render(<Column />);
 /** Whether the panel stands folded away in the site's full screen this moment: then its button is in the video's corner. */
 const foldedNow = cell(false);
-/** The Panki panel's button in the video's top-right corner, while the panel is folded away in full screen (`ui/PanelButton.tsx`). */
+/** The Panki panel's button in the screen's top-right corner, while the panel is folded away in full screen (`ui/PanelButton.tsx`). */
 const corner = makePlace(siteTheme());
 corner.host.style.cssText = TOP_CORNER;
 corner.host.dataset.panki = "panel-button";
@@ -975,10 +976,11 @@ function place() {
   if (overThere instanceof HTMLElement && overThere.clientHeight > 0) over.host.style.setProperty("--sub-scale", String(overThere.clientHeight / SUBTITLE_REF_HEIGHT));
   const area = player?.querySelector(CAPTION_AREA);
   if (area instanceof HTMLElement) area.style.opacity = overThere ? "0" : "";
-  // The panel's button in the video's top-right corner while the panel is folded away in full screen: in the player,
-  // which fills the screen then, left of the site's own buttons at that corner when it draws any; shown and hidden
-  // with the player's controls (`CORNER_CSS`), or kept shown with the bar as the player bar's switch says.
-  const cornering = folded && player instanceof HTMLElement ? player : null;
+  // The panel's button in the screen's top-right corner while the panel is folded away in full screen: inside what
+  // fills the screen (only what fills it is drawn), fixed over everything of the site's, left of the site's own buttons
+  // at that corner when it draws any there; shown and hidden with the player's controls (`CORNER_CSS`), or kept
+  // shown with the bar as the player bar's switch says.
+  const cornering = folded ? fullPanki : null;
   if (!cornering) corner.host.remove();
   else {
     if (!cornerStyle) {
@@ -989,8 +991,9 @@ function place() {
     if (corner.host.parentElement !== cornering) cornering.append(corner.host);
     corner.host.dataset.theme = theme;
     corner.host.toggleAttribute("data-kept", on.playerBar && on.barKeptFull);
-    const own = cornering.querySelector(CORNER_BUTTONS)?.getBoundingClientRect();
-    const right = own && own.width > 0 ? Math.round(cornering.getBoundingClientRect().right - own.left) + CORNER_GAP : CORNER_GAP;
+    // The site's buttons count only where they really stand, in the right half of the screen with a width of their own.
+    const own = player?.querySelector(CORNER_BUTTONS)?.getBoundingClientRect();
+    const right = own && own.width > 0 && own.left > window.innerWidth / 2 ? Math.round(window.innerWidth - own.left) + CORNER_GAP : CORNER_GAP;
     const value = `${right}px`;
     if (corner.host.style.getPropertyValue("--panki-corner-right") !== value) corner.host.style.setProperty("--panki-corner-right", value);
   }

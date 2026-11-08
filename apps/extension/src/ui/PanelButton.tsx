@@ -11,9 +11,9 @@ const BUTTON_PX = 48;
 const TIP_GAP = 8;
 
 /**
- * The Panki panel's button in the video's top-right corner in the site's full screen, while the panel is folded away:
+ * The Panki panel's button in the screen's top-right corner in the site's full screen, while the panel is folded away:
  * a round disc of the player's own dark glass with the panel's icon, as the site draws its playlist button there,
- * pressed to bring the panel back. It stands in a place of Panki's over the player (`content/youtube.tsx` → `corner`),
+ * pressed to bring the panel back. It stands in a place of Panki's fixed over everything that fills the screen (`content/youtube.tsx` → `corner`),
  * which the page shows and hides with the player's own controls. What a press does is the app's `Tip` under it while a
  * mouse rests on it or it has the keyboard's focus; a touch screen has no tip, so the words are in its label too.
  */
