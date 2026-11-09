@@ -1,3 +1,4 @@
+/** @panki A video's metadata on a card, shown or opened, anywhere (`LinkView`). Never a bare link, never an embedded player. */
 import { useState, type MouseEvent } from "react";
 import { youtubeUrl, type VideoPicture, type YouTubeMeta } from "@panki/contracts";
 import { clock } from "../words";

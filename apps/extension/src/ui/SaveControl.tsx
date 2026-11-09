@@ -1,3 +1,4 @@
+/** @panki Save for later as a control of the player's bar (`SaveControl`). */
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 

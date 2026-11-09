@@ -1,3 +1,4 @@
+/** @panki The Panki panel's button in the screen's corner while it's folded in full screen, and Hide panel (`PanelButton`, `HidePanelButton`). Never a second way back. */
 import { useState } from "react";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";

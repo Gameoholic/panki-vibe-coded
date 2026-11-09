@@ -1,3 +1,4 @@
+/** @panki Anything kept of what Panki says, read again when its state header changes (`KEPT`, `readKept`, `putKept`, `peekKept`). Never a cache of its own. */
 import { z } from "zod";
 import { ExtensionBuild, TEMPLATED_PLACE_IDS, WordsInCards, type KeptKind, type KeptState, type PankiAiStatus } from "@panki/contracts";
 import { AiShown } from "./messages";

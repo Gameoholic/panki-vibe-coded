@@ -1,3 +1,4 @@
+/** @panki Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`, `StandingMessage`). Never a second drawing of a conversation. */
 import { Fragment, useEffect, useState, type ReactNode, type Ref } from "react";
 import { branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
 import { wordFor } from "../words";

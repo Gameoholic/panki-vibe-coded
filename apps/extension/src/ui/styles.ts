@@ -1,3 +1,4 @@
+/** @panki The app's styles for a place of Panki's on a page (`SHADOW_CSS`, `tokensOn`). Never a copy of a token or a class. */
 import appCss from "@web/app.css?raw";
 import themeCss from "@web/theme.css?raw";
 import ownCss from "./extension.css?raw";

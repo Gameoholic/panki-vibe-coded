@@ -1,3 +1,4 @@
+/** @panki Every tile Stats shows and the home can carry, one registry (`WIDGETS`, `widgetOf`, `controlOf`), and a stat as a tile (`Widget`). Never a second tile. */
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from "react";
 import type { ContinueVideo, Day, Deck, FinishedVideo, SavedVideo, Settings, SrsType, Stats } from "@panki/contracts";
 import { api } from "./api";

@@ -1,3 +1,4 @@
+/** @panki A dictionary's rows, read the same by both ends, and the kinds of data it provides (`termRowOf`, `metaRowOf`, `tagRowOf`, `Provides`, `DATA_KIND_NAMES`). */
 import { z } from "zod";
 // A type alone: `dictionary.ts` imports `Provides` from here, so nothing of it may be needed while this file runs.
 import type { DictionaryIndex } from "./dictionary";

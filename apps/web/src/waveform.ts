@@ -1,3 +1,4 @@
+/** @panki A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). */
 import { api } from "./api";
 import type { Wave } from "./components/MediaLooks";
 

@@ -1,3 +1,4 @@
+/** @panki A colour of one's own, picked on a wheel (`ColourWheel`). Never the browser's `<input type="color">`. */
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { TextField } from "./TextField";
 

@@ -1,3 +1,4 @@
+/** @panki Pointing at a word on a page to open its pop-up (`createListening`). Never a second listener for words on a page. */
 import { createRoot } from "react-dom/client";
 import { dictionariesAre } from "../dictionary/useWords";
 import type { Found } from "../dictionary/found";

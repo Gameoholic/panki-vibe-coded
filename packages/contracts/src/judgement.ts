@@ -1,3 +1,4 @@
+/** @panki Panki AI's one judgement, good, meh or bad, and a meaning's words for it (`JUDGEMENTS`, `Judgement`, `MEANING_JUDGEMENT_NAMES`). Never a second scale. */
 import { z } from "zod";
 
 /**

@@ -1,3 +1,4 @@
+/** @panki Prompt context's pieces, one registry shared with the extension's field mapping (`PROMPT_PIECE_IDS`, `PIECE_NAMES`, `PIECE_SOURCES`, `variableOf`). */
 import { z } from "zod";
 import { DATA_KIND_NAMES } from "./dictionaryRows";
 

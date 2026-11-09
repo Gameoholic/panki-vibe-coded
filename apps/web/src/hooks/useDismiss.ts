@@ -1,3 +1,4 @@
+/** @panki Something open under a button that closes on a press outside it, or Escape (`useDismiss`). Never a second listener for a press outside. */
 import { useEffect, useRef, type RefObject } from "react";
 
 /**

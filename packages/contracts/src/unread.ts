@@ -1,3 +1,4 @@
+/** @panki Why a Panki AI answer couldn't be used, said as Expected … Got … (`expectedGot`, `UNREAD_REASONS`, `issueWords`, `knobsBroken`). Never a label of whose rule it was. */
 import type { z } from "zod";
 
 /**

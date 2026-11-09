@@ -1,3 +1,4 @@
+/** @panki The usage ledger as shapes: a paid call's kinds, costs and totals (`UsageKind`, `UsageTotals`, `UsageReport`, `soundCostMicros`). Writing a row is the API's alone. */
 import { z } from "zod";
 
 /**

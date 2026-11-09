@@ -1,3 +1,4 @@
+/** @panki A key held on a button until it does its thing, a tap told from a hold (`useHold`, `keepTap`, `keepDouble`, `TAP_MS`, `DOUBLE_MS`). */
 import { useEffect, useRef } from "react";
 import { DOUBLE_PRESS, isModifier, pressed } from "../keys";
 

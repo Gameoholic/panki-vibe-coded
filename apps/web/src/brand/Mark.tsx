@@ -1,3 +1,4 @@
+/** @panki The mark, パ on its tile (`Mark`). Never a second drawing of it. */
 import { MARK_DOT_CENTER, MARK_PARTS, MARK_RADIUS, MARK_SIZE } from "./geometry";
 
 type Props = {

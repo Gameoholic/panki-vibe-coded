@@ -1,3 +1,4 @@
+/** @panki An action's keys heard on the window, pressed or held, a tap told from a hold (`useHeardKeys`): a player's keys and the full screen's. */
 import { useEffect, useRef } from "react";
 import { heard, pressed, type Heard } from "../keys";
 import { TAP_MS, keepTap, useHold } from "./useHold";

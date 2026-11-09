@@ -1,3 +1,4 @@
+/** @panki When the video will end, among the player's own controls (`EndTime`). */
 import { useEffect, useState } from "react";
 import { hourWords } from "@web/words";
 

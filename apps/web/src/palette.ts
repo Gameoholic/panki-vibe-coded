@@ -1,3 +1,4 @@
+/** @panki The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). */
 /**
  * The palette colours are picked from, one home: the app's `--mark-*` tokens (`theme.css`), the same in every theme,
  * each by name. A stage's colour picks from it (`views/SrsTypeView.tsx`), and so do the extension's marks on a video's

@@ -1,3 +1,4 @@
+/** @panki Panki AI's settings: providers and models, the places, one registry, templates and limits (`AI_PLACES`, `AI_PROVIDERS`, `PankiAi`, `AiTemplate`). */
 import { z } from "zod";
 import { ACTION_PLACE_IDS, AccountActions, NO_ACCOUNT_ACTIONS, type ActionPlaceId } from "./accountActions";
 import { taggedOf, variableOf } from "./pieces";

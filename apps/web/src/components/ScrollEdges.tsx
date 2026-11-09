@@ -1,3 +1,4 @@
+/** @panki A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. */
 import { useRef, type RefObject } from "react";
 import { useScrollEdges } from "../hooks/useScrollEdges";
 

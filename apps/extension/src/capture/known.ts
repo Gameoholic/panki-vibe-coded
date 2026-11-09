@@ -1,3 +1,4 @@
+/** @panki Words already in the cards, marked where they stand (`startKnown`, `useKnown`, `knownAs`, `tintOf`, `markKnownOnPage`). Never a second way of marking a known word. */
 import { useMemo, useSyncExternalStore } from "react";
 import { isJapanese } from "@web/words";
 import type { Lattice } from "../dictionary/found";

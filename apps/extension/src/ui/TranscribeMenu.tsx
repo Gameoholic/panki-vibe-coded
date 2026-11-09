@@ -1,3 +1,4 @@
+/** @panki The strip's menu, everything about transcribing this video (`TranscribeMenu`, `statusWords`, `startWords`, `Seconds`). Never a second menu on the strip. */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AiSpark } from "@web/components/AiWaiting";
 import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, soundCostMicros, type TranscribeMode, type WholeJob } from "@panki/contracts";

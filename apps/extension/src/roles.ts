@@ -1,3 +1,4 @@
+/** @panki What the extension can fill a field with by itself, and which field takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `valuesFor`). Never a guess. */
 import { z } from "zod";
 import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
 import { DATA_KINDS } from "./dataKinds";

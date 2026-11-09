@@ -1,3 +1,4 @@
+/** @panki A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). */
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";

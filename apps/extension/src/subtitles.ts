@@ -1,3 +1,4 @@
+/** @panki Where a video's words come from, the sources one registry (`SUBTITLE_SOURCES`, `SubtitleSource`, `DEFAULT_SOURCE`, `sourceOf`, `engineWanted`). */
 import { EngineId } from "@panki/contracts";
 
 /**

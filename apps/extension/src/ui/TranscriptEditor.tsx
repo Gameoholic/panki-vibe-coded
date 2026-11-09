@@ -1,3 +1,4 @@
+/** @panki Editing Panki subtitles by hand, on the strip or over the line (`StripEditor`, `OverLineEditor`, `EditorLine`, `EditorActions`). Never a second editor. */
 import { memo, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { realignLine, type LineMark } from "@panki/contracts";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";

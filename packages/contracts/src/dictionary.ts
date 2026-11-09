@@ -1,3 +1,4 @@
+/** @panki A dictionary file as both ends read it out of its zip, and one kept on Panki (`openDictionary`, `DictionaryIndex`, `providesOf`, `ServerDictionary`). */
 import { z } from "zod";
 import { Provides, emptyProvides, metaRowOf, tallyMeta, tallyTerm, termRowOf, versionOf } from "./dictionaryRows";
 import { ZipError, readZip, type ZipEntry } from "./zip";

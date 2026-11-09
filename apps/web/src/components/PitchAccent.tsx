@@ -1,3 +1,4 @@
+/** @panki A pitch accent drawn over its reading, anywhere (`PitchAccent`, `PitchAccents`). Never a second drawing. */
 import { isHigh, moraeOf, pitchesOf } from "@panki/contracts";
 
 /**

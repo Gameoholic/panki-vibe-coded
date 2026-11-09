@@ -1,3 +1,4 @@
+/** @panki Today's cards folded to their counts (`TodayBar`, `todayWords`). */
 import type { ReactNode } from "react";
 import { count } from "../words";
 import { Button } from "./Button";

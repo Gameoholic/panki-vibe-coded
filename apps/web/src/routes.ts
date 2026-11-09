@@ -1,3 +1,4 @@
+/** @panki Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). */
 import { ActionPlaceId, AiPlaceId } from "@panki/contracts";
 
 /**

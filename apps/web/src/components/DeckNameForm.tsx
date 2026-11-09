@@ -1,3 +1,4 @@
+/** @panki A deck's name, typed and validated (`DeckNameForm`). */
 import { useState, type ReactNode } from "react";
 import { NewDeck } from "@panki/contracts";
 import { Button } from "./Button";

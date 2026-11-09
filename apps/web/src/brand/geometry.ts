@@ -1,3 +1,4 @@
+/** @panki The mark's geometry, its paths and its tile (`MARK_PARTS`, `MARK_SIZE`, `MARK_RADIUS`); the icon files are rendered from it by `pnpm icons`. */
 // The Panki mark: パ, the first sound of the name, from Noto Sans JP at weight 900 as outlines (so it is
 // the same glyph on every device), on a 512 tile with 112 corners, white on indigo.
 // This is the one home of the geometry: public/icon.svg and public/icons/*.png are renders of it (`pnpm icons`),

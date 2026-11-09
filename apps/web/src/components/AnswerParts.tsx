@@ -1,3 +1,4 @@
+/** @panki What a place's answer holds, folded (`AnswerParts`). */
 import { useState } from "react";
 import { ANSWER_FIXED, answerShapesOf, answerWordsUnsent, messagePartOf, type AiPlaceId, type AnswerPart } from "@panki/contracts";
 import { Button } from "./Button";

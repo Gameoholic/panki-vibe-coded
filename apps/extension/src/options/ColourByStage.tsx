@@ -1,3 +1,4 @@
+/** @panki Words in the decks' colour, Use stage's colour or Custom colour (`ColourByStage`). */
 import { Segmented } from "@web/components/Segmented";
 import { Swatches } from "@web/components/Swatches";
 import { MARK_SWATCHES, paintOf, type MarkPaint } from "../seekLook";

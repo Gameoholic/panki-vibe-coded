@@ -1,3 +1,4 @@
+/** @panki Which word the pointer or a held key points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `pointedOnPage`, `held`). */
 import type { Found } from "../dictionary/found";
 import type { LookKey } from "../lookSettings";
 import { askLookup } from "../messages";

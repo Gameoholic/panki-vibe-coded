@@ -1,3 +1,4 @@
+/** @panki What each options panel's explainer plays (`SceneTitle`, `EXPLAINER_NAMES`). */
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { STAGE_RAMP, type VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";

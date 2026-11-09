@@ -106,5 +106,5 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 | `docs/PRODUCT.md` | Why it exists, who it's for, how it must feel; the features from the user's view; design language; deliberate scope decisions | Implementation, unbuilt ideas |
 | `docs/RUNNING.md` | Run, build, deploy, load the extension; the commands; where the data lives | Rules, architecture, the backlog |
 | `docs/BACKLOG.md` | What the owner wants next, as they said it; nothing there is approved | Anything approved or built |
-| `docs/AI.md`, `PANEL.md`, `DOCS.md` | An epic's plan: why, settled, the order ticked as steps land, open | How a built step works |
+| `docs/AI.md`, `DOCS.md` | An epic's plan: why, settled, the order ticked as steps land, open | How a built step works |
 | `README.md` | The VPS block, the owner's | Anything at all |

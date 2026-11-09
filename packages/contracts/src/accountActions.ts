@@ -1,3 +1,4 @@
+/** @panki Each account's own Panki AI actions as kept and told: the places with actions, what one requires or leaves out (`AccountActions`, `KeptAction`, `TOUCH_UP_KEYS`). */
 import { z } from "zod";
 
 /**

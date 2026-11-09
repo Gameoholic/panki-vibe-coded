@@ -1,3 +1,4 @@
+/** @panki Something that opens and closes by its height, fading as it goes (`Fold`). Never a second way of making something unfold. */
 import { useEffect, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from "react";
 
 /** How long unfolding and folding away take, in ms. The one home: the styles are handed these, they don't repeat them. */

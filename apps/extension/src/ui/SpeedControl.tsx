@@ -1,3 +1,4 @@
+/** @panki The player's speed, changed among its own controls (`SpeedControl`). Never a second way of setting the speed on the page. */
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";

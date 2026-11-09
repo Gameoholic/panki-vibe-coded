@@ -1,3 +1,4 @@
+/** @panki How loud and how fast every player plays, one of each for the page, and whether clips' subtitles show (`useVolume`, `useSpeed`, `SPEEDS`, `useSubtitlesShown`). */
 import { useSyncExternalStore } from "react";
 
 /**

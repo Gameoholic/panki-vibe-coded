@@ -1,3 +1,4 @@
+/** @panki How much of the video is watched, as a control of the player's bar (`WatchingControl`). */
 import { useState } from "react";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";

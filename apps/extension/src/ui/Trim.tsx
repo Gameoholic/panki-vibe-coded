@@ -1,3 +1,4 @@
+/** @panki A clip's bar with its two ends to pull (`Trim`). */
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
 import { stamp } from "../capture/words";
 

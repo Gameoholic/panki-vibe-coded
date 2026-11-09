@@ -1,3 +1,4 @@
+/** @panki A file on a card: its kind, types, weight limits, subtitle cues and how it was recorded (`MediaId`, `MediaKind`, `MEDIA_MIMES`, `MediaCues`, `MediaRecording`). */
 import { z } from "zod";
 import { ClientName } from "./auth";
 import { ExtensionFingerprint } from "./extension";

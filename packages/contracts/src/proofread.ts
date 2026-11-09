@@ -1,3 +1,4 @@
+/** @panki Proofread as shapes: its answer, the rules it's held to, its batches, a transcript's undo (`ProofreadShape`, `proofreadProblem`, `batchesOf`, `TranscriptUndo`). */
 import { z } from "zod";
 import { AiRanOn, PankiAiStatus, TemplateId } from "./ai";
 import type { AiVerdict } from "./aiCall";

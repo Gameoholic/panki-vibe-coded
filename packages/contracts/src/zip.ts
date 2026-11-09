@@ -1,3 +1,4 @@
+/** @panki Reading a zip, as dictionaries come (`readZip`, `ZipEntry`, `ZipError`). Never a library for it, never a second zip reader. */
 /**
  * Reads a zip file, as dictionaries come: the list of what's in it, and each file's bytes when they're asked for. Written
  * here against the format's published description rather than taken from a library: a dictionary is a stranger's

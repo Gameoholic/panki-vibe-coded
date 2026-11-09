@@ -1,3 +1,4 @@
+/** @panki Explain, Panki AI on the word in the pop-up, and why each empty piece is empty (`Explain`, `ExplainSource`, `MorePieces`, `gapsOf`). */
 import { useEffect, useId, useRef, useState } from "react";
 import {
   MEANING_JUDGEMENT_NAMES,

@@ -1,3 +1,4 @@
+/** @panki What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). */
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";

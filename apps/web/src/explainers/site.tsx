@@ -1,3 +1,4 @@
+/** @panki The made-up video site an explainer plays on (`WatchPage`, `SiteTop`, `WATCH`, `WATCHED`, `videoAt`). */
 import type { ReactNode } from "react";
 import type { Site } from "../components/Explainer";
 import thumbMinecraft113 from "./thumbs/o7Kj73TQ3CU.jpg";

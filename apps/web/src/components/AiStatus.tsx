@@ -1,3 +1,4 @@
+/** @panki The head over anything Panki AI answered: how the call stands and exactly what it sent (`AiStatus`). */
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, verdictLine, type AiCall, type AiMessageWhy, type AiVerdict, type PieceUse } from "@panki/contracts";
 import { count, estimateWords, langOf } from "../words";

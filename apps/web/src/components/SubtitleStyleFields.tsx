@@ -1,3 +1,4 @@
+/** @panki How subtitles look, as rows of settings (`SubtitleStyleFields`). Never a second set. */
 import type { ReactNode } from "react";
 import { DEFAULT_SUBTITLE_STYLE, SUBTITLE_BOUNDS, SUBTITLE_FONTS, SUBTITLE_FONT_IDS, type SubtitleAlign, type SubtitleStyle } from "@panki/contracts";
 import { Button } from "./Button";

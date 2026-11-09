@@ -1,3 +1,4 @@
+/** @panki A stage's colour for the app, the API and the extension alike: its own, else the ramp's; Burned's; New's (`stageColourAt`, `placeColour`, `STAGE_RAMP`). */
 import { isBurned, isNew, stageIndex, type CardPlace, type SrsLadder, type SrsType } from "./srs";
 
 /**

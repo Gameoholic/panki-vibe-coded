@@ -1,3 +1,4 @@
+/** @panki One value from a list too long for a row of chips, or picked inside a sentence (`Dropdown`). Never a native `<select>`. */
 import { useRef, useState, type ReactNode } from "react";
 import type { Judgement } from "@panki/contracts";
 import { useAnchored } from "../hooks/useAnchored";

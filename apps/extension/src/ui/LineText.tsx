@@ -1,3 +1,4 @@
+/** @panki A line of the transcript typed in where it stands (`LineText`, `EditedRange`). Never a field popping in over a line. */
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { AiSpark } from "@web/components/AiWaiting";
 

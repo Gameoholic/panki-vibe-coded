@@ -11,16 +11,16 @@ This page is the index; the text lives in `docs/architecture/`, one file per are
 
 | File | What it covers |
 | --- | --- |
-| [shape.md](architecture/shape.md) | Where the build stands as a whole; the workspace's packages, scripts and environment |
-| [data-model.md](architecture/data-model.md) | Every database, table and kept shape; migrations; the SRS's data (New before the first stage, a card put aside, other examples, Undo, today's cards) |
-| [api.md](architecture/api.md) | The API's routes, what each takes and answers |
-| [web.md](architecture/web.md) | The web app: screens, state, a card's layout, Listen first, a review filling the screen, room on the disk |
-| [extension.md](architecture/extension.md) | The extension as a whole: the strip, the capture drawer, the Panki panel's views, one full screen, a field that holds a link |
-| [dictionary.md](architecture/dictionary.md) | The dictionary: its files, what each provides, dictionaries kept on Panki, pointing, words in the decks marked, the pop-up's layout |
-| [forvo.md](architecture/forvo.md) | Word audio from Forvo |
-| [transcribing.md](architecture/transcribing.md) | Transcribing a video: engine, modes, chunks, the strip, editing, Proofread |
-| [ai.md](architecture/ai.md) | Panki AI: places, prompts, actions, sources, conversations, Explain, Touch up, the explainers |
-| [watching.md](architecture/watching.md) | Video tracking, the modules, where you stopped, finished, YouTube's own pages, the player bar |
-| [updates.md](architecture/updates.md) | The extension kept up to date without a store |
-| [kept.md](architecture/kept.md) | What the extension keeps of Panki's and how it hears of a change; this browser's own settings |
-| [lore.md](architecture/lore.md) | Implementation lore, security architecture, the owner's machine, verifying in an isolated instance, deploy, traps, migrations under a running dev server |
+| [shape.md](architecture/shape.md) | The workspace's packages, scripts and environment |
+| [data-model.md](architecture/data-model.md) | The data folder, the invariants every table keeps, migrations and the rules for one, each database's tables, the schedule, holds, flags, Undo, other examples and pins, files, the silo and the stats |
+| [api.md](architecture/api.md) | The API's conventions, sessions and the sign-in, the state header and the extension protocol, the route groups and what's surprising under a deck |
+| [web.md](architecture/web.md) | The web app: routing and state, unsaved work, signing in, the ledger, keys, the one card, Listen first and the Hold button, the review and how it fits the window or fills the screen, the Layout tab, files, the SRS editor, the frame, the board, skeletons |
+| [extension.md](architecture/extension.md) | The extension as a whole: permissions, the worker as the one way to Panki, closed shadow roots and their traps, the Panki panel and its views, one full screen, the capture drawer, reading the line, the clip, the seek bar |
+| [dictionary.md](architecture/dictionary.md) | The dictionary: IndexedDB and the file reader, dictionaries kept on Panki, what each provides, endings, looking up and splitting, pointing and hover, words in the decks marked, the pop-up's layout |
+| [forvo.md](architecture/forvo.md) | Word audio from Forvo: server-side, kept for everyone, copied into the account on a pick |
+| [transcribing.md](architecture/transcribing.md) | Transcribing a video: the modes and the whole-video download, the silent player and its clock, the chunks, the follower, the source, the lines, editing by hand, the stitch |
+| [ai.md](architecture/ai.md) | Panki AI: the words, providers and the ledger, the server's call and the one reader, pieces and prompts, actions and knobs, the conversation, Explain, Touch up, value sources, Proofread |
+| [watching.md](architecture/watching.md) | Video tracking per browser, the modules, finished, where you stopped and `panki=at`, YouTube's own pages, the utilities and the player bar |
+| [updates.md](architecture/updates.md) | The extension kept up to date without a store: fingerprint and protocol, the zip, the scripts' rules |
+| [kept.md](architecture/kept.md) | What the extension keeps of Panki's and the state header; this browser's own settings and how every page hears of a change |
+| [lore.md](architecture/lore.md) | The traps that cost real time, migrations under a running dev server, the security architecture, what deploying asks of the code, web traps |

@@ -1,3 +1,4 @@
+/** @panki Editing an SRS type's rules without touching the one in state: a scope's steps, answers and stages (`edit`, `scopeFlow`, `setStep`, `addStage`, `tree`). */
 import { STAY, WAIT_MAX, branchAt, stepAt, type Flow, type SrsAnswer, type SrsType, type Step, type Wait } from "@panki/contracts";
 import { AGAIN_OPTIONS, STEP_OPTIONS } from "./srsKinds";
 

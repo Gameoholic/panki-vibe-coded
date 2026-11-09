@@ -1,3 +1,4 @@
+/** @panki Panki's own actions, one registry, and how a message's actions are sent (`AI_ACTIONS`, `AiAction`, `PANKI_DEFAULTS`, `ExplainSend`, `TouchUpSend`). */
 import { z } from "zod";
 import {
   EXPLAIN_PARTS,

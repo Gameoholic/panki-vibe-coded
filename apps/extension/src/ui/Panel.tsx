@@ -1,3 +1,4 @@
+/** @panki The capture drawer, a card made from the page (`Panel`), and a notice in it (`Notice`). */
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   APP_LANGUAGES,

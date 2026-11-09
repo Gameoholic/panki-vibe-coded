@@ -1,3 +1,4 @@
+/** @panki The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). */
 import type { EventBatch, EventKind, NewEvent } from "@panki/contracts";
 import { api } from "./api";
 

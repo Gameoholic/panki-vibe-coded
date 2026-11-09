@@ -1,3 +1,4 @@
+/** @panki A YouTube link as a field holds it, and a video's metadata (`youtubeUrl`, `youtubeLinkOf`, `YouTubeMeta`, `momentWanted`). Never an address pasted and trusted. */
 import { z } from "zod";
 
 /**

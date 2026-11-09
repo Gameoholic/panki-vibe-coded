@@ -1,3 +1,4 @@
+/** @panki The one centred pop-up over the dimmed page, for a question that can't wait (`Modal`). Never a second centred modal. */
 import { useEffect, useRef, type ReactNode } from "react";
 
 type Props = {

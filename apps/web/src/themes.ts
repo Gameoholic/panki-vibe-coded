@@ -1,3 +1,4 @@
+/** @panki The themes, the only place one is listed (`THEMES`, `ThemeId`), and this device's choice read, kept and applied (`readTheme`, `writeTheme`, `applyTheme`). */
 /**
  * The themes: one entry each, and the only place a theme is listed. The colours themselves live in `theme.css` as one
  * `[data-theme]` block per entry; `swatch` carries just the two that show on the chip and the address bar. The choice

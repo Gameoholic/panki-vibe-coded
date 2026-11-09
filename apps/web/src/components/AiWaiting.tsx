@@ -1,3 +1,4 @@
+/** @panki Any wait on Panki AI (`AiWaiting`), and the AI's spark (`AiSpark`). Never a spinner, never a second spark. */
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 

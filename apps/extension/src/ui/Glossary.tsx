@@ -1,3 +1,4 @@
+/** @panki What a dictionary says a word means, drawn and as text (`Glossary`, `glossaryText`). Never a dictionary's markup drawn as it is. */
 import { createElement, type CSSProperties, type ReactNode } from "react";
 import { z } from "zod";
 

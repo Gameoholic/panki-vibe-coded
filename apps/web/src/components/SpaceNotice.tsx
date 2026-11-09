@@ -1,3 +1,4 @@
+/** @panki Saying the disk is nearly full (`SpaceNotice`). */
 import { sizeWords, type Space } from "@panki/contracts";
 
 /**

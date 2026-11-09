@@ -1,3 +1,4 @@
+/** @panki Video tracking and Save for later as shapes: stretches watched, a video's marks and glance, saved videos (`WatchBatch`, `VideoGlance`, `SavedVideo`). */
 import { z } from "zod";
 import { VideoId } from "./transcription";
 

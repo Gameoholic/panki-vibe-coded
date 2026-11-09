@@ -1,3 +1,4 @@
+/** @panki Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. */
 import {
   AI_PROVIDERS,
   APP_LANGUAGES,

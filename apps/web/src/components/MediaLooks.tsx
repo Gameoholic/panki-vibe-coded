@@ -1,3 +1,4 @@
+/** @panki The player looks `MediaView` draws a file in (`VoiceLook`, `RoundLook`, `TileLook`, `SpeakerLook`), with its keycap (`MediaKey`) and speed (`SpeedControl`). */
 import { useEffect, useId, useState, type MouseEvent, type PointerEvent } from "react";
 import type { MediaKind } from "@panki/contracts";
 import { usePlayback } from "../hooks/usePlayback";

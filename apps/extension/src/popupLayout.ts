@@ -1,3 +1,4 @@
+/** @panki How the Word pop-up is laid out, as kept, and the moves on it (`PopupLayout`, `popupLayoutOf`, `moveBodyPart`, `withMeanings`). */
 import { z } from "zod";
 
 /**

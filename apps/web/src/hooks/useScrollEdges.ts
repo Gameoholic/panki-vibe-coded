@@ -1,3 +1,4 @@
+/** @panki The fade and the bar `ScrollEdges` draws, worked out for a box (`useScrollEdges`, `BAR_STAYS_MS`); reach for `ScrollEdges`. */
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
 /** How long the bar stays after the last scroll before it fades. */

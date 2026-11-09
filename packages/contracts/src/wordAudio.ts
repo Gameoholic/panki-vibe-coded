@@ -1,3 +1,4 @@
+/** @panki Where word audio comes from, the sources one registry, and the settings everyone shares (`WORD_AUDIO_SOURCES`, `WordAudio`, `DEFAULT_WORD_AUDIO`). */
 import { z } from "zod";
 
 /**

@@ -1,3 +1,4 @@
+/** @panki What's selected on a page with its sentence, and the sentence around words in any text (`takeSelection`, `sentenceAround`). Never a second reader of sentences. */
 /** What was selected on a page, in its sentence: the sentence, and where in it (in characters) the selection sits. */
 export type Taken = { sentence: string; from: number; to: number };
 /** A sentence found inside a longer text: the same, with where in that text it begins. */

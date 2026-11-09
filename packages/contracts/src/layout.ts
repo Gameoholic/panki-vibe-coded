@@ -1,3 +1,4 @@
+/** @panki How a type's cards look in a review: each field's part, side, column, size, tone, look and marks (`CardLayout`, `COLUMNS`, `FaceShow`, `AutoPlay`). */
 import { z } from "zod";
 
 /**

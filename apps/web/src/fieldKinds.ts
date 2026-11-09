@@ -1,3 +1,4 @@
+/** @panki The kinds a field can be in words (`FIELD_KINDS`, `FIELD_KIND_OPTIONS`, `kindClass`), and what a value's file is (`fileKindOf`). */
 import { FieldKind, holdsFile, type MediaKind } from "@panki/contracts";
 
 /**

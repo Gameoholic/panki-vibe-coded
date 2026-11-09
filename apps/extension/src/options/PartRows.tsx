@@ -1,3 +1,4 @@
+/** @panki Parts of something laid out as rows: a grip, its name, Shown / Hidden (`PartRows`, `LaidPart`). Never a second list of rows to lay out. */
 import type { ReactNode } from "react";
 import { Button } from "@web/components/Button";
 import { Icon, type IconName } from "@web/components/Icon";

@@ -1,3 +1,4 @@
+/** @panki Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`). Never a second drawing of the pill. */
 import type { Deck, Stats } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";

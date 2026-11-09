@@ -1,3 +1,4 @@
+/** @panki A pitch accent as a field holds it, read leniently (`PitchAccent`, `pitchesOf`, `moraeOf`, `isHigh`, `pitchValue`). */
 /**
  * A pitch accent, as a card's Pitch accent field holds it and as the popup and a card draw it (a field kind of its
  * own, drawn as the line over the reading rather than shown as text). Each accent is a reading and

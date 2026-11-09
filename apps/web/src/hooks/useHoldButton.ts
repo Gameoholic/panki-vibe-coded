@@ -1,3 +1,4 @@
+/** @panki A button held through a card's stages, the Hold button (`useHoldButton`, `HoldStage`, `holdShares`). Never a second chain of holds. */
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ClockPiece } from "../components/KeyCap";
 import { keyIn, type Bind } from "../keys";

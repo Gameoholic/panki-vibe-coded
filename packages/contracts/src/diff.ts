@@ -1,3 +1,4 @@
+/** @panki What a proposal changed in a text, as runs kept, dropped and added (`textDiff`, `DiffRun`). Never a second diff of text. */
 /**
  * What a proposal changed in a text, as runs of kept, dropped and added text: a field's value as it was against the one
  * Touch up proposes, drawn as one paragraph with the changes lit. Words are compared whole and Japanese character by

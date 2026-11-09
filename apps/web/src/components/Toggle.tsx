@@ -1,3 +1,4 @@
+/** @panki Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. */
 import type { Ref } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";

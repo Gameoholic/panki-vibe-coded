@@ -1,3 +1,4 @@
+/** @panki Video tracking on a video's page: the stretches watched, sent in batches (`createWatcher`). Never a second listener on the player for time watched. */
 import { WATCH, type NewWatchStretch, type WatchBatch, type WatchVideo } from "@panki/contracts";
 import { uuid } from "../uuid";
 

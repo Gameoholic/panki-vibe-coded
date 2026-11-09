@@ -1,3 +1,4 @@
+/** @panki What an SRS type does to a card, worked out ahead for its preview: a journey and the three-month cost (`journey`, `forecast`). */
 import { NEW_PLACE, mainAnswers, offered, resolve, stageIndex, type CardPlace, type SrsType } from "@panki/contracts";
 
 /**

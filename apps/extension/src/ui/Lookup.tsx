@@ -1,3 +1,4 @@
+/** @panki The Word pop-up: a word's dictionary entries, laid out as set (`Lookup`, `LookupBody`, `PopupEdit`). */
 import { Fragment, useRef, useState, type ReactNode } from "react";
 import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";

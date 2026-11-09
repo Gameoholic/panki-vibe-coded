@@ -1,3 +1,4 @@
+/** @panki What a page's script asks the worker, each message a shape (`askLocal`, `askState`, `askDeck`, `askAdd`, `askUpload`). */
 import { z } from "zod";
 import { TranscribePrefs } from "./transcribe/prefs";
 import {

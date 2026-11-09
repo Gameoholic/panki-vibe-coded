@@ -1,3 +1,4 @@
+/** @panki Every icon, one registry (`Icon`, `IconName`); a missing one is drawn in here. Never an icon library. */
 /** A gear's outline of `teeth` flat teeth round the middle of the grid: worked out once, its points being many. */
 function gearOf(teeth: number): string {
   const steps = teeth * 4;

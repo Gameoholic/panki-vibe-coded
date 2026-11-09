@@ -1,3 +1,4 @@
+/** @panki A yes/no about something that hurts, in a small panel hanging from the button that asked (`Ask`). Never `confirm()`, never a centred modal. */
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useAnchored } from "../hooks/useAnchored";
 import { useDismiss } from "../hooks/useDismiss";

@@ -1,3 +1,4 @@
+/** @panki A transcription mode named anywhere (`ModeChip`, `MODE_ICONS`). Never a mode's name as bare text in a sentence. */
 import { TRANSCRIBE_MODES, type TranscribeMode } from "@panki/contracts";
 import { Icon, type IconName } from "./Icon";
 

@@ -1,3 +1,4 @@
+/** @panki A meaning Panki AI judged, wherever it's listed, its reason folded under a chevron (`JudgedRow`, `WhyButton`, `meaningsChip`). Never a second drawing of one. */
 import { useState, type ReactNode } from "react";
 import { MEANING_JUDGEMENT_NAMES, type Judgement } from "@panki/contracts";
 import type { ChangeChip, ChipState } from "./AiConversation";

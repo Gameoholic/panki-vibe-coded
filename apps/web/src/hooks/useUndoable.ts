@@ -1,3 +1,4 @@
+/** @panki Something edited on screen that can be undone and redone, with Ctrl+Z (`useUndoable`). Never a second history. */
 import { useCallback, useEffect, useState } from "react";
 
 type History<T> = { past: T[]; present: T; future: T[]; group: string | null };

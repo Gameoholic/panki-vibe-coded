@@ -1,3 +1,4 @@
+/** @panki A menu that must never be cut off by a box scrolling around it, fixed in the window under its anchor (`useAnchored`). */
 import { useEffect, type RefObject } from "react";
 
 /** The gap between what opened and its menu, and the least room kept from the window's edges. */

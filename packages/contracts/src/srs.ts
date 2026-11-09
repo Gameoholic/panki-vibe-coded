@@ -1,3 +1,4 @@
+/** @panki SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). */
 import { z } from "zod";
 import { DEFAULT_REVIEW_SETTINGS, ReviewSettings } from "./reviewSettings";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";

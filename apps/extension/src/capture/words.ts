@@ -1,3 +1,4 @@
+/** @panki A line split into words, a pick, and a time to the hundredth written and read back (`tokensOf`, `pick`, `spanOver`, `stamp`, `parseStamp`). */
 import { clock, isJapanese } from "@web/words";
 
 /**

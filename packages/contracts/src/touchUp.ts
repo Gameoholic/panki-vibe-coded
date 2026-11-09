@@ -1,3 +1,4 @@
+/** @panki Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). */
 import { z } from "zod";
 import { TOUCH_UP_KEYS, TouchUpKey } from "./accountActions";
 import { AiRanOn, PankiAiStatus, type AiPlaceId } from "./ai";

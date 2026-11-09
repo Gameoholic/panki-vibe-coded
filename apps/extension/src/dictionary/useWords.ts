@@ -1,3 +1,4 @@
+/** @panki A line's words, split by the dictionaries (`useWords`, `wordsNow`). */
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { Token } from "../capture/words";
 import { askLattice } from "../messages";

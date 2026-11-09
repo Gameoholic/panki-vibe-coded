@@ -1,3 +1,4 @@
+/** @panki Playing a stretch of the page's video to hear a clip (`createReplay`). Never a second thing that moves the player's time while the drawer is open. */
 /**
  * Plays a stretch of a video in place, on the page's own player: to hear a clip before it's made. Round and round
  * until it's stopped, or once (the second around an end that was just moved). Nothing is recorded and nothing is

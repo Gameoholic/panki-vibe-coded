@@ -1,3 +1,4 @@
+/** @panki How every review runs, the account's, the same for every deck, and the defaults (`ReviewSettings`, `DEFAULT_REVIEW_SETTINGS`, `ExampleShown`, `againPlaceOf`). */
 import { z } from "zod";
 
 /** The most cards Cards at a time can keep in play. */

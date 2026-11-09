@@ -34,6 +34,10 @@ jobs:
       - name: Type-check
         run: pnpm typecheck
 
+      # The docs stay within their budget, and COMPONENTS.md matches the code's @panki lines.
+      - name: Check the docs
+        run: pnpm docs:check
+
       - name: Build
         run: pnpm build
 

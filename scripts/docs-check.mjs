@@ -1,10 +1,12 @@
 // Keeps the docs within their budgets. What loads every session (CLAUDE.md,
 // every file it imports with an `@path` line, and the memory index when
 // PANKI_MEMORY_INDEX names it) stays under SESSION_MAX, and every doc under
-// docs/ stays under DOC_MAX, so a task reads one small file.
+// docs/ stays under DOC_MAX, so a task reads one small file. And
+// docs/COMPONENTS.md is what the code's `@panki` lines say (docs-components.mjs).
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { componentsCheck } from "./docs-components.mjs";
 
 const SESSION_MAX = 40 * 1024;
 const DOC_MAX = 60 * 1024;
@@ -69,6 +71,14 @@ if (over.length) {
   for (const { path, size } of over) console.log(`  ${kb(size).padStart(9)}  ${relative(root, path)}`);
 } else {
   console.log(`Every doc under docs/ is within ${kb(DOC_MAX)}.`);
+}
+
+const components = componentsCheck();
+if (components.length) {
+  failed = true;
+  for (const problem of components) console.log(`FAIL: ${problem}`);
+} else {
+  console.log("docs/COMPONENTS.md is what the code's @panki lines say.");
 }
 
 process.exit(failed ? 1 : 0);

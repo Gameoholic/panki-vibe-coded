@@ -1,3 +1,4 @@
+/** @panki Decks as rows with their counts (`DeckList`). */
 import { useId, type ReactNode } from "react";
 import type { Deck } from "@panki/contracts";
 import { count } from "../words";

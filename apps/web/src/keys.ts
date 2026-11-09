@@ -1,3 +1,4 @@
+/** @panki The review's and the players' keys on this device, their defaults, and what a press is (`DEFAULT_KEYS`, `useKeyBinds`, `keyOf`, `pressed`, `heard`). */
 import { useSyncExternalStore } from "react";
 import { ledger } from "./ledger";
 

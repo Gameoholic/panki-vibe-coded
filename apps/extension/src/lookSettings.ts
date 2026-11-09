@@ -1,3 +1,4 @@
+/** @panki How the Word pop-up opens: its keys, its sites, the hover delay, the permissions it needs (`LookKey`, `LookWhere`, `HOVER_DELAY`, `lookAllowed`). */
 import { z } from "zod";
 
 /**

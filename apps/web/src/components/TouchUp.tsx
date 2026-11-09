@@ -1,3 +1,4 @@
+/** @panki Touch up as it's drawn: its head, a proposal under a field (`TouchUpAll`, `Tied`, `fieldShown`, `proposes`, `UnmarkAi`). Never a second proposal. */
 import { Fragment, useState, type ReactNode } from "react";
 import {
   TOUCH_UP,

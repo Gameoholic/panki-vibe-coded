@@ -1,3 +1,4 @@
+/** @panki The SRS types that come with the app, and a new type as a copy of another (`makeStarter`, `SRS_STARTER_IDS`, `copySrsType`, `emptySrsType`). */
 import { BURY_WAIT, type Flow, type NewSrsType, type SrsAfter, type Step, type WaitUnit } from "./srs";
 import { STAGE_RAMP } from "./stageColour";
 

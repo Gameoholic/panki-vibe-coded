@@ -1,3 +1,4 @@
+/** @panki A list shuffled, on a copy (`shuffle`). */
 /** Fisher–Yates on a copy; the input is never reordered. */
 export function shuffle<T>(items: readonly T[]): T[] {
   const out = [...items];

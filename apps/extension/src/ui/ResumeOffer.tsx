@@ -1,3 +1,4 @@
+/** @panki Going on from where a video was stopped, offered on the picture (`ResumeOffer`). Never a second drawing of the offer. */
 import type { CSSProperties } from "react";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";

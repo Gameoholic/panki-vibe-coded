@@ -1,3 +1,4 @@
+/** @panki The kinds of data Panki reads from a dictionary, and what each dictionary provides (`DATA_KINDS`, `kindsIn`, `providedBy`). Never a second list of them. */
 import { DATA_KIND_IDS, DATA_KIND_NAMES, type DataKind, type Provides } from "@panki/contracts";
 import { dictionaryOf } from "./popupLayout";
 import type { NamedPart } from "./popupKinds";

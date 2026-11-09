@@ -1,3 +1,4 @@
+/** @panki A colour picked from the palette, or one of one's own (`Swatches`, `Swatch`, `hexOfCss`). Never a second row of swatches. */
 import { useRef, useState, type CSSProperties } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import { Button } from "./Button";

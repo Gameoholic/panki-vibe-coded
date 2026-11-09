@@ -1,3 +1,4 @@
+/** @panki A card layout's choices in words: show, size, tone, column, look, play, listen, corner marks (`SHOW_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). */
 import { SHOW_ON_PLAY_MAX, type AutoPlay, type Column, type CornerMarkId, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone, type TagCorner } from "@panki/contracts";
 
 /**

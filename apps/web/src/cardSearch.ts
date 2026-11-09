@@ -1,3 +1,4 @@
+/** @panki Searching a deck's cards by anything on them, whole, in part or letters in order, romaji as its kana (`searchCards`). */
 import { holdsFile, metaOf, type Card, type CardType, type SrsType } from "@panki/contracts";
 import { kanaOf, looksLikeRomaji } from "./romaji";
 import { FLAG_WORDS, HOLD_KINDS, placeName } from "./srsKinds";

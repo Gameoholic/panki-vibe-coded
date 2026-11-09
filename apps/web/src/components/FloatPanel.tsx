@@ -1,3 +1,4 @@
+/** @panki A panel laid over the screen, moved anywhere and kept where it was put (`FloatPanel`). Never a second floating panel. */
 import { useRef, type CSSProperties, type ReactNode } from "react";
 import { useDragPanel } from "../hooks/useDragPanel";
 import { Button } from "./Button";

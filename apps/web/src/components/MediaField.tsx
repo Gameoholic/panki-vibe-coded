@@ -1,3 +1,4 @@
+/** @panki A field that holds a file: a sound, a clip, a picture, picked or dropped (`MediaField`). Never a bare `<input type="file">`. */
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { MEDIA_ENDINGS, type MediaKind } from "@panki/contracts";
 import { Ask } from "./Ask";

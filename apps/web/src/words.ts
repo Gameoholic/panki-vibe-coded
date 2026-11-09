@@ -1,3 +1,4 @@
+/** @panki How things are said in words: a count, a list, a key, a clock, a date, how long ago, a cost (`count`, `listWords`, `keyWords`, `clock`, `agoWords`, `estimateWords`). */
 /**
  * What Video tracking does, said under it in the extension, where it's switched, and in Panki's Settings, where it's
  * shown: the same words in both, so the two read exactly alike.

@@ -1,3 +1,4 @@
+/** @panki An update for the extension on the options page: whether there is one, the banner, the version panel (`useUpdate`, `UpdateBanner`, `VersionPanel`). */
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";

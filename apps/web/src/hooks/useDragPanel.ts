@@ -1,3 +1,4 @@
+/** @panki A panel dragged anywhere over the screen and kept where it was put (`useDragPanel`); `FloatPanel` is its drawing. */
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
 /**

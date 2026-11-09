@@ -1,3 +1,4 @@
+/** @panki The pill's parts, laid out and previewed on the options page (`PillParts`). */
 import { PILL_PARTS, type PillLayout } from "../modules";
 import { PartRows } from "./PartRows";
 import { writeStore, type Stored } from "../storage";

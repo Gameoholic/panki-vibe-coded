@@ -31,7 +31,7 @@ Too much context goes to the docs (127K tokens before a word is typed, 25% of th
 | `docs/COMPONENTS.md` | One line per shared piece: name, file, what for | When building UI |
 | `docs/architecture/*.md` | One file per area, present tense | The area touched |
 | `docs/PRODUCT.md` | Each feature as it is today | On a product call |
-| `docs/AI.md`, `PANEL.md`, `DOCS.md` | Epic plans: Why, Settled, Order, Open | During the epic |
+| `docs/AI.md`, `DOCS.md` | Epic plans: Why, Settled, Order, Open | During the epic |
 | memory | Only what the repo can't hold: artifact URLs, the owner's profile, tooling notes; pointers otherwise | `MEMORY.md` every session, ≤ 3 KB |
 
 A check, `pnpm docs:check`, fails when what loads every session passes 40 KB.
@@ -64,12 +64,14 @@ The owner's question (2026-11-09): is a 291 KB `COMPONENTS.md` really the effici
 Expected total: ~1.2 MB → ~250 KB, with `COMPONENTS.md` never drifting from the code again.
 
 - [x] 5. The rules files, made readable first: `docs/PREFERENCES.md` and `docs/conventions/*.md`, both as plain rules; `CLAUDE.md` ≤ 4 KB; `STATUS.md` plain; the history files removed.
-- [ ] 6. `COMPONENTS.md` generated from a one-line header comment per piece (`pnpm docs:components`); its never/always table to `conventions/in-app-text.md`.
+- [x] 6. `COMPONENTS.md` generated from a one-line header comment per piece (`pnpm docs:components`); its never/always table to `conventions/in-app-text.md`.
 - [x] 7. The conventions (done in 5).
-- [ ] 8. Each architecture file, present tense, the trail dropped.
-- [ ] 9. `PRODUCT.md` by feature.
-- [ ] 10. `AI.md`, `PANEL.md` trimmed to Why / Settled / Order / Open.
-- [ ] 11. The agents and the brainstorm skill reread against the new files.
+- [x] 8. Each architecture file, present tense, the trail dropped.
+- [x] 9. `PRODUCT.md` by feature.
+- [x] 10. `AI.md` trimmed to Why / Settled / Order / Open; `PANEL.md` deleted, its steps done.
+- [x] 11. The agents and the brainstorm skill reread against the new files.
+
+Done 2026-11-09, uncommitted for the owner to review: the docs went from 1.21 MB to 270 KB; every session loads `CLAUDE.md` alone, 3.2 KB; `COMPONENTS.md` is 34 KB from 202 `@panki` lines; `pnpm docs:check` passes. The epic ends when the owner is satisfied and it's committed.
 
 ## Open
 

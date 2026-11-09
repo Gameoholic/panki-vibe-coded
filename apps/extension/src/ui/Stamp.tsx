@@ -1,3 +1,4 @@
+/** @panki A moment of the video that can be typed over (`Stamp`). */
 import { useRef, useState } from "react";
 import { Button } from "@web/components/Button";
 import { TextField } from "@web/components/TextField";

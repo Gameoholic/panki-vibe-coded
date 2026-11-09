@@ -1,3 +1,4 @@
+/** @panki The column the panel and the drawer stand in beside the video and in full screen (`Column`). Never a second column. */
 import { useRef } from "react";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 

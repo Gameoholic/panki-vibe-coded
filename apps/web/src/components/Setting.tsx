@@ -1,3 +1,4 @@
+/** @panki One setting as a row: its label, its control, a `why` line only where needed, the `perDevice` tag (`Setting`). */
 import { useState, type ReactNode } from "react";
 import { HintMark } from "./HintMark";
 import { PerDevice } from "./PerDevice";

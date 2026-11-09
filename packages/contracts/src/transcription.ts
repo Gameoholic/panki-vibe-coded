@@ -1,3 +1,4 @@
+/** @panki A video transcribed, as shapes: engines, settings, modes, chunks, the transcript, a line fixed (`ENGINES`, `Transcription`, `TRANSCRIBE_MODES`, `Transcript`). */
 import { z } from "zod";
 
 /**

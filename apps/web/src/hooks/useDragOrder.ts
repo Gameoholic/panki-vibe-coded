@@ -1,3 +1,4 @@
+/** @panki Rows reordered by dragging a grip, with a mouse, a finger or the arrow keys (`useDragOrder`). Never a second drag for rows. */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 
 type Drag = { from: number; to: number; dy: number; slot: number };

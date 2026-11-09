@@ -1,3 +1,4 @@
+/** @panki Calling Panki from the extension (`panki`, `PankiError`). Never a second client. */
 import { z } from "zod";
 import {
   KEPT_KIND_IDS,

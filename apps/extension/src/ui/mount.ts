@@ -1,3 +1,4 @@
+/** @panki A place of Panki's on someone else's page, in its own shadow root (`mount`, `makePlace`, `inPanki`). */
 import { createRoot, type Root } from "react-dom/client";
 import { SHADOW_CSS } from "./styles";
 

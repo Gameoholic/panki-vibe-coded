@@ -1,3 +1,4 @@
+/** @panki The dictionaries in this browser: imported, listed, ordered, switched, and their words found (`importDictionary`, `listDictionaries`, `termsFor`, `metaFor`). */
 import {
   DictionaryFileError,
   ZipError,

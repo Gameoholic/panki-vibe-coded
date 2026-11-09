@@ -1,3 +1,4 @@
+/** @panki No decks yet, with the one way forward (`NoDecksYet`). */
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 

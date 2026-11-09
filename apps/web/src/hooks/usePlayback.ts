@@ -1,3 +1,4 @@
+/** @panki A sound or a clip played by one of the app's players, in any look (`usePlayback`). Never a second way of playing a file. */
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import type { Heard, Shortcut } from "../keys";
 import { setSpeed, setVolume, speedOf, useSpeed, useVolume, type Speed, type Volume } from "../playback";

@@ -1,3 +1,4 @@
+/** @panki Every button, its look a `variant`: primary, ghost, row, tab, door, chip, seg, switch, item, node, answer, danger, spoiler. Never a classless `<button>`. */
 import type { ButtonHTMLAttributes, Ref } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {

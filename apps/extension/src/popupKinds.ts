@@ -1,3 +1,4 @@
+/** @panki The Word pop-up's layout in words: each part's name, what it's for, its choices (`PART_NAMES`, `PART_ABOUT`, `SHOW_OPTIONS`, `bandOf`). */
 import { DATA_KINDS } from "./dataKinds";
 import type { BodyKind, FrequencyWords, PartShow, ReadingAt, TagWords } from "./popupLayout";
 

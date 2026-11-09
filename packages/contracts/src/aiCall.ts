@@ -1,3 +1,4 @@
+/** @panki One call to Panki AI as its page tells of it, for `AiStatus` (`AiCall`, `AiMessageWhy`, `piecesAsSent`, `answeredCall`, `failedCall`). Never sent, never kept. */
 import { AI_PROVIDERS, aiModelOf, type AiProviderId, type AiRanOn, type AiTemplate, type PankiAi } from "./ai";
 import type { PromptPieceId } from "./pieces";
 import { aiSent, ceilingMicros, variablesIn, type AiUnread, type ExplainMessage, type PromptPieces } from "./prompt";
@@ -8,8 +9,8 @@ import type { Judgement } from "./judgement";
  * least of all what data was sent): what it was, why it ran, the model, every piece of Prompt context
  * its template asked for with what it held or why it held nothing, the prompt exactly as sent, and how it came out.
  * Built where the call is made, from the settings it ran with (`startCall`), and finished from the answer (`answeredCall`,
- * `failedCall`); drawn by the web's `AiStatus`. Never sent and never kept: what was sent stays on the page (AI.md,
- * "nothing is stored"), and closing the page forgets it.
+ * `failedCall`); drawn by the web's `AiStatus`. Never sent and never kept: what was sent stays on the page (AI.md:
+ * a conversation is never saved), and closing the page forgets it.
  */
 
 /**

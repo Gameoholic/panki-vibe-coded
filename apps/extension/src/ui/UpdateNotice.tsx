@@ -1,3 +1,4 @@
+/** @panki An update for the extension, said on the page (`UpdateBody`, `UpdateMenu`, `updateShown`, `UPDATE_WORDS`). Never a second notice of an update. */
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";

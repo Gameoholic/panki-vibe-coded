@@ -1,3 +1,4 @@
+/** @panki Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). */
 import { z } from "zod";
 import type { IconName } from "@web/components/Icon";
 

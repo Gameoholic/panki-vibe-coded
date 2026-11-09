@@ -1,3 +1,4 @@
+/** @panki Panki on the player's seek bar: how far the transcript reaches, where cards came from, the clip (`SeekMark`, `ClipMark`). Never a second mark on the bar. */
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type PointerEvent, type SyntheticEvent } from "react";
 import type { Stretch, VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";

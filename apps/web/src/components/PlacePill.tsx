@@ -1,3 +1,4 @@
+/** @panki Where a card stands, as a pill in its stage's colour (`PlacePill`, `StagePill`). */
 import { isNew, placeColour, type CalledCard, type CardPlace, type NewColoured, type SrsType } from "@panki/contracts";
 import { NEW_WORDS, placeName, tintOf } from "../srsKinds";
 

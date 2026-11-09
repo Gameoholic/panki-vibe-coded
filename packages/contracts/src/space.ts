@@ -1,3 +1,4 @@
+/** @panki What's left on the disk, what Panki's data takes of it, and bytes in words (`Space`, `StorageReport`, `sizeWords`). Measuring it is the API's alone. */
 import { z } from "zod";
 
 /** The disk Panki keeps its data on: how much of it is left, and whether that's little enough to say so. */

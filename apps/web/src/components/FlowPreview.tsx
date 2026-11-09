@@ -1,3 +1,4 @@
+/** @panki The live preview of an SRS type: a card's journey and what it costs (`FlowPreview`). */
 import { Fragment, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { DEFAULT_DECK_SETTINGS, mainAnswers, type SrsType } from "@panki/contracts";
 import { count } from "../words";

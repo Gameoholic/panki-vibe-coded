@@ -1,3 +1,4 @@
+/** @panki What a panel's feature is, shown as a scene that plays (`Explainer`, `ExplainedTitle`, `Stage`, `CANVAS`). Never a second explainer. */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import { Button } from "./Button";

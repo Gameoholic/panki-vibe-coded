@@ -1,3 +1,4 @@
+/** @panki Who is signed in: accounts, sessions, signing in (`User`, `Session`, `Login`, `MeResponse`, `PASSWORD_MIN`). */
 import { z } from "zod";
 
 /**

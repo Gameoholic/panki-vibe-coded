@@ -1,3 +1,4 @@
+/** @panki An SRS type's rules chart, its geometry in the one object `G` (`FlowCanvas`). */
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { LESSON_IDX, MOVE_MAX, WAIT_MAX, isNew, newColourOf, placeAt, resolve, waitAt, type Flow, type SrsType, type Step } from "@panki/contracts";
 import { AGAIN_OPTIONS, BURNED_TINT, FAR_MOVE, NEW_WORDS, farOf, newTint, moveOptions, WAIT_UNIT_OPTIONS, STEP_OPTIONS, againWords, answerClass, backWords, holdNote, placeName, spanWords, stageName, stageWaitWords, stageTint, stepIcon, stepKey, stepLabel } from "../srsKinds";

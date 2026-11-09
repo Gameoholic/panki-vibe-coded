@@ -1,3 +1,4 @@
+/** @panki Panki AI's templates: Panki's starters, one registry, beside each account's own (`AI_STARTERS`, `templatesOf`, `defaultTemplateOf`, `ASK_OVER`). */
 import { ADMIN_PROMPT_PLACE_IDS, AI_PLACE_IDS, DEFAULT_PROOFREAD_PROMPT, byPlaceKept, type AiPlaceId, type AiTemplate, type TemplateId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 
@@ -11,7 +12,7 @@ import { taggedOf, variableOf } from "./pieces";
 
 /** What a follow-up sends, Panki's to begin with: the question as typed, and for Touch up the field it was asked from and the card as it stands now. */
 export const DEFAULT_FOLLOW_UPS: Record<AiPlaceId, string> = {
-  // The question bare, as the asker's own words (AI.md: "a follow-up question is the asker's own and goes untagged").
+  // The question bare, as the asker's own words (AI.md: the user's words and Panki's requirements are apart).
   word: variableOf("question"),
   card: `${variableOf("question")}
 

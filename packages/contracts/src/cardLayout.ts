@@ -1,3 +1,4 @@
+/** @panki A type's layout as it stands, filled out from its fields, and the moves on it (`layoutOf`, `defaultLayout`, `examplesToColumn`, `moveInColumn`). */
 import { z } from "zod";
 import {
   AutoPlay,

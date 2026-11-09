@@ -1,3 +1,4 @@
+/** @panki A video's captions as lines with times (`createCaptions`, `lineAt`, `timeOf`, `beatsOf`, `cuesOf`). */
 import { CUES_MAX, type MediaCues } from "@panki/contracts";
 import { isJapanese } from "@web/words";
 

@@ -1,3 +1,4 @@
+/** @panki How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). */
 import { z } from "zod";
 
 /**

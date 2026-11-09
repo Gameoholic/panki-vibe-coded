@@ -1,3 +1,4 @@
+/** @panki What shows the next of a review card, Done listening or Show back of card (`ShowButton`), and the Hold button (`HoldButton`). Never a second of either. */
 import type { CSSProperties } from "react";
 import type { HoldButtonView } from "../hooks/useHoldButton";
 import type { Key } from "../keys";

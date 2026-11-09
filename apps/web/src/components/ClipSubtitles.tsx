@@ -1,3 +1,4 @@
+/** @panki A clip's subtitles on a card, following it as it plays (`ClipSubtitles`). Never a second band. */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { SUBTITLE_REF_HEIGHT, cueAt, subtitleVars, type MediaCues, type SubtitleStyle } from "@panki/contracts";
 import { langOf } from "../words";

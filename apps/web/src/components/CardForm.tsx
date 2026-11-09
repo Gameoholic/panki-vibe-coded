@@ -1,3 +1,4 @@
+/** @panki A card's form: the Add a card panel, and a card opened to change or delete (`CardForm`). Never a second form for a card. */
 import { Fragment, useId, useRef, useState, type ReactNode } from "react";
 import {
   CardUpdate,

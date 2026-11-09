@@ -1,3 +1,4 @@
+/** @panki A card as a review shows it, front and back, laid out by its type (`ReviewCard`, `listensFirst`). Never a second drawing of a card's two sides. */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   CORNER_MARK_IDS,

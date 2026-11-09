@@ -1,3 +1,4 @@
+/** @panki The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. */
 import { useLayoutEffect, type ReactNode, type RefObject } from "react";
 import { branchAt, flowOf, isNew, offered, resolve, stageIndex, type CardPlace, type HoldKind, type ReviewSettings, type SrsType, type Step } from "@panki/contracts";
 import type { HoldButtonView } from "../hooks/useHoldButton";

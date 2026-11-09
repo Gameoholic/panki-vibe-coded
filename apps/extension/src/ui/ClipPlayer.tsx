@@ -1,3 +1,4 @@
+/** @panki A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ClipTime } from "@web/components/ClipSubtitles";
 import { MediaBar } from "@web/components/MediaView";

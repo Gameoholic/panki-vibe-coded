@@ -1,3 +1,4 @@
+/** @panki A whole number typed or stepped with − and +: a wait, a setting, a count (`NumberField`). Never `<input type="number">` or `type="time"`. */
 import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";

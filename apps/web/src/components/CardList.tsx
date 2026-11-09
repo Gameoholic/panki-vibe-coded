@@ -1,3 +1,4 @@
+/** @panki Cards as rows (`CardList`). */
 import { useId, useRef, useState, type ReactNode } from "react";
 import { MediaId, byAi, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";

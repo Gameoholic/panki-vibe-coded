@@ -1,3 +1,4 @@
+/** @panki Panki AI's actions and templates in words: one drafted, its ceiling said, Ask over (`draftAction`, `draftTemplate`, `ceilingWords`, `ASK_OVER_OPTIONS`). */
 import {
   AI_PLACES,
   ASK_OVER,

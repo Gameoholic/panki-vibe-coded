@@ -1,3 +1,4 @@
+/** @panki The ways a deck's cards can be narrowed to some of them, one entry each (`CARD_FILTERS`, `filterOptions`, `filterCards`). A new way is one entry. */
 import { isBurned, isNew, stageIndex, type CalledCard, type Card, type SrsType } from "@panki/contracts";
 import { FLAG_WORDS, NEW_WORDS, stageName } from "./srsKinds";
 

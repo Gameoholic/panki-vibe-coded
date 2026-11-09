@@ -1,3 +1,4 @@
+/** @panki A line as words to press (`Line`, `LineLook`, `shownWhole`). */
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { AiSpark } from "@web/components/AiWaiting";
 import { Button } from "@web/components/Button";

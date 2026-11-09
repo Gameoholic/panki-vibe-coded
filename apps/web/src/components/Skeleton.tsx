@@ -1,3 +1,4 @@
+/** @panki Anything loading, anywhere: the shape of what's coming (`Skeleton`, `Bone`, `SkeletonShape`). Never "Loading…", a spinner, or a blank that pops in. */
 import type { CSSProperties } from "react";
 import { CORNER_MARK_IDS } from "@panki/contracts";
 import { FloatPanel } from "./FloatPanel";

@@ -1,3 +1,4 @@
+/** @panki What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). */
 import { useId, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import {
   AI_ACTIONS,

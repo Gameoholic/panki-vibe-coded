@@ -1,3 +1,4 @@
+/** @panki The Panki panel's one menu on its head (`PanelMenu`). Never a second menu on the head. */
 import { useEffect, useRef, useState } from "react";
 import type { SubtitleStyle } from "@panki/contracts";
 import { Button } from "@web/components/Button";

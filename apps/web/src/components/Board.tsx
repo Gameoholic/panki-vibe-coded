@@ -1,3 +1,4 @@
+/** @panki The board: the home's doors and tiles, and every tile on Stats, held to arrange (`Board`). Never a second way of arranging. */
 import { useEffect, type CSSProperties } from "react";
 import type { Stats } from "@panki/contracts";
 import { Button } from "./Button";

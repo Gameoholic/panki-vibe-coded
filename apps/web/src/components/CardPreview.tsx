@@ -1,3 +1,4 @@
+/** @panki A card seen as a review would show it, in a deck picked (`CardPreview`). */
 import { useMemo, useState } from "react";
 import { NEW_PLACE, exampleShownOf, sourcesWithExample, valuesWithExample, type Card, type CardField, type CardType, type Deck, type ExampleShown, type SrsType, type SubtitleStyle, type ValueSources } from "@panki/contracts";
 import { api } from "../api";

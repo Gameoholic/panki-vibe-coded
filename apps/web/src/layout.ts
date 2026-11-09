@@ -1,3 +1,4 @@
+/** @panki The home board as this device has it: doors and tiles in one order, and those put away (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`). */
 import { ledger } from "./ledger";
 import { WIDGETS, widgetOf, type WidgetId } from "./widgets";
 

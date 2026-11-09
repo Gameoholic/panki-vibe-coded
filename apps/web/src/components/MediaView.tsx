@@ -1,3 +1,4 @@
+/** @panki A file shown or played, anywhere (`MediaView`), and the player's bar alone (`MediaBar`). Never `<audio controls>` outside the Plain style, never a second player. */
 import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode, type RefObject } from "react";
 import type { MediaKind, MediaLook } from "@panki/contracts";
 import { useHeardKeys } from "../hooks/useHeardKeys";

@@ -1,3 +1,4 @@
+/** @panki A handful of settings that save themselves a moment after each change (`useSavedSoon`). */
 import { useEffect, useRef, useState } from "react";
 
 const SAVE_AFTER_MS = 300;

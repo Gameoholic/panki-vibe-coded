@@ -1,3 +1,4 @@
+/** @panki What happened, as kept: review sessions, the events ledger, days and videos for the stats (`ReviewSession`, `NewEvent`, `EVENT_KINDS`, `Day`, `ContinueVideo`). */
 import { z } from "zod";
 import { CardId } from "./card";
 import { DeckId } from "./deck";

@@ -1,3 +1,4 @@
+/** @panki Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `goTo`). Never a second way of reordering rows by themselves. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** What `useHoist` gives back: the order to draw the rows in, the box's ref, and a way to go to a row. */

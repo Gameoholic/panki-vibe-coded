@@ -1,3 +1,4 @@
+/** @panki A key as its keycap on the button it presses, and a held key's filling clock (`KeyCap`, `holdFor`, `HoldClock`). */
 import type { CSSProperties } from "react";
 import { DOUBLE_PRESS, pressKind, useKeybindsEnabled, type Key } from "../keys";
 import { keyWords } from "../words";

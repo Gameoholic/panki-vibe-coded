@@ -37,5 +37,21 @@ Every new or changed setting, in the app and the extension, is checked against t
 
 ## Nothing the browser draws by itself
 
-- No `title` attribute (the app's tooltip), no bare `<form>` (`<Form>`, `noValidate`), no `alert()` or `confirm()` (the app's confirm), no classless `<button>`. The full never-and-always table heads `docs/COMPONENTS.md`.
-- The one exception: the Plain player style is the browser's own audio and video controls, a choice beside Panki's own Player.
+| Never | Always |
+| --- | --- |
+| `title="…"`, an SVG `<title>`, a hover bubble drawn by hand | `Tip`; on a touch screen its words go in the menu |
+| a bare `<form>` | `Form`, `noValidate`; a field says what's wrong in `TextField`'s own bubble |
+| `alert()`, `confirm()`, `prompt()` | `Ask`, a small panel hanging from the button that asked |
+| a classless `<button>` | `Button` with its `variant` |
+| a `<select>` | `Segmented` for a few choices, `Dropdown` for a long list |
+| a native checkbox | `Toggle`, its words its state |
+| `<input type="number">`, `type="time"` | `NumberField` |
+| `<input type="color">` | `Swatches`, `ColourWheel` |
+| `<audio controls>`, `<video controls>`, a bare `<input type="file">` | `MediaView`; `MediaField`, the input itself never seen |
+| a centred modal over a backdrop | a panel anchored to what opened it; `Modal` alone for leaving unsaved work |
+| a colour literal | a token from `theme.css` |
+| a control shown only on hover | the row's menu as well, or always shown under `@media (hover: none)` |
+| "Loading…", a spinner, a part blank until it pops in | `Skeleton` |
+| the browser's scroll bar on a box that scrolls inside itself, or `::-webkit-scrollbar` | `ScrollEdges` right after the box |
+
+The one exception: the Plain player style is the browser's own audio and video controls, a choice beside Panki's own Player.

@@ -1,3 +1,4 @@
+/** @panki A name of one's own on a row, renamed in place (`Rename`). Never a second rename in place. */
 import { useState, type ReactNode } from "react";
 import { Button } from "@web/components/Button";
 import { Form } from "@web/components/Form";

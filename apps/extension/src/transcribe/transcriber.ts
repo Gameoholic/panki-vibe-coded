@@ -1,3 +1,4 @@
+/** @panki A video transcribed by an engine in the viewer's mode, and its log (`createTranscriber`, `TranscribeState`, `logText`). Never a second reader of a video's words. */
 import {
   TRANSCRIBE_MODES,
   VideoId,

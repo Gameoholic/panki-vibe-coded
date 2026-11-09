@@ -1,3 +1,4 @@
+/** @panki A card: its values, examples, where each value came from, its hold and flag, what its capture knew (`Card`, `NewCard`, `CardExample`, `ValueSource`, `CaptureFacts`). */
 import { z } from "zod";
 import { AiPlaceId, AiProviderId, placeOfKept } from "./ai";
 import { ClientName } from "./auth";
@@ -337,7 +338,7 @@ export type ApartValue = z.infer<typeof ApartValue>;
 /**
  * A card's values in its type's fields that tell cards apart, those filled in (never the field it's called by). Only
  * the true ones: a value Panki AI wrote (`sources`) is left out, so two cards are never told apart, nor called the same,
- * by what a model said (AI.md, "compared values are the true ones").
+ * by what a model said (AI.md: duplicates compare only true values).
  */
 export function apartOf(type: Pick<CardType, "fields" | "mainField">, values: Readonly<Record<string, string>>, sources?: Readonly<Record<string, ValueSource>>): ApartValue[] {
   const called = wordsFieldOf(type)?.id;

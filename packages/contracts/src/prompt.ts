@@ -1,3 +1,4 @@
+/** @panki A Panki AI prompt filled from its pieces, what Explain sends and answers, and a call's cost before it runs (`aiSent`, `ExplainMessage`, `ExplainShape`, `ceilingMicros`). */
 import { z } from "zod";
 import { ACTION_SECONDS_MAX, DEFAULT_ACTION_SECONDS, EXPLAIN_PARTS, ExplainPart } from "./accountActions";
 import { AiRanOn, PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";

@@ -1,3 +1,4 @@
+/** @panki A prompt template typed, its variables lit (`PromptField`, `PromptFieldHandle`). */
 import { useImperativeHandle, useMemo, useRef, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { variablesIn } from "@panki/contracts";
 

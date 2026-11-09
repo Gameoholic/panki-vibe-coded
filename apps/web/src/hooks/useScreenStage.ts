@@ -1,3 +1,4 @@
+/** @panki A review filling the screen, kept as its cards change and from one review to the next (`useScreenStage`, `ScreenStageContext`). Never a second way of filling it. */
 import { createContext, useEffect, useRef, useState, type RefObject } from "react";
 
 /**

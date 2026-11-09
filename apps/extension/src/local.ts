@@ -1,3 +1,4 @@
+/** @panki This browser's own settings on a page, read and changed (`loadLocal`, `localNow`, `useLocal`, `onLocal`, `amendLocal`). Never a default drawn then replaced. */
 import { useSyncExternalStore } from "react";
 import { LocalChanged, askLocal, type Local } from "./messages";
 

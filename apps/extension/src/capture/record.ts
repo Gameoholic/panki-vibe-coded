@@ -1,3 +1,4 @@
+/** @panki Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`). */
 /**
  * Records a stretch of a video off the player itself: the element's own picture and sound, nothing else in the tab,
  * no screen sharing and no asking. A browser can't hand back what has already played, so the stretch is played once

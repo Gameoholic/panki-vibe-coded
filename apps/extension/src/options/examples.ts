@@ -1,3 +1,4 @@
+/** @panki The options page's made-up cards and Explain answer, built on the app's examples (`EXAMPLE_CARDS`, `EXAMPLE_EXPLAIN`, `exampleTint`). */
 import { EXAMPLE_ANSWERS, IN_DECKS } from "@web/explainers/examples";
 import { tintOf } from "../capture/known";
 import { paintCss, type MarkPaint } from "../seekLook";

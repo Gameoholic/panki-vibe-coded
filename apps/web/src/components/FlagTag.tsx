@@ -1,3 +1,4 @@
+/** @panki Saying a card is flagged, wherever it's named (`FlagTag`). Never a second drawing of a flag. */
 import { FLAG_WORDS } from "../srsKinds";
 import { Icon } from "./Icon";
 

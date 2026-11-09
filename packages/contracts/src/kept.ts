@@ -1,3 +1,4 @@
+/** @panki What the extension keeps of Panki's and how it hears of a change: the state header and its kinds (`STATE_HEADER`, `KEPT_KINDS`, `formatState`, `parseState`). */
 /**
  * What the extension keeps of Panki's, and how it learns that something changed. Every answer from the API carries one
  * header, `STATE_HEADER`, with a short hash for each kind of data the extension keeps, like

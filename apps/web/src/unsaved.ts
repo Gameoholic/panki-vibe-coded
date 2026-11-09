@@ -1,3 +1,4 @@
+/** @panki Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). */
 /**
  * What a screen with unsaved work hands the app (`onGuard`), so leaving it can ask first and the header's Save can
  * save it: what it's called, and how to save it (whether it went through).

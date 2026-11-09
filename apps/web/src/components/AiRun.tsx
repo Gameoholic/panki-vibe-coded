@@ -1,3 +1,4 @@
+/** @panki Sending to Panki AI: its cost (`ceilingOf`), asking first (`useAskFirst`), `TemplateMenu`, `FieldMessage`, the `Composer`. Never a second cost, question or message box. */
 import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import {
   AI_PROVIDERS,

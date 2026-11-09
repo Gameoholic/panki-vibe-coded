@@ -1,3 +1,4 @@
+/** @panki The ways a deck's cards can be ordered, one entry each, and this device's pick (`CARD_SORTS`, `sortCards`, `readCardSort`). A new way is one entry. */
 import { isBurned, isNew, stageIndex, wordsFieldOf, type Card, type CardType, type SrsType } from "@panki/contracts";
 import { ledger } from "./ledger";
 

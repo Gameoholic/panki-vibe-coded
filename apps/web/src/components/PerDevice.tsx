@@ -1,3 +1,4 @@
+/** @panki Saying a setting is kept on this device alone, the quiet tag (`PerDevice`). Never a line under a setting saying so. */
 import { PER_DEVICE } from "../words";
 
 /**

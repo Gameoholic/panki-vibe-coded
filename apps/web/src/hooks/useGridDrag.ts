@@ -1,3 +1,4 @@
+/** @panki A tile carried across a grid, with a mouse or a finger, to take another's place (`useGridDrag`). Never a second drag for a grid. */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 
 type Options = {

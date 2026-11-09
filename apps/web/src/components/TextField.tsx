@@ -1,3 +1,4 @@
+/** @panki A labelled text field with its error bubble (`TextField`). */
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
 type Props = {

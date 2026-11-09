@@ -1,3 +1,4 @@
+/** @panki Forvo's own, as shapes: a recording told and kept, Forvo's answers (`ForvoVoice`, `ForvoTake`, `ForvoList`). Calling Forvo is the API's alone. */
 import { z } from "zod";
 import { MediaId } from "./media";
 

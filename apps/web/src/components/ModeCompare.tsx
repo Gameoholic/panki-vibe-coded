@@ -1,3 +1,4 @@
+/** @panki The transcription modes compared side by side, and one set (`ModeCompare`). */
 import type { CSSProperties, ReactNode } from "react";
 import { TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, type TranscribeEstimate, type TranscribeMode } from "@panki/contracts";
 import { aboutWords as about } from "../words";

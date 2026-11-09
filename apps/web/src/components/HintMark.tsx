@@ -1,3 +1,4 @@
+/** @panki A (?) after a label that opens words, not a scene (`HintMark`). */
 import { useState, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Tip } from "./Tip";

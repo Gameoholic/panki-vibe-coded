@@ -1,10 +1,11 @@
+/** @panki A place's Conversation, main and a branch per field, as commits (`Conversation`, `Commit`, `branchOf`, `mainRuns`, `historyOf`). Never a second record of one. */
 import type { ExplainMessage } from "./prompt";
 
 /**
  * Every Panki AI place's Conversation: **main** and, for Touch up alone, **a branch per field**. Everything that's sent
  * with a follow-up, and where each question and reply is drawn (the web's `AiConversation`, every place's), follows
- * from these few rules; this file is their one home, and `docs/AI.md` (step 5, "The Conversation: main and a branch per
- * field") says the same in the same words. A place without branches (Explain) uses main alone.
+ * from these few rules; this file is their one home, which `docs/AI.md` ("How every place is built", rule 16) points
+ * to. A place without branches (Explain) uses main alone.
  *
  * - **main** is the head's conversation. Every turn is a **commit**: a question and its reply. The first send, a run or
  *   a message, is main's first commit; a later run is a commit on main like any send from the composer. A follow-up

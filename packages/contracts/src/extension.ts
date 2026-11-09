@@ -1,3 +1,4 @@
+/** @panki The extension kept up to date without a store: the protocol, its header, the build's fingerprint (`EXTENSION_PROTOCOL`, `EXTENSION_HEADER`, `ExtensionBuild`). */
 import { z } from "zod";
 
 /**

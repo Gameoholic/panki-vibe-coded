@@ -1,3 +1,4 @@
+/** @panki What a prompt can use, a row a variable, pressed to go in at the caret (`PromptContext`, `CopyButton`, `PieceLimits`). Never a second list of the variables. */
 import { useState } from "react";
 import { PIECE_SOURCES, PROMPT_PIECE_IDS, SOURCE_WORDS, pieceAbout, variableOf, type PankiAi } from "@panki/contracts";
 import { Button } from "./Button";

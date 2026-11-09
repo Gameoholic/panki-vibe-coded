@@ -1,3 +1,4 @@
+/** @panki Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. */
 /**
  * Romaji as hiragana, for searching a deck's cards in either: Hepburn, Kunrei and the way a keyboard types it alike (shi / si, tsu / tu, ja / zya / jya), a doubled
  * consonant as っ ("kitte"), n as ん before a consonant, at the end, or written nn or n' ("konnichiha", "kin'en"),

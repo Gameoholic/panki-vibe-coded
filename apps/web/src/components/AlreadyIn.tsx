@@ -1,3 +1,4 @@
+/** @panki Saying a card being added is called the same as one already there (`AlreadyIn`, `useAddAnyway`, `exampleTargetOf`). */
 import { useState } from "react";
 import { likenessOf, type ApartValue, type CalledCard } from "@panki/contracts";
 import { langOf, listWords } from "../words";

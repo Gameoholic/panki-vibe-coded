@@ -1,3 +1,4 @@
+/** @panki The arrows that switch a card's examples (`ExampleArrows`). Never a second drawing of the arrows. */
 import type { Key } from "../keys";
 import { Button } from "./Button";
 import { Icon } from "./Icon";

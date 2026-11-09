@@ -1,3 +1,4 @@
+/** @panki Every call to the API, parsed through the contracts (`api`, `ApiError`), and where a file's bytes are. Never a second client. */
 import {
   ApiErrorBody,
   CalledCards,

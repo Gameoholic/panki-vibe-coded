@@ -1,3 +1,4 @@
+/** @panki How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`). */
 import { z } from "zod";
 import type { Swatch } from "@web/components/Swatches";
 import { PALETTE } from "@web/palette";

@@ -4,7 +4,7 @@ Duplication means something was modelled wrong. One concept, one component, one 
 
 ## Build once
 
-- **`docs/COMPONENTS.md` is the list of what exists.** Look there before building anything; extend what's there, never build a second thing that does the same job. A change that adds a shared piece adds its line there.
+- **`docs/COMPONENTS.md` is the list of what exists.** Look there before building anything; extend what's there, never build a second thing that does the same job. It's generated: a shared piece's line is the `/** @panki … */` comment at the top of its file, written in the change that adds the piece, then `pnpm docs:components`.
 - **One of each primitive.** One tooltip, one form, one field, one panel, one confirm, one menu, one row. Two things that must look alike are one component used twice, identical by construction.
 - **One base per layer, shared by every kind.** When two screens, cards or lists do the same job, what they share lives in a base; each kind only declares its options and renders its cells.
 - **What a thing offers is declared in one file,** a catalog; each place picks what makes sense for it.

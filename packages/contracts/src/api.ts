@@ -1,3 +1,4 @@
+/** @panki The shape of every error the API sends (`ApiErrorBody`). */
 import { z } from "zod";
 
 /** Every error the API sends has this shape, so the browser can show its message. */

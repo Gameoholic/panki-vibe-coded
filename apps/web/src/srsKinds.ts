@@ -1,3 +1,4 @@
+/** @panki An SRS type in words and tints: stage and place names, waits, steps, holds, flags (`stageName`, `placeName`, `waitWords`, `STEP_OPTIONS`, `placeTint`, `FLAG_WORDS`). */
 import type { CSSProperties } from "react";
 import {
   BURNED_COLOUR,

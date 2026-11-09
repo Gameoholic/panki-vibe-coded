@@ -1,3 +1,4 @@
+/** @panki A card type and its fields, which kinds hold what, and what it demands of a card's values (`CardType`, `CardField`, `FieldKind`, `holdsFile`, `cardProblems`). */
 import { z } from "zod";
 import { CardLayout, DEFAULT_FLAG_MARK, DEFAULT_LISTEN_FIRST, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, ExamplesPlace, FlagMark, ListenFirst, SparkMark, StageTag } from "./layout";
 import { MediaId, type MediaKind } from "./media";

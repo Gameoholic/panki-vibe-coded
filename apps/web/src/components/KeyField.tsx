@@ -1,3 +1,4 @@
+/** @panki A key set by pressing it (`KeyField`). */
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import { bindable, isModifier, keyOf } from "../keys";

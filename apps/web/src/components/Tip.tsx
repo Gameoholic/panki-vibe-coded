@@ -1,3 +1,4 @@
+/** @panki The one hint bubble, on hover or focus (`Tip`). Never a `title` attribute, never a hover bubble drawn by hand. */
 import type { ReactNode } from "react";
 
 type Props = {

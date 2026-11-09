@@ -1,3 +1,4 @@
+/** @panki A form that validates in the app's words, never the browser's (`Form`). Never a bare `<form>`. */
 import type { FormEvent, FormHTMLAttributes, KeyboardEvent, Ref } from "react";
 
 type Props = Omit<FormHTMLAttributes<HTMLFormElement>, "onSubmit" | "noValidate" | "onKeyDown"> & {

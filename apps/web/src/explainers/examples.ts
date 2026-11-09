@@ -1,3 +1,4 @@
+/** @panki The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. */
 import { STAGE_RAMP, type CalledCard, type JudgedMeaning, type ProposedMeaning } from "@panki/contracts";
 
 /**

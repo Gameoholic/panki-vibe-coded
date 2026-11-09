@@ -1,3 +1,4 @@
+/** @panki A deck, and its own settings with their defaults (`Deck`, `NewDeck`, `DeckSettings`, `DEFAULT_DECK_SETTINGS`). */
 import { z } from "zod";
 import { SrsAnswerId, SrsTypeId } from "./srs";
 import { CardTypeId } from "./type";
