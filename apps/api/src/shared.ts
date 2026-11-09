@@ -4,13 +4,13 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import {
-  AI_ACTIONS,
-  AI_ACTION_IDS,
-  DEFAULT_EXPLAIN_PROMPT,
+  AI_PLACE_IDS,
+  placeOfKept,
+  EXPLAIN_STARTER_PROMPT,
   DEFAULT_FOLLOW_UPS,
   DEFAULT_PANKI_AI,
   DEFAULT_PROOFREAD_PROMPT,
-  DEFAULT_TOUCH_UP_PROMPT,
+  TOUCH_UP_STARTER_PROMPT,
   UNSURE_BELOW,
   expectedGot,
   type ProofreadWord,
@@ -18,7 +18,7 @@ import {
   DEFAULT_TRANSCRIPTION,
   EXPLAIN_PROMPT_BEFORE_TEMPLATES,
   TOUCH_UP_PROMPT_BEFORE_TEMPLATES,
-  type AiActionId,
+  type AiPlaceId,
   ENGINES,
   PankiAi,
   soundCostMicros,
@@ -79,6 +79,8 @@ export type NewUsage = {
   soundMs?: number;
   requests?: number;
   costMicros: number | null;
+  /** The actions a card's conversation's send went with, by id. */
+  actions?: readonly string[];
 };
 /** One account's usage added up, as the ledger is read; `userId` null for calls from before they were counted per account. */
 export type UsageRow = { userId: string | null } & Omit<UsageTotals, "costMicros" | "byWhat"> & { costMicros: number | null; byWhat: Record<string, number> };
@@ -476,7 +478,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
     // The usage ledger: one row for every paid call Panki makes, so what each account
     // used and what it cost can be shown now and billed later. `kind` is the panel it's shown in (the contracts'
     // UsageKind), `service` a provider's, an engine's or a source's id, `what` what was done (a chunk, a whole video, a
-    // word's list, a recording; an AI action), `ref` what it was done to. How much is whichever fits: tokens in and out,
+    // word's list, a recording; an AI place), `ref` what it was done to. How much is whichever fits: tokens in and out,
     // ms of sound, requests. The cost is whole micro-dollars at the listed price as the row was written, never rewritten;
     // null for a flat plan. `user_id` null is a call from before calls were counted per account.
     db.exec(`
@@ -549,6 +551,19 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
       )
     `);
     db.exec("CREATE INDEX transcript_line_marks_word_id ON transcript_line_marks (word_id, id)");
+  },
+  (db) => {
+    // The actions a send of a card's conversation went with (Touch up's), by their ids as a JSON list, so a later list of
+    // calls can say which; null for every other call and every call before.
+    db.exec("ALTER TABLE usage ADD COLUMN presets TEXT");
+  },
+  (db) => {
+    // Touch up's prompt, the admin's for everyone, kept a day under `aiTouchUpFrame` (a string), is `aiPrompts` now, an
+    // object of each such place's prompt: the one kept is carried in as Touch up's. The old row stays, read by nothing.
+    db.exec(`
+      INSERT OR IGNORE INTO settings (key, value)
+      SELECT 'aiPrompts', json_object('touchUp', json(value)) FROM settings WHERE key = 'aiTouchUpFrame'
+    `);
   },
 ];
 
@@ -668,7 +683,7 @@ export function openShared(dataDir: string) {
   const deleteKey = db.prepare("DELETE FROM service_keys WHERE service = ?");
   const insertKeyChange = db.prepare("INSERT INTO service_key_changes (service, what, at, user_id) VALUES (?, ?, ?, ?)");
   const insertUsage = db.prepare(
-    "INSERT INTO usage (kind, service, model, what, ref, user_id, input_tokens, output_tokens, sound_ms, requests, cost_micros, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO usage (kind, service, model, what, ref, user_id, input_tokens, output_tokens, sound_ms, requests, cost_micros, presets, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const sumRequests = db.prepare("SELECT COALESCE(SUM(requests), 0) AS n FROM usage WHERE service = ? AND at >= ?");
   const selectUsage = db.prepare(`
@@ -868,6 +883,7 @@ export function openShared(dataDir: string) {
       row.soundMs ?? null,
       row.requests ?? null,
       row.costMicros,
+      row.actions ? JSON.stringify(row.actions) : null,
       now,
     );
   }
@@ -910,12 +926,14 @@ export function openShared(dataDir: string) {
     },
     /** One kind's usage from a moment on, added up per account (null: from before calls were counted per account). */
     usageOf(kind: UsageKind, since: number): UsageRow[] {
-      // With how many of each account's calls were each thing done (AI step 6: Explain, Touch up and Proofread apart).
+      // With how many of each account's calls were each thing done (Panki AI's by place: the word, the card, the
+      // transcript), a place kept by its older id ("explain") counted as its place.
       const whats = selectUsageWhat.all(kind, since) as { userId: string | null; what: string; calls: number }[];
-      return (selectUsage.all(kind, since) as Omit<UsageRow, "byWhat">[]).map((row) => ({
-        ...row,
-        byWhat: Object.fromEntries(whats.filter((w) => w.userId === row.userId).map((w) => [w.what, w.calls])),
-      }));
+      return (selectUsage.all(kind, since) as Omit<UsageRow, "byWhat">[]).map((row) => {
+        const byWhat: Record<string, number> = {};
+        for (const w of whats) if (w.userId === row.userId) byWhat[placeOfKept(w.what)] = (byWhat[placeOfKept(w.what)] ?? 0) + w.calls;
+        return { ...row, byWhat };
+      });
     },
 
     /** Which of these videos Panki has subtitles for: a word heard in it that still stands, from a piece kept and standing. */
@@ -1016,14 +1034,14 @@ export function openShared(dataDir: string) {
      * Explain's and Touch up's prompts as an admin kept them for everyone until AI step 5 made every prompt an account's
      * template; null for one never changed. Their rows stay as they are: read here alone, by `carryPrompts`.
      */
-    promptsBeforeTemplates(): Record<AiActionId, string | null> {
+    promptsBeforeTemplates(): Record<AiPlaceId, string | null> {
       const stored = new Map((selectSettings.all() as SettingRow[]).map((row) => [row.key, row.value]));
       const read = (key: string): string | null => {
         const raw = stored.get(key);
         const parsed = raw === undefined ? null : z.string().safeParse(JSON.parse(raw));
         return parsed?.success ? parsed.data : null;
       };
-      return { explain: read("aiExplainPrompt"), touchUp: read("aiTouchUpPrompt"), proofread: null };
+      return { word: read("aiExplainPrompt"), card: read("aiTouchUpPrompt"), transcript: null };
     },
     /** When those prompts were carried into the admins' templates (`carryPrompts`); null until they have been. */
     promptsCarriedAt(): number | null {
@@ -1500,30 +1518,33 @@ export function gatherShared(shared: Shared, dataDir: string, auth: AuthDb, dbFo
   }
 }
 
-/** Panki's own text of each action's prompt, as Admin's default had it before templates and as its starter has it now: a kept prompt that's one of these was never edited. */
-const PANKI_PROMPTS: Record<AiActionId, readonly string[]> = {
-  explain: [EXPLAIN_PROMPT_BEFORE_TEMPLATES, DEFAULT_EXPLAIN_PROMPT],
-  touchUp: [TOUCH_UP_PROMPT_BEFORE_TEMPLATES, DEFAULT_TOUCH_UP_PROMPT],
+/** Each place's prompt as it was named while it was one setting of everyone's, what a carried copy is named after. */
+const CARRIED_NAMES: Record<AiPlaceId, string> = { word: "Explain", card: "Touch up", transcript: "Proofread" };
+
+/** Panki's own text of each place's prompt, as Admin's default had it before templates and as its starter has it now: a kept prompt that's one of these was never edited. */
+const PANKI_PROMPTS: Record<AiPlaceId, readonly string[]> = {
+  word: [EXPLAIN_PROMPT_BEFORE_TEMPLATES, EXPLAIN_STARTER_PROMPT],
+  card: [TOUCH_UP_PROMPT_BEFORE_TEMPLATES, TOUCH_UP_STARTER_PROMPT],
   // Never a setting of everyone's: it came with the templates (AI step 6).
-  proofread: [DEFAULT_PROOFREAD_PROMPT],
+  transcript: [DEFAULT_PROOFREAD_PROMPT],
 };
 
 /**
  * Explain's and Touch up's prompts were once one setting each, everyone's, edited in Admin; now
  * every prompt is a template of an account's own. One an admin edited (it differs from Panki's own text, as it was and
  * as it is) becomes a template in every admin's account, "Explain (edited)" or "Touch up (edited)", and that account's
- * default for its action: an edited prompt is never lost. Done at startup until it has been once, then marked in the
+ * default for its place: an edited prompt is never lost. Done at startup until it has been once, then marked in the
  * shared store and never again; the old rows stay where they are, read by nothing else. An account already holding the
- * same prompt for the action is passed over, so a run cut short and run again makes no second copy. One account's
+ * same prompt for the place is passed over, so a run cut short and run again makes no second copy. One account's
  * trouble is said, and the mark left off so the next start tries again; the API starts all the same.
  */
 export function carryPrompts(shared: Shared, auth: AuthDb, dbFor: (userId: string) => Db, now: () => number): void {
   if (shared.promptsCarriedAt() !== null) return;
   const kept = shared.promptsBeforeTemplates();
-  const edited = AI_ACTION_IDS.flatMap((action) => {
-    const prompt = kept[action]?.trim();
-    if (!prompt || PANKI_PROMPTS[action].some((text) => text.trim() === prompt)) return [];
-    return [{ action, prompt }];
+  const edited = AI_PLACE_IDS.flatMap((place) => {
+    const prompt = kept[place]?.trim();
+    if (!prompt || PANKI_PROMPTS[place].some((text) => text.trim() === prompt)) return [];
+    return [{ place, prompt }];
   });
   const admins = auth.listUsers().filter((user) => user.admin);
   if (edited.length > 0 && admins.length === 0) {
@@ -1535,12 +1556,12 @@ export function carryPrompts(shared: Shared, auth: AuthDb, dbFor: (userId: strin
   for (const user of admins) {
     try {
       const db = dbFor(user.id);
-      for (const { action, prompt } of edited) {
-        if (db.listAiTemplates().some((t) => t.action === action && t.prompt === prompt)) continue;
-        const name = `${AI_ACTIONS[action].name} (edited)`;
-        const made = db.insertAiTemplate({ action, name, prompt, followUp: DEFAULT_FOLLOW_UPS[action], judges: true }, now());
-        db.updateSettings({ aiDefaults: { ...db.getSettings().aiDefaults, [action]: made.id } }, now());
-        console.log(`Kept the edited ${AI_ACTIONS[action].name} prompt as ${user.name}'s template "${name}", their default.`);
+      for (const { place, prompt } of edited) {
+        if (db.listAiTemplates().some((t) => t.place === place && t.prompt === prompt)) continue;
+        const name = `${CARRIED_NAMES[place]} (edited)`;
+        const made = db.insertAiTemplate({ place, name, prompt, followUp: DEFAULT_FOLLOW_UPS[place], judges: true }, now());
+        db.updateSettings({ aiDefaults: { ...db.getSettings().aiDefaults, [place]: made.id } }, now());
+        console.log(`Kept the edited ${CARRIED_NAMES[place]} prompt as ${user.name}'s template "${name}", their default.`);
       }
     } catch (e) {
       failed = true;

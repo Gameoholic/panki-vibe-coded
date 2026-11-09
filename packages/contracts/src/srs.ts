@@ -415,6 +415,9 @@ export const AppLanguage = z.enum(["eng"]);
 export type AppLanguage = z.infer<typeof AppLanguage>;
 export const APP_LANGUAGES: Record<AppLanguage, string> = { eng: "English" };
 
+/** The longest User instructions can be, in characters: a few lines of steering, sent with every send. */
+export const AI_INSTRUCTIONS_MAX = 2_000;
+
 export const Settings = z.object({
   // `fuzz` (each wait spread ±10 %) is gone: a row kept of it is read by nothing.
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
@@ -466,11 +469,29 @@ export const Settings = z.object({
    */
   aiShowCostOverMicros: z.number().int().nonnegative().max(100_000_000).nullable(),
   /**
-   * Each Panki AI action's default template, by the action's id (`AiActionId`; a plain string here, `ai.ts` reading
+   * Each Panki AI place's default template, by the place's id (`AiPlaceId`; a plain string here, `ai.ts` reading
    * this file) and the template's: what its button runs. One left out, or naming a template that's gone, is the
-   * action's first starter (`aiTemplates.ts` → `defaultTemplateIdOf`).
+   * place's first starter (`aiTemplates.ts` → `defaultTemplateIdOf`).
    */
   aiDefaults: z.record(z.string().max(32), z.string().min(1).max(64)),
+  /**
+   * **User instructions** on screen: the account's standing message to Panki AI, the `{User instructions}` of Touch up's
+   * prompt, sent with every send of a card's conversation and shown quiet at its top (Settings → Panki AI). It steers
+   * what goes in a field, never an answer's shape, which the prompt and Panki's rules hold. Empty to begin with; a new
+   * key, so no migration.
+   */
+  aiInstructions: z.string().max(AI_INSTRUCTIONS_MAX),
+  /**
+   * Each place's actions in the account's order, by the place's id (`ActionPlaceId`; a plain string here, as
+   * `aiDefaults`) and the actions' ids: what its composer lists, Settings → Panki AI dragging them. A place left out is
+   * Panki's own order; an id that's gone is read as nothing (`aiActions.ts` → `actionsOf`). A new key, so no migration.
+   */
+  aiActionOrder: z.record(z.string().max(32), z.array(z.string().min(1).max(64)).max(400)),
+  /**
+   * Each place's actions ticked as its conversation opens, the same way (Settings → Panki AI → Default). A place left
+   * out is Panki's own, Explain and Touch up (`aiActions.ts` → `openingActionsOf`); a new key, so no migration.
+   */
+  aiActionDefaults: z.record(z.string().max(32), z.array(z.string().min(1).max(64)).max(400)),
   // `dailyGoal` (minutes a day that kept the watch streak) is gone with the streak: a row kept of it is read by nothing.
   // `shareWatching` (Off, Minutes and streak, Also what I watch) is gone too: a row kept of it is read by nothing.
   /** How every review runs, the same for every deck (`ReviewSettings`), each key a setting of its own. */
@@ -488,6 +509,9 @@ export const DEFAULT_SETTINGS: Settings = {
   aiAskOverMicros: 10_000,
   aiShowCostOverMicros: 0,
   aiDefaults: {},
+  aiInstructions: "",
+  aiActionOrder: {},
+  aiActionDefaults: {},
   ...DEFAULT_REVIEW_SETTINGS,
 };
 export const SettingsUpdate = Settings.omit({ videoTracking: true }).partial();

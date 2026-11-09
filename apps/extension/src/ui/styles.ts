@@ -38,5 +38,11 @@ export function literalOf(css: string): string {
   return value?.trim() ?? css;
 }
 
+/**
+ * The app's components, with what they declare on `:root` (the sweep's beat, `--sweep`) said on the host too: left on
+ * `:root` it never reaches inside the shadow root, and an animation reading it has no duration and never runs.
+ */
+const components = appCss.replace(/:root\b/g, ":host");
+
 /** `all: initial` first, so nothing the page sets on text (its font, its colour, its line height) is inherited in. */
-export const SHADOW_CSS = `:host { all: initial; }\n${tokens}\n${appCss}\n${ownCss}`;
+export const SHADOW_CSS = `:host { all: initial; }\n${tokens}\n${components}\n${ownCss}`;

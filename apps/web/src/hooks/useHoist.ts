@@ -153,29 +153,39 @@ function rowByKey(box: Element, key: string): HTMLElement | null {
 
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** The next box up that scrolls, through the shadow roots and slots a drawer may stand in. */
+/**
+ * The next box up that scrolls, within the root the element is drawn in (the page, or one of Panki's shadow roots).
+ * Never past it: a place of Panki's that stands in another's (the drawer in the column beside the video) is slotted into
+ * a closed shadow root, whose scroller can't be seen from here, and a box of the site's found further up would be the
+ * wrong one to scroll. Null when there's none to be seen.
+ */
 function scrollerOf(el: Element): HTMLElement | null {
-  let at: Node | null = el;
-  while (at) {
-    const next: Node | null = (at instanceof Element ? at.assignedSlot : null) ?? (at instanceof ShadowRoot ? at.host : at.parentNode);
-    if (next instanceof HTMLElement) {
-      const { overflowY } = getComputedStyle(next);
-      if ((overflowY === "auto" || overflowY === "scroll") && next.scrollHeight > next.clientHeight) return next;
+  let at: Node | null = el.parentNode;
+  while (at && !(at instanceof ShadowRoot)) {
+    if (at instanceof HTMLElement) {
+      const { overflowY } = getComputedStyle(at);
+      if ((overflowY === "auto" || overflowY === "scroll") && at.scrollHeight > at.clientHeight) return at;
     }
-    at = next;
+    at = at.parentNode;
   }
   return null;
 }
 
-/**
- * The one way to a row, whatever was pressed (a round's chip, the field's name on a follow-up): its scroller brought
- * to it, then the row lit. The scroll is Panki's own, aimed afresh every frame at where the row stands now, so a fold
- * closing above it or a row sliding as it goes doesn't leave it short (the browser's smooth scroll aims once, and was
- * left short); it lands exactly, and stops at once if the scroller is moved by hand meanwhile.
- */
 function goToRow(box: HTMLElement | null, key: string) {
   const row = box ? rowByKey(box, key) : null;
-  if (!row) return;
+  if (row) goTo(row);
+}
+
+/**
+ * The one way to something a press names (a round's chip going to its field, the field's name on a follow-up, the
+ * word's "Meanings" chip going to its rows): its scroller brought to it, then it lit for a moment (`.is-lit`). The
+ * scroll is Panki's own, aimed afresh every frame at where it stands now, so a fold closing above it or a row sliding as
+ * it goes doesn't leave it short (the browser's smooth scroll aims once, and was left short); it lands exactly, and stops
+ * at once if the scroller is moved by hand meanwhile. Where its scroller can't be seen from here (the drawer in the
+ * column beside the video, a closed shadow root round it), the browser brings it into view the least it can, which
+ * reaches through every box round it, and it's lit once that's had its time.
+ */
+export function goTo(row: HTMLElement) {
   const turn = (lighting.get(row) ?? 0) + 1;
   lighting.set(row, turn);
   const light = () => {
@@ -189,7 +199,8 @@ function goToRow(box: HTMLElement | null, key: string) {
   };
   const scroller = scrollerOf(row);
   if (!scroller) {
-    light();
+    row.scrollIntoView({ block: "nearest", behavior: reduced() ? "auto" : "smooth" });
+    window.setTimeout(light, reduced() ? 0 : GO_MS);
     return;
   }
   const target = () => {

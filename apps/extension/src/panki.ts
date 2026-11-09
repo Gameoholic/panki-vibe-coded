@@ -107,7 +107,7 @@ export class ExplainRefused extends PankiError {
   }
 }
 
-/** A Panki AI action's failure as an `ExplainRefused` when Panki gave its reason; anything else as it was. */
+/** A Panki AI place's failure as an `ExplainRefused` when Panki gave its reason; anything else as it was. */
 function refusedOf(e: unknown): unknown {
   const refused = e instanceof PankiError ? ExplainError.safeParse(e.body) : null;
   if (!(e instanceof PankiError) || !refused?.success) return e;
@@ -336,7 +336,7 @@ export const panki = {
    */
   explain: async ({ address, token }: Door, ask: ExplainAsk): Promise<z.infer<typeof ExplainResponse>> => {
     try {
-      return await call(address, token, "/api/ai/explain", json("POST", ask), (b) => ExplainResponse.parse(b));
+      return await call(address, token, "/api/ai/word", json("POST", ask), (b) => ExplainResponse.parse(b));
     } catch (e) {
       throw refusedOf(e);
     }
@@ -344,7 +344,7 @@ export const panki = {
   /** The drawer's card touched up by Panki AI, through Panki's server: refused as Explain is, its refusals the same family. */
   touchUp: async ({ address, token }: Door, ask: TouchUpAsk): Promise<z.infer<typeof TouchUpResponse>> => {
     try {
-      return await call(address, token, "/api/ai/touch-up", json("POST", ask), (b) => TouchUpResponse.parse(b));
+      return await call(address, token, "/api/ai/card", json("POST", ask), (b) => TouchUpResponse.parse(b));
     } catch (e) {
       throw refusedOf(e);
     }
@@ -352,7 +352,7 @@ export const panki = {
   /** Lines of a video's Panki subtitles proofread by Panki AI, for everyone (AI step 6): refused as Explain is; its edits and the transcript after. */
   proofread: async ({ address, token }: Door, ask: ProofreadAsk): Promise<ProofreadResponse> => {
     try {
-      return await call(address, token, "/api/ai/proofread", json("POST", ask), (b) => ProofreadResponse.parse(b));
+      return await call(address, token, "/api/ai/transcript", json("POST", ask), (b) => ProofreadResponse.parse(b));
     } catch (e) {
       throw refusedOf(e);
     }

@@ -9,7 +9,7 @@ export { AiError, safetyIdOf, type AiMessage } from "./call";
 
 /**
  * Panki AI's providers: one client per provider in the contracts' `AI_PROVIDERS`, each its own host alone, and **one
- * reader for every call**, so an answer in the wrong format or broken JSON is an error the same way everywhere. Each action
+ * reader for every call**, so an answer in the wrong format or broken JSON is an error the same way everywhere. Each place
  * hands it the Zod shape of its answer; the reader asks the provider for that shape in its own way, reads what comes
  * back through it, and anything that doesn't read whole (cut short at the cap, declined, not JSON, a field missing or
  * of the wrong kind) is one kind of failure, said in plain words, never a part of an answer. The tokens it took,
@@ -29,6 +29,19 @@ const UNREAD = {
   refused: "Panki AI declined to answer this one.",
   unusable: "Panki AI's answer couldn't be used. Try again.",
 };
+/**
+ * The key a rule's issue carries Panki's plain words under, when they're the failure's own message in place of
+ * `UNREAD.unusable`: a message's knobs broken (Requires, Leave out), "Panki AI didn't answer the Explanation."
+ */
+export const PLAIN_ISSUE = "plain";
+/** The plain words a rule's issue carries, if it carries any. */
+function plainOf(issues: readonly z.core.$ZodIssue[]): string | null {
+  for (const issue of issues) {
+    const plain = issue.code === "custom" ? (issue.params as Record<string, unknown> | undefined)?.[PLAIN_ISSUE] : undefined;
+    if (typeof plain === "string") return plain;
+  }
+  return null;
+}
 
 /**
  * What a JSON Schema can carry that isn't sent, one list. What a provider's structured output refuses (a 400) or
@@ -39,7 +52,7 @@ const UNREAD = {
  * format goes, and the shape's Zod holds to them on what comes back (a 201-item list fails as unreadable). Then the
  * draft's `$schema`, and each key's description, which is Admin's account of the answer in plain words, not an
  * instruction: what the model is told is the prompt's alone. A keyword left in that a provider refuses fails every call
- * of the action, as `maxItems` once did.
+ * of the place, as `maxItems` once did.
  */
 export const UNSENT: ReadonlySet<string> = new Set([
   "$schema",
@@ -111,7 +124,10 @@ export function createAiClient(fetcher: typeof fetch = fetch) {
         throw new AiError(UNREAD.unusable, { tokens, raw: text, detail: UNREAD_REASONS.notJson });
       }
       const read = shape.safeParse(raw);
-      if (!read.success) throw new AiError(UNREAD.unusable, { tokens, raw: text, detail: read.error.issues.map((issue) => issueWords(issue, raw)).join(" ") });
+      if (!read.success) {
+        const detail = read.error.issues.map((issue) => issueWords(issue, raw)).join(" ");
+        throw new AiError(plainOf(read.error.issues) ?? UNREAD.unusable, { tokens, raw: text, detail });
+      }
       return { value: read.data, raw: said.text, inputTokens: tokens.input, outputTokens: tokens.output, counted };
     },
   };

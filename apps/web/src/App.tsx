@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   DEFAULT_SETTINGS,
+  NO_ACCOUNT_ACTIONS,
+  actionOf,
+  actionsOf,
+  keptActionOf,
+  openingActionsOf,
+  type AccountActions,
+  type ActionPlaceId,
+  type AiActionUpdate,
+  type KeptAction,
   copySrsType,
   defaultTemplateOf,
   emptySrsType,
+  byPlaceKept,
   templateById,
+  TEMPLATED_PLACE_IDS,
   templatesOf,
-  type AiActionId,
+  type AiPlaceId,
   type AiTemplate,
   type AiTemplateUpdate,
   type PankiAiStatus,
@@ -45,8 +56,9 @@ import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
 import { SAVE_WORDS, type UnsavedGuard } from "./unsaved";
 import { parsePath, routePath, type DeckTab, type Route, type TypeTab } from "./routes";
-import { draftTemplate, newTemplateName } from "./aiTemplateKinds";
+import { draftAction, draftTemplate, newTemplateName } from "./aiTemplateKinds";
 import { AddView } from "./views/AddView";
+import { AiActionView } from "./views/AiActionView";
 import { AiNewView } from "./views/AiNewView";
 import { AiTemplateView } from "./views/AiTemplateView";
 import { CardsView } from "./views/CardsView";
@@ -95,7 +107,9 @@ type Screen =
   | { kind: "settings"; tab?: SettingsTab | undefined }
   /** A Panki AI template, the account's own or one of Panki's; `key` stays one through a new one's first Save, which gives it Panki's id. */
   | { kind: "aiTemplate"; template: AiTemplate; isNew: boolean; key: string }
-  | { kind: "aiNew"; action: AiActionId }
+  | { kind: "aiNew"; place: AiPlaceId }
+  /** A Panki AI action, the account's own or one of Panki's; `key` stays one through a new one's first Save, which gives it Panki's id. */
+  | { kind: "aiAction"; action: KeptAction; isNew: boolean; key: string }
   | { kind: "admin" }
   | { kind: "stats" };
 
@@ -119,6 +133,7 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   settings: "panels",
   aiTemplate: "editor",
   aiNew: "rows",
+  aiAction: "editor",
   admin: "panels",
   stats: "board",
 };
@@ -143,6 +158,8 @@ function routeOf(screen: Screen): Route {
       return { kind: "settings" };
     case "aiTemplate":
       return { kind: "aiTemplate", id: screen.template.id };
+    case "aiAction":
+      return screen.isNew ? { kind: "aiAction", id: null, place: screen.action.place } : { kind: "aiAction", id: screen.action.id };
     default:
       return screen;
   }
@@ -185,8 +202,21 @@ function screenOf(route: Route, { decks, types, srsTypes, ai }: Lists): Screen |
     case "aiTemplate": {
       if (!ai) return null;
       const template = templateById(route.id, ai.templates);
-      // One never saved, or deleted, has nothing behind its address: it lands on the list, Settings' Panki AI tab.
-      return template ? { kind: "aiTemplate", template, isNew: false, key: template.id } : AI_SETTINGS;
+      // One never saved, or deleted, has nothing behind its address, nor one of a place whose prompt is the admin's (the
+      // word's and the card's, retired): it lands on the list, Settings' Panki AI tab.
+      return template && TEMPLATED_PLACE_IDS.includes(template.place) ? { kind: "aiTemplate", template, isNew: false, key: template.id } : AI_SETTINGS;
+    }
+    case "aiNew":
+      return TEMPLATED_PLACE_IDS.includes(route.place) ? route : AI_SETTINGS;
+    case "aiAction": {
+      if (route.id === null) {
+        const action = draftAction(route.place, null, []);
+        return { kind: "aiAction", action, isNew: true, key: action.id };
+      }
+      if (!ai) return null;
+      // One deleted, or never saved, has nothing behind its address: it lands on the list, Settings' Panki AI tab.
+      const action = actionOf(ai.actions, route.id);
+      return action ? { kind: "aiAction", action: keptActionOf(action), isNew: false, key: action.id } : AI_SETTINGS;
     }
     default:
       return route;
@@ -206,11 +236,11 @@ const TABS: readonly { id: TabId; label: string; to: Screen; admin?: true }[] = 
 ];
 /** The tab a screen lights: its own for the fixed places, Home for everything behind the hub. */
 function tabOf(screen: Screen): TabId {
-  if (screen.kind === "aiTemplate" || screen.kind === "aiNew") return "settings";
+  if (screen.kind === "aiTemplate" || screen.kind === "aiNew" || screen.kind === "aiAction") return "settings";
   return screen.kind === "settings" || screen.kind === "stats" || screen.kind === "admin" ? screen.kind : "home";
 }
-/** The screens Panki AI's templates are needed on: Settings, which lists them, and theirs. */
-const AI_KINDS: readonly Screen["kind"][] = ["settings", "aiTemplate", "aiNew"];
+/** The screens Panki AI's templates and actions are needed on: Settings, which lists them, and theirs. */
+const AI_KINDS: readonly Screen["kind"][] = ["settings", "aiTemplate", "aiNew", "aiAction"];
 
 /** The screen's own header: where back goes, what it's called, what you can do here. The home has no title: only its action, when it has one. */
 type Head = {
@@ -654,25 +684,25 @@ export function App() {
   }, []);
 
   /**
-   * A new Panki AI template starts as a copy of another of its action's, or empty, on the screen only: nothing is sent
+   * A new Panki AI template starts as a copy of another of its place's, or empty, on the screen only: nothing is sent
    * until its first Save, as a new SRS type's isn't.
    */
-  function startTemplate(action: AiActionId, base: AiTemplate | null) {
+  function startTemplate(place: AiPlaceId, base: AiTemplate | null) {
     const template = draftTemplate(
-      action,
+      place,
       base,
-      templatesOf(action, ai?.templates ?? []).map((t) => t.name),
+      templatesOf(place, ai?.templates ?? []).map((t) => t.name),
     );
     go({ kind: "aiTemplate", template, isNew: true, key: template.id });
   }
   /** A template saved: a new one is made by its first Save, Panki giving it its id, and stays open at its own address. */
-  const saveTemplate = useCallback(async (key: string, action: AiActionId, id: string | null, update: AiTemplateUpdate) => {
+  const saveTemplate = useCallback(async (key: string, place: AiPlaceId, id: string | null, update: AiTemplateUpdate) => {
     if (id !== null) {
       const saved = await api.updateAiTemplate(id, update);
       setAi((prev) => (prev ? { ...prev, templates: prev.templates.map((t) => (t.id === saved.id ? saved : t)) } : prev));
       return saved;
     }
-    const saved = await api.addAiTemplate({ action, ...update });
+    const saved = await api.addAiTemplate({ place, ...update });
     setAi((prev) => (prev ? { ...prev, templates: [...prev.templates, saved] } : prev));
     setScreen((s) => (s.kind === "aiTemplate" && s.key === key ? { ...s, template: saved, isNew: false } : s));
     window.history.replaceState(null, "", routePath({ kind: "aiTemplate", id: saved.id }));
@@ -684,9 +714,65 @@ export function App() {
     // Deleted on purpose: what was changed in it but not saved goes with it, unasked.
     go(AI_SETTINGS, true);
   }
-  /** What an action's button runs from now on: the account's own setting, kept as the rest are. */
-  async function makeDefault(action: AiActionId, id: string) {
-    await updateSettings({ aiDefaults: { ...(settings?.aiDefaults ?? {}), [action]: id } });
+  /** What a place's button runs from now on: the account's own setting, kept as the rest are, by the place's id now. */
+  async function makeDefault(place: AiPlaceId, id: string) {
+    await updateSettings({ aiDefaults: { ...byPlaceKept(settings?.aiDefaults ?? {}), [place]: id } });
+  }
+
+  /** The account's actions as Panki answered them, in place in what's kept of Panki AI. */
+  const keepActions = useCallback((actions: AccountActions) => setAi((prev) => (prev ? { ...prev, actions } : prev)), []);
+  /** A new action starts empty, or as a copy of another of its place's, on the screen only: nothing is sent until its first Save. */
+  function startAction(place: ActionPlaceId, base: KeptAction | null) {
+    const action = draftAction(
+      place,
+      base,
+      actionsOf(ai?.actions ?? NO_ACCOUNT_ACTIONS, place).map((each) => each.name),
+    );
+    go({ kind: "aiAction", action, isNew: true, key: action.id });
+  }
+  /**
+   * An action saved: a new one is made by its first Save, Panki giving it its id, and stays open at its own address; one
+   * of Panki's becomes the account's copy. Whether it's a default is the place's own list, changed only when it differs.
+   */
+  const saveAiAction = useCallback(
+    async (key: string, place: ActionPlaceId, id: string | null, update: AiActionUpdate, isDefault: boolean) => {
+      const answer = id !== null ? await api.updateAiAction(id, update) : await api.addAiAction({ place, ...update });
+      let actions = answer.actions;
+      const opening = openingActionsOf(actions, place);
+      if (opening.includes(answer.action.id) !== isDefault) {
+        actions = await api.arrangeAiActions({ place, defaults: isDefault ? [...opening, answer.action.id] : opening.filter((each) => each !== answer.action.id) });
+      }
+      keepActions(actions);
+      if (id === null) {
+        setScreen((s) => (s.kind === "aiAction" && s.key === key ? { ...s, action: answer.action, isNew: false } : s));
+        window.history.replaceState(null, "", routePath({ kind: "aiAction", id: answer.action.id }));
+      }
+      return answer.action;
+    },
+    [keepActions],
+  );
+  async function removeAiAction(id: string) {
+    keepActions(await api.removeAiAction(id));
+    // Deleted on purpose: what was changed in it but not saved goes with it, unasked.
+    go(AI_SETTINGS, true);
+  }
+  /** A place's actions dragged into a new order: shown at once, kept by Panki, and put back as Panki has them if it fails. */
+  async function arrangeActions(place: ActionPlaceId, order: string[]) {
+    const was = ai?.actions ?? null;
+    if (was) keepActions({ ...was, order: { ...was.order, [place]: order } });
+    try {
+      keepActions(await api.arrangeAiActions({ place, order }));
+    } catch (e) {
+      if (was) keepActions(was);
+      fail(e, "Couldn't keep that order.");
+    }
+  }
+  async function restoreAiAction(id: string) {
+    try {
+      keepActions(await api.restoreAiAction(id));
+    } catch (e) {
+      fail(e, "Couldn't bring that action back.");
+    }
   }
 
   async function addCard(card: NewCard) {
@@ -901,7 +987,7 @@ export function App() {
                 </span>
               ),
               action: (
-                <Button id="ai-template-copy" variant="primary" onClick={() => startTemplate(at.template.action, at.template)}>
+                <Button id="ai-template-copy" variant="primary" onClick={() => startTemplate(at.template.place, at.template)}>
                   <Icon name="copy" />
                   Duplicate
                 </Button>
@@ -909,9 +995,12 @@ export function App() {
             }
           : { back: { label: "Settings", to: AI_SETTINGS }, title: editStatus?.name ?? at.template.name, action: saveAction("ai-template") };
       case "aiNew":
-        return { back: { label: "Settings", to: AI_SETTINGS }, title: newTemplateName(at.action) };
+        return { back: { label: "Settings", to: AI_SETTINGS }, title: newTemplateName(at.place) };
+      case "aiAction":
+        return { back: { label: "Settings", to: AI_SETTINGS }, title: editStatus?.name ?? at.action.name, action: saveAction("ai-action") };
       case "admin":
-        return { title: "Admin" };
+        // Touch up's prompt, unsaved, puts the header's Save there; otherwise the header is the title alone.
+        return editStatus ? { title: "Admin", action: saveAction("admin") } : { title: "Admin" };
       case "stats":
         return { title: "Stats" };
     }
@@ -1236,13 +1325,38 @@ export function App() {
               onSignOutAll={signOutAll}
               ai={ai}
               onOpenTemplate={(template) => go({ kind: "aiTemplate", template, isNew: false, key: template.id })}
-              onNewTemplate={(action) => go({ kind: "aiNew", action })}
+              onNewTemplate={(place) => go({ kind: "aiNew", place })}
+              onOpenAction={(action) => go({ kind: "aiAction", action, isNew: false, key: action.id })}
+              onNewAction={(place) => startAction(place, null)}
+              onArrangeActions={(place, order) => void arrangeActions(place, order)}
+              onRestoreAction={(id) => void restoreAiAction(id)}
             />
           );
         break;
+      case "aiAction": {
+        const { action, isNew, key } = screen;
+        body =
+          ai === null ? (
+            loading
+          ) : (
+            <AiActionView
+              key={key}
+              action={action}
+              isNew={isNew}
+              isDefault={!isNew && openingActionsOf(ai.actions, action.place).includes(action.id)}
+              ai={ai}
+              onSave={(update, isDefault, id) => saveAiAction(key, action.place, id, update, isDefault)}
+              onRemove={removeAiAction}
+              onDuplicate={(base) => startAction(base.place, base)}
+              onStatus={setEditStatus}
+              onGuard={setGuard}
+            />
+          );
+        break;
+      }
       case "aiNew": {
-        const { action } = screen;
-        body = ai === null ? loading : <AiNewView action={action} own={ai.templates} onPick={(base) => startTemplate(action, base)} />;
+        const { place } = screen;
+        body = ai === null ? loading : <AiNewView place={place} own={ai.templates} onPick={(base) => startTemplate(place, base)} />;
         break;
       }
       case "aiTemplate": {
@@ -1257,11 +1371,11 @@ export function App() {
               template={template}
               isNew={isNew}
               ai={ai}
-              isDefault={!isNew && defaultTemplateOf(template.action, settings.aiDefaults, own).id === template.id}
-              onSave={(update, id) => saveTemplate(key, template.action, id, update)}
+              isDefault={!isNew && defaultTemplateOf(template.place, settings.aiDefaults, own).id === template.id}
+              onSave={(update, id) => saveTemplate(key, template.place, id, update)}
               onRemove={removeTemplate}
-              onDuplicate={(base) => startTemplate(base.action, base)}
-              onMakeDefault={(id) => makeDefault(template.action, id)}
+              onDuplicate={(base) => startTemplate(base.place, base)}
+              onMakeDefault={(id) => makeDefault(template.place, id)}
               onStatus={setEditStatus}
               onGuard={setGuard}
             />
@@ -1273,7 +1387,7 @@ export function App() {
           me === null ? (
             loading
           ) : me.user.admin ? (
-            <AdminView />
+            <AdminView onSaveStatus={setEditStatus} onGuard={setGuard} />
           ) : (
             <p className="load-error" role="alert">
               Only an admin can open this page.
@@ -1298,7 +1412,7 @@ export function App() {
   const reviewLook = kindNow === "review" || (kindNow === "type" && typeTab === "layout");
   const wide = kindNow === "srsEdit" || kindNow === "home" || kindNow === "stats";
   // A template's screens stand as wide as Settings, whose tab lists them, so going between them never changes the width.
-  const settingsWide = kindNow === "aiTemplate" || kindNow === "aiNew";
+  const settingsWide = kindNow === "aiTemplate" || kindNow === "aiNew" || kindNow === "aiAction";
   // Before the sign-in is known, and while signed out, the bar is the brand alone: no tabs, no screen header. While
   // it's only not known yet, the tabs' room is held as their shape, so the bar doesn't grow the moment it is.
   const bare = me === null;

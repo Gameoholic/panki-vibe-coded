@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode, type Ref } from "react";
-import { LOOK_OF, branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
+import { branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
 import { wordFor } from "../words";
-import { AnswerText, FollowUp, RunAsk, type Asked, type FollowUpProps } from "./AiRun";
+import { AnswerText, Composer, FieldMessage, MessageAsk, type Asked, type ComposerProps, type FieldMessageProps } from "./AiRun";
 import { AiStatus } from "./AiStatus";
 import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
@@ -9,14 +9,15 @@ import { Fold } from "./Fold";
 import { Icon } from "./Icon";
 
 /**
- * Every Panki AI action's run drawn as one conversation (`@panki/contracts` → `conversation.ts`, the one model): the
- * head (`AiStatus`), the run as its press (the spark and the template's name in a bubble), each commit as its question
- * at the right then its reply as plain paragraphs and what it changed ("Changed:" and a chip each, "Changed nothing"),
- * a branch merged into main as one block with its field's mark and its questions that changed nothing folded, the
- * question on its way with the spark turning under it, a failure with Try again, and the next follow-up folded at the
- * foot. What's an action's own is what it hands in (`ConversationOf`): what a commit changed as chips and where a chip
- * goes, Panki's own notes under a reply, a field's name where it has branches, what Try again does. Explain's in the
- * pop-up and Touch up's in the drawer are both this; a new action is its `ConversationOf` and nothing drawn again.
+ * Every Panki AI place's conversation drawn as one (`@panki/contracts` → `conversation.ts`, the one model): the head
+ * (`AiStatus`), each message as its bubble at the right (one with actions headed by the spark and their names joined by
+ * a comma, what was typed under them; typed words alone as they are), then its answer's reply as plain paragraphs and what it changed ("Changed:" and a chip each,
+ * "Changed nothing"), a branch merged into main as one block with its field's mark and its messages that changed
+ * nothing folded, the message on its way with the spark turning under it, a failure with Try again, and the composer
+ * or the next message folded at the foot. What's a place's own is what it hands in (`ConversationOf`): what a commit
+ * changed as chips and where a chip goes, Panki's own notes under a reply, a field's name where it has branches, what
+ * Try again does. The word's conversation in the pop-up and the card's in the drawer are both this; a new place is its
+ * `ConversationOf` and nothing drawn again.
  */
 
 /** What this says, one home. */
@@ -28,21 +29,23 @@ export const CONVERSATION_WORDS = {
   changed: "Changed:",
   changedNothing: "Changed nothing",
   /** The line a merged branch's questions that changed nothing are folded under, in the head. */
-  foldedNothing: (n: number) => `${n} ${wordFor(n, "question", "questions")} · Changed nothing`,
+  foldedNothing: (n: number) => `${n} ${wordFor(n, "message", "messages")} · Changed nothing`,
   /** The line main's conversation folds under, by what a press does. */
   hide: "Hide conversation",
   show: "Show conversation",
   /** The line a field's branch folds under. */
-  followUps: (n: number) => `${n} ${wordFor(n, "follow-up", "follow-ups")}`,
+  messages: (n: number) => `${n} ${wordFor(n, "message", "messages")}`,
+  /** The account's standing message, at a card's conversation's top: Settings → Panki AI's name for it. */
+  standing: "User instructions",
 };
 
 /**
  * The colour something Panki AI changed is drawn in: good green, meh orange, bad red (the meanings' own looks,
- * `.ai-accuracy.is-…`, one home), and accent, the blue, for words of Panki AI's own on offer. A chip's dot and Touch
+ * `.ai-judgement.is-…`, one home), and accent, the blue, for words of Panki AI's own on offer. A chip's dot and Touch
  * up's notes (`TouchUp.tsx` → `Tied`) alike.
  */
 export type Tone = "good" | "meh" | "bad" | "accent";
-export const TONE_CLASS: Record<Tone, string> = { good: `ai-accuracy is-${LOOK_OF.good}`, meh: `ai-accuracy is-${LOOK_OF.meh}`, bad: `ai-accuracy is-${LOOK_OF.bad}`, accent: "is-accent" };
+export const TONE_CLASS: Record<Tone, string> = { good: "ai-judgement is-good", meh: "ai-judgement is-meh", bad: "ai-judgement is-bad", accent: "is-accent" };
 
 /**
  * How what a reply changed stands now, on its chip: still standing (a proposal waiting, the meanings lit as it judged
@@ -54,12 +57,14 @@ export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipStat
 
 export type Failure = { message: string; retry: boolean };
 /**
- * A question on its way, not yet a commit: the run (`run`, its template's name) or a follow-up asked on main (`field`
- * null) or on a field's branch (its id); `failure` once it failed, so it stands with Try again until the next is asked.
+ * A message on its way, not yet a commit: one carrying one of its place's defaults (`run`, the name it goes by in
+ * Details) or not, with every action it went with by name (`actions`, what its bubble heads with), sent on main
+ * (`field` null) or on a field's branch (its id); `failure` once it failed, so it stands with Try again until the next
+ * is sent.
  */
-export type Asking = { id: number; run: string | null; field: string | null; question: string; failure: Failure | null };
+export type Asking = { id: number; run: string | null; field: string | null; question: string; actions?: readonly string[]; failure: Failure | null };
 
-/** What an action hands the conversation: everything about a commit that's its own, and what a press does. */
+/** What a place hands the conversation: everything about a commit that's its own, and what a press does. */
 export type ConversationOf<C> = {
   /**
    * What a commit changed, as chips in the order they're drawn: none is "Changed nothing"; null is a reply that can't
@@ -68,27 +73,35 @@ export type ConversationOf<C> = {
   chips: (commit: Commit<C>) => readonly ChangeChip[] | null;
   /** Panki's own words under a reply, never the AI's (Explain's "Cut short at the answer limit."). */
   notes?: (commit: Commit<C>) => ReactNode;
-  /** A field's name, by its id: a merged branch's mark in the head. Only an action whose follow-ups have branches gives it. */
+  /** A field's name, by its id: a merged branch's mark in the head. Only a place whose messages have branches gives it. */
   fieldName?: (field: string) => string | null;
   /** Whether Try again can go now. */
   canRun: boolean;
-  /** A follow-up asked again after it failed. */
+  /** A message sent again after it failed. */
   onRetry: (asking: Asking) => void;
   /** A chip or a branch's mark pressed: where it goes (a field, the meanings). */
   onGo: (target: string) => void;
 };
 
 /**
- * Where a place of the conversation ends: the question before a follow-up over Ask before a run is over, asked there,
- * and the next follow-up, folded to its quiet line until it's pressed (`follow`: null while none can be asked).
+ * Where a place of the conversation ends: the question before a message over Ask before a message is over, asked
+ * there, and the next message, folded to its quiet line until it's pressed (`follow`: null while none can be sent); or,
+ * for a conversation's main, the composer, always open (`composer`, in `follow`'s place).
  */
-export type ConversationFoot = { id: string; asked: Asked | null; onCancel: () => void; follow: Omit<FollowUpProps, "id" | "folded"> | null };
+export type ConversationFoot = {
+  id: string;
+  asked: Asked | null;
+  onCancel: () => void;
+  follow: Omit<FieldMessageProps, "id" | "folded"> | null;
+  composer?: Omit<ComposerProps, "id"> | null;
+};
 
 /** A turn as it's drawn: a commit, or the question on its way. */
 type Drawn = {
   id: number;
   run: string | null;
   question: string;
+  actions?: readonly string[] | undefined;
   /** The field it was asked under, where that isn't plain (in the head: a merged branch's). */
   about: { id: string; name: string } | null;
   /** Its reply once it's in: null while it's on its way or failed. */
@@ -106,6 +119,7 @@ function drawnOf<C>(made: Commit<C>, of: ConversationOf<C>, marked: boolean): Dr
     id: made.id,
     run: made.run,
     question: made.question,
+    actions: made.actions,
     about: name !== null && made.field !== null ? { id: made.field, name } : null,
     reply: made.reply,
     notes: of.notes?.(made) ?? null,
@@ -141,26 +155,38 @@ function Changed({ chips, onGo }: { chips: readonly ChangeChip[]; onGo: (target:
 
 type TurnProps = { canRun: boolean; onRetry: (turn: Drawn) => void; onGo: (target: string) => void };
 
-/** One turn: its question (or the run's press), then its reply, Panki's notes and what it changed, the spark while it's on its way, or the failure with Try again. */
+/**
+ * The names a message's bubble heads with: every action it went with, in its place's order; for a template's run with
+ * none (Proofread's), the template's name. None for a message of typed words alone.
+ */
+const pressOf = (turn: Drawn): readonly string[] => (turn.actions && turn.actions.length > 0 ? turn.actions : turn.run !== null ? [turn.run] : []);
+
+/**
+ * One turn: its question (a message with actions as its press: the spark and their names joined by a comma, what
+ * was typed under them as a quiet note; the same for every action, a place's default or not), then its reply, Panki's
+ * notes and what it changed, the spark while it's on its way, or the failure with Try again.
+ */
 function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
   const about = turn.about;
+  const press = pressOf(turn);
   return (
     <div className="ai-explain-turn">
-      {turn.run !== null ? (
-        <p className="ai-explain-question is-run">
-          <AiSpark />
-          {turn.run}
-        </p>
+      {about && turn.run === null ? (
+        <Button className="ai-about" onClick={() => onGo(about.id)}>
+          <Icon name="forward" />
+          {about.name}
+        </Button>
+      ) : null}
+      {press.length > 0 ? (
+        <div className="ai-explain-question is-run">
+          <span className="ai-message-press">
+            <AiSpark />
+            {press.join(", ")}
+          </span>
+          {turn.question !== "" ? <span className="ai-message-note">{turn.question}</span> : null}
+        </div>
       ) : (
-        <>
-          {about ? (
-            <Button className="ai-about" onClick={() => onGo(about.id)}>
-              <Icon name="forward" />
-              {about.name}
-            </Button>
-          ) : null}
-          <p className="ai-explain-question">{turn.question}</p>
-        </>
+        <p className="ai-explain-question">{turn.question}</p>
       )}
       {turn.reply === null && turn.failure === null ? (
         <div className="ai-answering" role="status" aria-label={CONVERSATION_WORDS.answering}>
@@ -188,7 +214,7 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
   );
 }
 
-/** A merged branch's questions that changed nothing, in the head: one quiet line, "2 questions · Changed nothing", opening them where they stand. */
+/** A merged branch's messages that changed nothing, in the head: one quiet line, "2 messages · Changed nothing", opening them where they stand. */
 function FoldedTurns({ turns, ...rest }: TurnProps & { turns: readonly Drawn[] }) {
   const [open, setOpen] = useState(false);
   return (
@@ -236,15 +262,22 @@ type PlaceProps<C> = {
   of: ConversationOf<C>;
   /** Where it ends; none while nothing more can be asked here (before a run has answered). */
   foot?: ConversationFoot | null;
+  /** Panki's notes among main's messages where the conversation's settings changed (`ConversationMark`); main's alone. */
+  marks?: readonly ConversationMark[];
 };
+/**
+ * A note of Panki's in a conversation's main, where one of its settings changed ("From here on, 90 s of the video each
+ * way."): `after` is how many of main's messages stood before it (0 before the first), so it stays where it was made.
+ */
+export type ConversationMark = { id: number; after: number; words: string };
 
 /**
  * One place of the conversation: main (the run first, each commit a merge brought as its branch's block, the ones of
  * its branch that changed nothing folded inside it) or a field's branch (its commits, nothing of them once it was reset); then the question on its way or failed,
  * where it was asked, all of it folding under one quiet line (main's "Hide conversation" / "Show conversation" once
- * there's more than the run, its chips folding with it; a branch's "2 follow-ups"); then its foot, never folded. `AiConversation` draws main with it; Touch up draws each field's under the field.
+ * there's more than the first message, its chips folding with it; a branch's "2 messages"); then its foot, never folded. `AiConversation` draws main with it; Touch up draws each field's under the field.
  */
-export function ConversationTurns<C>({ conversation, asking, where, of, foot = null }: PlaceProps<C>) {
+export function ConversationTurns<C>({ conversation, asking, where, of, foot = null, marks = [] }: PlaceProps<C>) {
   const branch = where === null ? null : branchOf(conversation, where);
   const here: Drawn[] =
     branch === null
@@ -267,22 +300,38 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
   }, [askedHere]);
   // Main folds once there's more than the run to fold; a field's branch from its first question.
   const folds = turns.length >= (where === null ? 2 : 1);
-  const drawn = turns.map((turn) =>
-    turn.run === null && turn.about !== null ? (
-      <MergedBranch key={turn.id} turn={turn} about={turn.about} {...rest} />
-    ) : (
-      <Fragment key={turn.id}>
-        {turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
-        <Turn turn={turn} {...rest} />
-      </Fragment>
-    ),
-  );
+  // Panki's notes where a setting changed, main's alone, each before the message that came after it.
+  const noted = where === null ? marks : [];
+  const marksAt = (i: number) =>
+    noted
+      .filter((mark) => Math.min(mark.after, here.length) === i)
+      .map((mark) => (
+        <p key={`mark-${mark.id}`} className="ai-explain-cut ai-mark">
+          <Icon name="info" />
+          {mark.words}
+        </p>
+      ));
+  const drawn = [
+    ...turns.flatMap((turn, i) => [
+      ...marksAt(i),
+      turn.run === null && turn.about !== null ? (
+        <MergedBranch key={turn.id} turn={turn} about={turn.about} {...rest} />
+      ) : (
+        <Fragment key={turn.id}>
+          {turn.folded.length > 0 ? <FoldedTurns turns={turn.folded} {...rest} /> : null}
+          <Turn turn={turn} {...rest} />
+        </Fragment>
+      ),
+    ]),
+    // A note made after every message so far (nothing on its way) stands at the end.
+    ...(turns.length === here.length ? marksAt(here.length) : []),
+  ];
   return (
     <>
       {folds ? (
         <>
           <Button className={`ai-folded${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-            {where === null ? (open ? CONVERSATION_WORDS.hide : CONVERSATION_WORDS.show) : CONVERSATION_WORDS.followUps(turns.length)}
+            {where === null ? (open ? CONVERSATION_WORDS.hide : CONVERSATION_WORDS.show) : CONVERSATION_WORDS.messages(turns.length)}
             <Icon name="down" />
           </Button>
           <Fold open={open} arrives={false}>
@@ -294,8 +343,8 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
       )}
       {foot ? (
         <>
-          <RunAsk id={`${foot.id}-ask`} asked={foot.asked} onCancel={foot.onCancel} />
-          {foot.follow ? <FollowUp id={foot.id} folded {...foot.follow} /> : null}
+          <MessageAsk id={`${foot.id}-ask`} asked={foot.asked} onCancel={foot.onCancel} />
+          {foot.composer ? <Composer id={foot.id} {...foot.composer} /> : foot.follow ? <FieldMessage id={foot.id} folded {...foot.follow} /> : null}
         </>
       ) : null}
     </>
@@ -308,37 +357,34 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
   className?: string;
   /** Drawn to be looked at, answering no press: a made-up run on the options page. */
   inert?: boolean;
-  /** Every call of the run and its follow-ups, oldest first: the head's. Nothing but `before` until the first. */
+  /** Every call of the conversation, a message each, oldest first: the head's. Nothing drawn until the first, unless `always`. */
   calls: readonly AiCall[];
   /** The presses that made a call: the head's spark blinks once for each. */
   burst: number;
   busy: boolean;
-  /** Above the head: an action's own button where it keeps its place once it has run (Explain's). */
-  before?: ReactNode;
   /** Why the run gave no answer, with Try again (`onRunAgain`) when another go could pass. */
   failure: Failure | null;
   onRunAgain: () => void;
-  /** Under the head while the run stands (no failure): what's the action's own there, Touch up's Accept all and Dismiss all. */
+  /** Under the head while the run stands (no failure): what's the place's own there, Touch up's Accept all and Dismiss all. */
   tools?: ReactNode;
+  /**
+   * A conversation (a card's in the drawer, a word's in the pop-up): the block is there before any call, its head and
+   * its foot (the composer) with it, and the account's standing message (`StandingMessage`) stands at its top.
+   */
+  always?: boolean;
+  standing?: ReactNode;
 };
 
 /**
- * An action's run, whole: `before`, then once a call is made the head (`AiStatus`), the run's failure with Try again
- * or the action's `tools`, main's conversation (`ConversationTurns`), and its foot.
+ * A place's run, whole: once a call is made (or `always`) the head (`AiStatus`), the run's failure with Try again or
+ * the place's `tools`, the standing message, main's conversation (`ConversationTurns`), and its foot.
  */
-export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, before, failure, onRunAgain, tools, ...place }: AiConversationProps<C>) {
+export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, always = false, standing, ...place }: AiConversationProps<C>) {
   const classes = `${className ? `${className} ` : ""}ai-explain`;
-  if (calls.length === 0) {
-    return before ? (
-      <section ref={ref} className={classes} aria-label="Panki AI" inert={inert}>
-        {before}
-      </section>
-    ) : null;
-  }
+  if (calls.length === 0 && !always) return null;
   return (
     <section ref={ref} className={classes} aria-label="Panki AI" aria-busy={busy} inert={inert}>
-      {before}
-      <AiStatus calls={calls} burst={burst} />
+      <AiStatus calls={calls} burst={burst} always={always} />
       {failure ? (
         <div className="ai-explain-failure">
           <p className="form-failure" role="alert">
@@ -354,7 +400,23 @@ export function AiConversation<C>({ ref, className, inert = false, calls, burst,
       ) : (
         tools
       )}
+      {standing}
       <ConversationTurns {...place} where={null} />
     </section>
+  );
+}
+
+/**
+ * The account's standing message at the top of a card's conversation, User instructions: quiet, its first line alone
+ * until it's pressed, then whole; never edited here (Settings → Panki AI). Nothing while it's empty.
+ */
+export function StandingMessage({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  if (text.trim() === "") return null;
+  return (
+    <Button className={`ai-standing${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+      <span className="ai-standing-name">{CONVERSATION_WORDS.standing}</span>
+      <span className="ai-standing-words">{text.trim()}</span>
+    </Button>
   );
 }

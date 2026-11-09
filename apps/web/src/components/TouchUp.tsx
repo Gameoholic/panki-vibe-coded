@@ -1,6 +1,5 @@
 import { Fragment, useState, type ReactNode } from "react";
 import {
-  LOOK_OF,
   TOUCH_UP,
   TOUCH_UP_ERRORS,
   TOUCH_UP_KEYS,
@@ -29,7 +28,7 @@ import { Icon } from "./Icon";
 import { WhyButton } from "./JudgedRow";
 
 /**
- * Touch up in the capture drawer: the one button over the card's fields, then its run drawn as every action's is
+ * Touch up in the capture drawer: the one button over the card's fields, then its run drawn as every place's is
  * (`AiConversation`, the drawer handing in Touch up's `ConversationOf`) with Accept all and Dismiss all; under each
  * field what Panki made of the answer (`fieldVerdictOf`, `meaningVerdictOf`), joined to the field as one shape in its
  * verdict's colour, the field's box the diff while a proposal waits, accepted or dismissed by hand and nothing ever
@@ -77,34 +76,14 @@ export const TOUCH_UP_WORDS = {
   unmarkAi: "Unmark as Panki AI's",
 };
 
-/** Why the button can't run, said under it (`whyNot`, Explain's too: Panki AI off among them). */
+/** Why nothing can be sent in a card's conversation, said beside its Send (`whyNot`, Explain's too: Panki AI off among them). */
 export function touchUpReason(known: boolean, ai: Pick<PankiAiStatus, "settings" | "key"> | null, failure: string | null): string | null {
   return whyNot(known, ai, failure, TOUCH_UP_WORDS.signedOut);
 }
 
 /**
- * Touch up itself, in the drawer's button row before Add, at the drawer's top under its head, the drawer's own button size: what it
- * can cost, or why it can't run, stands right under it (`TouchUpCost`), and once it has run its head (`AiConversation`)
- * under the row. Pressable again whenever it isn't thinking, a new call each time.
- */
-export function TouchUpButton({ name, canRun, busy, thinking, burst, onRun }: { name: string; canRun: boolean; busy: boolean; thinking: boolean; burst: number; onRun: () => void }) {
-  return (
-    <Button className="ai-explain-button touch-up-go" disabled={!canRun || busy} onClick={onRun}>
-      {/* Turning while its call is on its way, and a burst for each press that made one (`burst`, the drawer's count; Try again's too): the button is where the work was asked for. */}
-      <AiSpark working={thinking} burst={burst} />
-      {/* The template it runs, by name: "Touch up" until another is picked from its menu in this drawer. */}
-      {name}
-    </Button>
-  );
-}
-/** Right under Touch up whenever it isn't thinking: the most the next run can cost, or why it can't run. */
-export function TouchUpCost({ beside }: { beside: string | null }) {
-  return beside ? <p className="touch-up-cost">{beside}</p> : null;
-}
-
-/**
  * Under Touch up's head while proposals wait (`AiConversation`'s `tools`): Accept all and Dismiss all, closing every
- * note under the fields. The rest of the head, the run's conversation and its follow-ups are every action's
+ * note under the fields. The rest of the head, the run's conversation and its follow-ups are every place's
  * (`AiConversation`), the drawer handing in Touch up's `ConversationOf`.
  */
 export function TouchUpAll({ pending, onAcceptAll, onDismissAll }: { pending: number; onAcceptAll: () => void; onDismissAll: () => void }) {
@@ -134,9 +113,9 @@ export function TouchUpAll({ pending, onAcceptAll, onDismissAll }: { pending: nu
  * the accent for one of Panki AI's own offered with no judgement), what comes in green (`in`).
  */
 function Mark({ out, children, block }: { out?: Exclude<Tone, "good">; children: string; block?: boolean }) {
-  const look = out === "accent" ? "is-accent" : `ai-accuracy is-${LOOK_OF[out ?? "good"]}`;
+  const look = out === "accent" ? "is-accent" : `ai-judgement is-${out ?? "good"}`;
   return (
-    <span className={`touch-up-d ${look} ai-accuracy-lit${out ? " is-out" : " is-in"}${block ? " is-block" : ""}`} lang={langOf(children)}>
+    <span className={`touch-up-d ${look} ai-judgement-lit${out ? " is-out" : " is-in"}${block ? " is-block" : ""}`} lang={langOf(children)}>
       {children}
     </span>
   );
@@ -495,7 +474,7 @@ function meaningVerdicts(part: MeaningAnswer, verdict: MeaningVerdict, meanings:
         tag: { words: JUDGEMENT_WORDS[row.judgement], look: "muted" },
         value: row.words,
         reason: row.why,
-        accuracy: LOOK_OF[row.judgement],
+        judgement: row.judgement,
       }),
     ),
     ...(part.proposed ? [{ name: `Proposed ${name.toLowerCase()} ${meanings.length + 1}`, tag: tagOf("accent", TOUCH_UP_WORDS.proposes), value: part.proposed, reason: "" }] : []),
@@ -505,8 +484,9 @@ function meaningVerdicts(part: MeaningAnswer, verdict: MeaningVerdict, meanings:
 /**
  * What Details say each part of an answer came to, by the key's name and Panki's verdict on it, the drawer's own: for
  * the Meaning, the verdict and every meaning judged (`meaningVerdicts`); for a text field, its verdict as a tag, the value
- * proposed, and the why. `meanings` is the dictionary's meanings sent, in `{Meaning}`'s order; `now` the card as it was
- * sent, the Meaning's custom meanings read off it.
+ * proposed, and the why. An answer that broke its message's Requires or Leave out failed whole and has no verdicts: its
+ * Log says why. `meanings` is the dictionary's meanings sent, in `{Meaning}`'s order; `now` the card as it was sent, the
+ * Meaning's custom meanings read off it.
  */
 export function touchUpVerdicts(answer: TouchUpAnswer, now: TouchUpNow, meanings: readonly string[]): AiVerdict[] {
   return TOUCH_UP_KEYS.flatMap((key): AiVerdict[] => {

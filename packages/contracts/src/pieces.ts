@@ -31,6 +31,10 @@ export const PROMPT_PIECE_IDS = [
   "transcript",
   "handEdited",
   "unsure",
+  "message",
+  "instructions",
+  "wider",
+  "requirements",
 ] as const;
 export const PromptPieceId = z.enum(PROMPT_PIECE_IDS);
 export type PromptPieceId = z.infer<typeof PromptPieceId>;
@@ -41,7 +45,7 @@ export type PromptPieceId = z.infer<typeof PromptPieceId>;
  * Example sentences, which only it fills), a follow-up as it's asked (its question, and the field it was asked
  * from: a template's Follow-up prompt's alone, AI step 5), or Panki's own transcript of a video (Proofread's, AI step 6).
  */
-export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings" | "card" | "ai" | "followUp" | "transcript";
+export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings" | "card" | "ai" | "followUp" | "message" | "transcript" | "panki";
 /** How a source is said, beside every piece: the field mapping's Source column and Prompt context's alike. */
 export const SOURCE_WORDS: Record<PieceSource, string> = {
   text: "Subtitles or page",
@@ -50,11 +54,16 @@ export const SOURCE_WORDS: Record<PieceSource, string> = {
   forvo: "Forvo",
   settings: "Your settings",
   card: "The card",
-  // The field mapping's Explanation and Example sentences, which only Touch up fills: named for it, as
-  // `AI_ACTIONS.touchUp` is (ai.ts reads this file, so the name can't be read from there).
+  // The field mapping's Explanation and Example sentences, which only Touch up fills: named for that action, as
+  // `AI_ACTIONS.touchUp` is (aiActions.ts reads this file, so the name can't be read from there).
   ai: "Touch up",
-  followUp: "Your follow-up",
+  // What was typed in a message after the first, and the field it was sent from: a template's Follow-up prompt's pieces.
+  followUp: "Your message",
+  // What a message says: its actions' words, then what was typed.
+  message: "Your message",
   transcript: "Panki subtitles",
+  // Panki's own words, never the user's to type or change: what an answer must hold.
+  panki: "Panki",
 };
 
 /** What each piece is called, the one name for it: the field mapping's, Prompt context's and a template's. */
@@ -90,6 +99,17 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   transcript: "Transcript",
   handEdited: "Edited by hand",
   unsure: "Unsure words",
+  // A conversation's (the word's and the card's): what a message says in the user's terms, the ticked actions' words
+  // then what was typed, composed by the server from the actions' ids (`aiActions.ts` → `messageOf`), sent inside
+  // <user_message> as the user's; and the account's standing message, filled from its own settings whatever the page sends.
+  message: "Message",
+  instructions: "User instructions",
+  // What a message's action asked for of the video beyond the surrounding subtitles (an action's seconds, Wider
+  // context's): the subtitles that far each way, in that message alone.
+  wider: "Wider video subtitles",
+  // Panki's own line after a message, apart from it: what the answer must hold (the parts or keys that must come back),
+  // never the user's words (`aiActions.ts` → `requirementsOf`, `explainRequirementsOf`).
+  requirements: "Answer requirements",
 };
 export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   word: "text",
@@ -112,6 +132,10 @@ export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   transcript: "transcript",
   handEdited: "transcript",
   unsure: "transcript",
+  message: "message",
+  instructions: "settings",
+  wider: "video",
+  requirements: "panki",
 };
 
 /**

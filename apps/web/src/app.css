@@ -2524,6 +2524,15 @@ canvas.media-frame {
   font-weight: 700;
   color: var(--muted);
 }
+/* What Panki sends after a place's prompt with every message, as it's written: read-only, its lines as they are. */
+.answer-parts-message {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--muted);
+}
 .answer-parts-fixed {
   display: flex;
   align-items: center;
@@ -2604,38 +2613,38 @@ canvas.media-frame {
   color: var(--muted);
   background: var(--surface-2);
 }
-/* How a dictionary meaning stands in the sentence as Panki AI judged it (`ACCURACY_IDS`: fits, close, wrong), the one
-   home of its looks: its colour (`--accuracy`, with a soft fill and ink for its tag) and, wrong, its words struck. The
-   pop-up's list under Explain's answer and Details' answer rows both draw it. */
-.ai-accuracy.is-fits {
-  --accuracy: var(--good);
-  --accuracy-soft: var(--good-soft);
-  --accuracy-ink: var(--good);
+/* Panki AI's one judgement (`JUDGEMENTS`: good, meh, bad; on a meaning Fits, Close, Doesn't fit), the one home of its
+   looks: its colour (`--judgement`, with a soft fill and ink for its tag) and, bad, its words struck. The pop-up's
+   meanings, the drawer's Meaning list, Touch up's notes and Details' answer rows all draw it. */
+.ai-judgement.is-good {
+  --judgement: var(--good);
+  --judgement-soft: var(--good-soft);
+  --judgement-ink: var(--good);
 }
-.ai-accuracy.is-close {
-  --accuracy: var(--close);
-  --accuracy-soft: var(--close);
-  --accuracy-ink: var(--close-ink);
+.ai-judgement.is-meh {
+  --judgement: var(--close);
+  --judgement-soft: var(--close);
+  --judgement-ink: var(--close-ink);
 }
-.ai-accuracy.is-wrong {
-  --accuracy: var(--danger);
-  --accuracy-soft: var(--danger-soft);
-  --accuracy-ink: var(--danger);
+.ai-judgement.is-bad {
+  --judgement: var(--danger);
+  --judgement-soft: var(--danger-soft);
+  --judgement-ink: var(--danger);
 }
-.ai-accuracy-tag {
-  color: var(--accuracy-ink);
-  background: var(--accuracy-soft);
+.ai-judgement-tag {
+  color: var(--judgement-ink);
+  background: var(--judgement-soft);
 }
-/* A meaning lit where it stands (`JudgedRow`): its accuracy's colour, faint, behind it. */
-.ai-accuracy-lit {
-  background: color-mix(in srgb, var(--accuracy) 14%, transparent);
+/* A meaning lit where it stands (`JudgedRow`): its judgement's colour, faint, behind it. */
+.ai-judgement-lit {
+  background: color-mix(in srgb, var(--judgement) 14%, transparent);
 }
-.ai-accuracy.is-wrong .ai-accuracy-words {
+.ai-judgement.is-bad .ai-judgement-words {
   text-decoration: line-through;
-  text-decoration-color: var(--accuracy);
+  text-decoration-color: var(--judgement);
 }
 /* A judged meaning's row (components/JudgedRow.tsx), the pop-up's and the drawer's Meaning list's alike: the meaning,
-   a chevron at its end in its accuracy's colour, the reason unfolding under it. */
+   a chevron at its end in its judgement's colour, the reason unfolding under it. */
 .judged {
   padding: 2px 4px 2px 6px;
   border-radius: 6px;
@@ -2655,7 +2664,7 @@ canvas.media-frame {
   height: 22px;
   padding: 0;
   border: 0;
-  color: var(--accuracy, currentColor);
+  color: var(--judgement, currentColor);
   background: transparent;
 }
 .btn.judged-why .icon {
@@ -2672,7 +2681,7 @@ canvas.media-frame {
   color: var(--muted);
 }
 /* In a `Dropdown`'s list the choice is the row: its own size, the lit row its only mark (ticked or not, the tick in
-   the accuracy's colour), the chevron level with its words, the reason under them. */
+   the judgement's colour), the chevron level with its words, the reason under them. */
 .dropdown-menu .judged {
   padding: 0;
   border-radius: 8px;
@@ -2682,7 +2691,7 @@ canvas.media-frame {
   color: inherit;
 }
 .dropdown-menu .judged .dropdown-tick {
-  color: var(--accuracy);
+  color: var(--judgement);
 }
 .dropdown-menu .btn.judged-why {
   height: 34px;
@@ -4353,9 +4362,47 @@ mark.sub-blur {
   font-weight: 700;
   vertical-align: 1px;
 }
-.template-row .template-default .icon {
+.template-row .template-default .icon,
+.action-row .template-default .icon {
   width: 12px;
   height: 12px;
+}
+/* Panki AI's actions ("Touch up, steered" step 2): a grip beside each row (hooks/useDragOrder.ts, the field rows' way),
+   the row its name with Default, its words cut to one quiet line, and what a message with it alone can cost. */
+.deck-item.action-item {
+  flex-direction: column;
+}
+.action-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The actions standing under one (Touch up's per-field ones under Touch up): set in under its row, past its grip. */
+.deck-list.action-nested {
+  margin: 2px 0 0 28px;
+}
+.btn-row.action-row {
+  flex: 1;
+  min-width: 0;
+}
+.action-row .deck-name {
+  flex: 1;
+}
+.srs-row.action-row .row-sub {
+  white-space: nowrap;
+}
+.action-list.is-reordering {
+  user-select: none;
+}
+.action-item.is-dragging {
+  transition: none;
+  position: relative;
+  z-index: 1;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 8px var(--surface), var(--shadow);
+}
+.action-item.is-dragging .field-grip {
+  cursor: grabbing;
 }
 .title-locked .icon {
   width: 16px;
@@ -5470,6 +5517,35 @@ mark.sub-blur {
 /* A choice that stands as it is, ticked from elsewhere (a custom meaning, the Meaning field's own words): nothing to press. */
 .btn-item.is-fixed {
   cursor: default;
+}
+/* A choice with others under it: the choice, and its arrow at the right opening them, turned up while they show. */
+.dropdown-parent {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.dropdown-parent > .btn-item {
+  flex: 1;
+  min-width: 0;
+}
+.dropdown-unfold {
+  flex: none;
+  align-self: center;
+}
+.dropdown-unfold .icon {
+  transition: transform 160ms ease;
+}
+.dropdown-unfold[aria-expanded="true"] .icon {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-unfold .icon {
+    transition: none;
+  }
+}
+/* A choice nested under another, set in by a tick's width under its parent's words. */
+.btn-item.is-nested {
+  padding-left: 28px;
 }
 /* Headings over a list's two columns, the choices and their quiet words: what each column is. */
 .dropdown-columns {
@@ -7318,6 +7394,14 @@ mark.sub-blur {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+/* The word's conversation starts apart from the dictionary's meanings above it, so its head never reads as one more of
+   them: room above it and a hairline across the pop-up's width, as between two words. The pop-up and its explainer
+   alike; the drawer's conversation stands in a box of its own (`.touch-up.ai-explain`). */
+.look-word .ai-explain {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
 .look-head {
   display: flex;
   flex-wrap: wrap;
@@ -7368,9 +7452,9 @@ mark.sub-blur {
   vertical-align: 1px;
 }
 /* A meaning Explain judged (the extension's Lookup.tsx → `SenseRow`, `JudgedRow`, `.judged`): its number in its
-   accuracy's colour. */
-.look-senses > li.ai-accuracy::marker {
-  color: var(--accuracy);
+   judgement's colour. */
+.look-senses > li.ai-judgement::marker {
+  color: var(--judgement);
 }
 
 /* The capture drawer: the app's panel, lifted off a page that isn't the app's. Top to bottom: Touch up and Add, the
@@ -7401,27 +7485,6 @@ mark.sub-blur {
 }
 .btn.capture-add {
   flex: 1 1 auto;
-}
-/* Touch up with what it can cost, or why it can't run, right under it, as a setting's line stands under its row. */
-.capture-touch {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  min-width: 0;
-}
-.capture-touch .btn.touch-up-go {
-  gap: 8px;
-  padding: 8px 14px;
-  font-size: inherit;
-}
-.capture-touch .btn.ai-split-arrow {
-  padding: 8px 9px;
-}
-.touch-up-cost {
-  max-width: 16em;
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--muted);
 }
 
 /* Explain (the extension's ui/Explain.tsx): Panki AI under the word shown. Before it runs, its button with the most it
@@ -7493,6 +7556,10 @@ mark.sub-blur {
   width: 14px;
   height: 14px;
 }
+/* Panki's note among a conversation's messages where one of its settings changed: at the left, as its messages are. */
+.ai-explain-cut.ai-mark {
+  justify-self: start;
+}
 
 /* Touch up in the drawer (AI step 3): its head over the card's fields, a proposal under each field it's for. */
 .touch-up.ai-explain {
@@ -7506,7 +7573,7 @@ mark.sub-blur {
   flex-wrap: wrap;
   gap: 8px;
 }
-/* A field and what Touch up says about it, one shape, so a proposal is plainly its field's (TouchUp.tsx → `Tied`), in Panki's verdict's colour: `--accuracy`, the meanings' own (`.ai-accuracy.is-…`: good green,
+/* A field and what Touch up says about it, one shape, so a proposal is plainly its field's (TouchUp.tsx → `Tied`), in Panki's verdict's colour: `--judgement`, the meanings' own (`.ai-judgement.is-…`: good green,
    meh orange, bad red), or the accent where nothing is wrong but something is offered. The field's box in it, its foot
    squared, and the note hanging straight from it, the box's sides carried on down round the note to one rounded end. */
 .touch-up-tied {
@@ -7515,12 +7582,12 @@ mark.sub-blur {
 .touch-up-tied.is-accent,
 .ai-chip.is-accent,
 .touch-up-d.is-accent {
-  --accuracy: var(--accent);
+  --judgement: var(--accent);
 }
 /* The field's own box, never the follow-up's in the note or the tag's fold under it (`.touch-up-foot`, `.touch-up-more`);
    its foot squared where the note hangs from it. */
 .touch-up-tied > :not(.touch-up-foot, .touch-up-more) .field-input:not(.field-behind) {
-  border-color: var(--accuracy);
+  border-color: var(--judgement);
 }
 .touch-up-tied:not(.is-quiet) > :not(.touch-up-foot) .field-input:not(.field-behind) {
   border-bottom-left-radius: 0;
@@ -7547,8 +7614,8 @@ mark.sub-blur {
   padding: 2px 4px 2px 8px;
   border: 0;
   border-radius: 99px;
-  background: color-mix(in srgb, var(--accuracy) 14%, transparent);
-  color: var(--accuracy);
+  background: color-mix(in srgb, var(--judgement) 14%, transparent);
+  color: var(--judgement);
   font-size: 12px;
   font-weight: 700;
 }
@@ -7569,9 +7636,9 @@ mark.sub-blur {
   gap: 8px;
   margin-top: 6px;
   padding: 9px 12px;
-  border: 1px solid var(--accuracy);
+  border: 1px solid var(--judgement);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
+  background: color-mix(in srgb, var(--judgement) 8%, var(--surface));
 }
 /* Every action's conversation (AiConversation.tsx): a bubble stands out from the box it's in, Touch up's head's
    second surface or a field's tinted note (the pop-up's own surface for Explain). The run is its press, the spark and
@@ -7584,16 +7651,195 @@ mark.sub-blur {
 .touch-up-open .ai-explain-question {
   background: color-mix(in srgb, var(--fg) 8%, var(--surface));
 }
+/* A message that went with actions, every one alike, a place's default or not: the spark and their names joined by a
+   comma on one line, what was typed under them (`AiConversation` → `Turn`). */
 .ai-explain-question.is-run {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+.ai-message-press {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-weight: 600;
 }
-.ai-explain-question.is-run > .ai-spark {
+.ai-message-press > .ai-spark {
   width: 14px;
   height: 14px;
   color: var(--accent);
+}
+.ai-message-note {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+/* The account's standing message at a card's conversation's top (`StandingMessage`): quiet, dashed, its first line
+   alone until pressed, then whole. */
+.btn.ai-standing {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+}
+.ai-standing-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ai-standing-words {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.btn.ai-standing.is-open .ai-standing-words {
+  display: block;
+}
+/* Under Admin's Touch up prompt while it has nowhere for User instructions to go (`AiPromptSection`): quiet. */
+.ai-prompt-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+/* A conversation's composer (AiRun.tsx → `Composer`): the box with what's typed, then one row under it, the actions'
+   dropdown at its left, what the message can cost and Send at its right; on a narrow column the row wraps, the
+   dropdown first. */
+.composer {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.composer-box {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.composer-box:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.composer-box.is-error {
+  border-color: var(--danger);
+}
+.composer-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  max-height: 10em;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  /* 16px, so a phone doesn't zoom in on it. */
+  font-size: 16px;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+}
+.composer-input::placeholder {
+  color: var(--muted);
+}
+/* The actions' dropdown takes the row's left, pushing what it can cost and Send to the right. */
+.composer-actions {
+  display: flex;
+  min-width: 0;
+  margin-right: auto;
+}
+/* The conversation's settings button, beside the actions at the left (`AiRun.tsx` → `KnobsButton`); its Tip hangs from it. */
+/* The actions' button lit only while one is ticked; with none it's the quiet unset look of any dropdown. */
+.composer-actions .dropdown-button.is-lit {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+.composer-actions:has(+ .composer-knobs-button) {
+  margin-right: 0;
+}
+/* A conversation's quiet icon button (`AiRun.tsx` → `QuietIconButton`): small, muted and plain, its words in a Tip hanging from it. */
+.quiet-icon {
+  position: relative;
+  display: inline-flex;
+}
+.quiet-icon > .btn-icon {
+  padding: 4px;
+  color: var(--muted);
+}
+.quiet-icon > .btn-icon:hover,
+.quiet-icon > .btn-icon[aria-expanded="true"] {
+  color: var(--fg);
+}
+.quiet-icon > .btn-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+.composer-knobs-button {
+  margin-right: auto;
+}
+/* The conversation's settings, folded above the box until its button opens them: a row each. */
+.composer-knobs {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.composer-knobs .setting {
+  margin: 0;
+}
+/* Clear conversation, the fold's last row: the trash and its words, quiet as the fold is, nothing red until it asks. */
+.composer-knob-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.composer-knob-action > .btn {
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.composer-knob-action > .btn:hover,
+.composer-knob-action > .btn[aria-expanded="true"] {
+  color: var(--fg);
+}
+.composer-knob-action .icon {
+  width: 16px;
+  height: 16px;
+}
+.composer-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+.composer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 10px;
+}
+.btn.composer-send > .ai-spark {
+  color: var(--accent-ink);
 }
 .btn.ai-about {
   justify-self: end;
@@ -7638,8 +7884,8 @@ mark.sub-blur {
 }
 @media (hover: hover) {
   .btn.ai-chip:hover {
-    border-color: var(--accuracy);
-    background: color-mix(in srgb, var(--accuracy) 10%, var(--surface));
+    border-color: var(--judgement);
+    background: color-mix(in srgb, var(--judgement) 10%, var(--surface));
   }
 }
 .ai-chip-dot {
@@ -7647,7 +7893,7 @@ mark.sub-blur {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accuracy);
+  background: var(--judgement);
 }
 .btn.ai-chip > .icon {
   width: 12px;
@@ -7734,6 +7980,19 @@ mark.sub-blur {
 .capture-field.is-lit::after {
   animation: capture-field-lit 1.5s ease-out;
 }
+/* The pop-up's meanings lit the same way when the word's "Meanings" chip goes to them (`useHoist.ts` → `goTo`): only
+   while lit, so nothing of theirs is drawn otherwise. */
+:is(.look-dict, .look-proposed, .look-fold).is-lit {
+  position: relative;
+}
+:is(.look-dict, .look-proposed, .look-fold).is-lit::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  animation: capture-field-lit 1.5s ease-out;
+}
 @keyframes capture-field-lit {
   0%,
   45% {
@@ -7746,7 +8005,8 @@ mark.sub-blur {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .capture-field.is-lit::after {
+  .capture-field.is-lit::after,
+  :is(.look-dict, .look-proposed, .look-fold).is-lit::after {
     animation: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
   }
@@ -7765,7 +8025,7 @@ mark.sub-blur {
 .touch-up-diff {
   margin-top: 6px;
   padding: 10px 12px;
-  border: 1px solid var(--accuracy);
+  border: 1px solid var(--judgement);
   border-radius: 10px 10px 0 0;
   background: var(--surface);
   font-size: 16px;
@@ -7776,10 +8036,10 @@ mark.sub-blur {
   display: grid;
   gap: 8px;
   padding: 9px 12px;
-  border: 1px solid var(--accuracy);
+  border: 1px solid var(--judgement);
   border-top: 0;
   border-radius: 0 0 10px 10px;
-  background: color-mix(in srgb, var(--accuracy) 8%, var(--surface));
+  background: color-mix(in srgb, var(--judgement) 8%, var(--surface));
   animation: intro-rise 0.32s ease-out both;
 }
 .touch-up-note {
@@ -7787,7 +8047,7 @@ mark.sub-blur {
   gap: 6px;
 }
 /* A note's line, the spark and its words in the verdict's colour, with the chevron at its end that folds its why
-   (TouchUp.tsx → `WithReason`, the meaning rows' `WhyButton`, whose colour is `--accuracy` too). */
+   (TouchUp.tsx → `WithReason`, the meaning rows' `WhyButton`, whose colour is `--judgement` too). */
 .touch-up-why-row {
   display: flex;
   align-items: center;
@@ -7802,7 +8062,7 @@ mark.sub-blur {
   gap: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--accuracy);
+  color: var(--judgement);
 }
 /* A note's why, and what else Accept does under a proposal's why (the Sentence's clip on a video): quiet alike. */
 .touch-up-reason,
@@ -7833,17 +8093,17 @@ mark.sub-blur {
   color: var(--fg);
 }
 /* The diff, git's way (TouchUp.tsx → `Mark`): what goes struck in its verdict's colour, what comes in green, each on
-   its colour's faint tint (`.ai-accuracy-lit`); only the tint's shape and the strike are set here. */
+   its colour's faint tint (`.ai-judgement-lit`); only the tint's shape and the strike are set here. */
 .touch-up-d {
   padding: 0 3px;
   border-radius: 4px;
-  color: var(--accuracy);
+  color: var(--judgement);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
 .touch-up-d.is-out {
   text-decoration: line-through;
-  text-decoration-color: var(--accuracy);
+  text-decoration-color: var(--judgement);
 }
 .touch-up-d.is-block {
   display: block;
@@ -7873,7 +8133,7 @@ mark.sub-blur {
 /* A field's own follow-up, under its note (AI step 5): the same, a little quieter. */
 .ai-explain-ask.is-small {
   padding-top: 8px;
-  border-top-color: color-mix(in srgb, var(--accuracy, var(--line)) 30%, var(--line));
+  border-top-color: color-mix(in srgb, var(--judgement, var(--line)) 30%, var(--line));
 }
 .ai-explain-ask.is-small .field-label {
   font-size: 12.5px;
@@ -7927,21 +8187,21 @@ mark.sub-blur {
   padding: 4px;
   gap: 2px;
 }
-/* Ask before a run over (AiRun.tsx → `RunAsk`): a question about money, not a loss, so tinted in the accent rather
+/* Ask before a run over (AiRun.tsx → `MessageAsk`): a question about money, not a loss, so tinted in the accent rather
    than the danger colours a question that takes something away has. */
-.ai-run-ask {
+.ai-message-ask {
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   animation: intro-rise 0.32s ease-out both;
 }
-.ai-run-ask .question {
+.ai-message-ask .question {
   margin: 0;
   font-size: 14px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ai-run-ask,
+  .ai-message-ask,
   .ai-explain-answer {
     animation: none;
   }

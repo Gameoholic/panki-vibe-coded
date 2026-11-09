@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ExtensionBuild, WordsInCards, type KeptKind, type KeptState, type PankiAiStatus } from "@panki/contracts";
+import { ExtensionBuild, TEMPLATED_PLACE_IDS, WordsInCards, type KeptKind, type KeptState, type PankiAiStatus } from "@panki/contracts";
 import { AiShown } from "./messages";
 import { panki, stateSeen } from "./panki";
 import type { Stored } from "./storage";
@@ -28,17 +28,23 @@ type Entry<T> = {
 };
 const entry = <T>(e: Entry<T>): Entry<T> => e;
 
-/** Panki AI as the worker hands it to a page: never an admin's saved key (`AiShown`). */
+/**
+ * Panki AI as the worker hands it to a page: never an admin's saved key (`AiShown`), only the templates and defaults
+ * of places that run templates (Proofread's), Explain's and Touch up's prompts being the admin's, filled by the server,
+ * and the account's actions, what each composer lists and costs.
+ */
 export function aiShownOf(ai: PankiAiStatus): AiShown {
   return {
     settings: ai.settings,
     key: ai.key,
     learningLanguage: ai.learningLanguage,
     language: ai.language,
-    templates: ai.templates,
-    defaults: ai.defaults,
+    templates: ai.templates.filter((t) => TEMPLATED_PLACE_IDS.includes(t.place)),
+    defaults: Object.fromEntries(TEMPLATED_PLACE_IDS.flatMap((place) => (ai.defaults[place] ? [[place, ai.defaults[place]]] : []))),
     askOverMicros: ai.askOverMicros,
     showCostOverMicros: ai.showCostOverMicros,
+    instructions: ai.instructions,
+    actions: ai.actions,
   };
 }
 

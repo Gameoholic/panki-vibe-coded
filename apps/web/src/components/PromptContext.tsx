@@ -4,7 +4,7 @@ import { Button } from "./Button";
 import { Icon } from "./Icon";
 
 /** The limits a piece's description says, as they're set (Admin → Panki AI → Limits). */
-export type PieceLimits = Pick<PankiAi, "aiMaxDescriptionChars" | "aiSurroundingSeconds">;
+export type PieceLimits = Pick<PankiAi, "aiMaxDescriptionChars">;
 
 type Props = {
   /** The limits as they're set, which the descriptions say. */

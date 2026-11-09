@@ -111,7 +111,7 @@ export function PopupLayoutPanel({ kept, lookKey, lookDelay, dictionariesChanged
         <Editor kept={kept} lookKey={lookKey} lookDelay={lookDelay} dictionaries={dictionaries} known={known} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
-          Pop-up dictionary layout
+          Word pop-up layout
         </h2>
       )}
       {failure ? (
@@ -333,7 +333,7 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
     <>
       <div className="popup-head">
         <h2 id="popup-layout-title" className="panel-title">
-          Pop-up dictionary layout
+          Word pop-up layout
         </h2>
         <span id="popup-layout-saved" className={`saved is-${state}`} data-state={state} role="status">
           <Icon name="check" />
@@ -369,7 +369,7 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
           </div>
           <div className={`popup-stage ${editing ? "is-editing" : ""}`.trim()}>
             {shown && first ? (
-              <div className="look is-here" role="group" aria-label="Pop-up dictionary">
+              <div className="look is-here" role="group" aria-label="Word pop-up">
                 <LookupBody
                   // Shown afresh, as a page would open it: nothing unfolded.
                   key={`${mode}:${shown.text}`}

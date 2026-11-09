@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, verdictLine, type AiCall, type AiRunWhy, type AiVerdict, type PieceUse } from "@panki/contracts";
+import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, verdictLine, type AiCall, type AiMessageWhy, type AiVerdict, type PieceUse } from "@panki/contracts";
 import { count, estimateWords, langOf } from "../words";
 import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
@@ -16,7 +16,7 @@ import { ScrollEdges } from "./ScrollEdges";
  * template asked for with what it held or why it held nothing (the one place to see what a piece really was),
  * and the Log, every message as sent and every answer as it came, one that couldn't be used among them; and Copy. Never
  * open by itself; closed again whenever what holds it is drawn afresh (a pop-up opened on another word). Drawn once a
- * call exists; before that the action's own button, and what it says beside it, is the status.
+ * call exists; before that the composer, or Proofread's button, and what it says beside it, is the status.
  */
 
 /** How a call stands on the button: its word, and the look that tints it (the strip menu's `LOOKS`, by name). */
@@ -28,6 +28,8 @@ const STATUS = {
 
 /** What Details say, one home. */
 const WORDS = {
+  /** A row of what steered a send, empty: no standing message, no action, nothing typed. */
+  none: "None",
   cut: "cut short at the answer limit",
   unknown: "not a Prompt context name, sent as typed",
   noTokens: "None came back",
@@ -43,39 +45,38 @@ const TICK_MS = 250;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const n = (count: number) => count.toLocaleString("en");
 
-function whyWords(why: AiRunWhy): string {
+function whyWords(why: AiMessageWhy): string {
   switch (why.kind) {
     case "pressed":
       return `You pressed ${why.action}`;
-    case "followUp":
-      return why.field ? `You asked a follow-up on ${why.field}` : "You asked a follow-up";
+    case "message":
+      return why.field ? `You sent a message on ${why.field}` : "You sent a message";
     case "retry":
       return "You pressed Try again";
   }
 }
 
 /**
- * What went, in plain terms: the prompt, the answers sent back with it and the follow-ups ("Prompt, 2 answers and
- * 2 follow-ups"). Not counted as "messages", which reads wrong, nor as the prompt and follow-ups alone, which would
- * leave the answers out.
+ * What went, in plain terms: the prompt, the answers sent back with it and the messages after the first ("Prompt, 2
+ * answers and 2 messages"), never the prompt and messages alone, which would leave the answers out.
  */
 function sentWords(call: AiCall): string {
   const answers = call.said.filter((m) => m.role === "assistant").length;
   const asked = call.said.filter((m) => m.role === "user").length;
   if (asked === 0) return "Prompt";
-  return `Prompt, ${count(answers, "answer", "answers")} and ${count(asked, "follow-up", "follow-ups")}`;
+  return `Prompt, ${count(answers, "answer", "answers")} and ${count(asked, "message", "messages")}`;
 }
 
 /**
  * The Log, the whole exchange of a call: every message in order, each in a box of its own under who said it (Panki's
- * prompt, Panki AI's answer, Your follow-up), ending with this call's own answer once it's in, or, for one that came
+ * prompt, Panki AI's answer, Your message), ending with this call's own answer once it's in, or, for one that came
  * back and couldn't be used, that answer as it came, so what Panki AI answered shows even when
  * the answer failed. Every answer that read is drawn the same way, its own call's or an earlier one sent back with
  * it, whichever shape it answered in: the list, Raw folded under it (`AnswerView`). A failure is
  * never a turn: it's Panki's own note after them (`failureOf`, `LogFailure`). A call is a list of messages, not one
  * text.
  */
-const SAID_BY = { prompt: "Panki's prompt", assistant: "Panki AI's answer", user: "Your follow-up" } as const;
+const SAID_BY = { prompt: "Panki's prompt", assistant: "Panki AI's answer", user: "Your message" } as const;
 /**
  * A message of the Log: who said it, its text exactly as it went or came, and, for an answer that read, its parts as
  * the list draws them (null for what isn't one: the prompt, a question, an answer that couldn't be used, as it came).
@@ -155,8 +156,8 @@ function Message({ text, lang }: { text: string; lang?: string | undefined }) {
 
 /**
  * This call's own answer in the Log: a row a part of its fixed shape, its name, Panki's verdict as a small tag, the value and the why under it,
- * then Raw, folded, the JSON as it came, indented. A dictionary meaning judged is drawn in its accuracy's look, as the
- * pop-up draws it (`.ai-accuracy`, the one home).
+ * then Raw, folded, the JSON as it came, indented. A dictionary meaning judged is drawn in its judgement's look, as the
+ * pop-up draws it (`.ai-judgement`, the one home).
  */
 function AnswerView({ verdicts, raw }: { verdicts: readonly AiVerdict[]; raw: string }) {
   const [open, setOpen] = useState(false);
@@ -165,11 +166,11 @@ function AnswerView({ verdicts, raw }: { verdicts: readonly AiVerdict[]; raw: st
       {verdicts.length > 0 ? (
         <ul className="ai-answer-parts">
           {verdicts.map((v) => (
-            <li key={v.name} className={v.accuracy ? `ai-answer-part ai-accuracy is-${v.accuracy}` : "ai-answer-part"}>
+            <li key={v.name} className={v.judgement ? `ai-answer-part ai-judgement is-${v.judgement}` : "ai-answer-part"}>
               <span className="ai-answer-name">{v.name}</span>
               <span className="ai-answer-value" lang={langOf(v.value)}>
-                {v.tag ? <span className={v.accuracy ? "ai-answer-tag ai-accuracy-tag" : `ai-answer-tag is-${v.tag.look}`}>{v.tag.words}</span> : null}
-                {v.accuracy ? <span className="ai-accuracy-words">{v.value}</span> : v.value}
+                {v.tag ? <span className={v.judgement ? "ai-answer-tag ai-judgement-tag" : `ai-answer-tag is-${v.tag.look}`}>{v.tag.words}</span> : null}
+                {v.judgement ? <span className="ai-judgement-words">{v.value}</span> : v.value}
               </span>
               {v.reason.trim() !== "" ? <span className="ai-answer-reason">{v.reason}</span> : null}
             </li>
@@ -226,8 +227,16 @@ function rowsOf(call: AiCall, now: number): Row[] {
   const note = outcome.kind === "failed" && outcome.unread && outcome.unread.detail !== "" ? outcome.unread.detail : undefined;
   return [
     { name: "Status", words: status, ...(note !== undefined ? { note } : {}) },
-    { name: "Ran because", words: whyWords(call.why) },
-    { name: "Template", words: call.templateName },
+    { name: "Sent because", words: whyWords(call.why) },
+    // A conversation's message goes over the admin's prompt, no template: what steered it stands in that row's place,
+    // the message itself being its actions and what was typed.
+    ...(call.steering
+      ? [
+          { name: "User instructions", words: call.steering.instructions.trim() || WORDS.none },
+          { name: "Actions", words: call.steering.actions.length > 0 ? call.steering.actions.join(", ") : WORDS.none },
+          { name: "Typed", words: call.steering.typed.trim() || WORDS.none },
+        ]
+      : [{ name: "Template", words: call.templateName }]),
     { name: "Model", words: modelWords(call) },
     { name: "Sent", words: sentWords(call) },
     { name: "Tokens in", words: tokensIn },
@@ -396,11 +405,23 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
  * nothing before the first. `burst` is the count of presses that made a call, for an action whose button gives way to
  * this head as it's pressed (Explain, a follow-up): its spark blinks once for each, where the button was (`AiSpark`).
  */
-export function AiStatus({ calls, burst = 0 }: { calls: readonly AiCall[]; burst?: number }) {
+export function AiStatus({ calls, burst = 0, always = false }: { calls: readonly AiCall[]; burst?: number; always?: boolean }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const last = calls[calls.length - 1];
-  if (!last) return null;
+  // A card's conversation is there before its first call: its head, the spark and the name, with no status yet.
+  if (!last) {
+    return always ? (
+      <div className="ai-status">
+        <header className="ai-status-head">
+          <span className="ai-status-name">
+            <AiSpark burst={burst} />
+            Panki AI
+          </span>
+        </header>
+      </div>
+    ) : null;
+  }
   const status = STATUS[last.outcome.kind];
   // Beside it: the most it can cost while it's on its way; then what the answers so far came to.
   const spent = calls.reduce((sum, call) => sum + (meteredOf(call)?.costMicros ?? 0), 0);

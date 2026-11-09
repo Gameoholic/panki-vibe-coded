@@ -100,7 +100,7 @@
   --flagged-soft: color-mix(in srgb, var(--flagged) 22%, var(--surface));
   --flagged-edge: color-mix(in srgb, var(--flagged) 70%, var(--line));
   --flagged-ink: color-mix(in srgb, var(--flagged) 35%, var(--fg));
-  /* A meaning Panki AI judged close (`.ai-accuracy.is-close`, Touch up's meh): a golden orange, between the flag's
+  /* A meaning Panki AI judged close (`.ai-judgement.is-meh`): a golden orange, between the flag's
      amber and the marks' red-orange, the same whatever the theme: plainly orange, never read as yellow. */
   --close: #fb8c00;
   --close-ink: #12131a;

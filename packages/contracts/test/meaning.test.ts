@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { customOf, glossesOf, meaningTicked, meaningVerdictOf, meaningWithout, readMeaning, tidyMeaning, touchUpProblem, type MeaningRow, type TouchUpNow } from "../src/touchUp";
+import { customOf, glossesOf, meaningTicked, meaningVerdictOf, meaningWithout, readMeaning, tidyMeaning, touchUpProblem, type MeaningRow, type TouchUpAnswer, type TouchUpNow } from "../src/touchUp";
 
 /*
  * The Meaning field read as glosses (`readMeaning`) and what Touch up makes of it (`meaningVerdictOf`,
@@ -102,13 +102,14 @@ test("no row good: Panki AI's meaning in place of what's held", () => {
 });
 
 test("a proposed meaning that repeats a row is refused", () => {
+  const broken = (answer: TouchUpAnswer, now: TouchUpNow) => touchUpProblem({ reply: "", answer }, { meanings: LIST, now, requires: [] }).broken;
   const now = nowOf(M2);
   const answer = (proposed: string) => ({ meaning: { meanings: [row(1, "bad"), row(2, "meh"), row(3, "bad")], proposed, why: "Near." } });
-  assert.equal(touchUpProblem(answer("Comfortable, luxurious"), LIST, now), "Expected a meaning not in the list. Got meaning 2's words.");
-  assert.equal(touchUpProblem(answer("naive; overly optimistic"), LIST, now), null);
+  assert.equal(broken(answer("Comfortable, luxurious"), now), "Expected a meaning not in the list. Got meaning 2's words.");
+  assert.equal(broken(answer("naive; overly optimistic"), now), null);
   const own = nowOf("well-fare");
   const withOwn = { meaning: { meanings: [row(1, "bad"), row(2, "bad"), row(3, "bad"), row(4, "meh")], proposed: "well fare", why: "Near." } };
-  assert.equal(touchUpProblem(withOwn, LIST, own), "Expected a meaning not in the list. Got custom meaning 1's words.");
+  assert.equal(broken(withOwn, own), "Expected a meaning not in the list. Got custom meaning 1's words.");
   // A custom meaning is a row the answer must have.
-  assert.equal(touchUpProblem({ meaning: { meanings: [row(1, "bad"), row(2, "bad"), row(3, "bad")], proposed: "x", why: "Near." } }, LIST, own), "Expected one row per meaning (4). Got 3.");
+  assert.equal(broken({ meaning: { meanings: [row(1, "bad"), row(2, "bad"), row(3, "bad")], proposed: "x", why: "Near." } }, own), "Expected one row per meaning (4). Got 3.");
 });

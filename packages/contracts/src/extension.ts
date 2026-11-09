@@ -22,7 +22,9 @@ import { z } from "zod";
 // question apart from the conversation), so either 3 is too old for the other's break.
 // 5: a Touch up answer's error can be `rewrote` (a Sentence reworded, set aside by the server), which 4 doesn't read.
 // 6: how every review runs left a deck's settings for the account's, so a deck no longer carries the keys 5 requires.
-export const EXTENSION_PROTOCOL = 6;
+// 7: Touch up is a card's conversation over the admin's prompt: it names no template and sends its first send and this
+// one (`TouchUpAsk.opening`, `send`), which 6 doesn't.
+export const EXTENSION_PROTOCOL = 7;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

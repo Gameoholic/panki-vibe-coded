@@ -12,7 +12,7 @@ type Props = {
    * The button that asked. The question opens in a small panel hanging from it, placed in the window (under it, over it
    * where there's more room), so nothing that scrolls around it cuts it off; a press outside it or Escape is Cancel.
    * Every question about taking something away gives one. Left out, the question stands where it's drawn: a Panki AI
-   * run's question about money (`AiRun.tsx` → `RunAsk`), asked where its answer would go.
+   * run's question about money (`AiRun.tsx` → `MessageAsk`), asked where its answer would go.
    */
   anchor?: RefObject<HTMLElement | null>;
   /** What's asked, its cost in it when it has one: "Delete “行く”?", "Delete “Mining” and its 120 cards?" */

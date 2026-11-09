@@ -13,10 +13,10 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiRunWhy, type AiTemplate, type CaptureFacts, type PromptPieces, type WatchMarkSource } from "@panki/contracts";
+import { defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type WatchMarkSource } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
-import { RUN_WORDS, RunAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
+import { MESSAGE_WORDS, MessageAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
 import { clock } from "@web/words";
 import { isModifier, keyOf, pressed, sameKey } from "@web/keys";
 import { Button } from "@web/components/Button";
@@ -50,7 +50,7 @@ import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffe
 import { HidePanelButton, PanelButton } from "../ui/PanelButton";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { EndTime } from "../ui/EndTime";
-import type { PieceLimits } from "../ui/Explain";
+import type { PieceLimits, VideoMore } from "../ui/Explain";
 import { SpeedControl } from "../ui/SpeedControl";
 import { SeekMark, markOf, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { TranscribeMenu, type AiPart, type Seconds } from "../ui/TranscribeMenu";
@@ -249,7 +249,7 @@ const playerBar = createPlayerBar();
 const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
 /** Panki AI's Proofread on this video's transcript (AI step 6): its runs, read by the menu and the rows alike. */
-const proofreader = createProofreader(transcriber, () => lines.transcriptLines(), (limits) => videoPieces(limits));
+const proofreader = createProofreader(transcriber, () => lines.transcriptLines(), (limits) => videoPieces(limits).pieces);
 /** Whether the transcript is over the video right now (the site's own captions give way to it). */
 const showingOver = cell(false);
 /** The account's cards taken from this video, each its clip's stretch in ms and its words: marked on the seek bar. */
@@ -358,27 +358,27 @@ function descriptionText(): string {
 
 /**
  * What Explain sends of a video besides the word and its sentence (AI step 2): the video's title, channel and link at
- * the moment it stands at, as text; the lines the strip is reading (Panki's transcript or YouTube's subtitles, as
- * shown) within `aiSurroundingSeconds` either side of that moment, one a line; and its description, cut to
- * `aiMaxDescriptionChars`. Nothing off a video's own page. The drawer's Touch up asks the same, as its card is made.
+ * the moment it stands at, as text; its description, cut to `aiMaxDescriptionChars`; and the lines the strip is
+ * reading (Panki's transcript or YouTube's subtitles, as shown) as they stand now, cut as far either side of that
+ * moment as a message reaches (`around`, one a line; its actions' seconds). Nothing off a video's own page. The drawer's
+ * Touch up asks the same, as its card is made.
  */
-function videoPieces(limits: PieceLimits): PromptPieces {
+function videoPieces(limits: PieceLimits): VideoMore {
   const id = videoId();
-  if (!id || !video || location.pathname !== "/watch") return {};
+  if (!id || !video || location.pathname !== "/watch") return { pieces: {}, around: () => "" };
   const at = video.currentTime;
   const { title, channel } = aboutVideo();
   const source = [title, channel ? `on ${channel.name}` : "", youtubeUrl({ videoId: id, seconds: Math.floor(at) })].filter((part) => part !== "").join(", ");
-  const reach = limits.aiSurroundingSeconds;
-  const surrounding =
+  const shown = lines.snapshot();
+  const around = (reach: number) =>
     reach > 0
-      ? lines
-          .snapshot()
+      ? shown
           .filter((line) => line.start <= at + reach && (line.end ?? line.start) >= at - reach)
           .map((line) => line.text)
           .join("\n")
       : "";
   const description = descriptionText().slice(0, limits.aiMaxDescriptionChars);
-  return { source, surrounding, description };
+  return { pieces: { source, description }, around };
 }
 
 /** Panki on YouTube's pages beyond a video's: the shelf over its home's videos, the marks on every thumbnail (`feed.tsx`). */
@@ -2109,27 +2109,27 @@ function App() {
   }, [transcriptVideo]);
   const aiShown = pr.ai.known ? pr.ai.shown : null;
   const ownTemplates = aiShown?.templates ?? [];
-  const preferredProofread = defaultTemplateOf("proofread", aiShown?.defaults ?? {}, ownTemplates);
+  const preferredProofread = defaultTemplateOf("transcript", aiShown?.defaults ?? {}, ownTemplates);
   /** The template picked from the menu's arrow on this page: the buttons' from then on, the account's default untouched. */
   const [proofChosen, setProofChosen] = useState<string | null>(null);
   const pickedProofread = proofChosen ? templateById(proofChosen, ownTemplates) : null;
-  const proofTemplate = pickedProofread && pickedProofread.action === "proofread" ? pickedProofread : preferredProofread;
+  const proofTemplate = pickedProofread && pickedProofread.place === "transcript" ? pickedProofread : preferredProofread;
   const proofWhy = proofreader.why();
   const proofCost = (scope: ProofreadScope, using: AiTemplate = proofTemplate): string | null => {
     const micros = aiShown ? proofreader.ceiling(scope, using) : null;
-    return micros === null || !aiShown ? null : RUN_WORDS.upTo(micros, aiShown.showCostOverMicros);
+    return micros === null || !aiShown ? null : MESSAGE_WORDS.upTo(micros, aiShown.showCostOverMicros);
   };
   // The entire video's "Up to" is worked out over every line: once per transcript and template, not each frame.
   const wholeCosts = useMemo(
-    () => new Map(templatesOf("proofread", ownTemplates).map((t) => [t.id, proofCost({ kind: "all" }, t)])),
+    () => new Map(templatesOf("transcript", ownTemplates).map((t) => [t.id, proofCost({ kind: "all" }, t)])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tx.transcript, aiShown, ownTemplates],
   );
-  /** A press: run at once, or ask first when it can cost more than the account's Ask before a run is over. */
-  function pressProofread(scope: ProofreadScope, why: AiRunWhy, where: string, using: AiTemplate = proofTemplate) {
+  /** A press: run at once, or ask first when it can cost more than the account's Ask before a message is over. */
+  function pressProofread(scope: ProofreadScope, why: AiMessageWhy, where: string, using: AiTemplate = proofTemplate) {
     if (!aiShown || proofreader.why() !== null) return;
     const micros = proofreader.ceiling(scope, using) ?? 0;
-    gate.press(aiShown.askOverMicros, where, micros, RUN_WORDS.runFor(using.name, micros), () => void proofreader.run(scope, using, why));
+    gate.press(aiShown.askOverMicros, where, micros, MESSAGE_WORDS.runFor(using.name, micros), () => void proofreader.run(scope, using, why), true);
   }
   /** The words of the latest run still standing: what Undo all takes back. */
   const lastEdited = pr.lastRun === null ? 0 : (tx.transcript?.words ?? []).filter((w) => w.fix?.by === "ai" && w.fix.run === pr.lastRun).length;
@@ -2153,7 +2153,7 @@ function App() {
         {(proofWhy ?? wholeCost) ? <span className="strip-menu-why">{proofWhy ?? wholeCost}</span> : null}
       </Button>
     );
-    const templates = templatesOf("proofread", ownTemplates);
+    const templates = templatesOf("transcript", ownTemplates);
     const whole =
       templates.length > 1 ? (
         <TemplateMenu
@@ -2175,7 +2175,7 @@ function App() {
       );
     const head = (
       <>
-        <RunAsk id="panki-proofread-menu" asked={gate.at("menu")} onCancel={gate.cancel} />
+        <MessageAsk id="panki-proofread-menu" asked={gate.at("menu")} onCancel={gate.cancel} />
         {pr.calls.length > 0 ? <AiStatus calls={pr.calls} burst={pr.burst} /> : null}
         {lastEdited > 0 && pr.going === null ? (
           <div className="strip-menu-undo">
@@ -2942,7 +2942,7 @@ function App() {
           </div>
           )}
           {/* A line's Proofread waiting on its question (the editor's, the subtitle's), under the strip (the menu's waits in the menu). */}
-          {gate.asked?.where.startsWith("row:") ? <RunAsk id="panki-proofread-row" asked={gate.asked} onCancel={gate.cancel} /> : null}
+          {gate.asked?.where.startsWith("row:") ? <MessageAsk id="panki-proofread-row" asked={gate.asked} onCancel={gate.cancel} /> : null}
         </div>
       ) : null}
       {/* The transcript over the video, the line being said: the same words as under the player, to press and to fix. */}
@@ -3020,7 +3020,7 @@ function App() {
 
 /**
  * Everything of Panki's on the page, started once this browser's settings are in (`loadLocal`, a moment after the page
- * loads, from the browser's own storage): the screen, the pop-up dictionary, the marks, the page's listeners. Before
+ * loads, from the browser's own storage): the screen, the Word pop-up, the marks, the page's listeners. Before
  * then nothing of Panki's is drawn, so the first thing drawn is already in the viewer's own settings.
  */
 function begin() {

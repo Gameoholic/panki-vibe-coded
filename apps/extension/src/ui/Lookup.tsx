@@ -6,8 +6,8 @@ import { Icon } from "@web/components/Icon";
 import { PitchAccent } from "@web/components/PitchAccent";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { useCalled } from "@web/hooks/useCalled";
-import { type CalledCard, type MeaningAccuracy, type MeaningAccuracyId, type ProposedMeaning } from "@panki/contracts";
-import { AiSpark } from "@web/components/AiWaiting";
+import { type CalledCard, type JudgedMeaning, type Judgement, type ProposedMeaning } from "@panki/contracts";
+import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import type { useDragOrder } from "@web/hooks/useDragOrder";
 import { count } from "@web/words";
 import type { View } from "../capture/look";
@@ -15,7 +15,7 @@ import { wordKey, type Found, type Sense, type Tag } from "../dictionary/found";
 import { askCalled, askOpenPanki } from "../messages";
 import { PART_NAMES, bandOf } from "../popupKinds";
 import { dictionaryOf, dictionaryPart, type BodyPart, type FrequencyWords, type PopupLayout, type ReadingAt, type TagWords } from "../popupLayout";
-import { Explain, type ExplainExamples, type ExplainSource, type Judged, type Judgement, type MorePieces } from "./Explain";
+import { Explain, type ExplainExamples, type ExplainSource, type Judged, type MeaningsJudged, type MorePieces } from "./Explain";
 import { Glossary } from "./Glossary";
 
 /** How wide the popup is, at most, and how far it keeps from the window's edges; from the word it keeps nothing. */
@@ -216,26 +216,26 @@ function Endings({ found }: { found: Found }) {
 }
 
 /** How Explain judged each meaning of the word shown, by the meaning as the pop-up holds it; none before it has answered. */
-type Marks = ReadonlyMap<Sense, MeaningAccuracy>;
+type Marks = ReadonlyMap<Sense, JudgedMeaning>;
 /** Explain's verdicts as they lie on the word's meanings: a row's index is the meaning's place among them, as `{Meaning}` lists them. */
-const marksOf = (found: Found, rows: readonly MeaningAccuracy[]): Marks =>
+const marksOf = (found: Found, rows: readonly JudgedMeaning[]): Marks =>
   new Map(rows.flatMap((row) => {
     const sense = found.senses[row.meaning - 1];
     return sense ? [[sense, row] as const] : [];
   }));
 
 /** A meaning row Explain has judged: the web's `JudgedRow` in the list, `lead` where a meaning's tags sit. */
-function JudgedSense({ accuracy, reason, lead, value, children }: { accuracy: MeaningAccuracyId; reason: string; lead: ReactNode; value?: number; children: ReactNode }) {
+function JudgedSense({ judgement, reason, lead, value, children }: { judgement: Judgement; reason: string; lead: ReactNode; value?: number; children: ReactNode }) {
   return (
-    <JudgedRow as="li" accuracy={accuracy} reason={reason} {...(value !== undefined ? { value } : {})}>
+    <JudgedRow as="li" judgement={judgement} reason={reason} {...(value !== undefined ? { value } : {})}>
       {lead}
-      <span className="ai-accuracy-words">{children}</span>
+      <span className="ai-judgement-words">{children}</span>
     </JudgedRow>
   );
 }
 
 /** One meaning in a dictionary's list, in Explain's verdict on it once it has one. */
-function SenseRow({ sense, mark, tagWords, tagsOn }: { sense: Sense; mark: MeaningAccuracy | undefined; tagWords: TagWords; tagsOn: boolean }) {
+function SenseRow({ sense, mark, tagWords, tagsOn }: { sense: Sense; mark: JudgedMeaning | undefined; tagWords: TagWords; tagsOn: boolean }) {
   const tags = tagsOn && sense.tags.length > 0 ? <Tags tags={sense.tags} words={tagWords} inline /> : null;
   if (!mark) {
     return (
@@ -246,7 +246,7 @@ function SenseRow({ sense, mark, tagWords, tagsOn }: { sense: Sense; mark: Meani
     );
   }
   return (
-    <JudgedSense accuracy={mark.accuracy} reason={mark.reason} lead={tags}>
+    <JudgedSense judgement={mark.judgement} reason={mark.reason} lead={tags}>
       <Glossary items={sense.glossary} />
     </JudgedSense>
   );
@@ -261,15 +261,35 @@ function SenseRow({ sense, mark, tagWords, tagsOn }: { sense: Sense; mark: Meani
 function ProposedRow({ proposed, number }: { proposed: ProposedMeaning; number: number }) {
   return (
     <ol className="look-senses look-proposed" aria-label="Panki AI's meaning">
-      <JudgedSense accuracy="fits" reason={proposed.reason} lead={<AiSpark className="look-proposed-spark" />} value={number}>
+      <JudgedSense judgement="good" reason={proposed.reason} lead={<AiSpark className="look-proposed-spark" />} value={number}>
         {proposed.meaning}
       </JudgedSense>
     </ol>
   );
 }
 
+/** What the sweep over the meanings says to a screen reader while Panki AI judges them. */
+const JUDGING_WORDS = "Panki AI is judging the meanings";
+
 /** One dictionary's meanings of a word: under its name, or folded to its name and how many there are; cut to `limit`, the rest behind "more"; each in Explain's verdict on it once it has one. */
-function Meanings({ senses, folded, limit, tagWords, tagsOn, marks }: { senses: readonly Sense[]; folded: boolean; limit: number; tagWords: TagWords; tagsOn: boolean; marks: Marks | null }) {
+function Meanings({
+  senses,
+  folded,
+  limit,
+  tagWords,
+  tagsOn,
+  marks,
+  working,
+}: {
+  senses: readonly Sense[];
+  folded: boolean;
+  limit: number;
+  tagWords: TagWords;
+  tagsOn: boolean;
+  marks: Marks | null;
+  /** A message judging the meanings is on its way: the rows dimmed under the sweep, as the drawer's fields are. */
+  working: boolean;
+}) {
   const [open, setOpen] = useState(!folded);
   const [whole, setWhole] = useState(false);
   const name = senses[0]?.dict ?? "";
@@ -284,6 +304,13 @@ function Meanings({ senses, folded, limit, tagWords, tagsOn, marks }: { senses: 
   }
   const cut = limit > 0 && !whole ? senses.slice(0, limit) : senses;
   const left = senses.length - cut.length;
+  const rows = (
+    <ol className="look-senses">
+      {cut.map((sense, j) => (
+        <SenseRow key={j} sense={sense} mark={marks?.get(sense)} tagWords={tagWords} tagsOn={tagsOn} />
+      ))}
+    </ol>
+  );
   return (
     <section className="look-dict">
       {folded ? (
@@ -294,11 +321,7 @@ function Meanings({ senses, folded, limit, tagWords, tagsOn, marks }: { senses: 
       ) : (
         <span className="look-dict-name">{name}</span>
       )}
-      <ol className="look-senses">
-        {cut.map((sense, j) => (
-          <SenseRow key={j} sense={sense} mark={marks?.get(sense)} tagWords={tagWords} tagsOn={tagsOn} />
-        ))}
-      </ol>
+      {working ? <AiWaiting label={JUDGING_WORDS}>{rows}</AiWaiting> : rows}
       {left > 0 ? (
         <Button className="look-more" onClick={() => setWhole(true)}>
           {count(left, "more meaning", "more meanings")}
@@ -313,7 +336,7 @@ function Meanings({ senses, folded, limit, tagWords, tagsOn, marks }: { senses: 
 type Explaining = { source: ExplainSource; onJudged: Judged };
 
 /** What one part under the word draws for it; null when there's nothing. Explain is only the word shown's, which is handed `explain`. */
-function bodyOf(part: BodyPart, found: Found, layout: PopupLayout, explain: Explaining | undefined, marks: Marks | null): ReactNode {
+function bodyOf(part: BodyPart, found: Found, layout: PopupLayout, explain: Explaining | undefined, marks: Marks | null, working = false): ReactNode {
   if (part.id === "explain") return explain ? <Explain key={wordKey(found)} found={found} source={explain.source} onJudged={explain.onJudged} /> : null;
   if (part.id === "tags") return found.tags.length > 0 ? <Tags tags={found.tags} words={layout.tagWords} /> : null;
   if (part.id === "frequency") return found.frequencies.length > 0 ? <Frequency found={found} words={layout.frequencyWords} /> : null;
@@ -325,7 +348,7 @@ function bodyOf(part: BodyPart, found: Found, layout: PopupLayout, explain: Expl
   if (senses.length === 0) return null;
   const tagsOn = layout.body.find((p) => p.id === "tags")?.show !== "hidden";
   // A change of folded or not starts it afresh, as it would open.
-  return <Meanings key={part.show} senses={senses} folded={part.show === "folded"} limit={part.meanings} tagWords={layout.tagWords} tagsOn={tagsOn} marks={marks} />;
+  return <Meanings key={part.show} senses={senses} folded={part.show === "folded"} limit={part.meanings} tagWords={layout.tagWords} tagsOn={tagsOn} marks={marks} working={working} />;
 }
 
 /**
@@ -355,13 +378,13 @@ function Word({ found, layout, onAdd, cards, edit, explain }: { found: Found; la
   const tagsOn = layout.body.find((p) => p.id === "tags")?.show !== "hidden";
   // Explain's latest verdict on the meanings, kept by the word it was about: another word shown takes none of it.
   const key = wordKey(found);
-  const [judged, setJudged] = useState<{ key: string; judgement: Judgement } | null>(null);
-  const judgement = judged && judged.key === key ? judged.judgement : null;
-  const marks = judgement ? marksOf(found, judgement.meanings) : null;
-  const explaining: Explaining | undefined = explain ? { source: explain, onJudged: (judgement) => setJudged({ key, judgement }) } : undefined;
+  const [judged, setJudged] = useState<{ key: string; meanings: MeaningsJudged } | null>(null);
+  const meanings = judged && judged.key === key ? judged.meanings : null;
+  const marks = meanings ? marksOf(found, meanings.meanings) : null;
+  const explaining: Explaining | undefined = explain ? { source: explain, onJudged: (each) => setJudged({ key, meanings: each }) } : undefined;
   // The meaning Explain proposed stands after the last dictionary's meanings drawn: the strays' when there are any, else
   // the last dictionary part shown that has some, else (no dictionary drawn at all) at the foot.
-  const proposed = judgement?.proposed ? <ProposedRow proposed={judgement.proposed} number={found.senses.length + 1} /> : null;
+  const proposed = meanings?.proposed ? <ProposedRow proposed={meanings.proposed} number={found.senses.length + 1} /> : null;
   const lastDictionary =
     strays.length > 0 ? null : (shown.filter((part) => found.senses.some((sense) => sense.dictId === dictionaryOf(part.id))).at(-1)?.id ?? null);
   const proposedAtFoot = strays.length === 0 && lastDictionary === null;
@@ -392,7 +415,7 @@ function Word({ found, layout, onAdd, cards, edit, explain }: { found: Found; la
         </BlockPart>
       ) : null}
       {shown.map((part, i) => {
-        const drawn = bodyOf(part, found, layout, explaining, marks);
+        const drawn = bodyOf(part, found, layout, explaining, marks, meanings?.working ?? false);
         if (drawn === null && !edit) return null;
         return (
           <BlockPart key={part.id} id={part.id} edit={edit} index={i}>
@@ -402,7 +425,16 @@ function Word({ found, layout, onAdd, cards, edit, explain }: { found: Found; la
         );
       })}
       {strays.map((id) => (
-        <Meanings key={id} senses={found.senses.filter((sense) => sense.dictId === id)} folded={false} limit={0} tagWords={layout.tagWords} tagsOn={tagsOn} marks={marks} />
+        <Meanings
+          key={id}
+          senses={found.senses.filter((sense) => sense.dictId === id)}
+          folded={false}
+          limit={0}
+          tagWords={layout.tagWords}
+          tagsOn={tagsOn}
+          marks={marks}
+          working={meanings?.working ?? false}
+        />
       ))}
       {strays.length > 0 || proposedAtFoot ? proposed : null}
     </article>
@@ -554,7 +586,7 @@ export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, car
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
       {/* Kept open, its × is what marks it so: no border does. */}
-      <div ref={box} className={`look ${view.locked && onClose ? "is-kept" : ""}`.trim()} role="dialog" aria-label="Pop-up dictionary" style={{ left, width, ...place }} onPointerDown={onKeep}>
+      <div ref={box} className={`look ${view.locked && onClose ? "is-kept" : ""}`.trim()} role="dialog" aria-label="Word pop-up" style={{ left, width, ...place }} onPointerDown={onKeep}>
         {view.locked && onClose ? (
           <Button className="btn-icon look-close" aria-label="Close" onClick={onClose}>
             <Icon name="close" />

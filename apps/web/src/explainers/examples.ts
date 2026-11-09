@@ -1,4 +1,4 @@
-import { STAGE_RAMP, type CalledCard, type MeaningAccuracy, type ProposedMeaning } from "@panki/contracts";
+import { STAGE_RAMP, type CalledCard, type JudgedMeaning, type ProposedMeaning } from "@panki/contracts";
 
 /**
  * The made-up examples Panki shows its features at work with, one home: the extension's options page (the Pop-up
@@ -7,7 +7,7 @@ import { STAGE_RAMP, type CalledCard, type MeaningAccuracy, type ProposedMeaning
  */
 
 /**
- * A word that stands for one already in the decks wherever the pop-up dictionary is shown at work: on the pop-up it's a
+ * A word that stands for one already in the decks wherever the Word pop-up is shown at work: on the pop-up it's a
  * card of an example deck, whose Open in Panki opens nothing, so the word's highlight and the
  * "already in your decks" message are seen at work, on Panki Default's Familiar 1 in its colour. The drawer at work adds
  * its card to the same deck.
@@ -37,7 +37,7 @@ export const EXAMPLE_TRANSCRIPT: readonly (readonly HeardPart[])[] = [
 ];
 
 /** A made-up Explain answer, by the dictionary form of the word it's about, with how it judges each meaning. */
-export type ExampleAnswer = { term: string; text: string; meanings: readonly MeaningAccuracy[]; proposedMeaning: ProposedMeaning | null };
+export type ExampleAnswer = { term: string; text: string; meanings: readonly JudgedMeaning[]; proposedMeaning: ProposedMeaning | null };
 
 /**
  * How a made-up answer judges the meanings: the first fits, for its own reason; the two after it, whatever the
@@ -46,9 +46,9 @@ export type ExampleAnswer = { term: string; text: string; meanings: readonly Mea
  */
 const judged = (fits: string): Pick<ExampleAnswer, "meanings" | "proposedMeaning"> => ({
   meanings: [
-    { meaning: 1, accuracy: "fits", reason: fits },
-    { meaning: 2, accuracy: "close", reason: "Near, but not quite what this sentence says." },
-    { meaning: 3, accuracy: "wrong", reason: "Another sense of the word; not this one." },
+    { meaning: 1, judgement: "good", reason: fits },
+    { meaning: 2, judgement: "meh", reason: "Near, but not quite what this sentence says." },
+    { meaning: 3, judgement: "bad", reason: "Another sense of the word; not this one." },
   ],
   proposedMeaning: null,
 });

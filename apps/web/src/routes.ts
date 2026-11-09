@@ -1,4 +1,4 @@
-import { AiActionId } from "@panki/contracts";
+import { ActionPlaceId, AiPlaceId } from "@panki/contracts";
 
 /**
  * Every screen's address. A route is a screen by ids alone, so it can be written as a path and read back from one:
@@ -24,8 +24,11 @@ export type Route =
   | { kind: "settings" }
   /** A Panki AI template, the account's own or one of Panki's starters (`starter:grammar`), from Settings → Panki AI. */
   | { kind: "aiTemplate"; id: string }
-  /** A new template of an action, picking what it starts from. */
-  | { kind: "aiNew"; action: AiActionId }
+  /** A new template of a place, picking what it starts from. */
+  | { kind: "aiNew"; place: AiPlaceId }
+  /** A Panki AI action, the account's own or one of Panki's, from Settings → Panki AI; or, `id` null, a new one of a place. */
+  | { kind: "aiAction"; id: string }
+  | { kind: "aiAction"; id: null; place: ActionPlaceId }
   /** What everyone shares and an admin alone changes: its own screen, at the bar's far end. */
   | { kind: "admin" }
   | { kind: "stats" };
@@ -74,7 +77,10 @@ export function routePath(route: Route): string {
     case "aiTemplate":
       return `${AI_TEMPLATES}/templates/${encodeURIComponent(route.id)}`;
     case "aiNew":
-      return `${AI_TEMPLATES}/${NEW}/${route.action}`;
+      return `${AI_TEMPLATES}/${NEW}/${route.place}`;
+    // A place with actions has no templates, so a new action's address is its place's new one.
+    case "aiAction":
+      return route.id === null ? `${AI_TEMPLATES}/${NEW}/${route.place}` : `${AI_TEMPLATES}/actions/${encodeURIComponent(route.id)}`;
     case "admin":
       return "/admin";
     case "stats":
@@ -107,8 +113,15 @@ export function parsePath(path: string): Route {
         const templateId = decoded(more);
         return templateId ? { kind: "aiTemplate", id: templateId } : { kind: "settings" };
       }
-      const action = AiActionId.safeParse(more);
-      return rest === NEW && action.success ? { kind: "aiNew", action: action.data } : { kind: "settings" };
+      if (rest === "actions") {
+        const actionId = decoded(more);
+        return actionId ? { kind: "aiAction", id: actionId } : { kind: "settings" };
+      }
+      if (rest !== NEW) return { kind: "settings" };
+      const withActions = ActionPlaceId.safeParse(more);
+      if (withActions.success) return { kind: "aiAction", id: null, place: withActions.data };
+      const place = AiPlaceId.safeParse(more);
+      return place.success ? { kind: "aiNew", place: place.data } : { kind: "settings" };
     }
     case "admin":
       return { kind: "admin" };

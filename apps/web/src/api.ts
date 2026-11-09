@@ -12,7 +12,14 @@ import {
   ExtensionBuildResponse,
   PankiAiResponse,
   AiTemplateResponse,
+  AiActionResponse,
+  AiActionsResponse,
   UsageResponse,
+  type AccountActions,
+  type AiActionUpdate,
+  type AiActionsArrange,
+  type KeptAction,
+  type NewAiAction,
   type AiProviderId,
   type AiTemplate,
   type AiTemplateUpdate,
@@ -138,6 +145,7 @@ const TRANSCRIPTION_PATH = "/api/transcription";
 const WORD_AUDIO_PATH = "/api/word-audio";
 const engineKeyPath = (engineId: EngineId) => `${TRANSCRIPTION_PATH}/keys/${encodeURIComponent(engineId)}`;
 const templatePath = (templateId: string) => `/api/ai/templates/${encodeURIComponent(templateId)}`;
+const actionPath = (actionId: string) => `/api/ai/actions/${encodeURIComponent(actionId)}`;
 const EVENTS_PATH = "/api/events";
 const WATCHING_PATH = "/api/watching";
 
@@ -230,6 +238,17 @@ export const api = {
   /** Keeps a provider's key for everyone, or forgets it (null); an admin's alone. */
   setAiKey: (providerId: AiProviderId, key: string | null): Promise<PankiAiStatus> =>
     request(`/api/ai/keys/${encodeURIComponent(providerId)}`, send("PUT", { key }), (b) => PankiAiResponse.parse(b).ai),
+  /** Makes one of the account's own Panki AI actions; Panki gives it its id. Its place is fixed from here on. */
+  addAiAction: (action: NewAiAction): Promise<{ action: KeptAction; actions: AccountActions }> => request("/api/ai/actions", send("POST", action), (b) => AiActionResponse.parse(b)),
+  /** Saves an action, the account's own or one of Panki's (kept as the account's copy, Panki's own again when it's saved as Panki has it). */
+  updateAiAction: (actionId: string, update: AiActionUpdate): Promise<{ action: KeptAction; actions: AccountActions }> =>
+    request(actionPath(actionId), send("PUT", update), (b) => AiActionResponse.parse(b)),
+  /** Deletes an action for the account: hidden, never destroyed; one of Panki's comes back by restoring it. */
+  removeAiAction: (actionId: string): Promise<AccountActions> => request(actionPath(actionId), send("DELETE"), (b) => AiActionsResponse.parse(b).actions),
+  /** One of Panki's actions the account edited or deleted, Panki's own again. */
+  restoreAiAction: (actionId: string): Promise<AccountActions> => request(`${actionPath(actionId)}/restore`, send("POST"), (b) => AiActionsResponse.parse(b).actions),
+  /** A place's actions in the account's order, and those ticked as its conversation opens. */
+  arrangeAiActions: (arrange: AiActionsArrange): Promise<AccountActions> => request("/api/ai/actions", send("PUT", arrange), (b) => AiActionsResponse.parse(b).actions),
   /** Makes one of the account's own Panki AI templates (a copy, or empty); Panki gives it its id. Its action is fixed from here on. */
   addAiTemplate: (template: NewAiTemplate): Promise<AiTemplate> => request("/api/ai/templates", send("POST", template), (b) => AiTemplateResponse.parse(b).template),
   /** Saves one of the account's own templates; Panki's own starters can't be. */

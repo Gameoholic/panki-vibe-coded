@@ -682,12 +682,12 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   }
 
   const listed = store.lookWhere === "only" || store.lookWhere === "except";
-  // Pop-up dictionary heads the panel; off, every row under it is greyed, as every panel's own switch greys its rows.
+  // Word pop-up heads the panel; off, every row under it is greyed, as every panel's own switch greys its rows.
   const off = !store.moduleLookup;
   return (
     <section className="panel" aria-labelledby="looking-title">
       <SceneTitle id="popup" titleId="looking-title" store={store} />
-      <Setting id="module-lookup" label="Pop-up dictionary" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
+      <Setting id="module-lookup" label="Word pop-up" control={<Toggle id="module-lookup-on" says={{ on: "On", off: "Off" }} on={store.moduleLookup} onChange={(moduleLookup) => void writeStore({ moduleLookup }).then(onChanged)} />} />
       {/* Where and the key held there are one setting's two halves, grouped together; Panki
           subtitles are a group of their own, Where never reaching them. Named as Words that are in your decks names its
           two places, "globally" and "in Panki subtitles". */}

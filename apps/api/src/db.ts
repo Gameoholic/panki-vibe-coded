@@ -3,7 +3,18 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { z } from "zod";
 import {
+  AI_ACTIONS,
+  AiPlaceId,
   AiTemplate,
+  KeptAction,
+  isLiveActionId,
+  isPankiAction,
+  keptActionOf,
+  placeOfKept,
+  type AccountActions,
+  type AiActionUpdate,
+  type NewAiAction,
+  type PankiActionId,
   BURNED_PLACE,
   CALLED_CARDS_MAX,
   CARD_TIME_MAX_MS,
@@ -900,7 +911,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
       text.replaceAll("<field>{Field}</field>", "<follow_up_field>{Follow-up field}</follow_up_field>").replaceAll("{Field}", "{Follow-up field}");
     const rows = db.prepare("SELECT id, action, name, prompt, follow_up AS followUp, judges FROM ai_templates").all() as {
       id: string;
-      action: AiTemplate["action"];
+      action: string;
       name: string;
       prompt: string;
       followUp: string;
@@ -909,7 +920,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     const update = db.prepare("UPDATE ai_templates SET prompt = ?, follow_up = ?, updated_at = ? WHERE id = ?");
     const change = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
     for (const row of rows) {
-      const was: AiTemplate = { id: row.id, action: row.action, name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
+      const was: AiTemplate = { id: row.id, place: AiPlaceId.parse(placeOfKept(row.action)), name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
       const is: AiTemplate = { ...was, prompt: rename(was.prompt), followUp: rename(was.followUp) };
       if (is.prompt === was.prompt && is.followUp === was.followUp) continue;
       update.run(is.prompt, is.followUp, now, row.id);
@@ -925,7 +936,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
         .replaceAll("{Question}", "{Follow-up question}");
     const rows = db.prepare("SELECT id, action, name, prompt, follow_up AS followUp, judges FROM ai_templates").all() as {
       id: string;
-      action: AiTemplate["action"];
+      action: string;
       name: string;
       prompt: string;
       followUp: string;
@@ -934,7 +945,7 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     const update = db.prepare("UPDATE ai_templates SET prompt = ?, follow_up = ?, updated_at = ? WHERE id = ?");
     const change = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
     for (const row of rows) {
-      const was: AiTemplate = { id: row.id, action: row.action, name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
+      const was: AiTemplate = { id: row.id, place: AiPlaceId.parse(placeOfKept(row.action)), name: row.name, prompt: row.prompt, followUp: row.followUp, judges: row.judges === 1, builtin: false };
       const is: AiTemplate = { ...was, prompt: rename(was.prompt), followUp: rename(was.followUp) };
       if (is.prompt === was.prompt && is.followUp === was.followUp) continue;
       update.run(is.prompt, is.followUp, now, row.id);
@@ -1034,6 +1045,39 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.prepare("UPDATE settings SET value = ? WHERE key = 'newOrder'").run(value);
     db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('newOrder', ?, ?, ?)").run(row.value, value, now);
   },
+  (db) => {
+    // 51. Panki AI's actions, each account's own beside Panki's (the contracts' `aiActions.ts`, never rows). A row is an
+    // action of the account's own (an id Panki gave it) or one of Panki's it edited or deleted (by Panki's id): its
+    // place, name, words and knobs (JSON: requires, leaves, seconds), whether they stand in the action's place
+    // (`edited`: 0 for one of Panki's brought back as Panki's own, or deleted as it came), and `removed_at` once it's
+    // deleted, hidden for the account. Nothing is destroyed: a restore clears `edited` and `removed_at`, the copy kept in
+    // its row, and every change is kept whole before and after with what it was. Each place's order and its defaults are
+    // settings (`aiActionOrder`, `aiActionDefaults`).
+    db.exec(`
+      CREATE TABLE ai_actions (
+        id TEXT PRIMARY KEY,
+        place TEXT NOT NULL,
+        name TEXT NOT NULL,
+        words TEXT NOT NULL,
+        knobs TEXT NOT NULL,
+        edited INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        removed_at INTEGER
+      )
+    `);
+    db.exec(`
+      CREATE TABLE ai_action_changes (
+        id INTEGER PRIMARY KEY,
+        action_id TEXT NOT NULL REFERENCES ai_actions(id),
+        kind TEXT NOT NULL,
+        "before" TEXT,
+        "after" TEXT,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX ai_action_changes_action_id ON ai_action_changes (action_id)");
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1103,16 +1147,47 @@ type WatchMarkRow = { videoId: string; kind: string; at: number };
 type AiTemplateRow = { id: string; action: string; name: string; prompt: string; followUp: string; judges: number };
 
 /**
- * A kept template as the contracts' shape, the account's own; null for one that no longer reads as a template (an
- * action Panki no longer has, a bound tightened since): left in its row, never rewritten, and offered to nothing.
+ * A kept template as the contracts' shape, the account's own, its `action` column the place it belongs to (an older id
+ * among them read as its place, `placeOfKept`); null for one that no longer reads as a template (a place Panki no
+ * longer has, a bound tightened since): left in its row, never rewritten, and offered to nothing.
  */
 function aiTemplateOf(row: AiTemplateRow): AiTemplate | null {
-  const read = AiTemplate.safeParse({ ...row, judges: row.judges === 1, builtin: false });
+  const { action, ...rest } = row;
+  const read = AiTemplate.safeParse({ ...rest, place: placeOfKept(action), judges: row.judges === 1, builtin: false });
   return read.success ? read.data : null;
 }
 /** A template as its change log keeps it: everything a save can change. */
 function aiTemplateSnapshot({ name, prompt, followUp, judges }: AiTemplate): string {
   return JSON.stringify(canonical({ name, prompt, followUp, judges }));
+}
+
+type AiActionRow = { id: string; place: string; name: string; words: string; knobs: string; edited: number; removedAt: number | null };
+/**
+ * A kept action as the contracts' shape; null for one that no longer reads as an action (a place Panki no longer has, a
+ * bound tightened since): left in its row, never rewritten, and offered to nothing.
+ */
+function aiActionOf(row: AiActionRow): KeptAction | null {
+  let knobs: unknown = null;
+  try {
+    knobs = JSON.parse(row.knobs);
+  } catch {
+    knobs = null;
+  }
+  const read = KeptAction.safeParse({ ...(knobs !== null && typeof knobs === "object" ? knobs : {}), id: row.id, place: row.place, name: row.name, words: row.words });
+  return read.success ? read.data : null;
+}
+/** One of Panki's actions as the account would keep it. */
+const pankiKept = (id: PankiActionId): KeptAction => keptActionOf(AI_ACTIONS[id]);
+/**
+ * An action's knobs as its row keeps them, in one JSON. `leaves` is Leave out; a row written while the knob was away
+ * holds none and reads as leaving nothing out, and one from before it went holds the keys it was told to leave, read
+ * as Leave out. `under` is the action it stands under; a row without it stands at the top.
+ */
+const aiActionKnobs = ({ requires, leaves, under, seconds }: Pick<KeptAction, "requires" | "leaves" | "under" | "seconds">): string => JSON.stringify({ requires, leaves, under, seconds });
+/** An action as its change log keeps it: all of it, and how it stood (its copy standing, deleted). */
+function aiActionSnapshot(action: KeptAction, state: { edited: boolean; removed: boolean }): string {
+  const { name, words, requires, leaves, under, seconds } = action;
+  return JSON.stringify(canonical({ name, words, requires, leaves, under, seconds, ...state }));
 }
 
 type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean; finishedAt: number | null };
@@ -1295,6 +1370,15 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const updateAiTemplateRow = db.prepare("UPDATE ai_templates SET name = ?, prompt = ?, follow_up = ?, judges = ?, updated_at = ? WHERE id = ? AND removed_at IS NULL");
   const insertAiTemplateChange = db.prepare(`INSERT INTO ai_template_changes (template_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
   const removeAiTemplate = db.prepare("UPDATE ai_templates SET removed_at = COALESCE(removed_at, ?) WHERE id = ?");
+  // Panki AI's actions, the account's own and its copies of Panki's (migration 51).
+  const aiActionColumns = "id, place, name, words, knobs, edited, removed_at AS removedAt";
+  const selectAiActions = db.prepare(`SELECT ${aiActionColumns} FROM ai_actions ORDER BY created_at ASC, rowid ASC`);
+  const selectAiAction = db.prepare(`SELECT ${aiActionColumns} FROM ai_actions WHERE id = ?`);
+  const insertAiActionRow = db.prepare(
+    "INSERT INTO ai_actions (id, place, name, words, knobs, edited, created_at, updated_at, removed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const updateAiActionRow = db.prepare("UPDATE ai_actions SET name = ?, words = ?, knobs = ?, edited = ?, updated_at = ?, removed_at = ? WHERE id = ?");
+  const insertAiActionChange = db.prepare(`INSERT INTO ai_action_changes (action_id, kind, "before", "after", at) VALUES (?, ?, ?, ?, ?)`);
   // Today's allowances, each deck's own: its new cards are used up by the cards started in it (an answer given from new).
   const countStartedSince = db.prepare(
     "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND undone_at IS NULL AND stage_from IS NULL AND burned_from = 0 AND node_from = '[]' AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
@@ -2099,7 +2183,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /** A template made, its id minted here: never a starter's (`starter:`), so a starter is never written. */
     insertAiTemplate(template: NewAiTemplate, now: number): AiTemplate {
       const id = `t_${crypto.randomUUID()}`;
-      insertAiTemplate.run(id, template.action, template.name, template.prompt, template.followUp, template.judges ? 1 : 0, now, now);
+      insertAiTemplate.run(id, template.place, template.name, template.prompt, template.followUp, template.judges ? 1 : 0, now, now);
       const made = api.getAiTemplate(id);
       if (!made) throw new Error("A template just made didn't read back.");
       return made;
@@ -2122,6 +2206,110 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /** Hides the template, kept with the time it went; hiding twice keeps the first time. False when the account never had one by that id (a starter's among them). */
     removeAiTemplate(id: string, now: number): boolean {
       return removeAiTemplate.run(now, id).changes > 0;
+    },
+    /**
+     * The account's Panki AI actions beside Panki's: its copies standing (its own, and each of Panki's it edited), Panki's
+     * it deleted, and each place's order and defaults as its settings keep them.
+     */
+    aiActions(): AccountActions {
+      // A row of one of Panki's actions taken away (`RETIRED_ACTION_IDS`) stays, read by nothing.
+      const rows = (selectAiActions.all() as AiActionRow[]).filter((row) => isLiveActionId(row.id));
+      const settings = api.getSettings();
+      const placed = (record: Record<string, string[]>): AccountActions["order"] => ({
+        ...(record.word ? { word: record.word } : {}),
+        ...(record.card ? { card: record.card } : {}),
+      });
+      return {
+        saved: rows.filter((row) => row.removedAt === null && row.edited === 1).flatMap((row) => aiActionOf(row) ?? []),
+        hidden: rows.filter((row) => row.removedAt !== null && isPankiAction(row.id)).map((row) => row.id),
+        order: placed(settings.aiActionOrder),
+        defaults: placed(settings.aiActionDefaults),
+      };
+    },
+    /** An action of the account's own made, its id minted here (never one of Panki's), with its change row. */
+    insertAiAction(action: NewAiAction, now: number): KeptAction {
+      return transaction(() => {
+        const id = crypto.randomUUID();
+        insertAiActionRow.run(id, action.place, action.name, action.words, aiActionKnobs(action), 1, now, now, null);
+        const made = { ...action, id };
+        insertAiActionChange.run(id, "made", null, aiActionSnapshot(made, { edited: true, removed: false }), now);
+        return made;
+      });
+    },
+    /**
+     * An action saved whole: the account's own, or one of Panki's, whose copy then stands in its place (saved as Panki
+     * has it, it's Panki's own again). Written, with its change row, only when something differs. Null for one deleted,
+     * or none by that id.
+     */
+    saveAiAction(id: string, update: AiActionUpdate, now: number): KeptAction | null {
+      return transaction(() => {
+        const row = selectAiAction.get(id) as AiActionRow | undefined;
+        const panki = isPankiAction(id) ? pankiKept(id) : null;
+        if (row ? row.removedAt !== null : panki === null) return null;
+        const standing = row && row.edited === 1 ? aiActionOf(row) : panki;
+        const place = row ? row.place : (panki?.place ?? "card");
+        const is = KeptAction.parse({ ...update, id, place });
+        const knobs = aiActionKnobs(is);
+        const edited = row?.edited === 1;
+        const was = standing ? aiActionSnapshot(standing, { edited, removed: false }) : null;
+        if (panki && aiActionSnapshot(panki, { edited: false, removed: false }) === aiActionSnapshot(is, { edited: false, removed: false })) {
+          // Saved as Panki has it: Panki's own again, the copy kept in its row.
+          if (row && edited) {
+            updateAiActionRow.run(row.name, row.words, row.knobs, 0, now, null, id);
+            insertAiActionChange.run(id, "restored", was, aiActionSnapshot(panki, { edited: false, removed: false }), now);
+          }
+          return panki;
+        }
+        const after = aiActionSnapshot(is, { edited: true, removed: false });
+        if (was === after) return is;
+        if (row) updateAiActionRow.run(is.name, is.words, knobs, 1, now, null, id);
+        else insertAiActionRow.run(id, place, is.name, is.words, knobs, 1, now, now, null);
+        insertAiActionChange.run(id, "saved", was, after, now);
+        return is;
+      });
+    },
+    /**
+     * Deletes an action: hidden for the account, kept with the time it went (one of Panki's as it came gets a row of its
+     * own for it). False for one already deleted, or none by that id.
+     */
+    removeAiAction(id: string, now: number): boolean {
+      return transaction(() => {
+        const row = selectAiAction.get(id) as AiActionRow | undefined;
+        if (row) {
+          if (row.removedAt !== null) return false;
+          const action = aiActionOf(row) ?? (isPankiAction(id) ? pankiKept(id) : null);
+          updateAiActionRow.run(row.name, row.words, row.knobs, row.edited, now, now, id);
+          if (action) {
+            const edited = row.edited === 1;
+            insertAiActionChange.run(id, "deleted", aiActionSnapshot(action, { edited, removed: false }), aiActionSnapshot(action, { edited, removed: true }), now);
+          }
+          return true;
+        }
+        if (!isPankiAction(id)) return false;
+        const panki = pankiKept(id);
+        insertAiActionRow.run(id, panki.place, panki.name, panki.words, aiActionKnobs(panki), 0, now, now, now);
+        insertAiActionChange.run(id, "deleted", aiActionSnapshot(panki, { edited: false, removed: false }), aiActionSnapshot(panki, { edited: false, removed: true }), now);
+        return true;
+      });
+    },
+    /** One of Panki's actions the account edited or deleted, Panki's own again: its copy kept in its row. False when there's nothing to bring back. */
+    restoreAiAction(id: string, now: number): boolean {
+      if (!isPankiAction(id)) return false;
+      return transaction(() => {
+        const row = selectAiAction.get(id) as AiActionRow | undefined;
+        if (!row || (row.edited === 0 && row.removedAt === null)) return false;
+        const panki = pankiKept(id);
+        const action = aiActionOf(row) ?? panki;
+        updateAiActionRow.run(row.name, row.words, row.knobs, 0, now, null, id);
+        insertAiActionChange.run(
+          id,
+          "restored",
+          aiActionSnapshot(action, { edited: row.edited === 1, removed: row.removedAt !== null }),
+          aiActionSnapshot(panki, { edited: false, removed: false }),
+          now,
+        );
+        return true;
+      });
     },
     listDecks(now: number): Deck[] {
       const today = todayAt(now);
@@ -2428,7 +2616,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       };
     },
     /**
-     * This account's kinds of the state header (`kept.ts`): its settings with its Panki AI templates, and the words in its
+     * This account's kinds of the state header (`kept.ts`): its settings with its Panki AI templates and actions, and the words in its
      * cards, each hashed from what it is now; worked out again only once the database has changed.
      */
     kept: (): { account: string; words: string } => keptHashes(),
@@ -2947,6 +3135,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // The types from before are hidden only once every one that comes with the app is there to take their place.
   if (!failed) for (const type of before) removeSrsType.run(now(), type.id);
 
-  const keptHashes = whileUnchanged(db, () => ({ account: hashOf(selectSettings.all(), selectAiTemplates.all()), words: hashOf(api.wordsInCards()) }));
+  const keptHashes = whileUnchanged(db, () => ({ account: hashOf(selectSettings.all(), selectAiTemplates.all(), selectAiActions.all()), words: hashOf(api.wordsInCards()) }));
   return api;
 }

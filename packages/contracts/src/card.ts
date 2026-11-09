@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AiActionId, AiProviderId } from "./ai";
+import { AiPlaceId, AiProviderId, placeOfKept } from "./ai";
 import { ClientName } from "./auth";
 import { DeckId } from "./deck";
 import { ExtensionFingerprint } from "./extension";
@@ -66,13 +66,23 @@ export const CardSource = z.object({
 export type CardSource = z.infer<typeof CardSource>;
 
 /**
+ * A value's source as it was kept: Panki AI's said which of its places wrote it as `action`, by the place's older id
+ * ("touchUp"); read as `place`, by its id now (`ai.ts` → `placeOfKept`). Anything else as it is.
+ */
+function carriedSource(value: unknown): unknown {
+  if (!value || typeof value !== "object" || !("by" in value) || value.by !== "ai" || "place" in value || !("action" in value)) return value;
+  const { action, ...rest } = value as { action: unknown };
+  return { ...rest, place: typeof action === "string" ? placeOfKept(action) : action };
+}
+
+/**
  * Where a value came from, so what AI made is kept apart from the true data: `owner` (typed, picked or uploaded by
  * hand), the subtitles or the page (which subtitles, on a video), the dictionaries
- * (which), the video (recorded off it, or its link), Forvo, or Panki AI (which action, on which model), the spark drawn
+ * (which), the video (recorded off it, or its link), Forvo, or Panki AI (which place, on which model), the spark drawn
  * wherever it's shown. The names are Prompt context's sources (`pieces.ts` → `PieceSource`), plus `owner`. A whole
  * value has one: the field is one string, so the spark says "the AI wrote this field", never which part of it.
  */
-export const ValueSource = z.discriminatedUnion("by", [
+export const ValueSource = z.preprocess(carriedSource, z.discriminatedUnion("by", [
   z.object({ by: z.literal("owner") }),
   z.object({ by: z.literal("text"), subtitles: z.enum(["panki", "youtube"]).optional() }),
   z.object({ by: z.literal("dictionary"), dictionaries: z.array(z.string().max(200)).max(50).default([]) }),
@@ -80,7 +90,7 @@ export const ValueSource = z.discriminatedUnion("by", [
   z.object({ by: z.literal("forvo") }),
   z.object({
     by: z.literal("ai"),
-    action: AiActionId,
+    place: AiPlaceId,
     provider: AiProviderId,
     model: z.string().min(1).max(80),
     /**
@@ -97,7 +107,7 @@ export const ValueSource = z.discriminatedUnion("by", [
      */
     edited: z.boolean().optional(),
   }),
-]);
+]));
 export type ValueSource = z.infer<typeof ValueSource>;
 /** A value's source when Panki AI wrote it. */
 export type AiValueSource = Extract<ValueSource, { by: "ai" }>;

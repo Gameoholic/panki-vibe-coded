@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  AI_ACTIONS,
-  AI_ACTION_IDS,
+  AI_PLACES,
+  AI_PLACE_IDS,
   AI_LIMITS,
   APP_LANGUAGES,
   AppLanguage,
@@ -10,7 +10,9 @@ import {
   AiKeyUpdate,
   PankiAi,
   aiModelOf,
-  type AiActionId,
+  type ActionPlaceId,
+  type KeptAction,
+  type AiPlaceId,
   type AiModel,
   type AiTemplate,
   type PankiAiStatus,
@@ -63,7 +65,10 @@ import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Skeleton } from "../components/Skeleton";
 import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
+import type { UnsavedGuard } from "../unsaved";
+import { AiPromptSection } from "./AiPromptSection";
 import { AiTemplatesTab } from "./AiTemplatesView";
+import type { SaveStatus } from "./SrsTypeView";
 import { KeysPanels } from "./KeysSettings";
 import { ReviewsPanel } from "./ReviewsPanel";
 import { TextField } from "../components/TextField";
@@ -85,7 +90,12 @@ type Props = {
   /** Panki AI as it stands, with the account's own templates, for the Panki AI tab; null while it loads. */
   ai: PankiAiStatus | null;
   onOpenTemplate: (template: AiTemplate) => void;
-  onNewTemplate: (action: AiActionId) => void;
+  onNewTemplate: (action: AiPlaceId) => void;
+  /** Panki AI's actions, the word's and the card's: one opened, a new one, a place's order, one of Panki's restored. */
+  onOpenAction: (action: KeptAction) => void;
+  onNewAction: (place: ActionPlaceId) => void;
+  onArrangeActions: (place: ActionPlaceId, order: string[]) => void;
+  onRestoreAction: (id: string) => void;
 };
 
 /** An hour of the day as the clock shows it: "4:00", "23:00". */
@@ -176,13 +186,13 @@ const USAGE_WORDS: Record<UsageKind, (used: UsageTotals) => string> = {
 };
 /**
  * What a kind's calls were, as a second line of small print, where that's worth saying (AI step 6): Panki AI's by
- * action, in `AI_ACTIONS`' order, "Explain 44 · Touch up 14 · Proofread 3", one with none left out; null for nothing.
+ * place, in `AI_PLACES`' order, "Word 44 · Card 14 · Transcript 3", one with none left out; null for nothing.
  */
 const USAGE_WHAT: Record<UsageKind, ((used: UsageTotals) => string | null) | null> = {
   ai: (used) => {
-    const done = AI_ACTION_IDS.flatMap((id) => {
+    const done = AI_PLACE_IDS.flatMap((id) => {
       const calls = used.byWhat[id] ?? 0;
-      return calls > 0 ? [`${AI_ACTIONS[id].name} ${calls.toLocaleString("en")}`] : [];
+      return calls > 0 ? [`${AI_PLACES[id].name} ${calls.toLocaleString("en")}`] : [];
     });
     return done.length > 0 ? done.join(" · ") : null;
   },
@@ -809,10 +819,10 @@ const LIMIT_ROWS: readonly { key: keyof typeof AI_LIMITS; label: string; suffix?
   { key: "aiMaxAnswerTokens", label: "Max answer length", suffix: "tokens", step: 100 },
   { key: "aiMaxTouchUpTokens", label: "Max Touch up answer length", suffix: "tokens", step: 100 },
   { key: "aiMaxProofreadTokens", label: "Max Proofread answer length", suffix: "tokens", step: 100 },
-  { key: "aiMaxFollowUps", label: "Max follow-ups", step: 1 },
-  { key: "aiMaxQuestionChars", label: "Max follow-up length", suffix: "characters", step: 100 },
+  { key: "aiMaxFollowUps", label: "Max messages", step: 1 },
+  { key: "aiMaxQuestionChars", label: "Max message length", suffix: "characters", step: 100 },
   { key: "aiMaxDescriptionChars", label: "Max video description length", suffix: "characters", step: 100 },
-  { key: "aiSurroundingSeconds", label: "Surrounding video subtitles", suffix: "seconds before and after", step: 5 },
+  // Surrounding video subtitles are each action's own (Settings → Panki AI): the two settings that set them stay stored, unread.
 ];
 
 /**
@@ -859,7 +869,7 @@ function AiLimits({ current, on, patch }: { current: PankiAi; on: boolean; patch
  * limits (greyed while it's off too); and what it's been used for. The prompts are each account's own templates
  * (Settings → Panki AI, `AiTemplateView`).
  */
-function PankiAiSection({ status, onStatus }: PankiAiProps) {
+function PankiAiSection({ status, onStatus, onSaveStatus, onGuard }: PankiAiProps & AdminEditing) {
   const [current, patch, failure] = useSavedSoon<PankiAi>(status.settings, async (change) => {
     const next = await api.updateAi(change);
     onStatus(next);
@@ -902,6 +912,7 @@ function PankiAiSection({ status, onStatus }: PankiAiProps) {
         why={`${priceWords(model)}, per million tokens.`}
       />
       <KeyPanel id="ai-key" title={provider.name} from={provider.vendor} label="API key" status={status.key} saved={status.saved} schema={AiKeyUpdate} onSave={async (key) => onStatus(await api.setAiKey(current.aiProvider, key))} />
+      <AiPromptSection status={status} onStatus={onStatus} onSaveStatus={onSaveStatus} onGuard={onGuard} />
       <AiLimits current={current} on={current.aiOn} patch={patch} />
       <UsageSection kind="ai" />
     </section>
@@ -1092,7 +1103,10 @@ function ExtensionPanel() {
  * read, what it all takes on the disk. Every tab is drawn and the others hidden, as Settings' are, so a key half typed
  * on one survives a look at another; each loads as the screen opens.
  */
-function AdminPanel({ tab }: { tab: AdminTab }) {
+/** What the Admin screen hands an editor of its own that's saved by the header's Save (Touch up's prompt). */
+type AdminEditing = { onSaveStatus: (status: SaveStatus | null) => void; onGuard: (guard: UnsavedGuard | null) => void };
+
+function AdminPanel({ tab, onSaveStatus, onGuard }: { tab: AdminTab } & AdminEditing) {
   const [transcription, setTranscription] = useState<TranscriptionStatus | null>(null);
   const [wordAudio, setWordAudio] = useState<WordAudioStatus | null>(null);
   const [ai, setAi] = useState<PankiAiStatus | null>(null);
@@ -1144,7 +1158,11 @@ function AdminPanel({ tab }: { tab: AdminTab }) {
       </div>
       <div className="settings-tab" hidden={tab !== "ai"}>
         {/* The rows its height comes to with the key, Limits and Usage under it (the prompts went to the templates, AI step 5), worked out from a setting row's height, not measured. */}
-        {ai ? <PankiAiSection status={ai} onStatus={setAi} /> : failure ? null : <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={20} />}
+        {ai ? (
+          <PankiAiSection status={ai} onStatus={setAi} onSaveStatus={onSaveStatus} onGuard={onGuard} />
+        ) : failure ? null : (
+          <LoadingPanel id="ai" title="Panki AI" icon="ai" rows={20} />
+        )}
       </div>
       <div className="settings-tab" hidden={tab !== "dictionaries"}>
         <DictionariesPanel />
@@ -1161,7 +1179,7 @@ function AdminPanel({ tab }: { tab: AdminTab }) {
  * `.settings-tab`s, so it stands as wide as Settings does. Its pieces are Settings' own (`Setting`, `KeyPanel`), so it
  * stays in this file.
  */
-export function AdminView() {
+export function AdminView({ onSaveStatus, onGuard }: AdminEditing) {
   const [tab, setTab] = useState<AdminTab>(() => tabOfAddress(ADMIN_TABS) ?? "transcription");
   function choose(next: AdminTab) {
     setTab(next);
@@ -1170,7 +1188,7 @@ export function AdminView() {
   return (
     <>
       <Segmented idPrefix="admin-tab" label="Admin" options={ADMIN_TABS} value={tab} wraps onChange={choose} />
-      <AdminPanel tab={tab} />
+      <AdminPanel tab={tab} onSaveStatus={onSaveStatus} onGuard={onGuard} />
     </>
   );
 }
@@ -1338,7 +1356,20 @@ function DictionariesPanel() {
  * it's made. Last, the devices signed in and the watch history. (What every account shares is an admin's own screen,
  * `AdminView`.)
  */
-export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, ai, onOpenTemplate, onNewTemplate }: Props) {
+export function SettingsView({
+  settings,
+  onChange,
+  me,
+  onSignOut,
+  onSignOutAll,
+  ai,
+  onOpenTemplate,
+  onNewTemplate,
+  onOpenAction,
+  onNewAction,
+  onArrangeActions,
+  onRestoreAction,
+}: Props) {
   const [current, patch, failure] = useSavedSoon<Settings>(settings, onChange);
   const zones = useMemo(() => zoneOptions(current.timeZone), [current.timeZone]);
   const [theme, setTheme] = useState<ThemeId>(readTheme);
@@ -1478,8 +1509,14 @@ export function SettingsView({ settings, onChange, me, onSignOut, onSignOutAll, 
           onAskOver={(aiAskOverMicros) => patch({ aiAskOverMicros })}
           showCostOver={current.aiShowCostOverMicros}
           onShowCostOver={(aiShowCostOverMicros) => patch({ aiShowCostOverMicros })}
+          instructions={current.aiInstructions}
+          onInstructions={(aiInstructions) => patch({ aiInstructions })}
           onOpen={onOpenTemplate}
           onNew={onNewTemplate}
+          onOpenAction={onOpenAction}
+          onNewAction={onNewAction}
+          onArrange={onArrangeActions}
+          onRestore={onRestoreAction}
         />
       </div>
 

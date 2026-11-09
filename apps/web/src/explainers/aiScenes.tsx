@@ -1,5 +1,8 @@
 import { useId, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import {
+  AI_ACTIONS,
+  NO_ACCOUNT_ACTIONS,
+  litNow,
   APP_LANGUAGES,
   DEFAULT_PANKI_AI,
   NO_CONVERSATION,
@@ -7,29 +10,39 @@ import {
   aiModelOf,
   answeredCall,
   defaultTemplateOf,
+  explainSendPieces,
+  wordPromptOf,
   fieldVerdictOf,
   meaningsPiece,
+  openingActionsOf,
+  actionsFor,
+  actionsOf,
   proofreadPieces,
   proofreadTokens,
   proofreadVerdicts,
+  sendPieces,
   startCall,
   startConversation,
-  templatesOf,
   tokenCostMicros,
-  type AiActionId,
+  cardPromptOf,
+  type AiPlaceId,
   type AiCall,
   type AiTemplate,
   type AiVerdict,
+  type CallSteering,
+  type ExplainSend,
+  type TouchUpKey,
+  type TouchUpSend,
   type FieldAnswer,
-  type MeaningAccuracy,
+  type JudgedMeaning,
   type PankiAi,
   type PankiAiStatus,
   type PromptPieces,
   type ProofreadLineAnswer,
   type Settings,
 } from "@panki/contracts";
-import { AiConversation, type ChangeChip } from "../components/AiConversation";
-import { RUN_WORDS, TemplateMenu } from "../components/AiRun";
+import { AiConversation, StandingMessage, type ChangeChip } from "../components/AiConversation";
+import { MESSAGE_WORDS } from "../components/AiRun";
 import { AiStatus } from "../components/AiStatus";
 import { AiSpark, AiWaiting } from "../components/AiWaiting";
 import { Button } from "../components/Button";
@@ -38,7 +51,7 @@ import { Icon } from "../components/Icon";
 import { JudgedRow, meaningsChip } from "../components/JudgedRow";
 import { PitchAccent } from "../components/PitchAccent";
 import { TextField } from "../components/TextField";
-import { Tied, TouchUpAll, TouchUpButton, TouchUpCost, fieldMarks, fieldShown } from "../components/TouchUp";
+import { Tied, TouchUpAll, fieldMarks, fieldShown } from "../components/TouchUp";
 import { useHoist } from "../hooks/useHoist";
 import { hmsWords } from "../words";
 import { EXAMPLE_ANSWERS, EXAMPLE_SENTENCE, EXAMPLE_TRANSCRIPT, IN_DECKS, type HeardPart } from "./examples";
@@ -46,18 +59,18 @@ import { WATCH, WATCHED, WatchPage } from "./site";
 
 /**
  * What Settings → Panki AI's explainers play (`components/Explainer.tsx`): each action at work on the video site, as the extension does it, made of the
- * same pieces (`AiConversation`, `AiStatus`, `JudgedRow`, `TemplateMenu`, `TouchUpButton`, `TouchUpAll`, `Tied`,
+ * same pieces (`AiConversation`, `AiStatus`, `JudgedRow`, `Composer`, `StandingMessage`, `TouchUpAll`, `Tied`,
  * `fieldShown`, `useHoist`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
  * player, whose looks are the extension's alone, so the scene draws it in shapes of its own (`app.css` → `.ex-under`),
- * its menu of the app's menu rows. They play as the account has Panki AI set: its default
- * template's name on the button, what a run can cost on the model an admin set, shown as Show the cost when a run is
- * over says. Every answer is made up (`examples.ts`), never asked of anyone. A new action is one entry in `AI_SCENES`.
+ * its menu of the app's menu rows. They play as the account has Panki AI set: its User instructions, Proofread's
+ * default template's name on its button, what a run can cost on the model an admin set, shown as Show the cost when a
+ * run is over says. Every answer is made up (`examples.ts`), never asked of anyone. A new action is one entry in `AI_SCENES`.
  */
 
 type SceneProps = {
   /** Panki AI as it stands; null while it loads, when Panki's defaults stand in. */
   ai: PankiAiStatus | null;
-  /** Each action's default as the account has it. */
+  /** Each place's default template as the account has it. */
   defaults: Settings["aiDefaults"];
   /** From what a run's cost is shown beside it (`Settings.aiShowCostOverMicros`). */
   showCostOver: number | null;
@@ -70,16 +83,16 @@ const WORD = { term: IN_DECKS.words, reading: "きっさてん", pitch: 0 };
 /** Its meanings in the examples' dictionary, as the pop-up lists them and `{Meaning}` numbers them. */
 const MEANINGS = ["coffee shop; café", "tearoom; tea parlor", "teahouse (for the tea ceremony)"] as const;
 /** What the made-up calls took, in the provider's tokens: what Details and the head's cost say. */
-const TOKENS: Record<AiActionId, { input: number; output: number }> = {
-  explain: { input: 1_400, output: 320 },
-  touchUp: { input: 1_900, output: 240 },
-  proofread: { input: 1_300, output: 180 },
+const TOKENS: Record<AiPlaceId, { input: number; output: number }> = {
+  word: { input: 1_400, output: 320 },
+  card: { input: 1_900, output: 240 },
+  transcript: { input: 1_300, output: 180 },
 };
-/** The answer limit a made-up call is held to, as the server holds a real one of the action's. */
-const ANSWER_LIMIT: Record<AiActionId, (settings: PankiAi) => number> = {
-  explain: (s) => s.aiMaxAnswerTokens,
-  touchUp: (s) => s.aiMaxTouchUpTokens,
-  proofread: (s) => proofreadTokens(EXAMPLE_TRANSCRIPT.length, s.aiMaxProofreadTokens),
+/** The answer limit a made-up call is held to, as the server holds a real one of the place's. */
+const ANSWER_LIMIT: Record<AiPlaceId, (settings: PankiAi) => number> = {
+  word: (s) => s.aiMaxAnswerTokens,
+  card: (s) => s.aiMaxTouchUpTokens,
+  transcript: (s) => proofreadTokens(EXAMPLE_TRANSCRIPT.length, s.aiMaxProofreadTokens),
 };
 /** How long a made-up call thinks before its answer is in. */
 const THINKING_MS = 1_700;
@@ -97,18 +110,26 @@ function standing(ai: PankiAiStatus | null): { settings: PankiAi; own: readonly 
  * A made-up call of `template`'s, as the page that made it tells of it: thinking, and once answered, what it came to
  * and, where Details list it, what it said (`said`: its verdicts and its answer as it came).
  */
-function madeUpCall(action: AiActionId, template: AiTemplate, settings: PankiAi, pieces: PromptPieces, said?: { verdicts: readonly AiVerdict[]; raw: string }) {
+function madeUpCall(
+  place: AiPlaceId,
+  template: Pick<AiTemplate, "name" | "prompt" | "followUp">,
+  settings: PankiAi,
+  pieces: PromptPieces,
+  said?: { verdicts: readonly AiVerdict[]; raw: string },
+  opening?: { pieces: PromptPieces; steering: CallSteering; pressed: string },
+) {
   const started = startCall({
     label: template.name,
-    why: { kind: "pressed", action: template.name },
+    why: { kind: "pressed", action: opening?.pressed ?? template.name },
     settings,
     template,
     pieces,
     said: [],
+    ...(opening ? { opening: opening.pieces, steering: opening.steering } : {}),
     now: Date.now(),
-    maxAnswerTokens: ANSWER_LIMIT[action](settings),
+    maxAnswerTokens: ANSWER_LIMIT[place](settings),
   });
-  const { input, output } = TOKENS[action];
+  const { input, output } = TOKENS[place];
   const answered = (): AiCall =>
     answeredCall(
       started,
@@ -135,7 +156,7 @@ const [BEFORE, AFTER] = ((at) => [EXAMPLE_SENTENCE.slice(0, at), EXAMPLE_SENTENC
 const ANSWER = EXAMPLE_ANSWERS.find((answer) => answer.term === WORD.term);
 
 /**
- * The pop-up over the word it's for, as the pop-up dictionary places it on a page: over the word where there's more
+ * The pop-up over the word it's for, as the Word pop-up places it on a page: over the word where there's more
  * room above it than under (a word in the subtitles, low on the video), the word lit.
  */
 function PopupOver({ at, box, children }: { at: Spot; box: (el: HTMLDivElement | null) => void; children: ReactNode }) {
@@ -151,26 +172,33 @@ function PopupOver({ at, box, children }: { at: Spot; box: (el: HTMLDivElement |
 }
 
 /** One of the word's meanings, as plain as the dictionary has it, or in Explain's verdict on it once it has one. */
-function Meaning({ words, mark }: { words: string; mark: MeaningAccuracy | undefined }) {
+function Meaning({ words, mark }: { words: string; mark: JudgedMeaning | undefined }) {
   if (!mark) return <li>{words}</li>;
   return (
-    <JudgedRow as="li" accuracy={mark.accuracy} reason={mark.reason}>
-      <span className="ai-accuracy-words">{words}</span>
+    <JudgedRow as="li" judgement={mark.judgement} reason={mark.reason}>
+      <span className="ai-judgement-words">{words}</span>
     </JudgedRow>
   );
 }
 
 /**
- * Explain: the key held over a word of Panki subtitles on a video, the pop-up opening and kept, Explain pressed, the
- * spark turning while it thinks, the answer arriving with each meaning lit in its verdict, one's reason opened, and the
- * answer read on down the pop-up.
+ * Explain: the key held over a word of Panki subtitles on a video, the pop-up opening and kept, its conversation's
+ * composer with Explain lit, Send pressed, the spark turning while it thinks, the answer arriving with each meaning lit
+ * in its verdict, one's reason opened, and the answer read on down the pop-up.
  */
-function ExplainScene({ ai, defaults, showCostOver }: SceneProps) {
+function ExplainScene({ ai, showCostOver }: SceneProps) {
   const id = useId();
-  const { settings, own, languages } = standing(ai);
-  const template = defaultTemplateOf("explain", defaults, own);
-  const pieces: PromptPieces = { word: WORD.term, dictForm: WORD.term, dictReading: WORD.reading, dictMeaning: meaningsPiece(MEANINGS), sentence: EXAMPLE_SENTENCE, ...languages };
-  const call = madeUpCall("explain", template, settings, pieces);
+  const { settings, languages } = standing(ai);
+  const instructions = ai?.instructions ?? "";
+  const pieces: PromptPieces = { word: WORD.term, dictForm: WORD.term, dictReading: WORD.reading, dictMeaning: meaningsPiece(MEANINGS), sentence: EXAMPLE_SENTENCE, instructions, ...languages };
+  // Panki's own actions, whatever the account made of them: the scene plays the feature as it comes.
+  const send: ExplainSend = { actions: openingActionsOf(NO_ACCOUNT_ACTIONS, "word"), text: "" };
+  const template = wordPromptOf(settings);
+  const call = madeUpCall("word", template, settings, pieces, undefined, {
+    pieces: explainSendPieces(send, NO_ACCOUNT_ACTIONS),
+    steering: { instructions, actions: litNow(NO_ACCOUNT_ACTIONS, "word", send.actions).map((each) => each.name), typed: "" },
+    pressed: MESSAGE_WORDS.send,
+  });
   const [at, setAt] = useState<Spot | null>(null);
   const [calls, setCalls] = useState<readonly AiCall[]>([]);
   const [answered, setAnswered] = useState(false);
@@ -197,7 +225,7 @@ function ExplainScene({ ai, defaults, showCostOver }: SceneProps) {
     // Let go on the word: the pop-up stays.
     t.letGo("Shift");
     await t.wait(350);
-    await t.move(find(".ai-explain-button"), 600);
+    await t.move(find(".composer-send"), 600);
     await t.click();
     setBurst(1);
     setCalls([call.started]);
@@ -223,8 +251,20 @@ function ExplainScene({ ai, defaults, showCostOver }: SceneProps) {
     t.frame();
     await t.wait(500);
   };
-  const rows = templatesOf("explain", own).map((each) => ({ template: each, cost: null }));
-  const beside = calls.length === 0 ? RUN_WORDS.upTo(call.started.ceilingMicros, showCostOver) : null;
+  /** The composer at the conversation's foot: Explain lit until Send, every action cleared once it's sent. */
+  const sent = calls.length > 0;
+  const composer = {
+    place: "word" as const,
+    value: "",
+    actions: actionsOf(NO_ACCOUNT_ACTIONS, "word").map((each) => ({ id: each.id, name: each.name, on: !sent && send.actions.includes(each.id), disabled: false })),
+    sending: sent && !answered,
+    canSend: !sent,
+    beside: sent ? null : MESSAGE_WORDS.upTo(call.started.ceilingMicros, showCostOver),
+    burst,
+    onChange: nothing,
+    onToggle: nothing,
+    onSend: nothing,
+  };
   return (
     <Stage site={WATCH} script={script}>
       <WatchPage
@@ -269,31 +309,22 @@ function ExplainScene({ ai, defaults, showCostOver }: SceneProps) {
                 </ol>
               </section>
               <AiConversation
+                always
                 calls={calls}
-                burst={burst}
-                busy={calls.length > 0 && !answered}
-                before={
-                  <div className="ai-explain-start">
-                    <TemplateMenu id={id} rows={rows} defaultId={template.id} chosenId={template.id} disabled={false} onPick={nothing}>
-                      <Button className="ai-explain-button">
-                        <AiSpark />
-                        {template.name}
-                      </Button>
-                    </TemplateMenu>
-                    {beside ? <span className="btn-beside">{beside}</span> : null}
-                  </div>
-                }
+                burst={0}
+                busy={sent && !answered}
                 failure={null}
                 onRunAgain={nothing}
-                conversation={answered && ANSWER ? startConversation({ id: 1, run: template.name, field: null, question: "", reply: ANSWER.text, said: [], changed: [ANSWER] }) : NO_CONVERSATION}
-                asking={calls.length > 0 && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
+                standing={<StandingMessage text={instructions} />}
+                conversation={answered && ANSWER ? startConversation({ id: 1, run: template.name, field: null, question: "", actions: [], reply: ANSWER.text, said: [], changed: [ANSWER] }) : NO_CONVERSATION}
+                asking={sent && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
                 of={{
                   chips: (made) => made.changed.map((each) => meaningsChip(each.meanings, each.proposedMeaning !== null, "live")),
                   canRun: true,
                   onRetry: nothing,
                   onGo: nothing,
                 }}
-                foot={answered ? { id, asked: null, onCancel: nothing, follow: { value: "", disabled: false, beside: null, onChange: nothing, onAsk: nothing } } : null}
+                foot={{ id: `${id}-composer`, asked: null, onCancel: nothing, follow: null, composer }}
               />
             </article>
           </PopupOver>
@@ -320,19 +351,36 @@ const TOUCHED: { sentence: FieldAnswer; explanation: FieldAnswer } = {
 
 /** The made-up card's fields, by key, in its card type's order. */
 const SCENE_FIELDS = ["word", "sentence", "explanation"] as const;
+/** The Touch up keys the scene's deck maps: its composer shows their own actions. */
+const SCENE_KEYS: readonly TouchUpKey[] = ["sentence", "explanation"];
 
 /**
- * Touch up: a card being added in the drawer beside a paused video, Touch up pressed, its fields reworked under the
- * spark, then the head with Accept all and what the run changed, the fields with a proposal at the top, a proposal
- * under each; the sentence's accepted, its words now Panki AI's, its field back in its place, and the Explanation's
- * proposal read on down the drawer.
+ * Touch up: a card being added in the drawer beside a paused video, its conversation's composer with Touch up lit, Send
+ * pressed, the fields it judges reworked under the spark, then the head with Accept all and what the run changed, the
+ * fields with a proposal at the top, a proposal under each; the sentence's accepted, its words now Panki AI's, its
+ * field back in its place, and the Explanation's proposal read on down the drawer.
  */
-function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
+function TouchUpScene({ ai, showCostOver }: SceneProps) {
   const id = useId();
-  const { settings, own, languages } = standing(ai);
-  const template = defaultTemplateOf("touchUp", defaults, own);
-  const pieces: PromptPieces = { word: WORD.term, dictForm: WORD.term, dictReading: WORD.reading, dictMeaning: meaningsPiece(MEANINGS), sentence: HEARD, source: `${WATCHED.title} · ${WATCHED.channel}`, ...languages };
-  const call = madeUpCall("touchUp", template, settings, pieces);
+  const { settings, languages } = standing(ai);
+  const instructions = ai?.instructions ?? "";
+  const pieces: PromptPieces = {
+    word: WORD.term,
+    dictForm: WORD.term,
+    dictReading: WORD.reading,
+    dictMeaning: meaningsPiece(MEANINGS),
+    sentence: HEARD,
+    source: `${WATCHED.title} · ${WATCHED.channel}`,
+    instructions,
+    ...languages,
+  };
+  const send: TouchUpSend = { actions: ["touchUp"], text: "", card: `Word: ${WORD.term}\nSentence [sentence]: ${HEARD}\nExplanation [explanation]: (empty)` };
+  const template = cardPromptOf(settings);
+  const call = madeUpCall("card", template, settings, pieces, undefined, {
+    pieces: sendPieces(send, SCENE_KEYS, NO_ACCOUNT_ACTIONS),
+    steering: { instructions, actions: [AI_ACTIONS.touchUp.name], typed: "" },
+    pressed: MESSAGE_WORDS.send,
+  });
   const [open, setOpen] = useState(false);
   const [calls, setCalls] = useState<readonly AiCall[]>([]);
   const [thinking, setThinking] = useState(false);
@@ -352,7 +400,7 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
     setOpen(true);
     await t.wait(650);
     t.frame(drawer.current);
-    await t.move(find(".touch-up-go"), 600);
+    await t.move(find(".composer-send"), 600);
     await t.click();
     setRuns(1);
     setThinking(true);
@@ -391,7 +439,21 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
     { id: "sentence", name: "Sentence", tone: "meh", state: accepted ? "accepted" : "live" },
     { id: "explanation", name: "Explanation", tone: "accent", state: "live" },
   ];
-  const conversation = answered ? startConversation({ id: 1, run: template.name, field: null, question: "", reply: "", said: [], changed }) : NO_CONVERSATION;
+  const conversation = answered ? startConversation({ id: 1, run: template.name, field: null, question: "", actions: [], reply: "", said: [], changed }) : NO_CONVERSATION;
+  /** The composer at the conversation's foot: Touch up lit until Send, every action cleared once it's sent. */
+  const sent = calls.length > 0;
+  const composer = {
+    place: "card" as const,
+    value: "",
+    actions: actionsFor(NO_ACCOUNT_ACTIONS, SCENE_KEYS).map((each) => ({ id: each.id, name: each.name, on: !sent && each.id === "touchUp", disabled: false })),
+    sending: thinking,
+    canSend: !sent,
+    beside: sent ? null : MESSAGE_WORDS.upTo(call.started.ceilingMicros, showCostOver),
+    burst: runs,
+    onChange: nothing,
+    onToggle: nothing,
+    onSend: nothing,
+  };
   /** A field Touch up reworks: dimmed under the sweep while it thinks, then tied to what it says of it. */
   const touched = (shown: ReturnType<typeof fieldShown>, box: (labelEnd: ReactNode) => ReactNode) => {
     const inside = shown ? <Tied shown={shown}>{box}</Tied> : box(null);
@@ -414,8 +476,6 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
     )),
     explanation: touched(explanationShown, (labelEnd) => <TextField id={`${id}-explanation`} label="Explanation" labelEnd={labelEnd} value="" onChange={nothing} />),
   };
-  const button = <TouchUpButton name={template.name} canRun busy={thinking} thinking={thinking} burst={runs} onRun={nothing} />;
-  const rows = templatesOf("touchUp", own).map((each) => ({ template: each, cost: null }));
   return (
     <Stage site={WATCH} script={script}>
       <WatchPage paused={open}>
@@ -436,16 +496,6 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
             <div className="capture-body">
               <div ref={hoist.ref} className="add-form">
                 <div className="capture-live capture-ends">
-                  <div className="capture-touch">
-                    {rows.length < 2 ? (
-                      button
-                    ) : (
-                      <TemplateMenu id={id} rows={rows} defaultId={template.id} chosenId={template.id} disabled={thinking} onPick={nothing}>
-                        {button}
-                      </TemplateMenu>
-                    )}
-                    {thinking ? null : <TouchUpCost beside={RUN_WORDS.upTo(call.started.ceilingMicros, showCostOver)} />}
-                  </div>
                   <Button variant="primary" className="capture-add">
                     <Icon name="add" />
                     Add to {IN_DECKS.deck}
@@ -453,15 +503,18 @@ function TouchUpScene({ ai, defaults, showCostOver }: SceneProps) {
                 </div>
                 <AiConversation
                   className="field touch-up"
+                  always
                   calls={calls}
                   burst={0}
                   busy={thinking}
                   failure={null}
                   onRunAgain={nothing}
                   tools={<TouchUpAll pending={answered ? (accepted ? 1 : 2) : 0} onAcceptAll={nothing} onDismissAll={nothing} />}
+                  standing={<StandingMessage text={instructions} />}
                   conversation={conversation}
                   asking={calls.length > 0 && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
                   of={{ chips: (made) => made.changed, canRun: true, onRetry: nothing, onGo: hoist.go }}
+                  foot={{ id: `${id}-composer`, asked: null, onCancel: nothing, follow: null, composer }}
                 />
                 {hoist.order.map((key) => (
                   <div key={key} className="capture-field" data-hoist={key}>
@@ -510,9 +563,9 @@ const VIDEO_SECONDS = 18 * 60 + 40;
  */
 function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
   const { settings, own, languages } = standing(ai);
-  const template = defaultTemplateOf("proofread", defaults, own);
+  const template = defaultTemplateOf("transcript", defaults, own);
   const pieces: PromptPieces = { ...proofreadPieces(HEARD_WORDS), source: `${WATCHED.title} · ${WATCHED.channel}`, ...languages };
-  const call = madeUpCall("proofread", template, settings, pieces, { verdicts: proofreadVerdicts(PROOFREAD_LINES), raw: JSON.stringify({ lines: PROOFREAD_LINES }) });
+  const call = madeUpCall("transcript", template, settings, pieces, { verdicts: proofreadVerdicts(PROOFREAD_LINES), raw: JSON.stringify({ lines: PROOFREAD_LINES }) });
   const [open, setOpen] = useState(false);
   const [calls, setCalls] = useState<readonly AiCall[]>([]);
   const [thinking, setThinking] = useState(false);
@@ -554,7 +607,7 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
     await t.wait(500);
   };
   const proofread = calls.length > 0 && !thinking;
-  const upTo = RUN_WORDS.upTo(call.started.ceilingMicros, showCostOver);
+  const upTo = MESSAGE_WORDS.upTo(call.started.ceilingMicros, showCostOver);
   const rows = EXAMPLE_TRANSCRIPT.map((line, i) => {
     const words = (
       <span className="ex-under-line" lang="ja">
@@ -654,11 +707,11 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
   );
 }
 
-/** Each action's explainer, one entry each: a new action is a scene here. */
-const AI_SCENES: Record<AiActionId, (props: SceneProps) => ReactElement> = { explain: ExplainScene, touchUp: TouchUpScene, proofread: ProofreadScene };
+/** Each place's explainer, one entry each: a new place is a scene here. */
+const AI_SCENES: Record<AiPlaceId, (props: SceneProps) => ReactElement> = { word: ExplainScene, card: TouchUpScene, transcript: ProofreadScene };
 
-/** What an action's (?) on Settings → Panki AI plays. */
-export function AiScene({ action, ...props }: SceneProps & { action: AiActionId }) {
-  const Scene = AI_SCENES[action];
+/** What a place's (?) on Settings → Panki AI plays. */
+export function AiScene({ place, ...props }: SceneProps & { place: AiPlaceId }) {
+  const Scene = AI_SCENES[place];
   return <Scene {...props} />;
 }

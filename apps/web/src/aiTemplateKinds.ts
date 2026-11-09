@@ -1,41 +1,42 @@
 import {
-  AI_ACTIONS,
+  AI_PLACES,
   ASK_OVER,
+  DEFAULT_ACTION_SECONDS,
   DEFAULT_FOLLOW_UPS,
+  TOUCH_UP_KEYS,
   aiModelOf,
+  aiSent,
+  cardPromptOf,
   ceilingMicros,
   copyNameOf,
+  explainRequirementsOf,
+  keptActionOf,
+  messageOf,
+  requirementsOf,
+  wordPromptOf,
   proofreadPieces,
   proofreadTokens,
-  type AiActionId,
+  sendTokens,
+  type ActionPlaceId,
+  type AiAction,
+  type AiPlaceId,
   type AiTemplate,
+  type KeptAction,
   type PankiAi,
 } from "@panki/contracts";
 import { estimateWords } from "./words";
 
 /**
- * Panki AI's templates in words and looks (AI step 5), as `srsKinds.ts` is the SRS's: which actions let a template
- * choose whether it judges the meanings, what a row says under a template's name, what a run of it can cost, how a new
- * one starts, and Ask before a run over's choices. The templates themselves, and Panki's starters, are the contracts'
- * (`aiTemplates.ts`).
+ * Panki AI's templates in words and looks (AI step 5), as `srsKinds.ts` is the SRS's: what a run of one can cost, how a
+ * new one starts, and Ask before a run over's choices. The templates themselves, and Panki's starters, are the
+ * contracts' (`aiTemplates.ts`); only Proofread runs them since Explain's and Touch up's prompts became the admin's.
  */
 
 /**
- * Whether an action's templates choose to judge the meanings (Explain's alone). Where it isn't a
- * choice, a template always does (Touch up's every answer judges the Meaning).
- */
-export const MEANINGS_CHOICE: Record<AiActionId, boolean> = { explain: true, touchUp: false, proofread: false };
-/**
- * Whether an action's runs take follow-ups, so its templates' editor shows the Follow-up prompt (Proofread's don't: a
+ * Whether a place's runs take follow-ups, so its templates' editor shows the Follow-up prompt (Proofread's don't: a
  * run edits, asking further is running it again; AI step 6). A template keeps its `followUp` either way, unused there.
  */
-export const TAKES_FOLLOW_UPS: Record<AiActionId, boolean> = { explain: true, touchUp: true, proofread: false };
-/** The Meanings switch, in the editor, and the line under a template's name in a list, for an action whose templates choose. */
-export const MEANINGS_SAYS = { on: "Judged", off: "Not judged" } as const;
-export const JUDGES_WORDS = { on: "Judges the meanings", off: "Plain answer" } as const;
-/** The line under a template's name: whether it judges the meanings, where that's a choice; none otherwise. */
-export const templateSub = (template: Pick<AiTemplate, "action" | "judges">): string | null =>
-  MEANINGS_CHOICE[template.action] ? (template.judges ? JUDGES_WORDS.on : JUDGES_WORDS.off) : null;
+export const TAKES_FOLLOW_UPS: Record<AiPlaceId, boolean> = { word: true, card: true, transcript: false };
 
 /**
  * The video a Proofread row's "Up to" is for, since a run's size is the video's: 15 minutes of Japanese, about 350
@@ -47,9 +48,9 @@ const sampleTranscript = (): string =>
   proofreadPieces(Array.from({ length: SAMPLE_VIDEO.lines }, () => [{ text: "あ".repeat(SAMPLE_VIDEO.lineChars), hand: false, unsure: false }])).transcript ?? "";
 
 /**
- * How big a run of an action is, for its "Up to": the limit its answer is held to (as the extension's buttons and the
+ * How big a run of a place is, for its "Up to": the limit its answer is held to (as the extension's buttons and the
  * server work it out), what's sent on top of the prompt's own words, and what the number is for when it depends on more
- * than the template. One entry per action.
+ * than the template. One entry per place.
  */
 type RunSize = {
   answerTokens: (settings: PankiAi) => number;
@@ -57,10 +58,10 @@ type RunSize = {
   /** What the number is for, after it ("for 15 minutes"), and how its (?) says what was counted; null for a run the template alone sizes. */
   sample: { words: string; how: string } | null;
 };
-const RUN_SIZES: Record<AiActionId, RunSize> = {
-  explain: { answerTokens: (s) => s.aiMaxAnswerTokens, sentWith: () => "", sample: null },
-  touchUp: { answerTokens: (s) => s.aiMaxTouchUpTokens, sentWith: () => "", sample: null },
-  proofread: {
+const RUN_SIZES: Record<AiPlaceId, RunSize> = {
+  word: { answerTokens: (s) => s.aiMaxAnswerTokens, sentWith: () => "", sample: null },
+  card: { answerTokens: (s) => s.aiMaxTouchUpTokens, sentWith: () => "", sample: null },
+  transcript: {
     answerTokens: (s) => proofreadTokens(SAMPLE_VIDEO.lines, s.aiMaxProofreadTokens),
     sentWith: sampleTranscript,
     sample: {
@@ -75,10 +76,38 @@ const RUN_SIZES: Record<AiActionId, RunSize> = {
  * the video "Up to $0.0027 (est.) for 15 minutes". Its prompt as written, before Prompt context fills it, so a little
  * under what a real run's button says.
  */
-export function ceilingWords(template: Pick<AiTemplate, "action" | "prompt">, settings: PankiAi): string {
-  const size = RUN_SIZES[template.action];
+export function ceilingWords(template: Pick<AiTemplate, "place" | "prompt">, settings: PankiAi): string {
+  const size = RUN_SIZES[template.place];
   const micros = ceilingMicros(aiModelOf(settings), [template.prompt + size.sentWith()], size.answerTokens(settings));
   return `Up to ${estimateWords(micros)}${size.sample ? ` ${size.sample.words}` : ""}`;
+}
+
+/**
+ * What a message with one action alone can cost at most, on the model an admin set: "Up to $0.0006 (est.)". The admin's
+ * prompt and the message as Panki says it (for a card's, as if the deck mapped every field), before what the card, the
+ * word and the video hold fills them, so a little under what the composer's "Up to" says on a page.
+ */
+export function actionCeilingWords(action: AiAction, settings: PankiAi): string {
+  const message = messageOf([action], "");
+  const sent =
+    action.place === "word"
+      ? { text: aiSent(wordPromptOf(settings), {}, [], {}, { message, requirements: explainRequirementsOf([action]) }), tokens: settings.aiMaxAnswerTokens }
+      : {
+          text: aiSent(cardPromptOf(settings), {}, [], {}, { message, requirements: requirementsOf(TOUCH_UP_KEYS, [action]) }),
+          tokens: sendTokens(settings.aiMaxTouchUpTokens, TOUCH_UP_KEYS, [action], ""),
+        };
+  return `Up to ${estimateWords(ceilingMicros(aiModelOf(settings), sent.text, sent.tokens))}`;
+}
+/** A new action's name before it's given one. */
+export const NEW_ACTION_NAME = "New action";
+/**
+ * An action that isn't kept yet, on the screen alone until its first Save, under an id of the page's own (Panki gives it
+ * its real one then): empty, or a copy of another, named as a copy among the names already taken.
+ */
+export function draftAction(place: ActionPlaceId, base: AiAction | null, taken: readonly string[]): KeptAction {
+  const id = crypto.randomUUID();
+  if (base) return { ...keptActionOf(base), id, name: copyNameOf(base.name, taken) };
+  return { id, place, name: NEW_ACTION_NAME, words: "", requires: [], leaves: [], under: null, seconds: DEFAULT_ACTION_SECONDS };
 }
 
 /** A price per million tokens, from whole cents: "$0.10". */
@@ -89,9 +118,9 @@ const perMillion = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
  * own words and the longest answer allowed, each at the model's listed price, and that what the variables hold comes on
  * top, which the button's own "Up to" on a page counts.
  */
-export function ceilingHow(action: AiActionId, settings: PankiAi): string {
+export function ceilingHow(place: AiPlaceId, settings: PankiAi): string {
   const model = aiModelOf(settings);
-  const size = RUN_SIZES[action];
+  const size = RUN_SIZES[place];
   const answer = size.answerTokens(settings).toLocaleString("en");
   const sent = size.sample ? `The prompt's own words and ${size.sample.how},` : "The prompt's own words";
   const longest = size.sample ? "the longest answer allowed for that many lines" : "the longest answer allowed";
@@ -100,16 +129,16 @@ export function ceilingHow(action: AiActionId, settings: PankiAi): string {
 }
 
 /** A new template's name before it's given one: "New Explain template". */
-export const newTemplateName = (action: AiActionId): string => `New ${AI_ACTIONS[action].name} template`;
+export const newTemplateName = (place: AiPlaceId): string => `New ${AI_PLACES[place].name} template`;
 /**
  * A template that isn't kept yet, on the screen alone until its first Save, under an id of the page's own (Panki gives
- * it its real one then): empty (no prompt, the action's own follow-up), or a copy of another, named as a copy among
+ * it its real one then): empty (no prompt, the place's own follow-up), or a copy of another, named as a copy among
  * the names already taken.
  */
-export function draftTemplate(action: AiActionId, base: AiTemplate | null, taken: readonly string[]): AiTemplate {
+export function draftTemplate(place: AiPlaceId, base: AiTemplate | null, taken: readonly string[]): AiTemplate {
   const id = crypto.randomUUID();
   if (base) return { ...base, id, name: copyNameOf(base.name, taken), builtin: false };
-  return { id, action, name: newTemplateName(action), prompt: "", followUp: DEFAULT_FOLLOW_UPS[action], judges: !MEANINGS_CHOICE[action], builtin: false };
+  return { id, place, name: newTemplateName(place), prompt: "", followUp: DEFAULT_FOLLOW_UPS[place], judges: false, builtin: false };
 }
 
 /** Ask before a run over's choices as a `Dropdown` takes them: null (never) and 0 (always) by name, an amount by its id in words. */

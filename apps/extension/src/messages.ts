@@ -120,7 +120,7 @@ export type KnownLook = z.infer<typeof KnownLook>;
  * `LOCAL`, one entry per part): asked of the worker once as a page starts (`askLocal`), answered from the browser's
  * storage alone with nothing asked of Panki, and sent to every page again the moment any of it changes
  * (`LocalChanged`). A page draws nothing of Panki's before it's in (`local.ts`), so nothing is ever drawn in a default
- * and then redrawn in the viewer's own. What the pop-up dictionary may do on a page stays its own ask (`lookState`):
+ * and then redrawn in the viewer's own. What the Word pop-up may do on a page stays its own ask (`lookState`):
  * it's answered for the page's address and from the dictionaries, which this storage doesn't hold.
  */
 export const Local = z.object({
@@ -132,7 +132,7 @@ export const Local = z.object({
   modules: Modules,
   known: KnownLook,
   /**
-   * The pop-up dictionary's own: the keys held, globally and in Panki's subtitles, where it works and how it's laid out
+   * The Word pop-up's own: the keys held, globally and in Panki's subtitles, where it works and how it's laid out
    * as kept. Whether it works on a page, and the layout filled out against the dictionaries, are `lookState`'s, asked
    * again whenever these change.
    */
@@ -378,14 +378,14 @@ export type Redone = z.infer<typeof Redone>;
 const Stretched = z.union([z.object({ ok: z.literal(true), stretch: Stretch }), Failed]);
 export type Stretched = z.infer<typeof Stretched>;
 /**
- * A Panki AI action refused by Panki with its reason (`problem`), and an answer that came back unusable, for Details'
+ * A Panki AI place refused by Panki with its reason (`problem`), and an answer that came back unusable, for Details'
  * Log (`unread`). Explain's and Touch up's alike: one family.
  */
 const AiRefusal = z.object({ ok: z.literal(false), message: z.string(), problem: ExplainProblem, unread: AiUnread.nullable().default(null) });
 /** Explain answered, refused by Panki, or failed as any ask can (signed out, Panki not reached). */
 const ExplainAnswer = z.union([z.object({ ok: z.literal(true), explain: Explained }), AiRefusal, Failed]);
 export type ExplainAnswer = z.input<typeof ExplainAnswer>;
-/** A Panki AI action that didn't answer, as the page reads it: why, signed out among the reasons; null for a failure with no reason of Panki's. */
+/** A Panki AI place that didn't answer, as the page reads it: why, signed out among the reasons; null for a failure with no reason of Panki's. */
 type AiFailed = { ok: false; message: string; problem: ExplainProblem | "signedOut" | null; unread: AiUnread | null };
 /** Explain as the pop-up reads it: the answer, or why there's none. */
 export type Explanation = { ok: true; explain: Explained } | AiFailed;

@@ -31,7 +31,7 @@ import { EXAMPLE_CARDS, exampleTint } from "./examples";
 /**
  * What each explainer plays (the web's `components/Explainer.tsx`): one entry per panel, the feature being used on a
  * page as it really is. The video site is the web's (`explainers/site.tsx`), which Settings → Panki AI's plays on too.
- * Panki's own parts are its real components (the pop-up dictionary is `LookupBody` with this browser's dictionaries and
+ * Panki's own parts are its real components (the Word pop-up is `LookupBody` with this browser's dictionaries and
  * pop-up layout; the Panki panel's line is `Line`; the header bar's pill is `PankiPill`; the speed button is
  * `SpeedControl`), so a change to them shows here too. What only exists inside a page's script (the strip's frame, the
  * capture drawer, YouTube home's shelves) is drawn in the same classes. The pages around them are made up: a news
@@ -143,7 +143,7 @@ function NewsPage({ words, tinted, tint, children }: { words: (id: WordId) => (e
   );
 }
 
-/** The word pointed at lit, and the real pop-up under it, as the pop-up dictionary draws them on a page. */
+/** The word pointed at lit, and the real pop-up under it, as the Word pop-up draws them on a page. */
 function PopupOn({ at, found, store, dictionaries, box }: { at: Spot; found: Found[]; store: Stored; dictionaries: DictionaryRecord[]; box: (el: HTMLDivElement | null) => void }) {
   const layout = popupLayoutOf(store.popupLayout, withMeanings(dictionaries));
   const lit: CSSProperties = { left: `calc(${at.left}% - 2px)`, top: `calc(${at.top}% - 1px)`, width: `calc(${at.right - at.left}% + 4px)`, height: `calc(${at.bottom - at.top}% + 2px)` };
@@ -211,7 +211,7 @@ async function keepOpen(t: Tools, held: string | null) {
   t.letGo(HOVER_KEEP);
 }
 
-/** The Pop-up dictionary: the key held over a word of a Japanese page, along the line, let go, closed. */
+/** The Word pop-up: the key held over a word of a Japanese page, along the line, let go, closed. */
 function PopupScene({ store }: { store: Stored }) {
   const { dictionaries, found } = useLookups();
   const p = usePointing();
@@ -1015,7 +1015,7 @@ function PlayerBarScene({ store }: { store: Stored }) {
 
 /** The panels with a (?), each by what the panel is called. A new one is an entry here and a case in `ExplainerScene`. */
 export const EXPLAINER_NAMES = {
-  popup: "Pop-up dictionary",
+  popup: "Word pop-up",
   known: "Highlight words that are in your decks",
   panel: "Panki panel",
   underline: "Spoken word underline",

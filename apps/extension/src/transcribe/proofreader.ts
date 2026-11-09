@@ -13,7 +13,7 @@ import {
   proofreadWordOf,
   startCall,
   type AiCall,
-  type AiRunWhy,
+  type AiMessageWhy,
   type AiTemplate,
   type PankiAi,
   type PromptPieces,
@@ -154,7 +154,7 @@ export function createProofreader(transcriber: Transcriber, linesNow: () => read
    * A run: its calls one after another, each a call of the head's, its edits taken into the transcript as it comes
    * back. A call that fails ends the run there; what the calls before it edited stands.
    */
-  async function run(scope: ProofreadScope, template: AiTemplate, why: AiRunWhy): Promise<void> {
+  async function run(scope: ProofreadScope, template: AiTemplate, why: AiMessageWhy): Promise<void> {
     const shown = state.ai.known ? state.ai.shown : null;
     const id = transcriber.state().transcript?.videoId ?? null;
     if (!shown || !id || state.going) return;

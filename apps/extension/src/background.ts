@@ -93,7 +93,7 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
     if (ask.kind === "lattice") return { ok: true, lattice: await latticeOf(ask.text) };
     const [store, dictionaries] = await Promise.all([readStore(), listDictionaries()]);
     const on = dictionaries.filter((d) => d.on);
-    // Pop-up dictionary switched off, the key does nothing anywhere; Where is the global key's alone, never Panki's subtitles'.
+    // Word pop-up switched off, the key does nothing anywhere; Where is the global key's alone, never Panki's subtitles'.
     const usable = store.pankiOn && store.moduleLookup && on.length > 0;
     const url = sender.url ?? sender.tab?.url;
     return {

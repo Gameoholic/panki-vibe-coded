@@ -8,7 +8,7 @@ import type { CardsSource } from "../ui/Lookup";
 export const exampleTint = (known: { byStage: boolean; colour: MarkPaint }): string => tintOf(known.byStage ? (IN_DECKS.stage?.colour ?? paintCss("accent")) : paintCss(known.colour));
 
 /**
- * The options page's own ways of showing the pop-up dictionary at work, made of the examples' one home (the web's
+ * The options page's own ways of showing the Word pop-up at work, made of the examples' one home (the web's
  * `explainers/examples.ts`, which Settings → Panki AI's explainers draw from too).
  */
 

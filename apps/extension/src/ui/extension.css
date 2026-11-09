@@ -815,7 +815,7 @@
   padding: 7px 10px;
   border-top: 0;
 }
-.strip-menu-items > .ai-run-ask,
+.strip-menu-items > .ai-message-ask,
 .strip-menu-undo {
   margin: 2px 0 4px;
 }
@@ -3317,9 +3317,8 @@
   width: 14px;
   height: 14px;
 }
-/* Explain, Touch up and what runs them (`ai-explain-*`, `touch-up-*`, `ai-split`, `ai-run-ask`) are the app's
-   (app.css, "Panki AI on a page"): the components are the web's, which Settings → Panki AI's explainers draw too. */
-@media (prefers-reduced-motion: reduce) {
+/* Explain, Touch up and what runs them (`ai-explain-*`, `touch-up-*`, `ai-split`, `ai-message-ask`) are the app's
+   (app.css, "Panki AI on a page"): the components are the web's, which Settings → Panki AI's explainers draw too. */@media (prefers-reduced-motion: reduce) {
   .btn.look-fold .icon {
     transition: none;
   }

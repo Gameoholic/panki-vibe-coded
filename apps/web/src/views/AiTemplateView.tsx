@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AI_ACTIONS,
-  AI_ACTION_IDS,
+  AI_PLACES,
+  AI_PLACE_IDS,
   AI_PROVIDERS,
   AiTemplateUpdate,
   PROMPT_MAX,
@@ -11,7 +11,7 @@ import {
   type AiTemplateUpdate as Update,
   type PankiAiStatus,
 } from "@panki/contracts";
-import { MEANINGS_CHOICE, MEANINGS_SAYS, TAKES_FOLLOW_UPS, ceilingHow, ceilingWords } from "../aiTemplateKinds";
+import { TAKES_FOLLOW_UPS, ceilingHow, ceilingWords } from "../aiTemplateKinds";
 import { AnswerParts } from "../components/AnswerParts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
@@ -21,7 +21,6 @@ import { PromptContext } from "../components/PromptContext";
 import { PromptField, type PromptFieldHandle } from "../components/PromptField";
 import { Setting } from "../components/Setting";
 import { TextField } from "../components/TextField";
-import { Toggle } from "../components/Toggle";
 import { useUndoable } from "../hooks/useUndoable";
 import type { UnsavedGuard } from "../unsaved";
 import type { SaveStatus } from "./SrsTypeView";
@@ -35,9 +34,9 @@ const MESSAGES = {
   promptLong: `At most ${PROMPT_MAX.toLocaleString("en")} characters.`,
 };
 
-const ACTION_OPTIONS = AI_ACTION_IDS.map((id) => ({ id, label: AI_ACTIONS[id].name }));
+const PLACE_OPTIONS = AI_PLACE_IDS.map((id) => ({ id, label: AI_PLACES[id].name }));
 
-/** What's edited: everything a template is but its id and its action, which never change. */
+/** What's edited: everything a template is but its id and its place, which never change. */
 const fieldsOf = (template: AiTemplate): Update => ({ name: template.name, prompt: template.prompt, followUp: template.followUp, judges: template.judges });
 const sameFields = (a: Update, b: Update) => a.name === b.name && a.prompt === b.prompt && a.followUp === b.followUp && a.judges === b.judges;
 
@@ -66,7 +65,7 @@ type Props = {
   isNew: boolean;
   /** Panki AI as it stands: the model and limits an admin set, which Each run and Prompt context read. */
   ai: PankiAiStatus;
-  /** It's what its action's button runs. */
+  /** It's what its place's button runs. */
   isDefault: boolean;
   /** Saves what's on screen: a template made by its first Save (`id` null), or one kept saved again. */
   onSave: (update: Update, id: string | null) => Promise<AiTemplate>;
@@ -80,8 +79,8 @@ type Props = {
 };
 
 /**
- * A Panki AI template's editor (AI step 5), with the SRS editor's care: its name, its action (fixed), whether it judges
- * the meanings (Explain's), what a run can cost; its Prompt and, for an action that takes follow-ups
+ * A Panki AI template's editor (AI step 5), with the SRS editor's care: its name, its place (fixed), what a run can
+ * cost; its Prompt and, for a place that takes follow-ups
  * (`TAKES_FOLLOW_UPS`), its Follow-up prompt, each a `PromptField`, Prompt context's
  * variables going in at the caret of the one last in use; what Panki AI answers; then Make default, Duplicate and
  * Delete. Nothing reaches the API until Save, in the screen's header; leaving unsaved asks first, Ctrl+Z undoes. One of
@@ -100,7 +99,7 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
   const [deleting, setDeleting] = useState(false);
   const deleteAt = useRef<HTMLButtonElement>(null);
   const locked = template.builtin;
-  const { action } = template;
+  const { place } = template;
 
   const fields = { prompt: useRef<PromptFieldHandle>(null), followUp: useRef<PromptFieldHandle>(null) };
   /** The prompt a variable pressed goes into: the one last in use, the Prompt to begin with. */
@@ -194,19 +193,12 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
           About
         </h2>
         <TextField id="ai-template-name" label="Name" autoComplete="off" value={draft.name} disabled={locked} onChange={(name) => change({ ...draft, name }, "name")} error={errors.name} />
-        <Setting id="aiTemplateAction" label="Action" control={<Dropdown id="ai-template-action" label="Action" options={ACTION_OPTIONS} value={action} disabled onChange={() => undefined} />} />
-        {MEANINGS_CHOICE[action] ? (
-          <Setting
-            id="aiTemplateJudges"
-            label="Meanings"
-            control={<Toggle id="ai-template-judges" says={MEANINGS_SAYS} on={draft.judges} disabled={locked} onChange={(judges) => change({ ...draft, judges })} />}
-          />
-        ) : null}
+        <Setting id="aiTemplateAction" label="Place" control={<Dropdown id="ai-template-action" label="Place" options={PLACE_OPTIONS} value={place} disabled onChange={() => undefined} />} />
         <Setting
           id="aiTemplateRun"
           label="Each run"
-          hint={{ about: "How Each run is worked out", words: ceilingHow(action, ai.settings) }}
-          control={<span className="setting-value">{ceilingWords({ action, prompt: draft.prompt }, ai.settings)}</span>}
+          hint={{ about: "How Each run is worked out", words: ceilingHow(place, ai.settings) }}
+          control={<span className="setting-value">{ceilingWords({ place, prompt: draft.prompt }, ai.settings)}</span>}
         />
       </section>
 
@@ -215,11 +207,11 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
           Prompt
         </h2>
         {promptBox("prompt", "Prompt")}
-        <AnswerParts id="ai-template-answer" action={action} judges={draft.judges} provider={AI_PROVIDERS[ai.settings.aiProvider].name} />
+        <AnswerParts id="ai-template-answer" place={place} provider={AI_PROVIDERS[ai.settings.aiProvider].name} />
       </section>
 
-      {/* An action with no follow-ups (Proofread) shows none; its template keeps its follow-up prompt as it is. */}
-      {TAKES_FOLLOW_UPS[action] ? (
+      {/* A place with no follow-ups (Proofread) shows none; its template keeps its follow-up prompt as it is. */}
+      {TAKES_FOLLOW_UPS[place] ? (
         <section className="panel" aria-labelledby="ai-template-follow-up-title">
           <h2 id="ai-template-follow-up-title" className="panel-title">
             Follow-up prompt
@@ -276,7 +268,7 @@ export function AiTemplateView({ template, isNew, ai, isDefault, onSave, onRemov
               idPrefix="ai-template-delete"
               anchor={deleteAt}
               question={`Delete “${kept.name}”?`}
-              detail={isDefault ? `${firstStarterOf(action).name} becomes the default.` : undefined}
+              detail={isDefault ? `${firstStarterOf(place).name} becomes the default.` : undefined}
               go={{ words: "Delete template", busy: "Deleting…" }}
               busy={busy}
               failure={failure}

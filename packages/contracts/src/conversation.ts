@@ -1,13 +1,14 @@
 import type { ExplainMessage } from "./prompt";
 
 /**
- * Every Panki AI action's Conversation: **main** and, for Touch up alone, **a branch per field**. Everything that's sent
- * with a follow-up, and where each question and reply is drawn (the web's `AiConversation`, every action's), follows
+ * Every Panki AI place's Conversation: **main** and, for Touch up alone, **a branch per field**. Everything that's sent
+ * with a follow-up, and where each question and reply is drawn (the web's `AiConversation`, every place's), follows
  * from these few rules; this file is their one home, and `docs/AI.md` (step 5, "The Conversation: main and a branch per
- * field") says the same in the same words. An action without branches (Explain) uses main alone.
+ * field") says the same in the same words. A place without branches (Explain) uses main alone.
  *
- * - **main** is the head's conversation. Every turn is a **commit**: a question and its reply. The run is main's first
- *   commit. A follow-up asked under the head is always a commit on main, whether it changed fields or not.
+ * - **main** is the head's conversation. Every turn is a **commit**: a question and its reply. The first send, a run or
+ *   a message, is main's first commit; a later run is a commit on main like any send from the composer. A follow-up
+ *   asked under the head is always a commit on main, whether it changed fields or not.
  * - **A field has a branch**, cut from main's **tip** (its latest commit) the first time a follow-up is asked under that
  *   field. Its commits live only on the branch: drawn under the field, sent to the model with main's history before
  *   them (`historyOf`), never part of main's string.
@@ -35,13 +36,16 @@ export type Commit<C> = {
   run: string | null;
   /** The field it was asked under, by its id; null for the run and for a follow-up asked under the head. */
   field: string | null;
+  /** What was typed: a follow-up's question, a message's words, the run's instructions ("" for none). */
   question: string;
+  /** Every action it went with, by name in its place's order, the one it goes by (`run`) among them: what its bubble heads with. */
+  actions?: readonly string[];
   reply: string;
   /** What it adds to the conversation the model is sent, as sent: the question as it went (none for the run) and the reply as the model wrote it. */
   said: readonly ExplainMessage[];
   /** The fields its reply changed, each once; empty for a reply that changed nothing. */
   changed: readonly C[];
-  /** Its reply stopped at Max answer length, kept as it came: Panki says so under it. Only an action that keeps a cut reply (Explain) sets it. */
+  /** Its reply stopped at Max answer length, kept as it came: Panki says so under it. Only a place that keeps a cut reply (Explain) sets it. */
   cut?: boolean;
 };
 
@@ -63,8 +67,11 @@ export type Conversation<C> = {
 /** No conversation: before a run, or after one that failed. */
 export const NO_CONVERSATION: Conversation<never> = { main: [], branches: new Map() };
 
-/** A conversation begun by a run: main holds its one commit, and no field has a branch. */
-export const startConversation = <C>(run: Commit<C>): Conversation<C> => ({ main: [run], branches: new Map() });
+/**
+ * A conversation begun by its first send, the run or a message (a card's conversation can open with either): main holds
+ * its one commit, and no field has a branch.
+ */
+export const startConversation = <C>(first: Commit<C>): Conversation<C> => ({ main: [first], branches: new Map() });
 
 /** Main's tip: its latest commit's id, or null with none. */
 export const tip = <C>(conversation: Conversation<C>): number | null => conversation.main.at(-1)?.id ?? null;

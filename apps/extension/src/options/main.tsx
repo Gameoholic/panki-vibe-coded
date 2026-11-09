@@ -537,7 +537,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
 }
 
 // Each of Panki's parts is switched at the head of the panel of what it's about: the Panki panel's, the seek bar marks',
-// YouTube home add-ons', the Pop-up dictionary's.
+// YouTube home add-ons', the Word pop-up's.
 
 /**
  * YouTube's home, part by part: the master switch first, then each its own under it, greyed while
@@ -629,7 +629,7 @@ const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
 type Tab = "dictionary" | "decks" | "youtube" | "account";
 const TABS: readonly { id: Tab; label: string }[] = [
   // Named as its first panel; its id stays `dictionary`, the address.
-  { id: "dictionary", label: "Pop-up dictionary" },
+  { id: "dictionary", label: "Word pop-up" },
   { id: "decks", label: "Decks" },
   { id: "youtube", label: "YouTube" },
   // About: the profiles and the extension's version; its id stays `account` (the address, the drawer's way to the sign-in).
@@ -800,7 +800,7 @@ function Options() {
           ) : null}
           {/* Every tab stays drawn, the ones not chosen hidden: nothing laid out and unsaved is lost by looking at another. */}
           <div className="options-tab" hidden={tab !== "dictionary"}>
-            {/* Pop-up dictionary, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads. */}
+            {/* Word pop-up, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads. */}
             <Looking store={store} onChanged={refresh} />
             <KnownWords store={store} onChanged={refresh} />
             <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} lookDelay={store.lookDelayMs} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour }) }} onSaved={refresh} />
