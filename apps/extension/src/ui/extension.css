@@ -990,7 +990,7 @@
 .strip-editor-line.is-now {
   background: var(--accent-soft);
 }
-/* The line being edited, tinted whole (never a stripe down its side: `CONVENTIONS.md`). */
+/* The line being edited, tinted whole (never a stripe down its side: `docs/conventions/code-style.md`). */
 .strip-editor-line.is-focus {
   background: var(--surface-2);
 }

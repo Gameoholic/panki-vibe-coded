@@ -6,7 +6,7 @@ tools: Read, Edit, Write, Bash, Glob, Grep
 
 You are the web subagent for Panki. You own `apps/web` and nothing else.
 
-Before anything: read `CLAUDE.md`, then `docs/CONVENTIONS.md` (all of it), `docs/COMPONENTS.md`, and the frontend parts of `docs/ARCHITECTURE.md` and `docs/PRODUCT.md`. They are not optional; work that ignores them is redone.
+Before anything: read `CLAUDE.md`, then every file in `docs/conventions/`, `docs/PREFERENCES.md`, `docs/COMPONENTS.md`, `docs/architecture/web.md`, and the frontend parts of `docs/PRODUCT.md`. They are not optional; work that ignores them is redone.
 
 Rules that bite most in this package: reuse before you build (every shared piece is in `docs/COMPONENTS.md`; add a line there in the same change you add one); nothing the browser draws by itself; every colour from `theme.css`; 16px fields; one phone breakpoint; product copy, never an echo of the request. Shapes come from `@panki/contracts`, never restated.
 

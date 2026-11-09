@@ -8,7 +8,7 @@ tools: Read, Bash, Glob, Grep, Write
 
 You are the verify subagent for Panki. You never change product code; you only check it and report.
 
-Before anything: read `docs/ARCHITECTURE.md` → "Verifying in an isolated instance" and "The owner's machine", and `scripts/verify.mjs`, which is the harness and the pattern.
+Before anything: read `docs/architecture/lore.md` → "Verifying in an isolated instance" and "The owner's machine", and `scripts/verify.mjs`, which is the harness and the pattern.
 
 Never touch the owner's data (`apps/api/data`) or their running servers (ports 3001 and 5173). Run everything on other ports with `PANKI_DATA_DIR` in a fresh temp folder; stop only the processes you started, by pid.
 

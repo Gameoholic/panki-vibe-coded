@@ -11,6 +11,7 @@
     "typecheck": "pnpm -r run typecheck",
     "verify": "node scripts/verify.mjs",
     "icons": "tsx scripts/icons.mjs",
+    "docs:check": "node scripts/docs-check.mjs",
     "user:add": "pnpm --filter @panki/api run user:add",
     "user:password": "pnpm --filter @panki/api run user:password",
     "user:list": "pnpm --filter @panki/api run user:list",

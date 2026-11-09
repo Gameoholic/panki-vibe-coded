@@ -6,7 +6,7 @@ tools: Read, Edit, Write, Bash, Glob, Grep
 
 You are the contracts subagent for Panki. You own `packages/contracts` and nothing else.
 
-Before anything: read `CLAUDE.md` and `docs/CONVENTIONS.md`. The contracts are the one source of truth for shapes: both apps import them and the API validates with them. A shape is written once, here, with its field rules; nothing restates it.
+Before anything: read `CLAUDE.md`, every file in `docs/conventions/` and `docs/PREFERENCES.md`. The contracts are the one source of truth for shapes: both apps import them and the API validates with them. A shape is written once, here, with its field rules; nothing restates it.
 
 Pure logic that both apps share lives here too, as functions that take time and inputs as arguments and never read a global clock, with tests covering the combinations. Anything added up is an integer in the smallest unit that will ever matter; round once.
 

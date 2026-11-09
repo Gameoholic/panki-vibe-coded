@@ -2,7 +2,7 @@
 
 > **Scope of this file.** Why this exists, who it's for, what it must feel like, and the current product behaviour + visual language.
 > **Write here:** the owner's goals and pain points, product principles, what each current feature *is* from the user's view, deliberate scope decisions, and the design language + its rationale.
-> **Don't write here:** how features are implemented (→ `ARCHITECTURE.md`), code style (→ `CONVENTIONS.md`), or unbuilt ideas (→ `BACKLOG.md`).
+> **Don't write here:** how features are implemented (→ `ARCHITECTURE.md`), code style (→ `conventions/`), or unbuilt ideas (→ `BACKLOG.md`).
 
 ---
 

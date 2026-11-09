@@ -2,7 +2,7 @@
 
 > **Scope of this file.** How to run it, build it, deploy it and load the extension; where the data lives; the commands. This was the README's until 2026-10-17, when the owner made the README the pull-and-restart block alone.
 > **Write here:** run and deploy commands, a few words each; where things are on disk.
-> **Don't write here:** rules (→ `CONVENTIONS.md`), how it's built (→ `ARCHITECTURE.md`), what the owner wants next (→ `BACKLOG.md`).
+> **Don't write here:** rules (→ `PREFERENCES.md`, `conventions/`), how it's built (→ `ARCHITECTURE.md`), what the owner wants next (→ `BACKLOG.md`).
 
 ## Commands
 
@@ -20,6 +20,7 @@
 | `pnpm space` | Disk used per account (video, audio, images, the rest) and what's left on the disk. |
 | `pnpm backup [dir]` | A copy of all the data, safe while the API runs: the databases as a dated snapshot (the newest 3 kept), the files copied once. Into `apps/api/backups/` unless a folder is given (`PANKI_BACKUP_DIR` changes the default). See Backing up. |
 | `pnpm icons` | Redraw the app icons from the mark. |
+| `pnpm docs:check` | Fails when what loads every session (`CLAUDE.md`, its `@` imports, the memory index at `PANKI_MEMORY_INDEX`) passes 40 KB, or a doc under `docs/` passes 60 KB. Not in CI yet. |
 | `pnpm verify` | Headless-browser check of the UI. Not kept up since 2026-10-10. |
 
 Under 2 GB left on the disk, every signed-in user sees a warning on their home screen. `PANKI_LOW_SPACE_MB` changes the 2 GB.

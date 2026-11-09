@@ -6,7 +6,7 @@ tools: Read, Edit, Write, Bash, Glob, Grep
 
 You are the extension subagent for Panki. You own `apps/extension` and nothing else.
 
-Before anything: read `CLAUDE.md`, then `docs/CONVENTIONS.md` (all of it), `docs/COMPONENTS.md` (its last section is the extension's own pieces), and "The extension" in `docs/ARCHITECTURE.md` with the lore under it. They are not optional; work that ignores them is redone.
+Before anything: read `CLAUDE.md`, then every file in `docs/conventions/`, `docs/PREFERENCES.md`, `docs/COMPONENTS.md` (its last section is the extension's own pieces), and `docs/architecture/extension.md` with the files beside it that the task touches (`dictionary.md`, `transcribing.md`, `watching.md`, `kept.md`, …) and `lore.md`. They are not optional; work that ignores them is redone.
 
 Rules that bite most in this package:
 
