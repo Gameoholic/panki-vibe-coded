@@ -1904,7 +1904,13 @@ function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waiti
     const found = litRow();
     if (!found || Date.now() < heldUntil.current) return;
     const { box, row } = found;
-    const inView = row.offsetTop >= box.scrollTop && row.offsetTop + row.offsetHeight <= box.scrollTop + box.clientHeight * 0.8;
+    // The list stays put while the line being said is anywhere in view with a line still to come under it: it's
+    // scrolled only once it's the second-to-last line in view (the two after it no longer both fit), never for
+    // standing a little off its place.
+    const next = row.nextElementSibling instanceof HTMLElement ? row.nextElementSibling : null;
+    const after = next?.nextElementSibling instanceof HTMLElement ? next.nextElementSibling : null;
+    const ahead = (next?.offsetHeight ?? row.offsetHeight) + (after?.offsetHeight ?? row.offsetHeight);
+    const inView = row.offsetTop >= box.scrollTop && row.offsetTop + row.offsetHeight + ahead <= box.scrollTop + box.clientHeight;
     if (!first.current && inView) return;
     follow(first.current);
     first.current = false;
