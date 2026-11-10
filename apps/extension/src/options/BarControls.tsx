@@ -53,7 +53,7 @@ export function BarControls({ layout, video, classOf }: { layout: BarLayout; vid
         {clock(BAR_PLAYED)} / {clock(BAR_LENGTH)}
       </span>
     ),
-    endTime: <span className="yt-end">Ends {hourWords(Date.now() + (BAR_LENGTH - BAR_PLAYED) * 1000)}</span>,
+    endTime: <span className="yt-end">Ends at {hourWords(Date.now() + (BAR_LENGTH - BAR_PLAYED) * 1000)}</span>,
     watching: <WatchingControl finished={finished} percent={Math.floor((BAR_PLAYED / BAR_LENGTH) * 100)} onToggle={() => setFinished((was) => !was)} />,
     speed: <SpeedControl video={video} />,
     save: <SaveControl saved={saved} onToggle={() => setSaved((was) => !was)} />,

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { hourWords } from "@web/words";
 
 /**
- * When the video will end on this device's clock: "Ends 21:47" after the player's own time, the time left played at the speed it plays at. A paused video
+ * When the video will end on this device's clock: "Ends at 21:47" after the player's own time, the time left played at the speed it plays at. A paused video
  * ends later the longer it stands, so it's read again every second as well as when the video moves. Nothing for a
  * live stream (no end) or before the video's length is known; the page takes it off while an ad plays. A YouTube
  * utility: there whether or not Panki is on.
@@ -27,5 +27,5 @@ export function EndTime({ video }: { video: HTMLVideoElement }) {
     };
   }, [video]);
   if (ends === null) return null;
-  return <span className="yt-end">Ends {hourWords(ends)}</span>;
+  return <span className="yt-end">Ends at {hourWords(ends)}</span>;
 }

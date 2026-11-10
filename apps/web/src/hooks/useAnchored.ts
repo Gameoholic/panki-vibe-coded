@@ -44,13 +44,15 @@ export function useAnchored(
         }
         const below = window.innerHeight - at.bottom - GAP - EDGE;
         const above = at.top - GAP - EDGE;
-        // Its whole height: `scrollHeight` leaves out the border, and a max height of that, the box being border-box, put a
-        // scrollbar on a menu that fit; rounded up, never short.
+        // Its whole height: `scrollHeight` leaves out the border. Only the room caps it, never its own height: the
+        // browser reports that in whole pixels while, zoomed, the real one is a fraction more, and a cap of the whole
+        // number left the box a fraction short, so a scrollbar came, the words wrapped narrower, the next frame's
+        // measure was taller, the bar went, and the panel jittered every frame.
         const edges = element.offsetHeight - element.clientHeight;
         const natural = Math.ceil(element.scrollHeight + edges);
         const up = natural > below && above > below;
         const room = Math.max(0, up ? above : below);
-        element.style.maxHeight = `${Math.min(natural, room)}px`;
+        element.style.maxHeight = `${room}px`;
         const height = Math.min(natural, room);
         const top = up ? at.top - GAP - height : at.bottom + GAP;
         const fromRight = align === "auto" && at.left + at.width / 2 > window.innerWidth / 2;

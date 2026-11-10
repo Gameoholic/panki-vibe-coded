@@ -455,6 +455,8 @@ async function sayFinished(finished: boolean, source: WatchMarkSource) {
     return;
   }
   finishHere.set({ ...now, finished: answer.video.finished, withinMs: answer.video.finishedWithinMs });
+  // Finished, Panki takes its save for later back: the bar's Save is asked again rather than told here.
+  if (answer.video.finished) void readSaved();
 }
 
 /**

@@ -52,6 +52,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 **Watching** (`architecture/watching.md`)
 - 2026-10-21: video tracking, where you stopped, Continue watching, YouTube's home made Panki's.
 - 2026-10-25: Finished; the video end time; Words that are in your decks on the seek bar; Recently watched.
+- 2026-11-10: a finished video leaving Saved for later; "Ends at".
 
 **Panki AI** (`architecture/ai.md`)
 - 2026-11-05: the clip follows the Sentence; an AI value edited by hand stays the AI's.

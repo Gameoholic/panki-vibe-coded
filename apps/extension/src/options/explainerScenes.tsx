@@ -765,7 +765,7 @@ function UtilitiesScene({ store }: { store: Stored }) {
               <span className="ex-time">
                 {Math.floor(played / 60)}:{String(Math.floor(played % 60)).padStart(2, "0")} / 18:40
               </span>
-              {ends ? <span className="yt-end">Ends {hourWords(Date.now() + ((LENGTH - played) / rate) * 1000)}</span> : null}
+              {ends ? <span className="yt-end">Ends at {hourWords(Date.now() + ((LENGTH - played) / rate) * 1000)}</span> : null}
               <span className="ex-grow" />
               {speedShown ? <SpeedControl video={video} /> : null}
               <Icon name="settings" />

@@ -2972,14 +2972,18 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /**
      * What's said of a video, kept as it's said, with who said it; the video as it stands after. Saying it twice is
      * harmless: the latest is what counts. A finish of a video already finished, or an unfinish of one that isn't, is no
-     * change and keeps nothing, so the history holds each time it really turned.
+     * change and keeps nothing, so the history holds each time it really turned. A finish takes the video's save for
+     * later back as well: watched, it's no longer waiting to be; an unfinish doesn't save it again.
      */
     markVideo(videoId: string, kind: WatchMarkKind, source: WatchMarkSource, now: number): WatchedVideo {
       if (kind === "finish" || kind === "unfinish") {
         const finished = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId)?.finished ?? false;
         if (finished === (kind === "finish")) return api.watchedVideo(videoId);
       }
-      insertWatchMark.run(videoId, kind, now, source);
+      transaction(() => {
+        insertWatchMark.run(videoId, kind, now, source);
+        if (kind === "finish") unsaveVideo.run(now, videoId);
+      });
       return api.watchedVideo(videoId);
     },
     /** All that's kept, in brief: how many videos, the time spent on them, since when. Counted or not. */
