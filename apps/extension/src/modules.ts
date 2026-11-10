@@ -60,16 +60,16 @@ export const PANEL_VIEWS: Record<PanelView, { name: string; icon: "panelUnder" |
 };
 export const PANEL_VIEW_IDS = PanelView.options;
 /**
- * The key that toggles the panel in full screen, set by pressing it (the web's `KeyField`) and kept as Panki's
- * Settings → Keybinds keeps a key (`@web/keys` → `keyOf`: "p", "Ctrl+p", "Shift"), heard by `pressed`. P to begin with.
- * A browser that kept a letter as its physical key ("KeyP", when it was one of a few letters picked from a list) reads
- * as that letter.
+ * A key of one of the page's own actions (the panel toggled in full screen, the subtitles toggled), set by pressing it
+ * (the web's `KeyField`) and kept as Panki's Settings → Keybinds keeps a key (`@web/keys` → `keyOf`: "p", "Ctrl+p",
+ * "Shift"), heard by `pressed`. A browser that kept a letter as its physical key ("KeyP", when the panel's key was one
+ * of a few letters picked from a list) reads as that letter.
  */
-export const PanelKey = z
+export const BoundKey = z
   .string()
   .min(1)
   .transform((key) => (/^Key[A-Z]$/.test(key) ? key.slice(3).toLowerCase() : key));
-export type PanelKey = z.infer<typeof PanelKey>;
+export type BoundKey = z.infer<typeof BoundKey>;
 
 // A browser that kept `feedFilter` or `homeChips`, the chips that once sifted YouTube's home feed, keeps them unread.
 
@@ -108,8 +108,9 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  * class names, as they were when this was written: when the site renames one, this is where to look), a Panki control
  * by its place, drawn by the page (`content/youtube.tsx` → `barDrawn`) and on the options page (`options/PlayerBar.tsx`).
  * The order here is YouTube's own, Speed first among the right-hand controls and the end time after the time, as they
- * stood before they could be laid out, then Watching after the end time and Save for later after Speed, where a kept
- * layout from before them takes them in (`barLayoutOf`); `shown` is each one's to begin with. A new control is one entry.
+ * stood before they could be laid out, then Watching after the end time, Save for later after Speed and Subtitles before
+ * Captions, where a kept layout from before them takes them in (`barLayoutOf`); `shown` is each one's to begin with. A
+ * new control is one entry.
  *
  * Only the controls that always stand on YouTube's current player are entries (no Previous, Next, Chapter, Miniplayer
  * or Play on TV). A control a page adds now and then (a playlist's Previous and Next) is left exactly as the site draws
@@ -117,7 +118,7 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  */
 export type BarSide = "left" | "right";
 type BarEntry = { name: string; side: BarSide; icon: IconName; shown: boolean } & ({ from: "youtube"; find: string } | { from: "panki" });
-export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "watching", "speed", "save", "autoplay", "captions", "settings", "theater", "fullscreen"] as const;
+export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "watching", "speed", "save", "autoplay", "pankiSubtitles", "captions", "settings", "theater", "fullscreen"] as const;
 export const BarControl = z.enum(BAR_CONTROL_IDS);
 export type BarControl = z.infer<typeof BarControl>;
 export const BAR_CONTROLS = {
@@ -131,6 +132,10 @@ export const BAR_CONTROLS = {
   save: { name: "Save for later", side: "right", icon: "bookmark", shown: true, from: "panki" },
   // The autoplay switch is a button of the site's holding its own toggle: found by what it holds.
   autoplay: { name: "Autoplay", side: "right", icon: "autoplay", shown: true, from: "youtube", find: ".ytp-button:has(.ytp-autonav-toggle-button)" },
+  // The subtitles off, or back to the pick last shown (`ui/SubtitlesControl.tsx`): Panki's own, there only while Panki and its
+  // panel are on; it stands where the site's Captions does. Its id isn't "subtitles", which a layout kept in Captions' first
+  // hour names Captions by (`KeptBar`).
+  pankiSubtitles: { name: "Subtitles", side: "right", icon: "subtitles", shown: true, from: "panki" },
   // Hidden to begin with: Panki's own subtitles are picked in its panel.
   captions: { name: "Captions", side: "right", icon: "subtitles", shown: false, from: "youtube", find: ".ytp-subtitles-button" },
   settings: { name: "Settings", side: "right", icon: "gear", shown: true, from: "youtube", find: ".ytp-settings-button" },
@@ -231,8 +236,14 @@ export const Modules = z.object({
   panel: z.boolean(),
   /** Where the panel stands on a video's page (`PanelView`); beside the video, always above the site's recommendations. */
   panelView: PanelView,
-  /** In the site's full screen, the key that toggles the panel (`content/youtube.tsx` → `panelKey`). */
-  panelKey: PanelKey,
+  /** In the site's full screen, the key that toggles the panel (`content/youtube.tsx` → `PAGE_KEYS`). P to begin with. */
+  panelKey: BoundKey,
+  /**
+   * The key that turns the subtitles off, or back to the pick last shown, as the bar's Subtitles button does
+   * (`content/youtube.tsx` → `PAGE_KEYS`, `subtitles.ts` → `toggledSource`). C to begin with, taking the site's own
+   * captions key.
+   */
+  subtitlesKey: BoundKey,
   /**
    * In the site's full screen, whether the panel stands at the screen's right or is folded away, the video alone
    * filling the screen: flipped by its key and its handle and kept, so a full screen opens as the last was left.
@@ -300,6 +311,7 @@ export const DEFAULT_MODULES: Modules = {
   panel: true,
   panelView: "beside",
   panelKey: "p",
+  subtitlesKey: "c",
   fullPanel: false,
   panelButton: true,
   lookup: true,

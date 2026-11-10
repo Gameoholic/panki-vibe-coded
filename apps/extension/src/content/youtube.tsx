@@ -35,10 +35,11 @@ import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { PanelMenu } from "../ui/PanelMenu";
 import { SaveControl } from "../ui/SaveControl";
+import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
 import type { Cut } from "../roles";
 import { paintCss } from "../seekLook";
-import { DEFAULT_SOURCE, engineWanted, type SubtitleSource } from "../subtitles";
+import { DEFAULT_SOURCE, comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
 import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
@@ -1003,9 +1004,9 @@ function place() {
   resume.host.dataset.theme = theme;
   resume.host.toggleAttribute("data-full", full !== null);
   // The player's control bar as laid out: a utility of the site's own, there with Panki on or off. The speed button
-  // with a video; when it will end too, but not while an ad plays (its time isn't the video's). Watching and Save for
-  // later are Panki's own, there only while it's on and Panki has said how this video stands (signed in): Watching
-  // not while an ad plays either.
+  // with a video; when it will end too, but not while an ad plays (its time isn't the video's). Watching, Save for
+  // later and Subtitles are Panki's own, there only while it's on, the first two once Panki has said how this video
+  // stands (signed in): Watching not while an ad plays either.
   const ad = adPlaying();
   const finish = finishHere.get();
   const saved = savedHere.get();
@@ -1014,6 +1015,8 @@ function place() {
     endTime: video !== null && !ad,
     watching: on.on && video !== null && !ad && finish !== null && finish.videoId === watching && (finish.finished || finish.percent !== null),
     save: on.on && video !== null && saved !== null && saved.videoId === watching,
+    // The subtitles are the panel's: nothing to turn off or on without it.
+    pankiSubtitles: on.on && on.panel && video !== null,
   };
   playerBar.apply({ on: on.playerBar, layout: on.bar, kept: { full: on.barKeptFull, notFull: on.barKeptNotFull }, shows: (id) => barShows[id], adPlaying: ad, theme });
 
@@ -2697,11 +2700,8 @@ function App() {
 
   /** Transcribing, in the strip's head: where the words come from and, with the engine picked, the menu that says how it stands and drives it. */
   const menuOn = engineOn && tx.status.kind !== "signedOut";
-  /** The pick changed here: taken at once on the page, and kept by the worker for the next video. */
-  function pickSource(id: SubtitleSource) {
-    amendLocal((was) => ({ ...was, source: id }));
-    void askSubtitles(id);
-  }
+  /** The pick changed in the panel's menu (`pickSource`). */
+  const pickSource = setSource;
   /** The video's length in seconds, when the player says it. */
   const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
   /** Whether it starts by itself, changed in the menu: this viewer's own, taken at once on the page and kept by the worker. */
@@ -2795,6 +2795,8 @@ function App() {
     watching: finishNow && finishNow.videoId === videoId() ? <WatchingControl finished={finishNow.finished} percent={finishNow.percent} onToggle={() => void sayFinished(!finishNow.finished, "viewer")} /> : null,
     // This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home.
     save: savedNow && savedNow.videoId === videoId() ? <SaveControl saved={savedNow.saved} onToggle={() => void toggleSaved()} /> : null,
+    // The subtitles off, or back to the pick last shown: the same flip as the subtitles key's.
+    pankiSubtitles: <SubtitlesControl on={comesBackTo(picked)} onToggle={toggleSubtitles} />,
   };
 
   return (
@@ -3102,57 +3104,83 @@ function typingIn(place: Place): boolean {
   const at = root instanceof ShadowRoot ? root.activeElement : null;
   return at instanceof HTMLElement && (at.isContentEditable || at.closest("input, textarea, select") !== null);
 }
-
 /**
- * The panel's own key in the site's full screen (`Modules.panelKey`, P to begin with): it toggles the panel, folded
- * away with the video alone filling the screen or brought back, as Hide panel and the button in the video's corner do, and the flip is kept. Only while the full screen is Panki's, never
- * while typing (on the page, in the panel or the drawer, or anywhere else of Panki's, whose fields can't be told from
- * here), and kept from the site. Never Esc, which the browser keeps for leaving the full screen. Shift, Ctrl or Alt by
- * itself is heard as it's let go with nothing else pressed while it was down (`panelKeyUp`). Whether it took the key.
+ * A key going down while typing: on the page, or in the panel or the drawer (the column's, where a button pressed leaves
+ * the focus and a key still works, but a field being typed in doesn't), or anywhere else of Panki's, whose fields can't
+ * be told from here.
  */
-function panelKey(e: KeyboardEvent): boolean {
-  const key = active().panelKey;
-  if (isModifier(key)) {
-    // A key pressed while it's down makes it a combination, not the panel's key.
-    if (!isModifier(e.key)) modifierDown = null;
-    else if (!e.repeat) modifierDown = keyOf(e);
-    return false;
-  }
-  if (!panelKeyIs(e, key) || placedAs.get() !== "stage") return false;
-  // The panel and the drawer are the column's: a button pressed there leaves the focus in them, and the key still works.
+function typedHere(e: KeyboardEvent): boolean {
   const ours = [strip, drawer].find((place) => place.host === e.target);
-  if (ours ? typingIn(ours) : typedElsewhere(e)) return false;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  // Held down, once: a key's repeats would fold it and bring it back.
-  if (!e.repeat) togglePanel();
-  return true;
+  return ours ? typingIn(ours) : typedElsewhere(e);
 }
 
-/** Shift, Ctrl or Alt gone down with nothing else pressed since: the panel's key, when it's that one, as it's let go. */
-let modifierDown: string | null = null;
 /**
- * Whether a press is the panel's key: `pressed`, as Panki's own keybinds are heard; a letter held with Shift isn't (Shift+P
+ * Where the words come from, changed on the page: taken at once here, and kept by the worker for the next video. Every
+ * pick but None is the one the subtitles come back to when toggled on again (`comesBackTo`), as the worker keeps it.
+ */
+function setSource(id: SubtitleSource) {
+  amendLocal((was) => ({ ...was, source: id, ...(comesBackTo(id) ? { sourceOn: id } : {}) }));
+  void askSubtitles(id);
+}
+/** The subtitles off, or back to the pick last shown (`toggledSource`): the bar's Subtitles button and its key. */
+function toggleSubtitles() {
+  const now = localNow();
+  setSource(toggledSource(sourceOf(now.source), sourceOf(now.sourceOn)));
+}
+
+/** One of the page's own keys: which key it is as set, when it's heard at all, and what it does. */
+type PageKey = { key: () => string; heard: () => boolean; act: () => void };
+/**
+ * The page's own keys (`Modules.panelKey`, `subtitlesKey`), each set on the options page and heard in the page's one
+ * capturing `keydown` listener, so a key Panki takes is kept from the site. Never while typing (`typedHere`), never
+ * Esc, which the browser keeps for leaving the full screen. Shift, Ctrl or Alt by itself is heard as it's let go with
+ * nothing else pressed while it was down (`pageKeyUp`). A new key is one entry.
+ */
+const PAGE_KEYS: readonly PageKey[] = [
+  // The panel in the site's full screen (P to begin with): folded away with the video alone filling the screen, or
+  // brought back, as Hide panel and the button in the video's corner do; the flip is kept. Only while the full screen is Panki's.
+  { key: () => active().panelKey, heard: () => placedAs.get() === "stage", act: togglePanel },
+  // The subtitles (C to begin with, taking the site's own captions key): off, or back to the pick last shown, as the
+  // bar's Subtitles button does. With a video and the panel on, whose the subtitles are.
+  { key: () => active().subtitlesKey, heard: () => video !== null && active().panel, act: toggleSubtitles },
+];
+
+/** Shift, Ctrl or Alt gone down with nothing else pressed since: a page key that's one by itself, as it's let go. */
+let modifierDown: string | null = null;
+/** One of the page's keys going down: the one it is, if any, acted on once (a key's repeats would flip it back). Whether it took the key. */
+function pageKey(e: KeyboardEvent): boolean {
+  // A key that's Shift, Ctrl or Alt alone is heard as it's let go: a key pressed while it's down makes it a combination, not that key.
+  if (PAGE_KEYS.some((own) => isModifier(own.key()))) {
+    if (!isModifier(e.key)) modifierDown = null;
+    else if (!e.repeat) modifierDown = keyOf(e);
+  }
+  const own = PAGE_KEYS.find((own) => !isModifier(own.key()) && keyIs(e, own.key()) && own.heard());
+  if (!own || typedHere(e)) return false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (!e.repeat) own.act();
+  return true;
+}
+/**
+ * Whether a press is a page key: `pressed`, as Panki's own keybinds are heard; a letter held with Shift isn't (Shift+P
  * and Shift+N are the site's playlist keys). A letter is heard by where it is on the keyboard as well, so a keyboard
  * set to another language (Hebrew's פ where P is) still reaches it, as the site hears its own.
  */
-function panelKeyIs(e: KeyboardEvent, key: string): boolean {
+function keyIs(e: KeyboardEvent, key: string): boolean {
   const letter = /^(?:(?:Ctrl|Alt)\+)*([a-z])$/.exec(key)?.[1];
   if (letter && e.shiftKey) return false;
   if (pressed(e, key)) return true;
   if (!letter || e.metaKey || e.code !== `Key${letter.toUpperCase()}`) return false;
   return key === [e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null, letter].filter((part) => part !== null).join("+");
 }
-
-/** The panel's key when it's Shift, Ctrl or Alt by itself: let go with nothing else pressed while it was down. */
-function panelKeyUp(e: KeyboardEvent) {
-  const key = active().panelKey;
+/** A page key that's Shift, Ctrl or Alt by itself: let go with nothing else pressed while it was down. */
+function pageKeyUp(e: KeyboardEvent) {
   const was = modifierDown;
   modifierDown = null;
-  if (!isModifier(key) || was === null || keyOf(e) !== was || !sameKey(was, key) || placedAs.get() !== "stage") return;
-  const ours = [strip, drawer].find((place) => place.host === e.target);
-  if (ours ? typingIn(ours) : typedElsewhere(e)) return;
-  togglePanel();
+  if (was === null || keyOf(e) !== was) return;
+  const own = PAGE_KEYS.find((own) => isModifier(own.key()) && sameKey(was, own.key()) && own.heard());
+  if (!own || typedHere(e)) return;
+  own.act();
 }
 
 /**
@@ -3181,11 +3209,11 @@ function listen() {
         modifierDown = null;
         return;
       }
-      panelKey(e);
+      pageKey(e);
     },
     true,
   );
-  window.addEventListener("keyup", panelKeyUp, true);
+  window.addEventListener("keyup", pageKeyUp, true);
   window.addEventListener("focus", readAgain);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") readAgain();

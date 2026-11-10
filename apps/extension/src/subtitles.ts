@@ -1,4 +1,4 @@
-/** @panki Where a video's words come from, the sources one registry (`SUBTITLE_SOURCES`, `SubtitleSource`, `DEFAULT_SOURCE`, `sourceOf`, `engineWanted`). */
+/** @panki Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). */
 import { EngineId } from "@panki/contracts";
 
 /**
@@ -32,3 +32,16 @@ export function sourceOf(stored: unknown): SubtitleSource {
 
 /** Whether the engine is wanted: Panki's subtitles are the pick. The one reading of whether anything transcribes. */
 export const engineWanted = (source: SubtitleSource): boolean => source === "panki";
+
+/**
+ * The subtitles toggled, as the bar's Subtitles button and its key do (`Modules.subtitlesKey`): off (None) from anything
+ * shown; from off, back to the pick last shown, Panki's or YouTube's (`Local.sourceOn`).
+ */
+export const toggledSource = (now: SubtitleSource, lastShown: SubtitleSource): SubtitleSource => (now === "none" ? lastShown : "none");
+/** Whether a pick is one the subtitles come back to when toggled on: any but None. The one reading, for the worker keeping it and a page amending it. */
+export const comesBackTo = (source: SubtitleSource): boolean => source !== "none";
+/** The pick last shown, read defensively as `sourceOf` reads a pick; None itself, or nothing kept, is the default. */
+export function sourceShownOf(stored: unknown): SubtitleSource {
+  const source = sourceOf(stored);
+  return comesBackTo(source) ? source : DEFAULT_SOURCE;
+}

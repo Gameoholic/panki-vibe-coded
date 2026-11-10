@@ -129,6 +129,8 @@ export const Local = z.object({
   prefs: TranscribePrefs,
   /** Where a video's words come from (`subtitles.ts`), read as `sourceOf` reads it. */
   source: z.string(),
+  /** The pick last shown, Panki's or YouTube's, that the subtitles come back to when toggled on from None (`subtitles.ts` → `toggledSource`), read as `sourceOf` reads it. */
+  sourceOn: z.string(),
   /** Which of Panki's parts are on, and how they behave (`modules.ts`). */
   modules: Modules,
   known: KnownLook,

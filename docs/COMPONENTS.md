@@ -213,7 +213,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | roles | `roles.ts` | What the extension can fill a field with by itself, and which field takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `valuesFor`). Never a guess. |
 | seekLook | `seekLook.ts` | How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`). |
 | storage | `storage.ts` | What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). |
-| subtitles | `subtitles.ts` | Where a video's words come from, the sources one registry (`SUBTITLE_SOURCES`, `SubtitleSource`, `DEFAULT_SOURCE`, `sourceOf`, `engineWanted`). |
+| subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |
 | proofreader | `transcribe/proofreader.ts` | Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |
 | transcriber | `transcribe/transcriber.ts` | A video transcribed by an engine in the viewer's mode, and its log (`createTranscriber`, `TranscribeState`, `logText`). Never a second reader of a video's words. |
 | ClipPlayer | `ui/ClipPlayer.tsx` | A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). |
@@ -234,6 +234,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | SeekMark | `ui/SeekMark.tsx` | Panki on the player's seek bar: how far the transcript reaches, where cards came from, the clip (`SeekMark`, `ClipMark`). Never a second mark on the bar. |
 | SpeedControl | `ui/SpeedControl.tsx` | The player's speed, changed among its own controls (`SpeedControl`). Never a second way of setting the speed on the page. |
 | Stamp | `ui/Stamp.tsx` | A moment of the video that can be typed over (`Stamp`). |
+| SubtitlesControl | `ui/SubtitlesControl.tsx` | The subtitles off and back on, as a control of the player's bar (`SubtitlesControl`). |
 | TranscribeMenu | `ui/TranscribeMenu.tsx` | The strip's menu, everything about transcribing this video (`TranscribeMenu`, `statusWords`, `startWords`, `Seconds`). Never a second menu on the strip. |
 | TranscriptEditor | `ui/TranscriptEditor.tsx` | Editing Panki subtitles by hand, on the strip or over the line (`StripEditor`, `OverLineEditor`, `EditorLine`, `EditorActions`). Never a second editor. |
 | Trim | `ui/Trim.tsx` | A clip's bar with its two ends to pull (`Trim`). |

@@ -3,11 +3,11 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
-import { AfterAdd, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelKey, PanelView, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
+import { AfterAdd, BoundKey, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
-import { sourceOf } from "./subtitles";
+import { sourceOf, sourceShownOf } from "./subtitles";
 import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
 /**
@@ -111,6 +111,12 @@ const Stored = z.object({
    */
   subtitleSource: z.string().catch(""),
   /**
+   * The pick last shown, Panki's or YouTube's, that the subtitles come back to when toggled on from None (`subtitles.ts`
+   * → `comesBackTo`): written with every pick but None. Empty until one is kept since the subtitles could be toggled,
+   * read until then from `subtitleSource`.
+   */
+  subtitleSourceOn: z.string().catch(""),
+  /**
    * How transcribing behaves for this viewer (`transcribe/prefs.ts`): when it starts, whether the transcript replaces
    * the site's captions on the picture. Set on the options page (YouTube → Transcribing): what's client-side is the
    * viewer's own, what costs Panki's settings, an admin's.
@@ -143,7 +149,9 @@ const Stored = z.object({
     .pipe(PanelView)
     .catch(DEFAULT_MODULES.panelView),
   /** In the site's full screen, the key that toggles the panel (options page, YouTube → Panki panel). */
-  panelKey: PanelKey.catch(DEFAULT_MODULES.panelKey),
+  panelKey: BoundKey.catch(DEFAULT_MODULES.panelKey),
+  /** The key that toggles the subtitles off and back (options page, YouTube → Panki panel). */
+  subtitlesKey: BoundKey.catch(DEFAULT_MODULES.subtitlesKey),
   /** In the site's full screen, whether the panel stands or is folded away, as its key or its handle last left it; hidden to begin with. */
   fullPanel: z.boolean().catch(DEFAULT_MODULES.fullPanel),
   /** In the site's full screen, whether the button in the screen's corner that brings the folded panel back is shown (options page, YouTube → Panki panel). */
@@ -240,6 +248,7 @@ export const modulesOf = (store: Stored): Modules => ({
   panel: store.modulePanel,
   panelView: store.panelView,
   panelKey: store.panelKey,
+  subtitlesKey: store.subtitlesKey,
   fullPanel: store.fullPanel,
   panelButton: store.panelButton,
   lookup: store.moduleLookup,
@@ -274,6 +283,7 @@ export const modulesOf = (store: Stored): Modules => ({
 const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   prefs: prefsOf,
   source: (store) => sourceOf(store.subtitleSource),
+  sourceOn: (store) => sourceShownOf(store.subtitleSourceOn !== "" ? store.subtitleSourceOn : store.subtitleSource),
   modules: modulesOf,
   known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, byStage: store.knownByStage, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
   look: (store) => ({
@@ -293,6 +303,7 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
 export const localOf = (store: Stored): Local => ({
   prefs: LOCAL.prefs(store),
   source: LOCAL.source(store),
+  sourceOn: LOCAL.sourceOn(store),
   modules: LOCAL.modules(store),
   known: LOCAL.known(store),
   look: LOCAL.look(store),

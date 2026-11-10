@@ -362,6 +362,13 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         control={<KeyField id="panel-key-choice" label="Toggle panel keybind" value={store.panelKey} disabled={off} onChange={(panelKey) => void writeStore({ panelKey }).then(onChanged)} />}
         why="Shows or hides the Panki panel in full screen."
       />
+      {/* The subtitles off, or back to the pick last shown, as the bar's Subtitles button does; C to begin with, taking the site's own captions key. */}
+      <Setting
+        id="subtitles-key"
+        label="Toggle subtitles keybind"
+        control={<KeyField id="subtitles-key-choice" label="Toggle subtitles keybind" value={store.subtitlesKey} disabled={off} onChange={(subtitlesKey) => void writeStore({ subtitlesKey }).then(onChanged)} />}
+        why="Turns the subtitles off, or back to the ones last shown."
+      />
       {/* The button in the screen's top-right corner that brings the folded panel back (`ui/PanelButton.tsx`); the key works whatever this says. */}
       <Setting
         id="panel-button"

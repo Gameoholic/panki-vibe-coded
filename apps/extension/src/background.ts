@@ -11,7 +11,7 @@ import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type Proof
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { forgetSignIn, localChange, localOf, readStore, writeStore, type Stored } from "./storage";
-import { sourceOf } from "./subtitles";
+import { comesBackTo, sourceOf } from "./subtitles";
 import { CHECK_EVERY_MINUTES, UPDATE_ALARM, checkForUpdate, downloadUpdate, noteRunning, readUpdate, runningBuild, showFolder } from "./updates";
 import { reportVideoTracking, settleVideoTracking, videoTrackingOn } from "./watch/tracking";
 
@@ -346,8 +346,11 @@ async function answer(
   if (ask.kind === "deck") {
     await writeStore({ defaultDeckId: ask.deckId });
     return { ok: true };
-  }  if (ask.kind === "subtitles") {
-    await writeStore({ subtitleSource: sourceOf(ask.source) });
+  }
+  if (ask.kind === "subtitles") {
+    const source = sourceOf(ask.source);
+    // Every pick but None is the one the subtitles come back to when toggled on again.
+    await writeStore({ subtitleSource: source, ...(comesBackTo(source) ? { subtitleSourceOn: source } : {}) });
     return { ok: true };
   }
   if (ask.kind === "prefs") {
