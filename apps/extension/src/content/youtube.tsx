@@ -39,7 +39,7 @@ import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
 import type { Cut } from "../roles";
 import { paintCss } from "../seekLook";
-import { DEFAULT_SOURCE, comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
+import { comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
 import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
@@ -2778,10 +2778,10 @@ function App() {
     tx.status.kind === "running" ? null : picked === "youtube" ? ( // The menu's button says it's transcribing; a word here too would be one too many.
       <p className="empty">Turn on captions to enable.</p>
     ) : picked === "none" ? (
-      // An empty strip with None picked says the subtitles are off, with the press that turns them on.
+      // An empty strip with None picked says the subtitles are off, with the press that turns them back on: the pick last shown, as the bar's button and its key do.
       <p className="empty strip-empty">
         Subtitles are off.
-        <Button className="capture-tool" onClick={() => pickSource(DEFAULT_SOURCE)}>
+        <Button className="capture-tool" onClick={toggleSubtitles}>
           <Icon name="subtitles" />
           Turn on subtitles
         </Button>

@@ -735,8 +735,16 @@
   gap: 1px;
   padding-right: 6px;
 }
+/* Nothing listed: the why in the middle of the room the list had, centred both ways, its press under it, so it reads as
+   an empty state and not as a lone line of the list sunk to the middle of the left edge. */
 .strip-list.is-empty {
   align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+.strip-list.is-empty .strip-empty {
+  flex-direction: column;
+  justify-content: center;
 }
 /* A line: its time, pressed to go there, then its words; the one the video is at tinted whole. */
 .strip-list-line {
