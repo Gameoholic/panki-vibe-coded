@@ -64,7 +64,7 @@ export const MESSAGE_WORDS = {
   followUp: "Ask a follow-up",
   /** What a place's composer's box says while it's empty, each place's own. */
   ask: { word: "Ask anything about this word", card: "Ask anything about this card" } satisfies Record<ActionPlaceId, string>,
-  actions: "Actions",
+  actions: "Actions…",
   empty: "Type a message.",
   long: (max: number) => `Keep the message under ${max.toLocaleString("en")} characters.`,
   /** Why a place's button is greyed, beside it, the same for every place (signed out is each place's own). */
@@ -353,7 +353,7 @@ export type ComposerAction = {
   /** The action it stands under in the list (`AiAction.under`), nested there, closed until opened; at the top when that one isn't listed. */
   under?: string | null;
 };
-/** What the actions' dropdown says: the one lit by name, "Touch up · 2 more" for several, "Actions" with none. */
+/** What the actions' dropdown says: the one lit by name, "Touch up · 2 more" for several, "Actions…" with none. */
 export function actionsSummary(actions: readonly ComposerAction[]): string {
   const lit = actions.filter((action) => action.on && !action.disabled);
   const [first] = lit;

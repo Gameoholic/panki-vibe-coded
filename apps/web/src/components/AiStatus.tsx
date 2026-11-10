@@ -406,20 +406,35 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
  * nothing before the first. `burst` is the count of presses that made a call, for an action whose button gives way to
  * this head as it's pressed (Explain, a follow-up): its spark blinks once for each, where the button was (`AiSpark`).
  */
-export function AiStatus({ calls, burst = 0, always = false }: { calls: readonly AiCall[]; burst?: number; always?: boolean }) {
+/**
+ * The name as a press that folds everything under the head away and brings it back (`AiConversation`): whether it's
+ * open, what a press does, and the id of what it folds.
+ */
+export type HeadFold = { open: boolean; onToggle: () => void; controls: string };
+
+export function AiStatus({ calls, burst = 0, always = false, fold = null }: { calls: readonly AiCall[]; burst?: number; always?: boolean; fold?: HeadFold | null }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const last = calls[calls.length - 1];
+  const spark = <AiSpark working={last?.outcome.kind === "thinking"} burst={burst} />;
+  // The name, the spark before it: a press folding the rest away where the place folds, with the chevron after it.
+  const name = fold ? (
+    <Button className={`ai-status-name${fold.open ? " is-open" : ""}`} aria-expanded={fold.open} aria-controls={fold.controls} onClick={fold.onToggle}>
+      {spark}
+      Panki AI
+      <Icon name="down" />
+    </Button>
+  ) : (
+    <span className="ai-status-name">
+      {spark}
+      Panki AI
+    </span>
+  );
   // A card's conversation is there before its first call: its head, the spark and the name, with no status yet.
   if (!last) {
     return always ? (
       <div className="ai-status">
-        <header className="ai-status-head">
-          <span className="ai-status-name">
-            <AiSpark burst={burst} />
-            Panki AI
-          </span>
-        </header>
+        <header className="ai-status-head">{name}</header>
       </div>
     ) : null;
   }
@@ -430,10 +445,7 @@ export function AiStatus({ calls, burst = 0, always = false }: { calls: readonly
   return (
     <div className="ai-status">
       <header className="ai-status-head">
-        <span className="ai-status-name">
-          <AiSpark working={last.outcome.kind === "thinking"} burst={burst} />
-          Panki AI
-        </span>
+        {name}
         <span className="ai-status-end">
           <Button
             className={`ai-status-button is-${status.look}`}

@@ -1,5 +1,5 @@
 /** @panki Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`, `StandingMessage`). Never a second drawing of a conversation. */
-import { Fragment, useEffect, useState, type ReactNode, type Ref } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode, type Ref } from "react";
 import { branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
 import { wordFor } from "../words";
 import { AnswerText, Composer, FieldMessage, MessageAsk, type Asked, type ComposerProps, type FieldMessageProps } from "./AiRun";
@@ -8,6 +8,7 @@ import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
+import { ScrollEdges } from "./ScrollEdges";
 
 /**
  * Every Panki AI place's conversation drawn as one (`@panki/contracts` → `conversation.ts`, the one model): the head
@@ -15,7 +16,8 @@ import { Icon } from "./Icon";
  * a comma, what was typed under them; typed words alone as they are), then its answer's reply as plain paragraphs and what it changed ("Changed:" and a chip each,
  * "Changed nothing"), a branch merged into main as one block with its field's mark and its messages that changed
  * nothing folded, the message on its way with the spark turning under it, a failure with Try again, and the composer
- * or the next message folded at the foot. What's a place's own is what it hands in (`ConversationOf`): what a commit
+ * or the next message folded at the foot; main's messages scroll inside their box once there are more than fit, the
+ * newest in view, and the whole block folds under its head's name. What's a place's own is what it hands in (`ConversationOf`): what a commit
  * changed as chips and where a chip goes, Panki's own notes under a reply, a field's name where it has branches, what
  * Try again does. The word's conversation in the pop-up and the card's in the drawer are both this; a new place is its
  * `ConversationOf` and nothing drawn again.
@@ -31,9 +33,6 @@ export const CONVERSATION_WORDS = {
   changedNothing: "Changed nothing",
   /** The line a merged branch's questions that changed nothing are folded under, in the head. */
   foldedNothing: (n: number) => `${n} ${wordFor(n, "message", "messages")} · Changed nothing`,
-  /** The line main's conversation folds under, by what a press does. */
-  hide: "Hide conversation",
-  show: "Show conversation",
   /** The line a field's branch folds under. */
   messages: (n: number) => `${n} ${wordFor(n, "message", "messages")}`,
   /** The account's standing message, at a card's conversation's top: Settings → Panki AI's name for it. */
@@ -275,8 +274,9 @@ export type ConversationMark = { id: number; after: number; words: string };
 /**
  * One place of the conversation: main (the run first, each commit a merge brought as its branch's block, the ones of
  * its branch that changed nothing folded inside it) or a field's branch (its commits, nothing of them once it was reset); then the question on its way or failed,
- * where it was asked, all of it folding under one quiet line (main's "Hide conversation" / "Show conversation" once
- * there's more than the first message, its chips folding with it; a branch's "2 messages"); then its foot, never folded. `AiConversation` draws main with it; Touch up draws each field's under the field.
+ * where it was asked. Main's stand in a box of their own that scrolls once they outgrow it (`.ai-turns.is-main`, with
+ * Panki's fade and bar), the newest message scrolled into view as it's sent and as it's answered; a branch's fold
+ * under one quiet line ("2 messages"). Then its foot, never folded or scrolled. `AiConversation` draws main with it; Touch up draws each field's under the field.
  */
 export function ConversationTurns<C>({ conversation, asking, where, of, foot = null, marks = [] }: PlaceProps<C>) {
   const branch = where === null ? null : branchOf(conversation, where);
@@ -293,14 +293,22 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
     },
   };
   const turns = [...here, ...waiting];
-  /** Folded by its line, while this drawer or pop-up is open; open to begin with, and again as a question is asked here. */
+  /** A branch folded by its line, while this drawer or pop-up is open; open to begin with, and again as a question is asked here. */
   const [open, setOpen] = useState(true);
   const askedHere = waiting[0]?.id ?? null;
   useEffect(() => {
     if (askedHere !== null) setOpen(true);
   }, [askedHere]);
-  // Main folds once there's more than the run to fold; a field's branch from its first question.
-  const folds = turns.length >= (where === null ? 2 : 1);
+  // A field's branch folds from its first question.
+  const folds = where !== null && turns.length >= 1;
+  /** Main's box: scrolled to its end as a message is sent, answered or fails, so the newest is in view. */
+  const box = useRef<HTMLDivElement>(null);
+  const latest = turns[turns.length - 1];
+  const newest = latest ? `${latest.id}:${latest.reply !== null}:${latest.failure !== null}` : "";
+  useEffect(() => {
+    const el = box.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [newest]);
   // Panki's notes where a setting changed, main's alone, each before the message that came after it.
   const noted = where === null ? marks : [];
   const marksAt = (i: number) =>
@@ -329,14 +337,23 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
   ];
   return (
     <>
-      {folds ? (
+      {where === null ? (
+        drawn.length > 0 ? (
+          <>
+            <div ref={box} className="ai-turns is-main">
+              {drawn}
+            </div>
+            <ScrollEdges of={box} />
+          </>
+        ) : null
+      ) : folds ? (
         <>
           <Button className={`ai-folded${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-            {where === null ? (open ? CONVERSATION_WORDS.hide : CONVERSATION_WORDS.show) : CONVERSATION_WORDS.messages(turns.length)}
+            {CONVERSATION_WORDS.messages(turns.length)}
             <Icon name="down" />
           </Button>
           <Fold open={open} arrives={false}>
-            <div className={`ai-turns${where === null ? "" : " is-branch"}`}>{drawn}</div>
+            <div className="ai-turns is-branch">{drawn}</div>
           </Fold>
         </>
       ) : (
@@ -377,32 +394,39 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
 };
 
 /**
- * A place's run, whole: once a call is made (or `always`) the head (`AiStatus`), the run's failure with Try again or
- * the place's `tools`, the standing message, main's conversation (`ConversationTurns`), and its foot.
+ * A place's run, whole: once a call is made (or `always`) the head (`AiStatus`), and under it, folded away and brought
+ * back by the head's name, the run's failure with Try again or the place's `tools`, the standing message, main's
+ * conversation (`ConversationTurns`), and its foot. Open to begin with, while this drawer or pop-up is open.
  */
 export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, always = false, standing, ...place }: AiConversationProps<C>) {
   const classes = `${className ? `${className} ` : ""}ai-explain`;
+  const id = useId();
+  const [open, setOpen] = useState(true);
   if (calls.length === 0 && !always) return null;
   return (
     <section ref={ref} className={classes} aria-label="Panki AI" aria-busy={busy} inert={inert}>
-      <AiStatus calls={calls} burst={burst} always={always} />
-      {failure ? (
-        <div className="ai-explain-failure">
-          <p className="form-failure" role="alert">
-            {failure.message}
-          </p>
-          {failure.retry ? (
-            <Button className="ai-explain-button" disabled={!place.of.canRun || busy} onClick={onRunAgain}>
-              <AiSpark />
-              {CONVERSATION_WORDS.tryAgain}
-            </Button>
-          ) : null}
+      <AiStatus calls={calls} burst={burst} always={always} fold={{ open, onToggle: () => setOpen(!open), controls: `${id}-body` }} />
+      <Fold open={open} arrives={false}>
+        <div id={`${id}-body`} className="ai-explain-body">
+          {failure ? (
+            <div className="ai-explain-failure">
+              <p className="form-failure" role="alert">
+                {failure.message}
+              </p>
+              {failure.retry ? (
+                <Button className="ai-explain-button" disabled={!place.of.canRun || busy} onClick={onRunAgain}>
+                  <AiSpark />
+                  {CONVERSATION_WORDS.tryAgain}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            tools
+          )}
+          {standing}
+          <ConversationTurns {...place} where={null} />
         </div>
-      ) : (
-        tools
-      )}
-      {standing}
-      <ConversationTurns {...place} where={null} />
+      </Fold>
     </section>
   );
 }

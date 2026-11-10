@@ -217,7 +217,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | proofreader | `transcribe/proofreader.ts` | Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |
 | transcriber | `transcribe/transcriber.ts` | A video transcribed by an engine in the viewer's mode, and its log (`createTranscriber`, `TranscribeState`, `logText`). Never a second reader of a video's words. |
 | ClipPlayer | `ui/ClipPlayer.tsx` | A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). |
-| Column | `ui/Column.tsx` | The column the panel and the drawer stand in beside the video and in full screen (`Column`). Never a second column. |
+| Column | `ui/Column.tsx` | The column the panel and the drawer stand in beside the video and in full screen, its left edge dragged for its width (`Column`). Never a second column. |
 | EndTime | `ui/EndTime.tsx` | When the video will end, among the player's own controls (`EndTime`). |
 | Explain | `ui/Explain.tsx` | Explain, Panki AI on the word in the pop-up, and why each empty piece is empty (`Explain`, `ExplainSource`, `MorePieces`, `gapsOf`). |
 | Glossary | `ui/Glossary.tsx` | What a dictionary says a word means, drawn and as text (`Glossary`, `glossaryText`). Never a dictionary's markup drawn as it is. |

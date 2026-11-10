@@ -598,6 +598,40 @@
   flex-direction: column;
   min-height: 100%;
 }
+/* The column's left edge, taken hold of to drag the column wider or narrower (`Column`): a strip astride the edge, wide
+   enough for a finger, the edge itself lit in the accent under the pointer, held, or with the keyboard on it. */
+.panki-column-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 9px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+.panki-column-grip::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition: background-color 0.12s;
+}
+.panki-column-grip:focus-visible {
+  outline: none;
+}
+.panki-column-grip:hover::before,
+.panki-column-grip.is-held::before,
+.panki-column-grip:focus-visible::before {
+  background: var(--accent);
+}
+.panki-column-grip.is-held::before {
+  width: 2px;
+  left: 3.5px;
+}
 /* Folded away in full screen: nothing of the column shown, its host as wide as nothing at the screen's edge. */
 .panki-root.is-column.is-folded > * {
   display: none;

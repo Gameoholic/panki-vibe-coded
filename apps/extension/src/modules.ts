@@ -70,6 +70,19 @@ export const BoundKey = z
   .min(1)
   .transform((key) => (/^Key[A-Z]$/.test(key) ? key.slice(3).toLowerCase() : key));
 export type BoundKey = z.infer<typeof BoundKey>;
+/**
+ * How wide the panel's column stands at the page's right, beside the video and in the site's full screen, in pixels,
+ * as its left edge was last dragged; null is the site's own width (`content/youtube.tsx` → `WIDTH_CSS`). A drag is
+ * held between these two, and nearer still so the video keeps `PLAYER_MIN_WIDTH` of the room.
+ */
+export const PANEL_WIDTH_MIN = 300;
+export const PANEL_WIDTH_MAX = 1600;
+export const PanelWidth = z.number().int().min(PANEL_WIDTH_MIN).max(PANEL_WIDTH_MAX).nullable();
+export type PanelWidth = z.infer<typeof PanelWidth>;
+/** The least the video is left beside a dragged panel. */
+export const PLAYER_MIN_WIDTH = 480;
+/** A dragged width held inside its bounds: never narrower than a panel needs, never leaving the video less than `PLAYER_MIN_WIDTH` of the room (`room`: from the video's left edge to the panel's right). */
+export const panelWidthOf = (dragged: number, room: number): number => Math.round(Math.max(PANEL_WIDTH_MIN, Math.min(dragged, PANEL_WIDTH_MAX, room - PLAYER_MIN_WIDTH)));
 
 // A browser that kept `feedFilter` or `homeChips`, the chips that once sifted YouTube's home feed, keeps them unread.
 
@@ -236,6 +249,8 @@ export const Modules = z.object({
   panel: z.boolean(),
   /** Where the panel stands on a video's page (`PanelView`); beside the video, always above the site's recommendations. */
   panelView: PanelView,
+  /** How wide its column stands beside the video and in full screen, dragged by its left edge (`PanelWidth`); the site's own to begin with. */
+  panelWidth: PanelWidth,
   /** In the site's full screen, the key that toggles the panel (`content/youtube.tsx` → `PAGE_KEYS`). P to begin with. */
   panelKey: BoundKey,
   /**
@@ -310,6 +325,7 @@ export const DEFAULT_MODULES: Modules = {
   on: true,
   panel: true,
   panelView: "beside",
+  panelWidth: null,
   panelKey: "p",
   subtitlesKey: "c",
   fullPanel: false,

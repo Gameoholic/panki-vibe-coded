@@ -3,7 +3,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
-import { AfterAdd, BoundKey, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
+import { AfterAdd, BoundKey, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -148,6 +148,8 @@ const Stored = z.object({
     .transform((view) => (view === "stage" ? "beside" : view))
     .pipe(PanelView)
     .catch(DEFAULT_MODULES.panelView),
+  /** How wide the panel's column stands beside the video and in full screen, dragged by its left edge on the page; null, the site's own width. */
+  panelWidth: PanelWidth.catch(DEFAULT_MODULES.panelWidth),
   /** In the site's full screen, the key that toggles the panel (options page, YouTube → Panki panel). */
   panelKey: BoundKey.catch(DEFAULT_MODULES.panelKey),
   /** The key that toggles the subtitles off and back (options page, YouTube → Panki panel). */
@@ -247,6 +249,7 @@ export const modulesOf = (store: Stored): Modules => ({
   on: store.pankiOn,
   panel: store.modulePanel,
   panelView: store.panelView,
+  panelWidth: store.panelWidth,
   panelKey: store.panelKey,
   subtitlesKey: store.subtitlesKey,
   fullPanel: store.fullPanel,

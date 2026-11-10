@@ -33,7 +33,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-04: the panel's views, Beside the video.
 - 2026-11-06: one full screen; the panel's head and menu; Watching and Save for later on the player bar.
 - 2026-11-07: the panel's button in the video's corner.
-- 2026-11-10: Subtitles on the player bar and its key, C; Keep the bar visible waking the site instead of holding the bar (`architecture/watching.md`).
+- 2026-11-10: Subtitles on the player bar and its key, C; Keep the bar visible waking the site instead of holding the bar (`architecture/watching.md`); the panel's left edge dragged for its width.
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
 - 2026-11-05: what the extension keeps of Panki's, one registry; 2026-11-07: this browser's own settings (`architecture/kept.md`).
 
@@ -56,6 +56,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-05: the clip follows the Sentence; an AI value edited by hand stays the AI's.
 - 2026-11-08: the card's conversation over the admin's prompt; User instructions.
 - 2026-11-09: one answer shape; the words; actions of one's own, Requires, Leave out, Video context length, Clear conversation; Explain as the word's conversation.
+- 2026-11-10: the conversation's messages scrolling in their box; the whole block folded under its name; Actions….
 
 ## Under way
 

@@ -60,7 +60,7 @@ import {
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
-import { Modules, PanelView } from "./modules";
+import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { MarkPaint } from "./seekLook";
@@ -242,6 +242,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pankiOn"), on: z.boolean() }),
   /** Where the Panki panel stands on a video's page, picked on the panel itself. */
   z.object({ kind: z.literal("panelView"), view: PanelView }),
+  /** How wide the panel's column stands at the page's right, as its left edge was dragged; null, the site's own width. */
+  z.object({ kind: z.literal("panelWidth"), width: PanelWidth }),
   /** In the site's full screen, the panel toggled by its key or its handle: shown or folded away. */
   z.object({ kind: z.literal("fullPanel"), shown: z.boolean() }),
   /** Videos as their thumbnails are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
@@ -585,6 +587,10 @@ export async function askPankiOn(on: boolean): Promise<void> {
 /** The Panki panel's view, picked on the panel, kept for every video from now on. */
 export async function askPanelView(view: PanelView): Promise<void> {
   await ask({ kind: "panelView", view });
+}
+/** The panel's column's width, as its left edge was dragged, kept for every video from now on. */
+export async function askPanelWidth(width: PanelWidth): Promise<void> {
+  await ask({ kind: "panelWidth", width });
 }
 /** The panel in full screen toggled, kept so the next full screen opens as this one was left. */
 export async function askFullPanel(shown: boolean): Promise<void> {

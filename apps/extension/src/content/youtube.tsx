@@ -23,11 +23,11 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askPankiOn, askPanelView, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
 import { amendLocal, loadLocal, localNow, onLocal } from "../local";
 import type { TranscribePrefs } from "../transcribe/prefs";
-import { OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, resumeTo, switchInPill, type Modules, type PanelView, type PankiBarControl, type SkipKey } from "../modules";
+import { OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, panelWidthOf, resumeTo, switchInPill, type Modules, type PanelView, type PanelWidth, type PankiBarControl, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
 import { createWatcher } from "../watch/watcher";
 import { createFeed } from "./feed";
@@ -225,7 +225,7 @@ strip.host.style.cssText = UNDER;
  */
 const column = mount(siteTheme());
 column.ground.classList.add("is-column");
-column.root.render(<Column />);
+column.root.render(<Column onWidth={dragWidth} />);
 /** Whether the panel stands folded away in the site's full screen this moment: then its button is in the video's corner. */
 const foldedNow = cell(false);
 /** The Panki panel's button in the screen's top-right corner, while the panel is folded away in full screen (`ui/PanelButton.tsx`). */
@@ -894,6 +894,54 @@ function togglePanel() {
   void askFullPanel(shown);
 }
 
+/**
+ * The column's width as dragged (`Modules.panelWidth`, `Column`'s grip): on the page by a few lines of CSS. Beside the
+ * video, the site's own column is made that wide by the site's own variable for its width, only while Panki's column
+ * really stands in it (`html` carries `BESIDE_CLASS`; under the player the site's column is the site's); in the site's
+ * full screen, the stage's column (`--panki-stage-w`). The player is told the window resized so it sizes its picture
+ * to the room left. Null is the site's own width, with nothing on the page.
+ */
+const BESIDE_CLASS = "panki-beside";
+const widthCss = (px: number) => `html.${BESIDE_CLASS} ${WATCH_PAGE} { --ytd-watch-flexy-sidebar-width: ${px}px !important; }
+html.${STAGE_CLASS} { --panki-stage-w: ${px}px !important; }`;
+let widthStyle: HTMLStyleElement | null = null;
+let widthLaid: PanelWidth = null;
+function layWidth(width: PanelWidth) {
+  if (width === widthLaid) return;
+  widthLaid = width;
+  if (width === null) {
+    widthStyle?.remove();
+    widthStyle = null;
+  } else {
+    if (!widthStyle) {
+      widthStyle = document.createElement("style");
+      document.head.append(widthStyle);
+    }
+    widthStyle.textContent = widthCss(width);
+  }
+  requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+}
+/** The width the edge is being dragged to this moment, on the page at once and kept only once let go; null between drags. */
+let dragging: number | null = null;
+/**
+ * The column's left edge dragged (`Column`): the width held inside its bounds, so the video beside it keeps its least
+ * room (`panelWidthOf`), on the page as it goes, and kept for every video once let go.
+ */
+function dragWidth(dragged: number, settled: boolean) {
+  const player = document.querySelector(PLAYER);
+  const edge = column.host.getBoundingClientRect().right;
+  const room = player ? edge - player.getBoundingClientRect().left : window.innerWidth;
+  const width = panelWidthOf(dragged, room);
+  dragging = settled ? null : width;
+  if (settled) {
+    modules.amend({ panelWidth: width });
+    void askPanelWidth(width);
+  } else {
+    layWidth(width);
+    place();
+  }
+}
+
 /** Puts Panki's two places where they belong right now: the line under the player or beside it; the drawer beside it, or under the line, or floating over a player that fills the screen. */
 let laidOut = "";
 let stripLaid = "";
@@ -925,6 +973,9 @@ function place() {
   const playerBox = video ? document.querySelector(PLAYER) : null;
   const stage = stageNow(fullPanki, on);
   const side = fullPanki === null && placeable && on.panel && on.panelView === "beside" ? columnBeside(playerBox) : null;
+  // The column as wide as dragged, beside the video only while Panki's column really stands in the site's.
+  document.documentElement.classList.toggle(BESIDE_CLASS, side !== null);
+  layWidth(dragging ?? on.panelWidth);
   // Beside the video and in full screen the panel stands in Panki's column, the drawer over it while it's open.
   const columned = fullPanki !== null || side !== null;
   const home = columned ? column.host : under;

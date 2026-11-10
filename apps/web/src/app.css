@@ -7510,9 +7510,45 @@ mark.sub-blur {
 .btn.ai-explain-button:disabled > .ai-spark {
   color: inherit;
 }
+/* A place's conversation (AiConversation.tsx): its head, then everything under it in a body that folds away under the
+   head's name, the room between the two the body's own, so a folded block ends at its head. Main's messages stand in
+   a box of their own, `--ai-turns-max` tall at most, scrolling inside it with Panki's fade and bar past that. */
 .ai-explain {
+  --ai-turns-max: 360px;
+  display: grid;
+}
+.ai-explain-body {
   display: grid;
   gap: 10px;
+  padding-top: 10px;
+}
+.ai-turns.is-main {
+  max-height: var(--ai-turns-max);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The head's name as the press that folds the body away: the name's own look, the chevron after it turning as it opens. */
+.btn.ai-status-name {
+  min-height: 0;
+  height: auto;
+  padding: 0 2px 0 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+.btn.ai-status-name > .icon {
+  width: 13px;
+  height: 13px;
+  transition: transform 0.15s ease;
+}
+.btn.ai-status-name.is-open > .icon {
+  transform: rotate(180deg);
+}
+@media (hover: hover) {
+  .btn.ai-status-name:hover {
+    background: transparent;
+    color: var(--fg);
+  }
 }
 .ai-explain-turn {
   display: grid;
@@ -7563,6 +7599,7 @@ mark.sub-blur {
 
 /* Touch up in the drawer (AI step 3): its head over the card's fields, a proposal under each field it's for. */
 .touch-up.ai-explain {
+  --scroll-surface: var(--surface-2);
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);

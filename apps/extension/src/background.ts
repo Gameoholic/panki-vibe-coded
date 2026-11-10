@@ -376,6 +376,10 @@ async function answer(
     await writeStore({ panelView: ask.view });
     return { ok: true };
   }
+  if (ask.kind === "panelWidth") {
+    await writeStore({ panelWidth: ask.width });
+    return { ok: true };
+  }
   if (ask.kind === "fullPanel") {
     await writeStore({ fullPanel: ask.shown });
     return { ok: true };
