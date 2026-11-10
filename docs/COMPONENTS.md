@@ -185,7 +185,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | Name | File | For |
 | --- | --- | --- |
 | captions | `capture/captions.ts` | A video's captions as lines with times (`createCaptions`, `lineAt`, `timeOf`, `beatsOf`, `cuesOf`). |
-| known | `capture/known.ts` | Words already in the cards, marked where they stand (`startKnown`, `useKnown`, `knownAs`, `tintOf`, `markKnownOnPage`). Never a second way of marking a known word. |
+| known | `capture/known.ts` | Words already in the cards, marked where they stand, and each one's cards (`startKnown`, `useKnown`, `knownAs`, `knownCards`, `markKnownOnPage`). Never a second way of marking one. |
 | listening | `capture/listening.tsx` | Pointing at a word on a page to open its pop-up (`createListening`). Never a second listener for words on a page. |
 | look | `capture/look.ts` | Which word the pointer or a held key points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `pointedOnPage`, `held`). |
 | record | `capture/record.ts` | Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`, `RecordCancelled`). |

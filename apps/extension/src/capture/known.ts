@@ -1,5 +1,6 @@
-/** @panki Words already in the cards, marked where they stand (`startKnown`, `useKnown`, `knownAs`, `tintOf`, `markKnownOnPage`). Never a second way of marking a known word. */
+/** @panki Words already in the cards, marked where they stand, and each one's cards (`startKnown`, `useKnown`, `knownAs`, `knownCards`, `markKnownOnPage`). Never a second way of marking one. */
 import { useMemo, useSyncExternalStore } from "react";
+import type { CalledCard } from "@panki/contracts";
 import { isJapanese } from "@web/words";
 import type { Lattice } from "../dictionary/found";
 import { wordsOf } from "../dictionary/split";
@@ -30,16 +31,18 @@ import type { Token } from "./words";
 /**
  * `suspended`: those of `words` whose every card is suspended; `flagged`: those with any card flagged; `colours`: each
  * word's highest card's stage's colour, a word whose every card is new in its type's New colour, or left out when that
- * type has none. How they're marked is this browser's
+ * type has none; `cards`: each word's cards, what the pop-up's In your decks says. How they're marked is this browser's
  * settings' (`KnownLook`).
  */
-export type KnownNow = KnownLook & { words: ReadonlySet<string>; suspended: ReadonlySet<string>; flagged: ReadonlySet<string>; colours: ReadonlyMap<string, string> };
-type Words = Pick<KnownNow, "words" | "suspended" | "flagged" | "colours">;
+export type KnownNow = KnownLook & { words: ReadonlySet<string>; suspended: ReadonlySet<string>; flagged: ReadonlySet<string>; colours: ReadonlyMap<string, string>; cards: ReadonlyMap<string, readonly CalledCard[]> };
+type Words = Pick<KnownNow, "words" | "suspended" | "flagged" | "colours" | "cards">;
 const sameSet = (list: readonly string[], set: ReadonlySet<string>) => list.length === set.size && list.every((item) => set.has(item));
 const sameMap = (record: Readonly<Record<string, string>>, map: ReadonlyMap<string, string>) => Object.keys(record).length === map.size && Object.entries(record).every(([key, value]) => map.get(key) === value);
+const sameCards = (record: Readonly<Record<string, readonly CalledCard[]>>, map: ReadonlyMap<string, readonly CalledCard[]>) =>
+  Object.keys(record).length === map.size && Object.entries(record).every(([key, value]) => JSON.stringify(map.get(key)) === JSON.stringify(value));
 
 /** The words, none until the worker has said; how they're marked is read from this browser's settings as they stand. */
-let words: Words = { words: new Set(), suspended: new Set(), flagged: new Set(), colours: new Map() };
+let words: Words = { words: new Set(), suspended: new Set(), flagged: new Set(), colours: new Map(), cards: new Map() };
 let now: KnownNow | null = null;
 const followers = new Set<() => void>();
 const subscribe = (follower: () => void) => {
@@ -73,10 +76,20 @@ export async function refreshKnown(): Promise<void> {
   const answer = await askKnown();
   if (!answer.ok) return;
   // The same again (the usual answer when the page only got the focus back) changes nothing and reads nothing again.
-  if (sameSet(answer.words, words.words) && sameSet(answer.suspended, words.suspended) && sameSet(answer.flagged, words.flagged) && sameMap(answer.colours, words.colours)) return;
-  words = { words: new Set(answer.words), suspended: new Set(answer.suspended), flagged: new Set(answer.flagged), colours: new Map(Object.entries(answer.colours)) };
+  if (sameSet(answer.words, words.words) && sameSet(answer.suspended, words.suspended) && sameSet(answer.flagged, words.flagged) && sameMap(answer.colours, words.colours) && sameCards(answer.cards, words.cards)) return;
+  words = { words: new Set(answer.words), suspended: new Set(answer.suspended), flagged: new Set(answer.flagged), colours: new Map(Object.entries(answer.colours)), cards: new Map(Object.entries(answer.cards)) };
   tell();
 }
+
+const NO_CARDS: readonly CalledCard[] = [];
+/**
+ * A word's cards, as the pop-up's In your decks says them (`Lookup.tsx` → `InCards`): read from what the page already
+ * holds, so the pop-up asks nothing and the box is there as the pop-up is. The same array while nothing changed, so a
+ * drawing subscribed to `subscribeKnown` can read it as a snapshot.
+ */
+export const knownCards = (term: string): readonly CalledCard[] => words.cards.get(term) ?? NO_CARDS;
+/** Told whenever what's known changes; returns how to stop. */
+export const subscribeKnown = subscribe;
 
 /**
  * Started once this browser's settings are in, once a page. The words are Panki's, asked again whenever the page gets

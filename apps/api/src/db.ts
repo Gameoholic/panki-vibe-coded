@@ -2570,29 +2570,47 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
      * the same; those whose every card is suspended, by the same reading as a card's own hold (`cardColumns` →
      * `suspendedAt`), marked apart; and those with any card flagged (`flaggedAtOf`), marked apart again; and each
      * word's colour, its highest card's stage's (the end above every stage, a new card below them all; `placeColour`),
-     * a word whose every card is new in its type's New colour, or left out when it has none. The state header's `words`
-     * hash is worked out from this whole answer, so a flag, an answer or a stage's or New's colour changes it.
+     * a word whose every card is new in its type's New colour, or left out when it has none; and each word's cards as
+     * `cardsCalled` answers them (the newest first, `CALLED_CARDS_MAX` at most), so the pop-up's In your decks is drawn
+     * from this one answer. The state header's `words` hash is worked out from this whole answer, so a flag, an answer,
+     * a stage's or New's colour, a deck's name or a card's meaning changes it.
      */
     wordsInCards(): WordsInCards {
       const typeIds = (selectLivingTypeIds.all() as { typeId: string | null }[]).map((row) => row.typeId);
       const fieldIds = [...new Set(typeIds.map(wordFieldOf).filter((id): id is string => id !== null))];
-      if (fieldIds.length === 0) return { words: [], suspended: [], flagged: [], colours: {} };
+      if (fieldIds.length === 0) return { words: [], suspended: [], flagged: [], colours: {}, cards: {} };
       const rows = db
         .prepare(
           `SELECT v.value AS words, d.srs_type_id AS srsTypeId,
             EXISTS (SELECT 1 FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspended,
             ${flaggedAtOf("c.id")} IS NOT NULL AS flagged,
-            p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned
+            p.id AS placeId, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned,
+            c.id AS cardId, v.field_id AS fieldId, c.deck_id AS deckId, d.name AS deckName, d.type_id AS typeId, c.created_at AS createdAt
           FROM card_values v JOIN cards c ON c.id = v.card_id JOIN decks d ON d.id = c.deck_id
           LEFT JOIN card_places p ON p.id = ${lastPlaceOf("c.id")}
           WHERE v.field_id IN (${fieldIds.map(() => "?").join(", ")}) AND v.value <> '' AND c.removed_at IS NULL AND d.removed_at IS NULL
-          ORDER BY v.value`,
+          ORDER BY v.value, c.created_at DESC, c.id DESC`,
         )
-        .all(...fieldIds) as (PlaceRow & { words: string; srsTypeId: string; suspended: number; flagged: number })[];
+        .all(...fieldIds) as (PlaceRow & { words: string; srsTypeId: string; suspended: number; flagged: number; cardId: string; fieldId: string; deckId: string; deckName: string; typeId: string | null; createdAt: number })[];
       const srsOf = srsTypesById();
-      const byWords = new Map<string, { allSuspended: boolean; anyFlagged: boolean; rank: number; colour: string | null }>();
+      const typeOf = typesById();
+      // What tells every living card apart, read in one go (`apartOfCard` asks once per field per card): the values of
+      // the living types' fields that tell cards apart, by card.
+      const apartFieldIds = [...new Set(typeIds.flatMap((typeId) => typeOf(typeId)?.fields.filter((field) => field.tellsApart).map((field) => field.id) ?? []))];
+      const held = new Map<string, { values: Record<string, string>; sources: ValueSources }>();
+      if (apartFieldIds.length > 0) {
+        const valueRows = db.prepare(`SELECT card_id AS cardId, field_id AS fieldId, value, source FROM card_values WHERE field_id IN (${apartFieldIds.map(() => "?").join(", ")})`).all(...apartFieldIds) as { cardId: string; fieldId: string; value: string; source: string | null }[];
+        for (const row of valueRows) {
+          const card = held.get(row.cardId) ?? { values: {}, sources: {} };
+          card.values[row.fieldId] = row.value;
+          const kept = row.source ? jsonOr(row.source, ValueSource) : null;
+          if (kept) card.sources[row.fieldId] = kept;
+          held.set(row.cardId, card);
+        }
+      }
+      const byWords = new Map<string, { allSuspended: boolean; anyFlagged: boolean; rank: number; colour: string | null; cards: CalledCard[] }>();
       for (const row of rows) {
-        const was = byWords.get(row.words) ?? { allSuspended: true, anyFlagged: false, rank: -Infinity, colour: null };
+        const was = byWords.get(row.words) ?? { allSuspended: true, anyFlagged: false, rank: -Infinity, colour: null, cards: [] };
         const srs = srsOf(row.srsTypeId);
         const place = placeFrom(row);
         // The highest stage wins: burned above every stage, new below them all. Among cards on the same rung (new cards
@@ -2600,11 +2618,19 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const rank = !srs ? -Infinity : isBurned(srs, place) ? Infinity : stageIndex(srs, place);
         const colour = srs ? placeColour(srs, place) : null;
         const takes = rank > was.rank || (rank === was.rank && was.colour === null);
+        // The card as `cardsCalled` answers it, when its type's words field is the one holding the word.
+        const type = typeOf(row.typeId);
+        const card = held.get(row.cardId);
+        const called: CalledCard | null =
+          type && wordsFieldOf(type)?.id === row.fieldId && was.cards.length < CALLED_CARDS_MAX
+            ? { cardId: row.cardId, deckId: row.deckId, deck: row.deckName, ...(row.typeId ? { typeId: row.typeId } : {}), words: row.words, apart: apartOf(type, card?.values ?? {}, card?.sources ?? {}), flagged: row.flagged === 1, ...(srs ? placeOfCalled(srs, place) : {}) }
+            : null;
         byWords.set(row.words, {
           allSuspended: was.allSuspended && row.suspended === 1,
           anyFlagged: was.anyFlagged || row.flagged === 1,
           rank: takes ? rank : was.rank,
           colour: takes ? colour : was.colour,
+          cards: called ? [...was.cards, called] : was.cards,
         });
       }
       const all = [...byWords.entries()];
@@ -2613,6 +2639,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         suspended: all.filter(([, word]) => word.allSuspended).map(([words]) => words),
         flagged: all.filter(([, word]) => word.anyFlagged).map(([words]) => words),
         colours: Object.fromEntries(all.flatMap(([words, word]) => (word.colour === null ? [] : [[words, word.colour]]))),
+        cards: Object.fromEntries(all.flatMap(([words, word]) => (word.cards.length === 0 ? [] : [[words, word.cards]]))),
       };
     },
     /**

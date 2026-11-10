@@ -1,4 +1,5 @@
 /** @panki The options page's made-up cards and Explain answer, built on the app's examples (`EXAMPLE_CARDS`, `EXAMPLE_EXPLAIN`, `exampleTint`). */
+import type { CalledCard } from "@panki/contracts";
 import { EXAMPLE_ANSWERS, IN_DECKS } from "@web/explainers/examples";
 import { tintOf } from "../capture/known";
 import { paintCss, type MarkPaint } from "../seekLook";
@@ -14,8 +15,11 @@ export const exampleTint = (known: { byStage: boolean; colour: MarkPaint }): str
  */
 
 /** Where the pop-up learns which cards a word already is, on the options page: the example word, and nothing else. */
+const EXAMPLE_IN = [IN_DECKS];
+const NO_CARDS: CalledCard[] = [];
 export const EXAMPLE_CARDS: CardsSource = {
-  ask: async (words) => (words.includes(IN_DECKS.words) ? [IN_DECKS] : []),
+  of: (term) => (term === IN_DECKS.words ? EXAMPLE_IN : NO_CARDS),
+  subscribe: () => () => undefined,
   open: () => undefined,
 };
 

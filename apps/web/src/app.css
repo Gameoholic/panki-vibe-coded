@@ -7402,6 +7402,11 @@ mark.sub-blur {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+/* That one hairline is the conversation's: its composer draws none of its own under the head. */
+.look-word .composer {
+  padding-top: 0;
+  border-top: 0;
+}
 .look-head {
   display: flex;
   flex-wrap: wrap;

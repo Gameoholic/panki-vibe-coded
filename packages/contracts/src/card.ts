@@ -404,14 +404,16 @@ export type CalledCard = z.infer<typeof CalledCard>;
  * marked in a colour of their own, never as a word that's in the decks. `flagged`: those of them with any card flagged,
  * in a colour of their own again, over a suspended word's. `colours`: each word's colour by the highest stage any of its
  * cards stands on (`stageColour.ts` → `placeColour`), a word whose every card is new in its type's New colour, or left
- * out when that type has none. Each none from a Panki
- * from before.
+ * out when that type has none. `cards`: each word's cards, as `cardsCalled` would answer for it (the newest first, a
+ * few at most), so the pop-up's In your decks is drawn from what the extension already holds, asking nothing. Each
+ * none from a Panki from before.
  */
 export const WordsInCards = z.object({
   words: z.array(z.string()),
   suspended: z.array(z.string()).default([]),
   flagged: z.array(z.string()).default([]),
   colours: z.record(z.string(), HexColour).default({}),
+  cards: z.record(z.string(), z.array(CalledCard).max(CALLED_CARDS_MAX)).default({}),
 });
 export type WordsInCards = z.infer<typeof WordsInCards>;
 

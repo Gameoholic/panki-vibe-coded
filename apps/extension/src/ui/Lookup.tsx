@@ -1,19 +1,19 @@
 /** @panki The Word pop-up: a word's dictionary entries, laid out as set (`Lookup`, `LookupBody`, `PopupEdit`). */
-import { Fragment, useRef, useState, type ReactNode } from "react";
+import { Fragment, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { JudgedRow } from "@web/components/JudgedRow";
 import { Icon } from "@web/components/Icon";
 import { PitchAccent } from "@web/components/PitchAccent";
 import { ScrollEdges } from "@web/components/ScrollEdges";
-import { useCalled } from "@web/hooks/useCalled";
 import { type CalledCard, type JudgedMeaning, type Judgement, type ProposedMeaning } from "@panki/contracts";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import type { useDragOrder } from "@web/hooks/useDragOrder";
 import { count } from "@web/words";
+import { knownCards, subscribeKnown } from "../capture/known";
 import type { View } from "../capture/look";
 import { wordKey, type Found, type Sense, type Tag } from "../dictionary/found";
-import { askCalled, askOpenPanki } from "../messages";
+import { askOpenPanki } from "../messages";
 import { PART_NAMES, bandOf } from "../popupKinds";
 import { dictionaryOf, dictionaryPart, type BodyPart, type FrequencyWords, type PopupLayout, type ReadingAt, type TagWords } from "../popupLayout";
 import { Explain, type ExplainExamples, type ExplainSource, type Judged, type MeaningsJudged, type MorePieces } from "./Explain";
@@ -353,19 +353,21 @@ function bodyOf(part: BodyPart, found: Found, layout: PopupLayout, explain: Expl
 }
 
 /**
- * Where the popup learns which cards a word already is, and what Open in Panki does: Panki, through the worker; or, on
- * the layout editor, its example of a word that's in the decks (`options/PopupLayout.tsx`), which opens nothing.
+ * Where the popup learns which cards a word already is, and what Open in Panki does: what the page holds of the words
+ * in the decks (`capture/known.ts` → `knownCards`, handed down with the words themselves, so nothing is asked as a
+ * pop-up opens), told of a change by `subscribe`; or, on the layout editor, its example of a word that's in the decks
+ * (`options/PopupLayout.tsx`), which opens nothing. `of` gives the same array while nothing changed.
  */
-export type CardsSource = { ask: (words: readonly string[]) => Promise<readonly CalledCard[]>; open: (card: CalledCard) => void };
-const PANKI_CARDS: CardsSource = { ask: askCalled, open: (card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId }) };
+export type CardsSource = { of: (term: string) => readonly CalledCard[]; subscribe: (follower: () => void) => () => void; open: (card: CalledCard) => void };
+const PANKI_CARDS: CardsSource = { of: knownCards, subscribe: subscribeKnown, open: (card) => void askOpenPanki({ deckId: card.deckId, cardId: card.cardId }) };
 
 /**
  * A word that's already a card, said under its head as the drawer says it, over any word: which deck, and Open in
- * Panki, at that card in its deck's list. Asked by the word as the dictionary lists it; nothing while signed out, and
- * nothing at all for a word no card is called by. A part of the layout, In your decks; on the editor, a word in no deck shows the part's name in its place.
+ * Panki, at that card in its deck's list. By the word as the dictionary lists it, from what the page already holds;
+ * nothing while signed out, and nothing at all for a word no card is called by. A part of the layout, In your decks; on the editor, a word in no deck shows the part's name in its place.
  */
 function InCards({ found, cards, edit }: { found: Found; cards: CardsSource; edit: PopupEdit | undefined }) {
-  const called = useCalled([found.term], cards.ask);
+  const called = useSyncExternalStore(cards.subscribe, () => cards.of(found.term));
   if (called.length === 0) return edit ? <Blank id="cards" edit={edit} /> : null;
   return <AlreadyIn cards={called} compared={null} openWords="Open in Panki" onOpen={cards.open} />;
 }

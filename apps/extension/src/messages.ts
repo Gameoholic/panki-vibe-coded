@@ -307,7 +307,7 @@ export type LookState = z.infer<typeof LookState>;
  * colour (`WordsInCards.colours`, a new word left out); none while nothing of this browser's marks them.
  */
 const Known = z.union([
-  z.object({ ok: z.literal(true), words: z.array(z.string()), suspended: z.array(z.string()), flagged: z.array(z.string()), colours: z.record(z.string(), z.string()).default({}) }),
+  z.object({ ok: z.literal(true), words: z.array(z.string()), suspended: z.array(z.string()), flagged: z.array(z.string()), colours: z.record(z.string(), z.string()).default({}), cards: z.record(z.string(), z.array(CalledCard)).default({}) }),
   z.object({ ok: z.literal(false), message: z.string() }),
 ]);
 export type Known = z.infer<typeof Known>;

@@ -37,7 +37,7 @@ Uploaded by an admin, kept for everyone (`shared.sqlite` → `dictionary_files`)
 
 ## Words that are in your decks, marked
 
-`capture/known.ts`. The worker keeps `GET /api/cards/words` as `kept.ts`'s `words` entry; nothing is marked on Panki's own pages (`onPanki`).
+`capture/known.ts`. The worker keeps `GET /api/cards/words` as `kept.ts`'s `words` entry; nothing is marked on Panki's own pages (`onPanki`). That one answer carries each word's cards too (`WordsInCards.cards`, as `cardsCalled` would answer them), so **the pop-up's In your decks is drawn from what the page already holds** (`knownCards`, `Lookup.tsx` → `InCards`) and asks nothing as it opens; a signed-in page gets the cards whether or not anything marks the words. The drawer's "already there" still asks `GET /api/cards/called` by the words typed.
 
 - **One check, shared with the pop-up, so they can't drift apart:** the dictionary's word for a stretch is chosen by `lookup.ts` → `wordsFound`, which both `lookUp` and `latticeOf` use, and it's known when it's exactly a value a card is called by (`knownIn`). Nothing is marked before the dictionary has answered, or with no dictionary.
 - **Colours**: by stage, a word takes its highest card's stage's colour (`WordsInCards.colours`, the contracts' `placeColour`); a word whose every card is suspended, or any of whose cards is flagged, has its own colour, the flag winning (on the video is where a flag is acted on).
