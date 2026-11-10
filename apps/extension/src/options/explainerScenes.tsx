@@ -21,6 +21,7 @@ import { listDictionaries } from "../dictionary/store";
 import { barShows, barSide, isPankiBar, resumeTo, type BarControl, type BarLayout } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
 import { barOf, type Stored } from "../storage";
+import { Burst } from "../ui/Burst";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
 import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
@@ -452,22 +453,13 @@ function PanelScene({ store }: { store: Stored }) {
               </Button>
             </div>
             <div className="capture-body">
-              {added ? (
-                <div className="capture-added">
-                  <p className="capture-done" role="status">
-                    <span className="capture-done-mark">
-                      <Icon name="check" />
-                    </span>
-                    <span className="capture-done-words">Added to {IN_DECKS.deck}</span>
-                  </p>
-                </div>
-              ) : (
                 <div className="add-form">
-                  {/* Add right under the head, as the drawer has it; the × closes it. */}
+                  {/* Add right under the head, as the drawer has it; the × closes it. Added, the button itself says so, bursting, the form still under it. */}
                   <div className="capture-live capture-ends">
-                    <Button variant="primary" className="capture-add">
-                      <Icon name="add" />
-                      Add to {IN_DECKS.deck}
+                    <Button variant="primary" className={`capture-add${added ? " is-added" : ""}`}>
+                      {added ? <Burst /> : null}
+                      <Icon name={added ? "check" : "add"} />
+                      <span>{added ? `Added to ${IN_DECKS.deck}` : `Add to ${IN_DECKS.deck}`}</span>
                     </Button>
                   </div>
                   <div className="field capture-deck">
@@ -479,7 +471,6 @@ function PanelScene({ store }: { store: Stored }) {
                     <TextField id={`${id}-sentence`} label="Sentence" lang="ja" multiline value={SENTENCE} mark={PICKED} onChange={nothing} />
                   </div>
                 </div>
-              )}
             </div>
           </section>
         </div>

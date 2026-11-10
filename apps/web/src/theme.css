@@ -65,6 +65,9 @@
      Discord hides a message. Each is made of tokens every theme gives a value, so no theme block names them. */
   --sound: var(--good);
   --sound-soft: var(--good-soft);
+  /* Words on the good colour itself (the Add button once the card is in): the accent's ink, since every theme's good
+     is as deep or as light as its accent. */
+  --good-ink: var(--accent-ink);
   --clip: var(--mid);
   --clip-soft: var(--mid-soft);
   --spoiler: color-mix(in srgb, var(--fg) 22%, var(--surface-2));

@@ -1457,7 +1457,7 @@ const holdForAi = (on: boolean) => {
  * Records a cut (the clip, or the word's own) as it stands when it's asked for, with how it was made. `read` gives its
  * ends afresh each time: they may still be settling.
  */
-async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void): Promise<Made> {
+async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal): Promise<Made> {
   const player = video;
   if (!player) throw new RecordError("The video is gone.");
   replay.stop();
@@ -1470,7 +1470,7 @@ async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean,
   const end = clip.end ?? player.currentTime;
   recording = true;
   try {
-    const { file, facts } = await recordStretch(player, { from: clip.start, until: (now) => now >= end, expectedEnd: end, soundOnly }, onProgress);
+    const { file, facts } = await recordStretch(player, { from: clip.start, until: (now) => now >= end, expectedEnd: end, soundOnly }, onProgress, signal);
     return { file, recording: recordingOf(cut, clip.start, end, facts) };
   } finally {
     recording = false;
@@ -2701,7 +2701,7 @@ function App() {
             settle: (which) => hearCut(cut, which),
             hear: (at) => hearFrom(cut, at),
             toggle: () => toggleCut(cut),
-            record: (soundOnly, onProgress) => recordClip(cut, () => ends.current[cut], soundOnly, onProgress),
+            record: (soundOnly, onProgress, signal) => recordClip(cut, () => ends.current[cut], soundOnly, onProgress, signal),
             // What's said in it, from the lines being read right now (the transcript or the captions), at its ends as they stand.
             cues: () => {
               const at = ends.current[cut];

@@ -3079,36 +3079,73 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-/* Added. Small, but it lands: the tick pops in its ring, then the words rise, with the opening moment's own two
-   moves (`intro-pop`, `intro-rise` in the app's styles), so the app has one way of arriving, not two. */
-.capture-added {
-  display: grid;
-  gap: 10px;
+/* Added: the Add button itself turns the good colour and bursts, a ring rippling out from its middle and a few dots
+   flying off (`ui/Burst.tsx`), its words becoming Added with the opening moment's own rise (`intro-rise`). Nothing else
+   moves: the form stays, so what was added is still in view, and the drawer folds away a moment later. */
+.btn.capture-add {
+  position: relative;
+  overflow: hidden;
 }
-.capture-done {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-weight: 700;
-  color: var(--good);
+.btn.capture-add.is-added,
+.btn.capture-add.is-added:disabled {
+  background: var(--good);
+  border-color: var(--good);
+  color: var(--good-ink);
+  opacity: 1;
 }
-.capture-done-mark {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
+.btn.capture-add.is-added > :not(.capture-burst) {
+  animation: intro-rise 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) 0.12s both;
+}
+.capture-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.capture-burst > i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   border-radius: 50%;
-  background: var(--good-soft);
-  animation: intro-pop 0.38s cubic-bezier(0.2, 1.4, 0.4, 1) 0.12s both;
+  opacity: 0;
 }
-.capture-done-words {
-  animation: intro-rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) 0.22s both;
+.capture-ring {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid var(--good-ink);
+  animation: capture-ring 0.6s ease-out 0.05s both;
+}
+.capture-dot {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--good-ink);
+  animation: capture-dot 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) 0.08s both;
+}
+@keyframes capture-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(24);
+    opacity: 0;
+  }
+}
+@keyframes capture-dot {
+  from {
+    transform: none;
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--dx), var(--dy)) scale(0.4);
+    opacity: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .capture-done-mark,
-  .capture-done-words {
+  .btn.capture-add.is-added > :not(.capture-burst),
+  .capture-ring,
+  .capture-dot {
     animation: none;
   }
 }

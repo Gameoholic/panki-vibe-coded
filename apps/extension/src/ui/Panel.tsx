@@ -120,7 +120,8 @@ import { FIELD_KINDS } from "@web/fieldKinds";
 import { useCalled } from "@web/hooks/useCalled";
 import { useHoist } from "@web/hooks/useHoist";
 import { count, langOf, wordFor } from "@web/words";
-import { CLIP_MAX_SECONDS, RecordError, RecordTouched, base64Of } from "../capture/record";
+import { CLIP_MAX_SECONDS, RecordCancelled, RecordError, RecordTouched, base64Of } from "../capture/record";
+import { Burst } from "./Burst";
 import { pick, spanOver, stamp, textOf } from "../capture/words";
 import { CLIENT } from "../client";
 import { wordKey, type Found } from "../dictionary/found";
@@ -352,7 +353,8 @@ export type ClipOffer = {
   hear: (at: number) => void;
   /** Plays it round and round, from where it paused if it did; or pauses it, while any of it is playing. */
   toggle: () => void;
-  record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void) => Promise<Made>;
+  /** Records it off the player; `signal` aborted calls it off (`RecordCancelled`). */
+  record: (soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal) => Promise<Made>;
   /** What's said in it as it stands now, from its start (`captions.ts` → `cuesOf`): kept with the recording, so a card plays a clip with its subtitles. */
   cues: () => MediaCues;
   /**
@@ -435,7 +437,7 @@ let lastKnown: State | null = null;
 /** How long a drawer waits for Panki's first answer before it shows itself anyway, saying it's waiting. */
 const SLOW_MS = 500;
 /** How long "Added" stands before the drawer takes itself away. */
-const ADDED_MS = 1100;
+const ADDED_MS = 1000;
 
 type Phase =
   | { at: "idle" }
@@ -523,6 +525,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [turned, setTurned] = useState(false);
   const [phase, setPhase] = useState<Phase>({ at: "idle" });
+  /** The card on its way, while it is: Cancel aborts it, and whatever of it is still running finds it aborted and stops without a word. */
+  const adding = useRef<AbortController | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** What the dictionaries say the word is: every word they have that's written that way (or was, before its endings). Null while it's being looked up. */
   const [found, setFound] = useState<Found[] | null>(null);
@@ -1525,6 +1529,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     }
     setErrors({});
     setFailure(null);
+    // Cancel, while the card is on its way: the recording called off, a file on its way let land unheeded, the drawer
+    // back as it was at once. Not once the card itself is asked for (`adding`): that can't be taken back.
+    const cancel = new AbortController();
+    adding.current = cancel;
+    const cancelled = () => cancel.signal.aborted;
     // The recordings first, one after the other (each is played once more on the page's video while it's recorded),
     // each kept on Panki as a file; then the card, naming them. A field that must be filled is filled as the card is
     // made, and one whose recording didn't make it stops the card when it must be filled, or is left empty otherwise.
@@ -1537,7 +1546,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       let why: string | null = null;
       let touched = false;
       try {
-        const { file, recording } = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }));
+        const { file, recording } = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }), cancel.signal);
+        if (cancelled()) return;
         setPhase({ at: "sending", what });
         const mediaId = uuid();
         // It goes with what's said in it, as heard on the video (a card plays a clip with its subtitles; a sound keeps
@@ -1551,9 +1561,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           ...(cues.length > 0 ? { cues } : {}),
           ...(recording ? { recording } : {}),
         });
+        if (cancelled()) return;
         if (sent.ok) filled[cut.field.id] = mediaId;
         else why = sent.message;
       } catch (e) {
+        if (cancelled() || e instanceof RecordCancelled) return;
         why = e instanceof RecordError ? e.message : MESSAGES.noClip;
         touched = e instanceof RecordTouched;
       }
@@ -1579,6 +1591,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         }),
       ),
     });
+    if (cancelled()) return;
+    // From here the card is asked for: Cancel is greyed, and nothing more looks for it.
+    adding.current = null;
     const source = capture.source ? { source: { ...capture.source, text: sentence, client: CLIENT, ...(facts.success ? { capture: facts.data } : {}) } } : {};
     // Where each value came from goes with it: the spark follows every value Panki AI wrote (AI step 3).
     const sources = sourcesOf(
@@ -1618,6 +1633,15 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     }
     onAdded?.();
     setPhase({ at: "done", deck: deck.name, note });
+  }
+
+  /** Cancel pressed while the card is on its way: the drawer is back as it was at once, and the work under way stops as it finds out. */
+  function cancelAdd() {
+    const cancel = adding.current;
+    if (!cancel) return;
+    adding.current = null;
+    cancel.abort();
+    setPhase({ at: "idle" });
   }
 
   /**
@@ -1897,36 +1921,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     );
   }
 
-  /**
-   * What stands in the drawer once the card is added: "Added to Mining", nothing more, and a recording that didn't make it, when one didn't.
-   */
-  function added() {
-    if (phase.at !== "done") return null;
-    return (
-      <div className="capture-added">
-        <p className="capture-done" role="status">
-          <span className="capture-done-mark">
-            <Icon name="check" />
-          </span>
-          <span className="capture-done-words">Added to {phase.deck}</span>
-        </p>
-        {phase.note !== null ? (
-          <>
-            <p className="capture-note" role="alert">
-              {phase.note}
-            </p>
-            <div className="add-actions">
-              <Button onClick={() => setLeaving(true)}>
-                <Icon name="close" />
-                Close
-              </Button>
-            </div>
-          </>
-        ) : null}
-      </div>
-    );
-  }
-
   function body() {
     if (state === null) return <p className="empty">Asking Panki…</p>;
     if (!state.ok) {
@@ -2157,20 +2151,29 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * The drawer's top, right under its head, never a long drawer's scroll away at its foot: Add; then what's under way,
-   * what went wrong, and the card's conversation with Panki AI (for a deck with a field it can judge), each opening
-   * under the button and moving the card down rather than knocking it.
+   * The drawer's top, right under its head, never a long drawer's scroll away at its foot: Add, which is where the card
+   * landing shows (the button bursts and says Added, the form staying in view under it, `ui/Burst.tsx`); then what's
+   * under way, what went wrong, and the card's conversation with Panki AI (for a deck with a field it can judge), each
+   * opening under the button and moving the card down rather than knocking it.
    */
   function top(deckName: string): ReactNode {
     const sending = phase.at === "recording" || phase.at === "sending";
     const share = phase.at === "recording" ? Math.min(1, phase.seconds / (phase.of ?? CLIP_MAX_SECONDS)) : phase.at === "sending" ? 1 : 0;
+    const done = phase.at === "done";
     return (
       <>
         <div className="capture-live capture-ends">
-          <Button type="submit" variant="primary" className="capture-add" disabled={still || unresolved}>
-            {phase.at === "done" ? <Icon name="check" /> : busy ? null : <Icon name="add" />}
-            {phase.at === "done" ? "Added" : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deckName}`}
+          <Button type="submit" variant="primary" className={`capture-add${done ? " is-added" : ""}`} disabled={still || unresolved} role={done ? "status" : undefined}>
+            {done ? <Burst /> : null}
+            {done ? <Icon name="check" /> : busy ? null : <Icon name="add" />}
+            <span>{done ? `Added to ${phase.deck}` : busy ? "Adding…" : asExample ? EXAMPLE_WORDS.go : `Add to ${deckName}`}</span>
           </Button>
+          {/* While the card is on its way: Cancel beside it, greyed once the card itself is asked for, which can't be taken back. */}
+          {working ? (
+            <Button type="button" disabled={phase.at === "adding"} onClick={cancelAdd}>
+              Cancel
+            </Button>
+          ) : null}
         </div>
         <Fold open={sending} className="capture-live capture-progress-fold">
           <div className="capture-progress" role="status">
@@ -2184,6 +2187,20 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <p className="capture-note" role="alert">
             {failure}
           </p>
+        ) : null}
+        {/* Added, with a recording that didn't make it: said under the button, and the drawer stays until Close. */}
+        {phase.at === "done" && phase.note !== null ? (
+          <>
+            <p className="capture-note" role="alert">
+              {phase.note}
+            </p>
+            <div className="add-actions">
+              <Button onClick={() => setLeaving(true)}>
+                <Icon name="close" />
+                Close
+              </Button>
+            </div>
+          </>
         ) : null}
         {/* The card's conversation, always there: its head, Accept all and Dismiss all while proposals wait, User
             instructions, every send and its reply, and the composer at its foot. */}
@@ -2211,16 +2228,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     );
   }
 
-  const over = phase.at === "done";
   return (
     <Frame open={shown && !leaving} arrives={arrives} locked={working} onLeave={leave} onGone={onClose} frame={frame}>
-      {/* Added: the form folds away as the word that it's added unfolds, and the drawer is as tall as what's in it all the way. */}
-      <div className="capture-body">
-        <Fold open={!over} arrives={false}>
-          {body()}
-        </Fold>
-        <Fold open={over}>{added()}</Fold>
-      </div>
+      {/* Added, the form stays as it is under the button that says so, until the drawer takes itself away. */}
+      <div className="capture-body">{body()}</div>
     </Frame>
   );
 }

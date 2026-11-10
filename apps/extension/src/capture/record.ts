@@ -1,4 +1,4 @@
-/** @panki Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`). */
+/** @panki Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`, `RecordCancelled`). */
 /**
  * Records a stretch of a video off the player itself: the element's own picture and sound, nothing else in the tab,
  * no screen sharing and no asking. A browser can't hand back what has already played, so the stretch is played once
@@ -14,6 +14,12 @@ export class RecordError extends Error {}
 export class RecordTouched extends RecordError {
   constructor() {
     super("The video was paused or moved while it was being recorded.");
+  }
+}
+/** Whoever asked for the recording called it off (the drawer's Cancel): nothing is made, and nothing is said about it. */
+export class RecordCancelled extends RecordError {
+  constructor() {
+    super("The recording was cancelled.");
   }
 }
 
@@ -139,20 +145,20 @@ function seek(video: HTMLVideoElement, to: number): Promise<void> {
 /**
  * Plays `stretch` once and gives back what was recorded, and how. The video is left paused where it was before; whoever
  * asked decides when it goes on. `onProgress` is told how many seconds are recorded so far, and of how many when that's
- * known.
+ * known. `signal` aborted while it plays calls it off (`RecordCancelled`), the video put back as after any recording.
  */
-export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Recorded> {
+export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal): Promise<Recorded> {
   if (typeof MediaRecorder !== "function") throw new RecordError("This browser can't record a player.");
   const { stream, release } = capture(video);
   try {
-    return await recordFrom(video, stream, stretch, onProgress);
+    return await recordFrom(video, stream, stretch, onProgress, signal);
   } finally {
     release();
   }
 }
 
 /** The recording itself, off a stream taken for it. */
-async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void): Promise<Recorded> {
+async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal): Promise<Recorded> {
   const sound = stream.getAudioTracks();
   if (stretch.soundOnly && sound.length === 0) throw new RecordError("This video has no sound to record.");
   const input = stretch.soundOnly ? new MediaStream(sound) : stream;
@@ -171,6 +177,7 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
     video.pause();
     video.playbackRate = 1;
     await seek(video, stretch.from);
+    if (signal?.aborted) throw new RecordCancelled();
     recorder.start();
     await video.play();
     await new Promise<void>((resolve, reject) => {
@@ -181,6 +188,7 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
       const settle = (error: RecordError | null) => {
         clearTimeout(timer);
         for (const type of TOUCHES) video.removeEventListener(type, touched);
+        signal?.removeEventListener("abort", cancelled);
         if (error) reject(error);
         else resolve();
       };
@@ -189,7 +197,11 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
         if (e.type === "pause" && video.ended) return;
         settle(new RecordTouched());
       }
+      function cancelled() {
+        settle(new RecordCancelled());
+      }
       for (const type of TOUCHES) video.addEventListener(type, touched);
+      signal?.addEventListener("abort", cancelled, { once: true });
       const tick = () => {
         const now = video.currentTime;
         if (now !== last) {

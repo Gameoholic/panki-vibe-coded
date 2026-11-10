@@ -188,7 +188,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | known | `capture/known.ts` | Words already in the cards, marked where they stand (`startKnown`, `useKnown`, `knownAs`, `tintOf`, `markKnownOnPage`). Never a second way of marking a known word. |
 | listening | `capture/listening.tsx` | Pointing at a word on a page to open its pop-up (`createListening`). Never a second listener for words on a page. |
 | look | `capture/look.ts` | Which word the pointer or a held key points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `pointedOnPage`, `held`). |
-| record | `capture/record.ts` | Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`). |
+| record | `capture/record.ts` | Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`, `RecordCancelled`). |
 | replay | `capture/replay.ts` | Playing a stretch of the page's video to hear a clip (`createReplay`). Never a second thing that moves the player's time while the drawer is open. |
 | selection | `capture/selection.ts` | What's selected on a page with its sentence, and the sentence around words in any text (`takeSelection`, `sentenceAround`). Never a second reader of sentences. |
 | words | `capture/words.ts` | A line split into words, a pick, and a time to the hundredth written and read back (`tokensOf`, `pick`, `spanOver`, `stamp`, `parseStamp`). |
@@ -216,6 +216,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |
 | proofreader | `transcribe/proofreader.ts` | Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |
 | transcriber | `transcribe/transcriber.ts` | A video transcribed by an engine in the viewer's mode, and its log (`createTranscriber`, `TranscribeState`, `logText`). Never a second reader of a video's words. |
+| Burst | `ui/Burst.tsx` | The Add button's burst as a card lands: a ring rippling out and dots flying off (`Burst`). Never a second celebration. |
 | ClipPlayer | `ui/ClipPlayer.tsx` | A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). |
 | Column | `ui/Column.tsx` | The column the panel and the drawer stand in beside the video and in full screen, its left edge dragged for its width (`Column`). Never a second column. |
 | EndTime | `ui/EndTime.tsx` | When the video will end, among the player's own controls (`EndTime`). |
