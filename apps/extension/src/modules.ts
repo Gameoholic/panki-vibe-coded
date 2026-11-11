@@ -318,6 +318,12 @@ export const Modules = z.object({
   barKeptFull: z.boolean(),
   barKeptNotFull: z.boolean(),
   /**
+   * The key that takes the player bar out of view, and brings it back, while it's kept (`barKeptFull` or
+   * `barKeptNotFull`, whichever the screen is in), there being no other way to be rid of it then (`content/youtube.tsx`
+   * → `PAGE_KEYS`). X to begin with.
+   */
+  barKey: BoundKey,
+  /**
    * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube
    * utility): on, Shift, 2.5 s to begin with.
    */
@@ -354,6 +360,7 @@ export const DEFAULT_MODULES: Modules = {
   bar: DEFAULT_BAR,
   barKeptFull: true,
   barKeptNotFull: false,
+  barKey: "x",
   shortSkip: true,
   shortSkipKey: "shift",
   shortSkipSeconds: 2.5,

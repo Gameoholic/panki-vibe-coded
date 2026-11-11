@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { KeyField } from "@web/components/KeyField";
 import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
 import { BAR_CONTROLS, BAR_FROM, BAR_SIDES, BAR_SIDE_IDS, barSide, type BarLayout } from "../modules";
@@ -46,6 +47,21 @@ export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged:
             onChange={(playerBarKeptNotFull) => void writeStore({ playerBarKeptNotFull }).then(onChanged)}
           />
         }
+      />
+      {/* Under the two it depends on: with neither kept the bar fades by itself, and the key is left to the site. */}
+      <Setting
+        id="player-bar-key"
+        label="Toggle player bar keybind"
+        control={
+          <KeyField
+            id="player-bar-key-choice"
+            label="Toggle player bar keybind"
+            value={store.playerBarKey}
+            disabled={!store.playerBar || (!kept.full && !kept.notFull)}
+            onChange={(playerBarKey) => void writeStore({ playerBarKey }).then(onChanged)}
+          />
+        }
+        why="Hides or shows the player bar while it's kept visible."
       />
       <BarPreview layout={store.playerBar ? layout : YOUTUBE_OWN} off={!store.playerBar} />
       {BAR_SIDE_IDS.map((side) => (

@@ -590,6 +590,11 @@ const showing = cell(false);
 /** The player's video, as last found. */
 let video: HTMLVideoElement | null = null;
 let watching: string | null = null;
+/**
+ * The kept player bar taken out of view by its key (`Modules.barKey`): this video's alone, so the next opens with the
+ * bar kept as its setting says; never kept.
+ */
+let barAway = false;
 /** Whether the video was playing when the drawer opened: closing the drawer puts that back. */
 let wasPlaying = false;
 /** The line the video is to stop after: the sentence taken was still being written when it was taken. */
@@ -1043,7 +1048,7 @@ function place() {
     }
     if (corner.host.parentElement !== cornering) cornering.append(corner.host);
     corner.host.dataset.theme = theme;
-    corner.host.toggleAttribute("data-kept", on.playerBar && on.barKeptFull);
+    corner.host.toggleAttribute("data-kept", on.playerBar && on.barKeptFull && !barAway);
     // The site's buttons count only where they really stand, in the right half of the screen with a width of their own.
     const own = player?.querySelector(CORNER_BUTTONS)?.getBoundingClientRect();
     const right = own && own.width > 0 && own.left > window.innerWidth / 2 ? Math.round(window.innerWidth - own.left) + CORNER_GAP : CORNER_GAP;
@@ -1071,7 +1076,7 @@ function place() {
     // The subtitles are the panel's: nothing to turn off or on without it.
     pankiSubtitles: on.on && on.panel && video !== null,
   };
-  playerBar.apply({ on: on.playerBar, layout: on.bar, kept: { full: on.barKeptFull, notFull: on.barKeptNotFull }, shows: (id) => barShows[id], adPlaying: ad, theme });
+  playerBar.apply({ on: on.playerBar, layout: on.bar, kept: { full: on.barKeptFull, notFull: on.barKeptNotFull }, away: barAway, shows: (id) => barShows[id], adPlaying: ad, theme });
 
   if (!showing.get() || !on.panel) {
     drawer.host.remove();
@@ -1116,6 +1121,7 @@ function look() {
     finishHere.set(null);
     seenBefore = false;
     finishRetryAt = 0;
+    barAway = false;
     offered.set(null);
     offerAway.set(false);
     resuming = null;
@@ -3187,10 +3193,16 @@ function toggleSubtitles() {
   setSource(toggledSource(sourceOf(now.source), sourceOf(now.sourceOn)));
 }
 
+/** The kept player bar out of view, or back: its key. */
+function toggleBar() {
+  barAway = !barAway;
+  place();
+}
+
 /** One of the page's own keys: which key it is as set, when it's heard at all, and what it does. */
 type PageKey = { key: () => string; heard: () => boolean; act: () => void };
 /**
- * The page's own keys (`Modules.panelKey`, `subtitlesKey`), each set on the options page and heard in the page's one
+ * The page's own keys (`Modules.panelKey`, `subtitlesKey`, `barKey`), each set on the options page and heard in the page's one
  * capturing `keydown` listener, so a key Panki takes is kept from the site. Never while typing (`typedHere`), never
  * Esc, which the browser keeps for leaving the full screen. Shift, Ctrl or Alt by itself is heard as it's let go with
  * nothing else pressed while it was down (`pageKeyUp`). A new key is one entry.
@@ -3202,6 +3214,9 @@ const PAGE_KEYS: readonly PageKey[] = [
   // The subtitles (C to begin with, taking the site's own captions key): off, or back to the pick last shown, as the
   // bar's Subtitles button does. With a video and the panel on, whose the subtitles are.
   { key: () => active().subtitlesKey, heard: () => video !== null && active().panel, act: toggleSubtitles },
+  // The player bar (X to begin with): out of view, or back. Only while it's kept, in full screen or out of it as the
+  // screen is, when it can't fade by itself; otherwise the key is the site's. A YouTube utility, as the bar is: Panki on or off.
+  { key: () => active().barKey, heard: () => video !== null && playerBar.keptBySetting(), act: toggleBar },
 ];
 
 /** Shift, Ctrl or Alt gone down with nothing else pressed since: a page key that's one by itself, as it's let go. */

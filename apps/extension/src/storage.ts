@@ -194,6 +194,8 @@ const Stored = z.object({
    */
   playerBarKeptFull: z.boolean().nullable().catch(null),
   playerBarKeptNotFull: z.boolean().nullable().catch(null),
+  /** The key that takes the kept bar out of view and back (options page, YouTube → Player bar). */
+  playerBarKey: BoundKey.catch(DEFAULT_MODULES.barKey),
   /** The one switch for both before they were two: read into each until it's set, never written again. */
   playerBarKept: z.boolean().catch(false),
   /** The speed button's and the end time's own switches, before they were rows of the player bar: read once into its layout, never written again. */
@@ -273,6 +275,7 @@ export const modulesOf = (store: Stored): Modules => ({
   bar: barOf(store),
   barKeptFull: barKeptOf(store).full,
   barKeptNotFull: barKeptOf(store).notFull,
+  barKey: store.playerBarKey,
   shortSkip: store.shortSkip,
   shortSkipKey: store.shortSkipKey,
   shortSkipSeconds: store.shortSkipSeconds,
