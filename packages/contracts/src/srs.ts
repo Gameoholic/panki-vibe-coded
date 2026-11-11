@@ -420,10 +420,13 @@ export const APP_LANGUAGES: Record<AppLanguage, string> = { eng: "English" };
 export const TimeFormat = z.enum(["h24", "h12"]);
 export type TimeFormat = z.infer<typeof TimeFormat>;
 export const TIME_FORMATS: Record<TimeFormat, string> = { h24: "24-hour", h12: "12-hour" };
-/** Which comes first in a date (Date format), one registry: its name in Settings. */
+/**
+ * Which comes first in a date (Date format), one registry: its name in Settings is a date written that way, the month
+ * in words as `words.ts` writes every date, and a day past 12 so neither reads as the other.
+ */
 export const DateFormat = z.enum(["dayMonth", "monthDay"]);
 export type DateFormat = z.infer<typeof DateFormat>;
-export const DATE_FORMATS: Record<DateFormat, string> = { dayMonth: "Day month", monthDay: "Month day" };
+export const DATE_FORMATS: Record<DateFormat, string> = { dayMonth: "31 Dec", monthDay: "Dec 31" };
 
 /** The longest User instructions can be, in characters: a few lines of steering, sent with every send. */
 export const AI_INSTRUCTIONS_MAX = 2_000;
