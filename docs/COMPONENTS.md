@@ -176,7 +176,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | srs | `srs.ts` | SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). |
 | srsStarters | `srsStarters.ts` | The SRS types that come with the app, and a new type as a copy of another (`makeStarter`, `SRS_STARTER_IDS`, `copySrsType`, `emptySrsType`). |
 | stageColour | `stageColour.ts` | A stage's colour for the app, the API and the extension alike: its own, else the ramp's; Burned's; New's (`stageColourAt`, `placeColour`, `STAGE_RAMP`). |
-| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`, `goalRuleWords`). |
+| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords`, `goalRuleWords`). |
 | subtitleStyle | `subtitleStyle.ts` | How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). |
 | touchUp | `touchUp.ts` | Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). |
 | transcription | `transcription.ts` | A video transcribed, as shapes: engines, settings, modes, chunks, the transcript, a line fixed (`ENGINES`, `Transcription`, `TRANSCRIBE_MODES`, `Transcript`). |

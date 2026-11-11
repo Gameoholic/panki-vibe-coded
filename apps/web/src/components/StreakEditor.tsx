@@ -1,6 +1,6 @@
 /** @panki One streak's settings: name, Streak type, Count from, Conditions (`goals` in code) joined by and / or, in Settings and on its tile alike (`StreakEditor`). */
 import { Fragment, useRef, useState } from "react";
-import { GOAL_KINDS, GOALS_MAX, STREAK_NAME_MAX, STREAK_PERIODS, STREAK_PER_IDS, goalKindsFor, groupsSwitchedTo, type Goal, type GoalKind, type StreakRule } from "@panki/contracts";
+import { GOAL_KINDS, GOALS_MAX, STREAK_NAME_MAX, STREAK_PERIODS, STREAK_PER_IDS, goalInMinutes, goalKindsFor, goalMax, groupsSwitchedTo, type Goal, type GoalKind, type StreakPer, type StreakRule } from "@panki/contracts";
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { Dropdown } from "./Dropdown";
@@ -56,12 +56,49 @@ function Joint({ id, or, disabled, onFlip }: { id: string; or: boolean; disabled
   );
 }
 
+/** The minutes a half hour holds: hours are entered by the half. */
+const HALF_HOUR = 30;
+
 /**
- * One goal as a row of the goals' grid: its kind, its number with − and + and its unit (none for a kind without one,
- * the cell left empty so Delete stays in its column), and Delete asking first; the kind's one line under it where it
- * has one.
+ * A time goal's number, entered in minutes or hours (a `Segmented` beside the number): whole minutes, or hours by the
+ * half ("1.5 h", "2.5 h"), kept as whole minutes either way, so 1.5 h is 90. The unit the row opens in follows the
+ * value (an hour or more that sits on a half hour reads as hours); the pick then stands while the row is open and
+ * nothing of it is kept. Switching to hours brings the minutes to the nearest half hour, half an hour at the least.
  */
-function GoalRow({ idPrefix, goal, offered, used, only, disabled, anchored, onChange, onRemove }: { idPrefix: string; goal: Goal; offered: readonly GoalKind[]; used: readonly GoalKind[]; only: boolean; disabled: boolean; anchored: boolean; onChange: (goal: Goal) => void; onRemove: () => void }) {
+function TimeAmount({ idPrefix, label, minutes, max, disabled, onChange }: { idPrefix: string; label: string; minutes: number; max: number; disabled: boolean; onChange: (minutes: number) => void }) {
+  const [unit, setUnit] = useState<"min" | "h">(minutes >= 60 && minutes % HALF_HOUR === 0 ? "h" : "min");
+  const toHalfHours = (n: number) => Math.min(max, Math.max(HALF_HOUR, Math.round(n / HALF_HOUR) * HALF_HOUR));
+  return (
+    <div className="goal-amount">
+      {unit === "h" ? (
+        <NumberField id={`${idPrefix}-n`} label={`${label}, hours`} value={minutes / 60} min={HALF_HOUR / 60} max={max / 60} step={0.5} disabled={disabled} onChange={(h) => onChange(toHalfHours(h * 60))} />
+      ) : (
+        <NumberField id={`${idPrefix}-n`} label={`${label}, minutes`} value={minutes} min={1} max={max} disabled={disabled} onChange={onChange} />
+      )}
+      <Segmented
+        idPrefix={`${idPrefix}-unit`}
+        label="Unit"
+        options={[
+          { id: "min", label: "min" },
+          { id: "h", label: "h" },
+        ]}
+        value={unit}
+        disabled={disabled}
+        onChange={(next) => {
+          setUnit(next);
+          if (next === "h" && minutes !== toHalfHours(minutes)) onChange(toHalfHours(minutes));
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * One goal as a row of the goals' grid: its kind, its number with − and + (a time goal's in min or h, `TimeAmount`;
+ * none for a kind without one, the cell left empty so Delete stays in its column), and Delete asking first; the kind's
+ * one line under it where it has one. The most a number takes is its kind's for the streak's type (`goalMax`).
+ */
+function GoalRow({ idPrefix, goal, per, offered, used, only, disabled, anchored, onChange, onRemove }: { idPrefix: string; goal: Goal; per: StreakPer; offered: readonly GoalKind[]; used: readonly GoalKind[]; only: boolean; disabled: boolean; anchored: boolean; onChange: (goal: Goal) => void; onRemove: () => void }) {
   const kind = GOAL_KINDS[goal.kind];
   const [asking, setAsking] = useState(false);
   const removeAt = useRef<HTMLButtonElement>(null);
@@ -78,8 +115,10 @@ function GoalRow({ idPrefix, goal, offered, used, only, disabled, anchored, onCh
           value={goal.kind}
           onChange={(next) => onChange({ kind: next, n: GOAL_KINDS[next].start })}
         />
-        {kind.numbered ? (
-          <NumberField id={`${idPrefix}-n`} label={kind.name} value={goal.n} min={1} max={kind.max} {...(kind.suffix ? { suffix: kind.suffix } : {})} disabled={disabled} onChange={(n) => onChange({ ...goal, n })} />
+        {kind.numbered && goalInMinutes(goal.kind) ? (
+          <TimeAmount idPrefix={idPrefix} label={kind.name} minutes={goal.n} max={goalMax(goal.kind, per)} disabled={disabled} onChange={(n) => onChange({ ...goal, n })} />
+        ) : kind.numbered ? (
+          <NumberField id={`${idPrefix}-n`} label={kind.name} value={goal.n} min={1} max={goalMax(goal.kind, per)} disabled={disabled} onChange={(n) => onChange({ ...goal, n })} />
         ) : null}
         <Button
           ref={removeAt}
@@ -175,6 +214,7 @@ export function StreakEditor({ idPrefix, streak, onChange, disabled = false, anc
                 <GoalRow
                   idPrefix={`${idPrefix}-goal-${gi}-${ci}`}
                   goal={goal}
+                  per={streak.per}
                   offered={offered}
                   used={group.map((g) => g.kind)}
                   only={total === 1}

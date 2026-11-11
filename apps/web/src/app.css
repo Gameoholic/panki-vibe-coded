@@ -4407,8 +4407,17 @@ mark.sub-blur {
   align-items: stretch;
   justify-self: start;
 }
-.goal-row .numfield-suffix {
-  align-self: center;
+/* A time goal's number with its unit, min / h, side by side in the number's cell. */
+.goal-row > .goal-amount {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  justify-self: start;
+}
+.goal-amount > .numfield {
+  align-items: stretch;
 }
 .goal-row > .goal-remove {
   grid-column: 3;
@@ -4465,7 +4474,8 @@ mark.sub-blur {
   .goal-row > .dropdown {
     min-width: 0;
   }
-  .goal-row > .numfield {
+  .goal-row > .numfield,
+  .goal-row > .goal-amount {
     grid-column: 1;
     grid-row: 2;
   }

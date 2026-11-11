@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GOAL_KINDS, type StreakRule } from "@panki/contracts";
+import { GOAL_KINDS, StreakRule as StreakRuleSchema, goalMax, goalRuleWords, goalSaysWords, groupsSwitchedTo, minutesWords, streakLeftWords, type StreakRule } from "@panki/contracts";
 import { dayTalliesOf, streakStatesOf, type TallyInput } from "../src/streaks";
 
 /*
@@ -81,4 +81,31 @@ test("the kind is a count that reviewing doesn't help, offered to daily and week
   assert.equal(kind.numbered, true);
   assert.equal(kind.byReviewing, false);
   assert.deepEqual([...kind.fits], ["day", "week"]);
+});
+
+test("a time goal is written in minutes under an hour and in hours from an hour up, to one decimal where it isn't whole", () => {
+  assert.equal(minutesWords(45), "45 min");
+  assert.equal(minutesWords(60), "1 h");
+  assert.equal(minutesWords(90), "1.5 h");
+  assert.equal(minutesWords(73), "1.2 h");
+  assert.equal(minutesWords(600), "10 h");
+  assert.equal(goalRuleWords("watching", 600), "Time watching ≥ 10 h");
+  assert.equal(goalRuleWords("reviewing", 15), "Time studying ≥ 15 min");
+  assert.equal(goalSaysWords("watching", 12, 90), "12 min / 1.5 h");
+  assert.equal(goalSaysWords("reviews", 37, 50), "37 / 50");
+  assert.equal(streakLeftWords([{ kind: "watching", have: 30, need: 120 }, { kind: "reviews", have: 8, need: 20 }]), "1.5 h watching and 12 reviews");
+});
+
+test("a time goal asks at most its period's minutes, a day's or a week's, and a switch of type brings it down to fit", () => {
+  assert.equal(goalMax("watching", "day"), 24 * 60);
+  assert.equal(goalMax("reviewing", "week"), 7 * 24 * 60);
+  assert.equal(goalMax("reviews", "week"), 999);
+  const streak = (per: StreakRule["per"], n: number) => ({ id: "s", name: "", per, countFrom: "all", groups: [[{ kind: "watching", n }]] });
+  assert.ok(StreakRuleSchema.safeParse(streak("week", 7 * 24 * 60)).success);
+  assert.ok(StreakRuleSchema.safeParse(streak("day", 24 * 60)).success);
+  const over = StreakRuleSchema.safeParse(streak("day", 24 * 60 + 1));
+  assert.ok(!over.success);
+  // Counts are grouped the device's way, as every count on screen is.
+  assert.equal(over.error?.issues[0]?.message, `Expected ${(1440).toLocaleString()} min at most. Got ${(1441).toLocaleString()} min.`);
+  assert.deepEqual(groupsSwitchedTo("day", [[{ kind: "watching", n: 3000 }]]), [[{ kind: "watching", n: 24 * 60 }]]);
 });

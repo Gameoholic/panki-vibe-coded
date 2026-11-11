@@ -1,4 +1,4 @@
-/** @panki Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`, `goalRuleWords`). */
+/** @panki Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords`, `goalRuleWords`). */
 import { z } from "zod";
 
 /**
@@ -68,6 +68,24 @@ export type GoalKind = z.infer<typeof GoalKind>;
 /** What's left of a goal, said: a count of things (one and many), minutes of something, or a thing done once. */
 type LeftWords = { kind: "count"; one: string; many: string } | { kind: "minutes"; doing: string } | { kind: "once"; words: string };
 
+/** The minutes in a day and in a week: the most a time goal can ask of its period, since a period holds no more. */
+const MINUTES_A_DAY = 24 * 60;
+const TIME_MAX: Record<StreakPer, number> = { day: MINUTES_A_DAY, week: 7 * MINUTES_A_DAY };
+const COUNT_MAX: Record<StreakPer, number> = { day: 999, week: 999 };
+/** The largest number any goal takes (a week's minutes): the schema's ceiling, each kind's own checked against its period. */
+export const GOAL_N_MAX = TIME_MAX.week;
+
+/**
+ * Whole minutes as a length of time, the one way every time goal is written (its rule, how far it is, what's left):
+ * under an hour in minutes ("45 min"), from an hour up in hours to one decimal where it isn't whole ("1 h", "1.5 h",
+ * "1.2 h", "10 h"; a point, the one way the owner writes it, whatever the device's locale: the hours never reach a
+ * thousand). Nothing is rounded but the display.
+ */
+export function minutesWords(minutes: number): string {
+  if (minutes < 60) return `${minutes.toLocaleString()} min`;
+  return `${String(Math.round(minutes / 6) / 10)} h`;
+}
+
 export type GoalKindEntry = {
   /** Its name on screen: in a goal's row, on a tile. */
   name: string;
@@ -75,12 +93,10 @@ export type GoalKindEntry = {
   fact: keyof PeriodFacts;
   /** Whether it takes a number; one that doesn't is met by its fact being 1. */
   numbered: boolean;
-  /** The unit after its number in a goal's row, when it has one. */
-  suffix: string;
   /** Whether a review gets it done: YouTube's reminder offers Review only while such a goal is left. */
   byReviewing: boolean;
-  /** The highest number it takes. */
-  max: number;
+  /** The highest number it takes, for each streak type: a time goal at most its period's minutes, a count 999. */
+  max: Record<StreakPer, number>;
   /** The number a goal of it starts at when it's added. */
   start: number;
   left: LeftWords;
@@ -92,20 +108,28 @@ export type GoalKindEntry = {
 
 /** Every kind of goal, one registry: what it counts, its unit, its words, the streak types it fits. */
 export const GOAL_KINDS: Record<GoalKind, GoalKindEntry> = {
-  reviews: { name: "Reviews", fact: "reviews", numbered: true, suffix: "", byReviewing: true, max: 999, start: 20, left: { kind: "count", one: "review", many: "reviews" }, fits: STREAK_PER_IDS },
-  new: { name: "New cards", fact: "started", numbered: true, suffix: "", byReviewing: true, max: 999, start: 5, left: { kind: "count", one: "new card", many: "new cards" }, fits: STREAK_PER_IDS },
-  // Time on reviews and new cards alike, so it's "studying" on screen; the id stays `reviewing`, as streaks keep it.
-  reviewing: { name: "Time studying", fact: "reviewMinutes", numbered: true, suffix: "min", byReviewing: true, max: 600, start: 15, left: { kind: "minutes", doing: "studying" }, fits: STREAK_PER_IDS },
-  watching: { name: "Time watching", fact: "watchMinutes", numbered: true, suffix: "min", byReviewing: false, max: 600, start: 30, left: { kind: "minutes", doing: "watching" }, fits: STREAK_PER_IDS },
+  reviews: { name: "Reviews", fact: "reviews", numbered: true, byReviewing: true, max: COUNT_MAX, start: 20, left: { kind: "count", one: "review", many: "reviews" }, fits: STREAK_PER_IDS },
+  new: { name: "New cards", fact: "started", numbered: true, byReviewing: true, max: COUNT_MAX, start: 5, left: { kind: "count", one: "new card", many: "new cards" }, fits: STREAK_PER_IDS },
+  // Time on reviews and new cards alike, so it's "studying" on screen; the id stays `reviewing`, as streaks keep it. A
+  // time goal's number is whole minutes however it's written or entered (`minutesWords`; the editor takes min or h).
+  reviewing: { name: "Time studying", fact: "reviewMinutes", numbered: true, byReviewing: true, max: TIME_MAX, start: 15, left: { kind: "minutes", doing: "studying" }, fits: STREAK_PER_IDS },
+  watching: { name: "Time watching", fact: "watchMinutes", numbered: true, byReviewing: false, max: TIME_MAX, start: 30, left: { kind: "minutes", doing: "watching" }, fits: STREAK_PER_IDS },
   // Cards made, not started (that's New cards): each on the day it was made, kept for that day once deleted, as Added
   // counts them, since a past day is replayed from the history and a deletion today must never break it.
-  added: { name: "Cards added", fact: "added", numbered: true, suffix: "", byReviewing: false, max: 999, start: 5, left: { kind: "count", one: "card to add", many: "cards to add" }, fits: STREAK_PER_IDS, why: "Cards made in the day or week, in any deck, typed or from a video." },
+  added: { name: "Cards added", fact: "added", numbered: true, byReviewing: false, max: COUNT_MAX, start: 5, left: { kind: "count", one: "card to add", many: "cards to add" }, fits: STREAK_PER_IDS, why: "Cards made in the day or week, in any deck, typed or from a video." },
   // Nothing left due is a moment of a day: over a week it would ask only that it happened once.
-  cleared: { name: "All reviews done", fact: "cleared", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all reviews" }, fits: ["day"], why: "Reviewed every due card at some point in the day." },
+  cleared: { name: "All reviews done", fact: "cleared", numbered: false, byReviewing: true, max: { day: 1, week: 1 }, start: 1, left: { kind: "once", words: "all reviews" }, fits: ["day"], why: "Reviewed every due card at some point in the day." },
   // Every deck has a New cards a day (0 to 999), so this carries no number of its own: a deck at 0 needs nothing. A new
   // card is learned once started and its review finished, not left asking again: Forgot on every one isn't done.
-  newDone: { name: "All new cards done", fact: "newDone", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all new cards" }, fits: ["day"], why: "Learned every new card up to each deck's New cards a day at some point in the day: each started and its review finished, not just answered." },
+  newDone: { name: "All new cards done", fact: "newDone", numbered: false, byReviewing: true, max: { day: 1, week: 1 }, start: 1, left: { kind: "once", words: "all new cards" }, fits: ["day"], why: "Learned every new card up to each deck's New cards a day at some point in the day: each started and its review finished, not just answered." },
 };
+
+/** Whether a kind's number is minutes of something, written by `minutesWords` and entered in min or h. */
+export const goalInMinutes = (kind: GoalKind): boolean => GOAL_KINDS[kind].left.kind === "minutes";
+/** The most a goal of a kind takes on a streak of a type. */
+export const goalMax = (kind: GoalKind, per: StreakPer): number => GOAL_KINDS[kind].max[per];
+/** A goal's number as it's written: a count as is, minutes as `minutesWords` has them. */
+const goalAmountWords = (kind: GoalKind, n: number): string => (goalInMinutes(kind) ? minutesWords(n) : n.toLocaleString());
 
 /** Whether a kind of goal fits a streak type. */
 export const goalFits = (kind: GoalKind, per: StreakPer): boolean => GOAL_KINDS[kind].fits.includes(per);
@@ -113,12 +137,14 @@ export const goalFits = (kind: GoalKind, per: StreakPer): boolean => GOAL_KINDS[
 export const goalKindsFor = (per: StreakPer): GoalKind[] => GOAL_KIND_IDS.filter((kind) => goalFits(kind, per));
 
 /**
- * A streak's groups once it's switched to a type: in each group the goals that fit, kept as they are; a group left
- * empty goes; when none is left, one group of the first kind that fits at its starting number, since a streak keeps
- * one goal at least.
+ * A streak's groups once it's switched to a type: in each group the goals that fit, kept as they are (one over the
+ * type's most brought down to it: a week's hours don't fit a day); a group left empty goes; when none is left, one
+ * group of the first kind that fits at its starting number, since a streak keeps one goal at least.
  */
 export function groupsSwitchedTo(per: StreakPer, groups: readonly (readonly Goal[])[]): Goal[][] {
-  const kept = groups.map((group) => group.filter((g) => goalFits(g.kind, per))).filter((group) => group.length > 0);
+  const kept = groups
+    .map((group) => group.filter((g) => goalFits(g.kind, per)).map((g) => (g.n > goalMax(g.kind, per) ? { ...g, n: goalMax(g.kind, per) } : g)))
+    .filter((group) => group.length > 0);
   if (kept.length > 0) return kept;
   const first = goalKindsFor(per)[0] ?? "reviews";
   return [[{ kind: first, n: GOAL_KINDS[first].start }]];
@@ -130,7 +156,8 @@ export const GOALS_MAX = 10;
 export const STREAKS_MAX = 10;
 export const STREAK_NAME_MAX = 40;
 
-export const Goal = z.object({ kind: GoalKind, n: z.number().int().min(1).max(999) });
+/** A goal: its kind and its number, a count or whole minutes (`goalInMinutes`), each kind's own most checked on the streak (`goalMax`). */
+export const Goal = z.object({ kind: GoalKind, n: z.number().int().min(1).max(GOAL_N_MAX) });
 export type Goal = z.infer<typeof Goal>;
 
 /** A streak's id: minted by the browser as it's added, never shown. */
@@ -174,7 +201,9 @@ export const StreakRule = z.preprocess(
       if (streak.groups.flat().length > GOALS_MAX) ctx.addIssue({ code: "custom", message: `Expected ${GOALS_MAX} conditions at most. Got ${streak.groups.flat().length}.`, path: ["groups"] });
       streak.groups.forEach((group, i) =>
         group.forEach((g, j) => {
-          if (g.n > GOAL_KINDS[g.kind].max) ctx.addIssue({ code: "custom", message: `Expected ${GOAL_KINDS[g.kind].max} at most. Got ${g.n}.`, path: ["groups", i, j, "n"] });
+          // In whole minutes, as the number is kept, so a minute over the most reads as one.
+          const unit = goalInMinutes(g.kind) ? " min" : "";
+          if (g.n > goalMax(g.kind, streak.per)) ctx.addIssue({ code: "custom", message: `Expected ${goalMax(g.kind, streak.per).toLocaleString()}${unit} at most. Got ${g.n.toLocaleString()}${unit}.`, path: ["groups", i, j, "n"] });
         }),
       );
     }),
@@ -212,24 +241,23 @@ export const goalMet = (goal: Goal, facts: PeriodFacts): boolean => goalHave(goa
 /** A streak's name as it's shown: its own, or "New streak" while it has none. */
 export const streakNameOf = (streak: { name: string }): string => streak.name.trim() || "New streak";
 
-/** What's left of a goal in words: "12 reviews", "10 min studying", "all reviews". `left` is the need less the have. */
+/** What's left of a goal in words: "12 reviews", "10 min studying", "1.5 h watching", "all reviews". `left` is the need less the have. */
 export function goalLeftWords(kind: GoalKind, left: number): string {
   const words = GOAL_KINDS[kind].left;
   if (words.kind === "count") return `${left.toLocaleString()} ${left === 1 ? words.one : words.many}`;
-  if (words.kind === "minutes") return `${left.toLocaleString()} min ${words.doing}`;
+  if (words.kind === "minutes") return `${minutesWords(left)} ${words.doing}`;
   return words.words;
 }
 
-/** A goal as its rule, in words: "Reviews ≥ 20", "Time studying ≥ 15 min", "All reviews done" (`need` is `goalNeed`'s). */
+/** A goal as its rule, in words: "Reviews ≥ 20", "Time studying ≥ 15 min", "Time watching ≥ 1.5 h", "All reviews done" (`need` is `goalNeed`'s). */
 export function goalRuleWords(kind: GoalKind, need: number): string {
   const entry = GOAL_KINDS[kind];
-  return entry.numbered ? `${entry.name} ≥ ${need.toLocaleString()}${entry.suffix ? ` ${entry.suffix}` : ""}` : entry.name;
+  return entry.numbered ? `${entry.name} ≥ ${goalAmountWords(kind, need)}` : entry.name;
 }
 
-/** How far a counted goal is in its period: "37 / 50", "12 / 15 min". One without a count is shown by its mark alone. */
+/** How far a counted goal is in its period: "37 / 50", "12 min / 1.5 h". One without a count is shown by its mark alone. */
 export function goalSaysWords(kind: GoalKind, have: number, need: number): string {
-  const entry = GOAL_KINDS[kind];
-  return `${have.toLocaleString()} / ${need.toLocaleString()}${entry.suffix ? ` ${entry.suffix}` : ""}`;
+  return `${goalAmountWords(kind, have)} / ${goalAmountWords(kind, need)}`;
 }
 
 /** A goal over the period going on: what it holds so far and what it needs (`StreakState.groups`). */
