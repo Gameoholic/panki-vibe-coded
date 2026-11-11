@@ -3005,12 +3005,15 @@ canvas.media-frame {
 .review-count.is-now {
   border-bottom-color: var(--count);
 }
-/* About how long the review has left (`TimeLeft`): words on the counts' line, pressed for the finish time. */
-.time-left {
+/* About how long the review has left (`TimeLeft`) and how long it's gone on (`TimeStudying`): words on the counts'
+   line, pointed at or pressed for the time on the clock, the finish or the start. One look for both. */
+.time-left,
+.time-studying {
   position: relative;
   display: inline-flex;
 }
-.btn.time-left-words {
+.btn.time-left-words,
+.btn.time-studying-words {
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -3020,7 +3023,8 @@ canvas.media-frame {
   font-variant-numeric: tabular-nums;
 }
 @media (hover: hover) {
-  .btn.time-left-words:hover {
+  .btn.time-left-words:hover,
+  .btn.time-studying-words:hover {
     background: none;
     color: var(--fg);
   }
