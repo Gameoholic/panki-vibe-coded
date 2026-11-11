@@ -7,7 +7,7 @@ const TICK_MS = 1000;
 
 /**
  * "12 min studying" after a review's counts: the time since its session started (`from`, on the clock), to the whole
- * minute down, "under 1 min" before the first; it ticks while the screen is open, and a new session starts it afresh.
+ * minute down, "<1 min" before the first; it ticks while the screen is open, and a new session starts it afresh.
  */
 export function TimeStudying({ from }: { from: number }) {
   const [now, setNow] = useState(() => Date.now());
@@ -17,5 +17,5 @@ export function TimeStudying({ from }: { from: number }) {
     return () => window.clearInterval(tick);
   }, [from]);
   const minutes = Math.floor(Math.max(0, now - from) / 60_000);
-  return <span className="time-studying">{minutes === 0 ? "under 1 min studying" : `${durationWords(minutes * 60)} studying`}</span>;
+  return <span className="time-studying">{minutes === 0 ? "<1 min studying" : `${durationWords(minutes * 60)} studying`}</span>;
 }

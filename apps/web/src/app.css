@@ -4860,9 +4860,13 @@ mark.sub-blur {
 }
 
 /* The review session: the place on the card, the answers under it, and the end. */
+/* The counts, the time left and the time studying side by side from the left, the tools pushed to the right by their
+   own `margin-left: auto`: spread apart, the words drifted to the middle of a wide screen. */
 .review-top {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px 16px;
   align-items: center;
   font-size: 13px;
   font-weight: 600;
@@ -6753,6 +6757,10 @@ mark.sub-blur {
   line-height: 1.35;
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 8px));
+}
+/* Under its point instead (`Tip`'s `below`): for what stands at the top of a screen, where above is off it. */
+.tip.is-below {
+  transform: translate(-50%, 8px);
 }
 @media (hover: none) {
   .tip {

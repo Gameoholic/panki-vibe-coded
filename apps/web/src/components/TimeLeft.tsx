@@ -13,11 +13,12 @@ export const timeWords = (ms: number) => `~${durationWords(Math.max(60, ms / 100
  * The clock is read as it's asked for, so the time stays true however long the review has stood.
  */
 export function TimeLeft({ ms }: { ms: number }) {
-  // When it was pointed at, and the middle of the words, where the hint's arrow points.
-  const [over, setOver] = useState<{ at: number; x: number } | null>(null);
+  // When it was pointed at, and the middle of the words' foot, where the hint points: under them, since they stand at
+  // the top of the review, where a hint over them is cut off (full screen).
+  const [over, setOver] = useState<{ at: number; x: number; y: number } | null>(null);
   const [doneAt, setDoneAt] = useState<number | null>(null);
   const done = (from: number) => `Done by ${hourWords(from + ms)}`;
-  const point = (e: { currentTarget: HTMLElement }) => setOver({ at: Date.now(), x: e.currentTarget.offsetWidth / 2 });
+  const point = (e: { currentTarget: HTMLElement }) => setOver({ at: Date.now(), x: e.currentTarget.offsetWidth / 2, y: e.currentTarget.offsetHeight });
   return (
     <span className="time-left">
       <Button
@@ -32,7 +33,7 @@ export function TimeLeft({ ms }: { ms: number }) {
         {doneAt === null ? `${timeWords(ms)} left` : done(doneAt)}
       </Button>
       {over !== null && doneAt === null ? (
-        <Tip x={over.x} y={0}>
+        <Tip x={over.x} y={over.y} below>
           {done(over.at)}
         </Tip>
       ) : null}
