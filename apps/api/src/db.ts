@@ -1152,16 +1152,10 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.prepare("UPDATE settings SET value = ? WHERE key = 'streaks'").run(next);
     db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('streaks', ?, ?, ?)").run(row.value, next, now);
   },
-  (db, now) => {
-    // 55. The week became each account's own (`weekEndsOn`), ending on Sunday to begin with. Every account from before
-    // had a week ending on Saturday: it keeps Saturday, said once as a setting of its own with its change row, so no
-    // week of its moves. A new account (nothing of its own yet: no deck, no event, no setting, nothing watched) starts
-    // on Sunday like the contracts say.
-    const has = (table: string) => (db.prepare(`SELECT EXISTS (SELECT 1 FROM ${table}) AS yes`).get() as { yes: number }).yes === 1;
-    const chosen = db.prepare("SELECT 1 FROM settings WHERE key = 'weekEndsOn'").get() !== undefined;
-    if (chosen || !["decks", "events", "settings", "watch_stretches"].some(has)) return;
-    db.prepare("INSERT INTO settings (key, value) VALUES ('weekEndsOn', ?)").run(JSON.stringify("sat"));
-    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('weekEndsOn', ?, ?, ?)").run(JSON.stringify(null), JSON.stringify("sat"), now);
+  () => {
+    // 55. Nothing: every account reads the contracts' default week, ending on Sunday, until it's changed in Settings.
+    // A database that ran this step before it did nothing may hold `weekEndsOn` "sat" for an account that had data of
+    // its own, with its change row; it's read like any setting chosen. The step stays so every later one keeps its number.
   },
 ];
 

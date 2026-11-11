@@ -32,7 +32,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 **Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
 - 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored; a new card done once learned, its review finished), counting per day or per week; the reminder on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Runtime watched.
 - 2026-11-12: the Cards added condition, the cards made in the day or week, a deleted one still counting (`EXTENSION_PROTOCOL` 11; `STREAKS.md` → Round 16).
-- 2026-11-12: Week ends on, every week in Panki following it, the owner's account kept on Saturday by migration 55 (`STREAKS.md` → Round 17; `architecture/data-model.md` → The week).
+- 2026-11-12: Week ends on, every week in Panki following it, Sunday for every account until it's changed (`STREAKS.md` → Round 17; `architecture/data-model.md` → The week).
 
 **The extension** (`architecture/extension.md`)
 - 2026-10-11: the capture drawer; the line under the player; the YouTube metadata field; Field mapping and Media.

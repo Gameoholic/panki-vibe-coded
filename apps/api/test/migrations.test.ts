@@ -187,26 +187,17 @@ function at54(settings: Record<string, unknown> = {}): DatabaseSync {
 }
 const weekEndsOnOf = (db: DatabaseSync) => (db.prepare("SELECT value FROM settings WHERE key = 'weekEndsOn'").get() as { value: string } | undefined)?.value;
 
-test("55 keeps Saturday for an account from before, with its change row, whatever it has of its own", () => {
-  const withSetting = at54({ timeZone: "Asia/Jerusalem" });
-  const withDeck = at54();
-  insert(withDeck, "decks", {});
-  for (const db of [withSetting, withDeck]) {
+test("55 writes nothing: an account with data of its own, a new one and one that chose a week all read as they are", () => {
+  const withData = at54({ timeZone: "Asia/Jerusalem" });
+  insert(withData, "decks", {});
+  const fresh = at54();
+  const chosen = at54({ weekEndsOn: "fri" });
+  for (const db of [withData, fresh, chosen]) {
     migrate(db, NOW);
     assert.equal(version(db), 55);
-    assert.equal(weekEndsOnOf(db), JSON.stringify("sat"));
-    const logged = all(db, "SELECT key, from_value AS fromValue, to_value AS toValue, at FROM settings_changes WHERE key = 'weekEndsOn'").map((r) => ({ ...r }));
-    assert.deepEqual(logged, [{ key: "weekEndsOn", fromValue: "null", toValue: JSON.stringify("sat"), at: NOW }]);
+    assert.deepEqual(all(db, "SELECT 1 FROM settings_changes WHERE key = 'weekEndsOn'"), []);
   }
-});
-
-test("55 leaves a new account on the default and a week already chosen as it is", () => {
-  const fresh = at54();
-  migrate(fresh, NOW);
-  assert.equal(version(fresh), 55);
+  assert.equal(weekEndsOnOf(withData), undefined);
   assert.equal(weekEndsOnOf(fresh), undefined);
-  const chosen = at54({ weekEndsOn: "fri" });
-  migrate(chosen, NOW);
   assert.equal(weekEndsOnOf(chosen), JSON.stringify("fri"));
-  assert.deepEqual(all(chosen, "SELECT 1 FROM settings_changes WHERE key = 'weekEndsOn'"), []);
 });

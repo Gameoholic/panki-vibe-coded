@@ -442,8 +442,8 @@ export const Settings = z.object({
   /**
    * **Week ends on** (Settings → General → Display): the last day of the account's week, which ends when that day does,
    * at `dayStartHour` the day after. Every week reads it (`week.ts`): weekly streaks, the stats' weeks, every map and row
-   * of weeks; read on every read, so a change moves past weeks too. Sunday to begin with; an account from before keeps
-   * Saturday, the week every account had until then (migration 55).
+   * of weeks; read on every read, so a change moves past weeks too. Sunday to begin with, an account without the key
+   * included, though every week ended on Saturday before the key: no migration.
    */
   weekEndsOn: WeekDay,
   /**
