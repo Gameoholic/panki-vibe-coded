@@ -1,4 +1,4 @@
-/** @panki Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`). */
+/** @panki Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`, `goalRuleWords`). */
 import { z } from "zod";
 
 /**
@@ -214,6 +214,12 @@ export function goalLeftWords(kind: GoalKind, left: number): string {
   return words.words;
 }
 
+/** A goal as its rule, in words: "Reviews ≥ 20", "Time studying ≥ 15 min", "All reviews done" (`need` is `goalNeed`'s). */
+export function goalRuleWords(kind: GoalKind, need: number): string {
+  const entry = GOAL_KINDS[kind];
+  return entry.numbered ? `${entry.name} ≥ ${need.toLocaleString()}${entry.suffix ? ` ${entry.suffix}` : ""}` : entry.name;
+}
+
 /** How far a counted goal is in its period: "37 / 50", "12 / 15 min". One without a count is shown by its mark alone. */
 export function goalSaysWords(kind: GoalKind, have: number, need: number): string {
   const entry = GOAL_KINDS[kind];
@@ -222,7 +228,7 @@ export function goalSaysWords(kind: GoalKind, have: number, need: number): strin
 
 /** A goal over the period going on: what it holds so far and what it needs (`StreakState.groups`). */
 type GoalProgress = { kind: GoalKind; have: number; need: number };
-/** The group the Streak status tile and the reminder speak of: the one nearest to being met, which a streak's state puts first. */
+/** The group YouTube's reminder speaks of: the one nearest to being met, which a streak's state puts first. */
 export const nearestGroup = (streak: { groups: readonly (readonly GoalProgress[])[] }): readonly GoalProgress[] => streak.groups[0] ?? [];
 /** Whether a review would help a streak now: a goal of its nearest group not met yet that reviewing gets done (`byReviewing`). */
 export const reviewHelps = (streak: { groups: readonly (readonly GoalProgress[])[] }): boolean => nearestGroup(streak).some((g) => g.have < g.need && GOAL_KINDS[g.kind].byReviewing);

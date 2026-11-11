@@ -7608,9 +7608,69 @@ mark.sub-blur {
   height: 1px;
   background: var(--line);
 }
-/* Streak status (widgets.tsx → `StatusRows`): a row per streak, tinted whole, green once its period counts and red until
-   then, as a check that passed or hasn't yet; its mark a filled round badge, its name and its run on one line, what's
-   left and the time left under them. */
+/* Status (widgets.tsx): today's facts as a grid of small label-over-value cells (`TodayFacts`), then the streaks
+   (`StatusRows`): a row per streak, tinted whole, green once its period counts and red until then, as a build that
+   passed or hasn't yet; its mark a filled round badge, its name and its run on one line, that it counts or the time
+   left under them, then each condition with its own mark, as a build's checks. */
+.w-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+.w-fact {
+  min-width: 0;
+}
+.w-fact dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.w-fact dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.w-status-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.w-checks {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: 3px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.w-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.w-check-mark {
+  display: inline-flex;
+  flex: none;
+}
+.w-check-mark .icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}
+.w-check.is-met .w-check-mark {
+  color: var(--good);
+}
+.w-check.is-unmet .w-check-mark {
+  color: var(--danger);
+}
 .w-status {
   display: grid;
   gap: 6px;
@@ -8004,6 +8064,10 @@ mark.sub-blur {
   }
   .w-more {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* Status's facts two to a row. */
+  .w-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   /* A streak's name over its field, as a field stands on a phone. */
   .streak-name .field {

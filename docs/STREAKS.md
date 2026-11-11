@@ -186,7 +186,13 @@ Later: notifications on a phone; anything about other people.
 
 ## Round 11 (the owner, 2026-11-11: "a separate tab next to Stats … just for Streaks")
 
-- **Streaks is a place of its own in the bar**, beside Home, Settings and Stats, the flame its icon, on the phone's bottom bar too (`/streaks`; `/stats/streaks` lands there). It holds what Stats → Streaks held: Streaks On / Off at its head, Streak status, every streak's tile, the dashed New streak tile. Why: a tab inside Stats took half of Stats' own switch for something that isn't a stat. **Stats is Stats alone again**, no Overview / Streaks split.
+- **Streaks is a place of its own in the bar**, beside Home, Settings and Stats, the flame its icon, on the phone's bottom bar too (`/streaks`; `/stats/streaks` lands there). It holds what Stats → Streaks held: Streaks On / Off at its head, Status, every streak's tile, the dashed New streak tile. Why: a tab inside Stats took half of Stats' own switch for something that isn't a stat. **Stats is Stats alone again**, no Overview / Streaks split.
+
+## Round 12 (the owner, 2026-11-11: "it should be a 'Status' … say the literal condition, like the git CI")
+
+- **Streak status → Status** (the id stays `status`): above the streaks, today's facts read from the data, every deck's: Reviews, New cards against the day's limit, **Extra study** (answers given in sessions started as extra study, reviews and new cards apart: `Stats.extraToday`, from each answer's session's `kind`, nothing new kept), Time studying, Time watching, Cards added.
+- **Each condition in its own words with its own mark**, under its streak ("Reviews ≥ 20", "All reviews done": `goalRuleWords`, the one home of a condition's words), groups apart with "or"; the what's-left line goes ("all reviews to go"), the time left stays.
+- Claude's calls: with Streaks off, Status stays with today's facts alone (no longer taken off the home); the figure "2 of 3 counted" becomes the streaks' heading line; Right and misses left out of today's facts, being how it went rather than what was done.
 
 ## Open
 

@@ -1070,7 +1070,7 @@ export function App() {
         // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
         return <Board stats={null} ctx={null} />;
       case "streaks":
-        // Its switch's row over Streak status and the streaks' tiles, as many as this device last drew, and the new one's.
+        // Its switch's row over Status and the streaks' tiles, as many as this device last drew, and the new one's.
         return (
           <>
             <StreaksHead />

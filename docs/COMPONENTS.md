@@ -133,7 +133,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | themes | `themes.ts` | The themes, the only place one is listed (`THEMES`, `ThemeId`), and this device's choice read, kept and applied (`readTheme`, `writeTheme`, `applyTheme`). |
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
-| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); every streak green or red on Streak status. |
+| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); Status, today and every streak's checks. |
 | words | `words.ts` | How things are said in words, every date and time in the account's formats (`count`, `listWords`, `clock`, `dateWords`, `dayWords`, `hourSpanWords`, `setFormats`, `agoWords`). |
 
 ## Contracts
@@ -172,7 +172,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | srs | `srs.ts` | SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). |
 | srsStarters | `srsStarters.ts` | The SRS types that come with the app, and a new type as a copy of another (`makeStarter`, `SRS_STARTER_IDS`, `copySrsType`, `emptySrsType`). |
 | stageColour | `stageColour.ts` | A stage's colour for the app, the API and the extension alike: its own, else the ramp's; Burned's; New's (`stageColourAt`, `placeColour`, `STAGE_RAMP`). |
-| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`). |
+| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`, `goalRuleWords`). |
 | subtitleStyle | `subtitleStyle.ts` | How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). |
 | touchUp | `touchUp.ts` | Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). |
 | transcription | `transcription.ts` | A video transcribed, as shapes: engines, settings, modes, chunks, the transcript, a line fixed (`ENGINES`, `Transcription`, `TRANSCRIBE_MODES`, `Transcript`). |

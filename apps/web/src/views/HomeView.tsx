@@ -33,7 +33,7 @@ type Props = {
 
 /**
  * The hub: the five doors and the tiles this device was set up with, on one board, arranged by holding a tile.
- * Everything but Settings and Stats is behind a door. How the streaks stand is the Streak status tile's to say, nothing
+ * Everything but Settings and Stats is behind a door. How today and the streaks stand is the Status tile's to say, nothing
  * over the board.
  */
 export function HomeView({ decks, types, srsTypes, stats, settings, onReview, onStale, onSettings, onDecks, onAdd, onTypes, onSrs, onTool }: Props) {

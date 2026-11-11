@@ -112,7 +112,7 @@ export const StreakState = z.object({
   now: z.boolean(),
   /**
    * Each group of goals over this period, the group nearest to being met first (others in the streak's order), each goal
-   * in its group's order: what it holds so far and what it needs. The first group is what the Streak status tile and the reminder say is left.
+   * in its group's order: what it holds so far and what it needs. The first group is what YouTube's reminder says is left.
    */
   groups: z.array(z.array(z.object({ kind: GoalKind, have: Count, need: Count }))),
   /** The account's days left in this period, today among them: 1 for a streak per day. */
@@ -371,6 +371,12 @@ export const Stats = z.object({
   today: Day,
   /** Reviews (answers to cards already started), never a new card's first answer: the pill's Reviews today. */
   reviews: z.object({ total: Count, today: Count, days7: Count, days30: Count }),
+  /**
+   * Today's extra study (Status): the answers given today in sessions started as extra study (`ReviewSession.kind`
+   * "extra"), reviews and new cards apart, never added together; already counted among today's reviews and new cards.
+   * Nothing from an older server.
+   */
+  extraToday: z.object({ reviews: Count, started: Count }).default({ reviews: 0, started: 0 }),
   /** Answers that were right, out of the answers that were right or a miss: the past 30 days, and the 30 before. */
   right: z.object({
     days30: z.object({ right: Count, of: Count }),

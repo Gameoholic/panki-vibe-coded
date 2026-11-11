@@ -1,4 +1,4 @@
-/** @panki Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); every streak green or red on Streak status. */
+/** @panki Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); Status, today and every streak's checks. */
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from "react";
 import {
   FRAME_UNITS,
@@ -7,10 +7,9 @@ import {
   STAT_WINDOWS,
   STREAKS_MAX,
   STREAK_PERIODS,
+  goalRuleWords,
   goalSaysWords,
-  nearestGroup,
   periodCountWords,
-  streakLeftWords,
   streakNameOf,
   type ContinueVideo,
   type Day,
@@ -121,11 +120,8 @@ type TileEntry = {
   wide?: boolean;
   /** Offered on the home; Stats shows every one but the streaks'. */
   home: boolean;
-  /**
-   * About the streaks: on the Streaks screen, at its head, rather than on Stats; off the home, and out of its put-away
-   * chips, while Streaks is off, as each streak's own tile is.
-   */
-  ofStreaks?: true;
+  /** Heads the Streaks screen rather than standing on Stats (Status); on the home like any tile. */
+  streaksScreen?: true;
   windows?: readonly StatWindow[];
   /** The window it opens on until one is picked on this device. */
   window?: StatWindow;
@@ -511,24 +507,52 @@ function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale
   );
 }
 
-// ---------- Streak status ----------
+// ---------- Status ----------
 
-/** What's left of a streak now in words, its nearest group's: "12 reviews and 10 min studying". */
-const leftOf = (streak: StreakState) => streakLeftWords(nearestGroup(streak));
 /** The time left of a streak's period: the days while there's more than one, then the hours until the day turns. */
 const timeLeftOf = (streak: StreakState) => `${streak.daysLeft > 1 ? count(streak.daysLeft, "day", "days") : `${num(streak.hoursLeft)} h`} left`;
 
 /**
- * Every streak as a check that passed or hasn't yet, in the account's order: a row each, tinted whole, green with a tick
- * once its period counts and red with a cross until then, at any hour; its name and its run, and under them what's
- * left and the time left, or that it counts.
+ * What today held, as facts read from today's numbers (every deck, the account's day): reviews, new cards against the
+ * day's limit, extra study (reviews and new cards apart, never added together), time studying, time watching, cards
+ * added. A zero is said as one.
+ */
+function TodayFacts({ stats }: { stats: Stats }) {
+  const today = stats.windows.find((w) => w.window === "today");
+  if (!today) return null;
+  const { started } = today;
+  const extra = [stats.extraToday.reviews > 0 ? sayReviews(stats.extraToday.reviews) : null, stats.extraToday.started > 0 ? count(stats.extraToday.started, "new card", "new cards") : null].filter((p) => p !== null);
+  const facts: readonly (readonly [string, string])[] = [
+    ["Reviews", num(today.reviews.n)],
+    ["New cards", started.limit > 0 ? `${num(started.n)} / ${num(started.limit)}` : num(started.n)],
+    ["Extra study", extra.length > 0 ? extra.join(" · ") : "None"],
+    ["Time studying", spent(today.time.ms)],
+    ["Time watching", spent(today.watching.ms)],
+    ["Cards added", num(today.added.n)],
+  ];
+  return (
+    <dl className="w-facts" aria-label="Today">
+      {facts.map(([label, value]) => (
+        <div key={label} className="w-fact">
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/**
+ * Every streak as a build's checks, in the account's order: a row each, tinted whole, green with a tick once its period
+ * counts and red with a cross until then, at any hour; its name and its run, that it counts or the time left, and under
+ * them every condition in its own words ("Reviews ≥ 20", "All reviews done"), each with its own tick or cross, its
+ * groups apart with "or" between them as the streak's tile has them.
  */
 function StatusRows({ streaks }: { streaks: readonly StreakState[] }) {
   return (
     <div className="w-status">
       {streaks.map((s) => {
         const name = streakNameOf(s);
-        const left = leftOf(s);
         return (
           <div key={s.id} className={`w-status-row ${s.now ? "is-pass" : "is-fail"}`}>
             <span className="w-status-mark" role="img" aria-label={s.now ? "Counts" : "Doesn't count yet"}>
@@ -541,7 +565,25 @@ function StatusRows({ streaks }: { streaks: readonly StreakState[] }) {
               <Icon name="flame" />
               {periodCountWords(s.per, s.current)}
             </span>
-            <span className="w-status-said">{s.now ? `${STREAK_PERIODS[s.per].Now} counts` : `${left ? `${left} to go · ` : ""}${timeLeftOf(s)}`}</span>
+            <span className="w-status-said">{s.now ? `${STREAK_PERIODS[s.per].Now} counts` : timeLeftOf(s)}</span>
+            <ul className="w-checks">
+              {s.groups.map((group, gi) => (
+                <Fragment key={gi}>
+                  {gi > 0 ? <li className="w-goal-or">or</li> : null}
+                  {group.map((g, ci) => {
+                    const met = g.have >= g.need;
+                    return (
+                      <li key={ci} className={`w-check ${met ? "is-met" : "is-unmet"}`}>
+                        <span className="w-check-mark" role="img" aria-label={met ? "Done" : "Not done"}>
+                          <Icon name={met ? "check" : "cross"} />
+                        </span>
+                        {goalRuleWords(g.kind, g.need)}
+                      </li>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </ul>
           </div>
         );
       })}
@@ -583,17 +625,31 @@ export const WIDGETS: readonly TileEntry[] = [
     },
   },
   {
-    // Every streak over all decks, whatever the deck filter, as each streak's own tile counts it.
+    // Today and every streak over all decks, whatever the deck filter, as each streak's own tile counts it.
     id: "status",
-    name: "Streak status",
+    name: "Status",
     home: true,
-    ofStreaks: true,
-    make({ stats }) {
-      if (stats.streaks.length === 0) return { empty: "No streaks." };
-      const counted = stats.streaks.filter((s) => s.now).length;
+    streaksScreen: true,
+    make({ stats, ctx }) {
+      const streaks = ctx.settings.streaksOn ? stats.streaks : [];
+      const counted = streaks.filter((s) => s.now).length;
       return {
-        figure: { parts: [[num(counted), `of ${num(stats.streaks.length)} counted`]] },
-        chart: <StatusRows streaks={stats.streaks} />,
+        chart: (
+          <>
+            <TodayFacts stats={stats} />
+            {streaks.length > 0 ? (
+              <>
+                <p className="w-status-head">
+                  <span>Streaks</span>
+                  <span>
+                    {num(counted)} of {num(streaks.length)} counted
+                  </span>
+                </p>
+                <StatusRows streaks={streaks} />
+              </>
+            ) : null}
+          </>
+        ),
       };
     },
   },
@@ -1096,8 +1152,6 @@ export const widgetOf = (id: string): TileEntry | undefined => WIDGETS.find((w) 
 export const STREAK_TILE = "streak:";
 export const streakTileId = (streakId: string): `${typeof STREAK_TILE}${string}` => `${STREAK_TILE}${streakId}`;
 export const streakIdOfTile = (tileId: string): string | null => (tileId.startsWith(STREAK_TILE) ? tileId.slice(STREAK_TILE.length) : null);
-/** Whether a tile on the board is about the streaks (a streak's own, or one `ofStreaks`), so it goes while Streaks is off. */
-export const isOfStreaks = (tileId: string): boolean => streakIdOfTile(tileId) !== null || widgetOf(tileId)?.ofStreaks === true;
 
 // ---------- The tile ----------
 
@@ -1542,7 +1596,7 @@ function PeriodRow({ state }: { state: StreakState }) {
 /**
  * One streak as a tile: its name, the run and the best, each goal over the period going on with its bar and its state
  * as a mark (a tick, the count in red, or a cross), and the row of periods (this week's days, or the past seven weeks);
- * what's left and the time left are Streak status's. Its settings button opens the streak's own editor beside it; Show
+ * the time left is Status's. Its settings button opens the streak's own editor beside it; Show
  * more is the past six months and the longest runs.
  */
 export function StreakTile({ id, rule, state, today, ctx, overlay, className = "", style }: StreakTileProps) {

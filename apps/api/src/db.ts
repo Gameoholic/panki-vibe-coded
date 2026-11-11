@@ -1219,6 +1219,8 @@ type AnswerRow = {
   stageFrom: string | null;
   burnedFrom: number;
   nodeFrom: string;
+  /** 1 when it was given in a session started as extra study, else 0 (none, or the day's review). */
+  extra: number;
 };
 /** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
 type ShowingRow = Pick<AnswerRow, "at" | "deckId" | "thinkMs" | "decideMs" | "undoneAt">;
@@ -1687,8 +1689,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   );
   const selectScopeAnswers = db.prepare(`
     SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, p.miss, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt,
-      p.stage_from AS stageFrom, p.burned_from AS burnedFrom, p.node_from AS nodeFrom
-    FROM card_places p JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
+      p.stage_from AS stageFrom, p.burned_from AS burnedFrom, p.node_from AS nodeFrom, COALESCE(s.kind = 'extra', 0) AS extra
+    FROM card_places p JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id LEFT JOIN review_sessions s ON s.id = p.session_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
   // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
   const selectScopeHolds = db.prepare(`
@@ -3357,6 +3359,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const srsOf = srsTypesById();
       const started = (a: AnswerRow) => a.stageFrom === null && a.burnedFrom === 0 && a.nodeFrom === "[]";
       const reviewsOf = (rows: readonly AnswerRow[]) => rows.filter((a) => !started(a)).length;
+      const extraToday = inWindow(todayKey).filter((a) => a.extra === 1);
 
       // Each deck's New cards a day as it stood each day: its last change by then, what the first change was from
       // before any, and what it is now when it was never changed.
@@ -3458,6 +3461,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         today: todayKey,
         // Reviews alone, a new card's first answer never among them (`started`).
         reviews: { total: reviewsOf(dayed), today: reviewsOf(inWindow(todayKey)), days7: reviewsOf(inWindow(addDays(todayKey, -6))), days30: reviewsOf(inWindow(from30)) },
+        // Today's answers given in extra study, reviews and new cards apart.
+        extraToday: { reviews: reviewsOf(extraToday), started: extraToday.filter(started).length },
         right: { days30: rightOf(inWindow(from30)), before: rightOf(inWindow(addDays(todayKey, -59), addDays(todayKey, -30))) },
         streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: weekdayOf(todayKey) },
         streaks,
