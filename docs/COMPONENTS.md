@@ -154,6 +154,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | card | `card.ts` | A card: its values, examples, where each value came from, its hold and flag, what its capture knew (`Card`, `NewCard`, `CardExample`, `ValueSource`, `CaptureFacts`). |
 | cardLayout | `cardLayout.ts` | A type's layout as it stands, filled out from its fields, and the moves on it (`layoutOf`, `defaultLayout`, `examplesToColumn`, `moveInColumn`). |
 | conversation | `conversation.ts` | A place's Conversation, main and a branch per field, as commits (`Conversation`, `Commit`, `branchOf`, `mainRuns`, `historyOf`). Never a second record of one. |
+| day | `day.ts` | The account's day, its one home for the API and the web: the zone's wall clock (`wallAt`) and the day an instant falls in (`dayOf`). Intl alone, no library. |
 | deck | `deck.ts` | A deck, and its own settings with their defaults (`Deck`, `NewDeck`, `DeckSettings`, `DEFAULT_DECK_SETTINGS`). |
 | dictionary | `dictionary.ts` | A dictionary file as both ends read it out of its zip, and one kept on Panki (`openDictionary`, `DictionaryIndex`, `providesOf`, `ServerDictionary`). |
 | dictionaryRows | `dictionaryRows.ts` | A dictionary's rows, read the same by both ends, and the kinds of data it provides (`termRowOf`, `metaRowOf`, `tagRowOf`, `Provides`, `DATA_KIND_NAMES`). |

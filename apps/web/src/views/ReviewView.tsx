@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, blursFront, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, blursFront, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type Settings, type SrsType, type SubtitleStyle, dayOf, weekStartOf } from "@panki/contracts";
+import { addDays } from "../charts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { ExampleArrows } from "../components/ExampleArrows";
@@ -39,6 +40,8 @@ type Props = {
   subtitleStyle: SubtitleStyle;
   /** How every review runs, the account's: today's cards first, the line's order, cards at a time. */
   review: ReviewSettings;
+  /** The account's days and week, its zone always named (the device's while the account has none yet): what "Coming up" counts by. */
+  calendar: Calendar;
   /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the account's `todayFirst` says, folded. */
   begin?: ReviewBegin;
   /** The answer with the session it happened in and how long the card was on screen before and after the flip. */
@@ -72,13 +75,31 @@ type Session = { id: string; ready: Promise<boolean>; ok: boolean | null; ended:
 type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
-/** "Coming up" at the end: the days ahead each row covers. */
+/** "Coming up" at the end: each day's row, by how many of the account's days from today it is. */
 const COMING_UP: readonly { label: string; days: number }[] = [
+  { label: "Today", days: 0 },
   { label: "Tomorrow", days: 1 },
   { label: "In 2 days", days: 2 },
   { label: "In 3 days", days: 3 },
-  { label: "This week", days: 7 },
 ];
+/** The account's clock as the end screen reads it: when its day turns, in which zone, and the day its week ends on. */
+type Calendar = Pick<Settings, "dayStartHour" | "timeZone" | "weekEndsOn">;
+
+/**
+ * "Coming up" by the account's days, as the API's (`dayOf`): what comes due later today, tomorrow, in 2 and in 3 days,
+ * then all of it from now until the week ends (`weekEndsOn`), the days above that fall in the week among it, set apart
+ * as a total. A card already due is in the review, so no row counts it. `dues` are the moments cards come due.
+ */
+function comingUpOf(dues: readonly number[], now: number, calendar: Calendar): { label: string; n: number; total: boolean }[] {
+  const dayAt = (at: number) => dayOf(at, calendar.dayStartHour, calendar.timeZone);
+  const today = dayAt(now);
+  const weekEnd = addDays(weekStartOf(today, calendar.weekEndsOn), 6);
+  const ahead = dues.filter((at) => at > now).map(dayAt);
+  return [
+    ...COMING_UP.map(({ label, days }) => ({ label, n: ahead.filter((d) => d === addDays(today, days)).length, total: false })),
+    { label: "All this week", n: ahead.filter((d) => d <= weekEnd).length, total: true },
+  ];
+}
 
 /** The question before an answer that asks first: where it sends the card, or what putting it aside does. */
 function askWords(srsType: SrsType, card: Card, answerId: string): string {
@@ -282,7 +303,7 @@ function writeChartOpen(open: boolean) {
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, calendar, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck, review), review.pool));
   /**
@@ -803,11 +824,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     const now = Date.now();
     // A suspended card comes back when it's brought back, which nothing foresees; a buried one once its bury is over at the soonest.
     const waiting = [...byId.values()].filter((c) => !isNew(c.place) && !isBurned(srsType, c.place) && c.dueAt !== null && c.hold?.kind !== "suspend");
-    const daysOff = (c: Card) => (Math.max(c.dueAt ?? 0, c.hold?.until ?? 0) - now) / DAY_MS;
-    const rows = COMING_UP.map((row, i) => {
-      const from = i === 0 ? -Infinity : (COMING_UP[i - 1]?.days ?? 0);
-      return { ...row, n: waiting.filter((c) => daysOff(c) > from && daysOff(c) <= row.days).length };
-    });
+    const rows = comingUpOf(
+      waiting.map((c) => Math.max(c.dueAt ?? 0, c.hold?.until ?? 0)),
+      now,
+      calendar,
+    );
     const max = Math.max(1, ...rows.map((r) => r.n));
     const nothing = answered === 0;
     return (
@@ -850,7 +871,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
           </h3>
           <div className="next-days">
             {rows.map((row) => (
-              <div key={row.label} className="next-day">
+              <div key={row.label} className={row.total ? "next-day is-total" : "next-day"}>
                 <span>{row.label}</span>
                 <span className="barwrap">
                   <span className="bar" style={{ width: `${(row.n / max) * 100}%` }} />

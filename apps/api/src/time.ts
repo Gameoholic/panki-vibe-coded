@@ -1,30 +1,17 @@
 /**
  * An account's day turns over at an hour of its own clock, not the server's: the VPS may run on UTC while the account
- * lives on another zone. The zone comes from the environment and the maths is Intl alone, no library.
+ * lives on another zone. The zone comes from the environment and the maths is Intl alone, no library. The day an
+ * instant falls in is the contracts' (`day.ts`), shared with the web.
  */
+import { dayOf, wallAt } from "@panki/contracts";
+
+export { dayOf };
 
 const DAY = 86_400_000;
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
-function formatterFor(timeZone: string): Intl.DateTimeFormat {
-  let formatter = formatters.get(timeZone);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
-    formatters.set(timeZone, formatter);
-  }
-  return formatter;
-}
-
 /** Throws for a zone Intl doesn't know, so a wrong PANKI_TIME_ZONE fails at startup and not on the first review. */
 export function checkTimeZone(timeZone: string): void {
-  formatterFor(timeZone);
-}
-
-/** The wall clock's reading in the zone at an instant, re-encoded as if it were UTC, so the calendar maths is Date.UTC's. */
-function wallAt(instant: number, timeZone: string): number {
-  const parts = formatterFor(timeZone).formatToParts(instant);
-  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
+  wallAt(0, timeZone);
 }
 
 /** The zone's offset from UTC at an instant, in ms, east positive. */
@@ -53,15 +40,6 @@ export type Day = string;
 
 function dayKey(wall: number): Day {
   return new Date(wall).toISOString().slice(0, 10);
-}
-
-/**
- * The account's day an instant falls in: the zone's calendar date once the clock is wound back by the hour the day
- * turns over at. The clock is read first and wound back after, as `dayStartAt` and `hourReader` do: wound back before
- * the reading, the night the clocks change read the hour before the day's start on the wrong day.
- */
-export function dayOf(instant: number, hour: number, timeZone: string): Day {
-  return dayKey(wallAt(instant, timeZone) - hour * 3_600_000);
 }
 
 /**

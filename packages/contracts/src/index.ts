@@ -8,6 +8,7 @@ export * from "./auth";
 export * from "./card";
 export * from "./cardLayout";
 export * from "./conversation";
+export * from "./day";
 export * from "./deck";
 export * from "./diff";
 export * from "./dictionary";

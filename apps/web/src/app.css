@@ -5513,11 +5513,17 @@ mark.sub-blur {
 }
 .next-day {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) 40px;
+  grid-template-columns: 100px minmax(0, 1fr) 40px;
   align-items: center;
   gap: 8px;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+}
+/* The week's total, the days above among it: set apart under a hairline. */
+.next-day.is-total {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 .next-day .barwrap {
   height: 10px;
@@ -8126,7 +8132,7 @@ mark.sub-blur {
     white-space: normal;
   }
   .next-day {
-    grid-template-columns: 80px minmax(0, 1fr) 36px;
+    grid-template-columns: 92px minmax(0, 1fr) 36px;
   }
   .answer-name .field-input {
     width: 120px;

@@ -1269,6 +1269,7 @@ export function App() {
               srsType={srsType}
               subtitleStyle={settings.subtitleStyle}
               review={settings}
+              calendar={{ dayStartHour: settings.dayStartHour, timeZone: settings.timeZone || DEVICE_ZONE, weekEndsOn: settings.weekEndsOn }}
               begin={screen.begin}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}

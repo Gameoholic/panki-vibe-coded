@@ -160,8 +160,8 @@ const TODAY_LEFT_CHAR_PX = 6.6;
 /** A `NumberField` as measured: its − and +, the number between them, and the gaps. */
 const NUMBER_FIELD_PX = "160px";
 const NUMBER_FIELD_H = "46px";
-/** "Coming up" at a review's end, as measured: how wide each of its days' words is ("Tomorrow", "In 2 days", "In 3 days", "This week": `ReviewView` → `COMING_UP`). */
-const COMING_UP_WORDS = ["4.6em", "3.85em", "3.85em", "4.45em"];
+/** "Coming up" at a review's end: how wide each row's words are ("Today", "Tomorrow", "In 2 days", "In 3 days", then the week's total "All this week": `ReviewView` → `comingUpOf`), fitted from the measured ones. */
+const COMING_UP_WORDS = ["2.75em", "4.6em", "3.85em", "3.85em", "5.9em"];
 /** A button's room besides its words (its padding, and its icon's 16 px and 8 px gap since it has one), and a character of them, as measured: what sizes the button at a review's end. */
 const BUTTON_PAD_PX = 60;
 const BUTTON_CHAR_PX = 9;
@@ -255,7 +255,7 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
             </h3>
             <div className="next-days">
               {COMING_UP_WORDS.map((w, i) => (
-                <div key={i} className="next-day">
+                <div key={i} className={i === COMING_UP_WORDS.length - 1 ? "next-day is-total" : "next-day"}>
                   <span className="skel-line">
                     <Bone w={w} h="1em" />
                   </span>
