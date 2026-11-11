@@ -13,6 +13,8 @@ type Props = {
   /** The id of the button that opens the chooser, so a form can point at this field when it's wrong. */
   id: string;
   label: string;
+  /** Whose volume and speed its file plays at: the card type's field it is (`MediaView`'s `player`). */
+  player: string;
   /** The kinds of file the field takes: what the chooser is told to offer. */
   kinds: readonly MediaKind[];
   /** What the file showing is (the one picked, or else the one the card holds): how it's drawn. */
@@ -34,7 +36,7 @@ type Props = {
  * holds shows the same way. Deleting takes it off the form: the card itself changes only once it's saved. What's wrong
  * is said in the app's own bubble, as in `TextField`.
  */
-export function MediaField({ id, label, kinds, kind, file, held, onPick, error, subtitles = null }: Props) {
+export function MediaField({ id, label, player, kinds, kind, file, held, onPick, error, subtitles = null }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   // The picked file's own address in the browser, for showing it before Panki holds it; given back when it's let go.
@@ -79,7 +81,7 @@ export function MediaField({ id, label, kinds, kind, file, held, onPick, error, 
       <span className="field-label">{label}</span>
       {showing ? (
         <div className="media-picked">
-          <MediaView key={showing.src} kind={showing.kind} src={showing.src} label={label} over={file ? null : subtitles} />
+          <MediaView key={showing.src} kind={showing.kind} src={showing.src} label={label} player={player} over={file ? null : subtitles} />
           <div className="media-picked-row">
             <span className="media-name">{showing.name}</span>
             <Button id={id} aria-describedby={error ? `${id}-error` : undefined} disabled={asking} onClick={choose}>

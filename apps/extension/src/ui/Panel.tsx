@@ -1883,7 +1883,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /** The word said by someone on Forvo, when the deck takes it: heard here, someone else's chosen instead, and who said it (Forvo asks to be named). */
-  function voiceBlock(name: string) {
+  function voiceBlock(field: CardField) {
     let inside: ReactNode;
     if (said === "") inside = <p className="empty">No word picked.</p>;
     else if (voices === null) inside = <p className="empty">Asking Forvo…</p>;
@@ -1895,7 +1895,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       const now = voices.list.find((v) => v.id === voiceId) ?? first;
       inside = (
         <>
-          {voice ? <MediaView kind="audio" src={voice.url} label={name} /> : <p className="empty">{heard && "problem" in heard ? heard.problem : "Fetching it…"}</p>}
+          {voice ? <MediaView kind="audio" src={voice.url} label={field.name} player={field.id} /> : <p className="empty">{heard && "problem" in heard ? heard.problem : "Fetching it…"}</p>}
           {voices.list.length > 1 ? (
             <Dropdown
               id="panki-voice"
@@ -1915,7 +1915,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     }
     return (
       <div className="field capture-voice">
-        <span className="field-label">{name}</span>
+        <span className="field-label">{field.name}</span>
         {inside}
       </div>
     );
@@ -2027,7 +2027,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           </>
         );
       }
-      if (role === "forvoAudio") return voiceBlock(field.name);
+      if (role === "forvoAudio") return voiceBlock(field);
       // Every field that's typed has its box: words, a paragraph, a pitch accent (filled by the dictionary or typed, "たべる 2").
       if (!isTyped(field.kind)) return null;
       const isWord = role === "word";
@@ -2073,7 +2073,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const standIns: Record<string, ReactNode | StandIn> = {};
     /** The stretch being played on the page's video right now, if either is. */
     const playing: Cut | null = clip?.playing ? "clip" : wordClip?.playing ? "word" : null;
-    if (voiceField && voice) standIns[voiceField.id] = <MediaView kind="audio" src={voice.url} label={voiceField.name} />;
+    if (voiceField && voice) standIns[voiceField.id] = <MediaView kind="audio" src={voice.url} label={voiceField.name} player={voiceField.id} />;
     for (const cut of cuts) {
       standIns[cut.field.id] = (subtitles) => (
         <ClipPlayer

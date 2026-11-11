@@ -693,6 +693,7 @@ export function ReviewCard({
             kind={file}
             src={srcOf(value)}
             label={field.name}
+            player={field.id}
             look={part.look}
             named={part.label}
             cue={live && (cued === field.id || carried.has(field.id))}

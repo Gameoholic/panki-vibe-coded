@@ -436,6 +436,7 @@ export function CardForm(props: Props) {
                 subtitles={said && said.length > 0 ? <ClipSubtitles cues={said} style={subtitleStyle} /> : null}
                 id={inputId(field.id)}
                 label={label}
+                player={field.id}
                 kinds={kinds}
                 kind={picked?.kind ?? (held ? (card?.files[held] ?? null) : null)}
                 file={picked?.file ?? null}

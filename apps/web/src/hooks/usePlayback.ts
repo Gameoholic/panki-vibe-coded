@@ -1,7 +1,7 @@
 /** @panki A sound or a clip played by one of the app's players, in any look (`usePlayback`). Never a second way of playing a file. */
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import type { Heard, Shortcut } from "../keys";
-import { setSpeed, setVolume, speedOf, useSpeed, useVolume, type Speed, type Volume } from "../playback";
+import { setSpeed, setVolume, speedOf, usePlaying, type Speed, type Volume } from "../playback";
 import { useHeardKeys } from "./useHeardKeys";
 
 /**
@@ -9,8 +9,9 @@ import { useHeardKeys } from "./useHeardKeys";
  * where it is and how long it runs, whether it failed, and playing or stopping it. Spread `events` on the `<audio>`
  * or `<video>` and give it `hold` as its ref. `cue` plays it from the start (a review playing what plays by itself),
  * and `onCueEnd` is told when that play is over: it ended, was stopped, or couldn't start. Every look is this, so
- * they all play, stop and cue alike, and all at the one volume and the one speed (`playback.ts`), set on the player's
- * bar, a voice note or the browser's own controls. `shortcut` is a key that plays or stops it from anywhere on the page,
+ * they all play, stop and cue alike. `player` is whose volume and speed it plays at (`playback.ts`): the card type's
+ * field it plays, so every field has its own, set on the player's bar, a voice note or the browser's own controls, and
+ * every player of that field follows. `shortcut` is a key that plays or stops it from anywhere on the page,
  * at a press or after its hold (a review's: the card gives each of its sounds and clips one, `ReviewCard`'s
  * `shortcuts`, this device's keys from `keys.ts`), and `restart` keys that play it again from its start (`ReviewCard`'s
  * `restarts`). Never a second way of playing a file.
@@ -18,10 +19,9 @@ import { useHeardKeys } from "./useHeardKeys";
 /** No keys: one list for every player without restart keys, so its listeners stand. */
 const NO_KEYS: readonly Heard[] = [];
 
-export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Shortcut | null = null, restart: readonly Heard[] = NO_KEYS) {
+export function usePlayback(player: string, cue: boolean, onCueEnd?: () => void, shortcut: Shortcut | null = null, restart: readonly Heard[] = NO_KEYS) {
   const media = useRef<HTMLMediaElement | null>(null);
-  const volume = useVolume();
-  const speed = useSpeed();
+  const { volume, speed } = usePlaying(player);
   useEffect(() => {
     const el = media.current;
     if (el) loudness(el, volume);
@@ -94,11 +94,11 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Short
   /** The speaker on the bar: muted, or back to how loud it was (to full, when it had been turned all the way down). */
   function toggleMute() {
     const silent = volume.muted || volume.level === 0;
-    setVolume(silent ? { level: volume.level === 0 ? 1 : volume.level, muted: false } : { ...volume, muted: true });
+    setVolume(player, silent ? { level: volume.level === 0 ? 1 : volume.level, muted: false } : { ...volume, muted: true });
   }
   /** How loud, from 0 to 1; turning it up unmutes it. */
   function setLevel(level: number) {
-    setVolume({ level, muted: level > 0 ? false : volume.muted });
+    setVolume(player, { level, muted: level > 0 ? false : volume.muted });
   }
   const readLength = (e: SyntheticEvent<HTMLMediaElement>) => {
     const seconds = e.currentTarget.duration;
@@ -122,18 +122,19 @@ export function usePlayback(cue: boolean, onCueEnd?: () => void, shortcut: Short
       setFailed(true);
       endCue();
     },
-    // The browser's own controls (the Plain look) turned it up or down: every player follows.
-    onVolumeChange: (e: SyntheticEvent<HTMLMediaElement>) => setVolume({ level: e.currentTarget.volume, muted: e.currentTarget.muted }),
-    // …or set how fast: every player follows when it's one of Panki's speeds; any other stays that player's own.
+    // The browser's own controls (the Plain look) turned it up or down: it's this field's, and its other players follow.
+    onVolumeChange: (e: SyntheticEvent<HTMLMediaElement>) => setVolume(player, { level: e.currentTarget.volume, muted: e.currentTarget.muted }),
+    // …or set how fast: the same, when it's one of Panki's speeds; any other stays that one element's own.
     onRateChange: (e: SyntheticEvent<HTMLMediaElement>) => {
       const picked = speedOf(e.currentTarget.playbackRate);
-      if (picked !== null) setSpeed(picked);
+      if (picked !== null) setSpeed(player, picked);
     },
   };
-  return { hold, events, playing, at, length, failed, toggle, seek, volume, setLevel, toggleMute, speed, setSpeed };
+  const pickSpeed = (next: Speed) => setSpeed(player, next);
+  return { hold, events, playing, at, length, failed, toggle, seek, volume, setLevel, toggleMute, speed, setSpeed: pickSpeed };
 }
 
-/** Puts the volume on the element, leaving it be where it's already so (each change it hears is told back to all). */
+/** Puts the volume on the element, leaving it be where it's already so (each change it hears is told back to its field's players). */
 function loudness(el: HTMLMediaElement, volume: Volume) {
   if (el.volume !== volume.level) el.volume = volume.level;
   if (el.muted !== volume.muted) el.muted = volume.muted;

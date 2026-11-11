@@ -63,7 +63,7 @@ function cell(card: Card, field: CardField, className: string) {
   const value = card.values[field.id] ?? "";
   if (!value) return null;
   const file = fileKindOf(field.kind, value, card.files);
-  if (file) return <MediaView key={field.id} kind={file} src={api.mediaUrl(value)} label={field.name} size="row" />;
+  if (file) return <MediaView key={field.id} kind={file} src={api.mediaUrl(value)} label={field.name} player={field.id} size="row" />;
   // A file's id with no file behind it says nothing to anyone: it's left out rather than shown as words.
   if (holdsFile(field.kind) && MediaId.safeParse(value).success) return null;
   const meta = metaOf(field.kind, value);

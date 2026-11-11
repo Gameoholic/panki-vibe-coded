@@ -25,8 +25,8 @@ export const ownPress = (e: MouseEvent) => e.stopPropagation();
 /** The shape of a file's sound in so many bars, each 0 to 1; null when it can't be read. Drawn by the voice note. */
 export type Wave = (src: string, bars: number) => Promise<readonly number[] | null>;
 
-/** What every look of a sound or a clip is handed. `shortcut` is the key that plays it (and its hold), drawn on it as a keycap; null for none. `restart`, the keys that play it again from its start. */
-export type LookProps = { kind: "audio" | "video"; src: string; label: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: Shortcut | null; restart: readonly Heard[] };
+/** What every look of a sound or a clip is handed. `player` is whose volume and speed it plays at (`MediaView`'s). `shortcut` is the key that plays it (and its hold), drawn on it as a keycap; null for none. `restart`, the keys that play it again from its start. */
+export type LookProps = { kind: "audio" | "video"; src: string; label: string; player: string; named: boolean; cue: boolean; onCueEnd: (() => void) | undefined; shortcut: Shortcut | null; restart: readonly Heard[] };
 
 /**
  * The key that plays it, drawn as the answers' keys are (`.key`, a keycap; a clock face as it's held, when it's held),
@@ -61,9 +61,9 @@ const NO_RESTART: readonly Heard[] = [];
 const SPEED_OPTIONS = SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
 
 /**
- * How fast every player plays (`playback.ts`): the app's dropdown, small, lit while it isn't as said. Set on one card,
- * it's the speed of every card after. The player's bar and the voice note carry it; the looks with no room for it
- * play at it all the same.
+ * How fast a player plays (`playback.ts`): the app's dropdown, small, lit while it isn't as said. Set on one card,
+ * it's the speed of that field on every card after. The player's bar and the voice note carry it; the looks with no
+ * room for it play at their field's all the same.
  */
 export function SpeedControl({ speed, onSpeed, label }: { speed: Speed; onSpeed: (speed: Speed) => void; label: string }) {
   const id = useId();
@@ -84,10 +84,10 @@ const LEVEL: readonly number[] = Array.from({ length: BARS }, () => 0.4);
 
 /**
  * A voice note, as a chat app has them: a round play button, the sound's own waveform filling as it plays (pressed
- * somewhere, it goes there), the time, and how fast every player plays, the voice's pitch kept.
+ * somewhere, it goes there), the time, and how fast it plays, the voice's pitch kept.
  */
-export function VoiceLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart, waveOf }: LookProps & { waveOf: Wave | undefined }) {
-  const play = usePlayback(cue, onCueEnd, shortcut, restart);
+export function VoiceLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, restart, waveOf }: LookProps & { waveOf: Wave | undefined }) {
+  const play = usePlayback(player, cue, onCueEnd, shortcut, restart);
   const [bars, setBars] = useState<readonly number[]>(LEVEL);
   useEffect(() => {
     setBars(LEVEL);
@@ -131,8 +131,8 @@ const RING_R = 26;
 const RING_C = 2 * Math.PI * RING_R;
 
 /** A big round button, easy for a thumb, its ring filling as it plays; its name under it when it's shown. */
-export function RoundLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart }: LookProps) {
-  const play = usePlayback(cue, onCueEnd, shortcut, restart);
+export function RoundLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, restart }: LookProps) {
+  const play = usePlayback(player, cue, onCueEnd, shortcut, restart);
   const share = shareOf(play.at, play.length);
   return (
     <span className={`media media-round media-${kind}`} onClick={ownPress}>
@@ -153,8 +153,8 @@ export function RoundLook({ kind, src, label, named, cue, onCueEnd, shortcut, re
 }
 
 /** A tile: what it is (its name, or "Sound" or "Clip") and how long, the whole tile the button, filling as it plays. */
-export function TileLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart }: LookProps) {
-  const play = usePlayback(cue, onCueEnd, shortcut, restart);
+export function TileLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, restart }: LookProps) {
+  const play = usePlayback(player, cue, onCueEnd, shortcut, restart);
   const share = shareOf(play.at, play.length);
   const length = play.length === null ? "" : clock(play.length);
   return (
@@ -176,8 +176,8 @@ export function TileLook({ kind, src, label, named, cue, onCueEnd, shortcut, res
 }
 
 /** A speaker, as a dictionary puts one beside a word: beside the words above it, it sits right after them. Its name beside it when it's shown. */
-export function SpeakerLook({ kind, src, label, named, cue, onCueEnd, shortcut, restart }: LookProps) {
-  const play = usePlayback(cue, onCueEnd, shortcut, restart);
+export function SpeakerLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, restart }: LookProps) {
+  const play = usePlayback(player, cue, onCueEnd, shortcut, restart);
   return (
     <span className={`media media-speaker media-${kind}`} onClick={ownPress}>
       <audio ref={play.hold} src={src} preload="metadata" {...play.events} />
