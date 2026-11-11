@@ -438,6 +438,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   }, [doubles.join("\n")]); // eslint-disable-line react-hooks/exhaustive-deps -- the keys are what the joined list says
 
   const session = useRef<Session | null>(null);
+  /** When the session on screen started, on the clock, for Time studying; null before Start. */
+  const [studyingFrom, setStudyingFrom] = useState<number | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh,
@@ -452,6 +454,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       () => (s.ok = false),
     );
     session.current = s;
+    setStudyingFrom(Date.now());
   }
   function endSession(end: ReviewSessionEnd, keepalive = false) {
     const s = session.current;
@@ -891,7 +894,18 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       place={place}
       stage={stage}
       staging={stagedOrder(type.layout, type.fields)}
-      counts={<ReviewCounts counts={{ settings: review, togo, now: kindOf(card), line, leftMs: timeLeftMs(togo, deck.pace) }} />}
+      counts={
+        <ReviewCounts
+          counts={{
+            settings: review,
+            togo,
+            now: kindOf(card),
+            line,
+            leftMs: review.timeLeft ? timeLeftMs(togo, deck.pace) : null,
+            studyingFrom: review.timeStudying ? studyingFrom : null,
+          }}
+        />
+      }
       busy={busy}
       binds={binds}
       onStepBack={stepBack}

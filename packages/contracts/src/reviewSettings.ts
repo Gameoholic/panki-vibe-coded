@@ -39,10 +39,14 @@ export const ReviewSettings = z.object({
    * screen alone: nothing is kept of it but this setting.
    */
   blurFront: z.boolean(),
+  /** **Time left**: whether a review's counts end in about how long it has left (`TimeLeft`). */
+  timeLeft: z.boolean(),
+  /** **Time studying**: whether a review's counts end in how long its session has gone on, ticking (`TimeStudying`). */
+  timeStudying: z.boolean(),
 });
 export type ReviewSettings = z.infer<typeof ReviewSettings>;
 export type ExampleShown = ReviewSettings["exampleShown"];
-export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = { todayFirst: true, newPlace: "last", newOrder: "added", reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", blurFront: true };
+export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = { todayFirst: true, newPlace: "last", newOrder: "added", reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", blurFront: true, timeLeft: true, timeStudying: true };
 /** The keys of how every review runs, the ones a deck kept before they were the account's. */
 export const REVIEW_SETTING_KEYS = Object.keys(ReviewSettings.shape) as (keyof ReviewSettings)[];
 

@@ -119,6 +119,17 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
         why={current.blurFront ? BLUR_WORDS.on : BLUR_WORDS.off}
         explain={{ name: "Blur", scene: <BlurScene /> }}
       />
+      {/* The two ends of the counts' line, side by side as they stand there. */}
+      <Setting
+        id="timeLeft"
+        label="Time left"
+        control={<Toggle id="setting-time-left" says={{ on: "Shown", off: "Hidden" }} on={current.timeLeft} onChange={(timeLeft) => patch({ timeLeft })} />}
+      />
+      <Setting
+        id="timeStudying"
+        label="Time studying"
+        control={<Toggle id="setting-time-studying" says={{ on: "Shown", off: "Hidden" }} on={current.timeStudying} onChange={(timeStudying) => patch({ timeStudying })} />}
+      />
     </section>
   );
 }
