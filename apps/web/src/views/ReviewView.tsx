@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, blursFront, cardLeftMs, countedMs, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, NEW_SESSION_PACE, offered, paceAfter, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SessionPace, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, blursFront, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { ExampleArrows } from "../components/ExampleArrows";
@@ -67,9 +67,9 @@ type Session = { id: string; ready: Promise<boolean>; ok: boolean | null; ended:
 
 /**
  * An answer this session gave, newest last, that Undo can take back: the id it was given, its card, and the review as
- * it stood just before it (the line, the tally, how fast it was going), which taking it back puts on screen again.
+ * it stood just before it (the line, the tally), which taking it back puts on screen again.
  */
-type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number; pace: SessionPace };
+type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
 /** "Coming up" at the end: the days ahead each row covers. */
@@ -298,11 +298,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   const pickedByHand = useRef(false);
   /** How many answers this review has taken, a card asked again counting each time. */
   const [answered, setAnswered] = useState(0);
-  /**
-   * How fast this screen's studying is going against the deck's pace: each card done with, what the pace said it would
-   * take and what it took, which the time left is stretched or shrunk by. Kept through extra study, the same sitting.
-   */
-  const [sessionPace, setSessionPace] = useState<SessionPace>(NEW_SESSION_PACE);
   /** Each time a card is put on screen, by an answer or by Undo: a showing of its own, timed afresh, even the same card's. */
   const [turn, setTurn] = useState(0);
   /** What Undo can take back, newest last: every answer of this session, until it's left. */
@@ -555,8 +550,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
    */
   const best = mainAnswers(srsType.answers).at(-1)?.id ?? "";
   const togo = togoOf([...line.active, ...line.waiting], byId, srsType, best);
-  /** About how long a review of these cards takes at the deck's pace and this sitting's speed, counted as the review counts them. */
-  const timeOf = (ids: readonly string[]) => timeLeftMs(leftOf(ids, byId, srsType, best), deck.pace, sessionPace.done);
+  /** About how long a review of these cards takes at the deck's pace, each with its clips, counted as the review counts them. */
+  const timeOf = (ids: readonly string[]) => timeLeftMs(leftOf(ids, byId, srsType, best), deck.pace);
   // The main answers first, then the ones set apart: that's the order of the number keys too.
   const answers = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
   /** The answer waiting for a yes, when it's one that asks first. */
@@ -579,23 +574,17 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     const t = shown.current;
     const revealedAt = t.revealedAt ?? now;
     const s = session.current;
-    const before: Given = { givenId: t.givenId, cardId: card.id, line, counts, answered, pace: sessionPace };
-    const thinkMs = span(t.at, revealedAt);
-    const decideMs = span(revealedAt, now);
-    // What the pace says is left of the card as it's answered: on its first showing here, what it's set against.
-    const [cardLeft] = leftOf([card.id], byId, srsType, best);
-    const predictedMs = cardLeft ? cardLeftMs(cardLeft, deck.pace) : null;
+    const before: Given = { givenId: t.givenId, cardId: card.id, line, counts, answered };
     try {
       const saved = await onAnswer(card.id, {
         givenId: t.givenId,
         answerId,
         // A session that failed to start is left out; one still starting is named, the API has it by the time this lands.
         sessionId: s && s.ok !== false ? s.id : undefined,
-        thinkMs,
-        decideMs,
+        thinkMs: span(t.at, revealedAt),
+        decideMs: span(revealedAt, now),
         exampleId: exampleId ?? undefined,
       });
-      setSessionPace((p) => paceAfter(p, card.id, predictedMs, countedMs(thinkMs, decideMs), !comesBack(outcome)));
       setById((m) => new Map(m).set(saved.id, saved));
       setCounts((c) => ({ ...c, [answerId]: (c[answerId] ?? 0) + 1 }));
       // Only a card asked again right away comes back in this review; one that reached an end of the chart is for a
@@ -634,7 +623,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       setLine(last.line);
       setCounts(last.counts);
       setAnswered(last.answered);
-      setSessionPace(last.pace);
       // On its front, clear: what was on it has been seen.
       setTurn(turn + 1);
       blur.unblur(turn + 1);

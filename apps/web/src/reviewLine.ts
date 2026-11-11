@@ -64,16 +64,16 @@ export function togoOf(ids: readonly string[], byId: ReadonlyMap<string, Card>, 
 
 /**
  * What's left of each card, as the time left counts it (`timeLeftMs` in the contracts): a new card's day, a review's
- * day (its misses priced in), or a card being asked again's answers still to take, as `togoOf` counts them. A card
- * missed in this review stops being a review and costs its asked-again showings from then on: no double count, since
- * its review day, which priced the miss as a chance, leaves with it.
+ * day (its misses priced in), or a card being asked again's answers still to take, as `togoOf` counts them, each with
+ * how long the clips on its front run. A card missed in this review stops being a review and costs its asked-again
+ * showings from then on: no double count, since its review day, which priced the miss as a chance, leaves with it.
  */
 export function leftOf(ids: readonly string[], byId: ReadonlyMap<string, Card>, srsType: SrsType, best: string): CardLeft[] {
   return ids.flatMap((id): CardLeft[] => {
     const card = byId.get(id);
     if (!card) return [];
     const kind = kindOf(card);
-    return [kind === "again" ? { kind, steps: stepsLeft(srsType, card, best) } : { kind }];
+    return [kind === "again" ? { kind, steps: stepsLeft(srsType, card, best), clipMs: card.clipMs } : { kind, clipMs: card.clipMs }];
   });
 }
 
