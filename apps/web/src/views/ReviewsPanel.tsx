@@ -45,7 +45,7 @@ const EXAMPLE_SHOWN_OPTIONS = [
 
 /**
  * Settings → General → Reviews: how every review runs, the same for every deck (`ReviewSettings`, the account's). What
- * each deck has of its own (new cards and reviews a day, the Hold button's answer) is in the deck's settings.
+ * each deck has of its own (new cards and reviews a day) is in the deck's settings.
  */
 export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patch: (change: Partial<ReviewSettings>) => void }) {
   return (

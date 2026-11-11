@@ -21,7 +21,6 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-25: Add as an additional example.
 - 2026-10-26: Undo; today's cards before a review; other examples on the review card.
 - 2026-11-01: Listen first.
-- 2026-11-02: the Hold button.
 - 2026-11-07: Flag.
 
 **The extension** (`architecture/extension.md`)

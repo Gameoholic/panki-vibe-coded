@@ -48,7 +48,6 @@ import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { keepDouble, useHold } from "../hooks/useHold";
-import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { useUndoable } from "../hooks/useUndoable";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled } from "../keys";
@@ -101,7 +100,7 @@ type Props = {
 /**
  * How a card type's cards look in a review, laid out on the card itself in the review's own screen (`ReviewScreen`):
  * one of the type's own cards on it, its deck's counts over it, played, opened and turned as a review does (Done
- * listening, Show back of card, Step back, the Hold button, their keys). A press on a part picks it, a press on
+ * listening, Show back of card, Step back, their keys). A press on a part picks it, a press on
  * its player working the player as well; a part is moved by its grip. Its choices stand in a panel over the screen
  * (`FloatPanel`), with which side shows, Listen first and the card it's shown on. Saved by the header's Save, as the
  * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
@@ -247,25 +246,9 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const stepBack = () => {
     if (canStepBack) setFace(face === "back" ? "front" : "listen");
   };
-  /** The Hold button, while it's on (Settings → Keybinds): here it goes as far as the back, a card looked at giving no answer. */
-  const chainOn = binds.holdChain.on;
-  const holdStages: HoldStage[] = [
-    ...(opening === "listen" ? [{ label: "Done listening", ms: binds.holdChain.listenMs, done: () => setFace("front") }] : []),
-    { label: "Show back of card", ms: binds.holdChain.backMs, done: () => setFace("back") },
-  ];
-  const chain = useHoldButton({
-    stages: holdStages,
-    at: face === "listen" ? 0 : face === "front" ? holdStages.length - 1 : holdStages.length,
-    rest: "Back to start",
-    back: () => setFace(opening),
-    showing: sampleId,
-    bind: binds.holdButton,
-    where: () => place.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null,
-  });
 
-  // The review's own keys turn the card here as they do there: Done listening's, Show back of card's and Hide back of
-  // card's, held as long as each is set to be, Enter, and the Hold button's with Back to start. A key pressed in the
-  // panel is the panel's.
+  // The review's own keys turn the card here as they do there: Done listening's, Show back of card's and Step back's,
+  // held as long as each is set to be, and Enter. A key pressed in the panel is the panel's.
   const doubles = doubleKeys(binds);
   useEffect(() => {
     const kept = doubles.map(keepDouble);
@@ -279,22 +262,6 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     function onKey(e: KeyboardEvent) {
       if (own(e) || e.metaKey) return;
       const key = keyOf(e);
-      const resetting = chainOn ? keyIn(binds.holdReset, key) : null;
-      let reset = false;
-      if (resetting) {
-        e.preventDefault();
-        if (!e.repeat)
-          hold.begin(e, button("chain"), resetting.holdMs, () => {
-            reset = true;
-            setFace(opening);
-          });
-      }
-      if (chainOn && keyIn(binds.holdButton, key)) {
-        e.preventDefault();
-        if (!reset) chain.keyDown(e, key);
-        return;
-      }
-      if (reset) return;
       if (keysOn && key === "Enter") {
         if (e.target instanceof HTMLButtonElement || face === "back") return;
         e.preventDefault();
@@ -316,10 +283,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     }
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
-      chain.keyUp(e);
       if (own(e)) return;
-      const turning = [face === "listen" ? binds.showCard : binds.reveal, ...(chainOn ? [binds.holdButton] : [])];
-      if (turning.some((bind) => pressedIn(e, bind))) e.preventDefault();
+      if (pressedIn(e, face === "listen" ? binds.showCard : binds.reveal)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -682,7 +647,6 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       // Greyed, as Undo and Chart are: a card looked at isn't flagged from here.
       flag={{ on: (sample?.card.flaggedAt ?? null) !== null, busy: false }}
       failure={null}
-      hold={chainOn ? chain.view : null}
       card={
         <ReviewCard
           // A card shown afresh, as a review would: nothing opened, nothing played.

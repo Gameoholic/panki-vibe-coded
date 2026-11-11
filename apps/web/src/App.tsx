@@ -139,7 +139,7 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
 };
 /** The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display, General, Reviews), and a deck's settings (About, Reviews). */
 const SETTINGS_ROWS = [2, 3, 7] as const;
-const DECK_SETTINGS_ROWS = [3, 3] as const;
+const DECK_SETTINGS_ROWS = [3, 2] as const;
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
 const SKELETON_ROWS_MAX = 12;
 
@@ -1209,7 +1209,6 @@ export function App() {
                 cardCount={cards?.length ?? deck.cardCount}
                 cardTypeName={type?.name ?? "Missing"}
                 srsTypeName={srsType?.name ?? "Missing"}
-                srsAnswers={srsType?.answers ?? []}
                 onOpenCardType={type ? () => go({ kind: "type", type, tab: "fields" }) : undefined}
                 onOpenSrsType={srsType ? () => go({ kind: "srsEdit", type: srsType, isNew: false }) : undefined}
                 key={deck.id}

@@ -6,8 +6,7 @@ export const POOL_MAX = 99;
 
 /**
  * How every review runs, the same for every deck: the account's own, flat on its `Settings` (Settings → General →
- * Reviews). What differs from deck to deck (how many new cards and reviews a day, the Hold button's answer) is the deck's
- * own `DeckSettings`. Only what was changed is stored, the rest reads as `DEFAULT_REVIEW_SETTINGS`.
+ * Reviews). What differs from deck to deck (how many new cards and reviews a day) is the deck's own `DeckSettings`. Only what was changed is stored, the rest reads as `DEFAULT_REVIEW_SETTINGS`.
  */
 export const ReviewSettings = z.object({
   /**
