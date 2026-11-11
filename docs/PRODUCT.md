@@ -90,7 +90,7 @@ The top counts what's left as "2 new 9 reviews 0 again", each in its colour, the
 - **Flag** marks a card to come back to, without answering it: a highlighter's yellow on its deck row, Show → Flagged in the list, and on YouTube wherever the word appears.
 - **A clip's full screen fills the screen with the whole review**: the clip, and the rest of the card in a rail at the right fitting with no scroll, the answers' keys working throughout. It holds from card to card and the device remembers it; "That's the lot" leaves it without forgetting.
 
-How every review runs is the account's, in **Settings → General → Reviews**: today's cards first, where new cards come (before, after, scattered), their order, the reviews' order (shuffled or longest overdue), where a card asked again comes back, how many cards are in play at once, which example is shown, **Start cards blurred**, and **Time left** and **Time studying** on the counts' line; Start cards blurred turned off, the card on screen unblurs at once.
+How every review runs is the account's, in **Settings → General → Reviews**: today's cards first, where new cards come (before, after, scattered), their order, the reviews' order (shuffled or longest overdue), where a card asked again comes back, how many cards are in play at once, which example is shown (a line under it saying what the choice does), **Start cards blurred**, and **Time left** and **Time studying** on the counts' line; Start cards blurred, Time left and Time studying each have a (?) playing it on a made-up review. Start cards blurred turned off, the card on screen unblurs at once.
 
 ### Stats and the home board
 

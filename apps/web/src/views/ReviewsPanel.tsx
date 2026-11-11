@@ -3,7 +3,7 @@ import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
-import { BlurScene } from "../explainers/blurScene";
+import { BlurScene, TimeLeftScene, TimeStudyingScene } from "../explainers/reviewScenes";
 import { count } from "../words";
 
 /** How many cards are in play when the limit is first switched on. */
@@ -48,6 +48,11 @@ const EXAMPLE_SHOWN_OPTIONS = [
   { id: "newest", label: "Newest" },
   { id: "random", label: "Random" },
 ] as const;
+const EXAMPLE_SHOWN_WORDS: Record<ReviewSettings["exampleShown"], string> = {
+  rotate: "A card with more than one example shows the next one each time it comes up.",
+  newest: "A card with more than one example shows the one added last.",
+  random: "A card with more than one example shows one of them at random.",
+};
 
 /**
  * Settings → General → Reviews: how every review runs, the same for every deck (`ReviewSettings`, the account's). What
@@ -110,6 +115,7 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
         id="exampleShown"
         label="Example shown"
         control={<Segmented idPrefix="setting-example-shown" label="Example shown" options={EXAMPLE_SHOWN_OPTIONS} value={current.exampleShown} onChange={(exampleShown) => patch({ exampleShown })} />}
+        why={EXAMPLE_SHOWN_WORDS[current.exampleShown]}
       />
       {/* Beside Example shown: both are what the card shows. */}
       <Setting
@@ -124,11 +130,13 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
         id="timeLeft"
         label="Time left"
         control={<Toggle id="setting-time-left" says={{ on: "Shown", off: "Hidden" }} on={current.timeLeft} onChange={(timeLeft) => patch({ timeLeft })} />}
+        explain={{ name: "Time left", scene: <TimeLeftScene /> }}
       />
       <Setting
         id="timeStudying"
         label="Time studying"
         control={<Toggle id="setting-time-studying" says={{ on: "Shown", off: "Hidden" }} on={current.timeStudying} onChange={(timeStudying) => patch({ timeStudying })} />}
+        explain={{ name: "Time studying", scene: <TimeStudyingScene /> }}
       />
     </section>
   );

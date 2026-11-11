@@ -9326,9 +9326,9 @@ mark.sub-blur {
   }
 }
 
-/* Start cards blurred's scene (explainers/blurScene.tsx): Panki's own review on the app's own ground, in its theme,
-   filling the picture top to bottom: the counts' line as a computer's review has it, the card taking the room, and
-   Show back of card under it, all in view without the camera moving. */
+/* Settings → General → Reviews' scenes (explainers/reviewScenes.tsx): Panki's own review on the app's own ground, in
+   its theme, filling the picture top to bottom: the counts' line as a computer's review has it, the card taking the
+   room, and the buttons under it, all in view while the camera stands back. */
 .ex-panki {
   position: absolute;
   inset: 0;

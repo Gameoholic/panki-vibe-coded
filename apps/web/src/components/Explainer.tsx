@@ -10,7 +10,7 @@ import { KeyCap } from "./KeyCap";
  * round and round, Panki's own components doing it. Pointed at it opens; let go of, it closes; a click keeps it open
  * until a press elsewhere or Escape. What each panel plays is its scene's: the extension's options page has its own
  * (`apps/extension/src/options/explainerScenes.tsx`), the app's Settings → Panki AI's are in `explainers/aiScenes.tsx`,
- * and a setting can carry one after its label too (`Setting`'s `explain`: Start cards blurred, `explainers/blurScene.tsx`).
+ * and a setting can carry one after its label too (`Setting`'s `explain`: Settings → General → Reviews', `explainers/reviewScenes.tsx`).
  */
 
 /** The page a picture is drawn on, at a real page's size: a scene lays itself out in these pixels, Panki's components at their own size, and the whole is scaled to the window. */

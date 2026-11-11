@@ -1,5 +1,5 @@
 /** @panki About how long a review has left, beside its counts, its finish time on the clock pointed at or pressed (`TimeLeft`, `timeWords`). */
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { durationWords, hourWords } from "../words";
 import { Button } from "./Button";
 import { Tip } from "./Tip";
@@ -12,15 +12,22 @@ export const timeWords = (ms: number) => `~${durationWords(Math.max(60, ms / 100
  * 21:47"); pressed, the words say it in their place until pressed again, so a phone, which has no hover, has it too.
  * The clock is read as it's asked for, so the time stays true however long the review has stood.
  */
-export function TimeLeft({ ms }: { ms: number }) {
+export function TimeLeft({ ms, pointed = false }: { ms: number; pointed?: boolean }) {
   // When it was pointed at, and the middle of the words' foot, where the hint points: under them, since they stand at
   // the top of the review, where a hint over them is cut off (full screen).
   const [over, setOver] = useState<{ at: number; x: number; y: number } | null>(null);
   const [doneAt, setDoneAt] = useState<number | null>(null);
+  const root = useRef<HTMLSpanElement>(null);
   const done = (from: number) => `Done by ${hourWords(from + ms)}`;
   const point = (e: { currentTarget: HTMLElement }) => setOver({ at: Date.now(), x: e.currentTarget.offsetWidth / 2, y: e.currentTarget.offsetHeight });
+  // An explainer's made-up pointer (`pointed`) reaches no real event, so its hint is shown as a real pointer's would be.
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (pointed && el) point({ currentTarget: el });
+    else setOver(null);
+  }, [pointed]); // eslint-disable-line react-hooks/exhaustive-deps -- only the made-up pointer coming and going
   return (
-    <span className="time-left">
+    <span ref={root} className="time-left">
       <Button
         className="time-left-words"
         aria-pressed={doneAt !== null}
