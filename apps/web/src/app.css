@@ -7286,13 +7286,16 @@ mark.sub-blur {
   border-radius: 3px 3px 0 0;
   background: var(--heat-3);
 }
-/* A column at nothing: a faint stub where its bar would stand, the day or hour plainly there. */
-.w-col.is-zero .w-col-bar,
-.w-col.is-zero .w-stack {
-  background: var(--line-strong);
-}
 .w-col.is-now .w-col-bar {
   background: var(--accent);
+}
+/* A column at nothing: hollow, a faint line where its bar would stand, the day or hour plainly there but nothing in
+   it; today's too, and pointed at, its ring around nothing, never read as a little filled bar. */
+.w-col.is-zero .w-col-bar,
+.w-col.is-zero .w-stack,
+.w-col.is-zero.is-now .w-col-bar {
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--line-strong);
 }
 .w-col.is-ahead .w-col-bar {
   opacity: 0.35;
@@ -7301,6 +7304,11 @@ mark.sub-blur {
 .w-col.is-at .w-stack {
   outline: 1.5px solid var(--fg);
   outline-offset: 1px;
+}
+/* Pointed at with nothing in it: the ring alone, empty inside. */
+.w-col.is-zero.is-at .w-col-bar,
+.w-col.is-zero.is-at .w-stack {
+  box-shadow: none;
 }
 /* A limit at each column's own line: a dashed mark across it. */
 .w-col-tick {
