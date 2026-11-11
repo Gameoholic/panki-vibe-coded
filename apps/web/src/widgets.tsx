@@ -51,12 +51,12 @@ import { readTilePick, writeTilePick } from "./tilePicks";
 import { count, dayWords, durationWords, fullDayWords, hourOfDayWords, hourSpanWords, langOf, leftWords, monthWords, monthYearWords, shortDayWords } from "./words";
 
 /**
- * The widgets, one registry: every tile Stats → Overview shows (all of them, in this order) and the home can carry
+ * The widgets, one registry: every tile Stats shows (all of them, in this order, but the streaks') and the home can carry
  * (`home`). Each says its name, the windows it covers and its default, the views of its breakdown, and how it draws
  * itself from the stats; every one is drawn in the one anatomy (`Tile`). A new widget is one entry here and nothing
  * else; the home's layout keeps ids, so an id is never renamed: Activity is `heat` (Days studied, `days`, is in it),
  * Time watching `watched` (Watch time, `watch-time`, is in it), Time studying `time` (Time reviewing before Round 7). The streaks are a family of their
- * own: one tile each (`StreakTile`), on Stats → Streaks and wherever the home puts them; `streak` is the one Streak
+ * own: one tile each (`StreakTile`), on the Streaks screen and wherever the home puts them; `streak` is the one Streak
  * tile's id from before streaks were many, which a home's layout may still hold (`layout.ts` → `fitStreaks`).
  */
 export type WidgetId =
@@ -119,10 +119,10 @@ type TileEntry = {
   name: string;
   /** Wants two columns of the board where it has them. */
   wide?: boolean;
-  /** Offered on the home; the Stats tab shows every one. */
+  /** Offered on the home; Stats shows every one but the streaks'. */
   home: boolean;
   /**
-   * About the streaks: on Stats → Streaks, at its head, rather than Overview; off the home, and out of its put-away
+   * About the streaks: on the Streaks screen, at its head, rather than on Stats; off the home, and out of its put-away
    * chips, while Streaks is off, as each streak's own tile is.
    */
   ofStreaks?: true;
@@ -1481,7 +1481,7 @@ function NewStreakPanel({ ctx, anchor, onClose }: { ctx: WidgetContext; anchor: 
 }
 
 /**
- * The dashed tile after the streaks on Stats → Streaks: pressed, a new streak's editor hangs from it. Greyed while the
+ * The dashed tile after the streaks on the Streaks screen: pressed, a new streak's editor hangs from it. Greyed while the
  * account has as many streaks as it may, and as its own shape while the settings load.
  */
 export function NewStreakTile({ ctx }: { ctx: WidgetContext | null }) {

@@ -55,7 +55,7 @@ import { count, setFormats } from "./words";
 import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
 import { SAVE_WORDS, type UnsavedGuard } from "./unsaved";
-import { parsePath, routePath, type DeckTab, type Route, type StatsTab, type TypeTab } from "./routes";
+import { parsePath, routePath, type DeckTab, type Route, type TypeTab } from "./routes";
 import { draftAction, draftTemplate, newTemplateName } from "./aiTemplateKinds";
 import { AddView } from "./views/AddView";
 import { AiActionView } from "./views/AiActionView";
@@ -88,12 +88,6 @@ const TYPE_TABS: readonly { id: TypeTab; label: string; icon: IconName }[] = [
   { id: "fields", label: "Fields", icon: "type" },
   { id: "layout", label: "Layout", icon: "edit" },
 ];
-/** Stats: every tile, or the streaks. */
-const STATS_TABS: readonly { id: StatsTab; label: string; icon: IconName }[] = [
-  { id: "tiles", label: "Overview", icon: "stats" },
-  { id: "streaks", label: "Streaks", icon: "flame" },
-];
-
 /** Where you are. Home is the hub; everything but Settings and Stats is reached through it. */
 type Screen =
   | { kind: "home" }
@@ -117,7 +111,8 @@ type Screen =
   /** A Panki AI action, the account's own or one of Panki's; `key` stays one through a new one's first Save, which gives it Panki's id. */
   | { kind: "aiAction"; action: KeptAction; isNew: boolean; key: string }
   | { kind: "admin" }
-  | { kind: "stats"; tab: StatsTab };
+  | { kind: "stats" }
+  | { kind: "streaks" };
 
 const HOME: Screen = { kind: "home" };
 /** Settings at its Panki AI tab, where the templates are listed: where a template's screens go back to. */
@@ -142,6 +137,7 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   aiAction: "editor",
   admin: "panels",
   stats: "board",
+  streaks: "board",
 };
 /**
  * The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display,
@@ -236,17 +232,18 @@ function screenOf(route: Route, { decks, types, srsTypes, ai }: Lists): Screen |
  * The fixed places in the bar. A new one is a row here, nowhere else. `admin`: there for an admin alone, at the bar's
  * far end on a computer, the top right of the site.
  */
-type TabId = "home" | "settings" | "stats" | "admin";
-const TABS: readonly { id: TabId; label: string; to: Screen; admin?: true }[] = [
-  { id: "home", label: "Home", to: HOME },
-  { id: "settings", label: "Settings", to: { kind: "settings" } },
-  { id: "stats", label: "Stats", to: { kind: "stats", tab: "tiles" } },
-  { id: "admin", label: "Admin", to: { kind: "admin" }, admin: true },
+type TabId = "home" | "settings" | "stats" | "streaks" | "admin";
+const TABS: readonly { id: TabId; label: string; icon: IconName; to: Screen; admin?: true }[] = [
+  { id: "home", label: "Home", icon: "home", to: HOME },
+  { id: "settings", label: "Settings", icon: "settings", to: { kind: "settings" } },
+  { id: "stats", label: "Stats", icon: "stats", to: { kind: "stats" } },
+  { id: "streaks", label: "Streaks", icon: "flame", to: { kind: "streaks" } },
+  { id: "admin", label: "Admin", icon: "admin", to: { kind: "admin" }, admin: true },
 ];
 /** The tab a screen lights: its own for the fixed places, Home for everything behind the hub. */
 function tabOf(screen: Screen): TabId {
   if (screen.kind === "aiTemplate" || screen.kind === "aiNew" || screen.kind === "aiAction") return "settings";
-  return screen.kind === "settings" || screen.kind === "stats" || screen.kind === "admin" ? screen.kind : "home";
+  return screen.kind === "settings" || screen.kind === "stats" || screen.kind === "streaks" || screen.kind === "admin" ? screen.kind : "home";
 }
 /** The screens Panki AI's templates and actions are needed on: Settings, which lists them, and theirs. */
 const AI_KINDS: readonly Screen["kind"][] = ["settings", "aiTemplate", "aiNew", "aiAction"];
@@ -1016,6 +1013,8 @@ export function App() {
         return editStatus ? { title: "Admin", action: saveAction("admin") } : { title: "Admin" };
       case "stats":
         return { title: "Stats" };
+      case "streaks":
+        return { title: "Streaks" };
     }
   }
 
@@ -1067,6 +1066,17 @@ export function App() {
       case "srs":
       case "srsNew":
         return <Skeleton shape="rows" count={rowsOf("rows:srs", 4)} />;
+      case "stats":
+        // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
+        return <Board stats={null} ctx={null} />;
+      case "streaks":
+        // Its switch's row over Streak status and the streaks' tiles, as many as this device last drew, and the new one's.
+        return (
+          <>
+            <StreaksHead />
+            <Board stats={null} ctx={null} streaks />
+          </>
+        );
       case "settings":
         return <Skeleton shape="panels" tabs parts={SETTINGS_ROWS} />;
       case "admin":
@@ -1090,33 +1100,16 @@ export function App() {
       </>
     );
   }
-  /**
-   * Stats: its tabs over the real board's own shells, every tile's frame and title at the height this device remembers
-   * of it; on Streaks, its switch's row over the streaks' tiles as many as this device last drew, and the new one's.
-   */
-  function statsLoading(tab: StatsTab): ReactNode {
-    return (
-      <>
-        <Segmented idPrefix="stats-tab" label="Stats" options={STATS_TABS} value={tab} disabled onChange={() => undefined} />
-        {tab === "streaks" ? <StreaksHead /> : null}
-        <Board stats={null} ctx={null} streaks={tab === "streaks"} />
-      </>
-    );
-  }
   const loading =
     arriving !== null
-      ? arriving.kind === "stats"
-        ? statsLoading(arriving.tab)
-        : arriving.kind === "deck"
+      ? arriving.kind === "deck"
         ? deckLoading(arriving.id, null, arriving.tab)
         : arriving.kind === "review"
           ? reviewLoading(arriving.id, null)
           : arriving.kind === "type" && arriving.id !== null && arriving.tab === "layout"
             ? layoutLoading(arriving.id, true)
             : plainLoading(arriving.kind)
-      : screen.kind === "stats"
-        ? statsLoading(screen.tab)
-        : screen.kind === "deck"
+      : screen.kind === "deck"
         ? deckLoading(screen.deck.id, screen.deck, screen.tab)
         : screen.kind === "review"
           ? reviewLoading(screen.deck.id, screen.deck, screen.begin)
@@ -1422,19 +1415,10 @@ export function App() {
           );
         break;
       case "stats":
-        body =
-          decks === null || srsTypes === null || settings === null ? (
-            loading
-          ) : (
-            <>
-              <Segmented idPrefix="stats-tab" label="Stats" options={STATS_TABS} value={screen.tab} onChange={(tab) => go({ kind: "stats", tab })} />
-              {screen.tab === "streaks" ? (
-                <StreaksView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />
-              ) : (
-                <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />
-              )}
-            </>
-          );
+        body = decks === null || srsTypes === null || settings === null ? loading : <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />;
+        break;
+      case "streaks":
+        body = decks === null || srsTypes === null || settings === null ? loading : <StreaksView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />;
         break;
     }
   }
@@ -1442,14 +1426,14 @@ export function App() {
   const head = headFor(screen);
   const back = head?.back;
   const tab = tabOf(screen);
-  // The SRS editor needs more room than a column (the preview sits beside it on a wide screen); the home and Stats too,
-  // for a board three tiles across. A card type's Layout tab is drawn as the review is, so it takes the review's width
+  // The SRS editor needs more room than a column (the preview sits beside it on a wide screen); the home, Stats and
+  // Streaks too, for a board three tiles across. A card type's Layout tab is drawn as the review is, so it takes the review's width
   // and top (`is-review`). While an address is still arriving the frame already takes its screen's width, so nothing
   // moves as it resolves.
   const kindNow = arriving?.kind ?? screen.kind;
   const typeTab = arriving !== null ? (arriving.kind === "type" ? arriving.tab : null) : screen.kind === "type" ? screen.tab : null;
   const reviewLook = kindNow === "review" || (kindNow === "type" && typeTab === "layout");
-  const wide = kindNow === "srsEdit" || kindNow === "home" || kindNow === "stats";
+  const wide = kindNow === "srsEdit" || kindNow === "home" || kindNow === "stats" || kindNow === "streaks";
   // A template's screens stand as wide as Settings, whose tab lists them, so going between them never changes the width.
   const settingsWide = kindNow === "aiTemplate" || kindNow === "aiNew" || kindNow === "aiAction";
   // Before the sign-in is known, and while signed out, the bar is the brand alone: no tabs, no screen header. While
@@ -1476,7 +1460,7 @@ export function App() {
                   aria-current={tab === t.id ? "page" : undefined}
                   onClick={() => go(t.to)}
                 >
-                  <Icon name={t.id} />
+                  <Icon name={t.icon} />
                   <span>{t.label}</span>
                 </Button>
               ))}

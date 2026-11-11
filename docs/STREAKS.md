@@ -184,9 +184,13 @@ Later: notifications on a phone; anything about other people.
 - **YouTube's reminder stays and moves to the extension**: Streak reminder On / Off and Starts at, a group under YouTube home add-ons, the account's (`reminderOnYouTube`, `reminderHour`), saved as Streak on the pill is. "At risk" goes from YouTube's line and the pill's spoken words too.
 - `reminderOn` and `reminderInApp` stay kept and in the shape (an older extension parses them), read by nothing; YouTube's reminder needs Streaks on alone. No migration, no `EXTENSION_PROTOCOL` change.
 
+## Round 11 (the owner, 2026-11-11: "a separate tab next to Stats … just for Streaks")
+
+- **Streaks is a place of its own in the bar**, beside Home, Settings and Stats, the flame its icon, on the phone's bottom bar too (`/streaks`; `/stats/streaks` lands there). It holds what Stats → Streaks held: Streaks On / Off at its head, Streak status, every streak's tile, the dashed New streak tile. Why: a tab inside Stats took half of Stats' own switch for something that isn't a stat. **Stats is Stats alone again**, no Overview / Streaks split.
+
 ## Open
 
 - **A Time watching condition counts the clock alone** (the owner, 2026-11-11: "the actual real-life time we spent"); content watched is never a condition for now. Whether the Time watching tile shows content watched beside the clock is still open; default: not until the owner asks.
-- Where conditions are edited: the panel from a streak tile's settings button, on Stats → Streaks and on the home (Round 9).
+- Where conditions are edited: the panel from a streak tile's settings button, on Streaks and on the home (Rounds 9, 11).
 - Whether a condition counts all decks or one. Default: all decks, the Stats deck filter narrowing what a tile shows but never what a streak counts.
 - The day the status and the reminder measure is the account's (day start, zone), the same as the stats'.

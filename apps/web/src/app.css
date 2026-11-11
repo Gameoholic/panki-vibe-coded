@@ -7743,7 +7743,7 @@ mark.sub-blur {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-/* Stats → Streaks' first line: Streaks and its On / Off, where Overview has its decks. */
+/* The Streaks screen's first line: Streaks and its On / Off, where Stats has its decks. */
 .streaks-head {
   display: flex;
   align-items: center;

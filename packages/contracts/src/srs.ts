@@ -515,8 +515,8 @@ export const Settings = z.object({
   // `dailyGoal` (minutes a day that kept the watch streak) is gone with the streak: a row kept of it is read by nothing.
   // `shareWatching` (Off, Minutes and streak, Also what I watch) is gone too: a row kept of it is read by nothing.
   /**
-   * **Streaks** on screen (heading Stats → Streaks): whether streaks are shown at all. Off hides every streak tile on
-   * the home, greys them on Stats → Streaks, and hides the pill's streak and every reminder; the streaks themselves stay
+   * **Streaks** on screen (heading the Streaks screen): whether streaks are shown at all. Off hides every streak tile on
+   * the home, greys them on the Streaks screen, and hides the pill's streak and every reminder; the streaks themselves stay
    * as they're kept. On to begin with.
    */
   streaksOn: z.boolean(),

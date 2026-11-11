@@ -41,9 +41,9 @@ type Props = {
   ctx: WidgetContext | null;
   /** The numbers on screen are the last ones while the next load. */
   stale?: boolean;
-  /** Given, the board is the home: doors and chosen tiles, arranged by hand. Without it, it is every tile, as Stats → Overview shows them. */
+  /** Given, the board is the home: doors and chosen tiles, arranged by hand. Without it, it is every tile, as Stats shows them. */
   home?: HomeBoard;
-  /** Stats → Streaks: Streak status, every streak's tile, then the dashed tile a new one is made from; greyed while Streaks is Off. */
+  /** The Streaks screen: Streak status, every streak's tile, then the dashed tile a new one is made from; greyed while Streaks is Off. */
   streaks?: boolean;
 };
 
@@ -75,12 +75,12 @@ function tileName(id: TileItemId, settings: Settings | null): string | null {
 }
 
 /**
- * The board: three tiles to a row on a PC, one on the phone. On Stats → Overview it is every tile but the streaks', on
- * Stats → Streaks Streak status, every streak's and the dashed one that makes a new one. On the home it is the
+ * The board: three tiles to a row on a PC, one on the phone. On Stats it is every tile but the streaks', on the
+ * Streaks screen Streak status, every streak's and the dashed one that makes a new one. On the home it is the
  * doors and the tiles this device was set up with, arranged by hand: a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
  * and let go on another to trade places with it, a × puts a tile away, the dashed tile at the end brings one back,
  * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on. Streaks Off takes every
- * streak's tile and Streak status off the home, and greys them on Stats → Streaks.
+ * streak's tile and Streak status off the home, and greys them on the Streaks screen.
  */
 export function Board({ stats, ctx, stale = false, home, streaks = false }: Props) {
   const arranging = home?.arranging ?? false;
@@ -120,7 +120,7 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
   });
   // While a tile is carried the board is drawn as letting go right now would leave it; the layout itself changes once, on the drop.
   const carried = drag.lifted !== null && drag.over !== null ? dropped(drag.lifted, drag.over) : null;
-  // Overview leaves out what's the streaks' (Streak status), which heads Stats → Streaks.
+  // Stats leaves out what's the streaks' (Streak status), which heads the Streaks screen.
   const items: readonly BoardItemId[] = home ? (carried ?? home.layout).order : WIDGETS.filter((w) => !w.ofStreaks).map((w) => w.id);
 
   // Arranging ends on purpose only: Escape here, or the header's Done. A press on the ground doesn't end it, so a tile
@@ -134,7 +134,7 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
     return () => window.removeEventListener("keydown", onKey);
   }, [arranging, endArranging]);
 
-  // How many streaks there are, for Stats → Streaks' shells next time the settings are still on their way.
+  // How many streaks there are, for the Streaks screen's shells next time the settings are still on their way.
   const streakCount = settings ? settings.streaks.length : null;
   useEffect(() => {
     if (streakCount !== null) rememberShape(STREAK_TILES_SHAPE, streakCount);

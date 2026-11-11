@@ -14,7 +14,7 @@ type Props = {
   onSettings: (patch: SettingsUpdate) => Promise<Settings>;
 };
 
-/** Stats → Streaks' first line: Streaks and its On / Off; its switch as a shape while the settings load. */
+/** The Streaks screen's first line: Streaks and its On / Off; its switch as a shape while the settings load. */
 export function StreaksHead({ toggle }: { toggle?: ReactNode }) {
   return (
     <div className="streaks-head">
@@ -25,7 +25,7 @@ export function StreaksHead({ toggle }: { toggle?: ReactNode }) {
 }
 
 /**
- * Stats → Streaks: where streaks are made, changed and deleted. Streaks On / Off heads it (Off greys everything under it
+ * Streaks, a place of its own in the bar beside Stats: where streaks are made, changed and deleted. Streaks On / Off heads it (Off greys everything under it
  * and takes the streaks off the home, the YouTube pill and the reminder); every streak's tile, its settings button
  * opening its editor beside it; and the dashed tile a new one is made from. Every deck counts, so there's no deck to pick.
  */

@@ -14,7 +14,7 @@ type Props = {
 };
 
 /**
- * Stats → Overview: every tile but the streaks' (Stats → Streaks), for all decks or one, on the same board the home has.
+ * Stats: every tile but the streaks' (the Streaks screen), for all decks or one, on the same board the home has.
  * Nothing here is arranged: the page is fixed.
  */
 export function StatsView({ decks, srsTypes, settings, onSettings }: Props) {
