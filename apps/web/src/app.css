@@ -7318,8 +7318,15 @@ mark.sub-blur {
   display: block;
   width: 8px;
   max-width: 70%;
+  /* Never gone: the smallest share is still a stub, so the row has no holes. */
+  min-height: 2px;
   border-radius: 3px 3px 0 0;
   background: var(--heat-3);
+}
+/* A column at nothing: a faint stub where its bar would stand, the day or hour plainly there. */
+.w-col.is-zero .w-col-bar,
+.w-col.is-zero .w-stack {
+  background: var(--line-strong);
 }
 .w-col.is-now .w-col-bar {
   background: var(--accent);
@@ -7354,6 +7361,7 @@ mark.sub-blur {
   flex-direction: column-reverse;
   width: 8px;
   max-width: 70%;
+  min-height: 2px;
   border-radius: 3px 3px 0 0;
   overflow: hidden;
 }

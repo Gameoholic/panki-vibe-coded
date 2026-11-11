@@ -22,7 +22,8 @@ export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 /**
  * Thin columns on a hairline, the largest named on its cap, a label under each that has one. `stacks` draws each
  * column as its parts, bottom up, each in its colour; `ticks` a dashed mark at each column's own line (a limit). The
- * column `now` is lit, those from `ahead` on fainter.
+ * column `now` is lit, those from `ahead` on fainter. A column never vanishes: a small share still shows a stub, and
+ * one at nothing a faint one (`is-zero`), so a gap in the row never reads as a day or an hour missing.
  */
 export function Columns({
   values,
@@ -62,7 +63,7 @@ export function Columns({
       }}
     >
       {values.map((v, j) => (
-        <div key={j} className={`w-col ${j === now ? "is-now" : ""} ${ahead >= 0 && j >= ahead ? "is-ahead" : ""} ${atJ === j ? "is-at" : ""}`.replace(/\s+/g, " ").trim()} onPointerEnter={() => point(j)} onPointerDown={() => point(j)}>
+        <div key={j} className={`w-col ${j === now ? "is-now" : ""} ${ahead >= 0 && j >= ahead ? "is-ahead" : ""} ${atJ === j ? "is-at" : ""} ${v === 0 ? "is-zero" : ""}`.replace(/\s+/g, " ").trim()} onPointerEnter={() => point(j)} onPointerDown={() => point(j)}>
           <span className="w-col-cap">{j === top ? cap(v) : ""}</span>
           <span className="w-col-plot">
             {stacks ? (

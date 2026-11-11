@@ -55,9 +55,13 @@ function dayKey(wall: number): Day {
   return new Date(wall).toISOString().slice(0, 10);
 }
 
-/** The account's day an instant falls in: the zone's calendar date once the clock is wound back by the hour the day turns over at. */
+/**
+ * The account's day an instant falls in: the zone's calendar date once the clock is wound back by the hour the day
+ * turns over at. The clock is read first and wound back after, as `dayStartAt` and `hourReader` do: wound back before
+ * the reading, the night the clocks change read the hour before the day's start on the wrong day.
+ */
 export function dayOf(instant: number, hour: number, timeZone: string): Day {
-  return dayKey(wallAt(instant - hour * 3_600_000, timeZone));
+  return dayKey(wallAt(instant, timeZone) - hour * 3_600_000);
 }
 
 /**
