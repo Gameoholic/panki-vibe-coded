@@ -211,6 +211,12 @@ function pointsOf(cur: number, prev: number | null, before: string | null): Delt
 // ---------- A window over time ----------
 
 /**
+ * A day's label under its column among `n` days: its weekday up to a week of columns ("Sun"), else the date with its
+ * month on each Sunday ("18 Oct", "Oct 18"; a bare day number said nothing of which month) and nothing on the rest.
+ */
+const dayLabel = (day: Day, n: number): string => (n > 7 ? (dayDate(day).getUTCDay() === 0 ? shortDayWords(day) : "") : (DOW[dayDate(day).getUTCDay()] ?? ""));
+
+/**
  * Each stretch a window's numbers come in, as a column's label and the words said for it, read from the window's units
  * (any length, a range's too): a day (its weekday up to a week of columns, else the date on each Sunday), a week
  * running to the day before the next, or a calendar month. `weeks` reads the trend's unit.
@@ -221,7 +227,7 @@ function stretchesOf(win: WindowStats, starts: readonly Day[], weeks = false): {
   const byWeek = unit === "week";
   const labels = starts.map((start) => {
     if (byWeek) return shortDayWords(start);
-    if (byDay) return starts.length > 7 ? (dayDate(start).getUTCDay() === 0 ? String(dayDate(start).getUTCDate()) : "") : (DOW[dayDate(start).getUTCDay()] ?? "");
+    if (byDay) return dayLabel(start, starts.length);
     // A month is its three letters, never an initial; past a year of columns only each quarter's first is labelled, so they never crowd.
     return starts.length <= 13 || dayDate(start).getUTCMonth() % 3 === 0 ? monthWords(start) : "";
   });
@@ -675,9 +681,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
         const values = next.series.map((b) => b.n);
         const starts = next.series.map((b) => b.start);
         const byDay = next.unit === "day";
-        const labels = starts.map((d) =>
-          byDay ? (starts.length > 7 ? (dayDate(d).getUTCDay() === 0 ? String(dayDate(d).getUTCDate()) : "") : (DOW[dayDate(d).getUTCDay()] ?? "")) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : "",
-        );
+        const labels = starts.map((d) => (byDay ? dayLabel(d, starts.length) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : ""));
         const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
         const total = sum(values);
         if (total === 0) return { empty: `Nothing coming up in the next ${frameWords(next.frame)}.` };
@@ -698,7 +702,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       } else {
         values = ahead.days.slice(0, win.window === "days7" ? 7 : 30);
         const days = values.map((_, j) => addDays(stats.today, j));
-        labels = days.map((d) => (win.window === "days7" ? (DOW[dayDate(d).getUTCDay()] ?? "") : dayDate(d).getUTCDay() === 0 ? String(dayDate(d).getUTCDate()) : ""));
+        labels = days.map((d) => dayLabel(d, days.length));
         said = (j) => `${j === 0 ? "Today" : dayWords(days[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
       }
       const total = sum(values);

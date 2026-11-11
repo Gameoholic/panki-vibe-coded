@@ -71,7 +71,7 @@ test("53 merges each listening span into its front's, row by row, and drops the 
   const frontBefore = sumOf(db, "SELECT SUM(COALESCE(think_ms, 0) + COALESCE(listen_ms, 0)) AS n FROM card_places");
   const holdsBefore = sumOf(db, "SELECT SUM(COALESCE(think_ms, 0) + COALESCE(listen_ms, 0)) AS n FROM card_holds");
   migrate(db, NOW);
-  assert.equal(version(db), 53);
+  assert.equal(version(db), 54);
   for (const table of ["card_places", "card_holds"]) assert.ok(!columnsOf(db, table).some((c) => c.name === "listen_ms"), `${table}.listen_ms is gone`);
   const after = all(db, "SELECT id, think_ms AS think, decide_ms AS decide, at, card_id AS cardId FROM card_places ORDER BY id");
   assert.equal(after.length, before.length);
@@ -125,11 +125,55 @@ test("53 names each part's blurred front blur, its values, keys and order otherw
   assert.equal(layout("broken"), "not a layout");
 });
 
+/** A database as migration 53 left it, with the streaks kept as given (nothing kept when `streaks` is undefined). */
+function at53(streaks?: unknown): DatabaseSync {
+  const db = new DatabaseSync(":memory:", { enableForeignKeyConstraints: false });
+  migrate(db, NOW, 53);
+  if (streaks !== undefined) insert(db, "settings", { key: "streaks", value: JSON.stringify(streaks) });
+  return db;
+}
+const streaksOf = (db: DatabaseSync) => (db.prepare("SELECT value FROM settings WHERE key = 'streaks'").get() as { value: string } | undefined)?.value;
+const NEW_DEFAULT = JSON.stringify([{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }], [{ kind: "new", n: 1 }]] }]);
+
+test("54 makes the old default today's, as groups or as one goals list, with or without the keys from before, and logs it", () => {
+  for (const kept of [
+    [{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] }],
+    [{ id: "streak", name: "Streak", groups: [[{ kind: "reviews", n: 1 }]] }],
+    [{ id: "streak", name: "Streak", goals: [{ kind: "reviews", n: 1 }], remind: true }],
+  ]) {
+    const db = at53(kept);
+    migrate(db, NOW);
+    assert.equal(streaksOf(db), NEW_DEFAULT);
+    const logged = all(db, "SELECT key, from_value AS fromValue, to_value AS toValue, at FROM settings_changes WHERE key = 'streaks'").map((r) => ({ ...r }));
+    assert.deepEqual(logged, [{ key: "streaks", fromValue: JSON.stringify(kept), toValue: NEW_DEFAULT, at: NOW }]);
+  }
+});
+
+test("54 leaves a streak changed in any way, a list of more than one, and an account that kept none", () => {
+  for (const kept of [
+    [{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 2 }]] }],
+    [{ id: "streak", name: "Mine", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] }],
+    [{ id: "streak", name: "Streak", per: "week", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] }],
+    [{ id: "streak", name: "Streak", per: "day", countFrom: "2026-11-01", groups: [[{ kind: "reviews", n: 1 }]] }],
+    [{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] }, { id: "s2", name: "Other", groups: [[{ kind: "new", n: 1 }]] }],
+    [],
+  ]) {
+    const db = at53(kept);
+    migrate(db, NOW);
+    assert.equal(streaksOf(db), JSON.stringify(kept));
+    assert.deepEqual(all(db, "SELECT 1 FROM settings_changes WHERE key = 'streaks'"), []);
+  }
+  const none = at53();
+  migrate(none, NOW);
+  assert.equal(streaksOf(none), undefined);
+  assert.equal(version(none), 54);
+});
+
 test("53 runs once: a database brought up to date stays as it is", () => {
   const db = made();
   migrate(db, NOW);
   const once = all(db, "SELECT think_ms AS think FROM card_places ORDER BY id");
   migrate(db, NOW);
-  assert.equal(version(db), 53);
+  assert.equal(version(db), 54);
   assert.deepEqual(all(db, "SELECT think_ms AS think FROM card_places ORDER BY id"), once);
 });

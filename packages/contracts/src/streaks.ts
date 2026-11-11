@@ -146,10 +146,11 @@ const fromOneList = (kept: unknown): unknown => {
  * a streak reminds is the account's Reminder alone; a `remind` a streak kept from before had of its own is read by
  * nothing (an unknown key, dropped as it parses). A goal kept that doesn't fit the type (`goalFits`) is read as not
  * there rather than refused, so a rule kept before the kinds said which types they fit still reads; the editor never
- * makes one (`groupsSwitchedTo`). The old default, kept as it was, reads as today's (`fromOldDefault`).
+ * makes one (`groupsSwitchedTo`). The old default (Reviews ≥ 1 alone, while that meant any card answered) became today's
+ * once, in the API's migration 54, never on read: read as today's, the same streak made by hand could never be kept.
  */
 export const StreakRule = z.preprocess(
-  (kept) => fromOldDefault(fromOneList(kept)),
+  fromOneList,
   z
     .object({
       id: StreakId,
@@ -190,18 +191,6 @@ export const DEFAULT_STREAKS: StreakRule[] = [
     groups: [[{ kind: "reviews", n: 1 }], [{ kind: "new", n: 1 }]],
   },
 ];
-
-/**
- * The streak every account started with while Reviews still counted a new card's first answer: Reviews ≥ 1 alone,
- * meaning any card answered. Kept exactly so (never edited), it reads as today's default, which means the same, so its
- * run reads as it did; a streak edited in any way is read as it's kept.
- */
-const OLD_DEFAULT = JSON.stringify({ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] });
-const fromOldDefault = (kept: unknown): unknown => {
-  if (typeof kept !== "object" || kept === null) return kept;
-  const { id, name, per = "day", countFrom = "all", groups } = kept as Record<string, unknown>;
-  return JSON.stringify({ id, name, per, countFrom, groups }) === OLD_DEFAULT ? DEFAULT_STREAKS[0] : kept;
-};
 
 /** The number a goal needs its period's fact to reach: its own, or 1 for a kind without one. */
 export const goalNeed = (goal: Goal): number => (GOAL_KINDS[goal.kind].numbered ? goal.n : 1);

@@ -127,7 +127,7 @@ The one rule every count follows, settled with the owner on 2026-11-11 (`convent
 - **Counted over both, as studying:** Time studying, Activity's Time studying view, Time per card (the typical seconds a card shown took, new or not; its "a card" divides by reviews and new cards each counted once), the condition Time studying ≥ N min, the pill's Time studying today, the days studied.
 - **Judged over every answer:** Right and Toughest cards, a new card's first answer among them where it has a right or a miss.
 
-The default streak is "Reviews ≥ 1 or New cards ≥ 1", two groups, so any card answered keeps it, as before the split. A new tile, condition or count decides which of the four it is before it's built, and says so in its comment.
+The default streak is "Reviews ≥ 1 or New cards ≥ 1", two groups, so any card answered keeps it, as before the split; the old default kept as it was (Reviews ≥ 1 alone) was made today's once by migration 54, never on read. A new tile, condition or count decides which of the four it is before it's built, and says so in its comment.
 
 ## The silo
 

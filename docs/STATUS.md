@@ -66,7 +66,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 - Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
 - The docs: `docs/DOCS.md`.
-- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 7 (reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying).
+- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 7 (reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - The extension's polish round: the owner sends what's off, a change at a time.

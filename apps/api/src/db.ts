@@ -1123,6 +1123,30 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     }
     db.exec("ALTER TABLE card_types DROP COLUMN listen");
   },
+  (db, now) => {
+    // 54. The streak every account began with while Reviews still counted a new card's first answer, Reviews ≥ 1 (any
+    // card answered a day), kept exactly as it was made, becomes today's default, Reviews ≥ 1 or New cards ≥ 1, which
+    // means the same under the split (`docs/architecture/data-model.md` → Reviews, new cards and studying), so its run
+    // reads as it did. Once, here, never on read: read as today's, a streak edited back to Reviews ≥ 1 alone could
+    // never be kept (it came straight back). A list with any other streak in it, or the streak changed in any way (its
+    // name, type, Count from or number), is left as it is; one kept as a single `goals` list, from before groups,
+    // counts as the same streak; an account that never kept its streaks has the default already. Logged like a save.
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'streaks'").get() as { value: string } | undefined;
+    if (!row) return;
+    let kept: unknown;
+    try {
+      kept = JSON.parse(row.value);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(kept) || kept.length !== 1 || typeof kept[0] !== "object" || kept[0] === null) return;
+    const { id, name, per = "day", countFrom = "all", groups, goals } = kept[0] as Record<string, unknown>;
+    const old = JSON.stringify({ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] });
+    if (JSON.stringify({ id, name, per, countFrom, groups: groups ?? (goals === undefined ? undefined : [goals]) }) !== old) return;
+    const next = JSON.stringify([{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }], [{ kind: "new", n: 1 }]] }]);
+    db.prepare("UPDATE settings SET value = ? WHERE key = 'streaks'").run(next);
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('streaks', ?, ?, ?)").run(row.value, next, now);
+  },
 ];
 
 /** Brings a database up to date, or up to step `until` alone (a test of one step starts from the step before it). */
