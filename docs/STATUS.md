@@ -24,7 +24,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-11: Blur the front, Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
 
 **Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
-- 2026-11-11: streaks with conditions (All reviews done worked out from the history, nothing stored), counting per day or per week; the reminder in the app and on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video; Settings → General → Streaks and Reminder.
+- 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored), counting per day or per week; the reminder in the app and on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video; Settings → General → Streaks and Reminder.
 
 **The extension** (`architecture/extension.md`)
 - 2026-10-11: the capture drawer; the line under the player; the YouTube metadata field; Field mapping and Media.
@@ -66,7 +66,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 - Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
 - The docs: `docs/DOCS.md`.
-- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 7 (reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
+- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 8 (All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - The extension's polish round: the owner sends what's off, a change at a time.

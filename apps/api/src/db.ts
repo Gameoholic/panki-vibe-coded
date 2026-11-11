@@ -115,8 +115,9 @@ import {
   type Watching,
   type WordsInCards,
 } from "@panki/contracts";
-import { clearedMoments, type Changed } from "./cleared";
+import { clearedMoments, type Changed, type ReplayHold, type ReplayPlace } from "./cleared";
 import { hashOf, whileUnchanged } from "./kept";
+import { newDoneMoments } from "./newDone";
 import { streakStatesOf, streaksStamped, type DayTally } from "./streaks";
 import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
 import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, weekdayOf, type Day } from "./time";
@@ -1704,9 +1705,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectLimitChanges = db.prepare(
     "SELECT deck_id AS deckId, from_value AS fromValue, to_value AS toValue, at FROM deck_settings_changes WHERE key = 'newPerDay' ORDER BY at ASC, id ASC",
   );
-  // All reviews done's replay (`cleared.ts`): the whole account's history, every deck and card removed or not, each
-  // place and hold that stands in the order it was kept, and the logs of what the ladders and the caps were.
-  const selectReplayCards = db.prepare("SELECT id, deck_id AS deckId, removed_at AS removedAt FROM cards");
+  // The replays of All reviews done (`cleared.ts`) and All new cards done (`newDone.ts`): the whole account's history,
+  // every deck and card removed or not, each place and hold that stands in the order it was kept, and the logs of what
+  // the ladders and the caps were.
+  const selectReplayCards = db.prepare("SELECT id, deck_id AS deckId, created_at AS createdAt, removed_at AS removedAt FROM cards");
   const selectReplayDecks = db.prepare("SELECT id, removed_at AS removedAt, srs_type_id AS srsTypeId, settings FROM decks");
   const selectReplayPlaces = db.prepare(`
     SELECT card_id AS cardId, at, reason, stage_from AS stageFrom, burned_from AS burnedFrom, node_from AS nodeFrom,
@@ -2057,12 +2059,41 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     return Deck.parse({ ...(row as object), settings: own, newCount, dueCount, newAvailable: fresh, dueAvailable: due });
   }
   /**
+   * The whole account's history as the replays walk it (`cleared.ts`, `newDone.ts`): every card and deck, removed or
+   * not, each with its settings as they are now, and each place row and hold that stands, in the order kept.
+   */
+  function replayHistory() {
+    type PlaceReplayRow = { cardId: string; at: number; reason: string; stageFrom: string | null; burnedFrom: number; nodeFrom: string; stageId: string | null; past: number; node: string; burned: number };
+    const places: ReplayPlace[] = (selectReplayPlaces.all() as PlaceReplayRow[]).map((p) => ({
+      cardId: p.cardId,
+      at: p.at,
+      answer: p.reason === "answer",
+      // A new card's first answer starts it: a new card, never one of the deck's reviews.
+      start: p.stageFrom === null && p.burnedFrom === 0 && p.nodeFrom === "[]",
+      to: CardPlace.parse({ stageId: p.stageId, past: p.past, node: JSON.parse(p.node), burned: p.burned === 1 }),
+    }));
+    const holds: ReplayHold[] = (selectReplayHolds.all() as { cardId: string; at: number; kind: string; until: number | null; liftedAt: number | null }[]).flatMap((h) => (h.kind === "bury" || h.kind === "suspend" ? [{ ...h, kind: h.kind }] : []));
+    return {
+      cards: selectReplayCards.all() as { id: string; deckId: string; createdAt: number; removedAt: number | null }[],
+      decks: (selectReplayDecks.all() as { id: string; removedAt: number | null; srsTypeId: string; settings: string }[]).map((d) => ({ ...d, settings: deckSettingsFrom(d.settings) })),
+      places,
+      holds,
+    };
+  }
+  /** A deck setting's logged changes, each deck's oldest first, read back as the setting's own shape (`deck_settings_changes`). */
+  function deckSettingChanges<T>(rows: { deckId: string; fromValue: string; toValue: string; at: number }[], valueOf: (raw: string) => T): Map<string, Changed<T>[]> {
+    const changes = new Map<string, Changed<T>[]>();
+    for (const c of rows) changes.set(c.deckId, [...(changes.get(c.deckId) ?? []), { at: c.at, from: valueOf(c.fromValue), to: valueOf(c.toValue) }]);
+    return changes;
+  }
+  /**
    * The moments All reviews done happened, replayed from the whole history (`cleared.ts`): read again only once the
    * database has changed (`whileUnchanged`), so a stats read pays the replay once after something changed. The days
    * reviews a day are counted on are the account's as its settings say now.
    */
   const clearedOfHistory = whileUnchanged(db, (): number[] => {
     const settings = settingsFrom(selectSettings.all() as SettingRow[]);
+    const history = replayHistory();
     // A logged save as the ladder it was; one that no longer reads as one stands for nothing (the type as it is then).
     const ladderOf = (raw: string): SrsLadder | null => jsonOr(raw, LadderSnapshot);
     const ladders = new Map((selectReplayTypeIds.all() as { id: string }[]).map((t) => [t.id, srsTypeOf(t.id) as SrsLadder]));
@@ -2074,28 +2105,33 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     for (const c of selectReplayDeckTypeChanges.all() as { deckId: string; fromTypeId: string; toTypeId: string; at: number }[]) {
       deckTypeChanges.set(c.deckId, [...(deckTypeChanges.get(c.deckId) ?? []), { at: c.at, from: c.fromTypeId, to: c.toTypeId }]);
     }
-    const capOf = (raw: string) => jsonOr(raw, DeckSettings.shape.reviewsPerDay) ?? null;
-    const capChanges = new Map<string, Changed<number | null>[]>();
-    for (const c of selectReplayCapChanges.all() as { deckId: string; fromValue: string; toValue: string; at: number }[]) {
-      capChanges.set(c.deckId, [...(capChanges.get(c.deckId) ?? []), { at: c.at, from: capOf(c.fromValue), to: capOf(c.toValue) }]);
-    }
-    type PlaceReplayRow = { cardId: string; at: number; reason: string; stageFrom: string | null; burnedFrom: number; nodeFrom: string; stageId: string | null; past: number; node: string; burned: number };
+    const capChanges = deckSettingChanges(selectReplayCapChanges.all() as { deckId: string; fromValue: string; toValue: string; at: number }[], (raw) => jsonOr(raw, DeckSettings.shape.reviewsPerDay) ?? null);
     return clearedMoments({
-      cards: selectReplayCards.all() as { id: string; deckId: string; removedAt: number | null }[],
-      decks: (selectReplayDecks.all() as { id: string; removedAt: number | null; srsTypeId: string; settings: string }[]).map((d) => ({ ...d, reviewsPerDay: deckSettingsFrom(d.settings).reviewsPerDay })),
-      places: (selectReplayPlaces.all() as PlaceReplayRow[]).map((p) => ({
-        cardId: p.cardId,
-        at: p.at,
-        answer: p.reason === "answer",
-        // A new card's first answer starts it; it isn't one of the deck's reviews a day.
-        start: p.stageFrom === null && p.burnedFrom === 0 && p.nodeFrom === "[]",
-        to: CardPlace.parse({ stageId: p.stageId, past: p.past, node: JSON.parse(p.node), burned: p.burned === 1 }),
-      })),
-      holds: (selectReplayHolds.all() as { cardId: string; at: number; kind: string; until: number | null; liftedAt: number | null }[]).flatMap((h) => (h.kind === "bury" || h.kind === "suspend" ? [{ ...h, kind: h.kind }] : [])),
+      cards: history.cards,
+      decks: history.decks.map((d) => ({ id: d.id, removedAt: d.removedAt, srsTypeId: d.srsTypeId, reviewsPerDay: d.settings.reviewsPerDay })),
+      places: history.places,
+      holds: history.holds,
       ladders,
       ladderChanges,
       deckTypeChanges,
       capChanges,
+      dayOf: dayReader(settings.dayStartHour, zoneOf(settings)),
+    });
+  });
+  /**
+   * The moments All new cards done happened, replayed from the whole history (`newDone.ts`) and kept the same way: each
+   * deck's New cards a day as it stood at each moment, the new cards started counted on the account's days as its
+   * settings say now.
+   */
+  const newDoneOfHistory = whileUnchanged(db, (): number[] => {
+    const settings = settingsFrom(selectSettings.all() as SettingRow[]);
+    const history = replayHistory();
+    return newDoneMoments({
+      cards: history.cards,
+      decks: history.decks.map((d) => ({ id: d.id, removedAt: d.removedAt, newPerDay: d.settings.newPerDay })),
+      places: history.places,
+      holds: history.holds,
+      limitChanges: deckSettingChanges(selectLimitChanges.all() as LimitChangeRow[], (raw) => jsonOr(raw, DeckSettings.shape.newPerDay) ?? DEFAULT_DECK_SETTINGS.newPerDay),
       dayOf: dayReader(settings.dayStartHour, zoneOf(settings)),
     });
   });
@@ -3374,7 +3410,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const everyShowing = deckId === null ? showings : showingsOf([...everyAnswer, ...(selectScopeHolds.all(null, null) as ShowingRow[])], everySession);
       const facts = new Map<Day, DayTally>();
       const factsOn = (d: Day) => {
-        const entry = facts.get(d) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0 };
+        const entry = facts.get(d) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0, newDone: 0 };
         facts.set(d, entry);
         return entry;
       };
@@ -3389,6 +3425,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       for (const s of stretches) factsOn(day(s.at)).watchMs += s.spentMs;
       // All reviews done: a day on which an answer landed with nothing left due, replayed from the history.
       for (const at of clearedOfHistory()) factsOn(day(at)).cleared = 1;
+      // All new cards done: a day on which an answer landed with every deck's new cards for the day done, replayed too.
+      for (const at of newDoneOfHistory()) factsOn(day(at)).newDone = 1;
       // The reminder starts at its hour on the account's clock and runs until the day turns.
       const nextDay = dayStartAt(today.dayStart + 26 * 3_600_000, settings.dayStartHour, zone);
       const streaks = streakStatesOf(settings.streaks, facts, todayKey, {

@@ -8,7 +8,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test test/cleared.test.ts test/migrations.test.ts",
+    "test": "tsx --test test/cleared.test.ts test/newDone.test.ts test/migrations.test.ts",
     "user:add": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts add",
     "user:password": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts password",
     "user:list": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts list",

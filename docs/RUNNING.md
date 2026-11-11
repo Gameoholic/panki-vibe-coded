@@ -11,7 +11,7 @@ Run, build, deploy, load the extension; where the data lives.
 | `pnpm build` | Build the web and the extension (`apps/extension/dist/chrome`, `dist/firefox`). |
 | `pnpm typecheck` | Type-check everything. |
 | `pnpm --dir packages/contracts test` | The contracts' unit tests. |
-| `pnpm --dir apps/api test` | The API's unit tests (All reviews done's replay). |
+| `pnpm --dir apps/api test` | The API's unit tests (the replays of All reviews done and All new cards done, the migrations). |
 | `pnpm user:add <name> <password>` | Make an account, with the API stopped. The first takes the data from before accounts. |
 | `pnpm user:password <name> <new>` | Change a password; signs every device out. |
 | `pnpm user:list` | List accounts. |

@@ -6,9 +6,10 @@ export type ReminderClock = { on: boolean; pastStart: boolean; hoursLeft: number
 
 /**
  * What one of the account's days held, as the goals read it: counts, the time spent in ms (rounded to minutes only once
- * a period's days are summed), and 1 when a session that day cleared, else 0.
+ * a period's days are summed), 1 when an answer that day left all reviews done, else 0, and the same for all new cards
+ * done (both replayed from the history, `cleared.ts` and `newDone.ts`).
  */
-export type DayTally = { reviews: number; started: number; reviewMs: number; watchMs: number; cleared: number };
+export type DayTally = { reviews: number; started: number; reviewMs: number; watchMs: number; cleared: number; newDone: number };
 
 /**
  * A streak's period on the account's calendar, the one place it's decided. Each period is named by the day it starts
@@ -58,10 +59,17 @@ function periodFactsOf(tallies: ReadonlyMap<Day, DayTally>, startOf: (d: Day) =>
   for (const [d, t] of tallies) {
     if (d > today || (first !== null && d < first)) continue;
     const p = startOf(d);
-    const sum = sums.get(p) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0 };
-    sums.set(p, { reviews: sum.reviews + t.reviews, started: sum.started + t.started, reviewMs: sum.reviewMs + t.reviewMs, watchMs: sum.watchMs + t.watchMs, cleared: Math.max(sum.cleared, t.cleared) });
+    const sum = sums.get(p) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0, newDone: 0 };
+    sums.set(p, {
+      reviews: sum.reviews + t.reviews,
+      started: sum.started + t.started,
+      reviewMs: sum.reviewMs + t.reviewMs,
+      watchMs: sum.watchMs + t.watchMs,
+      cleared: Math.max(sum.cleared, t.cleared),
+      newDone: Math.max(sum.newDone, t.newDone),
+    });
   }
-  return new Map([...sums].map(([p, s]) => [p, { reviews: s.reviews, started: s.started, reviewMinutes: Math.floor(s.reviewMs / 60_000), watchMinutes: Math.floor(s.watchMs / 60_000), cleared: s.cleared }]));
+  return new Map([...sums].map(([p, s]) => [p, { reviews: s.reviews, started: s.started, reviewMinutes: Math.floor(s.reviewMs / 60_000), watchMinutes: Math.floor(s.watchMs / 60_000), cleared: s.cleared, newDone: s.newDone }]));
 }
 
 /**

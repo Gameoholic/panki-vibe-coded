@@ -37,7 +37,7 @@ export type ReplayInput = {
 };
 
 /** A value as it stood at a moment: the from of the first change after it, or the to of the last one at or before it. */
-function asAt<T>(now: T, changes: readonly Changed<T>[] | undefined, at: number): T {
+export function asAt<T>(now: T, changes: readonly Changed<T>[] | undefined, at: number): T {
   if (!changes || changes.length === 0) return now;
   let value = changes[0]!.from;
   for (const c of changes) {
@@ -45,6 +45,20 @@ function asAt<T>(now: T, changes: readonly Changed<T>[] | undefined, at: number)
     value = c.to;
   }
   return value;
+}
+
+/** Whether a hold keeps its card out at `at`: a suspend until it's lifted, a bury until its end or lifted early. */
+export const holdStands = (h: ReplayHold, at: number): boolean => {
+  const end = h.kind === "suspend" ? (h.liftedAt ?? Infinity) : Math.min(h.until ?? Infinity, h.liftedAt ?? Infinity);
+  return h.at <= at && at < end;
+};
+
+/** A row of the history as a replay walks it: a place row or a hold. */
+export type ReplayEvent = { at: number; place?: ReplayPlace; hold?: ReplayHold };
+/** Every row in the order it happened; a place row before a hold at the same moment, as the API writes them. */
+export function inOrder(places: readonly ReplayPlace[], holds: readonly ReplayHold[]): ReplayEvent[] {
+  const events: ReplayEvent[] = [...places.map((place) => ({ at: place.at, place })), ...holds.map((hold) => ({ at: hold.at, hold }))];
+  return events.sort((a, b) => a.at - b.at || Number(a.place === undefined) - Number(b.place === undefined));
 }
 
 /** The moments an answer (or a hold given as one) landed with nothing left due, oldest first. */
@@ -66,11 +80,7 @@ export function clearedMoments(input: ReplayInput): number[] {
     if (!ladder || isBurned(ladder, card.place)) return null;
     return dueAt(ladder, card.place, card.lastAt);
   };
-  const held = (card: Kept, at: number) =>
-    card.holds.some((h) => {
-      const end = h.kind === "suspend" ? (h.liftedAt ?? Infinity) : Math.min(h.until ?? Infinity, h.liftedAt ?? Infinity);
-      return h.at <= at && at < end;
-    });
+  const held = (card: Kept, at: number) => card.holds.some((h) => holdStands(h, at));
   // Reviews counted against each deck's reviews a day, by the day: answers that weren't a new card's start.
   const reviewed = new Map<string, number>();
   const reviewedKey = (deckId: string, at: number) => `${deckId}|${input.dayOf(at)}`;
@@ -99,12 +109,8 @@ export function clearedMoments(input: ReplayInput): number[] {
     return true;
   };
 
-  // Every row in the order it happened; a place row before a hold at the same moment, as the API writes them.
-  type Event = { at: number; place?: ReplayPlace; hold?: ReplayHold };
-  const events: Event[] = [...input.places.map((place) => ({ at: place.at, place })), ...input.holds.map((hold) => ({ at: hold.at, hold }))];
-  events.sort((a, b) => a.at - b.at || Number(a.place === undefined) - Number(b.place === undefined));
   const moments: number[] = [];
-  for (const e of events) {
+  for (const e of inOrder(input.places, input.holds)) {
     const card = cards.get(e.place?.cardId ?? e.hold?.cardId ?? "");
     if (!card) continue;
     if (e.place) {
