@@ -2,7 +2,7 @@
  * How long a deck's cards tend to take, worked out from its answers of the past `PACE_DAYS` (`DeckPace`). Pure: the
  * answers come in oldest first, with the account's day reader.
  */
-import { CARD_TIME_MAX_MS, type DeckPace } from "@panki/contracts";
+import { NO_PACE, countedMs, type DeckPace } from "@panki/contracts";
 
 /** How far back a pace looks. */
 export const PACE_DAYS = 30;
@@ -10,31 +10,32 @@ export const PACE_DAYS = 30;
 /** An answer as a pace reads it: its card and deck, when, whether it started a new card, and the spans the browser measured. */
 export type PaceAnswer = { cardId: string; deckId: string; at: number; start: boolean; thinkMs: number | null; decideMs: number | null };
 
-const NO_PACE: DeckPace = { newMs: null, reviewMs: null, showingMs: null };
-
 /** A card's showings on one day: whether the first started it, and the time each took. */
 type Run = { deckId: string; start: boolean; times: number[]; measured: boolean };
 
+const sumOf = (values: readonly number[]) => values.reduce((sum, v) => sum + v, 0);
+
 /** The mean of whole ms, rounded once; null with nothing to take it of. */
 function meanOf(values: readonly number[]): number | null {
-  return values.length === 0 ? null : Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+  return values.length === 0 ? null : Math.round(sumOf(values) / values.length);
 }
 
 function paceOf(runs: readonly Run[]): DeckPace {
   const measured = runs.filter((r) => r.measured);
-  const total = (r: Run) => r.times.reduce((sum, t) => sum + t, 0);
   return {
-    newMs: meanOf(measured.filter((r) => r.start).map(total)),
-    reviewMs: meanOf(measured.filter((r) => !r.start).map(total)),
+    newMs: meanOf(measured.filter((r) => r.start).map((r) => sumOf(r.times))),
+    reviewMs: meanOf(measured.filter((r) => !r.start).map((r) => sumOf(r.times))),
     showingMs: meanOf(measured.flatMap((r) => r.times)),
+    againMs: meanOf(measured.flatMap((r) => r.times.slice(1))),
   };
 }
 
 /**
  * Each deck's pace, and the account's over every deck. A card's answers on one day are one run, a new card's when the
  * first of them started it: a run's time is every showing in it, each at most `CARD_TIME_MAX_MS` as the stats count
- * it, so the times a card was missed and asked again are in it. A run with a showing the browser didn't measure counts
- * for nothing, rather than as quicker than it was. A deck's value it has none of is the account's.
+ * it, so the times a card was missed and asked again are in it; a showing after a run's first is an asked-again one.
+ * A run with a showing the browser didn't measure counts for nothing, rather than as quicker than it was. A deck's
+ * value it has none of is the account's.
  */
 export function pacesOf(answers: readonly PaceAnswer[], dayOf: (at: number) => string): { byDeck: Map<string, DeckPace>; all: DeckPace } {
   const runs = new Map<string, Run>();
@@ -42,7 +43,7 @@ export function pacesOf(answers: readonly PaceAnswer[], dayOf: (at: number) => s
     const key = `${a.cardId}|${dayOf(a.at)}`;
     const run = runs.get(key) ?? { deckId: a.deckId, start: a.start, times: [], measured: true };
     run.measured &&= a.thinkMs !== null && a.decideMs !== null;
-    run.times.push(Math.min((a.thinkMs ?? 0) + (a.decideMs ?? 0), CARD_TIME_MAX_MS));
+    run.times.push(countedMs(a.thinkMs, a.decideMs));
     runs.set(key, run);
   }
   const all = paceOf([...runs.values()]);
@@ -51,7 +52,12 @@ export function pacesOf(answers: readonly PaceAnswer[], dayOf: (at: number) => s
   const byDeck = new Map<string, DeckPace>();
   for (const [deckId, deckRuns] of byDeckRuns) {
     const own = paceOf(deckRuns);
-    byDeck.set(deckId, { newMs: own.newMs ?? all.newMs, reviewMs: own.reviewMs ?? all.reviewMs, showingMs: own.showingMs ?? all.showingMs });
+    byDeck.set(deckId, {
+      newMs: own.newMs ?? all.newMs,
+      reviewMs: own.reviewMs ?? all.reviewMs,
+      showingMs: own.showingMs ?? all.showingMs,
+      againMs: own.againMs ?? all.againMs,
+    });
   }
   return { byDeck, all };
 }

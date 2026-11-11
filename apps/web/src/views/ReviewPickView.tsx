@@ -1,11 +1,10 @@
 import { useId } from "react";
-import type { Deck } from "@panki/contracts";
+import { countsLeft, timeLeftMs, type Deck } from "@panki/contracts";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NoDecksYet } from "../components/NoDecksYet";
 import { timeWords } from "../components/TimeLeft";
 import { TodayBar, todayWords } from "../components/TodayBar";
-import { timeLeftMs } from "../reviewLine";
 import type { ReviewBegin } from "./ReviewView";
 
 type Props = {
@@ -32,8 +31,9 @@ export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
         <ul className="pick-list">
           {decks.map((deck) => {
             const words = todayWords(deck.dueCount, deck.newCount);
-            // Each card due as one review at the deck's pace: what a card due being asked again still takes isn't known here.
-            const takes = timeLeftMs({ new: deck.newCount, review: deck.dueCount, again: 0 }, deck.pace);
+            // Only the counts are known here: each card due as the deck's review day, each new one as its new card's day.
+            // Which cards are being asked again, and how fast a session goes, come with the review itself.
+            const takes = timeLeftMs(countsLeft(deck.newCount, deck.dueCount), deck.pace);
             return (
               <li key={deck.id}>
                 <TodayBar id={`pick-${deck.id}`} name={deck.name} counts={words ?? "Nothing due right now"} onShow={words ? () => onPick(deck, "cards") : undefined}>

@@ -124,7 +124,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
 | playback | `playback.ts` | How loud and how fast each player plays, its own for each field it plays, and whether clips' subtitles show (`usePlaying`, `setVolume`, `setSpeed`, `SPEEDS`, `useSubtitlesShown`). |
-| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left by kind and how long it takes (`buildQueue`, `startLine`, `advance`, `togoOf`, `timeLeftMs`, `KINDS`). |
+| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `KINDS`). |
 | romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | routes | `routes.ts` | Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). |
 | shuffle | `shuffle.ts` | A list shuffled, on a copy (`shuffle`). |
@@ -165,6 +165,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | kept | `kept.ts` | What the extension keeps of Panki's and how it hears of a change: the state header and its kinds (`STATE_HEADER`, `KEPT_KINDS`, `formatState`, `parseState`). |
 | layout | `layout.ts` | How a type's cards look in a review: each field's part, side, column, size, tone, look and marks (`CardLayout`, `COLUMNS`, `FaceShow`, `AutoPlay`). |
 | media | `media.ts` | A file on a card: its kind, types, weight limits, subtitle cues and how it was recorded (`MediaId`, `MediaKind`, `MEDIA_MIMES`, `MediaCues`, `MediaRecording`). |
+| pace | `pace.ts` | How long what's left of a review takes, at the deck's pace and today's speed (`timeLeftMs`, `cardLeftMs`, `paceAfter`, `todaySpeed`, `countsLeft`, `countedMs`). |
 | pieces | `pieces.ts` | Prompt context's pieces, one registry shared with the extension's field mapping (`PROMPT_PIECE_IDS`, `PIECE_NAMES`, `PIECE_SOURCES`, `variableOf`). |
 | pitch | `pitch.ts` | A pitch accent as a field holds it, read leniently (`PitchAccent`, `pitchesOf`, `moraeOf`, `isHigh`, `pitchValue`). |
 | prompt | `prompt.ts` | A Panki AI prompt filled from its pieces, what Explain sends and answers, and a call's cost before it runs (`aiSent`, `ExplainMessage`, `ExplainShape`, `ceilingMicros`). |

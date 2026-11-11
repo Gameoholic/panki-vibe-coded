@@ -14,7 +14,8 @@
     "user:list": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts list",
     "user:admin": "tsx --no-warnings=ExperimentalWarning src/cli/users.ts admin",
     "space": "tsx --no-warnings=ExperimentalWarning src/cli/space.ts",
-    "backup": "tsx --no-warnings=ExperimentalWarning src/cli/backup.ts"
+    "backup": "tsx --no-warnings=ExperimentalWarning src/cli/backup.ts",
+    "pace:backtest": "tsx --no-warnings=ExperimentalWarning src/cli/paceBacktest.ts"
   },
   "dependencies": {
     "@panki/contracts": "workspace:*",

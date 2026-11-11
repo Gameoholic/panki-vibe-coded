@@ -1,5 +1,5 @@
-/** @panki A review's line of cards: today's queue, the line as it moves on, what's left by kind and how long it takes (`buildQueue`, `startLine`, `advance`, `togoOf`, `timeLeftMs`, `KINDS`). */
-import { againPlaceOf, isNew, resolve, type Card, type Deck, type DeckPace, type Outcome, type ReviewSettings, type SrsType } from "@panki/contracts";
+/** @panki A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `KINDS`). */
+import { againPlaceOf, isNew, resolve, type Card, type CardLeft, type Deck, type Outcome, type ReviewSettings, type SrsType } from "@panki/contracts";
 import { shuffle } from "./shuffle";
 
 /**
@@ -63,16 +63,18 @@ export function togoOf(ids: readonly string[], byId: ReadonlyMap<string, Card>, 
 }
 
 /**
- * About how long what's left of a review takes, in ms, at the deck's pace: a new card and a review each as long as
- * one tends to take on its day (its misses included), each answer an asked-again card still takes one showing's. A
- * kind the pace has nothing for takes one showing's; null while the pace has nothing at all.
+ * What's left of each card, as the time left counts it (`timeLeftMs` in the contracts): a new card's day, a review's
+ * day (its misses priced in), or a card being asked again's answers still to take, as `togoOf` counts them. A card
+ * missed in this review stops being a review and costs its asked-again showings from then on: no double count, since
+ * its review day, which priced the miss as a chance, leaves with it.
  */
-export function timeLeftMs(togo: Record<Kind, number>, pace: DeckPace): number | null {
-  const showing = pace.showingMs;
-  const newMs = pace.newMs ?? showing;
-  const reviewMs = pace.reviewMs ?? showing;
-  if (showing === null || newMs === null || reviewMs === null) return null;
-  return togo.new * newMs + togo.review * reviewMs + togo.again * showing;
+export function leftOf(ids: readonly string[], byId: ReadonlyMap<string, Card>, srsType: SrsType, best: string): CardLeft[] {
+  return ids.flatMap((id): CardLeft[] => {
+    const card = byId.get(id);
+    if (!card) return [];
+    const kind = kindOf(card);
+    return [kind === "again" ? { kind, steps: stepsLeft(srsType, card, best) } : { kind }];
+  });
 }
 
 /** A card never started that a review can start: new, but not inside an ask-again (it has been started, and comes back as due), and not put aside. */

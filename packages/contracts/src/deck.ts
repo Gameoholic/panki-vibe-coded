@@ -33,15 +33,19 @@ export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, reviewsPerDa
 /**
  * How long this deck's cards tend to take, from its answers of the past 30 days, each showing at most
  * `CARD_TIME_MAX_MS`, in ms: a new card on the day it's started and a review on its day, every showing of it that day
- * (a miss and the asking again included), and one showing of a card. What the deck has none of is the account's over
- * every deck; null with none at all. What a review's time left is worked out from.
+ * (a miss and the asking again included), one showing of a card, and one showing of a card already shown that day
+ * (`againMs`: asked again after a miss, or still being learned). What the deck has none of is the account's over every
+ * deck; null with none at all. What a review's time left is worked out from (`pace.ts`).
  */
 export const DeckPace = z.object({
   newMs: z.number().int().nonnegative().nullable(),
   reviewMs: z.number().int().nonnegative().nullable(),
   showingMs: z.number().int().nonnegative().nullable(),
+  /** None from an older server: a card asked again then takes `showingMs` a showing. */
+  againMs: z.number().int().nonnegative().nullable().default(null),
 });
 export type DeckPace = z.infer<typeof DeckPace>;
+export const NO_PACE: DeckPace = { newMs: null, reviewMs: null, showingMs: null, againMs: null };
 
 export const Deck = NewDeck.extend({
   settings: DeckSettings,
@@ -56,7 +60,7 @@ export const Deck = NewDeck.extend({
   newAvailable: z.number().int().nonnegative(),
   dueAvailable: z.number().int().nonnegative(),
   /** Derived on every read; none from an older server. */
-  pace: DeckPace.default({ newMs: null, reviewMs: null, showingMs: null }),
+  pace: DeckPace.default(NO_PACE),
 });
 
 /** What a deck's settings can change: the name, the SRS type its cards follow, and any of its own settings. The rules are NewDeck's and DeckSettings', never restated. */

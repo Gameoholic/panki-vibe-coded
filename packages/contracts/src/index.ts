@@ -18,6 +18,7 @@ export * from "./history";
 export * from "./kept";
 export * from "./layout";
 export * from "./media";
+export * from "./pace";
 export * from "./pieces";
 export * from "./pitch";
 export * from "./judgement";

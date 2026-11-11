@@ -8,7 +8,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test test/meaning.test.ts test/conversation.test.ts test/diff.test.ts test/examples.test.ts test/stageColour.test.ts test/actions.test.ts test/touchUp.test.ts test/explain.test.ts"
+    "test": "tsx --test test/meaning.test.ts test/conversation.test.ts test/diff.test.ts test/examples.test.ts test/stageColour.test.ts test/actions.test.ts test/touchUp.test.ts test/explain.test.ts test/pace.test.ts"
   },
   "dependencies": {
     "zod": "^4.1.0"
