@@ -3452,38 +3452,59 @@ mark.sub-mark {
   font-weight: 600;
 }
 
-/* Listen first (components/ReviewCard.tsx, a type's `ListenFirst`): the card's Listen phase, before its front. A part
-   blurred or hidden keeps exactly its room, so nothing moves as the front shows. Blurred words, a picture or a link
-   are out of reach (`inert` in the review) and can't be selected; a blurred sound or clip still plays, its picture
-   blurred. The blur is a share of the words' own size, so big words are as unreadable as small ones; a picture's is
-   fixed. On the card being laid out, a hidden part stays faintly there, to be picked. */
-.review-part.listen-blur {
-  --listen-blur: 0.4em;
+/* Blur (components/ReviewCard.tsx, a part's `LayoutPart.blur`, while Blur the front is on): the front with a part
+   blurred or hidden as its type marks it. A part blurred or hidden keeps exactly its room, so nothing moves as it
+   unblurs. Blurred words, a picture or a link are out of reach (`inert` in the review) and can't be selected; a blurred
+   sound or clip still plays, its picture blurred. The blur is a share of the words' own size, so big words are as
+   unreadable as small ones; a picture's is fixed. Unblurred, the blur fades out and a hidden part fades in, in 0.18 s;
+   a card turned to its back shows it at once. On the card being laid out, a hidden part stays faintly there, to be
+   picked. */
+.review-part.blur-still {
+  --blur-amount: 0.4em;
 }
-.review-part.listen-blur:has(img.media-frame) {
-  --listen-blur: 18px;
+.review-part.blur-still:has(img.media-frame) {
+  --blur-amount: 18px;
 }
-.review-part.listen-blur:not(.is-editable) > *,
-.review-part.listen-blur.is-editable .review-part-body,
-.review-ruby rt.listen-blur {
-  filter: blur(var(--listen-blur, 0.4em));
+.review-card:not(.is-revealed) .review-part:not(.is-editable) > *,
+.review-card:not(.is-revealed) .review-part.is-editable .review-part-body,
+.review-card:not(.is-revealed) .review-part video.media-frame,
+.review-card:not(.is-revealed) .review-ruby rt {
+  /* With the hover's own of a part that has one (a video's metadata, `.video-card`), which this would take the place of. */
+  transition:
+    filter 0.18s ease,
+    opacity 0.18s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.review-part.blur-still:not(.is-editable) > *,
+.review-part.blur-still.is-editable .review-part-body,
+.review-ruby rt.blur-still {
+  filter: blur(var(--blur-amount, 0.4em));
   user-select: none;
   pointer-events: none;
 }
-.review-part.listen-veil video.media-frame {
+.review-part.blur-playing video.media-frame {
   filter: blur(24px);
 }
-.review-part.listen-hide,
-.review-ruby rt.listen-hide {
+.review-part.blur-hide,
+.review-ruby rt.blur-hide {
   visibility: hidden;
 }
-.review-card.is-editing .review-part.listen-hide,
-.review-card.is-editing .review-ruby rt.listen-hide {
+.review-part.blur-hide:not(.is-editable) > *,
+.review-part.blur-hide.is-editable .review-part-body,
+.review-ruby rt.blur-hide {
+  opacity: 0;
+}
+.review-card.is-editing .review-part.blur-hide,
+.review-card.is-editing .review-ruby rt.blur-hide {
   visibility: visible;
   opacity: 0.3;
 }
-/* A clip's subtitles while listening (`LayoutPart.listenSubtitles`): the whole line blurred, or the card's word alone,
-   unlit, in it. */
+.review-card.is-editing .review-part.blur-hide .review-part-body {
+  opacity: 1;
+}
+/* A clip's subtitles on the blurred front (`LayoutPart.blurSubtitles`): the whole line blurred, or the card's word
+   alone, unlit, in it. */
 .sub-band.is-blurred,
 mark.sub-blur {
   filter: blur(0.35em);
@@ -5448,6 +5469,43 @@ mark.sub-blur {
 }
 .review-mark.is-hidden {
   opacity: 0.45;
+}
+/* Unblur and Blur (`BlurButton`), last in their corner's row: a chip of glass over whatever the card shows there, its
+   icon in the accent, apart from the answers (white, a line), Show back of card (filled) and the tools (bare words).
+   Its two words held in one box, so it keeps one width as it flips. Held unseen, its room kept, on the back and on a
+   card whose type marks nothing to blur. */
+.btn.btn-chip.review-blur {
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--blur-glass);
+  border-color: var(--blur-edge);
+  box-shadow: var(--lift);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.btn.review-blur > .icon {
+  color: var(--accent);
+}
+.review-blur .key {
+  color: var(--muted);
+}
+.review-blur-words {
+  display: grid;
+}
+.review-blur-words > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+.review-blur-words > .is-off,
+.btn.review-blur.is-held {
+  visibility: hidden;
+}
+@media (hover: hover) {
+  .btn.btn-chip.review-blur:hover:not(:disabled) {
+    background: var(--surface);
+  }
 }
 .summary {
   display: grid;
@@ -7548,8 +7606,9 @@ mark.sub-blur {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-/* A condition's state as a mark, as tall as the row's words so nothing shifts: met a tick in the good ink; not yet the
-   count so far in red, or a cross in red where there's no count. */
+/* A condition's state as a mark, as tall as the row's words so nothing shifts: met a tick in the theme's green (`--good`,
+   never `--good-ink`, which is the ink on a green fill); not yet the count so far in the theme's red, or a cross in red
+   where there's no count. */
 .w-goal-n .icon {
   display: block;
   width: 14px;
@@ -7557,7 +7616,7 @@ mark.sub-blur {
   stroke-width: 2.5;
 }
 .w-goal.is-met .w-goal-n {
-  color: var(--good-ink);
+  color: var(--good);
 }
 .w-goal.is-unmet .w-goal-n {
   color: var(--danger);

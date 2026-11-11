@@ -6,10 +6,7 @@ import { waveOf } from "../waveform";
 import { Button } from "./Button";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icon";
-import { ReviewCard, listensFirst } from "./ReviewCard";
-
-/** What's showing of the card: its Listen phase (its type's Listen first), its front, or its back. */
-type Face = "listen" | "front" | "back";
+import { ReviewCard } from "./ReviewCard";
 
 type Props = {
   card: Card;
@@ -61,9 +58,9 @@ function carriedSources(from: CardType, to: CardType, sources: ValueSources): Va
 /**
  * One card as a review would show it in the deck picked: its own deck to begin with. In a deck of its own card type it's exactly that
  * deck's card, the example the account's Example shown picks; in another, the card type's fields take the values of this card's
- * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. A card type with
- * Listen first opens it on its Listen phase, as a review does, and it shows its front as its sound or clip begins the play set to show it. Turned by a
- * press, round from its Listen phase to its back; nothing plays by itself.
+ * fields of the same name and kind. Where it stands is its own in its own deck, and New in another. Its front is clear,
+ * whatever its type marks to blur: it's looked at, not reviewed. Turned back and forth by a press; nothing plays by
+ * itself.
  */
 export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle, exampleShown, onClose }: Props) {
   const [deckId, setDeckId] = useState(card.deckId);
@@ -73,12 +70,10 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
   // The example a review shows, picked once for each deck looked at, as a review picks it once each time the card comes up.
   const exampleId = useMemo(() => (deck && deck.typeId === type.id ? exampleShownOf(type, card, exampleShown, Math.random) : null), [deck, type, card, exampleShown]);
   const values = shownType === null ? {} : shownType.id === type.id ? valuesWithExample(type, card, exampleId) : carried(type, shownType, card.values);
-  /** Where it opens: its Listen phase in a deck whose card type listens first and with something to hear, else its front. */
-  const opening: Face = shownType && listensFirst(shownType, values, card.files) ? "listen" : "front";
-  // Held as the face chosen and the deck it was chosen in: another deck picked opens the card afresh.
-  const [chosen, setFace] = useState<{ deckId: string; face: Face } | null>(null);
-  const face = chosen && chosen.deckId === deckId ? chosen.face : opening;
-  const turn = () => setFace({ deckId, face: face === "listen" ? "front" : face === "front" ? "back" : opening });
+  // Held as turned or not and the deck it was turned in: another deck picked opens the card afresh, on its front.
+  const [turnedIn, setTurnedIn] = useState<{ deckId: string; back: boolean } | null>(null);
+  const back = turnedIn !== null && turnedIn.deckId === deckId && turnedIn.back;
+  const turn = () => setTurnedIn({ deckId, back: !back });
 
   return (
     <div className="card-preview">
@@ -106,9 +101,7 @@ export function CardPreview({ card, type, decks, types, srsTypes, subtitleStyle,
           place={deckId === card.deckId ? card.place : NEW_PLACE}
           // The card's flag is its own, whichever deck it's seen in.
           flagged={card.flaggedAt !== null}
-          revealed={face === "back"}
-          listening={face === "listen"}
-          onListened={() => setFace({ deckId, face: "front" })}
+          revealed={back}
           onPress={turn}
           srcOf={api.mediaUrl}
           waveOf={waveOf}

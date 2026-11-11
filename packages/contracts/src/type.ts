@@ -1,6 +1,6 @@
 /** @panki A card type and its fields, which kinds hold what, and what it demands of a card's values (`CardType`, `CardField`, `FieldKind`, `holdsFile`, `cardProblems`). */
 import { z } from "zod";
-import { CardLayout, DEFAULT_FLAG_MARK, DEFAULT_LISTEN_FIRST, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, ExamplesPlace, FlagMark, ListenFirst, SparkMark, StageTag } from "./layout";
+import { CardLayout, DEFAULT_FLAG_MARK, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, ExamplesPlace, FlagMark, SparkMark, StageTag } from "./layout";
 import { MediaId, type MediaKind } from "./media";
 import { youtubeMetaOf, type YouTubeLink, type YouTubeMeta } from "./youtube";
 
@@ -105,8 +105,6 @@ export const NewCardType = z.object({
   flag: FlagMark.optional(),
   /** Where its cards' example arrows stand (`layout.ts` → `ExamplesPlace`, kept beside the tag); null, where the example is; left out, as it stands. */
   examples: ExamplesPlace.nullable().optional(),
-  /** Whether its cards open on a Listen phase in a review, and how (`layout.ts` → `ListenFirst`); left out, as it stands (or off). */
-  listen: ListenFirst.optional(),
   /**
    * The field its cards are called by (`wordsFieldOf`): what names a card and what a card already there is found by
    * (the warning on adding, the duplicates, the popup, the highlighting). Picked by hand, never assumed: null, and its cards have no duplicates. Left out, as it stands
@@ -129,8 +127,6 @@ export const CardType = NewCardType.extend({
   flag: FlagMark.default(DEFAULT_FLAG_MARK),
   /** The example arrows as laid out (`cardLayout.ts` → `examplesPlaceOf`); null, nobody laid them out, and they stand where the example is (`examplesAt`). */
   examples: ExamplesPlace.nullable().default(null),
-  /** Listen first as it stands; a type it was never switched on for (or an older server) has it off. */
-  listen: ListenFirst.default(DEFAULT_LISTEN_FIRST),
   /** Its main field as it stands, a field of words it has; null when none is picked (or from an older server). */
   mainField: CardFieldId.nullable().default(null),
   /** Stamped by the API, ms since epoch. */

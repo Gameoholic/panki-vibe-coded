@@ -1,5 +1,5 @@
-/** @panki A card layout's choices in words: show, size, tone, column, look, play, listen, corner marks (`SHOW_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). */
-import { SHOW_ON_PLAY_MAX, type AutoPlay, type Column, type CornerMarkId, type FaceShow, type ListenShow, type ListenSubtitles, type MediaLook, type PartSize, type PartTone, type TagCorner } from "@panki/contracts";
+/** @panki A card layout's choices in words: show, size, tone, column, look, play, blurred front, corner marks (`SHOW_OPTIONS`, `BLUR_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). */
+import type { AutoPlay, BlurShow, BlurSubtitles, Column, CornerMarkId, FaceShow, MediaLook, PartSize, PartTone, TagCorner } from "@panki/contracts";
 
 /**
  * The card layout in words: the choices each part has (what a side does with it, its size, its colour, its player
@@ -34,28 +34,18 @@ export const PLAY_OPTIONS: readonly { id: AutoPlay; label: string }[] = [
   { id: "turned", label: "When the card is turned" },
   { id: "both", label: "Both" },
 ];
-/** What the Listen phase does with a part (Listen first), in the words of the sides' own choices. */
-export const LISTEN_OPTIONS: readonly { id: ListenShow; label: string }[] = [
+/** What the blurred front does with a part (its Blurred front), in verbs as the sides' own choices are. */
+export const BLUR_OPTIONS: readonly { id: BlurShow; label: string }[] = [
   { id: "show", label: "Show" },
   { id: "blur", label: "Blur" },
   { id: "hide", label: "Hide" },
 ];
-/** What the Listen phase does with a clip's subtitles: what's blurred in them is its Highlight (else the type's main field), named so. */
-export const LISTEN_SUBTITLE_OPTIONS: readonly { id: ListenSubtitles; label: string }[] = [
+/** What the blurred front does with a clip's subtitles: what's blurred in them is its Highlight (else the type's main field), named so. */
+export const BLUR_SUBTITLE_OPTIONS: readonly { id: BlurSubtitles; label: string }[] = [
   { id: "show", label: "Show" },
   { id: "word", label: "Blur highlight" },
   { id: "blur", label: "Blur" },
   { id: "hide", label: "Hide" },
-];
-/**
- * A sound's or clip's Ends listening, as a choice: Never (Done listening alone, 0 here, null as it's kept), or the play
- * whose start shows the card, from the second ("play", not "watch", since a sound has one too).
- */
-export const NEVER_BY_ITSELF = 0;
-const PLAY_WORDS = ["second", "third", "fourth", "fifth", "sixth"];
-export const SHOW_ON_PLAY_OPTIONS: readonly { id: number; label: string }[] = [
-  { id: NEVER_BY_ITSELF, label: "Never" },
-  ...Array.from({ length: SHOW_ON_PLAY_MAX - 1 }, (_, i) => ({ id: i + 2, label: `On ${PLAY_WORDS[i] ?? `play ${i + 2}`} play` })),
 ];
 /** A corner of the card, where a corner mark (the stage tag, the AI spark, the flag) sits. */
 export const CORNER_OPTIONS: readonly { id: TagCorner; label: string }[] = [

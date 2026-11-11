@@ -51,7 +51,7 @@ import { Bone, Skeleton, type SkeletonShape } from "./components/Skeleton";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { SpaceNotice } from "./components/SpaceNotice";
 import { todayWords } from "./components/TodayBar";
-import { count } from "./words";
+import { count, setFormats } from "./words";
 import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
 import { SAVE_WORDS, type UnsavedGuard } from "./unsaved";
@@ -289,6 +289,9 @@ export function App() {
   const [types, setTypes] = useState<CardType[] | null>(null);
   const [srsTypes, setSrsTypes] = useState<SrsType[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  // Every date and time is read in the account's formats (`words.ts`): handed in as the settings are, before anything
+  // under this render formats one, so a change of format shows at once.
+  if (settings) setFormats(settings.timeFormat, settings.dateFormat);
   /** Panki AI as it stands, with the account's own templates: asked for on the screens that list or edit them (`AI_KINDS`). */
   const [ai, setAi] = useState<PankiAiStatus | null>(null);
   const [cards, setCards] = useState<Card[] | null>(null);
@@ -643,7 +646,7 @@ export function App() {
     return saved;
   }, []);
 
-  /** A card type's layout, corner marks, example arrows and Listen first, saved: the fields go along as they are, so only the layout (and the sides it gives them), the stage tag, the AI spark, the flag, the example arrows and Listen first change. */
+  /** A card type's layout, corner marks and example arrows, saved: the fields go along as they are, so only the layout (and the sides it gives them), the stage tag, the AI spark, the flag and the example arrows change. */
   const saveLayout = useCallback(async (type: CardType, laid: LaidOut) => {
     const saved = await api.updateType(type.id, { name: type.name, fields: type.fields, ...laid });
     setTypes((prev) => prev?.map((t) => (t.id === saved.id ? saved : t)) ?? null);

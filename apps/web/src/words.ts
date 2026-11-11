@@ -1,4 +1,5 @@
-/** @panki How things are said in words: a count, a list, a key, a clock, a date, how long ago, a cost (`count`, `listWords`, `keyWords`, `clock`, `agoWords`, `estimateWords`). */
+/** @panki How things are said in words, every date and time in the account's formats (`count`, `listWords`, `clock`, `dateWords`, `dayWords`, `hourSpanWords`, `setFormats`, `agoWords`). */
+import { DEFAULT_SETTINGS, type DateFormat, type TimeFormat } from "@panki/contracts";
 /**
  * What Video tracking does, said under it in the extension, where it's switched, and in Panki's Settings, where it's
  * shown: the same words in both, so the two read exactly alike.
@@ -126,16 +127,78 @@ export function tokenWords(tokens: number): string {
   return String(tokens);
 }
 
-const DATE_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric" });
-/** A moment (ms since epoch) as a date in words, "10 October 2026", never a raw number. */
-export function dateWords(at: number): string {
-  return DATE_WORDS.format(new Date(at));
-}
+// ---------- Dates and times: the one home ----------
 
-const HOUR_WORDS = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-/** A moment (ms since epoch) as the time of day on this device's clock, "21:47": when a video will end. */
+/**
+ * How the account reads dates and times (`Settings.timeFormat`, `dateFormat`, Settings → General → Display), held here
+ * for every formatter below: the app hands them in as its settings arrive (`setFormats`). Until then, and wherever
+ * nothing hands them in (the extension), 24-hour and day month, what the app always showed.
+ */
+let formats: { time: TimeFormat; date: DateFormat } = { time: DEFAULT_SETTINGS.timeFormat, date: DEFAULT_SETTINGS.dateFormat };
+const formatters = new Map<string, Intl.DateTimeFormat>();
+export function setFormats(time: TimeFormat, date: DateFormat) {
+  if (time === formats.time && date === formats.date) return;
+  formats = { time, date };
+  formatters.clear();
+}
+/**
+ * A formatter for these fields in the account's field order: day month is British English's order, month day American
+ * English's, chosen by the setting and never guessed from the browser; the words are English either way.
+ */
+function formatter(key: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(formats.date === "dayMonth" ? "en-GB" : "en-US", options);
+    formatters.set(key, f);
+  }
+  return f;
+}
+/** An account day ("YYYY-MM-DD") as the moment it names, read in UTC so no zone moves it. */
+const ofDay = (day: string) => new Date(`${day}T00:00:00Z`);
+
+/** A moment (ms since epoch) as a date in words, "10 October 2026" or "October 10, 2026", never a raw number. */
+export function dateWords(at: number): string {
+  return formatter("date", { day: "numeric", month: "long", year: "numeric" }).format(new Date(at));
+}
+/** An account day with its weekday: "Wed 11 Nov", "Wed, Nov 11". */
+export const dayWords = (day: string) => formatter("day", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(ofDay(day));
+/** An account day short: "11 Nov", "Nov 11". */
+export const shortDayWords = (day: string) => formatter("short", { day: "numeric", month: "short", timeZone: "UTC" }).format(ofDay(day));
+/** An account day with its year: "11 Nov 2026", "Nov 11, 2026". */
+export const fullDayWords = (day: string) => formatter("full", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(ofDay(day));
+/** The month an account day is in, with its year: "November 2026". */
+export const monthYearWords = (day: string) => formatter("monthYear", { month: "long", year: "numeric", timeZone: "UTC" }).format(ofDay(day));
+/** The month an account day is in, as a label: its three letters, "Nov", never an initial. */
+export const monthWords = (day: string) => formatter("month", { month: "short", timeZone: "UTC" }).format(ofDay(day));
+
+/** An hour and minutes on the clock, in the account's hour cycle: "21:47" or "9:47 pm". */
+function clockWords(hour: number, minute: number): string {
+  const mm = String(minute).padStart(2, "0");
+  if (formats.time === "h24") return `${String(hour).padStart(2, "0")}:${mm}`;
+  return `${hour % 12 === 0 ? 12 : hour % 12}:${mm} ${hour < 12 ? "am" : "pm"}`;
+}
+/** A moment (ms since epoch) as the time of day on this device's clock, "21:47" or "9:47 pm": when a video will end. */
 export function hourWords(at: number): string {
-  return HOUR_WORDS.format(new Date(at));
+  const d = new Date(at);
+  return clockWords(d.getHours(), d.getMinutes());
+}
+/** An hour of the day as a label, on the hour: "06:00", "18:00", or "6 am", "6 pm". */
+export function hourOfDayWords(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  if (formats.time === "h24") return clockWords(h, 0);
+  return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "am" : "pm"}`;
+}
+/**
+ * An hour of the day as the span it covers, an en dash between and no spaces: "15:00–16:00", midnight's
+ * "23:00–00:00"; or "3–4 pm", "11 am–12 pm", "11 pm–12 am", the am or pm said once where both ends share it.
+ */
+export function hourSpanWords(hour: number): string {
+  const from = ((hour % 24) + 24) % 24;
+  const to = (from + 1) % 24;
+  if (formats.time === "h24") return `${clockWords(from, 0)}–${clockWords(to, 0)}`;
+  const half = (h: number) => (h < 12 ? "am" : "pm");
+  const twelve = (h: number) => (h % 12 === 0 ? 12 : h % 12);
+  return half(from) === half(to) ? `${twelve(from)}–${twelve(to)} ${half(to)}` : `${hourOfDayWords(from)}–${hourOfDayWords(to)}`;
 }
 
 /**

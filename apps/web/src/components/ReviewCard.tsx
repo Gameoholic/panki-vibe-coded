@@ -1,4 +1,4 @@
-/** @panki A card as a review shows it, front and back, laid out by its type (`ReviewCard`, `listensFirst`). Never a second drawing of a card's two sides. */
+/** @panki A card as a review shows it, front and back, laid out by its type, its front blurred as the type marks it (`ReviewCard`). Never a second drawing of a card's two sides. */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   CORNER_MARK_IDS,
@@ -7,6 +7,7 @@ import {
   MediaId,
   TagCorner,
   aiOwns,
+  blursFront,
   byAi,
   columnOrder,
   examplesAt,
@@ -21,6 +22,7 @@ import {
   pitchesOf,
   playsOn,
   wordsFieldOf,
+  type BlurShow,
   type CardField,
   type CardPlace,
   type CardSide,
@@ -30,8 +32,6 @@ import {
   type ExamplesPlace,
   type FlagMark,
   type LayoutPart,
-  type ListenFirst,
-  type ListenShow,
   type MediaCues,
   type MediaKind,
   type SparkMark,
@@ -43,9 +43,10 @@ import {
 import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
 import type { useDragOrder } from "../hooks/useDragOrder";
-import type { Heard, Shortcut } from "../keys";
+import type { Heard, Key, Shortcut } from "../keys";
 import { CORNER_MARK_NAMES, EXAMPLE_ARROWS } from "../layoutKinds";
 import { langOf } from "../words";
+import { BlurButton } from "./BlurButton";
 import { Button } from "./Button";
 import { FlagTag } from "./FlagTag";
 import { Icon } from "./Icon";
@@ -79,10 +80,16 @@ export type CardEdit = {
 /** A mark in a corner of the card, as the card has it now: its corner, whether it's laid out to show and has something to show here, its look and what it draws. */
 type CornerMark = { id: CornerMarkId; corner: TagCorner; shown: boolean; here: boolean; look: string; label: string; node: ReactNode };
 
+/**
+ * The front's blur, while the account's Blur the front is on: whether it's blurred now, Blur's key, and Unblur and Blur.
+ * The card blurs only its front, and only as its type marks it (`blursFront`); the rest is the caller's (`useBlur`).
+ */
+export type CardBlur = { blurred: boolean; bind: Key | undefined; onToggle: () => void };
+
 /** How far a press must move before it's a drag of the stage tag rather than a press that picks it. */
 const TAG_DRAG_PX = 4;
-/** A play begun this close to a sound's or clip's start, in seconds, is from its start: one played again, not one played on. */
-const AT_START_S = 0.25;
+/** The corner Unblur and Blur stand in, after the marks there. */
+const BLUR_CORNER: TagCorner = "top-right";
 
 /** A corner from which half of the card it's in, up or down and left or right. */
 const cornerOf = (top: boolean, left: boolean): TagCorner => (top ? (left ? "top-left" : "top-right") : left ? "bottom-left" : "bottom-right");
@@ -158,19 +165,22 @@ function CornerMarkSpot({ mark, edit, card }: { mark: CornerMark; edit: CardEdit
 /**
  * The card's corner marks, each corner a row of those standing in it in the registry's order (`CORNER_MARK_IDS`: the
  * stage tag first): in a review only those laid out to show that have something to show; on the card being laid out
- * every one, so each can be picked and moved.
+ * every one, so each can be picked and moved. Unblur and Blur (`blur`) stand last in their corner's row, so they never
+ * cover a mark there.
  */
-function CornerMarks({ marks, edit, card }: { marks: readonly CornerMark[]; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null> }) {
+function CornerMarks({ marks, edit, card, blur }: { marks: readonly CornerMark[]; edit: CardEdit | undefined; card: RefObject<HTMLDivElement | null>; blur: ReactNode }) {
   const order = (id: CornerMarkId) => CORNER_MARK_IDS.indexOf(id);
   const drawn = marks.filter((m) => edit || (m.shown && m.here)).sort((a, b) => order(a.id) - order(b.id));
   return TagCorner.options.map((corner) => {
     const here = drawn.filter((m) => m.corner === corner);
-    if (here.length === 0) return null;
+    const more = corner === BLUR_CORNER ? blur : null;
+    if (here.length === 0 && more === null) return null;
     return (
       <span key={corner} className={`review-corner is-${corner}`}>
         {here.map((m) => (
           <CornerMarkSpot key={m.id} mark={m} edit={edit} card={card} />
         ))}
+        {more}
       </span>
     );
   });
@@ -188,13 +198,12 @@ type Props = {
   /** Turned to its back. */
   revealed: boolean;
   /**
-   * In its Listen phase, before its front (its type's Listen first): the front, each part shown, blurred or hidden as
-   * its `listen` says, keeping its room so nothing moves as the front shows; its sounds and clips there to hear, but a
-   * hidden one. What plays by itself when the card comes up plays now. Off by default.
+   * The front's blur while the account's Blur the front is on (a review, a card laid out): blurred, each part shown,
+   * blurred or hidden as its `blur` says, keeping its room so nothing moves as it unblurs, its sounds and clips there to
+   * hear but a hidden one; and Unblur and Blur in the card's corner, held unseen on the back and on a card whose type
+   * marks nothing. Left out (the setting off, or a card only looked at), the front is clear and there's no Unblur.
    */
-  listening?: boolean;
-  /** While listening, the sound or clip that shows the card by itself has begun its play of that number (`LayoutPart.showOnPlay`): the card is to show its front. */
-  onListened?: () => void;
+  blur?: CardBlur;
   /**
    * A press anywhere on the card but on a file's own player or a spoiler, or Enter or Space while the card has the focus.
    * Left out, a press on it does nothing: the review turns its card by its key and Show back of card alone.
@@ -280,35 +289,21 @@ function playableOf(field: CardField, values: Readonly<Record<string, string>>, 
 }
 
 /**
- * Whether a card opens on its Listen phase: its type has Listen first on, and its front shows a sound or a clip that
- * the Listen phase doesn't hide. A card with nothing to hear opens on its front.
+ * How the blurred front draws a part (`app.css`, "Blur"): blurred words or a picture are out of reach (`inert`), a
+ * blurred sound or clip still plays, its picture blurred, and a hidden part keeps its room unseen.
  */
-export function listensFirst(type: CardType, values: Readonly<Record<string, string>>, files: Readonly<Record<string, MediaKind>> | undefined, listen: ListenFirst = type.listen, layout: readonly LayoutPart[] = type.layout): boolean {
-  if (!listen.on) return false;
-  const fields = new Map(type.fields.map((f) => [f.id, f]));
-  return layout.some((part) => {
-    const field = fields.get(part.fieldId);
-    return field !== undefined && part.front === "show" && part.listen !== "hide" && playableOf(field, values, files);
-  });
-}
-
-/**
- * How the Listen phase draws a part (`app.css`, "Listen first"): blurred words or a picture are out of reach (`inert`),
- * a blurred sound or clip still plays, its picture blurred, and a hidden part keeps its room unseen.
- */
-const VEIL_CLASS: Record<Exclude<ListenShow, "show">, { still: string; playing: string }> = {
-  blur: { still: "listen-blur", playing: "listen-veil" },
-  hide: { still: "listen-hide", playing: "listen-hide" },
+const BLUR_CLASS: Record<Exclude<BlurShow, "show">, { still: string; playing: string }> = {
+  blur: { still: "blur-still", playing: "blur-playing" },
+  hide: { still: "blur-hide", playing: "blur-hide" },
 };
 
 /**
  * The card as a review shows it, drawn from its type's layout: each field where the layout puts it, in its size and
  * colour, beside the one above when it's set to be; on the front what the front shows, and once it's turned what the
  * back does. A spoiler is covered until it's pressed, and stays open when the card is turned. What only the back shows
- * keeps its room on the front, unseen, so turning the card moves nothing. A type with Listen first opens a card with
- * something to hear on its Listen phase (`listening`), the front with each part shown, blurred or hidden. What a press
- * does is the caller's: a review turns it once, a look at a card being made turns it back and forth. Never a second
- * drawing of a card's two sides.
+ * keeps its room on the front, unseen, so turning the card moves nothing. Blurred (`blur`), the front has each part
+ * shown, blurred or hidden as its type marks it. What a press does is the caller's: a review turns it once, a look at a
+ * card being made turns it back and forth. Never a second drawing of a card's two sides.
  */
 export function ReviewCard({
   type,
@@ -317,8 +312,7 @@ export function ReviewCard({
   srsType,
   place,
   revealed,
-  listening = false,
-  onListened,
+  blur,
   onPress,
   srcOf,
   standIns,
@@ -433,54 +427,14 @@ export function ReviewCard({
     watch.observe(el);
     for (const child of blocks()) watch.observe(child);
     return () => watch.disconnect();
-  }, [revealed, values, listening, given, type, opened, split, scroller]);
+  }, [revealed, values, blur?.blurred, given, type, opened, split, scroller]);
 
-  /** In the Listen phase: on the front, never once it's turned. */
-  const inListen = listening && !revealed;
-  /** What the Listen phase does with a part: nothing outside it. */
-  const veilOf = (part: LayoutPart): ListenShow => (inListen ? part.listen : "show");
-  // The one sound or clip that shows the card by itself (its `showOnPlay`) does so the moment its play of that number
-  // begins (as the second play starts, not as the first one ends). A play begins at its first start, and again from its start: after its end, or played again from it;
-  // paused and played on is still the one. Heard on the card itself, in the capture phase, since a media element's
-  // events don't bubble: every look of every player is heard alike.
-  const plays = useRef({ count: 0, ended: false });
-  const listened = useRef(onListened);
-  listened.current = onListened;
-  const shower = layout.find((p) => p.showOnPlay !== null);
-  const showerId = shower?.fieldId ?? null;
-  const showsOn = shower?.showOnPlay ?? null;
-  useEffect(() => {
-    plays.current = { count: 0, ended: false };
-    const el = card.current;
-    if (!el || !inListen || showerId === null || showsOn === null) return;
-    const ours = (e: Event): HTMLMediaElement | null =>
-      e.target instanceof HTMLMediaElement && e.target.closest("[data-part]")?.getAttribute("data-part") === showerId ? e.target : null;
-    /** A play begun: counted, and the card shown once it's the one it waits for. */
-    const begun = () => {
-      plays.current = { count: plays.current.count + 1, ended: false };
-      if (plays.current.count >= showsOn) listened.current?.();
-    };
-    const onPlay = (e: Event) => {
-      const media = ours(e);
-      if (media && (plays.current.count === 0 || plays.current.ended || media.currentTime < AT_START_S)) begun();
-    };
-    // Sent back to its start while it plays (its restart key): another play.
-    const onSeeked = (e: Event) => {
-      const media = ours(e);
-      if (media && !media.paused && plays.current.count > 0 && media.currentTime < AT_START_S) begun();
-    };
-    const onEnded = (e: Event) => {
-      if (ours(e)) plays.current = { ...plays.current, ended: true };
-    };
-    el.addEventListener("play", onPlay, true);
-    el.addEventListener("seeked", onSeeked, true);
-    el.addEventListener("ended", onEnded, true);
-    return () => {
-      el.removeEventListener("play", onPlay, true);
-      el.removeEventListener("seeked", onSeeked, true);
-      el.removeEventListener("ended", onEnded, true);
-    };
-  }, [inListen, showerId, showsOn]);
+  /** Whether the type marks anything on the front to blur: Unblur and Blur are live only then. */
+  const blurrable = blursFront(layout);
+  /** Blurred now: on the front, never once it's turned, and only with something to blur. */
+  const inBlur = (blur?.blurred ?? false) && !revealed && blurrable;
+  /** What the blurred front does with a part: nothing while it's clear. */
+  const blurOf = (part: LayoutPart): BlurShow => (inBlur ? part.blur : "show");
 
   const drawn: Drawn[] = layout.flatMap((part) => {
     const field = fields.get(part.fieldId);
@@ -572,13 +526,13 @@ export function ReviewCard({
   }
   /**
    * A clip's subtitles, when its part has them on and the clip was recorded with its words: following it as it plays,
-   * in the app's subtitle style, with its Highlight lit in each line it's in. In the Listen phase, as its part's
-   * `listenSubtitles` says: shown, the card's word blurred (its Highlight, else the type's main field), the line
+   * in the app's subtitle style, with its Highlight lit in each line it's in. On the blurred front, as its part's
+   * `blurSubtitles` says: shown, the card's word blurred (its Highlight, else the type's main field), the line
    * blurred, or none.
    */
   function subtitlesOf(part: LayoutPart, said: MediaCues | undefined, time?: ClipTime): ReactNode {
     if (!part.subtitles || !said || said.length === 0) return null;
-    const veil = inListen ? part.listenSubtitles : "show";
+    const veil = inBlur ? part.blurSubtitles : "show";
     if (veil === "hide") return null;
     const main = wordsFieldOf(type);
     const word = veil === "word" ? litOf(part) || (main ? (values[main.id] ?? "").trim() : "") : litOf(part);
@@ -602,8 +556,8 @@ export function ReviewCard({
 
   // What plays by itself: in the card's order, each once on a side, on the side its part says (`playsOn`: when the
   // card comes up, when it's turned, or both), a spoiler as it's opened; one that leaves the card while it plays is done.
-  // The card comes up as its Listen phase starts; one the Listen phase hides plays as the front shows instead.
-  const heardNow = (d: Drawn) => !d.held && veilOf(d.part) !== "hide";
+  // One the blurred front hides plays as the front unblurs instead.
+  const heardNow = (d: Drawn) => !d.held && blurOf(d.part) !== "hide";
   const due = autoplay && srcOf ? drawn.filter((d) => heardNow(d) && playsOn(d.part.plays, side) && !covered(d.part) && !played.has(d.field.id) && standIns?.[d.field.id] === undefined && playable(d.field)) : [];
   const next = due[0]?.field.id ?? null;
   const liveKey = drawn.filter(heardNow).map((d) => d.field.id).join(" ");
@@ -674,11 +628,11 @@ export function ReviewCard({
     for (const [id, media] of playedIn.current) if (!media.isConnected) playedIn.current.delete(id);
   });
 
-  /** How the Listen phase draws the reading over a part's words, by the reading's own part: blurred or unseen, or as it is. */
+  /** How the blurred front draws the reading over a part's words, by the reading's own part: blurred or unseen, or as it is. */
   function readingVeil(fieldId: string): string {
     const reading = readingFor.get(fieldId);
-    const veil = reading ? veilOf(reading.part) : "show";
-    return veil === "show" ? "" : VEIL_CLASS[veil].still;
+    const veil = reading ? blurOf(reading.part) : "show";
+    return veil === "show" ? "" : BLUR_CLASS[veil].still;
   }
   /** Words as their part has them: their name over them when it's to be shown, and a reading over them when one is set to be. */
   function words(part: LayoutPart, field: CardField, value: ReactNode, blank = false, text = String(value)) {
@@ -779,12 +733,12 @@ export function ReviewCard({
   /** One part: covered as a spoiler, held unseen for the back, or as it is; on a card being laid out, something to pick and move. */
   function partView({ part, field, held }: Drawn, place?: CSSProperties): ReactNode {
     const hidden = covered(part);
-    const veil = held ? "show" : veilOf(part);
+    const veil = held ? "show" : blurOf(part);
     const inner = content(part, field, !held && !hidden && veil !== "hide");
     if (inner === null) return null;
-    // In the Listen phase, blurred or unseen; out of reach unless it's a sound or a clip that's still there to hear.
-    const veilClass = veil === "show" ? "" : VEIL_CLASS[veil][playable(field) ? "playing" : "still"];
-    const away = veilClass !== "" && veilClass !== VEIL_CLASS.blur.playing;
+    // On the blurred front, blurred or unseen; out of reach unless it's a sound or a clip that's still there to hear.
+    const veilClass = veil === "show" ? "" : BLUR_CLASS[veil][playable(field) ? "playing" : "still"];
+    const away = veilClass !== "" && veilClass !== BLUR_CLASS.blur.playing;
     const look = `review-part size-${part.size} tone-${part.tone} ${part.bold ? "is-bold" : ""} ${veilClass}`.replace(/\s+/g, " ").trim();
     const reach = away ? { inert: true, "aria-hidden": true } : {};
     if (held) {
@@ -997,9 +951,12 @@ export function ReviewCard({
     { id: "flag", corner: flag.corner, shown: flag.shown, here: flagged, look: "review-flag-mark", label: CORNER_MARK_NAMES.flag, node: <FlagTag /> },
   ];
 
+  // Unblur and Blur, while the setting is on: live on a front with something to blur, held unseen otherwise.
+  const blurButton = blur ? <BlurButton blurred={inBlur} bind={blur.bind} held={revealed || !blurrable} onToggle={blur.onToggle} /> : null;
+
   return (
-    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${frontTall ? "is-front-tall" : ""} ${inListen ? "is-listening" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
-      <CornerMarks marks={marks} edit={edit} card={card} />
+    <div ref={card} className={`review-card ${revealed ? "is-revealed" : ""} ${frontTall ? "is-front-tall" : ""} ${inBlur ? "is-blurred" : ""} ${edit ? "is-editing" : ""} ${onPress ? "" : "is-still"}`.replace(/\s+/g, " ").trim()} data-revealed={revealed} {...pressable}>
+      <CornerMarks marks={marks} edit={edit} card={card} blur={blurButton} />
       {/* The parts in one box, in their two columns: the side one, only while something in it shows or holds its room,
           and the main one (`.review-body`, `.review-side`, `.review-main`, app.css). A review that fits the window or
           fills the screen scrolls them inside the card, with Panki's fades and thin bar over it: the body as a whole

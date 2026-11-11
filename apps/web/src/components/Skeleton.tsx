@@ -112,7 +112,6 @@ const REVIEW_TOOL_H = "30px";
 const ASIDE_H = "30px";
 /** The Layout tab's panel as measured: its header's buttons, and each of its rows' controls (a switch, a dropdown, a choice of sides, the chips of what isn't on the side). */
 const PANEL_BUTTON = "32px";
-const SWITCH = { w: "94px", h: "46px" };
 const TAG_SWITCH = { w: "119px", h: "46px" };
 const DROPDOWN = { w: "70px", h: "33px" };
 const SIDES = { w: "125px", h: "48px" };
@@ -450,7 +449,7 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
       );
     case "layout": {
       // A card type's Layout tab: the review's frame it's drawn in, and its panel over it, where and as folded as it
-      // stands on this device (the real `FloatPanel`): the type's own panel (Listen first, the card previewed, the
+      // stands on this device (the real `FloatPanel`): the type's own panel (Full screen shows, the card previewed, the
       // side), and the one for what isn't on the front with each corner mark's switch. `parts` is how many chips stand
       // for what isn't on the front, and whether the answers set apart hold a row under the answers, as last drawn here.
       const [away = 0, asides = 0] = parts ?? [];
@@ -473,7 +472,6 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
             }
           >
             <section className="panel layout-panel">
-              <SettingShape label="5.5em" control={SWITCH} />
               <SettingShape label="7em" control={DROPDOWN} />
               <SettingShape label="2.5em" control={SIDES} />
             </section>

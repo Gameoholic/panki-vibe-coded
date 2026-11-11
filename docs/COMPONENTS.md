@@ -20,6 +20,7 @@ Paths from `apps/web/src/`.
 | AlreadyIn | `components/AlreadyIn.tsx` | Saying a card being added is called the same as one already there (`AlreadyIn`, `useAddAnyway`, `exampleTargetOf`). |
 | AnswerParts | `components/AnswerParts.tsx` | What a place's answer holds, folded (`AnswerParts`). |
 | Ask | `components/Ask.tsx` | A yes/no about something that hurts, in a small panel hanging from the button that asked (`Ask`). Never `confirm()`, never a centred modal. |
+| BlurButton | `components/BlurButton.tsx` | Unblur and Blur, the front's own, a chip of glass in the review card's corner (`BlurButton`). Never a second of it. |
 | Board | `components/Board.tsx` | The board: the home's doors and tiles, and every tile on Stats, held to arrange (`Board`). Never a second way of arranging. |
 | Button | `components/Button.tsx` | Every button, its look a `variant`: primary, ghost, row, tab, door, chip, seg, switch, item, node, answer, danger, spoiler. Never a classless `<button>`. |
 | CardForm | `components/CardForm.tsx` | A card's form: the Add a card panel, and a card opened to change or delete (`CardForm`). Never a second form for a card. |
@@ -58,12 +59,12 @@ Paths from `apps/web/src/`.
 | PlacePill | `components/PlacePill.tsx` | Where a card stands, as a pill in its stage's colour (`PlacePill`, `StagePill`). |
 | PromptContext | `components/PromptContext.tsx` | What a prompt can use, a row a variable, pressed to go in at the caret (`PromptContext`, `CopyButton`, `PieceLimits`). Never a second list of the variables. |
 | PromptField | `components/PromptField.tsx` | A prompt template typed, its variables lit (`PromptField`, `PromptFieldHandle`). |
-| ReviewCard | `components/ReviewCard.tsx` | A card as a review shows it, front and back, laid out by its type (`ReviewCard`, `listensFirst`). Never a second drawing of a card's two sides. |
+| ReviewCard | `components/ReviewCard.tsx` | A card as a review shows it, front and back, laid out by its type, its front blurred as the type marks it (`ReviewCard`). Never a second drawing of a card's two sides. |
 | ReviewScreen | `components/ReviewScreen.tsx` | The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. |
 | ScrollEdges | `components/ScrollEdges.tsx` | A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. |
 | Segmented | `components/Segmented.tsx` | A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). |
 | Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, the `perDevice` tag (`Setting`). |
-| ShowButton | `components/ShowButton.tsx` | What shows the next of a review card, Done listening or Show back of card (`ShowButton`). Never a second of it. |
+| ShowButton | `components/ShowButton.tsx` | Show back of card, the button under a review card that turns it (`ShowButton`). Never a second of it. |
 | Skeleton | `components/Skeleton.tsx` | Anything loading, anywhere: the shape of what's coming (`Skeleton`, `Bone`, `SkeletonShape`). Never "Loading…", a spinner, or a blank that pops in. |
 | SpaceNotice | `components/SpaceNotice.tsx` | Saying the disk is nearly full (`SpaceNotice`). |
 | StreakEditor | `components/StreakEditor.tsx` | One streak's settings: name, Streak type, Count from, Conditions (`goals` in code) joined by and / or, in Settings and on its tile alike (`StreakEditor`). |
@@ -85,6 +86,7 @@ Paths from `apps/web/src/`.
 | Name | File | For |
 | --- | --- | --- |
 | useAnchored | `hooks/useAnchored.ts` | A menu that must never be cut off by a box scrolling around it, fixed in the window under its anchor (`useAnchored`). |
+| useBlur | `hooks/useBlur.ts` | Whether the card on screen is blurred, by its showing: Unblur and Blur, and a showing put on screen clear (`useBlur`). |
 | useCalled | `hooks/useCalled.ts` | The account's cards already called by what a card being added would be called by (`useCalled`). |
 | useDismiss | `hooks/useDismiss.ts` | Something open under a button that closes on a press outside it, or Escape (`useDismiss`). Never a second listener for a press outside. |
 | useDragOrder | `hooks/useDragOrder.ts` | Rows reordered by dragging a grip, with a mouse, a finger or the arrow keys (`useDragOrder`). Never a second drag for rows. |
@@ -114,7 +116,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | fieldKinds | `fieldKinds.ts` | The kinds a field can be in words (`FIELD_KINDS`, `FIELD_KIND_OPTIONS`, `kindClass`), and what a value's file is (`fileKindOf`). |
 | keys | `keys.ts` | The review's and the players' keys on this device, their defaults, and what a press is (`DEFAULT_KEYS`, `useKeyBinds`, `keyOf`, `pressed`, `heard`). |
 | layout | `layout.ts` | The home board as this device has it: doors and tiles in one order, and those put away, a streak's tile among them (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`, `fitStreaks`). |
-| layoutKinds | `layoutKinds.ts` | A card layout's choices in words: show, size, tone, column, look, play, listen, corner marks (`SHOW_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). |
+| layoutKinds | `layoutKinds.ts` | A card layout's choices in words: show, size, tone, column, look, play, blurred front, corner marks (`SHOW_OPTIONS`, `BLUR_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). |
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
 | playback | `playback.ts` | How loud and how fast every player plays, one of each for the page, and whether clips' subtitles show (`useVolume`, `useSpeed`, `SPEEDS`, `useSubtitlesShown`). |
@@ -130,7 +132,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
 | widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); streaks at risk (`risksShown`, `reviewHelps`). |
-| words | `words.ts` | How things are said in words: a count, a list, a key, a clock, a date, how long ago, a cost (`count`, `listWords`, `keyWords`, `clock`, `agoWords`, `estimateWords`). |
+| words | `words.ts` | How things are said in words, every date and time in the account's formats (`count`, `listWords`, `clock`, `dateWords`, `dayWords`, `hourSpanWords`, `setFormats`, `agoWords`). |
 
 ## Contracts
 

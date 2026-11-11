@@ -170,8 +170,8 @@ export function KeysPanels() {
           Review
         </h2>
         <KeyRow id="start" label="Start" bind={binds.start} slot={{ kind: "start" }} binds={binds} disabled={off} />
-        {/* In the order a card goes: out of its Listen phase, to its back, and a phase back. */}
-        <KeyRow id="show-card" label="Done listening" bind={binds.showCard} slot={{ kind: "showCard" }} binds={binds} disabled={off} />
+        {/* In the order a card goes: its front unblurred, to its back, and back to its front. */}
+        <KeyRow id="blur" label="Blur" bind={binds.blur} slot={{ kind: "blur" }} binds={binds} disabled={off} />
         <KeyRow id="reveal" label="Show back of card" bind={binds.reveal} slot={{ kind: "reveal" }} binds={binds} disabled={off} />
         <KeyRow id="hide" label="Step back" bind={binds.hide} slot={{ kind: "hide" }} binds={binds} disabled={off} />
         {binds.answers.map((bind, index) => (

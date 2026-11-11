@@ -73,7 +73,7 @@ export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; wor
     case "reviews":
       return { icon: "check", words: String(n.reviews), said: `${count(n.reviews, "review", "reviews")} today`, left: null };
     case "reviewTime":
-      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} reviewing today`, left: null };
+      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} studying today`, left: null };
     case "streak":
       return n.streak ? streakValue(n.streak) : null;
   }

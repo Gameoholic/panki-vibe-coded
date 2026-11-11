@@ -11,10 +11,10 @@ const DAY_MS = 86_400_000;
 /** An answer that stands (not undone), with the stage its card stood on as it was answered (null when that stage is no longer on its ladder). */
 export type TileAnswer = { at: number; cardId: string; deckId: string; miss: number | null; stage: string | null; started: boolean; living: boolean };
 /**
- * A card shown, its time already capped and split listening, thinking, deciding in that order (`CARD_TIME_MAX_MS`).
- * `measured` when it stands and both its spans were measured, as the typical card reads it.
+ * A card shown, its time already capped and split front, back in that order (`CARD_TIME_MAX_MS`). `measured` when it
+ * stands and both its spans were measured, as the typical card reads it.
  */
-export type TileShowing = { at: number; deckId: string; listenMs: number; thinkMs: number; decideMs: number; measured: boolean };
+export type TileShowing = { at: number; deckId: string; frontMs: number; backMs: number; measured: boolean };
 export type TileSession = { startedAt: number; deckId: string };
 export type TileCard = { createdAt: number; deckId: string; source: "typed" | "youtube" | "web" };
 /** A stretch watched of a video that counts: when, the time it took, and the part of the video it covered. */
@@ -40,7 +40,6 @@ export type TilesInput = {
   decks: readonly string[];
   /** Every stage a breakdown may name, in the ladders' order, New first. */
   stages: readonly TileStage[];
-  typeOfDeck: (deckId: string) => { typeId: string; name: string } | null;
   /** A deck's New cards a day as it stood on a day; null before the deck was made. */
   limitOf: (deckId: string, day: Day) => number | null;
   /** A living card as Toughest cards names it. */
@@ -122,7 +121,7 @@ function coverage(): (videoId: string, fromMs: number, toMs: number) => number {
   };
 }
 const add = <K>(map: Map<K, number>, key: K, n: number) => map.set(key, (map.get(key) ?? 0) + n);
-const shownMs = (s: TileShowing) => s.listenMs + s.thinkMs + s.decideMs;
+const shownMs = (s: TileShowing) => s.frontMs + s.backMs;
 
 /** Every window's numbers, in `STAT_WINDOWS`' order, the range asked for, and the days studied for Activity. */
 export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "activity"> {
@@ -182,7 +181,6 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
     const rightBefore = share();
     const rightSeries = series.spans.map(share);
     const rightStages = new Map<string, { right: number; of: number }>();
-    const rightTypes = new Map<string, { right: number; of: number; name: string }>();
     const judge = (to: { right: number; of: number }, miss: number) => {
       to.of += 1;
       if (miss === 0) to.right += 1;
@@ -195,21 +193,25 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
     let missesBefore = 0;
     const byCard = new Map<string, { misses: number; of: number; lastAt: number }>();
     for (const a of answers) {
+      // An answer is a review (a card already started) or a new card (its first answer, starting it), never both, and the
+      // two are never added together: Reviews counts the one, New cards the other.
       if (inBefore(a.day, a.at)) {
-        reviewsBefore += 1;
         if (a.started) startedBefore += 1;
+        else reviewsBefore += 1;
         if (a.miss !== null) judge(rightBefore, a.miss);
         if (a.miss === 1) missesBefore += 1;
       }
       if (!inSpan(a.day)) continue;
-      reviews += 1;
       const b = series.indexOf(a.day);
-      if (b >= 0) reviewSeries[b] = (reviewSeries[b] ?? 0) + 1;
-      const h = hour(a.at);
-      reviewHours[h] = (reviewHours[h] ?? 0) + 1;
-      const wd = weekdayOf(a.day);
-      reviewWeekdays[wd] = (reviewWeekdays[wd] ?? 0) + 1;
-      if (a.stage !== null) add(reviewStages, a.stage, 1);
+      if (!a.started) {
+        reviews += 1;
+        if (b >= 0) reviewSeries[b] = (reviewSeries[b] ?? 0) + 1;
+        const h = hour(a.at);
+        reviewHours[h] = (reviewHours[h] ?? 0) + 1;
+        const wd = weekdayOf(a.day);
+        reviewWeekdays[wd] = (reviewWeekdays[wd] ?? 0) + 1;
+        if (a.stage !== null) add(reviewStages, a.stage, 1);
+      }
       if (a.started) {
         started += 1;
         if (b >= 0) startedSeries[b] = (startedSeries[b] ?? 0) + 1;
@@ -223,12 +225,6 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
         const s = rightStages.get(a.stage) ?? share();
         judge(s, a.miss);
         rightStages.set(a.stage, s);
-      }
-      const type = input.typeOfDeck(a.deckId);
-      if (type) {
-        const t = rightTypes.get(type.typeId) ?? { ...share(), name: type.name };
-        judge(t, a.miss);
-        rightTypes.set(type.typeId, t);
       }
       // A miss on a card since deleted still counts; it just isn't a card to work on any more.
       if (a.miss === 1) misses += 1;
@@ -283,14 +279,14 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
       sources[c.source] += 1;
     }
 
-    // Time reviewing and Time per card: the showings.
+    // Time studying and Time per card: the showings.
     let ms = 0;
     let msBefore = 0;
     const timeSeries = zeros(series.spans.length);
     const timeHours = zeros(24);
-    const phases = { listenMs: 0, thinkMs: 0, decideMs: 0 };
-    // Time per card, each side: front (on screen to the flip: listening and thinking), back (the flip to the answer), total.
-    const SIDES = { total: shownMs, front: (s: TileShowing) => s.listenMs + s.thinkMs, back: (s: TileShowing) => s.decideMs } as const;
+    const spent = { frontMs: 0, backMs: 0 };
+    // Time per card, each side: front (on screen to the flip), back (the flip to the answer), total.
+    const SIDES = { total: shownMs, front: (s: TileShowing) => s.frontMs, back: (s: TileShowing) => s.backMs } as const;
     type Side = keyof typeof SIDES;
     const sideNames = Object.keys(SIDES) as Side[];
     const paceNow = { total: [] as number[], front: [] as number[], back: [] as number[] };
@@ -308,9 +304,8 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
       if (b >= 0) timeSeries[b] = (timeSeries[b] ?? 0) + total;
       const h = hour(s.at);
       timeHours[h] = (timeHours[h] ?? 0) + total;
-      phases.listenMs += s.listenMs;
-      phases.thinkMs += s.thinkMs;
-      phases.decideMs += s.decideMs;
+      spent.frontMs += s.frontMs;
+      spent.backMs += s.backMs;
       if (!s.measured) continue;
       for (const side of sideNames) {
         paceNow[side].push(SIDES[side](s));
@@ -407,7 +402,6 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
           const r = rightStages.get(s.key);
           return r && r.of > 0 ? [{ ...s, ...r }] : [];
         }),
-        types: [...rightTypes.entries()].map(([typeId, t]) => ({ typeId, ...t })),
       },
       started: {
         n: started,
@@ -429,7 +423,7 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
         before: beforeOr(msBefore),
         series: series.spans.map((s, i) => ({ start: s.from, n: timeSeries[i] ?? 0 })),
         hours: timeHours,
-        phases,
+        sides: spent,
         sessions: sessionCount,
       },
       pace: { total: paceOf("total"), front: paceOf("front"), back: paceOf("back") },
@@ -455,14 +449,15 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
     };
   }
 
-  // Days studied: every day with a review, time reviewing or watching.
+  // Days studied: every day with a review, time studying or watching.
   const byDay = new Map<Day, { reviews: number; ms: number; watchMs: number }>();
   const dayOf = (d: Day) => {
     const entry = byDay.get(d) ?? { reviews: 0, ms: 0, watchMs: 0 };
     byDay.set(d, entry);
     return entry;
   };
-  for (const a of answers) dayOf(a.day).reviews += 1;
+  // A review is an answer to a card already started; a new card's first answer is a new card, never a review.
+  for (const a of answers) if (!a.started) dayOf(a.day).reviews += 1;
   for (const s of showings) dayOf(s.day).ms += shownMs(s);
   for (const s of stretches) dayOf(s.day).watchMs += s.spentMs;
   const activity = [...byDay.entries()]

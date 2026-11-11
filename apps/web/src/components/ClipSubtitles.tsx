@@ -19,7 +19,7 @@ type Props = {
   /** Words lit where they first stand in the line showing (the part's "Highlight": the card's word); empty for none. */
   lit?: string;
   /**
-   * What a review's Listen phase blurs (`LayoutPart.listenSubtitles`): the lit words alone, in place of lighting them,
+   * What a review's blurred front blurs (`LayoutPart.blurSubtitles`): the lit words alone, in place of lighting them,
    * or the whole line; nothing by default.
    */
   blur?: "word" | "line" | null;

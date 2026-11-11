@@ -25,7 +25,8 @@ import { z } from "zod";
 // 6: how every review runs left a deck's settings for the account's, so a deck no longer carries the keys 5 requires.
 // 7: Touch up is a card's conversation over the admin's prompt: it names no template and sends its first send and this
 // one (`TouchUpAsk.opening`, `send`), which 6 doesn't.
-export const EXTENSION_PROTOCOL = 7;
+// 8: Time reviewing is split by side, front and back (`WindowStats.time.sides`), in place of the three spans 7 reads.
+export const EXTENSION_PROTOCOL = 8;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

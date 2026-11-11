@@ -89,7 +89,8 @@ export type GoalKindEntry = {
 export const GOAL_KINDS: Record<GoalKind, GoalKindEntry> = {
   reviews: { name: "Reviews", fact: "reviews", numbered: true, suffix: "", byReviewing: true, max: 999, start: 20, left: { kind: "count", one: "review", many: "reviews" }, fits: STREAK_PER_IDS },
   new: { name: "New cards", fact: "started", numbered: true, suffix: "", byReviewing: true, max: 999, start: 5, left: { kind: "count", one: "new card", many: "new cards" }, fits: STREAK_PER_IDS },
-  reviewing: { name: "Time reviewing", fact: "reviewMinutes", numbered: true, suffix: "min", byReviewing: true, max: 600, start: 15, left: { kind: "minutes", doing: "reviewing" }, fits: STREAK_PER_IDS },
+  // Time on reviews and new cards alike, so it's "studying" on screen; the id stays `reviewing`, as streaks keep it.
+  reviewing: { name: "Time studying", fact: "reviewMinutes", numbered: true, suffix: "min", byReviewing: true, max: 600, start: 15, left: { kind: "minutes", doing: "studying" }, fits: STREAK_PER_IDS },
   watching: { name: "Time watching", fact: "watchMinutes", numbered: true, suffix: "min", byReviewing: false, max: 600, start: 30, left: { kind: "minutes", doing: "watching" }, fits: STREAK_PER_IDS },
   // Nothing left due is a moment of a day: over a week it would ask only that it happened once.
   cleared: { name: "All reviews done", fact: "cleared", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all reviews" }, fits: ["day"], why: "Reviewed every due card at some point in the day." },
@@ -145,10 +146,10 @@ const fromOneList = (kept: unknown): unknown => {
  * a streak reminds is the account's Reminder alone; a `remind` a streak kept from before had of its own is read by
  * nothing (an unknown key, dropped as it parses). A goal kept that doesn't fit the type (`goalFits`) is read as not
  * there rather than refused, so a rule kept before the kinds said which types they fit still reads; the editor never
- * makes one (`groupsSwitchedTo`).
+ * makes one (`groupsSwitchedTo`). The old default, kept as it was, reads as today's (`fromOldDefault`).
  */
 export const StreakRule = z.preprocess(
-  fromOneList,
+  (kept) => fromOldDefault(fromOneList(kept)),
   z
     .object({
       id: StreakId,
@@ -175,8 +176,32 @@ export const StreakRules = z
   .max(STREAKS_MAX)
   .refine((streaks) => new Set(streaks.map((s) => s.id)).size === streaks.length, { message: "Each streak has an id of its own." });
 
-/** The streak every account starts with: a review a day, what the Streak tile counted before streaks had goals. */
-export const DEFAULT_STREAKS: StreakRule[] = [{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] }];
+/**
+ * The streak every account starts with: any card answered a day, a review or a new card, what the Streak tile counted
+ * before streaks had goals. A review and a new card are never added together, so it's two groups: Reviews ≥ 1 or New
+ * cards ≥ 1.
+ */
+export const DEFAULT_STREAKS: StreakRule[] = [
+  {
+    id: "streak",
+    name: "Streak",
+    per: "day",
+    countFrom: "all",
+    groups: [[{ kind: "reviews", n: 1 }], [{ kind: "new", n: 1 }]],
+  },
+];
+
+/**
+ * The streak every account started with while Reviews still counted a new card's first answer: Reviews ≥ 1 alone,
+ * meaning any card answered. Kept exactly so (never edited), it reads as today's default, which means the same, so its
+ * run reads as it did; a streak edited in any way is read as it's kept.
+ */
+const OLD_DEFAULT = JSON.stringify({ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }]] });
+const fromOldDefault = (kept: unknown): unknown => {
+  if (typeof kept !== "object" || kept === null) return kept;
+  const { id, name, per = "day", countFrom = "all", groups } = kept as Record<string, unknown>;
+  return JSON.stringify({ id, name, per, countFrom, groups }) === OLD_DEFAULT ? DEFAULT_STREAKS[0] : kept;
+};
 
 /** The number a goal needs its period's fact to reach: its own, or 1 for a kind without one. */
 export const goalNeed = (goal: Goal): number => (GOAL_KINDS[goal.kind].numbered ? goal.n : 1);
@@ -188,7 +213,7 @@ export const goalMet = (goal: Goal, facts: PeriodFacts): boolean => goalHave(goa
 /** A streak's name as it's shown: its own, or "New streak" while it has none. */
 export const streakNameOf = (streak: { name: string }): string => streak.name.trim() || "New streak";
 
-/** What's left of a goal in words: "12 reviews", "10 min reviewing", "all reviews". `left` is the need less the have. */
+/** What's left of a goal in words: "12 reviews", "10 min studying", "all reviews". `left` is the need less the have. */
 export function goalLeftWords(kind: GoalKind, left: number): string {
   const words = GOAL_KINDS[kind].left;
   if (words.kind === "count") return `${left.toLocaleString()} ${left === 1 ? words.one : words.many}`;
@@ -209,7 +234,7 @@ export const nearestGroup = (streak: { groups: readonly (readonly GoalProgress[]
 /** Whether a review would help a streak now: a goal of its nearest group not met yet that reviewing gets done (`byReviewing`). */
 export const reviewHelps = (streak: { groups: readonly (readonly GoalProgress[])[] }): boolean => nearestGroup(streak).some((g) => g.have < g.need && GOAL_KINDS[g.kind].byReviewing);
 
-/** The goals not met yet, their left words joined: "12 reviews and 10 min reviewing". */
+/** The goals not met yet, their left words joined: "12 reviews and 10 min studying". */
 export function streakLeftWords(goals: readonly { kind: GoalKind; have: number; need: number }[]): string {
   const parts = goals.filter((g) => g.have < g.need).map((g) => goalLeftWords(g.kind, g.need - g.have));
   if (parts.length <= 1) return parts.join("");

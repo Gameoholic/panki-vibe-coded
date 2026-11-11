@@ -36,7 +36,7 @@ import { tokensOn } from "../ui/styles";
  * below is its own switch on the options page's YouTube tab, under the master one.
  *
  * - **In the header bar**, beside the site's own buttons: the mark and what the viewer picked for it, in their order
- *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time reviewing, the streak picked for the pill, tinted
+ *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time studying, the streak picked for the pill, tinted
  *   with the hours left while it's at risk). Pressed, Panki opens.
  * - **The line over the home**, only while a streak is at risk and the reminder is shown on YouTube: each streak at
  *   risk, what's left of its goals and the hours left, and Review while reviewing would help. Otherwise the home

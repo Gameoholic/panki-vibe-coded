@@ -2,17 +2,15 @@
 import { z } from "zod";
 import {
   AutoPlay,
+  BlurShow,
+  BlurSubtitles,
   Column,
   DEFAULT_FLAG_MARK,
-  DEFAULT_LISTEN_FIRST,
   DEFAULT_SPARK_MARK,
   DEFAULT_STAGE_TAG,
   EXAMPLES_SLOT,
   ExamplesPlace,
   FaceShow,
-  SHOW_ON_PLAY_MAX,
-  ListenShow,
-  ListenSubtitles,
   MediaLook,
   PartSize,
   PartTone,
@@ -22,7 +20,6 @@ import {
   type CardSide,
   type FlagMark,
   type LayoutPart,
-  type ListenFirst,
   type SparkMark,
   type StageTag,
 } from "./layout";
@@ -46,9 +43,8 @@ const KeptPart = z.object({
   over: z.string().nullable().optional().catch(undefined),
   mark: z.string().nullable().optional().catch(undefined),
   subtitles: z.boolean().optional().catch(undefined),
-  listen: ListenShow.optional().catch(undefined),
-  listenSubtitles: ListenSubtitles.optional().catch(undefined),
-  showOnPlay: z.number().int().min(2).max(SHOW_ON_PLAY_MAX).nullable().optional().catch(undefined),
+  blur: BlurShow.optional().catch(undefined),
+  blurSubtitles: BlurSubtitles.optional().catch(undefined),
   staged: z.boolean().optional().catch(undefined),
 });
 
@@ -78,9 +74,8 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     over: null,
     mark: null,
     subtitles: false,
-    listen: "show",
-    listenSubtitles: "show",
-    showOnPlay: null,
+    blur: "show",
+    blurSubtitles: "show",
     staged: false,
   });
   return [...front.map((f) => part(f, true)), ...back.map((f) => part(f, false))];
@@ -139,10 +134,8 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.over ? { over: overFits(base.fieldId, own.over) ? own.over : null } : {}),
       ...(own.mark ? { mark: markFits(base.fieldId, own.mark) ? own.mark : null } : {}),
       ...(own.subtitles !== undefined ? { subtitles: own.subtitles && kindOf.get(base.fieldId) === "media" } : {}),
-      ...(own.listen !== undefined ? { listen: own.listen } : {}),
-      ...(own.listenSubtitles !== undefined ? { listenSubtitles: own.listenSubtitles } : {}),
-      // Only a sound or a clip shows the card by itself, and only the first that says so.
-      showOnPlay: own.showOnPlay && kindOf.get(base.fieldId) === "media" && !parts.some((p) => p.showOnPlay !== null) ? own.showOnPlay : null,
+      ...(own.blur !== undefined ? { blur: own.blur } : {}),
+      ...(own.blurSubtitles !== undefined ? { blurSubtitles: own.blurSubtitles } : {}),
       // Only a sound or a clip fills the screen, and only the first picked to.
       staged: own.staged === true && kindOf.get(base.fieldId) === "media" && !parts.some((p) => p.staged),
     });
@@ -344,19 +337,4 @@ export function moveInColumn(
 export function examplesToColumn(layout: readonly LayoutPart[], fields: readonly ExampleFieldLike[], place: ExamplesPlace | null, column: Column): ExamplesPlace | null {
   const at = examplesAt(layout, fields, place);
   return at ? { column, after: at.after } : place;
-}
-
-/**
- * Listen first as it was kept: anything missing or broken in it reads as the default's, so a type from before reads as
- * off. A count of hearings kept on it (`heard`) is let go: a sound or clip says that now.
- */
-const KeptListen = z.object({
-  on: z.boolean().optional().catch(undefined),
-});
-
-/** A type's Listen first as it stands, from what's kept (nothing, for a type it was never switched on for). */
-export function listenFirstOf(kept: unknown): ListenFirst {
-  const read = KeptListen.safeParse(kept);
-  if (!read.success) return { ...DEFAULT_LISTEN_FIRST };
-  return { on: read.data.on ?? DEFAULT_LISTEN_FIRST.on };
 }

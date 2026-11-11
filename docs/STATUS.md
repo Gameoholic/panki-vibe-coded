@@ -20,8 +20,8 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-21: a card that's already there; Snooze and Suspend; New before the first stage.
 - 2026-10-25: Add as an additional example.
 - 2026-10-26: Undo; today's cards before a review; other examples on the review card.
-- 2026-11-01: Listen first.
 - 2026-11-07: Flag.
+- 2026-11-11: Blur the front, Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
 
 **Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
 - 2026-11-11: streaks with conditions (All reviews done worked out from the history, nothing stored), counting per day or per week; the reminder in the app and on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video; Settings → General → Streaks and Reminder.
@@ -66,8 +66,8 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 - Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
 - The docs: `docs/DOCS.md`.
-- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, built on main, uncommitted while the owner tries it on local dev.
-- The Hold button's removal: one commit on branch `claude/remove-hold-e7b9da`, merged into main once streaks are committed and the owner says.
-- Blur in place of Listen first: `docs/BLUR.md`, being brainstormed; nothing built.
+- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 7 (reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying).
+- The Hold button is gone, on main and on prod.
+- Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

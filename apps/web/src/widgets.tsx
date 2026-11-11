@@ -47,14 +47,14 @@ import { useSavedSoon } from "./hooks/useSavedSoon";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { BURNED_TINT, NEW_WORDS, tintOf } from "./srsKinds";
 import { readTilePick, writeTilePick } from "./tilePicks";
-import { count, durationWords, langOf, leftWords } from "./words";
+import { count, dayWords, durationWords, fullDayWords, hourOfDayWords, hourSpanWords, langOf, leftWords, monthWords, monthYearWords, shortDayWords } from "./words";
 
 /**
  * The widgets, one registry: every tile the Stats tab shows (all of them, in this order) and the home can carry
  * (`home`). Each says its name, the windows it covers and its default, the views of its breakdown, and how it draws
  * itself from the stats; every one is drawn in the one anatomy (`Tile`). A new widget is one entry here and nothing
  * else; the home's layout keeps ids, so an id is never renamed: Activity is `heat` (Days studied, `days`, is in it),
- * Time watching `watched` (Watch time, `watch-time`, is in it), Time reviewing `time`. The streaks are a family of their
+ * Time watching `watched` (Watch time, `watch-time`, is in it), Time studying `time` (Time reviewing before Round 7). The streaks are a family of their
  * own: one tile each (`StreakTile`), standing where `streak` stands.
  */
 export type WidgetId =
@@ -141,16 +141,9 @@ export type WidgetEntry = TileEntry | StreaksEntry;
 
 // ---------- Words ----------
 
+// Every date and time here is the account's formats', from `words.ts` (`dayWords`, `shortDayWords`, `hourOfDayWords`…).
 const num = (n: number) => n.toLocaleString();
-/** An hour on the clock: "4:00", "21:00". */
-const clockOf = (hour: number) => `${hour}:00`;
-const DAY_WORDS = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-const DATE_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const SHORT_WORDS = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
-const MONTH_WORDS = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
-const MONTH_INITIAL = new Intl.DateTimeFormat(undefined, { month: "narrow", timeZone: "UTC" });
 const DOW_LONG = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"] as const;
-const dayWords = (day: Day) => DAY_WORDS.format(dayDate(day));
 /** Time spent, from ms: "48 min", "3 h 12 min". */
 const spent = (ms: number) => durationWords(ms / 1000);
 /** Time spent as a figure's parts: "48" "min", or "3" "h" "12" "min". */
@@ -192,10 +185,14 @@ function windowWords(win: WindowStats): { before: string | null; empty: string; 
     return { before: `the ${said} before`, empty: `Nothing in the last ${said}.`, these: `the last ${said}` };
   }
   const words = WINDOW_WORDS[win.window];
-  return { before: words.before, empty: words.these === null ? "Nothing yet." : words.these === "today" ? "Nothing today." : `Nothing in ${words.these}.`, these: words.these ?? "all time" };
+  return { before: words.before, empty: words.these === null ? "Nothing yet." : `Nothing in ${words.these}.`, these: words.these ?? "all time" };
 }
 const beforeWords = (win: WindowStats) => (win.before === null ? null : windowWords(win).before);
-const emptyOf = (win: WindowStats) => windowWords(win).empty;
+/**
+ * A tile's one empty line: for Today, the tile's own words with its own verb ("Nothing reviewed today yet."), never a
+ * generated "Nothing today."; for a longer window, "Nothing in these 30 days.".
+ */
+const emptyOf = (win: WindowStats, today = "Nothing here today yet.") => (win.window === "today" ? today : windowWords(win).empty);
 
 function deltaOf(cur: number, prev: number | null, before: string | null, betterUp: boolean | null): Delta | null {
   if (prev === null || before === null || prev === 0) return null;
@@ -223,24 +220,26 @@ function stretchesOf(win: WindowStats, starts: readonly Day[], weeks = false): {
   const byDay = unit === "day" || unit === "one";
   const byWeek = unit === "week";
   const labels = starts.map((start) => {
-    if (byWeek) return SHORT_WORDS.format(dayDate(start));
+    if (byWeek) return shortDayWords(start);
     if (byDay) return starts.length > 7 ? (dayDate(start).getUTCDay() === 0 ? String(dayDate(start).getUTCDate()) : "") : (DOW[dayDate(start).getUTCDay()] ?? "");
-    return MONTH_INITIAL.format(dayDate(start));
+    // A month is its three letters, never an initial; past a year of columns only each quarter's first is labelled, so they never crowd.
+    return starts.length <= 13 || dayDate(start).getUTCMonth() % 3 === 0 ? monthWords(start) : "";
   });
   const words = starts.map((start, j) => {
     if (byWeek) {
       const next = starts[j + 1];
       const end = next === undefined ? win.to : addDays(next, -1);
-      return `${SHORT_WORDS.format(dayDate(start))} – ${SHORT_WORDS.format(dayDate(end))}`;
+      return `${shortDayWords(start)} – ${shortDayWords(end)}`;
     }
-    return byDay ? dayWords(start) : MONTH_WORDS.format(dayDate(start));
+    return byDay ? dayWords(start) : monthYearWords(start);
   });
   return { labels, words };
 }
 
 /** An hour of the day's order (0 is the hour the day turns at) on the clock. */
 const hourAt = (j: number, dayStart: number) => (dayStart + j) % 24;
-const hourLabel = (j: number, dayStart: number) => (hourAt(j, dayStart) % 6 === 0 ? String(hourAt(j, dayStart)) : "");
+/** An hour's column label, in the account's time format, on every sixth hour alone: "06:00", "12:00" or "6 am", "12 pm". */
+const hourLabel = (j: number, dayStart: number) => (hourAt(j, dayStart) % 6 === 0 ? hourOfDayWords(hourAt(j, dayStart)) : "");
 
 type Counted = {
   win: WindowStats;
@@ -264,10 +263,11 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
     const total = sum(hours);
     const now = win.window === "today" ? stats.ahead.nowHour : -1;
     const best = argmax(hours);
-    const said = (j: number) => `${clockOf(hourAt(j, dayStart))} · ${say(hours[j] ?? 0)}`;
+    // A column is an hour's span ("15:00–16:00"), said whole; the axis keeps single ticks.
+    const said = (j: number) => `${hourSpanWords(hourAt(j, dayStart))} · ${say(hours[j] ?? 0)}`;
     return {
       chart: <Columns values={hours} labels={hours.map((_, j) => hourLabel(j, dayStart))} words={said} now={now} ahead={now >= 0 ? now + 1 : -1} cap={capOf} onAt={onAt} />,
-      foot: total === 0 ? null : win.unit === "one" ? `Most at ${said(best)}` : `Most at ${clockOf(hourAt(best, dayStart))} · ${Math.round(((hours[best] ?? 0) / total) * 100)}% of the total`,
+      foot: total === 0 ? null : win.unit === "one" ? `Busiest: ${said(best)}` : `Busiest: ${hourSpanWords(hourAt(best, dayStart))} · ${Math.round(((hours[best] ?? 0) / total) * 100)}% of the total`,
     };
   }
   if (view === "weekday" && weekdays) {
@@ -286,9 +286,9 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
 }
 
 const OVER_TIME: readonly View[] = [
-  { id: "time", label: "Over time" },
-  { id: "hour", label: "Hour" },
-  { id: "weekday", label: "Weekday" },
+  { id: "time", label: "Until today" },
+  { id: "hour", label: "By hour" },
+  { id: "weekday", label: "By weekday" },
 ];
 /** Time per card's sides, its views: the card on screen to the flip, the flip to the answer, both. */
 const PACE_SIDES = [
@@ -543,7 +543,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     window: "months12",
     views: [
       { id: "reviews", label: "Reviews" },
-      { id: "time", label: "Time reviewing" },
+      { id: "time", label: "Time studying" },
       { id: "watching", label: "Time watching" },
     ],
     make({ stats, win, view, onAt }) {
@@ -580,7 +580,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     make({ stats, ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const r = win.reviews;
-      if (r.n === 0) return { empty: emptyOf(win) };
+      if (r.n === 0) return { empty: emptyOf(win, "Nothing reviewed today yet.") };
       const { chart, foot } = byView({ win, view, series: r.series, hours: r.hours, weekdays: r.weekdays, say: sayReviews, stats, ctx, onAt });
       return {
         figure: { parts: [[num(r.n), r.n === 1 ? "review" : "reviews"]], delta: deltaOf(r.n, r.before, beforeWords(win), true) },
@@ -601,9 +601,8 @@ export const WIDGETS: readonly WidgetEntry[] = [
     windows: ["days7", "days30", "months12", "all"],
     window: "days30",
     views: [
-      { id: "time", label: "Over time" },
+      { id: "time", label: "Until today" },
       { id: "stage", label: "Stage" },
-      { id: "type", label: "Card type" },
     ],
     make({ win, view, onAt }) {
       if (!win) return { empty: "" };
@@ -615,7 +614,6 @@ export const WIDGETS: readonly WidgetEntry[] = [
       const stageRows = r.stages.map((s) => shareRow(s.key, s.name, s, s.colour ? tintOf(s.colour) : undefined));
       let chart: ReactNode;
       if (view === "stage") chart = <Rows rows={stageRows} max={100} track />;
-      else if (view === "type") chart = <Rows rows={r.types.map((t) => shareRow(t.typeId, t.name, t))} max={100} track />;
       else {
         const values = r.series.map((s) => (s.of === 0 ? null : pct1(s.right, s.of)));
         const { labels, words } = stretchesOf(
@@ -677,8 +675,10 @@ export const WIDGETS: readonly WidgetEntry[] = [
         const values = next.series.map((b) => b.n);
         const starts = next.series.map((b) => b.start);
         const byDay = next.unit === "day";
-        const labels = starts.map((d) => (byDay ? (starts.length > 7 ? (dayDate(d).getUTCDay() === 0 ? String(dayDate(d).getUTCDate()) : "") : (DOW[dayDate(d).getUTCDay()] ?? "")) : MONTH_INITIAL.format(dayDate(d))));
-        const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : MONTH_WORDS.format(dayDate(starts[j] ?? stats.today))} · ${sayReviews(values[j] ?? 0)}`;
+        const labels = starts.map((d) =>
+          byDay ? (starts.length > 7 ? (dayDate(d).getUTCDay() === 0 ? String(dayDate(d).getUTCDate()) : "") : (DOW[dayDate(d).getUTCDay()] ?? "")) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : "",
+        );
+        const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
         const total = sum(values);
         if (total === 0) return { empty: `Nothing coming up in the next ${frameWords(next.frame)}.` };
         return {
@@ -694,7 +694,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       if (win.window === "today") {
         values = ahead.hours.slice(ahead.nowHour);
         labels = values.map((_, j) => hourLabel(ahead.nowHour + j, dayStart));
-        said = (j) => `${j === 0 ? "Now" : clockOf(hourAt(ahead.nowHour + j, dayStart))} · ${sayReviews(values[j] ?? 0)}`;
+        said = (j) => `${j === 0 ? "Now" : hourSpanWords(hourAt(ahead.nowHour + j, dayStart))} · ${sayReviews(values[j] ?? 0)}`;
       } else {
         values = ahead.days.slice(0, win.window === "days7" ? 7 : 30);
         const days = values.map((_, j) => addDays(stats.today, j));
@@ -702,11 +702,11 @@ export const WIDGETS: readonly WidgetEntry[] = [
         said = (j) => `${j === 0 ? "Today" : dayWords(days[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
       }
       const total = sum(values);
-      if (total === 0) return { empty: win.window === "today" ? "Nothing more today." : "Nothing coming up." };
+      if (total === 0) return { empty: win.window === "today" ? "Nothing due today." : `Nothing coming up in the next ${values.length} days.` };
       return {
         figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
         chart: <Columns values={values} labels={labels} words={said} now={0} onAt={onAt} />,
-        foot: win.window === "today" ? `${sayReviews(values[0] ?? 0)} due now · the rest by ${clockOf(dayStart)}` : `Heaviest: ${said(argmax(values))}`,
+        foot: win.window === "today" ? `${sayReviews(values[0] ?? 0)} due now · the rest later today` : `Heaviest: ${said(argmax(values))}`,
       };
     },
   },
@@ -803,7 +803,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     windows: ["days7", "days30", "months12", "all"],
     window: "days30",
     views: [
-      { id: "time", label: "Over time" },
+      { id: "time", label: "Until today" },
       { id: "source", label: "Source" },
     ],
     make({ stats, ctx, win, view, onAt }) {
@@ -811,7 +811,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       const a = win.added;
       if (a.n === 0) return { empty: emptyOf(win) };
       const sources = [
-        { key: "typed", name: "Typed", n: a.sources.typed, says: "typed" },
+        { key: "typed", name: "Typed manually", n: a.sources.typed, says: "typed manually" },
         { key: "youtube", name: "YouTube", n: a.sources.youtube, says: "from YouTube" },
         { key: "web", name: "Web pages", n: a.sources.web, says: "from web pages" },
       ];
@@ -832,29 +832,31 @@ export const WIDGETS: readonly WidgetEntry[] = [
   },
   {
     id: "time",
-    name: "Time reviewing",
+    name: "Time studying",
     home: true,
     windows: STAT_WINDOWS,
     window: "days30",
     views: [
-      { id: "time", label: "Over time" },
-      { id: "hour", label: "Hour" },
-      { id: "phase", label: "Phase" },
+      { id: "time", label: "Until today" },
+      { id: "hour", label: "By hour" },
+      { id: "side", label: "Side" },
     ],
     noViewsOn: ["today"],
     make({ stats, ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const t = win.time;
-      if (t.ms === 0) return { empty: emptyOf(win) };
+      if (t.ms === 0) return { empty: emptyOf(win, "Nothing studied today yet.") };
       let chart: ReactNode;
-      let foot: string | null = `${count(t.sessions, "session", "sessions")} · ${win.reviews.n > 0 ? (t.ms / win.reviews.n / 1000).toFixed(1) : "0"} s a card`;
-      if (view === "phase" && win.unit !== "one") {
-        const phases = [
-          { key: "listen", name: "Listening", n: t.phases.listenMs },
-          { key: "think", name: "Thinking", n: t.phases.thinkMs },
-          { key: "decide", name: "Deciding", n: t.phases.decideMs },
+      // A card each answer, a review's or a new card's: the time covers both, so a card's share is over both counts.
+      const cards = win.reviews.n + win.started.n;
+      let foot: string | null = `${count(t.sessions, "session", "sessions")} · ${cards > 0 ? (t.ms / cards / 1000).toFixed(1) : "0"} s a card`;
+      // The time on each side of the flip: the front to it, the back after it.
+      if (view === "side" && win.unit !== "one") {
+        const sides = [
+          { key: "front", name: "Front of card", n: t.sides.frontMs },
+          { key: "back", name: "Back of card", n: t.sides.backMs },
         ].filter((p) => p.n > 0);
-        chart = <Rows rows={phases.map((p) => ({ ...p, says: spent(p.n) }))} said />;
+        chart = <Rows rows={sides.map((p) => ({ ...p, says: spent(p.n) }))} said />;
       } else {
         const drawn = byView({ win, view, series: t.series, hours: t.hours, say: spent, cap: spentCap, stats, ctx, onAt });
         chart = drawn.chart;
@@ -873,7 +875,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
     home: true,
     windows: ["days30", "months12", "all"],
     window: "months12",
-    // Front: the card on screen to the flip (listening and thinking); Back: the flip to the answer; Total: both.
+    // Front: the card on screen to the flip; Back: the flip to the answer; Total: both.
     views: PACE_SIDES,
     view: "total",
     make({ win, view, onAt }) {
@@ -888,16 +890,17 @@ export const WIDGETS: readonly WidgetEntry[] = [
         p.series.map((s) => s.start),
         true,
       );
-      // The foot says the other two sides.
+      // The foot says the other two sides, in the order a card goes, as one line: "Front 5.6 s · back 1.8 s".
       const others = PACE_SIDES.filter((s) => s.id !== side.id).flatMap((s) => {
         const ms = win.pace[s.id].ms;
         return ms === null ? [] : [`${s.label} ${seconds(ms)} s`];
       });
+      const footLine = others.map((said, i) => (i === 0 ? said : said.charAt(0).toLowerCase() + said.slice(1)));
       return {
         // Faster is better: down is the good way.
         figure: { parts: [[p.ms === null ? "–" : seconds(p.ms), "s a card"]], delta: p.ms === null ? null : deltaOf(Math.round(p.ms / 100), p.before === null ? null : Math.round(p.before / 100), beforeWords(win), false) },
         chart: <LineChart values={values} labels={labels} words={(j) => `${words[j] ?? ""} · ${values[j] ?? 0} s a card`} fmt={(v) => `${v.toFixed(1)} s`} onAt={onAt} />,
-        foot: others.length > 0 ? others.join(" · ") : null,
+        foot: footLine.length > 0 ? footLine.join(" · ") : null,
       };
     },
   },
@@ -915,7 +918,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
       if (!win) return { empty: "" };
       const w = win.watching;
       // Nothing watched is said once, whichever is measured, so the measure stays to switch back from.
-      if (w.ms === 0) return { empty: emptyOf(win) };
+      if (w.ms === 0) return { empty: emptyOf(win, "Nothing watched today yet.") };
       // Time spent is the clock; Of video, each part of a video once (`WindowStats.watching.ofVideo`).
       const ofVideo = measure === "video";
       const m = ofVideo ? w.ofVideo : { ms: w.ms, before: w.before, series: w.series, hours: w.hours, weekdays: w.weekdays };
@@ -1039,7 +1042,7 @@ export function risksShown(stats: Stats | null, settings: Settings | null): Stre
   return stats.streaks.filter((s) => s.atRisk);
 }
 export { reviewHelps };
-/** What's left of a streak now in words, its nearest group's: "12 reviews and 10 min reviewing". */
+/** What's left of a streak now in words, its nearest group's: "12 reviews and 10 min studying". */
 export const leftOf = (streak: StreakState) => streakLeftWords(nearestGroup(streak));
 
 // ---------- The tile ----------
@@ -1365,7 +1368,7 @@ type StreakTileProps = {
  */
 const PERIOD_DRAWN: Record<StreakPer, { row: string; label: (start: Day) => string; said: (start: Day) => string; startOf: (day: Day) => Day }> = {
   day: { row: "This week", label: (d) => DOW[dayDate(d).getUTCDay()] ?? "", said: dayWords, startOf: (d) => d },
-  week: { row: "Past 7 weeks", label: (d) => SHORT_WORDS.format(dayDate(d)), said: (d) => `Week of ${SHORT_WORDS.format(dayDate(d))}`, startOf: sundayOf },
+  week: { row: "Past 7 weeks", label: shortDayWords, said: (d) => `Week of ${shortDayWords(d)}`, startOf: sundayOf },
 };
 
 /** A streak's row of seven periods: a block each, filled for one that counted, the one going on ringed (tinted while at risk), days still to come fainter, its label under each. */
@@ -1506,7 +1509,7 @@ function StreakMore({ state, today, risk, name, at, onAt }: { state: StreakState
               <div key={r.from} className="w-run">
                 <b>{periodCountWords(state.per, r.n)}</b>
                 <span>
-                  {SHORT_WORDS.format(dayDate(r.from))} – {r.to === now ? period.now : DATE_WORDS.format(dayDate(r.to))}
+                  {shortDayWords(r.from)} – {r.to === now ? period.now : fullDayWords(r.to)}
                 </span>
               </div>
             ))}

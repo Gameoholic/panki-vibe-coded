@@ -2,6 +2,7 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Day } from "@panki/contracts";
 import { ScrollEdges } from "./components/ScrollEdges";
+import { monthWords } from "./words";
 
 /**
  * Every chart says what's under the pointer through `onAt` (the tile puts it in its foot line, so a finger has it too:
@@ -15,9 +16,8 @@ export const dayDate = (day: Day) => new Date(`${day}T00:00:00Z`);
 export const dayOf = (date: Date): Day => date.toISOString().slice(0, 10);
 export const addDays = (day: Day, n: number): Day => dayOf(new Date(dayDate(day).getTime() + n * DAY_MS));
 export const daysFrom = (from: Day, to: Day) => Math.round((dayDate(to).getTime() - dayDate(from).getTime()) / DAY_MS);
-/** The days of the week, Sunday first. */
-export const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
-const MONTH_INITIAL = new Intl.DateTimeFormat(undefined, { month: "narrow", timeZone: "UTC" });
+/** The days of the week as every chart labels them, Sunday first: three letters, never two or an initial. */
+export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 /**
  * Thin columns on a hairline, the largest named on its cap, a label under each that has one. `stacks` draws each
@@ -227,7 +227,10 @@ function HeatGrid({ first, cols, from, to, step, wordsOf, onAt, label, share }: 
     const named = shown[0] ?? sunday;
     const month = named.slice(0, 7);
     if (month !== lastMonth) {
-      months.push({ col, label: MONTH_INITIAL.format(dayDate(named)) });
+      // Three letters need about three columns: a month cut short at the map's start gives way to the next.
+      const previous = months[months.length - 1];
+      if (previous && col - previous.col < 3) months.pop();
+      months.push({ col, label: monthWords(named) });
       lastMonth = month;
     }
   }

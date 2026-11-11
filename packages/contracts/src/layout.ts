@@ -36,17 +36,15 @@ export type AutoPlay = z.infer<typeof AutoPlay>;
 export const playsOn = (plays: AutoPlay, side: "front" | "back") => plays === "both" || plays === (side === "front" ? "shown" : "turned");
 
 /**
- * What the Listen phase does with a part on the front (`ListenFirst`): shows it, blurs it, or leaves it unseen, its
- * room kept either way so nothing moves as the front shows. A blurred sound or clip still plays, its picture blurred;
- * a hidden one doesn't.
+ * What the blurred front does with a part (its "Blurred front", while the account's Blur the front is on): shows it,
+ * blurs it, or leaves it unseen, its room kept either way so nothing moves as it unblurs. A blurred sound or clip
+ * still plays, its picture blurred; a hidden one doesn't.
  */
-export const ListenShow = z.enum(["show", "blur", "hide"]);
-export type ListenShow = z.infer<typeof ListenShow>;
-/** What the Listen phase does with a clip's subtitles: shows them, blurs the card's word in them alone (the part's Highlight), blurs them, or leaves them off. */
-export const ListenSubtitles = z.enum(["show", "word", "blur", "hide"]);
-export type ListenSubtitles = z.infer<typeof ListenSubtitles>;
-/** The latest play of a sound or clip that can show the card out of its Listen phase: its sixth, five heard through first. */
-export const SHOW_ON_PLAY_MAX = 6;
+export const BlurShow = z.enum(["show", "blur", "hide"]);
+export type BlurShow = z.infer<typeof BlurShow>;
+/** What the blurred front does with a clip's subtitles: shows them, blurs the card's word in them alone (the part's Highlight), blurs them, or leaves them off. */
+export const BlurSubtitles = z.enum(["show", "word", "blur", "hide"]);
+export type BlurSubtitles = z.infer<typeof BlurSubtitles>;
 
 /**
  * The card's two columns, one registry: the main one, and the side one, which stands at the card's left as tall as the
@@ -97,17 +95,10 @@ export const LayoutPart = z.object({
    * video, never a field's words laid over the whole clip.
    */
   subtitles: z.boolean(),
-  /** What the Listen phase does with it, while its type has Listen first on (`ListenFirst`); shown to begin with, and for a layout sent from before. */
-  listen: ListenShow.default("show"),
-  /** What the Listen phase does with its clip's subtitles, where they're on; shown to begin with. */
-  listenSubtitles: ListenSubtitles.default("show"),
-  /**
-   * The play of a sound or clip in the Listen phase, by its number (2, its second), that shows the card's front the
-   * moment it begins, as Done listening does (its "Ends listening", On second play…); null, only Done listening does (none
-   * to begin with). A part's own, and counted as a play begins, never as the one before it finishes. One part of a
-   * layout at most.
-   */
-  showOnPlay: z.number().int().min(2).max(SHOW_ON_PLAY_MAX).nullable().default(null),
+  /** What the blurred front does with it (`BlurShow`); shown to begin with, and for a layout sent without it. */
+  blur: BlurShow.default("show"),
+  /** What the blurred front does with its clip's subtitles, where they're on; shown to begin with. */
+  blurSubtitles: BlurSubtitles.default("show"),
   /**
    * The clip a review's full screen fills the screen with (its "Full screen"), picked: one part of a layout at most, a
    * Media part in the Player look. None picked, or the picked one no longer such a part, it's the first such in the
@@ -118,16 +109,12 @@ export const LayoutPart = z.object({
 export type LayoutPart = z.infer<typeof LayoutPart>;
 
 export const NOTHING_ON_FRONT = "Put something on the front.";
-/**
- * A layout as it's sent: each field once, something on the front, or the card couldn't be turned, and one part at
- * most showing the card by itself.
- */
+/** A layout as it's sent: each field once, and something on the front, or the card couldn't be turned. */
 export const CardLayout = z
   .array(LayoutPart)
   .max(200)
   .refine((parts) => new Set(parts.map((p) => p.fieldId)).size === parts.length, { message: "A field is on the card twice." })
   .refine((parts) => parts.length === 0 || parts.some((p) => p.front !== "hide"), { message: NOTHING_ON_FRONT })
-  .refine((parts) => parts.filter((p) => p.showOnPlay !== null).length <= 1, { message: "Only one sound or clip can show the card by itself." })
   .refine((parts) => parts.filter((p) => p.staged).length <= 1, { message: "Only one clip can fill the screen." });
 export type CardLayout = z.infer<typeof CardLayout>;
 
@@ -177,21 +164,14 @@ export type ExamplesPlace = z.infer<typeof ExamplesPlace>;
 /** What's moved among in a column in place of a part's field id, for the example arrows: never a field's id, which is a uuid. */
 export const EXAMPLES_SLOT = "examples";
 
-/**
- * Listen first, since a word known by its spelling and its video isn't yet known by ear, and understanding by hearing
- * matters more: a type's cards open in a review on a Listen phase before the
- * front, each part shown, blurred or hidden as its `listen` says, its sounds and clips there to hear; Done listening, or the
- * one sound or clip that shows it by itself beginning the play its `showOnPlay` says, shows the front.
- * Like the stage tag, the type's own, apart from its fields. A card with nothing to hear opens on its front. (A
- * `heard` kept on a type from before, how many hearings for every sound and clip alike, is let go.)
- */
-export const ListenFirst = z.object({ on: z.boolean() });
-export type ListenFirst = z.infer<typeof ListenFirst>;
-/** As every type has it until it's switched on: off. */
-export const DEFAULT_LISTEN_FIRST: ListenFirst = { on: false };
-
 /** The card's two sides. */
 export type CardSide = "front" | "back";
+
+/**
+ * Whether a type's front has anything to blur: a part on the front its Blurred front blurs or hides. Its cards open
+ * blurred while the account's Blur the front is on; a type marking nothing opens clear.
+ */
+export const blursFront = (layout: readonly Pick<LayoutPart, "front" | "blur">[]): boolean => layout.some((p) => p.front !== "hide" && p.blur !== "show");
 
 /** The side a field counts as being on, for what knows only two (a card's row in a list, a form's big field): the front when the front shows it at all. */
 export const sideOf = (part: Pick<LayoutPart, "front">): CardSide => (part.front === "hide" ? "back" : "front");

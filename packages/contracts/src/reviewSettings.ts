@@ -33,10 +33,16 @@ export const ReviewSettings = z.object({
    * one review after another; the newest; or one at random.
    */
   exampleShown: z.enum(["rotate", "newest", "random"]),
+  /**
+   * **Blur the front**: a card whose type marks a part of its front Blur or Hide (its Layout tab's Blurred front,
+   * `LayoutPart.blur`) opens blurred, Unblur and Blur toggling it on the front; off, every front opens clear. A helper on
+   * screen alone: nothing is kept of it but this setting.
+   */
+  blurFront: z.boolean(),
 });
 export type ReviewSettings = z.infer<typeof ReviewSettings>;
 export type ExampleShown = ReviewSettings["exampleShown"];
-export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = { todayFirst: true, newPlace: "last", newOrder: "added", reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate" };
+export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = { todayFirst: true, newPlace: "last", newOrder: "added", reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", blurFront: true };
 /** The keys of how every review runs, the ones a deck kept before they were the account's. */
 export const REVIEW_SETTING_KEYS = Object.keys(ReviewSettings.shape) as (keyof ReviewSettings)[];
 

@@ -416,6 +416,14 @@ export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number
 export const AppLanguage = z.enum(["eng"]);
 export type AppLanguage = z.infer<typeof AppLanguage>;
 export const APP_LANGUAGES: Record<AppLanguage, string> = { eng: "English" };
+/** How a time of day reads (Time format), one registry: its name in Settings. */
+export const TimeFormat = z.enum(["h24", "h12"]);
+export type TimeFormat = z.infer<typeof TimeFormat>;
+export const TIME_FORMATS: Record<TimeFormat, string> = { h24: "24-hour", h12: "12-hour" };
+/** Which comes first in a date (Date format), one registry: its name in Settings. */
+export const DateFormat = z.enum(["dayMonth", "monthDay"]);
+export type DateFormat = z.infer<typeof DateFormat>;
+export const DATE_FORMATS: Record<DateFormat, string> = { dayMonth: "Day month", monthDay: "Month day" };
 
 /** The longest User instructions can be, in characters: a few lines of steering, sent with every send. */
 export const AI_INSTRUCTIONS_MAX = 2_000;
@@ -447,6 +455,13 @@ export const Settings = z.object({
    * without it reads the default: no migration.
    */
   appLanguage: AppLanguage,
+  /**
+   * **Time format** and **Date format** on screen (Settings → General → Display): how every time of day and every date
+   * the app shows reads ("21:47" or "9:47 pm", "11 Nov" or "Nov 11"), formatted in one place (the web's `words.ts`).
+   * New keys: an account without them reads 24-hour and day month, what the app always showed.
+   */
+  timeFormat: TimeFormat,
+  dateFormat: DateFormat,
   /**
    * Whether the account's watching was kept, when that was the account's to say (migration 30). Retired: Video
    * tracking is each browser's own, so some devices can send and others not, and this is read only by an extension that has no switch of its own yet, once, to start from
@@ -503,7 +518,7 @@ export const Settings = z.object({
   streaksOn: z.boolean(),
   /**
    * The account's streaks (`streaks.ts`), each a name and goals; which days counted is worked out on every read, so a
-   * change re-reads the whole past. One streak to begin with, a review a day (`DEFAULT_STREAKS`).
+   * change re-reads the whole past. One streak to begin with, a card answered a day, a review or a new card (`DEFAULT_STREAKS`).
    */
   streaks: StreakRules,
   /** **Streak on the YouTube pill**: the id of the streak the pill shows; null, or one that's gone, is the first. */
@@ -528,6 +543,8 @@ export const DEFAULT_SETTINGS: Settings = {
   timeZone: "",
   language: "eng",
   appLanguage: "eng",
+  timeFormat: "h24",
+  dateFormat: "dayMonth",
   videoTracking: false,
   finishedWithinSec: 20,
   aiAskOverMicros: 10_000,
@@ -568,20 +585,20 @@ export const GivenId = z.uuid();
 
 /**
  * What the browser sends when a card is answered. The time and the outcome are the API's; the browser adds the
- * session it happened in and how long the card was on screen before the flip (`thinkMs`) and after it (`decideMs`),
- * spans measured on its own clock, kept for the stats; and, when the card opened on a Listen phase (its type's Listen
- * first), how long it was listened to before its front showed (`listenMs`; `thinkMs` then starts at the front).
+ * session it happened in and how long the card was on screen before the flip (`thinkMs`, its front, blurred or not)
+ * and after it (`decideMs`, its back), spans measured on its own clock, kept for the stats. Nothing else is taken: a
+ * key it doesn't know is refused rather than dropped, so a span from an older page is never lost unsaid.
  */
-export const CardAnswer = z.object({
-  /** Left out, the answer can't be undone, and sending it again gives it twice. */
-  givenId: GivenId.optional(),
-  answerId: SrsAnswerId,
-  sessionId: z.uuid().optional(),
-  /** Left out when there was no Listen phase: its type has Listen first off, or the card had nothing to hear. */
-  listenMs: z.number().int().nonnegative().max(86_400_000).optional(),
-  thinkMs: z.number().int().nonnegative().max(86_400_000).optional(),
-  decideMs: z.number().int().nonnegative().max(86_400_000).optional(),
-  /** Which of the card's examples it was shown with (`card.ts` → `exampleShownOf`); left out, its own. */
-  exampleId: z.uuid().optional(),
-});
+export const CardAnswer = z
+  .object({
+    /** Left out, the answer can't be undone, and sending it again gives it twice. */
+    givenId: GivenId.optional(),
+    answerId: SrsAnswerId,
+    sessionId: z.uuid().optional(),
+    thinkMs: z.number().int().nonnegative().max(86_400_000).optional(),
+    decideMs: z.number().int().nonnegative().max(86_400_000).optional(),
+    /** Which of the card's examples it was shown with (`card.ts` → `exampleShownOf`); left out, its own. */
+    exampleId: z.uuid().optional(),
+  })
+  .strict();
 export type CardAnswer = z.infer<typeof CardAnswer>;

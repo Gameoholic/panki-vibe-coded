@@ -65,12 +65,17 @@
      Discord hides a message. Each is made of tokens every theme gives a value, so no theme block names them. */
   --sound: var(--good);
   --sound-soft: var(--good-soft);
-  /* Words on the good colour itself (the Add button once the card is in): the accent's ink, since every theme's good
-     is as deep or as light as its accent. */
+  /* Words on the good colour itself (the Add button once the card is in, and its burst): the accent's ink, since every
+     theme's good is as deep or as light as its accent. Only ever on a `--good` fill: green on the ground (a streak's
+     tick, a met bar) is `--good` itself, deep on a light theme and light on a dark one, as `--danger` is the red. */
   --good-ink: var(--accent-ink);
   --clip: var(--mid);
   --clip-soft: var(--mid-soft);
   --spoiler: color-mix(in srgb, var(--fg) 22%, var(--surface-2));
+  /* The glass Unblur and Blur stand on in the card's corner (`BlurButton`), over whatever the card shows there, and its
+     edge: the surface and the strong line, seen through. Made of tokens, so every theme has its own and none names them. */
+  --blur-glass: color-mix(in srgb, var(--surface) 72%, transparent);
+  --blur-edge: color-mix(in srgb, var(--line-strong) 80%, transparent);
   /* What Panki AI wrote, in its own ink wherever a value is shown: the text's colour leaning to the accent, so it
      reads as words on any surface and is never taken for words typed by hand. Made of tokens like the three above. */
   --ai-ink: color-mix(in srgb, var(--accent) 55%, var(--fg));

@@ -105,6 +105,12 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
         label="Example shown"
         control={<Segmented idPrefix="setting-example-shown" label="Example shown" options={EXAMPLE_SHOWN_OPTIONS} value={current.exampleShown} onChange={(exampleShown) => patch({ exampleShown })} />}
       />
+      {/* Beside Example shown: both are what the card shows. */}
+      <Setting
+        id="blurFront"
+        label="Blur the front"
+        control={<Toggle id="setting-blur-front" says={{ on: "On", off: "Off" }} on={current.blurFront} onChange={(blurFront) => patch({ blurFront })} />}
+      />
     </section>
   );
 }

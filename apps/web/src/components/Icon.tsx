@@ -62,7 +62,7 @@ const ICONS = {
   /** A screen: a video watched, the immersion tiles. */
   tv: ["M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M9 21h6", "M12 18v3"],
   /**
-   * Time spent, by what on: a video with its play sign (time watched) or a card (time reviewing), big, with a small clock tucked into its corner. The pill's
+   * Time spent, by what on: a video with its play sign (time watched) or a card (time studying), big, with a small clock tucked into its corner. The pill's
    * two times, told apart at a glance with the clock the same in both.
    */
   watchTime: ["M13 16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v6", "M8 7.5v5l4.5-2.5z", "M18.5 14.5a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M18.5 16.5v2l1.3 1"],
@@ -91,6 +91,19 @@ const ICONS = {
   gear: [gearOf(8), "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z"],
   /** An eye: a card seen as a review would show it (`CardPreview`). */
   eye: ["M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z"],
+  /** Corners round a sharp ring, brought into focus: Unblur (`BlurButton`). */
+  focus: ["M4 8V5a1 1 0 0 1 1-1h3", "M16 4h3a1 1 0 0 1 1 1v3", "M20 16v3a1 1 0 0 1-1 1h-3", "M8 20H5a1 1 0 0 1-1-1v-3", "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 1 0 0-7z"],
+  /** The same corners round a ring broken up, out of focus: Blur (`BlurButton`). */
+  blur: [
+    "M4 8V5a1 1 0 0 1 1-1h3",
+    "M16 4h3a1 1 0 0 1 1 1v3",
+    "M20 16v3a1 1 0 0 1-1 1h-3",
+    "M8 20H5a1 1 0 0 1-1-1v-3",
+    "M15.17 10.52A3.5 3.5 0 0 1 15.17 13.48",
+    "M13.48 15.17A3.5 3.5 0 0 1 10.52 15.17",
+    "M8.83 13.48A3.5 3.5 0 0 1 8.83 10.52",
+    "M10.52 8.83A3.5 3.5 0 0 1 13.48 8.83",
+  ],
   /** A magnifying glass: looking at something without changing it, a card already there opened (`AlreadyIn`). */
   search: ["M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13z", "M15.5 15.5L20 20"],
   /** A warning sign: a card being added is called the same as one already there (`AlreadyIn`). */

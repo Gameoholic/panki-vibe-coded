@@ -32,7 +32,7 @@ type Props<T extends string> = {
   wraps?: boolean;
   /**
    * Its whole row under its label, each cell's words kept on one line and the cells going onto a second row when they
-   * don't fit: for choices too long to stand side by side in a narrow panel (a clip's subtitles while listening).
+   * don't fit: for choices too long to stand side by side in a narrow panel (a clip's subtitles on the blurred front).
    */
   wrap?: boolean;
 };

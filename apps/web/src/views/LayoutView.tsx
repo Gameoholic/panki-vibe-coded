@@ -4,6 +4,7 @@ import {
   CardLayout,
   EXAMPLES_SLOT,
   NEW_PLACE,
+  blursFront,
   columnOrder,
   examplesAt,
   examplesToColumn,
@@ -26,7 +27,6 @@ import {
   type ExamplesPlace,
   type FlagMark,
   type LayoutPart,
-  type ListenFirst,
   type ReviewSettings,
   type SparkMark,
   type SrsType,
@@ -39,32 +39,31 @@ import { Dropdown } from "../components/Dropdown";
 import { ExampleArrows } from "../components/ExampleArrows";
 import { FloatPanel } from "../components/FloatPanel";
 import { Icon } from "../components/Icon";
-import { ReviewCard, listensFirst } from "../components/ReviewCard";
+import { ReviewCard } from "../components/ReviewCard";
 import { ReviewButtons, ReviewCounts, ReviewScreen } from "../components/ReviewScreen";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { ShowButton } from "../components/ShowButton";
 import { Toggle } from "../components/Toggle";
 import { FIELD_KINDS } from "../fieldKinds";
+import { useBlur } from "../hooks/useBlur";
 import { useDragOrder } from "../hooks/useDragOrder";
 import { keepDouble, useHold } from "../hooks/useHold";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { useUndoable } from "../hooks/useUndoable";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled } from "../keys";
-import { COLUMN_OPTIONS, CORNER_MARK_NAMES, CORNER_OPTIONS, EXAMPLE_ARROWS, LISTEN_OPTIONS, LISTEN_SUBTITLE_OPTIONS, LOOK_OPTIONS, NEVER_BY_ITSELF, PLAY_OPTIONS, SHOW_ON_PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
+import { BLUR_OPTIONS, BLUR_SUBTITLE_OPTIONS, COLUMN_OPTIONS, CORNER_MARK_NAMES, CORNER_OPTIONS, EXAMPLE_ARROWS, LOOK_OPTIONS, PLAY_OPTIONS, SHOW_OPTIONS, SIZE_OPTIONS, TONE_OPTIONS } from "../layoutKinds";
 import { buildQueue, kindOf, startLine, togoOf } from "../reviewLine";
 import { rememberShape } from "../skeletonMemory";
 import type { UnsavedGuard } from "../unsaved";
 import { waveOf } from "../waveform";
 import type { SaveStatus } from "./SrsTypeView";
 
-/** What's shown of the card: its Listen phase (while the type has Listen first on), its front, or its back. */
-type Face = "listen" | CardSide;
+/** Which side of the card is shown. */
 const SIDES: readonly { id: CardSide; label: string }[] = [
   { id: "front", label: "Front" },
   { id: "back", label: "Back" },
 ];
-const FACES: readonly { id: Face; label: string }[] = [{ id: "listen", label: "Listen" }, ...SIDES];
 /** How many of the type's newest cards can be shown on it while it's laid out. */
 const SAMPLES_MAX = 30;
 /** Shown with no card: each field's name where it stands. */
@@ -76,10 +75,10 @@ const NO_LADDER: Pick<SrsType, "stages" | "after" | "burnedName"> = { stages: []
 /** What's picked when it's a corner mark (the stage tag, the AI spark, the flag): no field's id is this. */
 const markPicked = (id: CornerMarkId) => `mark:${id}`;
 
-/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark, the flag), the example arrows, and Listen first. */
-type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; flag: FlagMark; examples: ExamplesPlace | null; listen: ListenFirst };
+/** What's laid out here: every field's part, the corner marks (the stage tag, the AI spark, the flag), and the example arrows. */
+type Laid = { parts: LayoutPart[]; tag: StageTag; spark: SparkMark; flag: FlagMark; examples: ExamplesPlace | null };
 /** What a Save sends: the layout as it reads, and everything else the tab lays out. */
-export type LaidOut = { layout: CardLayout; tag: StageTag; spark: SparkMark; flag: FlagMark; examples: ExamplesPlace | null; listen: ListenFirst };
+export type LaidOut = { layout: CardLayout; tag: StageTag; spark: SparkMark; flag: FlagMark; examples: ExamplesPlace | null };
 
 type Props = {
   /** The card type as it's saved. */
@@ -93,21 +92,21 @@ type Props = {
   onGuard: (guard: UnsavedGuard | null) => void;
   /** How a clip's subtitles look: the account's. */
   subtitleStyle: SubtitleStyle;
-  /** How every review runs, the account's: the order the line over the card counts in. */
+  /** How every review runs, the account's: the order the line over the card counts in, and whether the front blurs. */
   review: ReviewSettings;
 };
 
 /**
  * How a card type's cards look in a review, laid out on the card itself in the review's own screen (`ReviewScreen`):
- * one of the type's own cards on it, its deck's counts over it, played, opened and turned as a review does (Done
- * listening, Show back of card, Step back, their keys). A press on a part picks it, a press on
- * its player working the player as well; a part is moved by its grip. Its choices stand in a panel over the screen
- * (`FloatPanel`), with which side shows, Listen first and the card it's shown on. Saved by the header's Save, as the
- * SRS editor is; leaving unsaved asks first, and Ctrl+Z undoes.
+ * one of the type's own cards on it, its deck's counts over it, played, opened, blurred and turned as a review does
+ * (Unblur and Blur, Show back of card, Step back, their keys). A press on a part picks it, a press on its player working
+ * the player as well; a part is moved by its grip. Its choices stand in a panel over the screen (`FloatPanel`), with
+ * which side shows and the card it's shown on. Saved by the header's Save, as the SRS editor is; leaving unsaved asks
+ * first, and Ctrl+Z undoes.
  */
 export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, subtitleStyle, review }: Props) {
-  // The fields' parts, the corner marks, the example arrows and Listen first are laid out together, so one Undo steps back through them all.
-  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, flag: t.flag, examples: t.examples, listen: t.listen });
+  // The fields' parts, the corner marks and the example arrows are laid out together, so one Undo steps back through them all.
+  const laidOf = (t: CardType): Laid => ({ parts: t.layout, tag: t.tag, spark: t.spark, flag: t.flag, examples: t.examples });
   const history = useUndoable<Laid>(laidOf(type));
   const { undo, redo } = history;
   const draft = history.present.parts;
@@ -115,7 +114,6 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const spark = history.present.spark;
   const flag = history.present.flag;
   const examples = history.present.examples;
-  const listen = history.present.listen;
   const change = (parts: LayoutPart[]) => history.change({ ...history.present, parts });
   const changeTag = (patch: Partial<StageTag>) => history.change({ ...history.present, tag: { ...tag, ...patch } });
   /** A corner mark's own: whether it's shown, and its corner (the stage tag's size is its alone). */
@@ -124,15 +122,11 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     else if (id === "spark") history.change({ ...history.present, spark: { ...spark, ...patch } });
     else history.change({ ...history.present, flag: { ...flag, ...patch } });
   };
-  const changeListen = (patch: Partial<ListenFirst>) => history.change({ ...history.present, listen: { ...listen, ...patch } });
   const [saved, setSaved] = useState<Laid>(laidOf(type));
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
-  const [chosenFace, setFace] = useState<Face>("front");
-  // The Listen phase is there only while Listen first is on; switched off on it, the front shows.
-  const face: Face = chosenFace === "listen" && !listen.on ? "front" : chosenFace;
-  /** The side whose parts are shown and moved: the Listen phase is the front's, blurred. */
-  const side: CardSide = face === "listen" ? "front" : face;
+  /** The side whose parts are shown and moved. */
+  const [side, setSide] = useState<CardSide>("front");
   const binds = useKeyBinds();
   const keysOn = useKeybindsEnabled();
   const hold = useHold();
@@ -141,6 +135,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   /** Every card of each deck of this type, by the deck's id: what a review of it would count. */
   const [deckCards, setDeckCards] = useState<ReadonlyMap<string, readonly Card[]>>(new Map());
   const [sampleId, setSampleId] = useState<string>(NO_SAMPLE);
+  /** The front's blur, as a review has it: the card shown opens blurred, turning it leaves its front clear. */
+  const blur = useBlur(review.blurFront, sampleId);
   const fields = useMemo(() => new Map(type.fields.map((f) => [f.id, f])), [type.fields]);
   const place = useRef<HTMLElement | null>(null);
   /** Full screen as a review fills it, asked for here alone: never kept for the next review, nor filled by itself. */
@@ -204,7 +200,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     setSaving(true);
     setSaveFailure(null);
     try {
-      const result = await onSave({ layout: parsed.data, tag, spark, flag, examples, listen });
+      const result = await onSave({ layout: parsed.data, tag, spark, flag, examples });
       setSaved(laidOf(result));
       // What the API keeps is the layout filled out against the fields; it takes the draft's place without a step.
       history.amend(() => laidOf(result));
@@ -237,18 +233,23 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const exampleId = exampleIds[browsed % exampleIds.length] ?? null;
   /** Where the example arrows stand as laid out now; none for a type with no field that's One per example. */
   const examplesHere = examplesAt(draft, type.fields, examples);
-  /** Where the card opens in a review, as laid out now: its Listen phase when there's something on it to hear, else its front. */
-  const opening: Face = sample && listensFirst(type, sample.card.values, sample.card.files, listen, draft) ? "listen" : "front";
-  /** The card on to its next: out of its Listen phase, or turned to its back. */
-  const showNext = () => setFace(face === "listen" ? "front" : "back");
-  /** Step back, as in a review: the back to the front, the front to the Listen phase where the card opens on one. */
-  const canStepBack = face === "back" || (face === "front" && opening === "listen");
-  const stepBack = () => {
-    if (canStepBack) setFace(face === "back" ? "front" : "listen");
+  /** A side shown: turned to the back, the front is left clear, as a review leaves it. */
+  const showSide = (to: CardSide) => {
+    if (to === "back") blur.unblur();
+    setSide(to);
   };
+  /** Show back of card. */
+  const showNext = () => showSide("back");
+  /** Step back, as in a review: the back to the front. */
+  const canStepBack = side === "back";
+  const stepBack = () => {
+    if (canStepBack) showSide("front");
+  };
+  /** Whether Blur's key does anything here: on the front, while Blur the front is on and something is marked to blur. */
+  const blurrable = review.blurFront && side === "front" && blursFront(draft);
 
-  // The review's own keys turn the card here as they do there: Done listening's, Show back of card's and Step back's,
-  // held as long as each is set to be, and Enter. A key pressed in the panel is the panel's.
+  // The review's own keys turn the card here as they do there: Blur's, Show back of card's and Step back's, held as long
+  // as each is set to be, and Enter. A key pressed in the panel is the panel's.
   const doubles = doubleKeys(binds);
   useEffect(() => {
     const kept = doubles.map(keepDouble);
@@ -263,13 +264,19 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
       if (own(e) || e.metaKey) return;
       const key = keyOf(e);
       if (keysOn && key === "Enter") {
-        if (e.target instanceof HTMLButtonElement || face === "back") return;
+        if (e.target instanceof HTMLButtonElement || side === "back") return;
         e.preventDefault();
         showNext();
         return;
       }
-      // A key that's both is Done listening's or Show back of card's where they do something, Step back's on the back.
-      const showing = face === "back" ? null : keyIn(face === "listen" ? binds.showCard : binds.reveal, key);
+      const blurring = blurrable ? keyIn(binds.blur, key) : null;
+      if (blurring) {
+        e.preventDefault();
+        if (!e.repeat) hold.begin(e, button("blur"), blurring.holdMs, blur.toggle);
+        return;
+      }
+      // A key that's both is Show back of card's on the front, Step back's on the back.
+      const showing = side === "back" ? null : keyIn(binds.reveal, key);
       const stepping = canStepBack && !showing ? keyIn(binds.hide, key) : null;
       if (stepping) {
         e.preventDefault();
@@ -284,7 +291,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
       if (own(e)) return;
-      if (pressedIn(e, face === "listen" ? binds.showCard : binds.reveal)) e.preventDefault();
+      if (pressedIn(e, binds.reveal)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
@@ -333,8 +340,6 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const part = pickedMark ? undefined : draft.find((p) => p.fieldId === picked);
   const marks: Record<CornerMarkId, SparkMark> = { tag, spark, flag };
   const field = part ? fields.get(part.fieldId) : undefined;
-  /** The one sound or clip that shows the card by itself, if one does. */
-  const shower = draft.find((p) => p.showOnPlay !== null);
 
   /** The picked part's choices: its two sides, then what its kind can change, then its place. */
   function choices(part: LayoutPart, field: CardField) {
@@ -374,34 +379,12 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           label="On the back"
           control={<Segmented idPrefix="part-back" label="On the back" options={SHOW_OPTIONS} value={part.back} onChange={(back) => update(id, { back })} />}
         />
-        {/* What the Listen phase does with it: there with the type's Listen first, greyed while that's off. */}
+        {/* What the blurred front does with it: the type's own, live while the account's Blur the front is off too. */}
         <Setting
-          id="part-listen"
-          label="While listening"
-          control={<Segmented idPrefix="part-listen" label="While listening" options={LISTEN_OPTIONS} value={part.listen} disabled={!listen.on} onChange={(listening) => update(id, { listen: listening })} />}
+          id="part-blur"
+          label="Blurred front"
+          control={<Segmented idPrefix="part-blur" label="Blurred front" options={BLUR_OPTIONS} value={part.blur} onChange={(blur) => update(id, { blur })} />}
         />
-        {/*
-          Which play of this sound or clip shows the card, one of them on a card at most: while
-          another does, it's greyed here and says which. Greyed too while it's hidden in the Listen phase, which never plays it.
-        */}
-        {media ? (
-          <Setting
-            id="part-show-on-play"
-            label="Ends listening"
-            why={shower && shower.fieldId !== id ? `${fields.get(shower.fieldId)?.name ?? "Another field"} already ends listening.` : undefined}
-            control={
-              <Dropdown
-                id="part-show-on-play-choice"
-                label="Ends listening"
-                anchored
-                options={SHOW_ON_PLAY_OPTIONS}
-                value={part.showOnPlay ?? NEVER_BY_ITSELF}
-                disabled={!listen.on || part.listen === "hide" || (shower !== undefined && shower.fieldId !== id)}
-                onChange={(play) => update(id, { showOnPlay: play === NEVER_BY_ITSELF ? null : play })}
-              />
-            }
-          />
-        ) : null}
         {media ? (
           <Setting
             id="part-look"
@@ -422,20 +405,20 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         {pictured ? (
           <Setting id="part-subtitles" label="Subtitles" control={<Toggle id="part-subtitles-on" says={{ on: "Shown", off: "Hidden" }} on={part.subtitles} onChange={(subtitles) => update(id, { subtitles })} />} />
         ) : null}
-        {/* The subtitles' own While listening, right under their switch so it reads as theirs, greyed while they're hidden or Listen first is off. */}
+        {/* The subtitles' own Blurred front, right under their switch so it reads as theirs, greyed while they're hidden. */}
         {pictured ? (
           <Setting
-            id="part-listen-subtitles"
-            label="While listening"
+            id="part-blur-subtitles"
+            label="Blurred front"
             control={
               <Segmented
-                idPrefix="part-listen-subtitles"
-                label="Subtitles while listening"
-                options={LISTEN_SUBTITLE_OPTIONS}
-                value={part.listenSubtitles}
-                disabled={!listen.on || !part.subtitles}
+                idPrefix="part-blur-subtitles"
+                label="Subtitles on the blurred front"
+                options={BLUR_SUBTITLE_OPTIONS}
+                value={part.blurSubtitles}
+                disabled={!part.subtitles}
                 wrap
-                onChange={(listenSubtitles) => update(id, { listenSubtitles })}
+                onChange={(blurSubtitles) => update(id, { blurSubtitles })}
               />
             }
           />
@@ -519,7 +502,6 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     >
       {/* The type's own settings, saved with the layout. */}
       <section className="panel layout-panel" aria-label="Card type">
-        <Setting id="listen-first" label="Listen first" control={<Toggle id="listen-first-on" says={{ on: "On", off: "Off" }} on={listen.on} onChange={(on) => changeListen({ on })} />} />
         {/* The clip a review's full screen fills the screen with (the Full screen key's): the one picked, else the first
             in the card's order; greyed while no part is a clip in the Player style. */}
         <Setting
@@ -547,7 +529,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           Preview
         </h2>
         <Setting id="layout-sample-row" label="Previewed for" control={<Dropdown id="layout-sample" label="Card previewed" anchored options={sampleOptions} value={sampleId} onChange={setSampleId} />} />
-        <Setting id="layout-side-row" label="Side" control={<Segmented idPrefix="layout-side" label="Side of the card" options={listen.on ? FACES : SIDES} value={face} onChange={setFace} />} />
+        <Setting id="layout-side-row" label="Side" control={<Segmented idPrefix="layout-side" label="Side of the card" options={SIDES} value={side} onChange={showSide} />} />
       </section>
       {pickedMark ? (
         // A corner mark isn't a field: its few choices are its own, the same on both sides, its corner dragged to on the
@@ -660,12 +642,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           cues={sample?.card.cues}
           srsType={ladder}
           place={sample?.card.place ?? NEW_PLACE}
-          revealed={face === "back"}
-          listening={face === "listen"}
-          // It goes on to its front as its sound or clip begins the play set to show it, as in a review.
-          onListened={() => {
-            if (face === "listen") setFace("front");
-          }}
+          revealed={side === "back"}
+          blur={review.blurFront ? { blurred: blur.blurred, bind: binds.blur, onToggle: blur.toggle } : undefined}
           srcOf={sample ? api.mediaUrl : undefined}
           waveOf={waveOf}
           subtitleStyle={subtitleStyle}
@@ -710,16 +688,15 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           <ReviewButtons
             srsType={answersBy}
             place={sample?.card.place ?? NEW_PLACE}
-            revealed={face === "back"}
-            listening={face === "listen"}
+            revealed={side === "back"}
             binds={binds}
             busy={false}
             // Greyed: a card looked at gives no answer.
             onShow={showNext}
           />
-        ) : face === "back" ? null : (
+        ) : side === "back" ? null : (
           <div className="review-actions">
-            <ShowButton listening={face === "listen"} bind={face === "listen" ? binds.showCard : binds.reveal} onPress={showNext} />
+            <ShowButton bind={binds.reveal} onPress={showNext} />
           </div>
         )
       }

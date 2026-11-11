@@ -4,6 +4,10 @@ import {
   AI_PLACE_IDS,
   AI_LIMITS,
   APP_LANGUAGES,
+  DATE_FORMATS,
+  DateFormat,
+  TIME_FORMATS,
+  TimeFormat,
   AppLanguage,
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
@@ -78,7 +82,7 @@ import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
 import { rememberShape, shapeOf } from "../skeletonMemory";
-import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, sinceWords, tokenWords } from "../words";
+import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, hourOfDayWords, sinceWords, tokenWords } from "../words";
 
 type Props = {
   settings: Settings;
@@ -99,8 +103,6 @@ type Props = {
   onRestoreAction: (id: string) => void;
 };
 
-/** An hour of the day as the clock shows it: "4:00", "23:00". */
-const clock = (hour: number) => `${hour}:00`;
 
 /**
  * The page's tabs, as the extension's own page has them: the look and what every deck shares, the keys, Panki AI's templates (AI step 5), the
@@ -1454,6 +1456,33 @@ export function SettingsView({
               />
             }
           />
+          {/* How every time and date reads, in the app and on its tiles (`words.ts`). */}
+          <Setting
+            id="timeFormat"
+            label="Time format"
+            control={
+              <Segmented
+                idPrefix="setting-time-format"
+                label="Time format"
+                options={TimeFormat.options.map((id) => ({ id, label: TIME_FORMATS[id] }))}
+                value={current.timeFormat}
+                onChange={(timeFormat) => patch({ timeFormat })}
+              />
+            }
+          />
+          <Setting
+            id="dateFormat"
+            label="Date format"
+            control={
+              <Segmented
+                idPrefix="setting-date-format"
+                label="Date format"
+                options={DateFormat.options.map((id) => ({ id, label: DATE_FORMATS[id] }))}
+                value={current.dateFormat}
+                onChange={(dateFormat) => patch({ dateFormat })}
+              />
+            }
+          />
         </section>
 
         <section className="panel" aria-labelledby="settings-title">
@@ -1464,7 +1493,7 @@ export function SettingsView({
             id="dayStartHour"
             label="The day starts at"
             control={<NumberField id="setting-day-start" label="Hour the day starts" value={current.dayStartHour} min={0} max={23} suffix=":00" onChange={(dayStartHour) => patch({ dayStartHour })} />}
-            why={`A review before ${clock(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit reset at ${clock(current.dayStartHour)}.`}
+            why={`A review before ${hourOfDayWords(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit reset at ${hourOfDayWords(current.dayStartHour)}.`}
           />
           {/* Never empty once the account has opened Panki (App writes the device's zone); shown as this device's until that write lands. */}
           <Setting

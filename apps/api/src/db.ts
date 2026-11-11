@@ -71,7 +71,6 @@ import {
   type FlagMark,
   type SparkMark,
   type StageTag,
-  listenFirstOf,
   stageIndex,
   starterStageCount,
   toldApart,
@@ -1089,12 +1088,48 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // a stamp of when a session first left nothing due; the column stays there and is read by nothing. All reviews done
     // is worked out on read from the history instead (`cleared.ts`).
   },
+  (db) => {
+    // 53. The one step that rewrites kept rows and drops columns, the single exception to "a migration adds, never drops
+    // or rewrites" (`docs/architecture/data-model.md` → Migrations). Listen first, a review's listening phase before the
+    // front, is gone; Blur the front, in its place, is kept nowhere but its setting. Nothing is lost but the old names:
+    // - an answer's and a put-aside card's listening span (`listen_ms`) is merged into its front's: `think_ms` becomes
+    //   `think_ms + listen_ms` on every `card_places` and `card_holds` row where it was set, then `listen_ms` is dropped
+    //   from both, so a card's time on its front is every second before its flip, as Time reviewing always summed it;
+    // - a session left while its card was listened to (`left_phase` 'listen') says it was on its front;
+    // - each card type's layout calls a part's blurred front `blur` and its subtitles' `blurSubtitles`, each value as it
+    //   stood under `listen` and `listenSubtitles`, every other key and the parts' order as they were (a part's
+    //   `showOnPlay`, the play that ended listening, stays, read by nothing);
+    // - `card_types.listen`, Listen first's On, is dropped with the feature.
+    // The type logs (`card_type_changes`, `card_type_layout_changes`) keep the words each save was written in.
+    db.exec("UPDATE card_places SET think_ms = COALESCE(think_ms, 0) + listen_ms WHERE listen_ms IS NOT NULL");
+    db.exec("UPDATE card_holds SET think_ms = COALESCE(think_ms, 0) + listen_ms WHERE listen_ms IS NOT NULL");
+    db.exec("ALTER TABLE card_places DROP COLUMN listen_ms");
+    db.exec("ALTER TABLE card_holds DROP COLUMN listen_ms");
+    db.exec("UPDATE review_sessions SET left_phase = 'front' WHERE left_phase = 'listen'");
+    const renamed: Readonly<Record<string, string>> = { listen: "blur", listenSubtitles: "blurSubtitles" };
+    const rename = (part: unknown): unknown =>
+      typeof part === "object" && part !== null && !Array.isArray(part) ? Object.fromEntries(Object.entries(part).map(([key, value]) => [renamed[key] ?? key, value])) : part;
+    const write = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
+    for (const type of db.prepare("SELECT id, layout FROM card_types").all() as { id: string; layout: string }[]) {
+      let parts: unknown;
+      try {
+        parts = JSON.parse(type.layout);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(parts)) continue;
+      const json = JSON.stringify(parts.map(rename));
+      if (json !== type.layout) write.run(json, type.id);
+    }
+    db.exec("ALTER TABLE card_types DROP COLUMN listen");
+  },
 ];
 
-function migrate(db: DatabaseSync, now: number) {
+/** Brings a database up to date, or up to step `until` alone (a test of one step starts from the step before it). */
+export function migrate(db: DatabaseSync, now: number, until = MIGRATIONS.length) {
   const { user_version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
   MIGRATIONS.forEach((step, i) => {
-    if (i < user_version) return;
+    if (i < user_version || i >= until) return;
     db.exec("BEGIN");
     try {
       step(db, now);
@@ -1136,8 +1171,8 @@ type CalledRow = { cardId: string; fieldId: string; value: string; deckId: strin
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
 /** What an answer carries beyond the move: the id it was given, the session, the spans the browser measured, and whether it was a miss. */
-type AnswerExtras = { givenId: string | null; sessionId: string | null; listenMs: number | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
-const NO_EXTRAS: AnswerExtras = { givenId: null, sessionId: null, listenMs: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
+type AnswerExtras = { givenId: string | null; sessionId: string | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
+const NO_EXTRAS: AnswerExtras = { givenId: null, sessionId: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
 /** An answer found by the id it was given: the row it made, a move (`card_places`) or a card put aside (`card_holds`). `liftedAt` is a hold's alone. */
 type GivenRow = { kind: "place" | "hold"; id: number; cardId: string; at: number; undoneAt: number | null; liftedAt: number | null };
 type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: number; endedAt: number | null; endedHow: string | null };
@@ -1150,7 +1185,6 @@ type AnswerRow = {
   deckId: string;
   at: number;
   miss: number | null;
-  listenMs: number | null;
   thinkMs: number | null;
   decideMs: number | null;
   living: number;
@@ -1161,7 +1195,7 @@ type AnswerRow = {
   nodeFrom: string;
 };
 /** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
-type ShowingRow = Pick<AnswerRow, "at" | "deckId" | "listenMs" | "thinkMs" | "decideMs" | "undoneAt">;
+type ShowingRow = Pick<AnswerRow, "at" | "deckId" | "thinkMs" | "decideMs" | "undoneAt">;
 /** A session as the stats read it. */
 type SessionStatRow = { deckId: string; startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null; leftRevealed: number | null };
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string; settings: string; createdAt: number };
@@ -1263,8 +1297,8 @@ function canonical(value: unknown): unknown {
 
 /** A card type as its change log keeps it: everything that can be edited, the fields in order with their layout, and its stage tag. */
 function typeSnapshot(type: CardType): string {
-  const { name, fields, layout, tag, spark, flag, examples, listen, mainField } = type;
-  return JSON.stringify(canonical({ name, fields, layout, tag, spark, flag, examples, listen, mainField }));
+  const { name, fields, layout, tag, spark, flag, examples, mainField } = type;
+  return JSON.stringify(canonical({ name, fields, layout, tag, spark, flag, examples, mainField }));
 }
 
 /** The type as its change log keeps it: everything that can be edited, stages and answers in order. */
@@ -1326,7 +1360,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // Removed types, fields, stages, answers and decks are invisible everywhere the app reads; only an insert's read-back,
   // a deck's own type and remove itself see them.
   const typeColumns = `
-    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag, t.listen, t.main_field AS mainField,
+    t.id, t.name, t.created_at AS createdAt, t.layout, t.stage_tag AS stageTag, t.main_field AS mainField,
     (SELECT COUNT(*) FROM decks d WHERE d.type_id = t.id AND d.removed_at IS NULL) AS deckCount`;
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
@@ -1346,7 +1380,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
   const updateTypeLayout = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
   const updateTypeTag = db.prepare("UPDATE card_types SET stage_tag = ? WHERE id = ?");
-  const updateTypeListen = db.prepare("UPDATE card_types SET listen = ? WHERE id = ?");
   const updateTypeMainField = db.prepare("UPDATE card_types SET main_field = ? WHERE id = ?");
   const insertLayoutChange = db.prepare("INSERT INTO card_type_layout_changes (type_id, from_layout, to_layout, at) VALUES (?, ?, ?, ?)");
   const insertTypeChange = db.prepare(`INSERT INTO card_type_changes (type_id, "before", "after", at) VALUES (?, ?, ?, ?)`);
@@ -1551,9 +1584,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   /** The card types the living decks use: whose words fields a deck's duplicates are looked for in. */
   const selectLivingTypeIds = db.prepare("SELECT DISTINCT type_id AS typeId FROM decks WHERE removed_at IS NULL");
   const insertPlace = db.prepare(`
-    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, listen_ms, think_ms, decide_ms, miss, example_id, given_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, listen_ms, think_ms, decide_ms, given_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    INSERT INTO card_places (card_id, at, reason, answer_id, stage_from, past_from, node_from, burned_from, stage_to, past_to, node_to, burned_to, session_id, think_ms, decide_ms, miss, example_id, given_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insertHold = db.prepare("INSERT INTO card_holds (card_id, kind, at, until, answer_id, session_id, think_ms, decide_ms, given_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
   // Whether a card is suspended now: the same reading as a card's own (`cardColumns` → `suspendedAt`).
   const selectStandingSuspend = db.prepare("SELECT 1 FROM card_holds WHERE card_id = ? AND kind = 'suspend' AND lifted_at IS NULL AND undone_at IS NULL LIMIT 1");
   // Only what still stands is lifted: a bury whose wait is over had already ended by itself, an undone one never stood.
@@ -1622,13 +1655,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     `SELECT d.id, d.type_id AS typeId, d.srs_type_id AS srsTypeId, d.settings, d.created_at AS createdAt FROM decks d WHERE ${scopeWhere} ORDER BY d.created_at ASC, d.id ASC`,
   );
   const selectScopeAnswers = db.prepare(`
-    SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, p.miss, p.listen_ms AS listenMs, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt,
+    SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, p.miss, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt,
       p.stage_from AS stageFrom, p.burned_from AS burnedFrom, p.node_from AS nodeFrom
     FROM card_places p JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
   // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
   const selectScopeHolds = db.prepare(`
-    SELECT h.at, c.deck_id AS deckId, h.listen_ms AS listenMs, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
+    SELECT h.at, c.deck_id AS deckId, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
     JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
     WHERE ${scopeWhere} ORDER BY h.at ASC, h.id ASC`);
   const selectScopeSessions = db.prepare(`
@@ -1708,7 +1741,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return [];
     }
   }
-  /** A kept stage tag's (or Listen first's) JSON; none, or anything that doesn't read, is the default. */
+  /** A kept stage tag's JSON; none, or anything that doesn't read, is the default. */
   function keptTag(json: string | null): unknown {
     if (json === null) return null;
     try {
@@ -1718,7 +1751,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     }
   }
   function typeFrom(row: unknown): CardType {
-    const { layout: kept, stageTag, listen, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; listen: string | null; mainField: string | null };
+    const { layout: kept, stageTag, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; mainField: string | null };
     const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1 })));
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept), (fieldId) => (selectHoldsClip.get(fieldId, fieldId) as { yes: number }).yes === 1);
@@ -1731,7 +1764,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const marks = keptTag(stageTag);
     const tag = stageTagOf(marks);
     const spark = sparkMarkOf(marks, tag);
-    return CardType.parse({ ...base, fields, layout, tag, spark, flag: flagMarkOf(marks, spark), examples: examplesPlaceOf(marks, fields), listen: listenFirstOf(keptTag(listen)), mainField });
+    return CardType.parse({ ...base, fields, layout, tag, spark, flag: flagMarkOf(marks, spark), examples: examplesPlaceOf(marks, fields), mainField });
   }
   /** What the card carries apart from its fields, as it's kept: the stage tag, with the AI spark, the flag and the example arrows beside it. */
   const marksJson = (tag: StageTag, spark: SparkMark, flag: FlagMark, examples: ExamplesPlace | null) => JSON.stringify({ ...tag, spark, flag, examples });
@@ -1862,7 +1895,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       cardId, now, reason, answerId,
       from.stageId, from.past, JSON.stringify(from.node), from.burned ? 1 : 0,
       to.stageId, to.past, JSON.stringify(to.node), to.burned ? 1 : 0,
-      extras.sessionId, extras.listenMs, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId, extras.givenId,
+      extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId, extras.givenId,
     );
   }
   /** Whether an answer counts as a miss, frozen as the type's answers stand now: the first of the main ones, when there is more than one; nothing for one set apart. */
@@ -2136,7 +2169,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
             const spark = type.spark ?? sparkMarkOf(null, tag);
             updateTypeTag.run(marksJson(tag, spark, type.flag ?? flagMarkOf(null, spark), type.examples ?? null), type.id);
           }
-          if (type.listen) updateTypeListen.run(JSON.stringify(type.listen), type.id);
           if (type.mainField) updateTypeMainField.run(type.mainField, type.id);
         }
         return typeFrom(selectAnyType.get(type.id));
@@ -2174,8 +2206,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const flag = update.flag ?? before.flag;
         const examples = update.examples === undefined ? before.examples : update.examples;
         if (JSON.stringify([tag, spark, flag, examples]) !== JSON.stringify([before.tag, before.spark, before.flag, before.examples])) updateTypeTag.run(marksJson(tag, spark, flag, examples), id);
-        // Listen first when it's sent; what it was is in the whole type's log below.
-        if (update.listen && JSON.stringify(update.listen) !== JSON.stringify(before.listen)) updateTypeListen.run(JSON.stringify(update.listen), id);
         // The main field when it's sent (null is none picked); what it was is in the whole type's log below.
         if (update.mainField !== undefined && update.mainField !== before.mainField) updateTypeMainField.run(update.mainField, id);
         const after = typeFrom(selectType.get(id));
@@ -2836,7 +2866,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const extras: AnswerExtras = {
           givenId: answer.givenId ?? null,
           sessionId: answer.sessionId ?? null,
-          listenMs: answer.listenMs ?? null,
           thinkMs: answer.thinkMs ?? null,
           decideMs: answer.decideMs ?? null,
           miss: missOf(type, answer.answerId),
@@ -2845,7 +2874,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const outcome = resolve(type, place, answer.answerId);
         if (outcome.hold) {
           const until = outcome.wait === null ? null : now + outcome.wait * 60_000;
-          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.listenMs, extras.thinkMs, extras.decideMs, extras.givenId);
+          insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.thinkMs, extras.decideMs, extras.givenId);
         }
         else recordPlace(cardId, now, "answer", answer.answerId, place, outcome.place, extras);
         const today = todayAt(now);
@@ -3218,23 +3247,22 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const orderedLadders = [...ladders.values()].sort((a, b) => a.type.createdAt - b.type.createdAt || a.type.id.localeCompare(b.type.id));
 
       // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
-      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it, split listening,
-      // thinking, deciding in that order under the cap. A card listened to first (Listen first) adds the seconds before its front.
+      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it, split front
+      // (`think_ms`) then back (`decide_ms`) under the cap.
       const showingsOf = (shown: readonly ShowingRow[], sessionRows: readonly SessionStatRow[]): TileShowing[] => {
-        const split = (at: number, deckOf: string, listen: number, think: number, decide: number, measured: boolean): TileShowing => {
-          const listenMs = Math.min(listen, CARD_TIME_MAX_MS);
-          const thinkMs = Math.min(think, CARD_TIME_MAX_MS - listenMs);
-          return { at, deckId: deckOf, listenMs, thinkMs, decideMs: Math.min(decide, CARD_TIME_MAX_MS - listenMs - thinkMs), measured };
+        const split = (at: number, deckOf: string, front: number, back: number, measured: boolean): TileShowing => {
+          const frontMs = Math.min(front, CARD_TIME_MAX_MS);
+          return { at, deckId: deckOf, frontMs, backMs: Math.min(back, CARD_TIME_MAX_MS - frontMs), measured };
         };
         return [
-          ...shown.map((s) => split(s.at, s.deckId, s.listenMs ?? 0, s.thinkMs ?? 0, s.decideMs ?? 0, s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null)),
+          ...shown.map((s) => split(s.at, s.deckId, s.thinkMs ?? 0, s.decideMs ?? 0, s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null)),
           ...sessionRows.flatMap((s) =>
-            s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null ? [split(s.endedAt, s.deckId, 0, s.leftRevealed === 1 ? 0 : s.leftShownMs, s.leftRevealed === 1 ? s.leftShownMs : 0, false)] : [],
+            s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null ? [split(s.endedAt, s.deckId, s.leftRevealed === 1 ? 0 : s.leftShownMs, s.leftRevealed === 1 ? s.leftShownMs : 0, false)] : [],
           ),
         ];
       };
       const showings = showingsOf([...kept, ...holds], sessions);
-      const shownMs = (s: TileShowing) => s.listenMs + s.thinkMs + s.decideMs;
+      const shownMs = (s: TileShowing) => s.frontMs + s.backMs;
       const timeByDay = Array.from({ length: 14 }, (_, i) => ({ day: addDays(todayKey, i - 13), ms: 0 }));
       const timeSlot = new Map(timeByDay.map((entry, i) => [entry.day, i]));
       for (const s of showings) {
@@ -3249,10 +3277,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         ...type.stages.map((s, i) => ({ key: s.id, name: s.name || `Stage ${i + 1}`, colour: stageColourAt(type, i) })),
       ]);
       const stageKeys = new Set(stages.map((s) => s.key));
-      const typeNames = new Map(api.listTypes().map((t) => [t.id, t.name]));
       const deckRows = new Map(decks.map((d) => [d.id, d]));
       const srsOf = srsTypesById();
       const started = (a: AnswerRow) => a.stageFrom === null && a.burnedFrom === 0 && a.nodeFrom === "[]";
+      const reviewsOf = (rows: readonly AnswerRow[]) => rows.filter((a) => !started(a)).length;
 
       // Each deck's New cards a day as it stood each day: its last change by then, what the first change was from
       // before any, and what it is now when it was never changed.
@@ -3304,11 +3332,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         finishes: [...marks.values()].flatMap((said) => (said.finished && said.finishedAt !== null ? [said.finishedAt] : [])),
         decks: decks.map((d) => d.id),
         stages,
-        typeOfDeck: (id) => {
-          const typeId = deckRows.get(id)?.typeId;
-          const name = typeId === undefined ? undefined : typeNames.get(typeId);
-          return typeId === undefined || name === undefined ? null : { typeId, name };
-        },
         limitOf,
         cardFacts: (cardId) => {
           const row = selectCard.get(cardId) as CardRow | undefined;
@@ -3333,9 +3356,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       };
       for (const a of everyAnswer) {
         if (a.undoneAt !== null) continue;
+        // A new card's first answer starts it: it counts toward New cards alone, never Reviews, which are of cards already started.
         const entry = factsOn(day(a.at));
-        entry.reviews += 1;
         if (started(a)) entry.started += 1;
+        else entry.reviews += 1;
       }
       for (const s of everyShowing) factsOn(day(s.at)).reviewMs += shownMs(s);
       for (const s of stretches) factsOn(day(s.at)).watchMs += s.spentMs;
@@ -3353,7 +3377,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return Stats.parse({
         deckId,
         today: todayKey,
-        reviews: { total: answers.length, today: byDayCount.get(todayKey) ?? 0, days7: inWindow(addDays(todayKey, -6)).length, days30: inWindow(from30).length },
+        // Reviews alone, a new card's first answer never among them (`started`).
+        reviews: { total: reviewsOf(dayed), today: reviewsOf(inWindow(todayKey)), days7: reviewsOf(inWindow(addDays(todayKey, -6))), days30: reviewsOf(inWindow(from30)) },
         right: { days30: rightOf(inWindow(from30)), before: rightOf(inWindow(addDays(todayKey, -59), addDays(todayKey, -30))) },
         streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: weekdayOf(todayKey) },
         streaks,

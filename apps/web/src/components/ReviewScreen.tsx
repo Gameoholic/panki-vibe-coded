@@ -109,15 +109,14 @@ export type ReviewFlag = { on: boolean; busy: boolean; onToggle?: () => void };
 
 /**
  * The buttons under the card: on its back the answers (the main ones in a row, the ones set apart under them), each
- * its name, where it sends the card and its key; otherwise Done listening or Show back of card. The answers set apart
- * hold their room on the front, unseen, as the back's parts do: turning the card moves nothing. Without `onAnswer` the
- * answers stand greyed (a card looked at as a review shows it, which gives no answer).
+ * its name, where it sends the card and its key; otherwise Show back of card. The answers set apart hold their room on
+ * the front, unseen, as the back's parts do: turning the card moves nothing. Without `onAnswer` the answers stand
+ * greyed (a card looked at as a review shows it, which gives no answer).
  */
-export function ReviewButtons({ srsType, place, revealed, listening, binds, busy, onShow, onAnswer, onRest, onLeave }: {
+export function ReviewButtons({ srsType, place, revealed, binds, busy, onShow, onAnswer, onRest, onLeave }: {
   srsType: SrsType;
   place: CardPlace;
   revealed: boolean;
-  listening: boolean;
   binds: KeyBinds;
   busy: boolean;
   onShow: () => void;
@@ -154,8 +153,7 @@ export function ReviewButtons({ srsType, place, revealed, listening, binds, busy
             ),
           )
         ) : (
-          // Listened to, Done listening stands in Show back of card's place, with its key: the card's front, out of its Listen phase.
-          <ShowButton listening={listening} bind={listening ? binds.showCard : binds.reveal} onPress={onShow} />
+          <ShowButton bind={binds.reveal} onPress={onShow} />
         )}
       </div>
       {asides ? (
@@ -196,9 +194,9 @@ type Props = {
   counts: ReactNode;
   busy: boolean;
   binds: KeyBinds;
-  /** Step back: the card a phase back (its back to its front, its front to its Listen phase where it has one). */
+  /** Step back: the card's back to its front. */
   onStepBack: () => void;
-  /** Whether there's a phase to step back to: greyed otherwise, keeping its place. */
+  /** Whether there's a side to step back to (the card is on its back): greyed otherwise, keeping its place. */
   canStepBack: boolean;
   /** Takes the last answer back; left out, Undo stands greyed. */
   onUndo?: () => void;
@@ -248,7 +246,7 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
   // one of the two. Pinned over the counts' row, they would cover "in play · waiting".
   const tools = (
     <>
-      {/* The card a phase back, its key's hold drawn on it; always in its place, greyed with nowhere to step back to. */}
+      {/* The card's back to its front, its key's hold drawn on it; always in its place, greyed with nowhere to step back to. */}
       <Button className="review-hide" data-hold="hide" disabled={busy || !canStepBack} onClick={onStepBack}>
         <Icon name="back" />
         Step back

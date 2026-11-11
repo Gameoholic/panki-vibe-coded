@@ -42,15 +42,13 @@ export type KeyBinds = {
   /** Shows the card's back (Show back of card). */
   reveal: Bind;
   /**
-   * Shows a card's front out of its Listen phase, as Done listening does (a key of its own, the same as
-   * Show back of card's to begin with). It may share a key and a hold with Show back of card and Step back: a key that's
-   * more than one of them is heard by precedence (`apart`).
+   * Blurs the card's front or unblurs it, as its Unblur and Blur do (Shift at a press to begin with). Heard on the front
+   * with Show back of card, so the two never share a key in the same shape (`clash`).
    */
-  showCard: Bind;
+  blur: Bind;
   /**
-   * Step back: the card a phase back, its back to its front, and its front to its Listen phase where it has one
-   * (Backspace to begin with). It may share a key with Show back of card: on the front that key is Show back of card's,
-   * on the back Step back's. Kept as `hide`, its name when it turned the back to the front alone (Hide back of card).
+   * Step back: the card's back to its front (Backspace to begin with). It may share a key with Show back of card: on the
+   * front that key is Show back of card's, on the back Step back's. Kept as `hide`, its name when it was Hide back of card.
    */
   hide: Bind;
   answers: readonly Bind[];
@@ -87,7 +85,7 @@ export const pressKind = (key: Key): "press" | "double" | "hold" => (key.holdMs 
  * clips; everything else has no key until given one. Space and the answers held half a second, an answer that asks
  * for confirmation a second more (1.5 s in all), a sound or a clip at a press. Full screen is F,
  * at a press. Only the first sound or clip is played again from its start by default, with 1 held half a second. A
- * card's examples are ← and →, at a press.
+ * card's examples are ← and →, at a press. Blur is Shift, at a press.
  */
 const ANSWER_START = ["1", "2", "3", "4", "5", "6"];
 const MEDIA_START = ["a", "s"];
@@ -96,7 +94,7 @@ const one = (key: string | null, holdMs: number): Bind => ({ key, holdMs, also: 
 const RESTART_START: Key = { key: "1", holdMs: HOLD_START };
 export const DEFAULT_KEYS: KeyBinds = {
   reveal: one(" ", HOLD_START),
-  showCard: one(" ", HOLD_START),
+  blur: one("Shift", 0),
   hide: one("Backspace", 0),
   answers: Array.from({ length: SLOTS }, (_, i) => one(ANSWER_START[i] ?? null, HOLD_START)),
   media: Array.from({ length: SLOTS }, (_, i) => one(MEDIA_START[i] ?? null, 0)),
@@ -158,7 +156,7 @@ export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKe
 
 /** Every review key but the home's and today's Start: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
-  return [binds.reveal, binds.showCard, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.flag, binds.examplePrev, binds.exampleNext];
+  return [binds.reveal, binds.blur, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.flag, binds.examplePrev, binds.exampleNext];
 }
 /** The keys held on the review, each with how long: every review key that's a hold. */
 function heldOnReview(binds: KeyBinds): Key[] {
@@ -270,8 +268,8 @@ function read(): KeyBinds {
           : DEFAULT_KEYS.restart;
     // Step back, kept as `hide`. Kept before it was Step back (`STEP_BACK_KEPT`), it was Hide back of card: its old
     // default (Space held 0.25 s, nothing added) reads as Step back's, any other of its keys as it was kept. Kept before
-    // it had a key at all, it takes its default, unless that already does something else on the review here (Done
-    // listening's and Show back of card's don't count: a key both is heard by precedence, `apart`).
+    // it had a key at all, it takes its default, unless that already does something else on the review here (Show back
+    // of card's doesn't count: a key both is heard by precedence, `apart`).
     const stepped = "kept" in raw && typeof raw.kept === "number" && raw.kept >= STEP_BACK_KEPT;
     const hide = (() => {
       const free = takenBy([...answers, ...media, ...restart, fullScreen], DEFAULT_KEYS.hide) ? one(null, 0) : DEFAULT_KEYS.hide;
@@ -280,14 +278,21 @@ function read(): KeyBinds {
       if (!stepped && kept.key === " " && kept.holdMs === OLD_HIDE_MS && kept.also.length === 0) return free;
       return kept;
     })();
-    // Kept before Done listening had a key of its own: Show back of card's, which was its until then.
-    const showCard = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.showCard, undefined) : reveal;
+    // Blur. Kept before it had a key, a key kept as `showCard` (the one the review's phase before the front had) is
+    // Blur's, unless it clashes with Show back of card's, which it was to begin with; otherwise Shift, unless that already
+    // does something else on the review here.
+    const blur = (() => {
+      if ("blur" in raw) return bindOf(raw.blur, DEFAULT_KEYS.blur, undefined);
+      const carried = "showCard" in raw ? bindOf(raw.showCard, DEFAULT_KEYS.blur, undefined) : null;
+      if (carried && carried.key !== null && !takenBy([reveal], carried)) return { ...carried, also: carried.also.filter((key) => !takenBy([reveal], key)) };
+      return takenBy([reveal, hide, ...answers, ...media, ...restart, fullScreen], DEFAULT_KEYS.blur) ? one(null, 0) : DEFAULT_KEYS.blur;
+    })();
     const undo = "undo" in raw ? bindOf(raw.undo, DEFAULT_KEYS.undo, undefined) : DEFAULT_KEYS.undo;
     const flag = "flag" in raw ? bindOf(raw.flag, DEFAULT_KEYS.flag, undefined) : DEFAULT_KEYS.flag;
     // Kept before the examples had keys to begin with (`ARROWS_KEPT`): one left with none gets its arrow, unless that
     // arrow already does something else on the review here.
     const arrowed = "kept" in raw && typeof raw.kept === "number" && raw.kept >= ARROWS_KEPT;
-    const rest = [reveal, hide, ...answers, ...media, ...restart, fullScreen, undo, flag];
+    const rest = [reveal, blur, hide, ...answers, ...media, ...restart, fullScreen, undo, flag];
     const exampleOf = (name: "examplePrev" | "exampleNext"): Bind => {
       const fallback = DEFAULT_KEYS[name];
       const kept = name in raw ? bindOf((raw as Record<string, unknown>)[name], fallback, undefined) : fallback;
@@ -298,7 +303,7 @@ function read(): KeyBinds {
     const exampleNext = exampleOf("exampleNext");
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    return { reveal, blur, hide, answers, media, restart, fullScreen, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -355,18 +360,17 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, showCard: next.showCard, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, blur: next.blur, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, Flag's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
-export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
-const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview"] as const;
+/** Where a key is bound: showing the back, blurring the front or unblurring it, stepping back, full screen's, Undo's, Flag's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "blur" | "hide" | "fullScreen" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
+const NAMED = ["reveal", "blur", "hide", "fullScreen", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview"] as const;
 /**
- * Done listening, Show back of card and Step back never take each other's key: a key that's more than one of them is
- * heard by precedence, Done listening's on the Listen phase, Show back of card's on the front, Step back's where neither
- * does anything (the back, or a front whose key is Step back's alone).
+ * Show back of card and Step back never take each other's key: a key that's both is heard by precedence, Show back of
+ * card's on the front, Step back's on the back.
  */
-const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide"];
+const FACE_KEYS: readonly Slot["kind"][] = ["reveal", "hide"];
 const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
 
 /** The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space starts the review, then shows the answer). */

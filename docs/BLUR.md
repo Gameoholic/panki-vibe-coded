@@ -68,7 +68,7 @@
 
 - [x] 1. The owner answers the questions above (2026-11-11).
 - [x] 2. A preview page: the blurred front, the button in several places and looks, Unblur, the back, Step back, Undo, the setting's row, the Keybinds row, the Layout tab's per-field Blurred, the Stats words (Front / Back); the owner approves one. https://claude.ai/artifact/ARe9imMxkX3qqiCFrEnqSP — **the owner picked Card corner, Chip** (2026-11-11); questions 2 to 17 below keep their defaults.
-- [ ] 3. Built whole on main once streaks are committed and `claude/remove-hold-e7b9da` merged; the migration written whole in one Edit and checked on a copy of the dev database in the scratchpad first; the owner tries it on local dev (where the migration runs on their dev data as it's saved); one commit; `pnpm backup` on the VPS before the push.
+- [x] 3. Built whole on main (streaks and the Hold removal are pushed); the migration written whole in one Edit and checked on a copy of the dev database in the scratchpad first; the owner tries it on local dev (where the migration runs on their dev data as it's saved); one commit; `pnpm backup` on the VPS before the push (the owner has backed up once already on 2026-11-11).
 
 ## Open
 

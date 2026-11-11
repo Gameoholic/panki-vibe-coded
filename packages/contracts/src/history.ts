@@ -38,8 +38,8 @@ export const ReviewSessionEnd = z.object({
   cardId: CardId.optional(),
   shownMs: Ms.optional(),
   revealed: z.boolean().optional(),
-  /** Where that card stood, when it opened on a Listen phase (its type's Listen first): still listened to, on its front, or turned. Left out otherwise. */
-  phase: z.enum(["listen", "front", "back"]).optional(),
+  /** Where that card stood: on its front, or turned to its back. */
+  phase: z.enum(["front", "back"]).optional(),
 });
 export type ReviewSessionEnd = z.infer<typeof ReviewSessionEnd>;
 export const ReviewSessionResponse = z.object({ session: ReviewSession });
@@ -65,7 +65,7 @@ export const EventBatch = z.object({ events: z.array(NewEvent).min(1).max(100) }
 export type EventBatch = z.infer<typeof EventBatch>;
 
 /**
- * The most one showing of a card counts for in the time spent reviewing, 2 minutes: a card left on screen while away isn't time spent on it. What's kept is the time as measured; only
+ * The most one showing of a card counts for in the time spent studying, 2 minutes: a card left on screen while away isn't time spent on it. What's kept is the time as measured; only
  * what's worked out from it is capped.
  */
 export const CARD_TIME_MAX_MS = 120_000;
@@ -209,7 +209,10 @@ export const WindowStats = z.object({
   trendUnit: TrendUnit,
   /** The custom frame these days are (`window` "custom"), for its words ("the last 3 weeks"); null for a fixed window. */
   frame: StatFrame.nullable(),
-  /** Answers given, undone ones left out, each with the stage the card stood on as it was answered. */
+  /**
+   * Reviews given, undone ones left out, each with the stage the card stood on as it was answered: an answer to a card
+   * already started. A new card's first answer is `started`'s alone; the two are never added together.
+   */
   reviews: z.object({
     n: Count,
     before: Count.nullable(),
@@ -218,12 +221,11 @@ export const WindowStats = z.object({
     weekdays: Weekdays,
     stages: z.array(StageKey.extend({ n: Count })),
   }),
-  /** Right out of right or a miss (`Stats`' note on a miss), by stage and card type. */
+  /** Right out of right or a miss (`Stats`' note on a miss), by stage; never by card type, a deck's one type being the deck filter's. */
   right: Share.extend({
     before: Share.nullable(),
     series: z.array(Share.extend({ start: Day })),
     stages: z.array(StageKey.extend(Share.shape)),
-    types: z.array(Share.extend({ typeId: z.string(), name: z.string() })),
   }),
   /**
    * New cards started (an answer given a card in New), against each deck's New cards a day as it stood on each day
@@ -263,19 +265,19 @@ export const WindowStats = z.object({
     series: z.array(Bucket),
     sources: z.object({ typed: Count, youtube: Count, web: Count }),
   }),
-  /** Time reviewing in ms, as `time.byDay` counts it, by phase (each showing's capped time split listening, thinking, deciding, in that order). */
+  /** Time studying in ms, as `time.byDay` counts it, by side (each showing's capped time split front, back, in that order). */
   time: z.object({
     ms: Count,
     before: Count.nullable(),
     series: z.array(Bucket),
     hours: Hours,
-    phases: z.object({ listenMs: Count, thinkMs: Count, decideMs: Count }),
+    sides: z.object({ frontMs: Count, backMs: Count }),
     sessions: Count,
   }),
   /**
    * Time per card: the typical time a card takes, the median over the showings with both spans measured, in ms, for
-   * each side: `front` from the card on screen to the flip (listening and thinking together), `back` from the flip to
-   * the answer (deciding), `total` the two. Each with the window before's and a trend over the window.
+   * each side: `front` from the card on screen to the flip, `back` from the flip to the answer, `total` the two. Each
+   * with the window before's and a trend over the window.
    */
   pace: z.object({
     total: PaceSide,
@@ -367,6 +369,7 @@ export const Stats = z.object({
   /** The deck, or null for every deck. */
   deckId: DeckId.nullable(),
   today: Day,
+  /** Reviews (answers to cards already started), never a new card's first answer: the pill's Reviews today. */
   reviews: z.object({ total: Count, today: Count, days7: Count, days30: Count }),
   /** Answers that were right, out of the answers that were right or a miss: the past 30 days, and the 30 before. */
   right: z.object({
@@ -391,7 +394,7 @@ export const Stats = z.object({
     .nullable()
     .default(null),
   /**
-   * Every day with a review, time reviewing or watching, oldest first, for the days studied: answers, ms reviewing (in
+   * Every day with a review, time studying or watching, oldest first, for the days studied: answers, ms studying (in
    * scope), ms watched (the account's).
    */
   activity: z.array(z.object({ day: Day, reviews: Count, ms: Count, watchMs: Count })),
