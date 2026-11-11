@@ -32,7 +32,7 @@ export type BoardLayout = {
  * The tiles on the home before anything is changed. `streak` is the one Streak tile from before streaks were many:
  * kept so, it stands for the first streak's tile (`fitStreaks`).
  */
-const DEFAULT_TILES: readonly TileItemId[] = ["streak", "heat", "coming"];
+const DEFAULT_TILES: readonly TileItemId[] = ["status", "streak", "heat", "coming"];
 // "hold" is this way of arranging's name among others it was once tried beside; the key keeps the name so what's
 // already arranged on a device stays.
 const KEY = "panki.board.hold";
@@ -68,9 +68,10 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
  * Tiles put on the home once, on each device, the first time it's read after they joined the registry, so the
  * home shows what's new; from then on each is like any tile,
  * put away with its × and brought back by hand. The ones already put out are kept beside the layout, so one put away
- * stays away. Each streak's tile is put out so too, once its streak is known (`fitStreaks`).
+ * stays away. Each goes at the end, or right after the last door (`afterDoors`), near the top. Each streak's tile is
+ * put out so too, once its streak is known (`fitStreaks`).
  */
-const PUT_OUT: readonly WidgetId[] = ["continue", "watched", "channels", "recent"];
+const PUT_OUT: readonly { id: WidgetId; afterDoors?: true }[] = [{ id: "continue" }, { id: "watched" }, { id: "channels" }, { id: "recent" }, { id: "status", afterDoors: true }];
 const PUT_OUT_KEY = "panki.board.putOut";
 
 function readPutOut(): string[] {
@@ -106,13 +107,18 @@ function readStored(): BoardLayout {
 export function readLayout(): BoardLayout {
   const layout = readStored();
   const done = readPutOut();
-  const due = PUT_OUT.filter((id) => !done.includes(id) && isHomeId(id));
+  const due = PUT_OUT.filter((t) => !done.includes(t.id) && isHomeId(t.id));
   if (due.length === 0) return layout;
+  const dueIds: readonly string[] = due.map((t) => t.id);
+  const { order } = layout;
+  // Each one not on the home yet, where it goes.
+  const placed = (afterDoors: boolean) => due.filter((t) => (t.afterDoors === true) === afterDoors && !order.includes(t.id)).map((t) => t.id);
+  const lastDoor = order.reduce((at, id, i) => (isDoorId(id) ? i : at), -1);
   const next: BoardLayout = {
-    order: [...layout.order, ...due.filter((id) => !layout.order.includes(id))],
-    hidden: layout.hidden.filter((id) => !(due as readonly string[]).includes(id)),
+    order: [...order.slice(0, lastDoor + 1), ...placed(true), ...order.slice(lastDoor + 1), ...placed(false)],
+    hidden: layout.hidden.filter((id) => !dueIds.includes(id)),
   };
-  writePutOut([...done, ...due]);
+  writePutOut([...done, ...dueIds]);
   writeLayout(next);
   return next;
 }

@@ -89,9 +89,9 @@ const Streak = z.object({
 /**
  * One of the account's streaks as it stands, worked out on read over every deck from each period's facts
  * (`PeriodFacts`), a period being what the streak's type counts per (`STREAK_PERIODS`: Daily a day, Weekly a week from
- * Sunday), from the day Count from names on: the run, this period's goals by group, and whether it's at risk now. At
- * risk is the reminder: Streaks and the account's Reminder on, a run to lose, this period not counting
- * yet, its last day, and the clock past Starts at; how it's shown (in the app, on YouTube) is the settings' to say.
+ * Sunday), from the day Count from names on: the run, this period's goals by group, and whether YouTube's reminder is
+ * on for it now (`atRisk`, a code name never said on screen): Streaks on, a run to lose, this period not counting yet,
+ * its last day, and the clock past Starts at; whether it shows on YouTube is `Settings.reminderOnYouTube`'s to say.
  * Every period is named by the day it starts on.
  */
 export const StreakState = z.object({
@@ -112,13 +112,13 @@ export const StreakState = z.object({
   now: z.boolean(),
   /**
    * Each group of goals over this period, the group nearest to being met first (others in the streak's order), each goal
-   * in its group's order: what it holds so far and what it needs. The first group is what the reminder says is left.
+   * in its group's order: what it holds so far and what it needs. The first group is what the Streak status tile and the reminder say is left.
    */
   groups: z.array(z.array(z.object({ kind: GoalKind, have: Count, need: Count }))),
   /** The account's days left in this period, today among them: 1 for a streak per day. */
   daysLeft: Count,
   atRisk: z.boolean(),
-  /** Whole hours until the day turns, rounded up. */
+  /** Whole hours until the day turns, rounded up, at any hour. */
   hoursLeft: Count,
   /** The periods that counted in the past 26 weeks (this week's Sunday and the 25 weeks before), oldest first. */
   counted: z.array(Day),

@@ -528,14 +528,21 @@ export const Settings = z.object({
   /** **Streak on the pill**, picked in the extension under the pill's parts: the id of the streak the pill shows; null, or one that's gone, is the first. */
   pillStreak: StreakId.nullable(),
   /**
-   * **Reminder** (Settings → General → Reminder): a streak with a run to lose whose day doesn't count yet is said to be
-   * at risk from `reminderHour` until the day turns, as a line in the app (`reminderInApp`) and on YouTube
-   * (`reminderOnYouTube`), never a pop-up and nothing sent to a device. On, from 20:00, in both, to begin with.
+   * `reminderOn` and `reminderInApp` are kept as they were set and read by nothing: the app shows every streak's state
+   * on its Streak status tile at any hour, and the reminder is YouTube's alone. Still in the shape, since an older
+   * extension parses the settings with them in.
    */
   reminderOn: z.boolean(),
-  /** **Starts at**: the hour on the account's clock a day that doesn't count yet is said to be at risk from. */
+  /**
+   * **Starts at** (the extension's YouTube tab, Streak reminder): the hour on the account's clock from which a streak
+   * with a run to lose whose last day doesn't count yet is reminded of on YouTube, until the day turns. 20:00 to begin with.
+   */
   reminderHour: z.number().int().min(0).max(23),
   reminderInApp: z.boolean(),
+  /**
+   * **Streak reminder** (the extension's YouTube tab): from Starts at, the pill's streak tinted with the hours left and
+   * Panki's line over YouTube's home, never a pop-up and nothing sent to a device. On to begin with.
+   */
   reminderOnYouTube: z.boolean(),
   /** How every review runs, the same for every deck (`ReviewSettings`), each key a setting of its own. */
   ...ReviewSettings.shape,

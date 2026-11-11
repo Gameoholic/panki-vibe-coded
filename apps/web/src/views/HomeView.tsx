@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { streakNameOf, type CardType, type Deck, type Settings, type SettingsUpdate, type SrsType, type Stats, type StreakState } from "@panki/contracts";
+import type { CardType, Deck, Settings, SettingsUpdate, SrsType, Stats } from "@panki/contracts";
 import { Board, type DoorSpec } from "../components/Board";
-import { Button } from "../components/Button";
-import { Icon } from "../components/Icon";
 import { fitStreaks, readLayout, writeLayout, type BoardLayout } from "../layout";
 import { useHold } from "../hooks/useHold";
 import { keysOf, pressedIn, useKeyBinds } from "../keys";
-import { leftOf, reviewHelps, risksShown, type WidgetContext } from "../widgets";
+import type { WidgetContext } from "../widgets";
 import { count } from "../words";
 
 /** What the header offers while on the home: Done, while the board is being arranged. */
@@ -34,33 +32,10 @@ type Props = {
 };
 
 /**
- * The reminder at the top of the home: a line for each streak at risk, what's left of it and the hours left, never a
- * pop-up; Review beside them while a review would help one of them.
+ * The hub: the five doors and the tiles this device was set up with, on one board, arranged by holding a tile.
+ * Everything but Settings and Stats is behind a door. How the streaks stand is the Streak status tile's to say, nothing
+ * over the board.
  */
-function RiskNotice({ risks, onReview }: { risks: readonly StreakState[]; onReview: () => void }) {
-  return (
-    <section className="panel risk-notice" aria-label="Streaks at risk">
-      <ul className="risk-lines">
-        {risks.map((s) => (
-          <li key={s.id}>
-            <Icon name="flame" />
-            <span>
-              <b>{streakNameOf(s)}</b> at risk · {leftOf(s)} to go · {s.hoursLeft} h left
-            </span>
-          </li>
-        ))}
-      </ul>
-      {risks.some(reviewHelps) ? (
-        <Button id="risk-review" variant="primary" onClick={onReview}>
-          <Icon name="review" />
-          Review
-        </Button>
-      ) : null}
-    </section>
-  );
-}
-
-/** The hub: the five doors and the tiles this device was set up with, on one board, arranged by holding a tile. Everything but Settings and Stats is behind a door. */
 export function HomeView({ decks, types, srsTypes, stats, settings, onReview, onStale, onSettings, onDecks, onAdd, onTypes, onSrs, onTool }: Props) {
   const none = decks !== null && decks.length === 0;
   const due = decks?.reduce((sum, deck) => sum + deck.dueCount, 0) ?? 0;
@@ -72,11 +47,7 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const duePast = decks?.reduce((sum, deck) => sum + deck.dueAvailable - deck.dueCount, 0) ?? 0;
   // Said as extra study, which is where they're had, so it's clear they're a part of it.
   const past = [newPast > 0 ? count(newPast, "new card", "new cards") : null, duePast > 0 ? count(duePast, "review", "reviews") : null].filter((p) => p !== null);
-  const extraNote = due + fresh > 0 || past.length === 0 ? null : `${past.join(" and ")} available as extra study`;
-  // A streak at risk that a review would help says so on the Review door, before anything else it would say.
-  const risks = risksShown(stats, settings);
-  const helped = risks.find(reviewHelps);
-  const reviewNote = helped ? `${leftOf(helped)} to go for ${streakNameOf(helped)}` : extraNote;
+  const reviewNote = due + fresh > 0 || past.length === 0 ? null : `${past.join(" and ")} available as extra study`;
   const decksDetail = decks === null ? null : none ? "None yet" : count(decks.length, "deck", "decks");
   const addDetail = none ? "Make a deck first" : "to any deck";
   const typesDetail = types === null ? null : types.length === 0 ? "None yet" : types.map((t) => t.name).join(", ");
@@ -135,17 +106,12 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const ctx: WidgetContext | null = decks && srsTypes && settings ? { decks, srsTypes, settings, onStale, onSettings } : null;
   // The Review door is the accent one only while there's something to do.
   const doors: DoorSpec[] = [
-    { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, note: reviewNote, ...(helped ? { noteIcon: "flame" as const } : {}), hot: due + fresh > 0, bind: binds.homeReview, onClick: onReview },
+    { id: "door-review", icon: "review", label: "Review", detail: reviewDetail, note: reviewNote, hot: due + fresh > 0, bind: binds.homeReview, onClick: onReview },
     { id: "door-decks", icon: "decks", label: "Decks", detail: decksDetail, onClick: onDecks },
     { id: "door-add", icon: "add", label: "Add a card", detail: addDetail, onClick: onAdd },
     { id: "door-types", icon: "type", label: "Card types", detail: typesDetail, onClick: onTypes },
     { id: "door-srs", icon: "srs", label: "SRS types", detail: srsDetail, onClick: onSrs },
   ];
 
-  return (
-    <>
-      {risks.length > 0 ? <RiskNotice risks={risks} onReview={onReview} /> : null}
-      <Board stats={stats} ctx={ctx} home={{ doors, layout, onLayout: changeLayout, arranging, onArranging: setArranging }} />
-    </>
-  );
+  return <Board stats={stats} ctx={ctx} home={{ doors, layout, onLayout: changeLayout, arranging, onArranging: setArranging }} />;
 }

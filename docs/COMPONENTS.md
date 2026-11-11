@@ -133,7 +133,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | themes | `themes.ts` | The themes, the only place one is listed (`THEMES`, `ThemeId`), and this device's choice read, kept and applied (`readTheme`, `writeTheme`, `applyTheme`). |
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
-| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); streaks at risk (`risksShown`, `reviewHelps`). |
+| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); every streak green or red on Streak status. |
 | words | `words.ts` | How things are said in words, every date and time in the account's formats (`count`, `listWords`, `clock`, `dateWords`, `dayWords`, `hourSpanWords`, `setFormats`, `agoWords`). |
 
 ## Contracts

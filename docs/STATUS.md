@@ -22,12 +22,13 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-26: Undo; today's cards before a review; other examples on the review card.
 - 2026-11-07: Flag.
 - 2026-11-11: Streak on the pill picked in the extension, under the pill's parts.
-- 2026-11-11: Stats → Streaks, where streaks are made (the dashed New streak tile), changed and deleted, Streaks On / Off at its head; Settings → General → Streaks gone, Reminder kept there.
+- 2026-11-11: Stats → Streaks, where streaks are made (the dashed New streak tile), changed and deleted, Streaks On / Off at its head; Settings → General → Streaks gone.
+- 2026-11-11: Streak status, every streak green or red at any hour, on the home and heading Stats → Streaks; the Reminder panel, the line at the top of the home, the Review door's note and the streak tile's tint gone; the Streak reminder and Starts at on the extension's YouTube tab (`STREAKS.md` → Round 10).
 - 2026-11-11: a review's time left by its counts, the finish time on hover or press, and the time on every Start.
 - 2026-11-11: Blur the front, Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
 
 **Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
-- 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored), counting per day or per week; the reminder in the app and on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video; Settings → General → Reminder.
+- 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored), counting per day or per week; the reminder on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video.
 
 **The extension** (`architecture/extension.md`)
 - 2026-10-11: the capture drawer; the line under the player; the YouTube metadata field; Field mapping and Media.

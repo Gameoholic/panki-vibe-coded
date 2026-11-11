@@ -305,11 +305,6 @@ body {
   opacity: 0.8;
   vertical-align: 1px;
 }
-/* A streak at risk said on the door: the flame before it. */
-.door-note .icon {
-  width: 12px;
-  height: 12px;
-}
 /* One of a few choices. A rounded rectangle, like everything else in the app that's pressed, and not a pill, which
    doesn't fit the rest of the app. The small ones further down
    (on a card's row, in a menu) are rounded a little less, so they don't close back up into pills. */
@@ -4468,44 +4463,6 @@ mark.sub-blur {
     grid-column: 2;
   }
 }
-/* The reminder at the top of the home: a line for each streak at risk, tinted whole in the flame's colour, Review beside them. */
-.risk-notice {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px 16px;
-  padding: 12px 14px;
-  border-color: var(--risk-edge);
-  background: var(--risk-soft);
-}
-.risk-lines {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-/* A line may wrap: the flame stays on its first line, centred on that line's exact height. */
-.risk-lines li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  color: var(--risk-ink);
-}
-.risk-lines .icon {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  color: var(--risk);
-}
-.risk-lines b {
-  color: var(--fg);
-  font-weight: 800;
-}
-
 /* The Admin tab wants more room across than a column, for the transcription modes side by side, so Settings is wider
    than other pages, a little less than the editors (`.app.is-wide`): on every tab alike, so changing tabs never
    changes its width. */
@@ -7206,11 +7163,6 @@ mark.sub-blur {
 .w-period.is-now .w-block {
   border-color: var(--accent);
 }
-/* The period going on while its streak is at risk: tinted whole in the flame's colour. */
-.w-period.is-now.is-risk .w-block {
-  border-color: var(--risk);
-  background: var(--risk-soft);
-}
 .w-period.is-ahead {
   opacity: 0.45;
 }
@@ -7263,12 +7215,6 @@ mark.sub-blur {
 }
 .heat-cell.is-4 {
   fill: var(--heat-4);
-}
-/* Today on a streak's map while it's at risk. */
-.heat-cell.is-risk {
-  fill: var(--risk-soft);
-  stroke: var(--risk);
-  stroke-width: 1.5;
 }
 .heat-year {
   display: grid;
@@ -7662,30 +7608,77 @@ mark.sub-blur {
   height: 1px;
   background: var(--line);
 }
-/* A day that doesn't count yet past the reminder's hour: what's left, tinted whole in the flame's colour. */
-/* At risk and the hours left: one short line, the flame centred on it. */
-.w-risk {
-  display: flex;
+/* Streak status (widgets.tsx → `StatusRows`): a row per streak, tinted whole, green once its period counts and red until
+   then, as a check that passed or hasn't yet; its mark a filled round badge, its name and its run on one line, what's
+   left and the time left under them. */
+.w-status {
+  display: grid;
+  gap: 6px;
+}
+.w-status-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  margin: auto 0 0;
+  gap: 2px 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: var(--risk-soft);
-  color: var(--risk-ink);
   font-size: 13px;
+  line-height: 18px;
+}
+.w-status-row.is-pass {
+  background: var(--good-soft);
+}
+.w-status-row.is-fail {
+  background: var(--danger-soft);
+}
+.w-status-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.is-pass .w-status-mark {
+  background: var(--good);
+  color: var(--good-ink);
+}
+.is-fail .w-status-mark {
+  background: var(--danger);
+  color: var(--danger-ink);
+}
+.w-status-mark .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+.w-status-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.w-status-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.w-status-run .icon {
+  width: 14px;
+  height: 14px;
+}
+.w-status-said {
+  grid-column: 2 / -1;
   font-weight: 600;
-  line-height: 1.4;
+  color: var(--muted);
 }
-.w-risk .icon {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  color: var(--risk);
-}
-.w-risk b {
-  font-weight: 800;
-  color: var(--fg);
+.is-fail .w-status-said {
+  color: var(--danger);
 }
 .w-runs {
   display: grid;
@@ -8011,13 +8004,6 @@ mark.sub-blur {
   }
   .w-more {
     grid-template-columns: minmax(0, 1fr);
-  }
-  /* The reminder's Review under its lines. */
-  .risk-notice {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .risk-notice .btn {
-    justify-self: start;
   }
   /* A streak's name over its field, as a field stands on a phone. */
   .streak-name .field {

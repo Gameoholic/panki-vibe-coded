@@ -177,9 +177,16 @@ Later: notifications on a phone; anything about other people.
 - Claude's defaults: the streak tiles leave Overview (they count every deck, so the deck filter never applied to them); Delete moves into each streak's panel, asking first, the last streak still not deletable (Questions, 16) and none past 10; **Settings → General → Streaks goes**, its On / Off moving to the tab's head, since it switches the streaks themselves; **Reminder stays in Settings → General**, being the account's timing for every streak and for YouTube, not a streak's; streak tiles stand on the home as before, a new one put out there once.
 - Fixed in passing: a streak's panel sent back the streaks as they were when it was first opened, so a streak made after that would have been undone by the next edit in it; it now sends the account's streaks as they stand.
 
+## Round 10 (the owner, 2026-11-11: "a widget that shows me the status, kind of like git CI/CD")
+
+- **Streak status**, a tile (`status`): every streak a row, green with a tick once its day or week counts, red with a cross until then; what's left and the time left on a red one; never "at risk". On the home to begin with, put away and back like any tile, gone from it while Streaks is off; on Stats it heads the Streaks tab, not Overview. The Reminder panel leaves Settings (undoing Round 9's "Reminder stays") and the line leaves the top of the home.
+- Claude's calls, each the owner's to undo: **red from the day's start**, not from Starts at, since a status shows what is and the hour is a reminder's; **the Review door's note goes** and **the streak tile's at-risk line, ring and map tint go**, the status tile saying it once; Streak status put out once on each device **right after the last door** (`PUT_OUT`'s `afterDoors`), near where the line stood; the run on each row; "2 of 3 counted" as the figure; no Review button on it (Due now's precedent); the account's order, never red first, so rows stay put.
+- **YouTube's reminder stays and moves to the extension**: Streak reminder On / Off and Starts at, a group under YouTube home add-ons, the account's (`reminderOnYouTube`, `reminderHour`), saved as Streak on the pill is. "At risk" goes from YouTube's line and the pill's spoken words too.
+- `reminderOn` and `reminderInApp` stay kept and in the shape (an older extension parses them), read by nothing; YouTube's reminder needs Streaks on alone. No migration, no `EXTENSION_PROTOCOL` change.
+
 ## Open
 
 - **A Time watching condition counts the clock alone** (the owner, 2026-11-11: "the actual real-life time we spent"); content watched is never a condition for now. Whether the Time watching tile shows content watched beside the clock is still open; default: not until the owner asks.
 - Where conditions are edited: the panel from a streak tile's settings button, on Stats → Streaks and on the home (Round 9).
 - Whether a condition counts all decks or one. Default: all decks, the Stats deck filter narrowing what a tile shows but never what a streak counts.
-- The day a reminder measures is the account's (day start, zone), the same as the stats'.
+- The day the status and the reminder measure is the account's (day start, zone), the same as the stats'.

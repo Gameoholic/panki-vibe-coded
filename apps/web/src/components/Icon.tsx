@@ -33,7 +33,7 @@ const ICONS = {
   again: ["M20 12a8 8 0 1 1-2.3-5.7", "M20 4v4h-4"],
   close: ["M6 6l12 12", "M18 6L6 18"],
   grip: ["M9 5v1.5", "M15 5v1.5", "M9 11v1.5", "M15 11v1.5", "M9 17v1.5", "M15 17v1.5"],
-  /** A streak, and a streak at risk (in `--risk`). */
+  /** A streak, and YouTube's streak reminder (in `--risk`). */
   flame: ["M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 3-2 4-3 4 0-3-1-6-4-9 0 4-4 6-4 11 0 4 3 8 7 8z"],
   undo: ["M9 14L4 9l5-5", "M4 9h11a5 5 0 0 1 0 10h-4"],
   redo: ["M15 14l5-5-5-5", "M20 9H9a5 5 0 0 0 0 10h4"],

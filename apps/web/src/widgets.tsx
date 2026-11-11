@@ -1,4 +1,4 @@
-/** @panki Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); streaks at risk (`risksShown`, `reviewHelps`). */
+/** @panki Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); every streak green or red on Streak status. */
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from "react";
 import {
   FRAME_UNITS,
@@ -10,7 +10,6 @@ import {
   goalSaysWords,
   nearestGroup,
   periodCountWords,
-  reviewHelps,
   streakLeftWords,
   streakNameOf,
   type ContinueVideo,
@@ -62,6 +61,7 @@ import { count, dayWords, durationWords, fullDayWords, hourOfDayWords, hourSpanW
  */
 export type WidgetId =
   | "due"
+  | "status"
   | "streak"
   | "heat"
   | "reviews"
@@ -121,6 +121,11 @@ type TileEntry = {
   wide?: boolean;
   /** Offered on the home; the Stats tab shows every one. */
   home: boolean;
+  /**
+   * About the streaks: on Stats → Streaks, at its head, rather than Overview; off the home, and out of its put-away
+   * chips, while Streaks is off, as each streak's own tile is.
+   */
+  ofStreaks?: true;
   windows?: readonly StatWindow[];
   /** The window it opens on until one is picked on this device. */
   window?: StatWindow;
@@ -506,6 +511,44 @@ function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale
   );
 }
 
+// ---------- Streak status ----------
+
+/** What's left of a streak now in words, its nearest group's: "12 reviews and 10 min studying". */
+const leftOf = (streak: StreakState) => streakLeftWords(nearestGroup(streak));
+/** The time left of a streak's period: the days while there's more than one, then the hours until the day turns. */
+const timeLeftOf = (streak: StreakState) => `${streak.daysLeft > 1 ? count(streak.daysLeft, "day", "days") : `${num(streak.hoursLeft)} h`} left`;
+
+/**
+ * Every streak as a check that passed or hasn't yet, in the account's order: a row each, tinted whole, green with a tick
+ * once its period counts and red with a cross until then, at any hour; its name and its run, and under them what's
+ * left and the time left, or that it counts.
+ */
+function StatusRows({ streaks }: { streaks: readonly StreakState[] }) {
+  return (
+    <div className="w-status">
+      {streaks.map((s) => {
+        const name = streakNameOf(s);
+        const left = leftOf(s);
+        return (
+          <div key={s.id} className={`w-status-row ${s.now ? "is-pass" : "is-fail"}`}>
+            <span className="w-status-mark" role="img" aria-label={s.now ? "Counts" : "Doesn't count yet"}>
+              <Icon name={s.now ? "check" : "cross"} />
+            </span>
+            <span className="w-status-name" lang={langOf(name)}>
+              {name}
+            </span>
+            <span className="w-status-run">
+              <Icon name="flame" />
+              {periodCountWords(s.per, s.current)}
+            </span>
+            <span className="w-status-said">{s.now ? `${STREAK_PERIODS[s.per].Now} counts` : `${left ? `${left} to go · ` : ""}${timeLeftOf(s)}`}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------- The registry ----------
 
 export const WIDGETS: readonly TileEntry[] = [
@@ -536,6 +579,21 @@ export const WIDGETS: readonly TileEntry[] = [
           </div>
         ),
         foot: later > 0 ? `${num(later)} more ${later === 1 ? "comes" : "come"} due today.` : "Nothing more comes due today.",
+      };
+    },
+  },
+  {
+    // Every streak over all decks, whatever the deck filter, as each streak's own tile counts it.
+    id: "status",
+    name: "Streak status",
+    home: true,
+    ofStreaks: true,
+    make({ stats }) {
+      if (stats.streaks.length === 0) return { empty: "No streaks." };
+      const counted = stats.streaks.filter((s) => s.now).length;
+      return {
+        figure: { parts: [[num(counted), `of ${num(stats.streaks.length)} counted`]] },
+        chart: <StatusRows streaks={stats.streaks} />,
       };
     },
   },
@@ -1038,15 +1096,8 @@ export const widgetOf = (id: string): TileEntry | undefined => WIDGETS.find((w) 
 export const STREAK_TILE = "streak:";
 export const streakTileId = (streakId: string): `${typeof STREAK_TILE}${string}` => `${STREAK_TILE}${streakId}`;
 export const streakIdOfTile = (tileId: string): string | null => (tileId.startsWith(STREAK_TILE) ? tileId.slice(STREAK_TILE.length) : null);
-
-/** The streaks whose reminder is shown in the app right now: at risk (`StreakState.atRisk`), with Streaks on and In the app Shown. */
-export function risksShown(stats: Stats | null, settings: Settings | null): StreakState[] {
-  if (!stats || !settings || !settings.streaksOn || !settings.reminderInApp) return [];
-  return stats.streaks.filter((s) => s.atRisk);
-}
-export { reviewHelps };
-/** What's left of a streak now in words, its nearest group's: "12 reviews and 10 min studying". */
-export const leftOf = (streak: StreakState) => streakLeftWords(nearestGroup(streak));
+/** Whether a tile on the board is about the streaks (a streak's own, or one `ofStreaks`), so it goes while Streaks is off. */
+export const isOfStreaks = (tileId: string): boolean => streakIdOfTile(tileId) !== null || widgetOf(tileId)?.ofStreaks === true;
 
 // ---------- The tile ----------
 
@@ -1472,14 +1523,14 @@ const PERIOD_DRAWN: Record<StreakPer, { row: string; label: (start: Day) => stri
   week: { row: "Past 7 weeks", label: shortDayWords, said: (d) => `Week of ${shortDayWords(d)}`, startOf: sundayOf },
 };
 
-/** A streak's row of seven periods: a block each, filled for one that counted, the one going on ringed (tinted while at risk), days still to come fainter, its label under each. */
-function PeriodRow({ state, risk }: { state: StreakState; risk: boolean }) {
+/** A streak's row of seven periods: a block each, filled for one that counted, the one going on ringed, days still to come fainter, its label under each. */
+function PeriodRow({ state }: { state: StreakState }) {
   const drawn = PERIOD_DRAWN[state.per];
   const n = state.row.filter((p) => p.counted).length;
   return (
     <div className="w-periods" aria-label={`${drawn.row}: ${periodCountWords(state.per, n)} counted`}>
       {state.row.map((p, i) => (
-        <span key={p.start} className={`w-period ${p.counted ? "is-on" : ""} ${i === state.rowNow ? "is-now" : ""} ${i === state.rowNow && risk ? "is-risk" : ""} ${i > state.rowNow ? "is-ahead" : ""}`.replace(/\s+/g, " ").trim()}>
+        <span key={p.start} className={`w-period ${p.counted ? "is-on" : ""} ${i === state.rowNow ? "is-now" : ""} ${i > state.rowNow ? "is-ahead" : ""}`.replace(/\s+/g, " ").trim()}>
           <span className="w-block" />
           <span className="w-period-label">{drawn.label(p.start)}</span>
         </span>
@@ -1490,9 +1541,9 @@ function PeriodRow({ state, risk }: { state: StreakState; risk: boolean }) {
 
 /**
  * One streak as a tile: its name, the run and the best, each goal over the period going on with its bar and its state
- * as a mark (a tick, the count in red, or a cross), the row of periods (this week's days, or the past seven weeks),
- * and at risk with the hours left past the reminder's hour on its last day (while the reminder shows in the app). Its
- * settings button opens the streak's own editor beside it; Show more is the past six months and the longest runs.
+ * as a mark (a tick, the count in red, or a cross), and the row of periods (this week's days, or the past seven weeks);
+ * what's left and the time left are Streak status's. Its settings button opens the streak's own editor beside it; Show
+ * more is the past six months and the longest runs.
  */
 export function StreakTile({ id, rule, state, today, ctx, overlay, className = "", style }: StreakTileProps) {
   const [open, setOpen] = useState(false);
@@ -1504,7 +1555,6 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
   const named = rule ?? state;
   const name = named ? streakNameOf(named) : "";
   const loading = !state || !ctx || today === null;
-  const risk = state !== undefined && state.atRisk && (ctx?.settings.reminderInApp ?? false);
   const period = STREAK_PERIODS[state?.per ?? "day"];
   const tools = (
     <>
@@ -1566,17 +1616,8 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
               </Fragment>
             ))}
           </div>
-          <PeriodRow state={state} risk={risk} />
-          {/* What's left is the rows' marks; at risk adds only the hours left. */}
-          {risk ? (
-            <p className="w-risk">
-              <Icon name="flame" />
-              <span>
-                <b>At risk</b> · {state.hoursLeft} h left
-              </span>
-            </p>
-          ) : null}
-          {open ? <StreakMore state={state} today={today} risk={risk} name={name} at={at} onAt={setAt} /> : null}
+          <PeriodRow state={state} />
+          {open ? <StreakMore state={state} today={today} name={name} at={at} onAt={setAt} /> : null}
         </>
       )}
     </Widget>
@@ -1587,13 +1628,13 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
  * A streak's Show more: the past six months as days, each lit when the period it's in counted (a week that counted is a
  * whole column), how many of the recent periods did, and the longest runs.
  */
-function StreakMore({ state, today, risk, name, at, onAt }: { state: StreakState; today: Day; risk: boolean; name: string; at: string | null; onAt: (words: string | null) => void }) {
+function StreakMore({ state, today, name, at, onAt }: { state: StreakState; today: Day; name: string; at: string | null; onAt: (words: string | null) => void }) {
   const counted = new Set(state.counted);
   const drawn = PERIOD_DRAWN[state.per];
   const period = STREAK_PERIODS[state.per];
   const now = state.row[state.rowNow]?.start ?? today;
   const first = addDays(sundayOf(today), -25 * 7);
-  const step = (day: Day): HeatStep => (counted.has(drawn.startOf(day)) ? 4 : drawn.startOf(day) === now && risk ? "risk" : 0);
+  const step = (day: Day): HeatStep => (counted.has(drawn.startOf(day)) ? 4 : 0);
   const wordsOf = (day: Day) => `${drawn.said(drawn.startOf(day))} · ${counted.has(drawn.startOf(day)) ? "counted" : drawn.startOf(day) === now ? "not yet" : "didn't count"}`;
   return (
     <div className="w-more">

@@ -15,9 +15,8 @@ import type { PillLayout, PillPart } from "../modules";
  */
 
 /**
- * The streak the pill says: its name, its type, its run, and the hours left while it's at risk and the
- * reminder is shown on YouTube (null otherwise). A name of null is an older server's one streak, which has none and
- * counts days.
+ * The streak the pill says: its name, its type, its run, and the hours left while the streak reminder is on for it
+ * (null otherwise). A name of null is an older server's one streak, which has none and counts days.
  */
 export type PillStreak = { name: string | null; per: StreakPer; current: number; hoursLeft: number | null };
 
@@ -35,8 +34,8 @@ export type PillSettings = Pick<Settings, "streaksOn" | "pillStreak" | "reminder
 
 /**
  * The streak picked for the pill (`pillStreak`, or the first when none is picked or the picked one is gone), as the pill
- * says it; none while Streaks is off. Whether it's at risk is the server's (`StreakState.atRisk`); whether that shows on
- * YouTube is On YouTube's.
+ * says it; none while Streaks is off. Whether the reminder is on for it is the server's (`StreakState.atRisk`); whether
+ * that shows is the options page's Streak reminder (`reminderOnYouTube`).
  */
 function pillStreakOf(stats: Stats, settings: PillSettings): PillStreak | null {
   if (!settings.streaksOn) return null;
@@ -62,7 +61,7 @@ export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, re
 
 /**
  * Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it; `left`, the
- * hours left after the number while the part is at risk, tinting it.
+ * hours left after the number while the streak reminder is on for the part, tinting it.
  */
 export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; words: string; said: string; left: string | null } | null {
   switch (part) {
@@ -79,14 +78,14 @@ export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; wor
   }
 }
 
-/** The streak's part: its run ("3 weeks" for a streak per week, the number alone per day), and "· 3 h left" after it while it's at risk; said with its name. */
+/** The streak's part: its run ("3 weeks" for a streak per week, the number alone per day), and "· 3 h left" after it while the reminder is on for it; said with its name. */
 function streakValue(s: PillStreak): { icon: IconName; words: string; said: string; left: string | null } {
   const run = periodCountWords(s.per, s.current);
-  const atRisk = s.hoursLeft !== null ? `, at risk, ${s.hoursLeft} h left` : "";
+  const hoursLeft = s.hoursLeft !== null ? `, ${s.hoursLeft} h left` : "";
   return {
     icon: "flame",
     words: STREAK_PERIODS[s.per].unitOnPill ? run : s.current.toLocaleString("en"),
-    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${atRisk}`,
+    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${hoursLeft}`,
     left: s.hoursLeft !== null ? `· ${s.hoursLeft} h left` : null,
   };
 }

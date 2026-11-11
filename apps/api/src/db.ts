@@ -3443,10 +3443,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       for (const at of clearedOfHistory()) factsOn(day(at)).cleared = 1;
       // All new cards done: a day on which an answer landed with every deck's new cards for the day done, replayed too.
       for (const at of newDoneOfHistory()) factsOn(day(at)).newDone = 1;
-      // The reminder starts at its hour on the account's clock and runs until the day turns.
+      // YouTube's reminder starts at its hour on the account's clock and runs until the day turns; whether it shows
+      // there is the extension's to read (`reminderOnYouTube`). `reminderOn` is read by nothing (`Settings`).
       const nextDay = dayStartAt(today.dayStart + 26 * 3_600_000, settings.dayStartHour, zone);
       const streaks = streakStatesOf(settings.streaks, facts, todayKey, {
-        on: settings.streaksOn && settings.reminderOn,
+        on: settings.streaksOn,
         pastStart: dayStartAt(now, settings.reminderHour, zone) >= today.dayStart,
         hoursLeft: Math.max(0, Math.ceil((nextDay - now) / 3_600_000)),
       });

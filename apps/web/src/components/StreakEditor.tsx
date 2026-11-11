@@ -118,7 +118,7 @@ function GoalRow({ idPrefix, goal, offered, used, only, disabled, anchored, onCh
 /**
  * One streak's settings: its name, its Streak type (`STREAK_PERIODS`), Count from (Now or All time), its Conditions
  * (`goals` in code: each a kind from `GOAL_KINDS` that fits the type and its number, joined by and / or, "and" binding
- * tighter, so they stand in groups and any one group met counts), and Add a condition; the reminder is the account's alone (Settings → General → Reminder). Switching
+ * tighter, so they stand in groups and any one group met counts), and Add a condition; YouTube's streak reminder is the account's alone (the extension's YouTube tab). Switching
  * the type takes off, in the same change, the goals that don't fit it, so the switch is never blocked. Each change
  * goes up at once; the owner of the streaks saves them.
  */

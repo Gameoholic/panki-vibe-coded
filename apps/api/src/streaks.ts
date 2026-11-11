@@ -1,7 +1,7 @@
 import { NO_PERIOD_FACTS, STREAK_PERIODS, goalFits, goalHave, goalMet, goalNeed, type Goal, type PeriodFacts, type StreakPer, type StreakRule, type StreakState } from "@panki/contracts";
 import { addDays, daysBetween, runOf, runsOf, weekdayOf, type Day } from "./time";
 
-/** What the reminder needs of the clock: whether it's past the hour it starts at today, and whole hours until the day turns. */
+/** What YouTube's reminder needs of the clock (on with Streaks): whether it's past the hour it starts at today, and whole hours until the day turns. */
 export type ReminderClock = { on: boolean; pastStart: boolean; hoursLeft: number };
 
 /**
@@ -87,9 +87,9 @@ function nearness(group: readonly { have: number; need: number }[]): number {
 
 /**
  * Every streak as it stands today, worked out from each day's tallies: a period counts when its days together meet
- * every goal of any one of the streak's groups, so a rule changed reads the whole past again. Nothing is stored. A
- * streak is at risk while the account's reminder is on, it has a run to lose, this period doesn't count yet, today is
- * its last day and the clock is past the reminder's hour.
+ * every goal of any one of the streak's groups, so a rule changed reads the whole past again. Nothing is stored.
+ * YouTube's reminder is on for a streak (`atRisk`) while Streaks is on, it has a run to lose, this period doesn't count
+ * yet, today is its last day and the clock is past Starts at.
  */
 export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMap<Day, DayTally>, today: Day, clock: ReminderClock): StreakState[] {
   const sixMonthsFrom = addDays(today, -weekdayOf(today) - 25 * 7);

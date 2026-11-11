@@ -1,5 +1,4 @@
 /** @panki The pill's parts, laid out and previewed on the options page, and the streak it shows (`PillParts`). */
-import { useEffect, useState } from "react";
 import { streakNameOf, type Settings } from "@panki/contracts";
 import { Dropdown } from "@web/components/Dropdown";
 import { Setting } from "@web/components/Setting";
@@ -14,29 +13,12 @@ import { PankiPill, SAMPLE_NUMBERS, pillValue } from "../ui/PankiPill";
  * Panki's pill in YouTube's header bar, laid out, every part of it chosen: the pill as it will stand, on a strip of the
  * site's dark header bar with made-up numbers, then every part it can say as a row, each shown or hidden, moved by its
  * grip (or the arrow keys on it) into the order it's said in, then which streak it says. Kept the moment it's changed;
- * a YouTube page reads it again as it gets the focus. Greyed with the master switch, or with the pill hidden.
+ * a YouTube page reads it again as it gets the focus. Greyed with the master switch, or with the pill hidden. The
+ * account's settings (`settings`, null until they're said or while signed out) are the panel's, read once for it.
  */
-export function PillParts({ store, door, disabled, onChanged }: { store: Stored; door: Door | null; disabled: boolean; onChanged: () => void }) {
+export function PillParts({ store, door, settings, failure, disabled, onChanged }: { store: Stored; door: Door | null; settings: Settings | null; failure: string | null; disabled: boolean; onChanged: () => void }) {
   const layout = store.pill;
   const keep = (next: PillLayout) => void writeStore({ pill: next }).then(onChanged);
-  const address = door?.address ?? null;
-  const token = door?.token ?? null;
-  /** The account's streaks as Panki has them; null until they're said, or signed out. */
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
-  useEffect(() => {
-    setSettings(null);
-    setFailure(null);
-    if (address === null || token === null) return;
-    let alive = true;
-    panki
-      .settings({ address, token })
-      .then((read) => alive && setSettings(read))
-      .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
-    return () => {
-      alive = false;
-    };
-  }, [address, token]);
   return (
     <div className="pill-parts">
       <div className="pill-preview" aria-label="How the header bar looks">

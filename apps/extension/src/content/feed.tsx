@@ -37,10 +37,10 @@ import { tokensOn } from "../ui/styles";
  *
  * - **In the header bar**, beside the site's own buttons: the mark and what the viewer picked for it, in their order
  *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time studying, the streak picked for the pill, tinted
- *   with the hours left while it's at risk). Pressed, Panki opens.
- * - **The line over the home**, only while a streak is at risk and the reminder is shown on YouTube: each streak at
- *   risk, what's left of its goals and the hours left, and Review while reviewing would help. Otherwise the home
- *   stays as it is. Never a pop-up.
+ *   with the hours left while the streak reminder is on for it). Pressed, Panki opens.
+ * - **The line over the home**, only while the streak reminder is on for a streak (the options page's Streak
+ *   reminder, from its Starts at): each such streak, what's left of its goals and the hours left, and Review while
+ *   reviewing would help. Otherwise the home stays as it is. Never a pop-up.
  * - **Continue watching**, a shelf of the site's own kind of cards: the videos left part-way, each opening where it was
  *   stopped, with how much is left over its picture and Panki's bar along its foot.
  * - **Shorts** can be kept off every page (a YouTube utility).
@@ -114,9 +114,9 @@ type Home = { name: string; profile: string; stats: Stats; decks: Deck[]; settin
 type Known = { kind: "loading" } | { kind: "home"; home: Home } | { kind: "failed"; message: string; signedOut: boolean };
 
 /**
- * The streaks the line over the home says are at risk: those the server says are (`StreakState.atRisk`: Streaks and
- * Reminder on, a run to lose, today not counting yet, past Starts at), while the reminder
- * is shown on YouTube. None while anything is unknown.
+ * The streaks the line over the home reminds of: those the server says the reminder is on for (`StreakState.atRisk`:
+ * Streaks on, a run to lose, today not counting yet, past Starts at), while the Streak reminder is on (the options
+ * page's YouTube tab). None while anything is unknown.
  */
 function atRiskOf(now: Known): StreakState[] {
   if (now.kind !== "home") return [];
@@ -531,15 +531,15 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * Panki's line over the home's shelves while a streak is at risk: the mark, then each streak at risk with what's left
-   * of its goals and the hours left; Review at its end while a goal left is met by reviewing rather than watching,
-   * opening Panki as the pill does.
+   * Panki's line over the home's shelves while the streak reminder is on for a streak: the mark, then each such streak
+   * with what's left of its goals and the hours left; Review at its end while a goal left is met by reviewing rather
+   * than watching, opening Panki as the pill does.
    */
   function RiskLine({ streaks }: { streaks: readonly StreakState[] }) {
     if (streaks.length === 0) return null;
     const review = streaks.some(reviewHelps);
     return (
-      <section className="yh-bar is-risk" aria-label="Streaks at risk">
+      <section className="yh-bar is-risk" aria-label="Streak reminder">
         <p className="yh-bar-words">
           <Mark size={18} />
           {streaks.map((s) => {
@@ -548,7 +548,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             return (
               <span key={s.id} className="yh-risk">
                 <Icon name="flame" />
-                <b lang={langOf(name)}>{name}</b> at risk{left ? ` · ${left} to go` : ""} · {s.hoursLeft} h left
+                <b lang={langOf(name)}>{name}</b>
+                {left ? ` · ${left} to go` : ""} · {s.hoursLeft} h left
               </span>
             );
           })}
@@ -594,7 +595,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null
         ) : (
           <>
-            {/* Over the shelves, only while a streak is at risk. */}
+            {/* Over the shelves, only while the streak reminder is on for a streak. */}
             <RiskLine streaks={atRiskOf(now)} />
             {/* Continue watching and Saved for later side by side, half the row each; one switched off leaves the other the row. Empty, each still stands. */}
             {on.homeShelf || on.homeSaved ? (

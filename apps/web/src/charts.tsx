@@ -180,8 +180,8 @@ export function LineChart({ values, labels, words, fmt, onAt }: Pointed & { valu
   );
 }
 
-/** How dark a day is drawn, 0 for nothing, 1 to 4 for more; `risk` for today while a streak is at risk. */
-export type HeatStep = 0 | 1 | 2 | 3 | 4 | "risk";
+/** How dark a day is drawn, 0 for nothing, 1 to 4 for more. */
+export type HeatStep = 0 | 1 | 2 | 3 | 4;
 /** A value as one of the four steps of the largest. */
 export const stepOf = (v: number, max: number): HeatStep => (v <= 0 || max <= 0 ? 0 : (Math.max(1, Math.min(4, Math.ceil((v / max) * 4))) as HeatStep));
 

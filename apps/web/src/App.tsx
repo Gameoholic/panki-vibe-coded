@@ -145,9 +145,9 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
 };
 /**
  * The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display,
- * General, Reminder, Reviews), and a deck's settings (About, Reviews).
+ * General, Reviews), and a deck's settings (About, Reviews).
  */
-const SETTINGS_ROWS = [2, 3, 4, 7] as const;
+const SETTINGS_ROWS = [2, 3, 7] as const;
 const DECK_SETTINGS_ROWS = [3, 2] as const;
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
 const SKELETON_ROWS_MAX = 12;

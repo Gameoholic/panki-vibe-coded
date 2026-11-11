@@ -74,7 +74,7 @@ export type GoalKindEntry = {
   numbered: boolean;
   /** The unit after its number in a goal's row, when it has one. */
   suffix: string;
-  /** Whether a review gets it done: the reminder offers Review only while such a goal is left. */
+  /** Whether a review gets it done: YouTube's reminder offers Review only while such a goal is left. */
   byReviewing: boolean;
   /** The highest number it takes. */
   max: number;
@@ -147,7 +147,7 @@ const fromOneList = (kept: unknown): unknown => {
  * One streak as the account keeps it: its name, its type (`per`; a streak kept before there was a choice is daily),
  * Count from (All time where a streak kept before has none), its goals in groups (Conditions on screen: every goal of a
  * group is needed and any one group will do, so "and" binds tighter than "or"; each number within its kind's). Whether
- * a streak reminds is the account's Reminder alone; a `remind` a streak kept from before had of its own is read by
+ * a streak reminds is the account's Streak reminder alone; a `remind` a streak kept from before had of its own is read by
  * nothing (an unknown key, dropped as it parses). A goal kept that doesn't fit the type (`goalFits`) is read as not
  * there rather than refused, so a rule kept before the kinds said which types they fit still reads; the editor never
  * makes one (`groupsSwitchedTo`). The old default (Reviews ≥ 1 alone, while that meant any card answered) became today's
@@ -222,7 +222,7 @@ export function goalSaysWords(kind: GoalKind, have: number, need: number): strin
 
 /** A goal over the period going on: what it holds so far and what it needs (`StreakState.groups`). */
 type GoalProgress = { kind: GoalKind; have: number; need: number };
-/** The group the reminder speaks of: the one nearest to being met, which a streak's state puts first. */
+/** The group the Streak status tile and the reminder speak of: the one nearest to being met, which a streak's state puts first. */
 export const nearestGroup = (streak: { groups: readonly (readonly GoalProgress[])[] }): readonly GoalProgress[] => streak.groups[0] ?? [];
 /** Whether a review would help a streak now: a goal of its nearest group not met yet that reviewing gets done (`byReviewing`). */
 export const reviewHelps = (streak: { groups: readonly (readonly GoalProgress[])[] }): boolean => nearestGroup(streak).some((g) => g.have < g.need && GOAL_KINDS[g.kind].byReviewing);
