@@ -2,13 +2,13 @@ import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_SETTINGS } from "@panki/contracts";
 import { clipReader, type CardClips } from "../clips";
-import { PACE_DAYS, clipFitOf, type PaceAnswer } from "../pace";
+import { PACE_DAYS, wordAtFitOf, type PaceAnswer } from "../pace";
 import { backtest, variantsOf, type ReplayAnswer } from "../paceBacktest";
 import { dayReader } from "../time";
 
 /**
  * `pnpm pace:backtest <panki.sqlite>`: how far off a review's time left would have been over the sessions of the past
- * `PACE_DAYS`, each way of working it out side by side, the live one ("Asked-again + clip lengths") among them. Opens
+ * `PACE_DAYS`, each way of working it out side by side, the live one ("Asked-again + word's place") among them. Opens
  * the database it's given read-only and changes nothing; run it on a copy, never on an account's live file. A card's
  * clips are read as the API reads them (`clips.ts`), with the example each answer names.
  */
@@ -46,10 +46,10 @@ function main() {
            p.node_from <> '[]' AS fromAgain, p.node_to <> '[]' AS toAgain
          FROM card_places p JOIN cards c ON c.id = p.card_id WHERE p.reason = 'answer' ORDER BY p.at ASC, p.id ASC`,
       )
-      .all() as (Omit<PaceAnswer, "start" | "clipMs"> & { sessionId: string | null; exampleId: string | null; start: number; fromAgain: number; toAgain: number })[];
+      .all() as (Omit<PaceAnswer, "start" | "wordAtMs"> & { sessionId: string | null; exampleId: string | null; start: number; fromAgain: number; toAgain: number })[];
     const answers: (ReplayAnswer & { backClipMs: number | null })[] = rows.map(({ exampleId, ...r }) => {
       const { front, back } = clipsOfAnswer(r.cardId, exampleId);
-      return { ...r, start: r.start === 1, fromAgain: r.fromAgain === 1, toAgain: r.toAgain === 1, clipMs: front.sum, wordMs: front.word, backClipMs: back.sum };
+      return { ...r, start: r.start === 1, fromAgain: r.fromAgain === 1, toAgain: r.toAgain === 1, wordAtMs: front.word, clipMs: front.sum, backClipMs: back.sum };
     });
     const since = Date.now() - PACE_DAYS * 86_400_000;
     const recent = answers.filter((a) => a.at >= since);
@@ -57,13 +57,13 @@ function main() {
 
     console.log(`${recent.length} answers in the past ${PACE_DAYS} days`);
     console.log(`  with a clip length: ${recent.filter((a) => a.clipMs !== null).length} on the front, ${recent.filter((a) => a.backClipMs !== null).length} on the back`);
-    console.log(`  with the word's place in its clip: ${recent.filter((a) => a.wordMs !== null).length} on the front`);
+    console.log(`  with the word's place in its clip: ${recent.filter((a) => a.wordAtMs !== null).length} on the front`);
     for (const [name, view] of [
-      ["clip lengths", (a: ReplayAnswer) => a],
-      ["word's place", (a: ReplayAnswer) => ({ ...a, clipMs: a.wordMs })],
+      ["clip lengths", (a: ReplayAnswer) => ({ ...a, wordAtMs: a.clipMs })],
+      ["word's place", (a: ReplayAnswer) => a],
     ] as const) {
-      const fit = clipFitOf(recent.map(view));
-      const said = fit.clipMsPerS === null || fit.clipMeanMs === null ? "too few to fit" : `${fit.clipMsPerS} ms of front a second, mean ${seconds(fit.clipMeanMs).trim()}`;
+      const fit = wordAtFitOf(recent.map(view));
+      const said = fit.wordAtMsPerS === null || fit.wordAtMeanMs === null ? "too few to fit" : `${fit.wordAtMsPerS} ms of front a second, mean ${seconds(fit.wordAtMeanMs).trim()}`;
       console.log(`  fit by ${name}, all decks: ${said}`);
     }
     console.log(`\n${"".padEnd(30)}${"sessions".padStart(9)}${"at start".padStart(10)}${"share".padStart(8)}${"through".padStart(10)}`);

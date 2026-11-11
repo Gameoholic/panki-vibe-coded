@@ -4,18 +4,18 @@
  * really took. Pure: the answers come in oldest first, with the account's day reader.
  *
  * Its variants are the live way (`timeLeftMs` and `pacesOf`, as the review has them) with parts taken out or put in:
- * the asked-again showing, the front's clips (or, in their place, where the picked word starts in the clip), and
- * today's speed, which the live way leaves out: the time left stretched by how the session's cards done with went
- * against what the pace said of them, eased in.
+ * the asked-again showing, where the picked word starts in the front's clip (or, in its place, the front's clips'
+ * lengths summed, fitted and applied the same way), and today's speed, which the live way leaves out: the time left
+ * stretched by how the session's cards done with went against what the pace said of them, eased in.
  */
 import { NO_PACE, cardLeftMs, countedMs, type CardLeft, type DeckPace } from "@panki/contracts";
 import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 
 /**
  * An answer as the backtest replays it: a pace's, with its session, whether it was answered inside an ask-again and
- * left the card in one, and where the picked word starts in the front's clip, when that's known.
+ * left the card in one, and how long the front's clips run, summed, when that's known.
  */
-export type ReplayAnswer = PaceAnswer & { sessionId: string | null; fromAgain: boolean; toAgain: boolean; wordMs: number | null };
+export type ReplayAnswer = PaceAnswer & { sessionId: string | null; fromAgain: boolean; toAgain: boolean; clipMs: number | null };
 
 /** What stretches a card's front: its clips' lengths, where its word starts in its clip, or nothing. */
 export type FrontMeasure = "clips" | "word" | "none";
@@ -38,19 +38,19 @@ function todaySpeed(done: Tally, ease: number): number {
   return 1 + (done.cards / (done.cards + ease)) * (done.spentMs / done.predictedMs - 1);
 }
 
-/** An answer as a variant sees it: the front's measure in place of its clips, or nothing. */
+/** An answer as a variant sees it: the front's measure where the word's place goes (the live way's own, the clips' lengths, or nothing). */
 function viewOf(a: ReplayAnswer, front: FrontMeasure): ReplayAnswer {
-  return front === "clips" ? a : { ...a, clipMs: front === "word" ? a.wordMs : null };
+  return front === "word" ? a : { ...a, wordAtMs: front === "clips" ? a.clipMs : null };
 }
 
 /** What's left of a card as the review counts it as it first comes up: an ask-again from before takes one showing, the fewest it can. */
-const leftOf = (a: ReplayAnswer): CardLeft => ({ ...(a.start ? { kind: "new" as const } : a.fromAgain ? { kind: "again" as const, steps: 1 } : { kind: "review" as const }), clipMs: a.clipMs });
+const leftOf = (a: ReplayAnswer): CardLeft => ({ ...(a.start ? { kind: "new" as const } : a.fromAgain ? { kind: "again" as const, steps: 1 } : { kind: "review" as const }), wordAtMs: a.wordAtMs });
 
 /** A session's time left before each of its answers, under one variant, beside the time really left; none when the pace has nothing. */
 function replay(session: readonly ReplayAnswer[], pace: DeckPace, ease: number): { predicted: number; actual: number }[] | null {
   const firstOf = new Map<string, CardLeft>();
   for (const a of session) if (!firstOf.has(a.cardId)) firstOf.set(a.cardId, leftOf(a));
-  const askedOf = (id: string): CardLeft => ({ kind: "again", steps: 1, clipMs: firstOf.get(id)?.clipMs ?? null });
+  const askedOf = (id: string): CardLeft => ({ kind: "again", steps: 1, wordAtMs: firstOf.get(id)?.wordAtMs ?? null });
   const pending = new Set(firstOf.keys());
   const asked = new Set<string>();
   const open = new Map<string, { predictedMs: number; spentMs: number }>();
@@ -118,7 +118,7 @@ export function backtest(answers: readonly ReplayAnswer[], dayOf: (at: number) =
   }));
 }
 
-/** The variants the backtest sets side by side, the live way among them ("Asked-again + clip lengths"). */
+/** The variants the backtest sets side by side, the live way among them ("Asked-again + word's place"). */
 export function variantsOf(eases: readonly number[]): Variant[] {
   return [
     { name: "Before (deck means)", again: false, front: "none", ease: NO_TODAY },

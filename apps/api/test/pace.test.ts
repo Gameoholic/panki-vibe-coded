@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { CARD_TIME_MAX_MS, NO_PACE } from "@panki/contracts";
 import { clipReader } from "../src/clips";
-import { CLIP_MIN, clipFitOf, paceFor, pacesOf, type PaceAnswer } from "../src/pace";
+import { WORD_AT_MIN, paceFor, pacesOf, wordAtFitOf, type PaceAnswer } from "../src/pace";
 import { NO_TODAY, backtest, type ReplayAnswer } from "../src/paceBacktest";
 
 /*
@@ -23,10 +23,10 @@ const answer = (cardId: string, instant: number, ms: number, over: Partial<PaceA
   start: false,
   thinkMs: ms / 2,
   decideMs: ms / 2,
-  clipMs: null,
+  wordAtMs: null,
   ...over,
 });
-const NO_CLIPS = { clipMsPerS: null, clipMeanMs: null };
+const NO_CLIPS = { wordAtMsPerS: null, wordAtMeanMs: null };
 
 test("a new card's day is every showing of it that day, a review's likewise; a showing after a day's first is an asked-again one", () => {
   const { byDeck } = pacesOf(
@@ -62,22 +62,22 @@ test("a deck without a kind of run takes the account's; a deck with no answers i
   assert.deepEqual(paceFor(null, "deck"), NO_PACE);
 });
 
-/** CLIP_MIN showings whose front takes 2 s plus its clip once over, clips of 0 to 9 s. */
+/** WORD_AT_MIN showings whose front takes 2 s plus the time until the word once over, the word 0 to 9 s in. */
 const clipped = (deckId = "deck") =>
-  Array.from({ length: CLIP_MIN }, (_, i) => answer(`${deckId}${i}`, at(1, 9 + i / 60), 0, { deckId, thinkMs: 2_000 + 1_000 * i, decideMs: 3_000, clipMs: 1_000 * i }));
+  Array.from({ length: WORD_AT_MIN }, (_, i) => answer(`${deckId}${i}`, at(1, 9 + i / 60), 0, { deckId, thinkMs: 2_000 + 1_000 * i, decideMs: 3_000, wordAtMs: 1_000 * i }));
 
-test("the front's stretch is its own time against its clips, never below 0, and only from enough showings with a spread", () => {
-  assert.deepEqual(clipFitOf(clipped()), { clipMsPerS: 1_000, clipMeanMs: 4_500 });
-  assert.deepEqual(clipFitOf(clipped().slice(1)), NO_CLIPS);
-  assert.deepEqual(clipFitOf(clipped().map((a) => ({ ...a, clipMs: 3_000 }))), NO_CLIPS);
-  assert.deepEqual(clipFitOf(clipped().map((a, i) => ({ ...a, thinkMs: 20_000 - 1_000 * i }))), { clipMsPerS: 0, clipMeanMs: 4_500 });
+test("the front's stretch is its own time against where the word falls, never below 0, and only from enough showings with a spread", () => {
+  assert.deepEqual(wordAtFitOf(clipped()), { wordAtMsPerS: 1_000, wordAtMeanMs: 4_500 });
+  assert.deepEqual(wordAtFitOf(clipped().slice(1)), NO_CLIPS);
+  assert.deepEqual(wordAtFitOf(clipped().map((a) => ({ ...a, wordAtMs: 3_000 }))), NO_CLIPS);
+  assert.deepEqual(wordAtFitOf(clipped().map((a, i) => ({ ...a, thinkMs: 20_000 - 1_000 * i }))), { wordAtMsPerS: 0, wordAtMeanMs: 4_500 });
 });
 
-test("a deck with too few clipped showings takes the account's stretch, its clips and its share together", () => {
-  const paces = pacesOf([...clipped("other"), answer("x", at(1, 9), 6_000, { clipMs: 9_000 })], dayOf);
-  assert.equal(paceFor(paces, "other").clipMsPerS, 1_000);
-  assert.notEqual(paces.all.clipMsPerS, null);
-  assert.deepEqual([paceFor(paces, "deck").clipMsPerS, paceFor(paces, "deck").clipMeanMs], [paces.all.clipMsPerS, paces.all.clipMeanMs]);
+test("a deck with too few showings with the word's place takes the account's stretch, its mean and its share together", () => {
+  const paces = pacesOf([...clipped("other"), answer("x", at(1, 9), 6_000, { wordAtMs: 9_000 })], dayOf);
+  assert.equal(paceFor(paces, "other").wordAtMsPerS, 1_000);
+  assert.notEqual(paces.all.wordAtMsPerS, null);
+  assert.deepEqual([paceFor(paces, "deck").wordAtMsPerS, paceFor(paces, "deck").wordAtMeanMs], [paces.all.wordAtMsPerS, paces.all.wordAtMeanMs]);
 });
 
 test("a card's clips: the front's lengths summed, a sound or the word's own cut no part of them, an example's own clip in place of the card's", () => {
@@ -112,7 +112,7 @@ const replayed = (cardId: string, instant: number, ms: number, over: Partial<Rep
   sessionId: "s",
   fromAgain: false,
   toAgain: false,
-  wordMs: null,
+  clipMs: null,
   ...over,
 });
 
@@ -130,22 +130,27 @@ test("the backtest sets each session's time left against what it took, from the 
   assert.deepEqual(today, { name: "today", sessions: 1, startMs: 30_000, startShare: 0.5, throughMs: 10_000 });
 });
 
-test("with clips, a long clip's card is priced longer and a short one's shorter, from the deck's fit before the session", () => {
-  // Before: a card takes 2 s plus its clip, clips of 0 to 9 s, all on the front.
-  const history = clipped().map((a) => replayed(a.cardId, a.at, 0, { ...a, decideMs: 0, sessionId: null }));
-  const session = [replayed("long", at(2, 9), 0, { thinkMs: 11_000, decideMs: 0, clipMs: 9_000 }), replayed("short", at(2, 9.1), 0, { thinkMs: 2_000, decideMs: 0, clipMs: 0 })];
-  const [plain, clips] = backtest(
+test("by the word's place (the live way) or the clips' lengths, a card further in is priced longer and one nearer shorter, from the deck's fit before the session", () => {
+  // Before: a card takes 2 s plus its word's place, and its clip as long, 0 to 9 s, all on the front.
+  const history = clipped().map((a) => replayed(a.cardId, a.at, 0, { ...a, decideMs: 0, sessionId: null, clipMs: a.wordAtMs }));
+  const session = [
+    replayed("far", at(2, 9), 0, { thinkMs: 11_000, decideMs: 0, wordAtMs: 9_000, clipMs: 9_000 }),
+    replayed("near", at(2, 9.1), 0, { thinkMs: 2_000, decideMs: 0, wordAtMs: 0, clipMs: 0 }),
+  ];
+  const [plain, word, clips] = backtest(
     [...history, ...session],
     dayOf,
     at(2, 0),
     [
       { name: "plain", again: true, front: "none", ease: NO_TODAY },
+      { name: "word", again: true, front: "word", ease: NO_TODAY },
       { name: "clips", again: true, front: "clips", ease: NO_TODAY },
     ],
     2,
   );
   // Plain: 6.5 s a card, 13 s for 13 s at the start, then 6.5 s for 2 s.
   assert.deepEqual(plain, { name: "plain", sessions: 1, startMs: 0, startShare: 0, throughMs: 2_250 });
-  // With the clips each card is its own: 11 s and 2 s, right before each answer.
+  // Stretched, each card is its own: 11 s and 2 s, right before each answer.
+  assert.deepEqual(word, { name: "word", sessions: 1, startMs: 0, startShare: 0, throughMs: 0 });
   assert.deepEqual(clips, { name: "clips", sessions: 1, startMs: 0, startShare: 0, throughMs: 0 });
 });

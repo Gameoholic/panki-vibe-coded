@@ -255,11 +255,11 @@ export const Card = NewCard.omit({ source: true, sources: true }).extend({
    */
   shownExample: z.string().nullable().default(null),
   /**
-   * Derived on every read, from what's kept: how long the clips on its front run with `shownExample` showing, summed,
-   * in ms as said (`apps/api/src/clips.ts`); null with no clip whose length is kept, and from an older server. A
-   * review's time left stretches with it (`DeckPace.clipMsPerS`).
+   * Derived on every read, from what's kept: how far into the clip on its front, with `shownExample` showing, the
+   * picked word starts, in ms as said (`apps/api/src/clips.ts`); null where that isn't kept, and from an older server.
+   * A review's time left stretches with it (`DeckPace.wordAtMsPerS`).
    */
-  clipMs: z.number().int().nonnegative().nullable().default(null),
+  wordAtMs: z.number().int().nonnegative().nullable().default(null),
 });
 
 /**

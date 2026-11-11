@@ -34,10 +34,10 @@ export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, reviewsPerDa
  * How long this deck's cards tend to take, from its answers of the past 30 days, each showing at most
  * `CARD_TIME_MAX_MS`, in ms: a new card on the day it's started and a review on its day, every showing of it that day
  * (a miss and the asking again included), one showing of a card, and one showing of a card already shown that day
- * (`againMs`: asked again after a miss, or still being learned). A showing's front stretches with the clips on it:
- * `clipMsPerS` ms of it for each second of clip, against `clipMeanMs`, the clips' mean (`Card.clipMs`). What the deck
- * has none of is the account's over every deck; null with none at all. What a review's time left is worked out from
- * (`pace.ts`).
+ * (`againMs`: asked again after a miss, or still being learned). A showing's front stretches with how far into its
+ * clip the picked word starts: `wordAtMsPerS` ms of it for each second, against `wordAtMeanMs`, the mean
+ * (`Card.wordAtMs`). What the deck has none of is the account's over every deck; null with none at all. What a review's
+ * time left is worked out from (`pace.ts`).
  */
 export const DeckPace = z.object({
   newMs: z.number().int().nonnegative().nullable(),
@@ -45,12 +45,12 @@ export const DeckPace = z.object({
   showingMs: z.number().int().nonnegative().nullable(),
   /** None from an older server: a card asked again then takes `showingMs` a showing. */
   againMs: z.number().int().nonnegative().nullable().default(null),
-  /** None from an older server, or with too few showings with a clip to tell: a card's clips then change nothing. */
-  clipMsPerS: z.number().int().nonnegative().nullable().default(null),
-  clipMeanMs: z.number().int().nonnegative().nullable().default(null),
+  /** None from an older server, or with too few showings with the word's place to tell: where a card's word is then changes nothing. */
+  wordAtMsPerS: z.number().int().nonnegative().nullable().default(null),
+  wordAtMeanMs: z.number().int().nonnegative().nullable().default(null),
 });
 export type DeckPace = z.infer<typeof DeckPace>;
-export const NO_PACE: DeckPace = { newMs: null, reviewMs: null, showingMs: null, againMs: null, clipMsPerS: null, clipMeanMs: null };
+export const NO_PACE: DeckPace = { newMs: null, reviewMs: null, showingMs: null, againMs: null, wordAtMsPerS: null, wordAtMeanMs: null };
 
 export const Deck = NewDeck.extend({
   settings: DeckSettings,

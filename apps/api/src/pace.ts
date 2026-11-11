@@ -7,21 +7,22 @@ import { CARD_TIME_MAX_MS, NO_PACE, countedMs, type DeckPace } from "@panki/cont
 /** How far back a pace looks. */
 export const PACE_DAYS = 30;
 
-/** The fewest showings with a clip the front's stretch by its clips is fitted from; with fewer, a card's clips change nothing. */
-export const CLIP_MIN = 10;
+/** The fewest showings with the word's place the front's stretch is fitted from; with fewer, where a card's word falls changes nothing. */
+export const WORD_AT_MIN = 10;
 
 /**
  * An answer as a pace reads it: its card and deck, when, whether it started a new card, the spans the browser
- * measured, and how long the clips on the card's front ran as it was shown (`clips.ts`), when that's known.
+ * measured, and how far into the clip on the card's front the picked word started as it was shown (`clips.ts`), when
+ * that's known.
  */
-export type PaceAnswer = { cardId: string; deckId: string; at: number; start: boolean; thinkMs: number | null; decideMs: number | null; clipMs: number | null };
+export type PaceAnswer = { cardId: string; deckId: string; at: number; start: boolean; thinkMs: number | null; decideMs: number | null; wordAtMs: number | null };
 
 /** A card's showings on one day: whether the first started it, and the time each took. */
 type Run = { deckId: string; start: boolean; times: number[]; measured: boolean };
 
-/** The front's stretch by its clips: whole ms of front a second of clip, and the clips' mean, rounded once. */
-type ClipFit = Pick<DeckPace, "clipMsPerS" | "clipMeanMs">;
-const NO_CLIP_FIT: ClipFit = { clipMsPerS: null, clipMeanMs: null };
+/** The front's stretch by where the word falls: whole ms of front a second, and the mean place, rounded once. */
+type WordAtFit = Pick<DeckPace, "wordAtMsPerS" | "wordAtMeanMs">;
+const NO_WORD_AT_FIT: WordAtFit = { wordAtMsPerS: null, wordAtMeanMs: null };
 
 const sumOf = (values: readonly number[]) => values.reduce((sum, v) => sum + v, 0);
 
@@ -30,7 +31,7 @@ function meanOf(values: readonly number[]): number | null {
   return values.length === 0 ? null : Math.round(sumOf(values) / values.length);
 }
 
-function paceOf(runs: readonly Run[]): Omit<DeckPace, keyof ClipFit> {
+function paceOf(runs: readonly Run[]): Omit<DeckPace, keyof WordAtFit> {
   const measured = runs.filter((r) => r.measured);
   return {
     newMs: meanOf(measured.filter((r) => r.start).map((r) => sumOf(r.times))),
@@ -41,18 +42,19 @@ function paceOf(runs: readonly Run[]): Omit<DeckPace, keyof ClipFit> {
 }
 
 /**
- * The front's time against the clips on it, a line by least squares over every measured showing with a clip: its
- * slope never below 0 (a longer clip never makes a card quicker). None with fewer than `CLIP_MIN` or all one length.
+ * The front's time against where the word falls in its clip, a line by least squares over every measured showing that
+ * has it: its slope never below 0 (a word further in never makes a card quicker). None with fewer than `WORD_AT_MIN`
+ * or all at one place.
  */
-export function clipFitOf(answers: readonly PaceAnswer[]): ClipFit {
-  const points = answers.flatMap((a) => (a.clipMs === null || a.thinkMs === null || a.decideMs === null ? [] : [{ x: a.clipMs, y: Math.min(a.thinkMs, CARD_TIME_MAX_MS) }]));
-  if (points.length < CLIP_MIN) return NO_CLIP_FIT;
+export function wordAtFitOf(answers: readonly PaceAnswer[]): WordAtFit {
+  const points = answers.flatMap((a) => (a.wordAtMs === null || a.thinkMs === null || a.decideMs === null ? [] : [{ x: a.wordAtMs, y: Math.min(a.thinkMs, CARD_TIME_MAX_MS) }]));
+  if (points.length < WORD_AT_MIN) return NO_WORD_AT_FIT;
   const meanX = sumOf(points.map((p) => p.x)) / points.length;
   const meanY = sumOf(points.map((p) => p.y)) / points.length;
   const spread = sumOf(points.map((p) => (p.x - meanX) ** 2));
-  if (spread === 0) return NO_CLIP_FIT;
+  if (spread === 0) return NO_WORD_AT_FIT;
   const share = sumOf(points.map((p) => (p.x - meanX) * (p.y - meanY))) / spread;
-  return { clipMsPerS: Math.round(Math.max(0, share) * 1000), clipMeanMs: Math.round(meanX) };
+  return { wordAtMsPerS: Math.round(Math.max(0, share) * 1000), wordAtMeanMs: Math.round(meanX) };
 }
 
 /**
@@ -60,8 +62,8 @@ export function clipFitOf(answers: readonly PaceAnswer[]): ClipFit {
  * first of them started it: a run's time is every showing in it, each at most `CARD_TIME_MAX_MS` as the stats count
  * it, so the times a card was missed and asked again are in it; a showing after a run's first is an asked-again one.
  * A run with a showing the browser didn't measure counts for nothing, rather than as quicker than it was. The front's
- * stretch by its clips is fitted over the deck's showings (`clipFitOf`). A deck's value it has none of is the
- * account's.
+ * stretch by where the word falls is fitted over the deck's showings (`wordAtFitOf`). A deck's value it has none of is
+ * the account's.
  */
 export function pacesOf(answers: readonly PaceAnswer[], dayOf: (at: number) => string): { byDeck: Map<string, DeckPace>; all: DeckPace } {
   const runs = new Map<string, Run>();
@@ -72,19 +74,19 @@ export function pacesOf(answers: readonly PaceAnswer[], dayOf: (at: number) => s
     run.times.push(countedMs(a.thinkMs, a.decideMs));
     runs.set(key, run);
   }
-  const all: DeckPace = { ...paceOf([...runs.values()]), ...clipFitOf(answers) };
+  const all: DeckPace = { ...paceOf([...runs.values()]), ...wordAtFitOf(answers) };
   const byDeckRuns = new Map<string, Run[]>();
   for (const run of runs.values()) byDeckRuns.set(run.deckId, [...(byDeckRuns.get(run.deckId) ?? []), run]);
   const byDeck = new Map<string, DeckPace>();
   for (const [deckId, deckRuns] of byDeckRuns) {
     const own = paceOf(deckRuns);
-    const clips = clipFitOf(answers.filter((a) => a.deckId === deckId));
+    const wordAt = wordAtFitOf(answers.filter((a) => a.deckId === deckId));
     byDeck.set(deckId, {
       newMs: own.newMs ?? all.newMs,
       reviewMs: own.reviewMs ?? all.reviewMs,
       showingMs: own.showingMs ?? all.showingMs,
       againMs: own.againMs ?? all.againMs,
-      ...(clips.clipMsPerS === null ? { clipMsPerS: all.clipMsPerS, clipMeanMs: all.clipMeanMs } : clips),
+      ...(wordAt.wordAtMsPerS === null ? { wordAtMsPerS: all.wordAtMsPerS, wordAtMeanMs: all.wordAtMeanMs } : wordAt),
     });
   }
   return { byDeck, all };

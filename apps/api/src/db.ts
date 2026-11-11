@@ -1502,7 +1502,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, (p.stage_from IS NULL AND p.burned_from = 0 AND p.node_from = '[]') AS start, p.think_ms AS thinkMs, p.decide_ms AS decideMs, p.example_id AS exampleId
     FROM card_places p JOIN cards c ON c.id = p.card_id
     WHERE p.reason = 'answer' AND p.at >= ? ORDER BY p.at ASC, p.id ASC`);
-  // How long the clips on a card's front run, with an example showing, from what's kept (`clips.ts`).
+  // A card's front clips with an example showing, from what's kept: where the picked word starts in them (`clips.ts`).
   const clipsOf = clipReader(db);
   const selectDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ? AND d.removed_at IS NULL`);
   const selectAnyDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ?`);
@@ -2011,7 +2011,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         cues: held?.cues ?? {},
         examples: held?.examples ?? [],
         shownExample,
-        clipMs: clipsOf(row.id, shownExample).front.sum,
+        wordAtMs: clipsOf(row.id, shownExample).front.word,
         place,
         ...scheduleOf(type, row, place, today),
       });
@@ -2069,16 +2069,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
   /** Every deck's pace as it stands (`pace.ts`): a list of decks reads them once and hands them in. */
   function pacesAt(today: Today) {
-    const rows = selectPaceAnswers.all(today.now - PACE_DAYS * 86_400_000) as (Omit<PaceAnswer, "start" | "clipMs"> & { start: number; exampleId: string | null })[];
+    const rows = selectPaceAnswers.all(today.now - PACE_DAYS * 86_400_000) as (Omit<PaceAnswer, "start" | "wordAtMs"> & { start: number; exampleId: string | null })[];
     // Each card read once for each example it was shown with.
-    const clipMs = new Map<string, number | null>();
-    const clipOf = (cardId: string, exampleId: string | null) => {
+    const wordAt = new Map<string, number | null>();
+    const wordAtOf = (cardId: string, exampleId: string | null) => {
       const key = `${cardId}|${exampleId ?? ""}`;
-      if (!clipMs.has(key)) clipMs.set(key, clipsOf(cardId, exampleId).front.sum);
-      return clipMs.get(key) ?? null;
+      if (!wordAt.has(key)) wordAt.set(key, clipsOf(cardId, exampleId).front.word);
+      return wordAt.get(key) ?? null;
     };
     return pacesOf(
-      rows.map(({ exampleId, ...r }) => ({ ...r, start: r.start === 1, clipMs: clipOf(r.cardId, exampleId) })),
+      rows.map(({ exampleId, ...r }) => ({ ...r, start: r.start === 1, wordAtMs: wordAtOf(r.cardId, exampleId) })),
       dayReader(today.settings.dayStartHour, zoneOf(today.settings)),
     );
   }
@@ -2651,7 +2651,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           if (!inPlay || card.examples.length === 0 || livePinOf(card.id) !== null) return card;
           const exampleId = pickExample(card, how);
           insertPin.run(card.id, exampleId, now);
-          return { ...card, shownExample: exampleId, clipMs: clipsOf(card.id, exampleId).front.sum };
+          return { ...card, shownExample: exampleId, wordAtMs: clipsOf(card.id, exampleId).front.word };
         }),
       );
     },
