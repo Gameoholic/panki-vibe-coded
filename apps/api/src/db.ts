@@ -1703,10 +1703,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectScopeSessions = db.prepare(`
     SELECT s.deck_id AS deckId, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow, s.left_shown_ms AS leftShownMs, s.left_revealed AS leftRevealed
     FROM review_sessions s JOIN decks d ON d.id = s.deck_id WHERE ${scopeWhere}`);
+  // Every card made in the scope's decks, deleted since or not: what was done is counted as done (`conventions/data.md`),
+  // so Added and the cards made from a channel's videos keep a card that's since gone. Read by no count of what exists now.
   const selectScopeCardSources = db.prepare(`
     SELECT c.id, c.deck_id AS deckId, c.created_at AS createdAt, s.url, s.channel_name AS channel
     FROM cards c JOIN decks d ON d.id = c.deck_id LEFT JOIN card_sources s ON s.card_id = c.id
-    WHERE c.removed_at IS NULL AND ${scopeWhere} ORDER BY c.created_at ASC, c.id ASC`);
+    WHERE ${scopeWhere} ORDER BY c.created_at ASC, c.id ASC`);
   // Every place a living card of the scope has had, undone ones left out, card by card in the order they came.
   const selectScopePlaces = db.prepare(`
     SELECT p.card_id AS cardId, p.at, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned
@@ -3327,9 +3329,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
               if (moment > now) laterToday += 1;
             }
           }
-          const weeksBack = Math.max(0, Math.ceil(-daysBetween(weekStart, day(card.createdAt)) / 7));
-          const slot = added.length - 1 - weeksBack;
-          if (slot >= 0) added[slot] = (added[slot] ?? 0) + 1;
         }
       }
       const burnedThen = [...ladders.values()].reduce((sum, l) => sum + (l.then[0]?.burned ?? 0), 0);
@@ -3398,6 +3397,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const sourceOf = (url: string | null): TileCard["source"] => (url === null ? "typed" : youtubeLinkOf(url) ? "youtube" : "web");
       const scopeCards = selectScopeCardSources.all(deckId, deckId) as CardSourceRow[];
       const everyCard = deckId === null ? scopeCards : (selectScopeCardSources.all(null, null) as CardSourceRow[]);
+      // Cards added each of the past 12 weeks, as an extension from before reads it: every card made, deleted or not.
+      for (const card of scopeCards) {
+        const weeksBack = Math.max(0, Math.ceil(-daysBetween(weekStart, day(card.createdAt)) / 7));
+        const slot = added.length - 1 - weeksBack;
+        if (slot >= 0) added[slot] = (added[slot] ?? 0) + 1;
+      }
       const marks = marksOf(selectWatchMarks.all() as WatchMarkRow[]);
       const stretches = (selectWatchStretches.all() as WatchStretchRow[]).filter((s) => marks.get(s.videoId)?.counted ?? true);
 
@@ -3439,8 +3444,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const everyAnswer = deckId === null ? kept : (selectScopeAnswers.all(null, null) as AnswerRow[]);
       const everySession = deckId === null ? sessions : (selectScopeSessions.all(null, null) as SessionStatRow[]);
       const everyShowing = deckId === null ? showings : showingsOf([...everyAnswer, ...(selectScopeHolds.all(null, null) as ShowingRow[])], everySession);
-      // Cards added counts every card by the day it was made, the deleted among them (`dayTalliesOf` says why), so it
-      // reads the replays' rows, not the living cards the Added tile counts.
+      // Cards added counts every card by the day it was made, the deleted among them (`dayTalliesOf` says why), over
+      // every deck, so it reads the replays' rows rather than the scope's.
       const facts = dayTalliesOf({
         answers: everyAnswer.flatMap((a) => (a.undoneAt === null ? [{ at: a.at, started: started(a) }] : [])),
         showings: everyShowing.map((s) => ({ at: s.at, ms: shownMs(s) })),

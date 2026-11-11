@@ -30,8 +30,8 @@ export type TallyInput = {
 
 /**
  * Each of the account's days as the goals read it, over every deck whatever is in scope. A card made counts for the day
- * of its `createdAt` even once deleted, unlike the Added tile: a past day is replayed from what happened, and a deletion
- * today must never break it. Another example given to a card is no card and counts for nothing.
+ * of its `createdAt` even once deleted, as Added counts it: what was done is counted as done (`conventions/data.md`),
+ * and a deletion today must never break a past day. Another example given to a card is no card and counts for nothing.
  */
 export function dayTalliesOf(input: TallyInput): Map<Day, DayTally> {
   const facts = new Map<Day, DayTally>();

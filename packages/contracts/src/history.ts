@@ -259,7 +259,7 @@ export const WindowStats = z.object({
       )
       .max(15),
   }),
-  /** Living cards made, by where they came from (`card_sources`): typed (none), a YouTube video, any other page. */
+  /** Cards made in the window, deleted since or not, by where they came from (`card_sources`): typed (none), a YouTube video, any other page. */
   added: z.object({
     n: Count,
     before: Count.nullable(),

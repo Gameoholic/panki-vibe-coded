@@ -19,7 +19,7 @@ export type TileSession = { startedAt: number; deckId: string };
 export type TileCard = { createdAt: number; deckId: string; source: "typed" | "youtube" | "web" };
 /** A stretch watched of a video that counts: when, the time it took, and the part of the video it covered. */
 export type TileStretch = { at: number; videoId: string; channel: string | null; spentMs: number; fromMs: number; toMs: number };
-/** A living card made from a YouTube video, any deck's, with the video's channel when it was known. */
+/** A card made from a YouTube video, any deck's, deleted since or not, with the video's channel when it was known. */
 export type TileVideoCard = { createdAt: number; channel: string | null };
 export type TileStage = { key: string; name: string; colour: string | null };
 export type TilesInput = {
@@ -265,7 +265,7 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
       })
       .slice(0, 15);
 
-    // Added: the living cards made.
+    // Added: the cards made, deleted since or not; what was done is counted as done.
     let addedN = 0;
     let addedBefore = 0;
     const addedSeries = zeros(series.spans.length);

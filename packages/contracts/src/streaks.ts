@@ -97,8 +97,8 @@ export const GOAL_KINDS: Record<GoalKind, GoalKindEntry> = {
   // Time on reviews and new cards alike, so it's "studying" on screen; the id stays `reviewing`, as streaks keep it.
   reviewing: { name: "Time studying", fact: "reviewMinutes", numbered: true, suffix: "min", byReviewing: true, max: 600, start: 15, left: { kind: "minutes", doing: "studying" }, fits: STREAK_PER_IDS },
   watching: { name: "Time watching", fact: "watchMinutes", numbered: true, suffix: "min", byReviewing: false, max: 600, start: 30, left: { kind: "minutes", doing: "watching" }, fits: STREAK_PER_IDS },
-  // Cards made, not started (that's New cards): each on the day it was made, kept for that day once deleted, unlike the
-  // Added tile, since a past day is replayed from the history and a deletion today must never break it.
+  // Cards made, not started (that's New cards): each on the day it was made, kept for that day once deleted, as Added
+  // counts them, since a past day is replayed from the history and a deletion today must never break it.
   added: { name: "Cards added", fact: "added", numbered: true, suffix: "", byReviewing: false, max: 999, start: 5, left: { kind: "count", one: "card to add", many: "cards to add" }, fits: STREAK_PER_IDS, why: "Cards made in the day or week, in any deck, typed or from a video; a card deleted since still counts." },
   // Nothing left due is a moment of a day: over a week it would ask only that it happened once.
   cleared: { name: "All reviews done", fact: "cleared", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all reviews" }, fits: ["day"], why: "Reviewed every due card at some point in the day." },
