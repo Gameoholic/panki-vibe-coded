@@ -1,5 +1,5 @@
-/** @panki How things are said in words, every date and time in the account's formats (`count`, `listWords`, `clock`, `dateWords`, `dayWords`, `hourSpanWords`, `setFormats`, `agoWords`). */
-import { DEFAULT_SETTINGS, type DateFormat, type TimeFormat } from "@panki/contracts";
+/** @panki How things are said in words, dates and times in the account's formats and days (`count`, `clock`, `dateWords`, `dayWords`, `setFormats`, `daysOf`, `agoWords`). */
+import { DEFAULT_SETTINGS, dayOf, daysBetween, type DateFormat, type Day, type Settings, type TimeFormat } from "@panki/contracts";
 /**
  * What Video tracking does, said under it in the extension, where it's switched, and in Panki's Settings, where it's
  * shown: the same words in both, so the two read exactly alike.
@@ -201,26 +201,40 @@ export function hourSpanWords(hour: number): string {
   return half(from) === half(to) ? `${twelve(from)}–${twelve(to)} ${half(to)}` : `${hourOfDayWords(from)}–${hourOfDayWords(to)}`;
 }
 
+/** The zone this device is in, by its name in the time zone database: what an account's zone starts as (`App.tsx` writes it the first time the account opens Panki). */
+export const DEVICE_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/** The day an instant falls in on some calendar: the account's, from `daysOf`. */
+export type DayReader = (at: number) => Day;
+/**
+ * The account's days as every "yesterday" and "3 days ago" reads them: its day start in its zone (`dayOf`, the API's
+ * own). Its settings not known yet (the extension before they arrive), the day starts as an account's begins, in this
+ * device's zone, as the formats fall back.
+ */
+export function daysOf(settings: Pick<Settings, "dayStartHour" | "timeZone"> | null): DayReader {
+  const hour = settings?.dayStartHour ?? DEFAULT_SETTINGS.dayStartHour;
+  const zone = settings?.timeZone || DEVICE_ZONE;
+  return (at) => dayOf(at, hour, zone);
+}
+
 /**
  * How long ago a moment was, to end a sentence ("Finished just now"): "just now" under an hour,
- * "1 hour ago", "5 hours ago" under a day, then by the device's calendar "yesterday", "3 days ago" within the week,
- * and the date after ("on 10 October 2026").
+ * "1 hour ago", "5 hours ago" under a day, then by the account's days (`day`) "yesterday", "3 days ago" within the
+ * week, and the date after ("on 10 October 2026").
  */
-export function sinceWords(at: number, now: number): string {
+export function sinceWords(at: number, now: number, day: DayReader): string {
   const hours = Math.floor((now - at) / 3_600_000);
   if (hours < 1) return "just now";
   if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
-  const dayStart = (ms: number) => new Date(new Date(ms).toDateString()).getTime();
-  const days = Math.max(1, Math.round((dayStart(now) - dayStart(at)) / 86_400_000));
+  const days = Math.max(1, daysBetween(day(at), day(now)));
   if (days === 1) return "yesterday";
   if (days < 7) return `${days} days ago`;
   return `on ${dateWords(at)}`;
 }
 
-/** How long ago a moment was, by the device's calendar: "Today", "Yesterday", "3 days ago", then the date in words. */
-export function agoWords(at: number, now: number): string {
-  const dayStart = (ms: number) => new Date(new Date(ms).toDateString()).getTime();
-  const days = Math.round((dayStart(now) - dayStart(at)) / 86_400_000);
+/** How long ago a moment was, by the account's days (`day`): "Today", "Yesterday", "3 days ago", then the date in words. */
+export function agoWords(at: number, now: number, day: DayReader): string {
+  const days = daysBetween(day(at), day(now));
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;

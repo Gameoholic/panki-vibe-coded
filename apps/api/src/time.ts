@@ -3,9 +3,9 @@
  * lives on another zone. The zone comes from the environment and the maths is Intl alone, no library. The day an
  * instant falls in is the contracts' (`day.ts`), shared with the web.
  */
-import { dayOf, wallAt } from "@panki/contracts";
+import { dayOf, daysBetween, wallAt } from "@panki/contracts";
 
-export { dayOf };
+export { dayOf, daysBetween };
 
 const DAY = 86_400_000;
 
@@ -132,9 +132,4 @@ export function runsOf(sorted: readonly Day[], days: number): { from: Day; to: D
 /** The day `n` days on (or back, for a negative `n`). */
 export function addDays(day: Day, n: number): Day {
   return dayKey(Date.parse(`${day}T00:00:00Z`) + n * DAY);
-}
-
-/** How many days `to` is after `from`; negative when it's before. */
-export function daysBetween(from: Day, to: Day): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 }

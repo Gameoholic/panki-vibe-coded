@@ -83,7 +83,7 @@ import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
 import { rememberShape, shapeOf } from "../skeletonMemory";
-import { VIDEO_TRACKING_WHY, count, dateWords, durationWords, estimateWords, hourOfDayWords, sinceWords, tokenWords } from "../words";
+import { DEVICE_ZONE, VIDEO_TRACKING_WHY, count, dateWords, daysOf, durationWords, estimateWords, hourOfDayWords, sinceWords, tokenWords, type DayReader } from "../words";
 
 type Props = {
   settings: Settings;
@@ -205,9 +205,6 @@ const USAGE_WHAT: Record<UsageKind, ((used: UsageTotals) => string | null) | nul
   wordAudio: null,
 };
 
-/** The zone this device is in, by its name in the time zone database: what an account's zone starts as (`App.tsx` writes it the first time the account opens Panki). */
-export const DEVICE_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone;
-
 /**
  * The account's time zone as a choice: every zone the browser knows, written with spaces for underscores, this
  * device's noted. Each account's own, nothing Panki-wide. A zone saved that the browser doesn't list (an
@@ -226,9 +223,9 @@ const TRACKING_SHAPE = "tracking-devices";
  * · last sent 3 hours ago", "Video tracking · Off · never sent", in quiet words, no chip. Two
  * states alone: one that hasn't said yet, an extension not yet updated, reads Off.
  */
-function trackingWords(device: TrackingDevice, now: number): string {
+function trackingWords(device: TrackingDevice, now: number, day: DayReader): string {
   const state = device.videoTracking === true ? "On" : "Off";
-  const sent = device.lastSentAt === null ? "never sent" : `last sent ${sinceWords(device.lastSentAt, now)}`;
+  const sent = device.lastSentAt === null ? "never sent" : `last sent ${sinceWords(device.lastSentAt, now, day)}`;
   return `Video tracking · ${state} · ${sent}`;
 }
 
@@ -239,7 +236,7 @@ function trackingWords(device: TrackingDevice, now: number): string {
  * extension alone: the list is read-only, nothing here switches or stops one. The website's own sign-ins aren't in it. The rows are hidden on Panki
  * with the time they went, never destroyed; the watch time and Continue watching start over.
  */
-function DataTrackingPanel() {
+function DataTrackingPanel({ day }: { day: DayReader }) {
   const [history, setHistory] = useState<WatchHistory | null>(null);
   const [devices, setDevices] = useState<TrackingDevice[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -301,7 +298,7 @@ function DataTrackingPanel() {
                   {device.device}
                   <span className="row-sub">since {dateWords(device.createdAt)}</span>
                 </span>
-                <span className="kept-state">{trackingWords(device, Date.now())}</span>
+                <span className="kept-state">{trackingWords(device, Date.now(), day)}</span>
               </div>
             ))}
           </div>
@@ -1561,7 +1558,7 @@ export function SettingsView({
       {/* The Chrome extension, downloaded from here and kept up to date without a store. */}
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
-        <DataTrackingPanel />
+        <DataTrackingPanel day={daysOf(current)} />
       </div>
 
       <div className="settings-tab" hidden={shown !== "account"}>

@@ -20,7 +20,7 @@ import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { agoWords, clock, langOf, leftWords, sinceWords } from "@web/words";
+import { agoWords, clock, daysOf, langOf, leftWords, sinceWords, type DayReader } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
@@ -331,7 +331,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * where it was stopped, what's left and Resume, the next ones under it as the site's own kind of card, each opening
    * where it was stopped; × puts one away until it's watched again.
    */
-  function Shelf({ videos, max, onStale }: { videos: readonly ContinueVideo[]; max: number; onStale: () => void }) {
+  function Shelf({ videos, max, day, onStale }: { videos: readonly ContinueVideo[]; max: number; day: DayReader; onStale: () => void }) {
     const [gone, setGone] = useState<readonly string[]>([]);
     const [failure, setFailure] = useState<string | null>(null);
     const shown = videos.filter((v) => !gone.includes(v.videoId)).slice(0, max);
@@ -373,7 +373,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             </span>
             <span className="yc-sub">
               {first.channel ? <span lang={langOf(first.channel)}>{first.channel} · </span> : null}
-              Stopped at {clock(first.stoppedAtMs / 1000)} · {agoWords(first.lastAt, now)}
+              Stopped at {clock(first.stoppedAtMs / 1000)} · {agoWords(first.lastAt, now, day)}
             </span>
             <span className="yh-lead-left">{lead.left}</span>
             <a className="yh-resume" href={resumeAt(first)}>
@@ -470,7 +470,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * Watch later or playlists: each the site's own kind of
    * card opening the video, × taking the save back. Kept on the account's Panki, so every browser signed in sees them.
    */
-  function SavedShelf({ videos }: { videos: readonly SavedVideo[] }) {
+  function SavedShelf({ videos, day }: { videos: readonly SavedVideo[]; day: DayReader }) {
     const [failure, setFailure] = useState<string | null>(null);
     const now = Date.now();
     return (
@@ -487,7 +487,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             title={v.title}
             channel={v.channel}
             href={youtubeUrl({ videoId: v.videoId, seconds: null })}
-            sub={`Saved · ${agoWords(v.savedAt, now)}`}
+            sub={`Saved · ${agoWords(v.savedAt, now, day)}`}
             progress={null}
             lengthMs={v.lengthMs}
             remove={{
@@ -508,7 +508,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
    * its start, its length in its picture's corner and when it was finished under it. Nothing takes one out: it's a
    * history, like the site's own; the Finished chip under a video says it isn't finished.
    */
-  function RecentShelf({ videos }: { videos: readonly FinishedVideo[] }) {
+  function RecentShelf({ videos, day }: { videos: readonly FinishedVideo[]; day: DayReader }) {
     const now = Date.now();
     return (
       <RowShelf
@@ -523,7 +523,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             title={v.title}
             channel={v.channel}
             href={youtubeUrl({ videoId: v.videoId, seconds: null })}
-            sub={`Finished ${sinceWords(v.finishedAt, now)}`}
+            sub={`Finished ${sinceWords(v.finishedAt, now, day)}`}
             progress={null}
             lengthMs={v.lengthMs > 0 ? v.lengthMs : null}
           />
@@ -602,12 +602,12 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
             {/* Continue watching and Saved for later side by side, half the row each; one switched off leaves the other the row. Empty, each still stands. */}
             {on.homeShelf || on.homeSaved ? (
               <div className="yh-shelves">
-                {on.homeShelf ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
-                {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
+                {on.homeShelf ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} day={daysOf(now.home.settings)} onStale={() => void load()} /> : null}
+                {on.homeSaved ? <SavedShelf videos={now.home.saved} day={daysOf(now.home.settings)} /> : null}
               </div>
             ) : null}
             {/* Under them, the row of its own: the videos finished. */}
-            {on.homeRecent ? <RecentShelf videos={now.home.stats.watching.finished} /> : null}
+            {on.homeRecent ? <RecentShelf videos={now.home.stats.watching.finished} day={daysOf(now.home.settings)} /> : null}
           </>
         )}
       </div>

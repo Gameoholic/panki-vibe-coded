@@ -1,4 +1,4 @@
-/** @panki The account's day, its one home for the API and the web: the zone's wall clock (`wallAt`) and the day an instant falls in (`dayOf`). Intl alone, no library. */
+/** @panki The account's day, its one home for the API and the web: the zone's wall clock (`wallAt`), the day an instant falls in (`dayOf`), days apart (`daysBetween`). Intl alone, no library. */
 import type { Day } from "./history";
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -28,4 +28,9 @@ export function wallAt(instant: number, timeZone: string): number {
  */
 export function dayOf(instant: number, hour: number, timeZone: string): Day {
   return new Date(wallAt(instant, timeZone) - hour * 3_600_000).toISOString().slice(0, 10);
+}
+
+/** How many days `to` is after `from`; negative when it's before. */
+export function daysBetween(from: Day, to: Day): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }

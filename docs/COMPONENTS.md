@@ -136,7 +136,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
 | widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); Today, its facts and every streak's checks. |
-| words | `words.ts` | How things are said in words, every date and time in the account's formats (`count`, `listWords`, `clock`, `dateWords`, `dayWords`, `hourSpanWords`, `setFormats`, `agoWords`). |
+| words | `words.ts` | How things are said in words, dates and times in the account's formats and days (`count`, `clock`, `dateWords`, `dayWords`, `setFormats`, `daysOf`, `agoWords`). |
 
 ## Contracts
 
@@ -154,7 +154,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | card | `card.ts` | A card: its values, examples, where each value came from, its hold and flag, what its capture knew (`Card`, `NewCard`, `CardExample`, `ValueSource`, `CaptureFacts`). |
 | cardLayout | `cardLayout.ts` | A type's layout as it stands, filled out from its fields, and the moves on it (`layoutOf`, `defaultLayout`, `examplesToColumn`, `moveInColumn`). |
 | conversation | `conversation.ts` | A place's Conversation, main and a branch per field, as commits (`Conversation`, `Commit`, `branchOf`, `mainRuns`, `historyOf`). Never a second record of one. |
-| day | `day.ts` | The account's day, its one home for the API and the web: the zone's wall clock (`wallAt`) and the day an instant falls in (`dayOf`). Intl alone, no library. |
+| day | `day.ts` | The account's day, its one home for the API and the web: the zone's wall clock (`wallAt`), the day an instant falls in (`dayOf`), days apart (`daysBetween`). Intl alone, no library. |
 | deck | `deck.ts` | A deck, and its own settings with their defaults (`Deck`, `NewDeck`, `DeckSettings`, `DEFAULT_DECK_SETTINGS`). |
 | dictionary | `dictionary.ts` | A dictionary file as both ends read it out of its zip, and one kept on Panki (`openDictionary`, `DictionaryIndex`, `providesOf`, `ServerDictionary`). |
 | dictionaryRows | `dictionaryRows.ts` | A dictionary's rows, read the same by both ends, and the kinds of data it provides (`termRowOf`, `metaRowOf`, `tagRowOf`, `Provides`, `DATA_KIND_NAMES`). |
