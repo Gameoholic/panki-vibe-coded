@@ -449,6 +449,9 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
         }
         why={VIDEO_TRACKING_WHY}
       />
+      {door && finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
+      {/* After the rows, never between them: the question hangs from the switch wherever it stands in the panel, and
+          between two rows it would part them, taking their dividing line with it. */}
       {asking ? (
         <Ask
           idPrefix="video-tracking-off"
@@ -480,7 +483,6 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
           onGo={() => void change(false)}
         />
       ) : null}
-      {door && finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
       {failure ? (
         <p className="form-failure" role="alert">
           {failure}
