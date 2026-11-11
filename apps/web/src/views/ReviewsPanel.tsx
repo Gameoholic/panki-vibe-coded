@@ -66,8 +66,8 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
       />
       <Setting
         id="newPlace"
-        label="In a review, new cards come"
-        control={<Segmented idPrefix="setting-new-place" label="In a review, new cards come" options={NEW_PLACE_OPTIONS} value={current.newPlace} onChange={(newPlace) => patch({ newPlace })} />}
+        label="During a review, new cards come"
+        control={<Segmented idPrefix="setting-new-place" label="During a review, new cards come" options={NEW_PLACE_OPTIONS} value={current.newPlace} onChange={(newPlace) => patch({ newPlace })} />}
       />
       <Setting
         id="newOrder"
