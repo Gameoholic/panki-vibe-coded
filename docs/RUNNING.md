@@ -18,7 +18,7 @@ Run, build, deploy, load the extension; where the data lives.
 | `pnpm user:admin <name> [off]` | Make an account an admin, or take it back. |
 | `pnpm space` | Disk used per account (video, audio, images, the rest) and what's left. |
 | `pnpm backup [dir]` | Snapshot all the data, safe while the API runs (Backing up). |
-| `pnpm pace:backtest <panki.sqlite>` | How far off a review's time left would have been over the past 30 days' sessions, each way of working it out side by side; read-only, run on a copy. |
+| `pnpm pace:backtest <panki.sqlite>` | How far off a review's time left would have been over the past 30 days' sessions, each way of working it out side by side, a card's clips among them; read-only, run on a copy (a backup's), its full path. |
 | `pnpm icons` | Redraw the app icons from the mark. |
 | `pnpm docs:check` | Fails when what loads every session (the memory index at `PANKI_MEMORY_INDEX` included) passes 40 KB, or a doc under `docs/` 60 KB. |
 | `pnpm docs:components` | Write `docs/COMPONENTS.md` from each piece's header comment. |
