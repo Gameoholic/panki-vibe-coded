@@ -44,8 +44,6 @@ Before sharing with public:
 
 
 
-AI FEATURE TOUCH UP Like for cusotmsaziito nopf prompts? only the admi ncan customzie the prompt itself. users will be able to attach "user suffixes" to the prompts that will be sent on every prompt 9adn will also apepar int he conversation, it's like a "message" to send along with the prompt, a user style/preference).
-
 https://www.youtube.com/watch?v=JfvEIHYU24o
 https://www.youtube.com/watch?v=5AtlfA_wYW8
 https://sluka.app/

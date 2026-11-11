@@ -3,7 +3,9 @@ import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNo
 import {
   FRAME_UNITS,
   GOAL_KINDS,
+  GOAL_KIND_IDS,
   STAT_WINDOWS,
+  STREAKS_MAX,
   STREAK_PERIODS,
   goalSaysWords,
   nearestGroup,
@@ -50,12 +52,13 @@ import { readTilePick, writeTilePick } from "./tilePicks";
 import { count, dayWords, durationWords, fullDayWords, hourOfDayWords, hourSpanWords, langOf, leftWords, monthWords, monthYearWords, shortDayWords } from "./words";
 
 /**
- * The widgets, one registry: every tile the Stats tab shows (all of them, in this order) and the home can carry
+ * The widgets, one registry: every tile Stats → Overview shows (all of them, in this order) and the home can carry
  * (`home`). Each says its name, the windows it covers and its default, the views of its breakdown, and how it draws
  * itself from the stats; every one is drawn in the one anatomy (`Tile`). A new widget is one entry here and nothing
  * else; the home's layout keeps ids, so an id is never renamed: Activity is `heat` (Days studied, `days`, is in it),
  * Time watching `watched` (Watch time, `watch-time`, is in it), Time studying `time` (Time reviewing before Round 7). The streaks are a family of their
- * own: one tile each (`StreakTile`), standing where `streak` stands.
+ * own: one tile each (`StreakTile`), on Stats → Streaks and wherever the home puts them; `streak` is the one Streak
+ * tile's id from before streaks were many, which a home's layout may still hold (`layout.ts` → `fitStreaks`).
  */
 export type WidgetId =
   | "due"
@@ -135,9 +138,6 @@ type TileEntry = {
   noViewsOn?: readonly StatWindow[];
   make: (input: TileInput) => TileOut;
 };
-/** Where the streaks stand: one tile each, drawn by `StreakTile`; on the home each is an item of its own (`streakTileId`). */
-type StreaksEntry = { id: "streak"; name: string; home: false; wide?: undefined; streaks: true };
-export type WidgetEntry = TileEntry | StreaksEntry;
 
 // ---------- Words ----------
 
@@ -508,7 +508,7 @@ function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale
 
 // ---------- The registry ----------
 
-export const WIDGETS: readonly WidgetEntry[] = [
+export const WIDGETS: readonly TileEntry[] = [
   {
     id: "due",
     name: "Due now",
@@ -539,7 +539,6 @@ export const WIDGETS: readonly WidgetEntry[] = [
       };
     },
   },
-  { id: "streak", name: "Streaks", home: false, streaks: true },
   {
     id: "heat",
     name: "Activity",
@@ -1031,7 +1030,7 @@ export const WIDGETS: readonly WidgetEntry[] = [
 ];
 
 /** The entry an id names; the registry is the one list, so a stored id that names nothing is simply not there. */
-export const widgetOf = (id: string): WidgetEntry | undefined => WIDGETS.find((w) => w.id === id);
+export const widgetOf = (id: string): TileEntry | undefined => WIDGETS.find((w) => w.id === id);
 
 // ---------- The streaks ----------
 
@@ -1327,27 +1326,125 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   );
 }
 
-/**
- * A streak's own settings, hanging from its tile's settings button as a question hangs from its button: the streak's
- * editor for that streak alone, saved a moment after each change. Kept while the tile stands once it's been opened, so
- * a change made just before it closes still goes up.
- */
-function StreakPanel({ rule, ctx, open, anchor, onClose }: { rule: StreakRule; ctx: WidgetContext; open: boolean; anchor: RefObject<HTMLButtonElement | null>; onClose: () => void }) {
+/** The panel a streak is made or changed in, hanging from the button that opened it as a question hangs from its button. */
+function StreakPanelFrame({ anchor, open, onClose, title, label, failure, children }: { anchor: RefObject<HTMLButtonElement | null>; open: boolean; onClose: () => void; title: string; label: string; failure: string | null; children: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
-  const [current, patch, failure] = useSavedSoon<{ streaks: StreakRule[] }>({ streaks: ctx.settings.streaks }, async (change) => ({ streaks: (await ctx.onSettings(change)).streaks }));
   useAnchored(anchor, panel, open, undefined, "auto");
   useDismiss(panel, open, onClose, anchor);
-  const streak = current.streaks.find((s) => s.id === rule.id) ?? rule;
   return (
-    <div ref={panel} className="menu tile-panel" role="dialog" aria-label={`${streakNameOf(streak)}: settings`} hidden={!open} data-no-drag>
-      <p className="panel-title">Streak</p>
+    <div ref={panel} className="menu tile-panel" role="dialog" aria-label={label} hidden={!open} data-no-drag>
+      <p className="panel-title">{title}</p>
       {failure ? (
         <p className="form-failure" role="alert">
           {failure}
         </p>
       ) : null}
-      <StreakEditor idPrefix={`tile-streak-${rule.id}`} streak={streak} anchored onChange={(change) => patch({ streaks: current.streaks.map((s) => (s.id === rule.id ? { ...s, ...change } : s)) })} />
+      {children}
     </div>
+  );
+}
+
+type SavedStreaks = { streaks: StreakRule[]; pillStreak: Settings["pillStreak"] };
+
+/**
+ * A streak's own settings, hanging from its tile's settings button: the streak's editor for that streak alone, saved a
+ * moment after each change, and Delete asking first (not for the last streak). Kept while the tile stands once it's
+ * been opened, so a change made just before it closes still goes up. What it sends is the account's streaks as they
+ * stand with this one's change, so a streak made or changed since it opened is never sent back as it was.
+ */
+function StreakPanel({ rule, ctx, open, anchor, onClose }: { rule: StreakRule; ctx: WidgetContext; open: boolean; anchor: RefObject<HTMLButtonElement | null>; onClose: () => void }) {
+  const [current, patch, failure] = useSavedSoon<SavedStreaks>({ streaks: ctx.settings.streaks, pillStreak: ctx.settings.pillStreak }, async (change) => {
+    const saved = await ctx.onSettings(change);
+    return { streaks: saved.streaks, pillStreak: saved.pillStreak };
+  });
+  const [asking, setAsking] = useState(false);
+  const deleteAt = useRef<HTMLButtonElement>(null);
+  const streak = current.streaks.find((s) => s.id === rule.id) ?? rule;
+  const name = streakNameOf(streak);
+  const streaks = ctx.settings.streaks;
+  return (
+    <StreakPanelFrame anchor={anchor} open={open} onClose={onClose} title="Streak" label={`${name}: settings`} failure={failure}>
+      <StreakEditor idPrefix={`tile-streak-${rule.id}`} streak={streak} anchored onChange={(change) => patch({ streaks: streaks.map((s) => (s.id === rule.id ? { ...streak, ...change } : s)) })} />
+      <div className="tile-panel-foot">
+        <Button ref={deleteAt} id={`tile-streak-${rule.id}-delete`} className="is-danger" aria-pressed={asking} aria-expanded={asking} disabled={streaks.length <= 1} onClick={() => setAsking(!asking)}>
+          <Icon name="trash" />
+          Delete
+        </Button>
+        {asking ? (
+          <Ask
+            idPrefix={`tile-streak-${rule.id}-delete`}
+            anchor={deleteAt}
+            question={`Delete the streak “${name}”?`}
+            go={{ words: "Delete", busy: "Deleting…" }}
+            busy={false}
+            failure={null}
+            onKeep={() => setAsking(false)}
+            onGo={() => {
+              setAsking(false);
+              onClose();
+              patch({ streaks: streaks.filter((s) => s.id !== rule.id), ...(ctx.settings.pillStreak === rule.id ? { pillStreak: null } : {}) });
+            }}
+          />
+        ) : null}
+      </div>
+    </StreakPanelFrame>
+  );
+}
+
+/** A streak not yet made: what the editor opens on, a daily streak counting the whole history with the first condition at its start. */
+function freshStreak(): StreakRule {
+  const kind = GOAL_KIND_IDS[0];
+  return { id: crypto.randomUUID(), name: "New streak", per: "day", countFrom: "all", groups: [[{ kind, n: GOAL_KINDS[kind].start }]] };
+}
+
+/** A new streak's editor, hanging from the dashed tile: nothing is made until Create, and backing out leaves nothing behind. */
+function NewStreakPanel({ ctx, anchor, onClose }: { ctx: WidgetContext; anchor: RefObject<HTMLButtonElement | null>; onClose: () => void }) {
+  const [draft, setDraft] = useState(freshStreak);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  async function create() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      await ctx.onSettings({ streaks: [...ctx.settings.streaks, draft] });
+      onClose();
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Couldn't make the streak.");
+      setBusy(false);
+    }
+  }
+  return (
+    <StreakPanelFrame anchor={anchor} open onClose={onClose} title="New streak" label="New streak" failure={failure}>
+      <StreakEditor idPrefix="tile-streak-new" streak={draft} anchored disabled={busy} onChange={(change) => setDraft((d) => ({ ...d, ...change }))} />
+      <div className="tile-panel-foot">
+        <Button id="tile-streak-new-cancel" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button id="tile-streak-new-create" variant="primary" disabled={busy} onClick={() => void create()}>
+          <Icon name="add" />
+          {busy ? "Creating…" : "Create"}
+        </Button>
+      </div>
+    </StreakPanelFrame>
+  );
+}
+
+/**
+ * The dashed tile after the streaks on Stats → Streaks: pressed, a new streak's editor hangs from it. Greyed while the
+ * account has as many streaks as it may, and as its own shape while the settings load.
+ */
+export function NewStreakTile({ ctx }: { ctx: WidgetContext | null }) {
+  const [open, setOpen] = useState(false);
+  const at = useRef<HTMLButtonElement>(null);
+  const full = ctx !== null && ctx.settings.streaks.length >= STREAKS_MAX;
+  return (
+    <>
+      <Button ref={at} id="tile-streak-new" className="tile-new" aria-expanded={open} disabled={ctx === null || full} onClick={() => setOpen(!open)}>
+        <Icon name="add" />
+        New streak
+      </Button>
+      {ctx && open ? <NewStreakPanel ctx={ctx} anchor={at} onClose={() => setOpen(false)} /> : null}
+    </>
   );
 }
 

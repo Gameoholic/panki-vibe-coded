@@ -1,56 +1,34 @@
-import { useEffect, useState } from "react";
-import type { Deck, Settings, SettingsUpdate, SrsType, Stats } from "@panki/contracts";
-import { api } from "../api";
+import { useState } from "react";
+import type { Deck, Settings, SettingsUpdate, SrsType } from "@panki/contracts";
 import { Board } from "../components/Board";
 import { Button } from "../components/Button";
+import { useStats } from "../hooks/useStats";
 import type { WidgetContext } from "../widgets";
 
 type Props = {
   decks: Deck[];
   srsTypes: SrsType[];
   settings: Settings;
-  /** A change to the settings from a tile (a streak edited beside it), saved; the stats are asked for again after it. */
+  /** A change to the settings from a tile, saved; the stats are asked for again after it. */
   onSettings: (patch: SettingsUpdate) => Promise<Settings>;
 };
 
-/** The Stats tab: every widget, for all decks or one, on the same board the home has. Nothing here is arranged: the page is fixed. */
+/**
+ * Stats → Overview: every tile but the streaks' (Stats → Streaks), for all decks or one, on the same board the home has.
+ * Nothing here is arranged: the page is fixed.
+ */
 export function StatsView({ decks, srsTypes, settings, onSettings }: Props) {
   const [deckId, setDeckId] = useState<string | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [failure, setFailure] = useState<string | null>(null);
-  /** Turned to ask for the same scope again: a tile changed what the stats are made of (a video put away). */
-  const [turn, setTurn] = useState(0);
-
-  // The last stats stay on screen, dimmed, while the next scope loads: no empty flash between two sets of numbers.
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setFailure(null);
-    api
-      .stats(deckId)
-      .then((next) => {
-        if (!cancelled) setStats(next);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setFailure(e instanceof Error ? e.message : "Couldn't load your stats.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [deckId, turn]);
+  const { stats, loading, failure, refresh } = useStats(deckId);
 
   const ctx: WidgetContext = {
     decks,
     srsTypes,
     settings,
-    onStale: () => setTurn((n) => n + 1),
+    onStale: refresh,
     onSettings: async (patch) => {
       const saved = await onSettings(patch);
-      setTurn((n) => n + 1);
+      refresh();
       return saved;
     },
   };

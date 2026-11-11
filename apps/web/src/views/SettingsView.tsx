@@ -75,7 +75,7 @@ import { AiTemplatesTab } from "./AiTemplatesView";
 import type { SaveStatus } from "./SrsTypeView";
 import { KeysPanels } from "./KeysSettings";
 import { ReviewsPanel } from "./ReviewsPanel";
-import { ReminderPanel, StreaksPanel } from "./StreaksPanel";
+import { ReminderPanel } from "./ReminderPanel";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
@@ -1510,7 +1510,6 @@ export function SettingsView({
           />
         </section>
 
-        <StreaksPanel current={current} patch={patch} />
         <ReminderPanel current={current} patch={patch} />
 
         <ReviewsPanel current={current} patch={patch} />

@@ -9,7 +9,7 @@ import type { Bind } from "../keys";
 import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
 import { isDoorId, isStreakTile, type BoardItemId, type BoardLayout, type DoorId, type TileItemId } from "../layout";
-import { StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext } from "../widgets";
+import { NewStreakTile, StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext } from "../widgets";
 
 /** One of the home's doors, as the home describes it; the Board draws it. */
 export type DoorSpec = {
@@ -43,8 +43,10 @@ type Props = {
   ctx: WidgetContext | null;
   /** The numbers on screen are the last ones while the next load. */
   stale?: boolean;
-  /** Given, the board is the home: doors and chosen tiles, arranged by hand. Without it, it is every tile, as the Stats tab shows them. */
+  /** Given, the board is the home: doors and chosen tiles, arranged by hand. Without it, it is every tile, as Stats → Overview shows them. */
   home?: HomeBoard;
+  /** Stats → Streaks: every streak's tile, then the dashed tile a new one is made from; greyed while Streaks is Off. */
+  streaks?: boolean;
 };
 
 /** How long a still press takes to start the arranging, and to lift a tile once it is (a pull lifts it sooner). */
@@ -75,13 +77,14 @@ function tileName(id: TileItemId, settings: Settings | null): string | null {
 }
 
 /**
- * The board: three tiles to a row on a PC, one on the phone. On the Stats tab it is every tile. On the home it is the
+ * The board: three tiles to a row on a PC, one on the phone. On Stats → Overview it is every tile but the streaks', on
+ * Stats → Streaks every streak's and the dashed one that makes a new one. On the home it is the
  * doors and the tiles this device was set up with, arranged by hand: a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
  * and let go on another to trade places with it, a × puts a tile away, the dashed tile at the end brings one back,
  * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on. Streaks Off takes every
- * streak's tile off the board, wherever it stands.
+ * streak's tile off the home, and greys them on Stats → Streaks.
  */
-export function Board({ stats, ctx, stale = false, home }: Props) {
+export function Board({ stats, ctx, stale = false, home, streaks = false }: Props) {
   const arranging = home?.arranging ?? false;
   const endArranging = home?.onArranging;
   const settings = ctx?.settings ?? null;
@@ -132,8 +135,8 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [arranging, endArranging]);
 
-  // How many streaks there are, for the Stats tab's shells next time the settings are still on their way.
-  const streakCount = settings?.streaksOn ? settings.streaks.length : settings ? 0 : null;
+  // How many streaks there are, for Stats → Streaks' shells next time the settings are still on their way.
+  const streakCount = settings ? settings.streaks.length : null;
   useEffect(() => {
     if (streakCount !== null) rememberShape(STREAK_TILES_SHAPE, streakCount);
   }, [streakCount]);
@@ -177,10 +180,10 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
       </Button>
     ) : undefined;
 
-  /** A streak's tile, while Streaks is on and the streak is there; on Stats, its shell while the settings load. */
+  /** A streak's tile while the streak is there (on the home, while Streaks is on too); on Stats, its shell while the settings load. */
   const streakTile = (id: TileItemId, streakId: string | null): ReactNode => {
     const rule = streakId === null ? undefined : settings?.streaks.find((s) => s.id === streakId);
-    if (settings && (!streaksOn || !rule)) return null;
+    if (settings && (!rule || (!streaksOn && !streaks))) return null;
     const state = stats?.streaks.find((s) => s.id === streakId);
     return (
       <StreakTile
@@ -204,6 +207,15 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
     return name === null || (isStreakTile(id) && !streaksOn) ? [] : [{ id, name }];
   });
   const { className: dragClass, ...rootProps } = drag.rootProps;
+  if (streaks) {
+    const off = settings !== null && !streaksOn;
+    return (
+      <div className={`board ${stale ? "is-stale" : ""} ${off ? "is-off" : ""}`.trim()} aria-label="Streaks" aria-busy={stale} inert={off}>
+        {settings ? settings.streaks.map((s) => streakTile(streakTileId(s.id), s.id)) : Array.from({ length: shapeOf(STREAK_TILES_SHAPE, 1) }, (_, i) => streakTile(streakTileId(`shell-${i}`), null))}
+        <NewStreakTile ctx={ctx} />
+      </div>
+    );
+  }
   return (
     <div {...rootProps} className={`board ${arranging ? "is-arranging" : ""} ${stale ? "is-stale" : ""} ${dragClass}`.trim()} aria-label={home ? "Home" : "Stats"} aria-busy={stale}>
       {items.map((id) => {
@@ -214,12 +226,6 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
         if (isStreakTile(id)) return streakTile(id, streakIdOfTile(id));
         const entry = widgetOf(id);
         if (!entry) return null;
-        if ("streaks" in entry) {
-          // On Stats, every streak's tile stands here; on the home each is an item of its own.
-          if (home) return null;
-          if (settings) return streaksOn ? settings.streaks.map((s) => streakTile(streakTileId(s.id), s.id)) : null;
-          return Array.from({ length: shapeOf(STREAK_TILES_SHAPE, 1) }, (_, i) => streakTile(streakTileId(`shell-${i}`), null));
-        }
         return <Tile key={entry.id} entry={entry} stats={stats} ctx={ctx} className={drag.tileClass(entry.id)} style={drag.tileStyle(entry.id)} overlay={overlayOf(entry.id, entry.name)} />;
       })}
       {/* Where a tile put away comes back from. */}

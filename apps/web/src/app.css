@@ -4346,24 +4346,7 @@ mark.sub-blur {
   font-size: 15px;
   font-weight: 800;
 }
-/* Settings → General → Streaks (views/StreaksPanel.tsx): each streak a part of its own under a line, its name and
-   Delete heading it; the editor (components/StreakEditor.tsx) the same here and hanging from the streak's tile. */
-.streaks-panel > .setting + .panel-section {
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-.streak-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.streak-head .panel-subtitle {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* A streak's editor (components/StreakEditor.tsx), hanging from its tile or from the dashed tile a new one is made from. */
 .streak-edit {
   container-type: inline-size;
   display: grid;
@@ -7758,6 +7741,51 @@ mark.sub-blur {
 }
 .tile-panel .panel-title {
   margin: 0;
+}
+/* The panel's foot under a hairline: a streak's Delete; a new one's Cancel and Create, at the right. */
+.tile-panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+/* Stats → Streaks' first line: Streaks and its On / Off, where Overview has its decks. */
+.streaks-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* Streaks Off: every streak and the dashed tile greyed, nothing in them pressable (`inert`). */
+.board.is-off {
+  opacity: 0.5;
+}
+/* The dashed tile after the streaks: hollow, a new streak's words in the middle, as tall as the row it stands in. */
+.btn.tile-new {
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-height: 140px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+.btn.tile-new .icon {
+  width: 22px;
+  height: 22px;
+}
+@media (hover: hover) {
+  .btn.tile-new:not(:disabled):hover {
+    border-color: var(--accent);
+    color: var(--fg);
+  }
+}
+.btn.tile-new[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--fg);
 }
 /* Continue watching: each video the app's own video card (components/LinkView.tsx), filling the row, its × beside it. */
 .w-videos {

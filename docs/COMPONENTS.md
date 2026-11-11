@@ -100,6 +100,7 @@ Paths from `apps/web/src/`.
 | useSavedSoon | `hooks/useSavedSoon.ts` | A handful of settings that save themselves a moment after each change (`useSavedSoon`). |
 | useScreenStage | `hooks/useScreenStage.ts` | A review filling the screen, kept as its cards change and from one review to the next (`useScreenStage`, `ScreenStageContext`). Never a second way of filling it. |
 | useScrollEdges | `hooks/useScrollEdges.ts` | The fade and the bar `ScrollEdges` draws, worked out for a box (`useScrollEdges`, `BAR_STAYS_MS`); reach for `ScrollEdges`. |
+| useStats | `hooks/useStats.ts` | The stats for all decks or one, asked for again on demand, the last ones kept while the next load (`useStats`). |
 | useUndoable | `hooks/useUndoable.ts` | Something edited on screen that can be undone and redone, with Ctrl+Z (`useUndoable`). Never a second history. |
 
 ## One home each

@@ -55,7 +55,7 @@ import { count, setFormats } from "./words";
 import { ledger } from "./ledger";
 import { applyTheme, readTheme } from "./themes";
 import { SAVE_WORDS, type UnsavedGuard } from "./unsaved";
-import { parsePath, routePath, type DeckTab, type Route, type TypeTab } from "./routes";
+import { parsePath, routePath, type DeckTab, type Route, type StatsTab, type TypeTab } from "./routes";
 import { draftAction, draftTemplate, newTemplateName } from "./aiTemplateKinds";
 import { AddView } from "./views/AddView";
 import { AiActionView } from "./views/AiActionView";
@@ -74,7 +74,7 @@ import { SrsNewView } from "./views/SrsNewView";
 import { SrsTypeView, type SaveStatus } from "./views/SrsTypeView";
 import { SrsTypesView } from "./views/SrsTypesView";
 import { StatsView } from "./views/StatsView";
-import { STREAKS_SHAPE } from "./views/StreaksPanel";
+import { StreaksView, StreaksHead } from "./views/StreaksView";
 import { TypesView } from "./views/TypesView";
 import { TypeView } from "./views/TypeView";
 
@@ -87,6 +87,11 @@ const DECK_TABS: readonly { id: DeckTab; label: string; icon: IconName }[] = [
 const TYPE_TABS: readonly { id: TypeTab; label: string; icon: IconName }[] = [
   { id: "fields", label: "Fields", icon: "type" },
   { id: "layout", label: "Layout", icon: "edit" },
+];
+/** Stats: every tile, or the streaks. */
+const STATS_TABS: readonly { id: StatsTab; label: string; icon: IconName }[] = [
+  { id: "tiles", label: "Overview", icon: "stats" },
+  { id: "streaks", label: "Streaks", icon: "flame" },
 ];
 
 /** Where you are. Home is the hub; everything but Settings and Stats is reached through it. */
@@ -112,7 +117,7 @@ type Screen =
   /** A Panki AI action, the account's own or one of Panki's; `key` stays one through a new one's first Save, which gives it Panki's id. */
   | { kind: "aiAction"; action: KeptAction; isNew: boolean; key: string }
   | { kind: "admin" }
-  | { kind: "stats" };
+  | { kind: "stats"; tab: StatsTab };
 
 const HOME: Screen = { kind: "home" };
 /** Settings at its Panki AI tab, where the templates are listed: where a template's screens go back to. */
@@ -140,10 +145,9 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
 };
 /**
  * The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display,
- * General, Streaks, Reminder, Reviews: Streaks its switch, each streak's name, Streak type, Count from and Conditions as
- * many as this device last drew, and Add a streak), and a deck's settings (About, Reviews).
+ * General, Reminder, Reviews), and a deck's settings (About, Reviews).
  */
-const settingsRows = () => [2, 3, 2 + 4 * shapeOf(STREAKS_SHAPE, 1), 4, 7];
+const SETTINGS_ROWS = [2, 3, 4, 7] as const;
 const DECK_SETTINGS_ROWS = [3, 2] as const;
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
 const SKELETON_ROWS_MAX = 12;
@@ -236,7 +240,7 @@ type TabId = "home" | "settings" | "stats" | "admin";
 const TABS: readonly { id: TabId; label: string; to: Screen; admin?: true }[] = [
   { id: "home", label: "Home", to: HOME },
   { id: "settings", label: "Settings", to: { kind: "settings" } },
-  { id: "stats", label: "Stats", to: { kind: "stats" } },
+  { id: "stats", label: "Stats", to: { kind: "stats", tab: "tiles" } },
   { id: "admin", label: "Admin", to: { kind: "admin" }, admin: true },
 ];
 /** The tab a screen lights: its own for the fixed places, Home for everything behind the hub. */
@@ -1063,11 +1067,8 @@ export function App() {
       case "srs":
       case "srsNew":
         return <Skeleton shape="rows" count={rowsOf("rows:srs", 4)} />;
-      case "stats":
-        // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
-        return <Board stats={null} ctx={null} />;
       case "settings":
-        return <Skeleton shape="panels" tabs parts={settingsRows()} />;
+        return <Skeleton shape="panels" tabs parts={SETTINGS_ROWS} />;
       case "admin":
         return <Skeleton shape="panels" tabs />;
       default:
@@ -1089,16 +1090,33 @@ export function App() {
       </>
     );
   }
+  /**
+   * Stats: its tabs over the real board's own shells, every tile's frame and title at the height this device remembers
+   * of it; on Streaks, its switch's row over the streaks' tiles as many as this device last drew, and the new one's.
+   */
+  function statsLoading(tab: StatsTab): ReactNode {
+    return (
+      <>
+        <Segmented idPrefix="stats-tab" label="Stats" options={STATS_TABS} value={tab} disabled onChange={() => undefined} />
+        {tab === "streaks" ? <StreaksHead /> : null}
+        <Board stats={null} ctx={null} streaks={tab === "streaks"} />
+      </>
+    );
+  }
   const loading =
     arriving !== null
-      ? arriving.kind === "deck"
+      ? arriving.kind === "stats"
+        ? statsLoading(arriving.tab)
+        : arriving.kind === "deck"
         ? deckLoading(arriving.id, null, arriving.tab)
         : arriving.kind === "review"
           ? reviewLoading(arriving.id, null)
           : arriving.kind === "type" && arriving.id !== null && arriving.tab === "layout"
             ? layoutLoading(arriving.id, true)
             : plainLoading(arriving.kind)
-      : screen.kind === "deck"
+      : screen.kind === "stats"
+        ? statsLoading(screen.tab)
+        : screen.kind === "deck"
         ? deckLoading(screen.deck.id, screen.deck, screen.tab)
         : screen.kind === "review"
           ? reviewLoading(screen.deck.id, screen.deck, screen.begin)
@@ -1404,7 +1422,19 @@ export function App() {
           );
         break;
       case "stats":
-        body = decks === null || srsTypes === null || settings === null ? loading : <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />;
+        body =
+          decks === null || srsTypes === null || settings === null ? (
+            loading
+          ) : (
+            <>
+              <Segmented idPrefix="stats-tab" label="Stats" options={STATS_TABS} value={screen.tab} onChange={(tab) => go({ kind: "stats", tab })} />
+              {screen.tab === "streaks" ? (
+                <StreaksView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />
+              ) : (
+                <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />
+              )}
+            </>
+          );
         break;
     }
   }

@@ -9,6 +9,8 @@ import { ActionPlaceId, AiPlaceId } from "@panki/contracts";
 export type DeckTab = "cards" | "settings";
 /** Inside a card type: its fields, or how its cards look in a review. */
 export type TypeTab = "fields" | "layout";
+/** Stats: every tile, or the streaks, made and changed there. */
+export type StatsTab = "tiles" | "streaks";
 export type Route =
   | { kind: "home" }
   | { kind: "decks" }
@@ -32,7 +34,7 @@ export type Route =
   | { kind: "aiAction"; id: null; place: ActionPlaceId }
   /** What everyone shares and an admin alone changes: its own screen, at the bar's far end. */
   | { kind: "admin" }
-  | { kind: "stats" };
+  | { kind: "stats"; tab: StatsTab };
 
 const NEW = "new";
 /** Where Panki AI's templates live in the addresses: under Settings, whose Panki AI tab lists them. */
@@ -85,7 +87,7 @@ export function routePath(route: Route): string {
     case "admin":
       return "/admin";
     case "stats":
-      return "/stats";
+      return route.tab === "streaks" ? "/stats/streaks" : "/stats";
   }
 }
 
@@ -127,7 +129,7 @@ export function parsePath(path: string): Route {
     case "admin":
       return { kind: "admin" };
     case "stats":
-      return { kind: "stats" };
+      return { kind: "stats", tab: id === "streaks" ? "streaks" : "tiles" };
     default:
       return { kind: "home" };
   }
