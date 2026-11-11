@@ -21,6 +21,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-25: Add as an additional example.
 - 2026-10-26: Undo; today's cards before a review; other examples on the review card.
 - 2026-11-07: Flag.
+- 2026-11-11: Streak on the pill picked in the extension, under the pill's parts, no longer in Settings → Streaks.
 - 2026-11-11: a review's time left by its counts, the finish time on hover or press, and the time on every Start.
 - 2026-11-11: Blur the front, Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
 

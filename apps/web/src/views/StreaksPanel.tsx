@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { GOAL_KINDS, GOAL_KIND_IDS, STREAKS_MAX, streakNameOf, type Settings, type StreakRule } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
-import { Dropdown } from "../components/Dropdown";
 import { Icon } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { Setting } from "../components/Setting";
@@ -50,8 +49,9 @@ function StreakSection({ streak, only, disabled, onChange, onDelete }: { streak:
 }
 
 /**
- * Settings → General → Streaks: Streaks On / Off heading it and greying the rest while off; the streak the YouTube pill
- * shows; each streak a section of its own; Add a streak, the streak just added scrolled to.
+ * Settings → General → Streaks: Streaks On / Off heading it and greying the rest while off; each streak a section of
+ * its own; Add a streak, the streak just added scrolled to. Which streak the YouTube pill says is picked in the
+ * extension, under the pill's parts.
  */
 export function StreaksPanel({ current, patch }: Panel) {
   const on = current.streaksOn;
@@ -65,8 +65,6 @@ export function StreaksPanel({ current, patch }: Panel) {
     rememberShape(STREAKS_SHAPE, streaks.length);
   }, [streaks.length]);
 
-  // The pill's streak: one that's gone, or none picked, is the first.
-  const pill = streaks.find((s) => s.id === current.pillStreak)?.id ?? streaks[0]?.id ?? "";
   function change(id: string, next: Partial<StreakRule>) {
     patch({ streaks: streaks.map((s) => (s.id === id ? { ...s, ...next } : s)) });
   }
@@ -82,11 +80,6 @@ export function StreaksPanel({ current, patch }: Panel) {
         Streaks
       </h2>
       <Setting id="streaksOn" label="Streaks" control={<Toggle id="setting-streaks-on" says={{ on: "On", off: "Off" }} on={on} onChange={(streaksOn) => patch({ streaksOn })} />} />
-      <Setting
-        id="pillStreak"
-        label="Streak on the YouTube pill"
-        control={<Dropdown id="setting-pill-streak" label="Streak on the YouTube pill" options={streaks.map((s) => ({ id: s.id, label: streakNameOf(s) }))} value={pill} disabled={!on} onChange={(pillStreak) => patch({ pillStreak })} />}
-      />
       {streaks.map((s) => (
         <StreakSection
           key={s.id}

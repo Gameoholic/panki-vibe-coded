@@ -524,7 +524,7 @@ export const Settings = z.object({
    * change re-reads the whole past. One streak to begin with, a card answered a day, a review or a new card (`DEFAULT_STREAKS`).
    */
   streaks: StreakRules,
-  /** **Streak on the YouTube pill**: the id of the streak the pill shows; null, or one that's gone, is the first. */
+  /** **Streak on the pill**, picked in the extension under the pill's parts: the id of the streak the pill shows; null, or one that's gone, is the first. */
   pillStreak: StreakId.nullable(),
   /**
    * **Reminder** (Settings → General → Reminder): a streak with a run to lose whose day doesn't count yet is said to be

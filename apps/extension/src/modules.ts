@@ -98,7 +98,7 @@ export const PILL_PARTS: Record<PillPart, string> = {
   due: "Cards due",
   reviews: "Reviews today",
   reviewTime: "Time studying today",
-  // The streak picked for the pill in Panki's Settings (Streak on the YouTube pill), whatever its goals.
+  // The streak picked for the pill under its parts (Streak on the pill, the account's), whatever its goals.
   streak: "Streak",
 };
 export const PILL_PART_IDS = PillPart.options;

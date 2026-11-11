@@ -140,10 +140,10 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
 };
 /**
  * The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display,
- * General, Streaks, Reminder, Reviews: Streaks its switch, the pill's streak, each streak's name, Streak type, Count from and
- * Conditions as many as this device last drew, and Add a streak), and a deck's settings (About, Reviews).
+ * General, Streaks, Reminder, Reviews: Streaks its switch, each streak's name, Streak type, Count from and Conditions as
+ * many as this device last drew, and Add a streak), and a deck's settings (About, Reviews).
  */
-const settingsRows = () => [2, 3, 3 + 4 * shapeOf(STREAKS_SHAPE, 1), 4, 7];
+const settingsRows = () => [2, 3, 2 + 4 * shapeOf(STREAKS_SHAPE, 1), 4, 7];
 const DECK_SETTINGS_ROWS = [3, 2] as const;
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
 const SKELETON_ROWS_MAX = 12;

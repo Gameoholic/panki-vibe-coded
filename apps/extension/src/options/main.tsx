@@ -550,7 +550,7 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
  * YouTube's home, part by part: the master switch first, then each its own under it, greyed while
  * the master is off. The header bar's pill is laid out under its switch (`PillParts`).
  */
-function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+function HomePanel({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
   const off = !store.moduleHome;
   const row = (id: string, label: string, on: boolean, says: { on: string; off: string }, write: (on: boolean) => Partial<Stored>) => (
     <Setting id={id} label={label} control={<Toggle id={`${id}-on`} says={says} on={on} disabled={off} onChange={(next) => void writeStore(write(next)).then(onChanged)} />} />
@@ -560,7 +560,7 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
       <SceneTitle id="home" titleId="home-title" store={store} />
       <Setting id="module-home" label="YouTube home add-ons" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
       {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
-      <PillParts store={store} disabled={off || !store.homePill} onChanged={onChanged} />
+      <PillParts store={store} door={door} disabled={off || !store.homePill} onChanged={onChanged} />
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
       {/* How many it shows is always 5 (`modules.ts` → `SHELF_MAX`). */}
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
@@ -840,7 +840,7 @@ function Options() {
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
-            <HomePanel store={store} onChanged={refresh} />
+            <HomePanel store={store} onChanged={refresh} door={door} />
             <UtilitiesPanel store={store} onChanged={refresh} />
             <PlayerBarPanel store={store} onChanged={refresh} />
           </div>

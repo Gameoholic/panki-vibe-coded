@@ -208,7 +208,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | modules | `modules.ts` | Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). |
 | ColourByStage | `options/ColourByStage.tsx` | Words in the decks' colour, Use stage's colour or Custom colour (`ColourByStage`). |
 | PartRows | `options/PartRows.tsx` | Parts of something laid out as rows: a grip, its name, Shown / Hidden (`PartRows`, `LaidPart`). Never a second list of rows to lay out. |
-| PillPanel | `options/PillPanel.tsx` | The pill's parts, laid out and previewed on the options page (`PillParts`). |
+| PillPanel | `options/PillPanel.tsx` | The pill's parts, laid out and previewed on the options page, and the streak it shows (`PillParts`). |
 | Updates | `options/Updates.tsx` | An update for the extension on the options page: whether there is one, the banner, the version panel (`useUpdate`, `UpdateBanner`, `VersionPanel`). |
 | examples | `options/examples.ts` | The options page's made-up cards and Explain answer, built on the app's examples (`EXAMPLE_CARDS`, `EXAMPLE_EXPLAIN`, `exampleTint`). |
 | explainerScenes | `options/explainerScenes.tsx` | What each options panel's explainer plays (`SceneTitle`, `EXPLAINER_NAMES`). |
