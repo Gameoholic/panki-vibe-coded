@@ -38,6 +38,7 @@ Paths from `apps/web/src/`.
 | FlowPreview | `components/FlowPreview.tsx` | The live preview of an SRS type: a card's journey and what it costs (`FlowPreview`). |
 | Fold | `components/Fold.tsx` | Something that opens and closes by its height, fading as it goes (`Fold`). Never a second way of making something unfold. |
 | Form | `components/Form.tsx` | A form that validates in the app's words, never the browser's (`Form`). Never a bare `<form>`. |
+| FramePicker | `components/FramePicker.tsx` | A tile's custom time frame picked as an amount, "Last 3 weeks" or "Next 3 weeks", hanging from what opened it (`FramePicker`, `frameShort`). |
 | HintMark | `components/HintMark.tsx` | A (?) after a label that opens words, not a scene (`HintMark`). |
 | Icon | `components/Icon.tsx` | Every icon, one registry (`Icon`, `IconName`); a missing one is drawn in here. Never an icon library. |
 | JudgedRow | `components/JudgedRow.tsx` | A meaning Panki AI judged, wherever it's listed, its reason folded under a chevron (`JudgedRow`, `WhyButton`, `meaningsChip`). Never a second drawing of one. |
@@ -65,6 +66,7 @@ Paths from `apps/web/src/`.
 | ShowButton | `components/ShowButton.tsx` | What shows the next of a review card, Done listening or Show back of card (`ShowButton`), and the Hold button (`HoldButton`). Never a second of either. |
 | Skeleton | `components/Skeleton.tsx` | Anything loading, anywhere: the shape of what's coming (`Skeleton`, `Bone`, `SkeletonShape`). Never "Loading…", a spinner, or a blank that pops in. |
 | SpaceNotice | `components/SpaceNotice.tsx` | Saying the disk is nearly full (`SpaceNotice`). |
+| StreakEditor | `components/StreakEditor.tsx` | One streak's settings: name, Streak type, Count from, Conditions (`goals` in code) joined by and / or, in Settings and on its tile alike (`StreakEditor`). |
 | SubtitleStyleFields | `components/SubtitleStyleFields.tsx` | How subtitles look, as rows of settings (`SubtitleStyleFields`). Never a second set. |
 | Swatches | `components/Swatches.tsx` | A colour picked from the palette, or one of one's own (`Swatches`, `Swatch`, `hexOfCss`). Never a second row of swatches. |
 | TextField | `components/TextField.tsx` | A labelled text field with its error bubble (`TextField`). |
@@ -112,7 +114,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | cardSort | `cardSort.ts` | The ways a deck's cards can be ordered, one entry each, and this device's pick (`CARD_SORTS`, `sortCards`, `readCardSort`). A new way is one entry. |
 | fieldKinds | `fieldKinds.ts` | The kinds a field can be in words (`FIELD_KINDS`, `FIELD_KIND_OPTIONS`, `kindClass`), and what a value's file is (`fileKindOf`). |
 | keys | `keys.ts` | The review's and the players' keys on this device, their defaults, and what a press is (`DEFAULT_KEYS`, `useKeyBinds`, `keyOf`, `pressed`, `heard`). |
-| layout | `layout.ts` | The home board as this device has it: doors and tiles in one order, and those put away (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`). |
+| layout | `layout.ts` | The home board as this device has it: doors and tiles in one order, and those put away, a streak's tile among them (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`, `fitStreaks`). |
 | layoutKinds | `layoutKinds.ts` | A card layout's choices in words: show, size, tone, column, look, play, listen, corner marks (`SHOW_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). |
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
@@ -128,7 +130,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | themes | `themes.ts` | The themes, the only place one is listed (`THEMES`, `ThemeId`), and this device's choice read, kept and applied (`readTheme`, `writeTheme`, `applyTheme`). |
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
-| widgets | `widgets.tsx` | Every tile Stats shows and the home can carry, one registry (`WIDGETS`, `widgetOf`, `controlOf`), and a stat as a tile (`Widget`). Never a second tile. |
+| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); streaks at risk (`risksShown`, `reviewHelps`). |
 | words | `words.ts` | How things are said in words: a count, a list, a key, a clock, a date, how long ago, a cost (`count`, `listWords`, `keyWords`, `clock`, `agoWords`, `estimateWords`). |
 
 ## Contracts
@@ -167,6 +169,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | srs | `srs.ts` | SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). |
 | srsStarters | `srsStarters.ts` | The SRS types that come with the app, and a new type as a copy of another (`makeStarter`, `SRS_STARTER_IDS`, `copySrsType`, `emptySrsType`). |
 | stageColour | `stageColour.ts` | A stage's colour for the app, the API and the extension alike: its own, else the ramp's; Burned's; New's (`stageColourAt`, `placeColour`, `STAGE_RAMP`). |
+| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalFits`, `groupsSwitchedTo`, `goalMet`, `goalLeftWords`). |
 | subtitleStyle | `subtitleStyle.ts` | How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). |
 | touchUp | `touchUp.ts` | Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). |
 | transcription | `transcription.ts` | A video transcribed, as shapes: engines, settings, modes, chunks, the transcript, a line fixed (`ENGINES`, `Transcription`, `TRANSCRIBE_MODES`, `Transcript`). |

@@ -103,6 +103,14 @@
   --flagged-soft: color-mix(in srgb, var(--flagged) 22%, var(--surface));
   --flagged-edge: color-mix(in srgb, var(--flagged) 70%, var(--line));
   --flagged-ink: color-mix(in srgb, var(--flagged) 35%, var(--fg));
+  /* A streak at risk (the reminder: a streak tile, the Review door's note, the line on the home and on YouTube): the
+     flame's orange, the marks' own, the same whatever the theme; tinted through the surface where a whole line is at
+     risk, its edge leaning to the line, its words to the text's colour, so they read on any surface. Made of tokens,
+     so every theme has its own and none names them. */
+  --risk: var(--mark-orange);
+  --risk-soft: color-mix(in srgb, var(--risk) 14%, var(--surface));
+  --risk-edge: color-mix(in srgb, var(--risk) 45%, var(--line));
+  --risk-ink: color-mix(in srgb, var(--risk) 48%, var(--fg));
   /* A meaning Panki AI judged close (`.ai-judgement.is-meh`): a golden orange, between the flag's
      amber and the marks' red-orange, the same whatever the theme: plainly orange, never read as yellow. */
   --close: #fb8c00;

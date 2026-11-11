@@ -55,16 +55,16 @@ export function journey(type: SrsType): JourneyStep[] {
   return steps;
 }
 
-/** How often reviews are sat down to, for the forecast: so many sittings a day, or `ASAP` for the moment anything is due. */
+/** How often reviews are sat down to, for the forecast: so many sessions a day, or `ASAP` for the moment anything is due. */
 export const ASAP = 0;
-/** A card is asked at most this many times in one sitting (or one day, with no sittings), so rules that loop can't hang the sum. */
+/** A card is asked at most this many times in one session (or one day, with no sessions), so rules that loop can't hang the sum. */
 const ASKS_MAX = 6;
 /**
- * Reviews a day for `days` days, starting from nothing, with the given new cards a day and `sittings` reviews a day
+ * Reviews a day for `days` days, starting from nothing, with the given new cards a day and `sessions` reviews a day
  * (evenly through the day; a card that comes due between two waits for the next one, and its wait counts from when
  * it was answered). Deterministic, so the chart holds still.
  */
-export function forecast(type: SrsType, settings: { newPerDay: number }, days: number, sittings: number): number[] {
+export function forecast(type: SrsType, settings: { newPerDay: number }, days: number, sessions: number): number[] {
   let seed = 11;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const main = mainAnswers(type.answers);
@@ -82,7 +82,7 @@ export function forecast(type: SrsType, settings: { newPerDay: number }, days: n
       n++;
       return r.burned ? null : r.wait;
     };
-    if (sittings === ASAP) {
+    if (sessions === ASAP) {
       for (const card of cards) {
         for (let asks = 0; card.due < day + 1 && asks < ASKS_MAX; asks++) {
           const wait = ask(card);
@@ -90,10 +90,10 @@ export function forecast(type: SrsType, settings: { newPerDay: number }, days: n
         }
       }
     } else {
-      for (let s = 0; s < sittings; s++) {
-        const at = day + (s + 0.5) / sittings;
+      for (let s = 0; s < sessions; s++) {
+        const at = day + (s + 0.5) / sessions;
         for (const card of cards) {
-          // A wait of nothing is asked again in the same sitting; anything else is for a later one.
+          // A wait of nothing is asked again in the same session; anything else is for a later one.
           for (let asks = 0; card.due <= at && asks < ASKS_MAX; asks++) {
             const wait = ask(card);
             if (wait === null) card.due = Infinity;

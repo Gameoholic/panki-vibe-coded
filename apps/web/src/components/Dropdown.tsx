@@ -34,6 +34,8 @@ type Common<T extends string | number> = {
   columns?: { choice: string; note: string };
   /** Its list opens in the window itself (`useAnchored`), never cut off by a box that scrolls around it: one in a `FloatPanel`. */
   anchored?: boolean;
+  /** `sm` is the small one at a tile's size, beside its name (the window it covers). */
+  size?: "md" | "sm";
 };
 /** One choice: picking it closes the list. */
 type One<T extends string | number> = { value: T; onChange: (value: T) => void };
@@ -43,7 +45,7 @@ type Props<T extends string | number> = Common<T> & (One<T> | Many<T>);
 
 /** One value picked from a short list that drops under its button, or several ticked in it; a tap outside or Escape closes it. Never a native select. */
 export function Dropdown<T extends string | number>(props: Props<T>) {
-  const { id, label, options, placeholder = "", disabled = false, wide = false, columns, anchored = false } = props;
+  const { id, label, options, placeholder = "", disabled = false, wide = false, columns, anchored = false, size = "md" } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -65,7 +67,7 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
   useAnchored(rootRef, menu, anchored && open && !disabled, wide ? "same" : "least");
 
   return (
-    <span ref={rootRef} className={`dropdown ${wide ? "is-wide" : ""}`.trim()}>
+    <span ref={rootRef} className={`dropdown ${wide ? "is-wide" : ""} ${size === "sm" ? "is-small" : ""}`.replace(/\s+/g, " ").trim()}>
       <Button
         id={id}
         variant="chip"

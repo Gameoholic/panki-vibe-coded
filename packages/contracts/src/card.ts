@@ -207,7 +207,7 @@ export type FlagFrom = z.infer<typeof FlagFrom>;
 /**
  * A card flagged by hand, or its flag taken off: a mark of the owner's own that it wants something (more example
  * sentences, say), apart from its schedule and from putting it aside. Each change is kept as a row with where it was
- * pressed and, in a review, its sitting; the card's flag is the latest. Flagging a card already flagged changes nothing.
+ * pressed and, in a review, its session; the card's flag is the latest. Flagging a card already flagged changes nothing.
  */
 export const CardFlagUpdate = z.object({ flagged: z.boolean(), from: FlagFrom, sessionId: z.uuid().optional() });
 export type CardFlagUpdate = z.infer<typeof CardFlagUpdate>;

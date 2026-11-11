@@ -15,20 +15,21 @@ const SLACK = 1;
  * Panki's own look for a box that scrolls inside itself, drawn on `edges` (`components/ScrollEdges.tsx`), the element
  * rendered right after the box: never the browser's own bar. The box is marked `data-scroll-edges`, which hides the
  * browser's bar; `edges` is laid over the box's padding box and told, as classes and variables, whether the box runs
- * over at all (`is-over`), which edges have more past them (`data-more`, "top bottom"), how far it's scrolled and how
- * much of it shows (`--scroll-at`, `--scroll-seen`, shares of its height), and whether the viewer is scrolling it
- * (`is-scrolling`, until `BAR_STAYS_MS` after the last scroll) or pulling its thumb (`is-dragging`). `app.css` draws the
- * rest. Whichever element the box's ref holds after each render is the one followed, so a box that comes and goes (a
- * menu opened and closed) is picked up as it comes.
+ * over at all (`is-over`), which edges have more past them (`data-more`, "top bottom", or "left right" for a box
+ * scrolling sideways, `axis` "x"), how far it's scrolled and how much of it shows (`--scroll-at`, `--scroll-seen`,
+ * shares of its length along the axis), and whether the viewer is scrolling it (`is-scrolling`, until `BAR_STAYS_MS`
+ * after the last scroll) or pulling its thumb (`is-dragging`). `app.css` draws the rest. Whichever element the box's ref
+ * holds after each render is the one followed, so a box that comes and goes (a menu opened and closed) is picked up as
+ * it comes.
  */
-export function useScrollEdges(box: RefObject<HTMLElement | null>, edges: RefObject<HTMLElement | null>) {
+export function useScrollEdges(box: RefObject<HTMLElement | null>, edges: RefObject<HTMLElement | null>, axis: "x" | "y" = "y") {
   const held = useRef<{ el: HTMLElement; bar: HTMLElement; stop: () => void } | null>(null);
   useLayoutEffect(() => {
     const el = box.current;
     const bar = edges.current;
     if (held.current?.el === el && held.current.bar === bar) return;
     held.current?.stop();
-    held.current = el && bar ? { el, bar, stop: follow(el, bar) } : null;
+    held.current = el && bar ? { el, bar, stop: follow(el, bar, axis) } : null;
   });
   useLayoutEffect(
     () => () => {
@@ -44,23 +45,29 @@ export function useScrollEdges(box: RefObject<HTMLElement | null>, edges: RefObj
  * any box it stands in change size, its style or class changes, the window is resized or anything scrolls, and as the
  * pointer comes onto it; the bar is cut wherever a box round it cuts the box.
  */
-function follow(el: HTMLElement, bar: HTMLElement): () => void {
+function follow(el: HTMLElement, bar: HTMLElement, axis: "x" | "y"): () => void {
   const thumb = bar.firstElementChild instanceof HTMLElement ? bar.firstElementChild : null;
   el.dataset.scrollEdges = "";
   let frame = 0;
   let quiet = 0;
   let byHand = -Infinity;
+  // Along the axis it scrolls: its whole length, the length that shows, and how far it's scrolled.
+  const x = axis === "x";
+  const length = () => (x ? el.scrollWidth : el.scrollHeight);
+  const seen = () => (x ? el.clientWidth : el.clientHeight);
+  const scrolled = () => (x ? el.scrollLeft : el.scrollTop);
+  const [startEdge, endEdge] = x ? ["left", "right"] : ["top", "bottom"];
 
   /** Whether the box runs over, which edges have more past them, and the thumb's place: on every scroll. */
   const track = () => {
-    const room = el.scrollHeight - el.clientHeight;
+    const room = length() - seen();
     const over = room > SLACK && el.getClientRects().length > 0;
     bar.classList.toggle("is-over", over);
     if (!over) return false;
-    const top = el.scrollTop;
-    bar.dataset.more = `${top > SLACK ? "top" : ""} ${top < room - SLACK ? "bottom" : ""}`.trim();
-    bar.style.setProperty("--scroll-at", String(Math.min(1, Math.max(0, top / room))));
-    bar.style.setProperty("--scroll-seen", String(el.clientHeight / el.scrollHeight));
+    const at = scrolled();
+    bar.dataset.more = `${at > SLACK ? startEdge : ""} ${at < room - SLACK ? endEdge : ""}`.trim();
+    bar.style.setProperty("--scroll-at", String(Math.min(1, Math.max(0, at / room))));
+    bar.style.setProperty("--scroll-seen", String(seen() / length()));
     return true;
   };
   /**
@@ -153,12 +160,14 @@ function follow(el: HTMLElement, bar: HTMLElement): () => void {
     e.preventDefault();
     thumb.setPointerCapture(e.pointerId);
     bar.classList.add("is-dragging");
-    const from = e.clientY;
-    const start = el.scrollTop;
+    const from = x ? e.clientX : e.clientY;
+    const start = scrolled();
     const onMove = (m: PointerEvent) => {
       onHand();
-      const along = bar.clientHeight - thumb.offsetHeight;
-      el.scrollTop = start + ((m.clientY - from) * (el.scrollHeight - el.clientHeight)) / Math.max(1, along);
+      const along = x ? bar.clientWidth - thumb.offsetWidth : bar.clientHeight - thumb.offsetHeight;
+      const to = start + (((x ? m.clientX : m.clientY) - from) * (length() - seen())) / Math.max(1, along);
+      if (x) el.scrollLeft = to;
+      else el.scrollTop = to;
     };
     const onLet = () => {
       bar.classList.remove("is-dragging");

@@ -91,6 +91,9 @@ import {
   type CardTypeUpdate,
   type CardUpdate,
   type DeckUpdate,
+  type FrameWay,
+  type StatFrame,
+  type StatWindow,
   type NewAiTemplate,
   type NewCard,
   type NewCardType,
@@ -113,8 +116,11 @@ import {
   type Watching,
   type WordsInCards,
 } from "@panki/contracts";
+import { clearedMoments, type Changed } from "./cleared";
 import { hashOf, whileUnchanged } from "./kept";
-import { addDays, checkTimeZone, dayReader, dayStartAt, daysBetween, streakOf, type Day } from "./time";
+import { streakStatesOf, streaksStamped, type DayTally } from "./streaks";
+import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
+import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, weekdayOf, type Day } from "./time";
 
 export type Db = ReturnType<typeof openDb>;
 
@@ -1078,6 +1084,11 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     `);
     db.exec("CREATE INDEX ai_action_changes_action_id ON ai_action_changes (action_id)");
   },
+  () => {
+    // 52. Does nothing. Where it ran (a development database, never production) it added `review_sessions.cleared_at`,
+    // a stamp of when a session first left nothing due; the column stays there and is read by nothing. All reviews done
+    // is worked out on read from the history instead (`cleared.ts`).
+  },
 ];
 
 function migrate(db: DatabaseSync, now: number) {
@@ -1124,7 +1135,7 @@ type CalledRow = { cardId: string; fieldId: string; value: string; deckId: strin
 /** What a read at one moment needs of the clock: the settings as they are, and how much of today's allowance is used. */
 type Today = { now: number; settings: Settings; dayStart: number };
 type PlaceReason = "answer" | "switch" | "stage-removed";
-/** What an answer carries beyond the move: the id it was given, the sitting, the spans the browser measured, and whether it was a miss. */
+/** What an answer carries beyond the move: the id it was given, the session, the spans the browser measured, and whether it was a miss. */
 type AnswerExtras = { givenId: string | null; sessionId: string | null; listenMs: number | null; thinkMs: number | null; decideMs: number | null; miss: number | null; exampleId: string | null };
 const NO_EXTRAS: AnswerExtras = { givenId: null, sessionId: null, listenMs: null, thinkMs: null, decideMs: null, miss: null, exampleId: null };
 /** An answer found by the id it was given: the row it made, a move (`card_places`) or a card put aside (`card_holds`). `liftedAt` is a hold's alone. */
@@ -1134,15 +1145,35 @@ type ReviewSessionRow = { id: string; deckId: string; kind: string; startedAt: n
  * An answer as the stats read it. `living` is 0 when its card has since been deleted: the answer still happened, the
  * card is no longer one to name. `undoneAt` is when it was taken back with Undo: its seconds were still spent.
  */
-type AnswerRow = { cardId: string; at: number; miss: number | null; listenMs: number | null; thinkMs: number | null; decideMs: number | null; living: number; undoneAt: number | null };
+type AnswerRow = {
+  cardId: string;
+  deckId: string;
+  at: number;
+  miss: number | null;
+  listenMs: number | null;
+  thinkMs: number | null;
+  decideMs: number | null;
+  living: number;
+  undoneAt: number | null;
+  /** Where the card stood as it was answered: its stage, past the top, burned, inside an ask-again. */
+  stageFrom: string | null;
+  burnedFrom: number;
+  nodeFrom: string;
+};
 /** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
-type ShowingRow = Pick<AnswerRow, "at" | "listenMs" | "thinkMs" | "decideMs" | "undoneAt">;
-type SessionStatRow = { startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null };
-type DeckScopeRow = { id: string; typeId: string; srsTypeId: string };
+type ShowingRow = Pick<AnswerRow, "at" | "deckId" | "listenMs" | "thinkMs" | "decideMs" | "undoneAt">;
+/** A session as the stats read it. */
+type SessionStatRow = { deckId: string; startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null; leftRevealed: number | null };
+type DeckScopeRow = { id: string; typeId: string; srsTypeId: string; settings: string; createdAt: number };
+/** A living card as the stats read where it came from: its source's address and channel, null when it was typed. */
+type CardSourceRow = { id: string; deckId: string; createdAt: number; url: string | null; channel: string | null };
+/** A card's place as it changed, for where the cards stood at a moment. */
+type PlaceHistoryRow = { cardId: string; at: number; stageId: string | null; past: number; node: string; burned: number };
+type LimitChangeRow = { deckId: string; fromValue: string; toValue: string; at: number };
 /** A kept dictionary as the move to the shared store reads it: the row as the app tells of it, and the hash of its zip. */
 type DictionaryMoveRow = { id: string; title: string; revision: string; description: string; bytes: number; uploadedAt: number; sha256: string };
 /** A stretch watched, with its video as YouTube showed it; the video's columns are null when its words never came. */
-type WatchStretchRow = { videoId: string; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
+type WatchStretchRow = { videoId: string; fromMs: number; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
 type WatchMarkRow = { videoId: string; kind: string; at: number };
 type AiTemplateRow = { id: string; action: string; name: string; prompt: string; followUp: string; judges: number };
 
@@ -1237,6 +1268,9 @@ function typeSnapshot(type: CardType): string {
 }
 
 /** The type as its change log keeps it: everything that can be edited, stages and answers in order. */
+/** What a logged save (`srsSnapshot`) holds of a ladder, read back for All reviews done's replay. */
+const LadderSnapshot = SrsType.pick({ stages: true, flow: true, overrides: true, lesson: true, after: true, growBy: true });
+
 function srsSnapshot(type: SrsType): string {
   const { name, description, stages, answers, flow, overrides, lesson, after, growBy, burnedName, newColour } = type;
   return JSON.stringify(canonical({ name, description, stages, answers, flow, overrides, lesson, after, growBy, burnedName, newColour }));
@@ -1582,21 +1616,50 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     "SELECT r.forvo_id AS forvoId, r.word, r.by, r.country, r.media_id AS mediaId, r.fetched_at AS fetchedAt FROM forvo_recordings r JOIN media m ON m.id = r.media_id WHERE m.removed_at IS NULL",
   );
 
-  // The stats read over living decks, all of them or one: the answers given, the sittings, the cards.
+  // The stats read over living decks, all of them or one: the answers given, the sessions, the cards.
   const scopeWhere = "d.removed_at IS NULL AND (? IS NULL OR d.id = ?)";
-  const selectScopeDecks = db.prepare(`SELECT d.id, d.type_id AS typeId, d.srs_type_id AS srsTypeId FROM decks d WHERE ${scopeWhere} ORDER BY d.created_at ASC, d.id ASC`);
+  const selectScopeDecks = db.prepare(
+    `SELECT d.id, d.type_id AS typeId, d.srs_type_id AS srsTypeId, d.settings, d.created_at AS createdAt FROM decks d WHERE ${scopeWhere} ORDER BY d.created_at ASC, d.id ASC`,
+  );
   const selectScopeAnswers = db.prepare(`
-    SELECT p.card_id AS cardId, p.at, p.miss, p.listen_ms AS listenMs, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt FROM card_places p
-    JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
+    SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, p.miss, p.listen_ms AS listenMs, p.think_ms AS thinkMs, p.decide_ms AS decideMs, c.removed_at IS NULL AS living, p.undone_at AS undoneAt,
+      p.stage_from AS stageFrom, p.burned_from AS burnedFrom, p.node_from AS nodeFrom
+    FROM card_places p JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
   // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
   const selectScopeHolds = db.prepare(`
-    SELECT h.at, h.listen_ms AS listenMs, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
+    SELECT h.at, c.deck_id AS deckId, h.listen_ms AS listenMs, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
     JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
     WHERE ${scopeWhere} ORDER BY h.at ASC, h.id ASC`);
   const selectScopeSessions = db.prepare(`
-    SELECT s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow, s.left_shown_ms AS leftShownMs FROM review_sessions s
-    JOIN decks d ON d.id = s.deck_id WHERE ${scopeWhere}`);
+    SELECT s.deck_id AS deckId, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow, s.left_shown_ms AS leftShownMs, s.left_revealed AS leftRevealed
+    FROM review_sessions s JOIN decks d ON d.id = s.deck_id WHERE ${scopeWhere}`);
+  const selectScopeCardSources = db.prepare(`
+    SELECT c.id, c.deck_id AS deckId, c.created_at AS createdAt, s.url, s.channel_name AS channel
+    FROM cards c JOIN decks d ON d.id = c.deck_id LEFT JOIN card_sources s ON s.card_id = c.id
+    WHERE c.removed_at IS NULL AND ${scopeWhere} ORDER BY c.created_at ASC, c.id ASC`);
+  // Every place a living card of the scope has had, undone ones left out, card by card in the order they came.
+  const selectScopePlaces = db.prepare(`
+    SELECT p.card_id AS cardId, p.at, p.stage_to AS stageId, p.past_to AS past, p.node_to AS node, p.burned_to AS burned
+    FROM card_places p JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id
+    WHERE p.undone_at IS NULL AND c.removed_at IS NULL AND ${scopeWhere} ORDER BY p.card_id ASC, p.id ASC`);
+  // Each deck's New cards a day as it was changed, so a day's limit is the one that stood then.
+  const selectLimitChanges = db.prepare(
+    "SELECT deck_id AS deckId, from_value AS fromValue, to_value AS toValue, at FROM deck_settings_changes WHERE key = 'newPerDay' ORDER BY at ASC, id ASC",
+  );
+  // All reviews done's replay (`cleared.ts`): the whole account's history, every deck and card removed or not, each
+  // place and hold that stands in the order it was kept, and the logs of what the ladders and the caps were.
+  const selectReplayCards = db.prepare("SELECT id, deck_id AS deckId, removed_at AS removedAt FROM cards");
+  const selectReplayDecks = db.prepare("SELECT id, removed_at AS removedAt, srs_type_id AS srsTypeId, settings FROM decks");
+  const selectReplayPlaces = db.prepare(`
+    SELECT card_id AS cardId, at, reason, stage_from AS stageFrom, burned_from AS burnedFrom, node_from AS nodeFrom,
+      stage_to AS stageId, past_to AS past, node_to AS node, burned_to AS burned
+    FROM card_places WHERE undone_at IS NULL ORDER BY at ASC, id ASC`);
+  const selectReplayHolds = db.prepare("SELECT card_id AS cardId, at, kind, until, lifted_at AS liftedAt FROM card_holds WHERE undone_at IS NULL ORDER BY at ASC, id ASC");
+  const selectReplayTypeIds = db.prepare("SELECT id FROM srs_types");
+  const selectReplayTypeChanges = db.prepare(`SELECT type_id AS typeId, "before", "after", at FROM srs_type_changes ORDER BY at ASC, id ASC`);
+  const selectReplayDeckTypeChanges = db.prepare("SELECT deck_id AS deckId, from_type_id AS fromTypeId, to_type_id AS toTypeId, at FROM deck_srs_changes ORDER BY at ASC, id ASC");
+  const selectReplayCapChanges = db.prepare("SELECT deck_id AS deckId, from_value AS fromValue, to_value AS toValue, at FROM deck_settings_changes WHERE key = 'reviewsPerDay' ORDER BY at ASC, id ASC");
   const selectValue = db.prepare("SELECT value, source FROM card_values WHERE card_id = ? AND field_id = ?");
 
   // What's watched. A video's words are the latest the page told, but for a title or a channel it didn't have yet (a
@@ -1616,11 +1679,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectWatchHistory = db.prepare("SELECT COUNT(DISTINCT video_id) AS videos, COALESCE(SUM(spent_ms), 0) AS ms, MIN(at) AS since FROM watch_stretches WHERE forgotten_at IS NULL");
   // In the order they came: the API's stamp, then the order they were kept in (a batch's stretches share one stamp).
   const selectWatchStretches = db.prepare(`
-    SELECT s.video_id AS videoId, s.to_ms AS toMs, s.spent_ms AS spentMs, s.at, v.title, v.channel_name AS channel, v.length_ms AS lengthMs
+    SELECT s.video_id AS videoId, s.from_ms AS fromMs, s.to_ms AS toMs, s.spent_ms AS spentMs, s.at, v.title, v.channel_name AS channel, v.length_ms AS lengthMs
     FROM watch_stretches s LEFT JOIN watch_videos v ON v.video_id = s.video_id
     WHERE s.forgotten_at IS NULL ORDER BY s.at ASC, s.rowid ASC`);
   const selectLastWatchStretch = db.prepare(`
-    SELECT s.video_id AS videoId, s.to_ms AS toMs, s.spent_ms AS spentMs, s.at, v.title, v.channel_name AS channel, v.length_ms AS lengthMs
+    SELECT s.video_id AS videoId, s.from_ms AS fromMs, s.to_ms AS toMs, s.spent_ms AS spentMs, s.at, v.title, v.channel_name AS channel, v.length_ms AS lengthMs
     FROM watch_stretches s LEFT JOIN watch_videos v ON v.video_id = s.video_id
     WHERE s.video_id = ? AND s.forgotten_at IS NULL ORDER BY s.at DESC, s.rowid DESC LIMIT 1`);
   const selectWatchVideoLength = db.prepare("SELECT length_ms AS lengthMs FROM watch_videos WHERE video_id = ?");
@@ -1912,8 +1975,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
 
   /** `typeOf` is how the deck's SRS type is read: a list of decks reads each type once and hands that in. */
-  function deckFrom(row: unknown, today: Today, typeOf: (srsTypeId: string) => SrsType = srsTypeOf): Deck {
-    const base = row as { id: string; srsTypeId: string; settings: string };
+  /** What a deck has for a review now: its new cards and its cards due, each within what's left of today's allowance. */
+  function deckCountsOf(base: { id: string; srsTypeId: string; settings: string }, today: Today, typeOf: (srsTypeId: string) => SrsType = srsTypeOf) {
     const type = typeOf(base.srsTypeId);
     const own = deckSettingsFrom(base.settings);
     let fresh = 0;
@@ -1930,8 +1993,55 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const newCount = Math.min(fresh, Math.max(0, own.newPerDay - started));
     const ownLeft = own.reviewsPerDay === null ? Infinity : Math.max(0, own.reviewsPerDay - (countReviewedSince.get(today.dayStart, base.id) as { n: number }).n);
     const dueCount = Math.min(due, ownLeft);
+    return { own, fresh, due, newCount, dueCount };
+  }
+  function deckFrom(row: unknown, today: Today, typeOf: (srsTypeId: string) => SrsType = srsTypeOf): Deck {
+    const { own, fresh, due, newCount, dueCount } = deckCountsOf(row as { id: string; srsTypeId: string; settings: string }, today, typeOf);
     return Deck.parse({ ...(row as object), settings: own, newCount, dueCount, newAvailable: fresh, dueAvailable: due });
   }
+  /**
+   * The moments All reviews done happened, replayed from the whole history (`cleared.ts`): read again only once the
+   * database has changed (`whileUnchanged`), so a stats read pays the replay once after something changed. The days
+   * reviews a day are counted on are the account's as its settings say now.
+   */
+  const clearedOfHistory = whileUnchanged(db, (): number[] => {
+    const settings = settingsFrom(selectSettings.all() as SettingRow[]);
+    // A logged save as the ladder it was; one that no longer reads as one stands for nothing (the type as it is then).
+    const ladderOf = (raw: string): SrsLadder | null => jsonOr(raw, LadderSnapshot);
+    const ladders = new Map((selectReplayTypeIds.all() as { id: string }[]).map((t) => [t.id, srsTypeOf(t.id) as SrsLadder]));
+    const ladderChanges = new Map<string, Changed<SrsLadder | null>[]>();
+    for (const c of selectReplayTypeChanges.all() as { typeId: string; before: string; after: string; at: number }[]) {
+      ladderChanges.set(c.typeId, [...(ladderChanges.get(c.typeId) ?? []), { at: c.at, from: ladderOf(c.before), to: ladderOf(c.after) }]);
+    }
+    const deckTypeChanges = new Map<string, Changed<string>[]>();
+    for (const c of selectReplayDeckTypeChanges.all() as { deckId: string; fromTypeId: string; toTypeId: string; at: number }[]) {
+      deckTypeChanges.set(c.deckId, [...(deckTypeChanges.get(c.deckId) ?? []), { at: c.at, from: c.fromTypeId, to: c.toTypeId }]);
+    }
+    const capOf = (raw: string) => jsonOr(raw, DeckSettings.shape.reviewsPerDay) ?? null;
+    const capChanges = new Map<string, Changed<number | null>[]>();
+    for (const c of selectReplayCapChanges.all() as { deckId: string; fromValue: string; toValue: string; at: number }[]) {
+      capChanges.set(c.deckId, [...(capChanges.get(c.deckId) ?? []), { at: c.at, from: capOf(c.fromValue), to: capOf(c.toValue) }]);
+    }
+    type PlaceReplayRow = { cardId: string; at: number; reason: string; stageFrom: string | null; burnedFrom: number; nodeFrom: string; stageId: string | null; past: number; node: string; burned: number };
+    return clearedMoments({
+      cards: selectReplayCards.all() as { id: string; deckId: string; removedAt: number | null }[],
+      decks: (selectReplayDecks.all() as { id: string; removedAt: number | null; srsTypeId: string; settings: string }[]).map((d) => ({ ...d, reviewsPerDay: deckSettingsFrom(d.settings).reviewsPerDay })),
+      places: (selectReplayPlaces.all() as PlaceReplayRow[]).map((p) => ({
+        cardId: p.cardId,
+        at: p.at,
+        answer: p.reason === "answer",
+        // A new card's first answer starts it; it isn't one of the deck's reviews a day.
+        start: p.stageFrom === null && p.burnedFrom === 0 && p.nodeFrom === "[]",
+        to: CardPlace.parse({ stageId: p.stageId, past: p.past, node: JSON.parse(p.node), burned: p.burned === 1 }),
+      })),
+      holds: (selectReplayHolds.all() as { cardId: string; at: number; kind: string; until: number | null; liftedAt: number | null }[]).flatMap((h) => (h.kind === "bury" || h.kind === "suspend" ? [{ ...h, kind: h.kind }] : [])),
+      ladders,
+      ladderChanges,
+      deckTypeChanges,
+      capChanges,
+      dayOf: dayReader(settings.dayStartHour, zoneOf(settings)),
+    });
+  });
 
   /**
    * The account's watching at a moment, worked out over every stretch it hasn't forgotten: the time spent each of its
@@ -2000,6 +2110,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         .map(([name, ms]) => ({ name, ms })),
       continuing,
       finished,
+      finished30: [...marks.values()].filter((said) => said.finished && said.finishedAt !== null && day(said.finishedAt) >= from30).length,
     };
   }
 
@@ -2158,10 +2269,12 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     updateSettings(patch: SettingsUpdate, now: number): Settings {
       return transaction(() => {
         const before = settingsFrom(selectSettings.all() as SettingRow[]);
+        // A streak's Count from day is the server's: the account's today, on the clock as it stood before this change.
+        const given = patch.streaks ? { ...patch, streaks: streaksStamped(patch.streaks, before.streaks, dayOf(now, before.dayStartHour, zoneOf(before))) } : patch;
         // `videoTracking` is never written again (each browser has its own): `SettingsUpdate` leaves it out.
         for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
           if (key === "videoTracking") continue;
-          const value = patch[key];
+          const value = given[key];
           if (value === undefined) continue;
           const [from, to] = [JSON.stringify(before[key]), JSON.stringify(value)];
           if (from === to) continue;
@@ -2694,9 +2807,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     /**
      * Records what the answer does to the card's place (the contracts' `resolve`, with the deck's type as it is now) and
-     * returns the card fresh. The sitting it happened in, the spans the browser measured and whether it was a miss are
-     * frozen on the row; a sitting that isn't this deck's is refused. An answer that puts the card aside (Bury, Suspend)
-     * is kept as a hold instead, with its sitting and spans: the card's place and schedule stay as they were. An answer
+     * returns the card fresh. The session it happened in, the spans the browser measured and whether it was a miss are
+     * frozen on the row; a session that isn't this deck's is refused. An answer that puts the card aside (Bury, Suspend)
+     * is kept as a hold instead, with its session and spans: the card's place and schedule stay as they were. An answer
      * sent again under the id it was given is kept once: the card is told as it stands.
      */
     answerCard(deckId: string, cardId: string, answer: CardAnswer, now: number): Card | "no-card" | "no-answer" | "no-session" | "no-example" | "not-pinned" | "given-elsewhere" {
@@ -2735,8 +2848,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           insertHold.run(cardId, outcome.hold, now, until, answer.answerId, extras.sessionId, extras.listenMs, extras.thinkMs, extras.decideMs, extras.givenId);
         }
         else recordPlace(cardId, now, "answer", answer.answerId, place, outcome.place, extras);
+        const today = todayAt(now);
         const after = selectDeckCard.get(deckId, cardId) as CardRow;
-        const card = cardFrom(after, type, todayAt(now));
+        const card = cardFrom(after, type, today);
         if (!card) throw new Error("The card vanished after its answer.");
         return card;
       });
@@ -2772,7 +2886,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     suspendCard(deckId: string, cardId: string, now: number): Card | null {
       return transaction(() => {
         if (!selectDeckCard.get(deckId, cardId)) return null;
-        // Put aside by hand, with no answer or sitting behind it; doing it again to a card already suspended changes nothing.
+        // Put aside by hand, with no answer or session behind it; doing it again to a card already suspended changes nothing.
         if (!selectStandingSuspend.get(cardId)) insertHold.run(cardId, "suspend", now, null, null, null, null, null, null, null);
         const row = selectDeckCard.get(deckId, cardId) as CardRow;
         return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
@@ -2794,8 +2908,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     /**
      * Flags a card or takes its flag off: a row each time it really changes (`card_flags`), with the sign-in it came
-     * from, where it was pressed and its sitting, its schedule and holds untouched. The same again changes nothing, so a
-     * retry is harmless. A sitting that isn't this deck's isn't named. Null when the card isn't in that deck.
+     * from, where it was pressed and its session, its schedule and holds untouched. The same again changes nothing, so a
+     * retry is harmless. A session that isn't this deck's isn't named. Null when the card isn't in that deck.
      */
     flagCard(deckId: string, cardId: string, change: CardFlagUpdate, device: string, now: number): Card | null {
       return transaction(() => {
@@ -2809,13 +2923,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         return cardFrom(row, srsTypeOfDeck(deckId), todayAt(now));
       });
     },
-    /** Idempotent: the same id again returns the sitting that already exists, as it is. Null when that id is a sitting of another deck. */
+    /** Idempotent: the same id again returns the session that already exists, as it is. Null when that id is a session of another deck. */
     insertReviewSession(deckId: string, session: NewReviewSession, who: { device: string; userAgent: string }, now: number): ReviewSession | null {
       insertReviewSession.run(session.id, deckId, session.kind, now, who.device, who.userAgent);
       const row = selectReviewSession.get(session.id, deckId) as ReviewSessionRow | undefined;
       return row ? reviewSessionFrom(row) : null;
     },
-    /** Ends the sitting once; ending it again changes nothing and returns it as it is. Null when it isn't this deck's. */
+    /** Ends the session once; ending it again changes nothing and returns it as it is. Null when it isn't this deck's. */
     endReviewSession(deckId: string, sessionId: string, end: ReviewSessionEnd, now: number): ReviewSession | null {
       return transaction(() => {
         if (!selectReviewSession.get(sessionId, deckId)) return null;
@@ -3000,15 +3114,20 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     /**
      * Everything the Stats screen shows of this account, worked out over the rows at `now`, for every living deck or
-     * one. Windows are the account's days. No account's database reads another's.
+     * one, and a custom frame when one is asked for, the last N units (`Stats.custom`) or the next (`customAhead`).
+     * Windows are the account's days. No account's database reads another's.
      */
-    stats(deckId: string | null, now: number): Stats {
+    stats(deckId: string | null, now: number, frame: { way: FrameWay; frame: StatFrame } | null = null): Stats {
       const today = todayAt(now);
-      const day = dayReader(today.settings.dayStartHour, zoneOf(today.settings));
+      const { settings } = today;
+      const zone = zoneOf(settings);
+      const day = dayReader(settings.dayStartHour, zone);
+      const hour = hourReader(settings.dayStartHour, zone);
       const todayKey = day(now);
       const from30 = addDays(todayKey, -29);
       const decks = selectScopeDecks.all(deckId, deckId) as DeckScopeRow[];
       const kept = selectScopeAnswers.all(deckId, deckId) as AnswerRow[];
+      const holds = selectScopeHolds.all(deckId, deckId) as ShowingRow[];
       const sessions = selectScopeSessions.all(deckId, deckId) as SessionStatRow[];
       // An answer taken back with Undo counts for nothing but the time spent on it.
       const answers = kept.filter((a) => a.undoneAt === null);
@@ -3023,97 +3142,242 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const byDayCount = new Map<Day, number>();
       for (const a of dayed) byDayCount.set(a.day, (byDayCount.get(a.day) ?? 0) + 1);
       const studiedDays = [...byDayCount.keys()].sort();
-      const streak = streakOf(new Set(studiedDays), todayKey);
-      const weekStart = addDays(todayKey, -streak.todayIndex);
+      const weekStart = addDays(todayKey, -weekdayOf(todayKey));
 
-      const ladders = new Map<string, { type: SrsType; stages: Map<string, number>; burned: number; fresh: number }>();
-      const coming = Array.from({ length: 7 }, () => 0);
+      // Where the cards stand now, where they stood as the 30 days began (for burned in 30 days), and what's coming due.
+      // A card's past place is its last place row by then; a card made later wasn't there yet.
+      const moments = [dayBeginsAt(from30, settings.dayStartHour, zone)];
+      // A custom frame named in the account's days (`frameSpan`): over the past for `Stats.custom`, ahead for `customAhead`.
+      const span = frame ? frameSpan(frame.way, frame.frame, todayKey) : null;
+      const aheadSpan = frame?.way === "next" ? span : null;
+      const history = new Map<string, PlaceHistoryRow[]>();
+      for (const row of selectScopePlaces.all(deckId, deckId) as PlaceHistoryRow[]) {
+        const rows = history.get(row.cardId);
+        if (rows) rows.push(row);
+        else history.set(row.cardId, [row]);
+      }
+      type Counts = { fresh: number; burned: number; stages: number[] };
+      const countsOn = (type: SrsType): Counts => ({ fresh: 0, burned: 0, stages: type.stages.map(() => 0) });
+      const place = (counts: Counts, type: SrsType, at: CardPlace) => {
+        if (isNew(at)) counts.fresh += 1;
+        else if (isBurned(type, at)) counts.burned += 1;
+        else {
+          const i = type.stages.findIndex((s) => s.id === at.stageId);
+          if (i >= 0) counts.stages[i] = (counts.stages[i] ?? 0) + 1;
+        }
+      };
+      const ladders = new Map<string, { type: SrsType; now: Counts; then: Counts[] }>();
+      // Each day from today on: the next 30, or as far as a frame ahead runs.
+      const coming = Array.from({ length: Math.max(30, aheadSpan ? daysBetween(aheadSpan.from, aheadSpan.to) + 1 : 0) }, () => 0);
+      const comingHours = Array.from({ length: 24 }, () => 0);
+      const nowHour = hour(now);
+      let laterToday = 0;
       const added = Array.from({ length: 12 }, () => 0);
       for (const deck of decks) {
         let ladder = ladders.get(deck.srsTypeId);
         if (!ladder) {
           const type = srsTypeOf(deck.srsTypeId);
-          ladder = { type, stages: new Map(type.stages.map((s) => [s.id, 0])), burned: 0, fresh: 0 };
+          ladder = { type, now: countsOn(type), then: moments.map(() => countsOn(type)) };
           ladders.set(deck.srsTypeId, ladder);
         }
+        const { type } = ladder;
         for (const card of selectCards.all(deck.id) as CardRow[]) {
-          const place = placeFrom(card);
-          if (isNew(place)) ladder.fresh += 1;
-          else if (isBurned(ladder.type, place)) ladder.burned += 1;
-          else if (place.stageId !== null && ladder.stages.has(place.stageId)) ladder.stages.set(place.stageId, (ladder.stages.get(place.stageId) ?? 0) + 1);
-          const { dueAt: due, hold } = scheduleOf(ladder.type, card, place, today);
+          const at = placeFrom(card);
+          place(ladder.now, type, at);
+          const rows = history.get(card.id) ?? [];
+          moments.forEach((moment, k) => {
+            const counts = ladder.then[k];
+            if (!counts || card.createdAt > moment) return;
+            let last: PlaceHistoryRow | undefined;
+            for (const row of rows) {
+              if (row.at > moment) break;
+              last = row;
+            }
+            place(counts, type, last ? { stageId: last.stageId, past: last.past, node: [], burned: last.burned === 1 } : NEW_PLACE);
+          });
+          const { dueAt: due, hold } = scheduleOf(type, card, at, today);
           // A suspended card comes back when it's brought back, which nothing foresees; a buried one once its bury is over at the soonest.
-          if (due !== null && !isNew(place) && hold?.kind !== "suspend") {
-            // Overdue counts as today: it's what a review now would show.
-            const k = Math.max(0, daysBetween(todayKey, day(Math.max(due, hold?.until ?? 0))));
+          if (due !== null && !isNew(at) && hold?.kind !== "suspend") {
+            const moment = Math.max(due, hold?.until ?? 0);
+            // Overdue counts as today, in the hour it is: it's what a review now would show.
+            const k = Math.max(0, daysBetween(todayKey, day(moment)));
             if (k < coming.length) coming[k] = (coming[k] ?? 0) + 1;
+            if (k === 0) {
+              const h = moment <= now ? nowHour : hour(moment);
+              comingHours[h] = (comingHours[h] ?? 0) + 1;
+              if (moment > now) laterToday += 1;
+            }
           }
           const weeksBack = Math.max(0, Math.ceil(-daysBetween(weekStart, day(card.createdAt)) / 7));
           const slot = added.length - 1 - weeksBack;
           if (slot >= 0) added[slot] = (added[slot] ?? 0) + 1;
         }
       }
+      const burnedThen = [...ladders.values()].reduce((sum, l) => sum + (l.then[0]?.burned ?? 0), 0);
+      const burnedNow = [...ladders.values()].reduce((sum, l) => sum + l.now.burned, 0);
+      const orderedLadders = [...ladders.values()].sort((a, b) => a.type.createdAt - b.type.createdAt || a.type.id.localeCompare(b.type.id));
 
+      // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
+      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it, split listening,
+      // thinking, deciding in that order under the cap. A card listened to first (Listen first) adds the seconds before its front.
+      const showingsOf = (shown: readonly ShowingRow[], sessionRows: readonly SessionStatRow[]): TileShowing[] => {
+        const split = (at: number, deckOf: string, listen: number, think: number, decide: number, measured: boolean): TileShowing => {
+          const listenMs = Math.min(listen, CARD_TIME_MAX_MS);
+          const thinkMs = Math.min(think, CARD_TIME_MAX_MS - listenMs);
+          return { at, deckId: deckOf, listenMs, thinkMs, decideMs: Math.min(decide, CARD_TIME_MAX_MS - listenMs - thinkMs), measured };
+        };
+        return [
+          ...shown.map((s) => split(s.at, s.deckId, s.listenMs ?? 0, s.thinkMs ?? 0, s.decideMs ?? 0, s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null)),
+          ...sessionRows.flatMap((s) =>
+            s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null ? [split(s.endedAt, s.deckId, 0, s.leftRevealed === 1 ? 0 : s.leftShownMs, s.leftRevealed === 1 ? s.leftShownMs : 0, false)] : [],
+          ),
+        ];
+      };
+      const showings = showingsOf([...kept, ...holds], sessions);
+      const shownMs = (s: TileShowing) => s.listenMs + s.thinkMs + s.decideMs;
       const timeByDay = Array.from({ length: 14 }, (_, i) => ({ day: addDays(todayKey, i - 13), ms: 0 }));
       const timeSlot = new Map(timeByDay.map((entry, i) => [entry.day, i]));
-      const addTime = (key: Day, ms: number) => {
-        const i = timeSlot.get(key);
+      for (const s of showings) {
+        const i = timeSlot.get(day(s.at));
         const entry = i === undefined ? undefined : timeByDay[i];
-        if (entry) entry.ms += ms;
-      };
-      // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
-      // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it. A card listened to
-      // first (Listen first) adds the seconds before its front to the rest, under the same cap.
-      const spent = (ms: number) => Math.min(ms, CARD_TIME_MAX_MS);
-      const showings: ShowingRow[] = [...kept, ...(selectScopeHolds.all(deckId, deckId) as ShowingRow[])];
-      for (const s of showings) addTime(day(s.at), spent((s.listenMs ?? 0) + (s.thinkMs ?? 0) + (s.decideMs ?? 0)));
-      for (const s of sessions) if (s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null) addTime(day(s.endedAt), spent(s.leftShownMs));
-      // The typical card: its showings in the past 30 days that stand (not taken back), with both spans measured.
-      const spans = showings
-        .flatMap((s) => (s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null && day(s.at) >= from30 ? [spent((s.listenMs ?? 0) + s.thinkMs + s.decideMs)] : []))
-        .sort((x, y) => x - y);
-      const mid = spans[Math.floor(spans.length / 2)];
-      const perCardMs = spans.length === 0 || mid === undefined ? null : spans.length % 2 === 1 ? mid : Math.round((mid + (spans[spans.length / 2 - 1] ?? mid)) / 2);
-
-      const missesByCard = new Map<string, { misses: number; lastAt: number }>();
-      for (const a of inWindow(from30)) {
-        // A miss on a card since deleted still counts among the answers above; it just isn't a card to work on any more.
-        if (a.miss !== 1 || a.living === 0) continue;
-        const entry = missesByCard.get(a.cardId) ?? { misses: 0, lastAt: 0 };
-        missesByCard.set(a.cardId, { misses: entry.misses + 1, lastAt: Math.max(entry.lastAt, a.at) });
+        if (entry) entry.ms += shownMs(s);
       }
-      const typeOfDeck = new Map(decks.map((d) => [d.id, d.typeId]));
-      const tough = [...missesByCard.entries()]
-        .sort(([, a], [, b]) => b.misses - a.misses || b.lastAt - a.lastAt)
-        .slice(0, 5)
-        .map(([cardId, { misses }]) => {
-          const card = selectCard.get(cardId) as CardRow;
-          return { cardId, deckId: card.deckId, front: wordsOf(cardId, wordFieldOf(typeOfDeck.get(card.deckId))), misses };
-        });
+
+      // What the tiles break the answers down by: each stage of the ladders in scope (New first), each deck's card type.
+      const stages = orderedLadders.flatMap(({ type }, t) => [
+        ...(t === 0 ? [{ key: "new", name: "New", colour: type.newColour ? newColourOf(type) : null }] : []),
+        ...type.stages.map((s, i) => ({ key: s.id, name: s.name || `Stage ${i + 1}`, colour: stageColourAt(type, i) })),
+      ]);
+      const stageKeys = new Set(stages.map((s) => s.key));
+      const typeNames = new Map(api.listTypes().map((t) => [t.id, t.name]));
+      const deckRows = new Map(decks.map((d) => [d.id, d]));
+      const srsOf = srsTypesById();
+      const started = (a: AnswerRow) => a.stageFrom === null && a.burnedFrom === 0 && a.nodeFrom === "[]";
+
+      // Each deck's New cards a day as it stood each day: its last change by then, what the first change was from
+      // before any, and what it is now when it was never changed.
+      const limitChanges = new Map<string, { day: Day; from: number; to: number }[]>();
+      const limitValue = (raw: string) => jsonOr(raw, DeckSettings.shape.newPerDay) ?? DEFAULT_DECK_SETTINGS.newPerDay;
+      for (const c of selectLimitChanges.all() as LimitChangeRow[]) {
+        const list = limitChanges.get(c.deckId) ?? [];
+        list.push({ day: day(c.at), from: limitValue(c.fromValue), to: limitValue(c.toValue) });
+        limitChanges.set(c.deckId, list);
+      }
+      const limitOf = (id: string, d: Day): number | null => {
+        const deck = deckRows.get(id);
+        if (!deck || d < day(deck.createdAt)) return null;
+        const list = limitChanges.get(id) ?? [];
+        let value = list[0]?.from ?? deckSettingsFrom(deck.settings).newPerDay;
+        for (const c of list) {
+          if (c.day > d) break;
+          value = c.to;
+        }
+        return value;
+      };
+
+      // Where cards came from, and the account's watching, whatever decks are in scope.
+      const sourceOf = (url: string | null): TileCard["source"] => (url === null ? "typed" : youtubeLinkOf(url) ? "youtube" : "web");
+      const scopeCards = selectScopeCardSources.all(deckId, deckId) as CardSourceRow[];
+      const everyCard = deckId === null ? scopeCards : (selectScopeCardSources.all(null, null) as CardSourceRow[]);
+      const marks = marksOf(selectWatchMarks.all() as WatchMarkRow[]);
+      const stretches = (selectWatchStretches.all() as WatchStretchRow[]).filter((s) => marks.get(s.videoId)?.counted ?? true);
+
+      const { windows, custom, activity } = tilesOf({
+        now,
+        today: todayKey,
+        day,
+        hour,
+        answers: answers.map((a) => ({
+          at: a.at,
+          cardId: a.cardId,
+          deckId: a.deckId,
+          miss: a.miss,
+          stage: a.stageFrom === null ? (a.burnedFrom === 0 ? "new" : null) : stageKeys.has(a.stageFrom) ? a.stageFrom : null,
+          started: started(a),
+          living: a.living === 1,
+        })),
+        showings,
+        sessions: sessions.map((s) => ({ startedAt: s.startedAt, deckId: s.deckId })),
+        cards: scopeCards.map((c) => ({ createdAt: c.createdAt, deckId: c.deckId, source: sourceOf(c.url) })),
+        stretches: stretches.map((s) => ({ at: s.at, videoId: s.videoId, channel: s.channel, spentMs: s.spentMs, fromMs: s.fromMs, toMs: s.toMs })),
+        videoCards: everyCard.flatMap((c) => (sourceOf(c.url) === "youtube" ? [{ createdAt: c.createdAt, channel: c.channel }] : [])),
+        finishes: [...marks.values()].flatMap((said) => (said.finished && said.finishedAt !== null ? [said.finishedAt] : [])),
+        decks: decks.map((d) => d.id),
+        stages,
+        typeOfDeck: (id) => {
+          const typeId = deckRows.get(id)?.typeId;
+          const name = typeId === undefined ? undefined : typeNames.get(typeId);
+          return typeId === undefined || name === undefined ? null : { typeId, name };
+        },
+        limitOf,
+        cardFacts: (cardId) => {
+          const row = selectCard.get(cardId) as CardRow | undefined;
+          const type = row ? srsOf(deckRows.get(row.deckId)?.srsTypeId ?? "") : null;
+          if (!row || !type) return null;
+          const placed = placeOfCalled(type, placeFrom(row)).stage;
+          return { deckId: row.deckId, front: wordsOf(cardId, wordFieldOf(deckRows.get(row.deckId)?.typeId)), stage: placed ? { name: placed.name, colour: placed.colour } : null };
+        },
+        range: frame?.way === "last" && span ? { frame: frame.frame, ...span } : null,
+      });
+      const windowOf = (w: StatWindow) => windows.find((x) => x.window === w);
+
+      // Each day's facts over every deck, whatever is in scope, for the streaks.
+      const everyAnswer = deckId === null ? kept : (selectScopeAnswers.all(null, null) as AnswerRow[]);
+      const everySession = deckId === null ? sessions : (selectScopeSessions.all(null, null) as SessionStatRow[]);
+      const everyShowing = deckId === null ? showings : showingsOf([...everyAnswer, ...(selectScopeHolds.all(null, null) as ShowingRow[])], everySession);
+      const facts = new Map<Day, DayTally>();
+      const factsOn = (d: Day) => {
+        const entry = facts.get(d) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0 };
+        facts.set(d, entry);
+        return entry;
+      };
+      for (const a of everyAnswer) {
+        if (a.undoneAt !== null) continue;
+        const entry = factsOn(day(a.at));
+        entry.reviews += 1;
+        if (started(a)) entry.started += 1;
+      }
+      for (const s of everyShowing) factsOn(day(s.at)).reviewMs += shownMs(s);
+      for (const s of stretches) factsOn(day(s.at)).watchMs += s.spentMs;
+      // All reviews done: a day on which an answer landed with nothing left due, replayed from the history.
+      for (const at of clearedOfHistory()) factsOn(day(at)).cleared = 1;
+      // The reminder starts at its hour on the account's clock and runs until the day turns.
+      const nextDay = dayStartAt(today.dayStart + 26 * 3_600_000, settings.dayStartHour, zone);
+      const streaks = streakStatesOf(settings.streaks, facts, todayKey, {
+        on: settings.streaksOn && settings.reminderOn,
+        pastStart: dayStartAt(now, settings.reminderHour, zone) >= today.dayStart,
+        hoursLeft: Math.max(0, Math.ceil((nextDay - now) / 3_600_000)),
+      });
+      const pill = streaks.find((s) => s.id === settings.pillStreak) ?? streaks[0];
 
       return Stats.parse({
         deckId,
         today: todayKey,
         reviews: { total: answers.length, today: byDayCount.get(todayKey) ?? 0, days7: inWindow(addDays(todayKey, -6)).length, days30: inWindow(from30).length },
         right: { days30: rightOf(inWindow(from30)), before: rightOf(inWindow(addDays(todayKey, -59), addDays(todayKey, -30))) },
-        streak,
+        streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: weekdayOf(todayKey) },
+        streaks,
+        windows,
+        custom,
+        customAhead: frame && aheadSpan ? aheadOf(frame.frame, aheadSpan, coming) : null,
+        activity,
+        ahead: { hours: comingHours, nowHour, laterToday, days: coming.slice(0, 30) },
+        burned30: Math.max(0, burnedNow - burnedThen),
         days: { studied: studiedDays.length, since: answers[0]?.at ?? null },
         byDay: studiedDays.filter((d) => d >= addDays(todayKey, -364)).map((d) => ({ day: d, n: byDayCount.get(d) ?? 0 })),
-        ladders: [...ladders.values()]
-          .sort((a, b) => a.type.createdAt - b.type.createdAt || a.type.id.localeCompare(b.type.id))
-          .map(({ type, stages, burned, fresh }) => ({
-            srsTypeId: type.id,
-            name: type.name,
-            stages: type.stages.map((s, i) => ({ id: s.id, name: s.name, n: stages.get(s.id) ?? 0, colour: stageColourAt(type, i) })),
-            burnedName: type.burnedName,
-            burned,
-            fresh,
-            ...(type.newColour ? { newColour: newColourOf(type) } : {}),
-          })),
-        coming,
+        ladders: orderedLadders.map(({ type, now: counts }) => ({
+          srsTypeId: type.id,
+          name: type.name,
+          stages: type.stages.map((s, i) => ({ id: s.id, name: s.name, n: counts.stages[i] ?? 0, colour: stageColourAt(type, i) })),
+          burnedName: type.burnedName,
+          burned: counts.burned,
+          fresh: counts.fresh,
+          ...(type.newColour ? { newColour: newColourOf(type) } : {}),
+        })),
+        coming: coming.slice(0, 7),
         added,
-        time: { byDay: timeByDay, perCardMs, sessions30: sessions.filter((s) => day(s.startedAt) >= from30).length },
-        tough,
+        time: { byDay: timeByDay, perCardMs: windowOf("days30")?.pace.total.ms ?? null, sessions30: windowOf("days30")?.time.sessions ?? 0 },
+        tough: (windowOf("days30")?.tough.cards ?? []).slice(0, 5).map(({ cardId, deckId: of, front, misses }) => ({ cardId, deckId: of, front, misses })),
         // The account's watching is the same whatever decks are in scope: it isn't any deck's.
         watching: watchingOf(today),
         saved: api.savedVideos(),

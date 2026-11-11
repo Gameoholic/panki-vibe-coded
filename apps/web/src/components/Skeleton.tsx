@@ -132,13 +132,20 @@ function SettingShape({ label, control }: { label: string; control: { w: string;
   );
 }
 
-/** One tile's body: a big figure and a line or two under it. */
+/**
+ * One tile's body as `widgets.tsx` → `Tile` draws it: the figure (`.w-hero`, 36 px) with the change under it, the
+ * chart (`.w-col`'s 14 px cap, 64 px of columns and their labels), the foot line. The tile itself is held at the height
+ * this device last drew it (`Widget`), so the shape only has to stand where those parts will.
+ */
+const TILE_HERO_H = "36px";
+const TILE_CHART_H = "96px";
 function TileBody() {
   return (
     <div className="skel-tile">
-      <Bone w="35%" h="2em" />
-      <Bone w="80%" />
-      <Bone w="55%" className="is-faint" />
+      <Bone w="35%" h={TILE_HERO_H} />
+      <Bone w="55%" h="0.8em" className="is-faint" />
+      <Bone h={TILE_CHART_H} />
+      <Bone w="70%" h="0.85em" />
     </div>
   );
 }

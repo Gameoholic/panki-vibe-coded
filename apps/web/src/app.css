@@ -296,10 +296,19 @@ body {
 }
 /* Small words after a door's line, on the same line: what's there besides (the Review door's new cards available). */
 .door-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-left: 0.6em;
   font-size: 11px;
   font-weight: 600;
   opacity: 0.8;
+  vertical-align: 1px;
+}
+/* A streak at risk said on the door: the flame before it. */
+.door-note .icon {
+  width: 12px;
+  height: 12px;
 }
 /* One of a few choices. A rounded rectangle, like everything else in the app that's pressed, and not a pill, which
    doesn't fit the rest of the app. The small ones further down
@@ -2148,6 +2157,36 @@ canvas.media-frame {
     pointer-events: auto;
     transition-duration: 0.15s;
   }
+}
+/* A box that scrolls sideways (`axis="x"`, Activity's All time): the fades at its left and right, the bar along its foot. */
+.scroll-edges.is-x::before,
+.scroll-edges.is-x::after {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: auto;
+  width: min(var(--scroll-fade), 30%);
+  height: auto;
+}
+.scroll-edges.is-x::before {
+  left: 0;
+  background: linear-gradient(to right, var(--scroll-surface, var(--surface)), transparent);
+}
+.scroll-edges.is-x::after {
+  right: 0;
+  background: linear-gradient(to left, var(--scroll-surface, var(--surface)), transparent);
+}
+.scroll-edges.is-x[data-more~="left"]::before,
+.scroll-edges.is-x[data-more~="right"]::after {
+  opacity: 1;
+}
+.scroll-edges.is-x .scroll-thumb {
+  top: auto;
+  right: auto;
+  bottom: var(--scroll-inset);
+  left: calc(var(--scroll-at, 0) * (100% - var(--scroll-thumb)));
+  width: var(--scroll-thumb);
+  height: var(--scroll-bar);
 }
 @media (prefers-reduced-motion: reduce) {
   .scroll-edges::before,
@@ -4337,6 +4376,182 @@ mark.sub-blur {
 .panel-subtitle {
   margin: 0;
   font-size: 15px;
+  font-weight: 800;
+}
+/* Settings → General → Streaks (views/StreaksPanel.tsx): each streak a part of its own under a line, its name and
+   Delete heading it; the editor (components/StreakEditor.tsx) the same here and hanging from the streak's tile. */
+.streaks-panel > .setting + .panel-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.streak-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.streak-head .panel-subtitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.streak-edit {
+  container-type: inline-size;
+  display: grid;
+  gap: 10px;
+}
+/* The name as a setting's row: its label where a setting's is, the field at the right. */
+.streak-name .field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 240px);
+  align-items: center;
+  gap: 6px 12px;
+}
+.streak-name .field-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.streak-name .field-error {
+  grid-column: 2;
+}
+/* The goals as one grid, left-aligned: a column for the kind, one for its number, one for Delete, every row sharing them
+   (each row a subgrid), so a kind without a number leaves its cell empty and Delete stays in its column. Where the
+   editor is too narrow for one line (a phone, the panel hanging from a tile) the number goes under the kind, nothing
+   else moving: the editor is the container it measures (`.streak-edit`). */
+.goals {
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
+  justify-content: start;
+  gap: 8px;
+}
+/* A goal: its kind, its number with − and +, its Delete, one height and one top edge, each stretched to the row. */
+.goal-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-auto-rows: 44px;
+  align-items: stretch;
+  gap: 8px;
+}
+.goal-row > .dropdown {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 170px;
+}
+.goal-row .dropdown-button {
+  width: 100%;
+  height: 100%;
+  justify-content: space-between;
+}
+.goal-row > .numfield {
+  grid-column: 2;
+  grid-row: 1;
+  align-items: stretch;
+  justify-self: start;
+}
+.goal-row .numfield-suffix {
+  align-self: center;
+}
+.goal-row > .goal-remove {
+  grid-column: 3;
+  grid-row: 1;
+}
+.goal-row.is-asking {
+  margin: -6px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+}
+.goal-why {
+  grid-column: 1 / -1;
+  margin: -2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* The joint between two conditions, the and / or pressed to flip, at the rows' left edge. An "or" ends a group: the
+   divider between two groups, a hairline either side of its word. */
+.goal-joint {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.goal-joint::before {
+  content: "";
+  width: 12px;
+  height: 1px;
+}
+.goal-joint.is-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+.goal-joint.is-or::before,
+.goal-joint.is-or::after {
+  background: var(--line-strong);
+}
+.goal-joint-word {
+  min-width: 48px;
+  padding: 2px 10px;
+  font-size: 13px;
+  text-transform: lowercase;
+}
+.goal-joint.is-or .goal-joint-word {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+@container (max-width: 520px) {
+  .goals {
+    grid-template-columns: minmax(0, 1fr) max-content;
+  }
+  .goal-row > .dropdown {
+    min-width: 0;
+  }
+  .goal-row > .numfield {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .goal-row > .goal-remove {
+    grid-column: 2;
+  }
+}
+/* The reminder at the top of the home: a line for each streak at risk, tinted whole in the flame's colour, Review beside them. */
+.risk-notice {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-color: var(--risk-edge);
+  background: var(--risk-soft);
+}
+.risk-lines {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* A line may wrap: the flame stays on its first line, centred on that line's exact height. */
+.risk-lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--risk-ink);
+}
+.risk-lines .icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--risk);
+}
+.risk-lines b {
+  color: var(--fg);
   font-weight: 800;
 }
 
@@ -6780,26 +6995,154 @@ mark.sub-blur {
 .board.is-stale {
   opacity: 0.5;
 }
+/* Every tile is one anatomy (widgets.tsx → `Tile`): the head, the figure with its change, the views, the chart, the
+   foot line kept at the bottom, Show more under a hairline. */
 .widget {
   position: relative;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 14px 14px;
   border-radius: 14px;
-  align-content: start;
   min-width: 0;
   box-shadow: var(--shadow);
   -webkit-user-select: none; /* a long press on a phone picks the tile up; it never selects the numbers */
   user-select: none;
 }
+/* The head: the name, then the window as a small dropdown, the settings and Show more, all one height. */
 .w-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 26px;
+  gap: 6px;
+  min-height: 28px;
 }
 .w-head .panel-title {
   flex: 1;
   min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.w-tools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-right: -4px;
+}
+/* The head's own controls alone: a streak's settings hanging from the head (`tile-panel`) keeps its controls' sizes. */
+.w-tools > .dropdown > .dropdown-button,
+.w-tools > .quiet-icon > .btn-icon {
+  height: 26px;
+}
+/* The window on a tile's head: the dropdown at a tile's size (Dropdown's `sm`). */
+.dropdown.is-small .dropdown-button {
+  padding: 2px 6px 2px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 7px;
+  border-color: var(--line);
+  color: var(--muted);
+}
+.dropdown.is-small .dropdown-button[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+@media (hover: hover) {
+  .dropdown.is-small .dropdown-button:hover {
+    color: var(--fg);
+    border-color: var(--line-strong);
+  }
+}
+.dropdown.is-small .btn-item {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+/* A tile's views: the compact Segmented, as wide as its words, at the left. */
+.widget .segmented-sm {
+  display: inline-grid;
+  grid-auto-columns: auto;
+  border-radius: 8px;
+}
+.widget .segmented-sm .btn-seg {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+/* The number with its unit, and the change against the window before under it. */
+.w-figure {
+  display: grid;
+  gap: 2px;
+}
+/* A tile's controls over its chart: what it measures (where it measures more than one thing), then its views; one
+   height, one top edge, wrapping under each other on a narrow tile. */
+.w-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 8px;
+}
+.w-delta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.w-delta-n {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-weight: 800;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.w-delta-n .icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}
+.w-delta-n.is-good {
+  color: var(--good);
+}
+.w-delta-n.is-bad {
+  color: var(--danger);
+}
+/* One line of fact at the tile's foot, kept at its bottom; what's pointed at in a chart is said here too, for a finger. */
+.w-foot {
+  margin: auto 0 0;
+  padding-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.w-foot .icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--good);
+}
+/* Show more: the tile takes the whole row, its blocks side by side under a hairline. */
+.w-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px 28px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.w-more-block {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+}
+.w-more-block .w-foot {
   margin: 0;
 }
 /* The quiet words at the right of a title row: what the tile covers. */
@@ -6816,21 +7159,15 @@ mark.sub-blur {
   font-size: 14px;
   color: var(--muted);
 }
-.w-line {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
 .w-sub {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
 }
 /* The big number of a tile. Text is always in a text token, never a data colour. */
 .w-hero {
-  font-size: 40px;
+  font-size: 36px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -6839,10 +7176,11 @@ mark.sub-blur {
 .w-hero-row {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 4px 6px;
   flex-wrap: wrap;
 }
 .w-unit {
+  margin-right: 4px;
   font-size: 15px;
   font-weight: 700;
   color: var(--muted);
@@ -6854,16 +7192,18 @@ mark.sub-blur {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-/* This week as seven blocks: filled for a day studied, today outlined, the days still to come fainter. */
-.w-week {
+/* A streak's row of seven periods (`PeriodRow`), this week's days or the past seven weeks: filled for one that
+   counted, the one going on outlined, days still to come fainter. */
+.w-periods {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
 }
-.w-day {
+.w-period {
   display: grid;
   justify-items: center;
   gap: 4px;
+  min-width: 0;
 }
 .w-block {
   width: 100%;
@@ -6872,16 +7212,25 @@ mark.sub-blur {
   background: var(--surface-2);
   border: 2px solid transparent;
 }
-.w-day.is-on .w-block {
+.w-period.is-on .w-block {
   background: var(--accent);
 }
-.w-day.is-today .w-block {
+.w-period.is-now .w-block {
   border-color: var(--accent);
 }
-.w-day.is-ahead {
+/* The period going on while its streak is at risk: tinted whole in the flame's colour. */
+.w-period.is-now.is-risk .w-block {
+  border-color: var(--risk);
+  background: var(--risk-soft);
+}
+.w-period.is-ahead {
   opacity: 0.45;
 }
-.w-dow {
+.w-period-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
@@ -6927,24 +7276,59 @@ mark.sub-blur {
 .heat-cell.is-4 {
   fill: var(--heat-4);
 }
-/* Thin columns on a hairline: the largest labelled on its cap, a label under each that has one. */
+/* Today on a streak's map while it's at risk. */
+.heat-cell.is-risk {
+  fill: var(--risk-soft);
+  stroke: var(--risk);
+  stroke-width: 1.5;
+}
+.heat-year {
+  display: grid;
+  gap: 4px;
+}
+/* A map at a year's cell size (`HeatMap` size "year", Activity): a few weeks stand at the left, more than a year runs on
+   and scrolls sideways inside its box, the fades and the bar Panki's own (`ScrollEdges` axis "x"). */
+.heat-frame {
+  position: relative;
+}
+.heat-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+.heat-scroll .heat-year {
+  min-width: 0;
+  padding-bottom: 6px; /* room for the bar along its foot */
+}
+.heat-scroll .heat-plot {
+  touch-action: pan-x pan-y;
+}
+/* Thin columns on a hairline (charts.tsx → `Columns`): the largest labelled on its cap, a label under each that has
+   one, the latest lit, those still to come fainter, the one pointed at ringed. */
 .w-cols {
   display: grid;
   grid-template-columns: repeat(var(--cols, 7), minmax(0, 1fr));
-  gap: 3px;
+  gap: 2px;
+  touch-action: pan-y;
 }
 .w-col {
   display: grid;
   grid-template-rows: 14px 64px auto;
   justify-items: center;
+  min-width: 0;
+}
+.widget.is-open .w-col {
+  grid-template-rows: 14px 110px auto;
 }
 .w-col-cap {
   font-size: 11px;
   font-weight: 700;
   line-height: 14px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .w-col-plot {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: flex-end;
@@ -6954,64 +7338,120 @@ mark.sub-blur {
 .w-col-bar {
   display: block;
   width: 8px;
-  max-width: 60%;
-  border-radius: 4px 4px 0 0;
+  max-width: 70%;
+  border-radius: 3px 3px 0 0;
+  background: var(--heat-3);
+}
+.w-col.is-now .w-col-bar {
   background: var(--accent);
 }
-.w-col-bar.is-past {
-  background: var(--heat-3);
+.w-col.is-ahead .w-col-bar {
+  opacity: 0.35;
+}
+.w-col.is-at .w-col-bar,
+.w-col.is-at .w-stack {
+  outline: 1.5px solid var(--fg);
+  outline-offset: 1px;
+}
+/* A limit at each column's own line: a dashed mark across it. */
+.w-col-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px dashed var(--line-strong);
 }
 .w-col-label {
   padding-top: 4px;
   font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
   color: var(--muted);
+  white-space: nowrap;
 }
-/* A few small numbers side by side, each under its label. */
-.w-stats {
+/* A column of parts, bottom up, each in its colour (a stage's, a channel's). */
+.w-stack {
   display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
+  flex-direction: column-reverse;
+  width: 8px;
+  max-width: 70%;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
 }
-.w-stat {
+.w-stack > span {
+  display: block;
+  width: 100%;
+  background: var(--tint, var(--line-strong));
+}
+/* A share or a time as a line over its window (charts.tsx → `LineChart`), the highest and lowest named at their height. */
+.w-linechart {
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  touch-action: pan-y;
 }
-.w-stat-label {
+.w-line-axis {
+  position: relative;
+  width: 38px;
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--muted);
-}
-.w-stat-n {
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-/* A half ring, its share filled, the percentage beside it. */
-.w-meter {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
+.w-line-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
 }
-.w-ring {
-  width: 104px;
-  height: auto;
-  flex-shrink: 0;
+.w-line-plot {
+  position: relative;
+  height: 78px;
+  border-bottom: 1px solid var(--line-strong);
 }
-.w-ring-track,
-.w-ring-fill {
+.widget.is-open .w-line-plot {
+  height: 120px;
+}
+.w-line-plot svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.w-line-path {
   fill: none;
-  stroke-width: 8;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
   stroke-linecap: round;
 }
-.w-ring-track {
-  stroke: var(--heat-1);
+.w-line-area {
+  fill: var(--accent-soft);
+  stroke: none;
 }
-.w-ring-fill {
-  stroke: var(--accent);
+.w-line-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, -50%);
+}
+.w-line-dot.is-at {
+  background: var(--fg);
+}
+.w-line-labels {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 7), minmax(0, 1fr));
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
 }
 /* The ladder: a row per stage, its bar in the stage's own colour (--tint-fg from srsKinds.ts), scaled to the largest row. */
 .w-ladders {
@@ -7022,9 +7462,14 @@ mark.sub-blur {
   display: grid;
   gap: 4px;
 }
+/* Rows (charts.tsx → `Rows`): a name, a bar scaled to the largest or to a whole, the number. */
+.w-rows {
+  display: grid;
+  gap: 5px;
+}
 .w-row {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 36px;
+  grid-template-columns: 76px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 8px;
   font-size: 13px;
@@ -7041,6 +7486,10 @@ mark.sub-blur {
   border-radius: 4px;
   overflow: hidden;
 }
+/* The bar's whole length under it: a share of a whole, a goal's progress. */
+.w-bar.is-track {
+  background: var(--surface-2);
+}
 .w-bar-fill {
   display: block;
   height: 100%;
@@ -7054,6 +7503,7 @@ mark.sub-blur {
   text-align: right;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 /* The toughest cards: the front, and how often it was missed. */
 .w-list {
@@ -7080,9 +7530,220 @@ mark.sub-blur {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-/* A ladder row that says a length of time at its end: room for "12 h 45 min". */
+.w-item-n b {
+  color: var(--fg);
+  font-weight: 700;
+}
+/* A row that says more than a count at its end: room for "12 h 45 min", "120 of 140". */
 .w-row.is-said {
-  grid-template-columns: 76px minmax(0, 1fr) 76px;
+  grid-template-columns: 76px minmax(0, 1fr) 84px;
+}
+/* Rows of long names (channels): more room for the name. */
+.w-rows.is-long .w-row {
+  grid-template-columns: 124px minmax(0, 1fr) 84px;
+}
+/* Toughest cards in Show more: the front, its deck, where it stands, its misses and its rate. */
+.w-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto auto;
+  gap: 6px 12px;
+  align-items: center;
+  font-size: 13px;
+}
+.w-table > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.w-table .is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.w-table .is-quiet {
+  color: var(--muted);
+}
+.w-pill {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--tint-bg, var(--surface-2));
+  color: var(--tint-fg, var(--muted));
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.w-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.w-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.w-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--tint);
+  flex-shrink: 0;
+}
+/* A streak's tile (widgets.tsx → `StreakTile`): each goal today with its bar, the week, where today stands. */
+.w-goals {
+  display: grid;
+  gap: 8px;
+}
+/* A condition: its name and its state on one line of one height, centred on it (a mark alone has no baseline to share
+   with the words, so the line is centred, never baseline-aligned); its bar under them. */
+.w-goal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 10px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.w-goal-name {
+  font-weight: 600;
+  color: var(--muted);
+}
+/* The state's box is exactly the line, a count or a mark, its content centred and at the right edge, so a tick, a cross
+   and "0 / 20" share one centre and one right edge. */
+.w-goal-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  height: 18px;
+  gap: 4px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* A condition's state as a mark, as tall as the row's words so nothing shifts: met a tick in the good ink; not yet the
+   count so far in red, or a cross in red where there's no count. */
+.w-goal-n .icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}
+.w-goal.is-met .w-goal-n {
+  color: var(--good-ink);
+}
+.w-goal.is-unmet .w-goal-n {
+  color: var(--danger);
+}
+.w-goal .w-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+}
+.w-goal.is-met .w-bar-fill {
+  background: var(--good);
+}
+/* Between a streak's groups on its tile: "or" on a hairline, as the editor's joint draws it. */
+.w-goal-or {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.w-goal-or::before,
+.w-goal-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+/* A day that doesn't count yet past the reminder's hour: what's left, tinted whole in the flame's colour. */
+/* At risk and the hours left: one short line, the flame centred on it. */
+.w-risk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: auto 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--risk-soft);
+  color: var(--risk-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.w-risk .icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--risk);
+}
+.w-risk b {
+  font-weight: 800;
+  color: var(--fg);
+}
+.w-runs {
+  display: grid;
+  gap: 4px;
+}
+.w-run {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+.w-run b {
+  font-variant-numeric: tabular-nums;
+}
+.w-run span {
+  color: var(--muted);
+}
+/* A streak's own settings, hanging from its tile's button (placed in the window by `useAnchored`). */
+.menu.tile-panel {
+  position: fixed;
+  width: min(380px, calc(100vw - 16px));
+  max-height: none;
+  padding: 14px;
+  gap: 12px;
+  z-index: 25;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.menu.tile-panel[hidden] {
+  display: none;
+}
+/* A tile's Custom… time frame (components/FramePicker.tsx): "Last" (or "Next") and the amount on one line, the unit
+   under them, Cancel and Show at its foot; hung from the window's dropdown, in the window, never past its edges. */
+.menu.frame-pick {
+  position: fixed;
+  display: grid;
+  width: min(300px, calc(100vw - 16px));
+  max-height: none;
+  padding: 12px;
+  gap: 10px;
+  z-index: 25;
+}
+.menu.frame-pick[hidden] {
+  display: none;
+}
+.frame-amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.frame-lead {
+  font-weight: 700;
+}
+.tile-panel .panel-title {
+  margin: 0;
 }
 /* Continue watching: each video the app's own video card (components/LinkView.tsx), filling the row, its × beside it. */
 .w-videos {
@@ -7299,12 +7960,29 @@ mark.sub-blur {
   .btn-door {
     min-height: 96px;
   }
-  /* The board on a phone: one column, every tile the same width. */
+  /* The board on a phone: one column, every tile the same width, Show more's blocks one under another. */
   .board {
     grid-template-columns: 1fr;
   }
   .board > * {
     grid-column: auto;
+  }
+  .w-more {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The reminder's Review under its lines. */
+  .risk-notice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .risk-notice .btn {
+    justify-self: start;
+  }
+  /* A streak's name over its field, as a field stands on a phone. */
+  .streak-name .field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .streak-name .field-error {
+    grid-column: 1;
   }
   /* The home's header on the phone is only its action: no bar of its own under the brand. */
   .app.is-home .subhead {
@@ -7340,9 +8018,6 @@ mark.sub-blur {
   }
   .signin {
     margin-top: 4vh;
-  }
-  .w-ring {
-    width: 88px;
   }
 }
 

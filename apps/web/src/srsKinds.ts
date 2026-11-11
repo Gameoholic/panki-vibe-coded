@@ -208,7 +208,7 @@ export function againWords(minutes: number): string {
 }
 /**
  * When a card that has reached a stage comes back: the stage's wait, or "next review" for a stage with none. It's due
- * at once, but reaching a stage ends the card for the sitting under way; only an ask-again right away comes back in it,
+ * at once, but reaching a stage ends the card for the session under way; only an ask-again right away comes back in it,
  * and "right away" is reserved for that one alone.
  */
 export function backWords(minutes: number): string {

@@ -1,0 +1,164 @@
+# Streaks, goals, reminders and the tiles — the plan (started 2026-11-11)
+
+> The brainstorm about the streak, daily goals, a reminder, and what Stats shows. Nothing here is built until its box is ticked. Playbacks and proposals live here, never in chat.
+
+## Why (the owner, 2026-11-11, not concrete)
+
+- A reminder to do today's reviews so the streak holds, coming on by itself once the streak passes 5; a setting of the account's; for reviews and for watching.
+- Streaks with a target: "did all my reviews", "at least 5 reviews", minutes watched; maybe a streak for new cards apart from reviews.
+- The soft cap: a full batch done should count even when two more come due in the day's last minutes.
+- A builder for the rules, WaniKani-like saving grace as an option in it, the tiles showing each streak's conditions.
+- The real itch: "the stats widgets are super basic, there's a lot of stats missing". Richer tiles are a big part of this, now, not a part of their own: "every stat is kinda not unified, the UI/UX"; the owner names problems, Claude diagnoses beyond them.
+- Their examples: Due now doesn't say which deck; Streak says neither which streak nor why only reviews; Reviews' top-right label is unclear; Past year is only a year, never a month; Right could be richer; Coming up hides the number, the 7 days can't be changed, by hour might be wanted if it isn't overwhelming; Time doesn't say what it means; Added doesn't say how many cards or which weeks, nor offer days or months; graphs for watching and channels. Nothing overwhelming, nothing stripped-down and default.
+- Their question: is the streak stored, or worked out each time? Answered: worked out on every read, and that's wanted: streaks must never desync from the data, and must be free to use data kept later.
+- Reminders mean a pop-up or a line in the app and in the extension, for now; notifications maybe with a phone app one day.
+- Built all at once, not in parts or phases (the owner, twice).
+
+## How it stands (Claude)
+
+- **Nothing is stored.** Every number on Stats is worked out on every read from the rows (`db.ts` → `stats`): the streak is the set of days with an answer run through one function (`time.ts` → `streakOf`: current, best, this week); watch time is the stretches summed by day. A watch streak was built on `immersion` and taken out on purpose (`PRODUCT.md` → "No goal and no streak for watching"); its data is all there. So a condition on a day is one line changed, not a table, and the whole past re-reads under it at once.
+- **Per-day facts derivable today with no new rows:** answers, misses, new cards started, time reviewing, minutes watched, cards added. The one that isn't: "did all my reviews" (below).
+- **Nothing on the API runs on a clock.** Everything happens inside a request. A reminder sent at an hour would be the first clock-driven thing Panki has.
+
+## Claude's objections and proposals
+
+1. **"Did all my reviews" isn't a streak condition.** It's not under your control (0 due one day, 400 the next), and the soft-cap worry is the symptom. Your own fix is the right definition: **Cleared** (All reviews done since) = an answer landed with nothing left due at that moment. Cards coming due later that day don't undo it. First built as a stamp on the session's row; since Round 6 worked out on read by replaying the history, nothing stored (Settled).
+2. **No free builder.** A rule with and/or is the setting no one reads in two weeks. Proposal: a **streak** is a name plus a short list of **goals**, each a kind and a number, all needed for the day to count: Reviews ≥ N · New cards ≥ N · Time reviewing ≥ N min · Watching ≥ N min · Cleared. Several streaks, each its own tile; today's Streak tile is the streak "Reviews ≥ 1" and stays as it is until you change it. The YouTube pill shows the streak you pick for it (the first, to begin with).
+3. **Saving grace: rest days, derived, no tokens.** WaniKani has no streak (its Vacation mode pauses the SRS); Duolingo sells freezes. Proposal: a streak has **Rest days allowed**, N a month (0 to begin with); a gap of a day within the allowance doesn't break the run and is drawn as a rest day in the week row. No freeze inventory, no purchase ledger, nothing to buy or earn. A freeze as an earned item is a game of its own, parked.
+4. **A rule change re-reads the whole past.** Derived means your best under a new rule may be shorter. Every change is a `settings_changes` row as every setting's is. A default stated, not asked.
+5. **The reminder, where you already are, first.** A reminder that reaches you outside Panki needs a push service (the browser's: Mozilla's or Google's), an outbound call to someone else's host, which the security conventions leave as your call; plus a service worker (there's a manifest, no worker), keys, a subscriptions table, and the API's first scheduled job. In order of cost:
+   - **In place, no infrastructure:** after your chosen hour, a day that doesn't count yet turns the streak tile, the Review door and the YouTube pill to "at risk": what's left and the hours left. You open YouTube every day.
+   - **On the PC, no server:** the extension's own alarm fires a browser notification at the hour (two new permissions, `alarms` and `notifications`).
+   - **On the phone:** Web Push, as above; your call on the push service, a step of its own.
+   The "only once the streak passes 5" belongs on the notification alone (**Only while the streak is at least N days**, 5 to begin with): an in-place line nags no one.
+6. **Richer tiles are the other half, and a different win.** Derivable today with no new rows and no tile for it: when in the day you study (hour-of-day heat), reviews by weekday, misses by stage and by card type, the forecast past 7 days, burned over time, words added per hour watched (left out of `immersion` on purpose), listening time, the answer-time trend. Proposal: new tiles are registry entries, Stats stays fixed and in order (`PRODUCT.md`'s decision), and "per user" is the streaks' goals, never a tile builder. Lifting "Stats is fixed" is your call; I'd keep it.
+
+## Standing rules this touches (the owner's call to keep or lift)
+
+- "No goal and no streak for watching" (`PRODUCT.md` → Deliberate scope decisions): a Watching goal lifts it.
+- "Stats is fixed": kept under proposal 6.
+- "No outbound network calls": push on the phone needs one host allowed.
+
+## Settled
+
+- **Models**: this conversation on Fable high, step sessions on Opus 5.5 high (defaults, not objected to).
+- **Streaks are worked out on every read, never stored** (the owner): no desync, and a streak may use any data kept, now or later.
+- **All reviews done is derived, never stored** (the owner, Round 6): replayed from the answers and holds with each card's due moment under the ladder and the cap as they stood, kept only while nothing changes; the session row carries no mark.
+- **No saving grace, no freezes, no tokens, no rest days** for now (the owner).
+- **Reminders live in the app and the extension**: a pop-up or a line, nothing sent to a device (the owner). Push and notifications are parked until a phone app, if ever.
+- **Richer tiles are part of this epic**, one unified tile language, every stat the data can give; not a phase of its own (the owner).
+- **Built all at once** (the owner). Claude's flag, said once: one change across the API, the contracts, the web and the extension with nothing tried in between. Built on main in one go, uncommitted while the owner tries it on local dev, one commit when they say so a single revert takes it back.
+- **Due now carries no Review button** (the owner, after the preview).
+- **Preview first, questions after**: a playable page of every tile, the streak settings and the reminders, the UI alone; questions and problems in chat once the owner has seen it, before building.
+- Proposals 1, 2, 5 (in place) and 6 above stand as Claude's defaults until the owner says otherwise.
+
+## The order
+
+- [x] 1. The preview page: every tile as it would be, the streaks' settings, the reminders in the app and on YouTube; made-up data; playable. https://claude.ai/artifact/8PEzTmCMQEhVNprJuvEmAA
+- [x] 2. The owner's corrections: one, the Review button comes off the Due now tile; every question below keeps its default (the owner, 2026-11-11: "build this and I will test it on dev").
+- [x] 3. Build it whole, on main, uncommitted until the owner says; the owner tries it on local dev (built 2026-11-11; Cleared counts every deck's due reviews within each deck's reviews a day, not new cards).
+
+Later: notifications on a phone; anything about other people.
+
+## The tiles, as previewed
+
+**What was wrong, read from `widgets.tsx`.** Six grammars (a hero, a hero row, a ring, columns, rows, a list), no two tiles alike. The top-right words are a `<span>` (`w-ctl`): Past year's "‹ Past year ›" draws arrows that do nothing. Every window fixed and each different: This week, Past year, All time, 30 days, 7 days, 12 weeks, 2 weeks, Today, and Toughest's "This month" over what is really the past 30 days. Units and totals mostly missing (Coming up's columns have no number, Time's no unit, Added's no labels at all). One comparison on the whole board (Right's). Time and Added don't say what they count. No breakdown anywhere though every answer has its deck, stage, type, hour and spans. Watched and Watch time say the same thing twice; Days studied repeats the heat map's count.
+
+**One anatomy, every tile.** The name; at its right the window as a small `Dropdown` (Today, 7 days, 30 days, 12 months, All time, as each tile allows) and Show more where there's more (the tile takes the whole row); the number with its unit, and the change vs the window before (Today: vs yesterday by this hour), green or red only where up or down means better; a small `Segmented` of views where the data has a breakdown; the chart or list, the point under the pointer said in the foot; one foot line of fact; the one empty line ("Nothing in these 30 days."). 12 months is the 12 calendar months, this one included.
+
+- **Due now**: cards due and new, by deck, Review; foot: how many more come due before the day ends. No window (it's now). New: the decks named (the owner's complaint) and the foot.
+- **A streak** (one tile each): its name, the run and the best, each goal's progress today ("37 / 50"), the week; the at-risk line past the reminder's hour, else "Today counts" or what's to go; its settings button opens that streak's settings beside it; Show more: the past 6 months of counted days, the longest runs with dates. New: all of it but the run, best and week.
+- **Activity** (was Past year; takes in Days studied): days studied as the number, 30 days as a calendar, 12 months as the heat map, All time a map per year; views Reviews / Time reviewing / Watching; foot the total and the busiest day. Why: "only a year, never a month", and one map for every kind of day.
+- **Reviews**: the count; Today to All time; views Over time / Hour / Weekday (when in the day they study, which weekdays are heavy); Show more by deck, by stage, sessions. New: windows, hour, weekday, the comparison.
+- **Right**: % right with the change in points; 7 days to All time; views Over time / Stage / Card type / Deck; Show more the counts by stage and deck. Why: retention by stage says where the ladder leaks, by type whether sentence cards are harder.
+- **Ladder**: cards on each stage now, or Over time (month ends, stacked in stage colours: burned over time); foot burned and burned in 30 days; Show more one ladder per deck.
+- **Coming up**: reviews due as the number; Today (by hour, from now), 7 days, 30 days; foot the heaviest day; Show more by deck. New: the total, the windows, by hour (the owner's three asks).
+- **New cards** (new): started against the decks' New cards a day; Today per deck "4 / 10", else columns with the limit as a dashed tick; foot the days the limit was reached. Why: whether New is keeping pace.
+- **Toughest cards**: misses in the window (fewer is green); the five most missed as "missed 6 of 9 · 67%"; foot the stage missed most; Show more fifteen with deck and stage. New: rates, windows, the stage.
+- **Added**: cards added; 7 days to All time; views Over time / Source (Typed, YouTube, Web pages) / Deck. New: the count, the windows, where cards come from.
+- **Time reviewing** (was Time): the time; views Over time / Hour / Phase (listening, thinking, deciding); foot sessions and seconds a card; Show more by deck. The name says what it counts.
+- **Time per card** (new, was Answer time; the home's layout keeps its id `pace`): the typical (median) seconds a card, views Front (the card on screen to the flip: listening and thinking) / Back (the flip to the answer) / Total, the number and the trend following the view (down is green); foot the other two. Why: recall getting faster is fluency that Right doesn't show.
+- **Time watching** (Watched and Watch time as one): the time; Today to All time; a measure, Time spent (the clock, what streaks count) / **Of video** (each video's distinct part covered in the window once, the union of its stretches' `from_ms`–`to_ms`, summed over the videos, on read), the number, the change, the chart and Show more by channel following it; views Over time / Hour / Weekday beside it; foot videos, channels, finished.
+- **Channels**: channels watched; views Time / Cards (cards made from each one's videos); Show more channels over time, stacked, with a legend.
+- **Continue watching**, **Saved for later**, **Recently watched**: as now, each with a foot count (Recently watched: finished in 30 days).
+
+**Settings → General**: a **Streaks** panel (Streaks On / Off at its head; Streak on the YouTube pill; each streak a section: Name, Goals as kind `Dropdown` + `NumberField` + trash, Add a goal, its own Reminder On / Off, Delete; Add a streak) and a **Reminder** panel (Reminder On / Off; Starts at; In the app Shown / Hidden; On YouTube Shown / Hidden). **The reminder, one mechanism**: a line, never a pop-up: at the top of the home with Review, as the Review door's note, on the streak's tile and its week's today; on YouTube the pill's streak part tinted with the hours left, and Panki's line over the home. A new token family, `--risk` (the flame's orange).
+
+## Questions for after the preview
+
+1. The renames and merges (Past year → Activity with Days studied in it, Watched + Watch time → Watching, Time → Time reviewing, Streak → one tile per streak). Default: as previewed, the home's layout keeping the old ids so nothing arranged is lost.
+2. A tile's window and view: remembered or not. Default: kept on the device per tile, as a deck's sort is, each pick a ledger row.
+3. Streak tiles on the home: the registry puts a new tile away. Default: each streak's tile put on the home once, as the watching tiles were.
+4. At risk only while there's a run to lose (a streak at 0 says nothing). Default: yes.
+5. The reminder as a line only, no pop-up anywhere. Default: yes.
+6. Panki's line over YouTube's home only while something is at risk. Default: yes; otherwise the home stays YouTube's.
+7. Watching tiles under one deck stay the account's, unchanged and unmarked. Default: yes; a quiet "Every deck" on them is the alternative.
+8. Show more takes the whole row in place, not a panel. Default: as previewed, not remembered.
+9. Each streak's own Reminder switch. Taken out (the owner): the reminder is the account's alone, the Reminder panel governing every streak.
+10. A goal row reads as "at least" with no sign. Default: as previewed; "Cleared" keeps its one line under it.
+11. Answer time's figure: the preview shows the mean; the build uses the median, as "s a card" does today. Default: median.
+12. The New cards limit tick: each day's limits as they were then (`deck_settings_changes`). Default: as they were.
+13. Cards from videos divides YouTube-captured cards by all watching, not only the videos they came from. Default: all watching. (The tile went in Round 5.)
+14. Added's sources from `card_sources`: Typed (none), YouTube (a video link), Web pages (any other). Panki AI is a value's source, not a card's. Default: these three.
+15. Ladder over time replays every card's place at each month's end on read. Default: worked out on read; a slow read is a question then, not now.
+16. Streaks Off hides the streak tiles, the pill's streak part and every reminder. Default: yes; the last streak and the last goal can't be deleted.
+17. Built from what exists: the tile head's `Dropdown` and `Segmented` in their small sizes, a `collapse` icon drawn into `Icon.tsx`. Default: as stated.
+
+## Round 2 (the owner, 2026-11-11, after trying it on dev)
+
+- **Daily and weekly streaks**: a streak counts days or weeks. Claude's default: a per-streak **Counts per** Day / Week; a week is the account's (Sunday first) and counts when its goals are met over the week's totals; the tile's row shows weeks, its "today" is this week, the reminder's at-risk comes on the week's last day after the hour.
+- **"Watching" → "Time watching"** (the goal's kind, and wherever the word stands for the time spent).
+- **"Cleared" needs a clearer name**, the owner's suggestion "All reviews done": taken as the name, its line under it kept.
+- **The Goals rows are ugly**: right-aligned, the trash dropping to a row of its own, the controls not sharing a line. One grid per row: kind, the number with − and +, the trash, all on one line and one height, left-aligned, the phone stacking the number under the kind only when it must.
+- **A browser check is allowed for this round** (the owner: "I'd rather you test all the changes in a Chrome browser before you do this"), against a scratch Panki only, never the dev server or its data.
+- Built (2026-11-11): the streak's type, its period decided in one place on the API (`calendarOf`) and drawn by one row (`PeriodRow`); a week's goals over its totals, minutes rounded once over the sum; a week streak's foot "12 reviews to go · 3 days left this week", its Show more lighting whole weeks, its runs and "N of the past 26 weeks"; the pill saying "3 weeks" for a week streak, the number alone for a day one.
+- Built: Time watching everywhere the word is time spent (the goal, the Time watching tile and Activity's view, the pill's part "Time watching today"); the Watching chip on the player bar is a video's state and keeps its name.
+- Built: All reviews done (what's left "all reviews"); the code name stays `cleared`.
+- **The tile's condition rows say their state by a mark, no words** (the owner): met, a tick in `--good-ink` in place of the count; not yet, the count ("0 / 20") in `--danger`, or for a condition with no count a cross (`cross`, drawn into `Icon.tsx`) in `--danger`; the marks as tall as the row's text. The tile's foot line ("… to go today", "Today counts") is gone; the at-risk line stays for the hours left alone ("At risk · 3 h left"), what's left being the rows' (built).
+- Built: Counts per renamed **Streak type**, Daily / Weekly; the line under All reviews done reads "Reviewed every due card at some point in the day."
+- **Conditions differ by streak type** (the owner): each kind says in the registry which types it fits; All reviews done fits Daily alone, a Weekly streak's dropdown never offers it, and switching to Weekly takes off the conditions that don't fit in the same change, the switch never blocked (built).
+- **"Goals" → "Conditions"** on screen and in the docs (the owner): the heading, Add a condition, the delete question; the code keeps `goal` / `GOAL_KINDS` (built).
+- Built: the Conditions rows as one grid (a subgrid per row: kind, number, Delete with its word, asking first), stacking the number under the kind where the editor is under 520 px wide (a phone, the panel from a tile).
+- **Time spent vs. content watched** (the owner's new question): time spent is the clock (a video watched twice at 2× is counted as lived, twice); content watched is the distinct seconds of each video covered, once, whatever the speed or the rewatching. Claude's answer: derivable now from each stretch's `start_ms`/`end_ms` with no new data, as the union of a video's stretches per day. Proposal: Time watching shows both ("2 h 10 spent · 1 h 40 of video"), conditions keep counting time spent. Not built until the owner says.
+
+## Round 3 (the owner, 2026-11-11, from another app's Edit streak panel)
+
+- **And / or between conditions**, as the other app joins its tasks with a toggle at each joint; "maybe use the field names in this example too" (Name, Type, Count from, Counts when you complete).
+- Claude's objection, said once: a toggle at every joint with no grouping reads two ways ("Reviews ≥ 20 and Time watching ≥ 30 or All reviews done"), the setting no one reads right in two weeks. The shape that keeps the owner's look and reads one way: **and binds tighter than or, drawn as groups**. Conditions stand in groups; inside a group every condition must be met (the "and" joint); an "or" joint starts a new group, drawn as a divider between groups, so the streak counts when any one group is wholly met. The joint is the owner's toggle, and / or, at each joint; the groups are what it draws. The tile's progress shows each group's conditions, the nearest-to-met group first; the reminder's what's-left is that group's. Stored as groups of conditions on the streak's settings; the maths one function over groups.
+- **Count from**: Now / All time, taken as the other app has it: a streak counts its run from the day it was made (Now) or from the whole history (All time, the default, as the plan's re-read rule says). One day kept on the streak's settings, read by the one place that picks the days; nothing else changes.
+- Built: conditions stored as `groups` on the streak (one older `goals` list reads as one group, no migration); the and / or joint between every two rows, flipped by a press, an or drawn as the divider; a period counts when any one group is wholly met (`groupsMet`, one function); the tile lists each group, the nearest to met first, and the reminder's what's-left and Review are that group's; a kind may stand in several groups, once a group as the dropdown offers it (joining two groups that share a kind keeps both, harmless); Add a condition joins the last group with "and", or starts a group when that group has every kind; 10 conditions at most.
+- Built: Count from, All time to begin with; Now is a day on the streak, named by the API on save (the browser sends "now"; a day already kept stays when the streak is saved again), and the days before it count for nothing.
+- Names kept as the owner chose today: **Streak type** (not "Type", which means a card or SRS type in Panki), **Conditions** (not "Counts when you complete"), Daily / Weekly; "Counter" from the other app not taken.
+
+## Round 4 (the owner, 2026-11-11, on the tiles)
+
+- **Activity, one map for every window**: 30 d, 1 y and All time all draw as the year does (a column a week, Sunday at the top, darker for more, months named along the top), at the year's cell size; 30 d is that map cut to its weeks, All time one map of the whole history scrolling sideways inside the tile (`ScrollEdges`) when it's wider. One component (`HeatMap`) draws all three; the 30-day calendar and the map a year go.
+- **"1 y"** is the window's name in the shared vocabulary of every tile: Today, 7 d, 30 d, 1 y, All time, as each allows (the code keeps `months12`, the 12 calendar months, this one included).
+- **Custom…** on every tile with a window over the past: it opens one shared range picker anchored to the window's dropdown (From and To, typed or picked on a small month calendar of Panki's own, never the browser's date input); the range then stands in the dropdown's place ("3 Oct – 9 Nov"), kept on the device per tile as a window is, the same `tile` ledger row. Coming up's windows look ahead and have no Custom….
+- **The API for a range** (Claude's call, stated): `GET /api/stats?from=YYYY-MM-DD&to=YYYY-MM-DD` (the account's days, the contracts' `Day`; `to` no later than today, `from` no later than `to`) adds `Stats.custom`, that range worked out exactly as a fixed window is, nothing cached and nothing stored; the window before is the same number of days just before it; how it comes in over time follows its length (a day by the hour, up to 62 days a day at a time, past that a month at a time; a trend a day up to 14 days, a week up to 92, else a month), said on `WindowStats` as `unit` and `trendUnit` so the tiles read the stretches from the numbers, never from a window's name. A tile with a range set asks for it itself.
+- Built: all of the above. Charts that took a fixed count now take any length from `unit` / `trendUnit` (every tile's Over time columns and the two trend lines, Time per card and Cards from videos; New cards' per-month foot); none had to be redrawn otherwise. A range of one day is drawn by the hour as Today is, without its "now". `ScrollEdges` gained `axis` "x" for the sideways map.
+- **Time watching's Of video** (the owner): a measure beside the views, Time spent / Of video, as defined in the tiles above; Time spent stays the clock and the streaks' goals count it. Built: a tile's `measures` (a second small `Segmented` before its views, one row, kept on the device as a view is); each stretch gives Of video what it adds of its video not covered earlier in the window (`tiles.ts` → `coverage`), so the hours, weekdays, days and channels add up to the window's total.
+- **Answer time → Time per card** (the owner) with Front / Back / Total, as in the tiles above (built; `WindowStats.pace` is the three sides, each its median, the window before's and its trend).
+
+## Round 5 (the owner, 2026-11-11, on the tiles)
+
+- **Ladder loses Over time**: the cards on each stage now, as before Round 1's views; the months it replayed go from the API too.
+- **A custom time frame is an amount, not two dates**: Custom… opens a small panel hanging from the window's dropdown, a `NumberField` and a `Segmented` Days / Weeks / Months / Years ("Last 3 weeks"), replacing Round 4's From / To picker and its calendar; the frame then stands in the dropdown as "3 w", "14 d", "2 mo", "1 y", the window vocabulary's own shape; the ledger row keeps the amount and the unit. The days it covers are the API's to name (`?last=3&unit=week`): the last N units ending today (a month back is the same day of the month, held to its last day), as many days before it to compare with.
+- **Every tile with a time frame has Custom…**, the ones that look ahead too: Coming up's is the next N days, weeks, months or years from today (`?next=`), its words "Next" where every other tile's are "Last", said by the tile's registry entry (`ahead`), never a branch in the panel.
+- **No "by deck" anywhere**: the deck filter over the tiles already narrows every tile, so a Deck view or a Show more by deck says nothing it doesn't. Out: Added's Deck view; Right's Deck view and its by-deck counts; Reviews' Show more by deck and its sessions by deck; Coming up's Show more by deck; Time reviewing's Show more by deck; Ladder's one ladder per deck; New cards' Today rows per deck. Due now keeps its decks listed: that's the day's list the owner asked for in Round 1 ("Due now doesn't say which deck"), not a breakdown. The API stops working the by-deck numbers out.
+- Built: Custom… on every tile with a window: Activity, Reviews, Right, Coming up (the one new to it, "Next"), New cards, Toughest cards, Added, Time reviewing, Time per card, Time watching and Channels; Due now, Ladder, the streaks and the three video lists have no window. `components/FramePicker.tsx` replaces `RangePicker.tsx`; a frame picked under Round 4 (two dates) is read as no frame, the tile back on its default window. New cards' Today is its total against the day's limit, one bar.
+- **Cards from videos goes** (the owner): its tile, its numbers (`WindowStats.fromVideos`) and its lines; a home layout holding its id drops it as any id the registry no longer has. Nothing else read its numbers; Channels' Cards view keeps its own count of the cards made from each channel's videos (built).
+
+## Round 6 (the owner, 2026-11-11, after a long talk)
+
+- **All reviews done is derived, never stored** (Settled): the stamp on `review_sessions` goes, no read and no write of it, nothing in the contracts or the answer path; migration 52 stays in the list as a step that does nothing (it ran on the dev data alone), its column read by nothing, nothing dropped.
+- In its place a replay of the history on read (`cleared.ts` → `clearedMoments`, `db.ts` → `clearedOfHistory`), as `docs/architecture/data-model.md` says: each standing answer and hold in order, each living card's due moment under the ladder and the deck's type as they stood then, holds and removals, New and burned never due, each deck's reviews a day as it stood that day; after each answer, nothing due anywhere makes the day one with all reviews done. One pure function, tested on made-up histories (`pnpm --dir apps/api test`: a clearing answer undone, a card deleted mid-day, a wait changed between two days, a hold, the cap), kept while the database is unchanged (`whileUnchanged`).
+- What it changes from the stamp: an answer taken back now takes its clearing back with it (the history it replays is what stands).
+- Built. On a copy of the dev database (183 cards, 126 answers) the replay costs about 10 ms (a stats read 19 ms with it kept, about 30 ms when it runs again).
+
+## Open
+
+- **A Time watching condition counts the clock alone** (the owner, 2026-11-11: "the actual real-life time we spent"); content watched is never a condition for now. Whether the Time watching tile shows content watched beside the clock is still open; default: not until the owner asks.
+- Where conditions are edited: both, Settings → General → Streaks and the panel from the tile's settings button; the panel edits that one streak alone, with no way from it to Settings (the owner took out All streaks).
+- Whether a condition counts all decks or one. Default: all decks, the Stats deck filter narrowing what a tile shows but never what a streak counts.
+- The day a reminder measures is the account's (day start, zone), the same as the stats'.

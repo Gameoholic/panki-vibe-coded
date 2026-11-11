@@ -24,6 +24,9 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-02: the Hold button.
 - 2026-11-07: Flag.
 
+**Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
+- 2026-11-11: streaks with conditions (All reviews done worked out from the history, nothing stored), counting per day or per week; the reminder in the app and on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video; Settings → General → Streaks and Reminder.
+
 **The extension** (`architecture/extension.md`)
 - 2026-10-11: the capture drawer; the line under the player; the YouTube metadata field; Field mapping and Media.
 - 2026-10-16: the options page in tabs; the Pitch accent field kind; Reading above.
@@ -64,5 +67,8 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 - Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
 - The docs: `docs/DOCS.md`.
+- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, built on main, uncommitted while the owner tries it on local dev.
+- The Hold button's removal: one commit on branch `claude/remove-hold-e7b9da`, merged into main once streaks are committed and the owner says.
+- Blur in place of Listen first: `docs/BLUR.md`, being brainstormed; nothing built.
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

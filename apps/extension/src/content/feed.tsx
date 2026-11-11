@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { youtubeLinkOf, youtubeUrl, type ContinueVideo, type Deck, type FinishedVideo, type SaveVideo, type SavedVideo, type Settings, type Stats, type VideoGlance } from "@panki/contracts";
+import {
+  nearestGroup,
+  reviewHelps,
+  streakLeftWords,
+  streakNameOf,
+  youtubeLinkOf,
+  youtubeUrl,
+  type ContinueVideo,
+  type Deck,
+  type FinishedVideo,
+  type SaveVideo,
+  type SavedVideo,
+  type Settings,
+  type Stats,
+  type StreakState,
+  type VideoGlance,
+} from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
@@ -20,8 +36,11 @@ import { tokensOn } from "../ui/styles";
  * below is its own switch on the options page's YouTube tab, under the master one.
  *
  * - **In the header bar**, beside the site's own buttons: the mark and what the viewer picked for it, in their order
- *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time reviewing, the review streak). Pressed, Panki opens.
- *   No goal and no streak for watching: the data is kept, none of it is drawn.
+ *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time reviewing, the streak picked for the pill, tinted
+ *   with the hours left while it's at risk). Pressed, Panki opens.
+ * - **The line over the home**, only while a streak is at risk and the reminder is shown on YouTube: each streak at
+ *   risk, what's left of its goals and the hours left, and Review while reviewing would help. Otherwise the home
+ *   stays as it is. Never a pop-up.
  * - **Continue watching**, a shelf of the site's own kind of cards: the videos left part-way, each opening where it was
  *   stopped, with how much is left over its picture and Panki's bar along its foot.
  * - **Shorts** can be kept off every page (a YouTube utility).
@@ -93,6 +112,17 @@ function cell<T>(value: T) {
 type Home = { name: string; profile: string; stats: Stats; decks: Deck[]; settings: Settings; saved: SavedVideo[] };
 /** What Panki knows for the page: nothing yet, the account, or why not (signed out, or Panki unreachable). */
 type Known = { kind: "loading" } | { kind: "home"; home: Home } | { kind: "failed"; message: string; signedOut: boolean };
+
+/**
+ * The streaks the line over the home says are at risk: those the server says are (`StreakState.atRisk`: Streaks and
+ * Reminder on, a run to lose, today not counting yet, past Starts at), while the reminder
+ * is shown on YouTube. None while anything is unknown.
+ */
+function atRiskOf(now: Known): StreakState[] {
+  if (now.kind !== "home") return [];
+  const { settings, stats } = now.home;
+  return settings.streaksOn && settings.reminderOnYouTube ? stats.streaks.filter((s) => s.atRisk) : [];
+}
 /** How many cards of `--yh-small` fit one row of an element, as it's laid out now, followed as it changes width; one at least. */
 function usePerRow(row: HTMLElement | null): number {
   const [n, setN] = useState(1);
@@ -164,7 +194,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       );
     }
     // What it says is the viewer's own, picked and ordered on the options page (`modules.ts` → `PillLayout`).
-    return <PankiPill layout={raw.pill} numbers={pillNumbersOf(now.home.stats, now.home.decks)} profile={now.home.profile} power={power} update={update} onClick={() => void askOpenPanki()} />;
+    return <PankiPill layout={raw.pill} numbers={pillNumbersOf(now.home.stats, now.home.decks, now.home.settings)} profile={now.home.profile} power={power} update={update} onClick={() => void askOpenPanki()} />;
   }
 
   // ---- The top of the home.
@@ -500,6 +530,41 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     );
   }
 
+  /**
+   * Panki's line over the home's shelves while a streak is at risk: the mark, then each streak at risk with what's left
+   * of its goals and the hours left; Review at its end while a goal left is met by reviewing rather than watching,
+   * opening Panki as the pill does.
+   */
+  function RiskLine({ streaks }: { streaks: readonly StreakState[] }) {
+    if (streaks.length === 0) return null;
+    const review = streaks.some(reviewHelps);
+    return (
+      <section className="yh-bar is-risk" aria-label="Streaks at risk">
+        <p className="yh-bar-words">
+          <Mark size={18} />
+          {streaks.map((s) => {
+            const name = streakNameOf(s);
+            const left = streakLeftWords(nearestGroup(s));
+            return (
+              <span key={s.id} className="yh-risk">
+                <Icon name="flame" />
+                <b lang={langOf(name)}>{name}</b> at risk{left ? ` · ${left} to go` : ""} · {s.hoursLeft} h left
+              </span>
+            );
+          })}
+        </p>
+        {review ? (
+          <div className="yh-actions">
+            <Button variant="primary" className="yh-review" onClick={() => void askOpenPanki()}>
+              <Icon name="review" />
+              Review
+            </Button>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
   function Top() {
     const now = useSyncExternalStore(known.subscribe, known.get);
     const on = deps.modules();
@@ -529,11 +594,15 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           ) : null
         ) : (
           <>
+            {/* Over the shelves, only while a streak is at risk. */}
+            <RiskLine streaks={atRiskOf(now)} />
             {/* Continue watching and Saved for later side by side, half the row each; one switched off leaves the other the row. Empty, each still stands. */}
-            <div className="yh-shelves">
-              {on.homeShelf ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
-              {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
-            </div>
+            {on.homeShelf || on.homeSaved ? (
+              <div className="yh-shelves">
+                {on.homeShelf ? <Shelf videos={now.home.stats.watching.continuing} max={SHELF_MAX} onStale={() => void load()} /> : null}
+                {on.homeSaved ? <SavedShelf videos={now.home.saved} /> : null}
+              </div>
+            ) : null}
             {/* Under them, the row of its own: the videos finished. */}
             {on.homeRecent ? <RecentShelf videos={now.home.stats.watching.finished} /> : null}
           </>
@@ -820,8 +889,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
       // The floating save button's place, over everything of the site's.
       if (floater.host.parentElement !== document.body) document.body.append(floater.host);
       floater.host.dataset.theme = theme;
-      // The top of the home, over the recommendations, while that's the page shown and any part of it is on.
-      const grid = on.home && (on.homeShelf || on.homeSaved || on.homeRecent) ? document.querySelector(HOME_GRID) : null;
+      // The top of the home, over the recommendations, while that's the page shown and any part of it is on, or a streak is at risk.
+      const grid = on.home && (on.homeShelf || on.homeSaved || on.homeRecent || atRiskOf(known.get()).length > 0) ? document.querySelector(HOME_GRID) : null;
       const contents = grid?.querySelector(GRID_CONTENTS) ?? null;
       if (!contents) top.host.remove();
       else {

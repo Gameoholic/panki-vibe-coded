@@ -1609,7 +1609,7 @@
   display: grid;
   gap: 20px;
 }
-/* One line over the recommendations, where the site puts a shelf's heading: the day, today's minutes against the goal, the streak, who else watched today, a dot between each; Review at its end. */
+/* One line over the shelves: why Panki can't show them (signed out, unreachable), or the streaks at risk; its button at its end. */
 .yh-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1629,6 +1629,27 @@
 .yh-bar.is-off .yh-bar-words {
   gap: 8px;
   color: var(--yh-muted);
+}
+/* The streaks at risk (`RiskLine`), only while one is: tinted with the flame's colour over the site's own background,
+   each streak its flame, its name, what's left and the hours left; on a narrow page they wrap, Review under them. */
+.yh-bar.is-risk {
+  min-height: 40px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--risk) 12%, var(--yh-bg));
+}
+.yh-bar.is-risk .yh-bar-words {
+  gap: 6px 10px;
+}
+.yh-risk .icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  vertical-align: -3px;
+  color: var(--risk);
+}
+.yh-risk b {
+  font-weight: 700;
 }
 /* Review, the site's own pill: in the accent while something is due, the chip's grey otherwise. */
 .yt-home .btn.yh-review {
@@ -2089,6 +2110,16 @@
 }
 .ym-part.is-streak .icon {
   color: var(--mark-orange);
+}
+/* The streak at risk: the part tinted with the flame's colour, the hours left after its number. */
+.ym-part.is-risk {
+  margin: -4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--risk) 22%, transparent);
+}
+.ym-part-left {
+  font-weight: 700;
 }
 /* The options page's preview of the pill, on a strip of the site's dark header bar so it's seen as it will stand. */
 .pill-preview {

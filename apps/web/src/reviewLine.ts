@@ -28,7 +28,7 @@ export function countOrder(settings: ReviewSettings): readonly Kind[] {
 
 /**
  * Whether a card comes back in this same review after an answer: only an ask-again with no wait (or a retry) keeps
- * it in. Reaching an end of the chart (up, down, go to a stage, burned) is the end of the card for this sitting, even
+ * it in. Reaching an end of the chart (up, down, go to a stage, burned) is the end of the card for this session, even
  * where the stage it lands on has no wait: it's due again at once, but for the next review, as the home will say. So
  * a card sent "Down one → Lesson · no wait" isn't asked again in this review as if the chart went on; this holds for
  * every SRS type.

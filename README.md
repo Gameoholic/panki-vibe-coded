@@ -43,9 +43,6 @@ Before sharing with public:
 - Card type default that comes with Panki?
 
 
-    
-- reminder to do reviews today to eke pthe streak (autoamtically activates aftert having a strrreak of >5 ) (have it schangeablei n settigns per user, and have it for reviews and for video watching) draft an artifact to sohw me how it'd look like. maybe we can even ahve streaks for "target" of watching or doigmn revies in roder otuphodl the streak (obviosuly wil lrequire changes to the way that the strre akwidgetrts are shown os it mgith eb bea bigger hcnag.e how is the estsreak stored today/ isit calcualted ydhamically meanign we can esayily ad docnditios nto the streak featurelogic and/or widgets? or is it litrally a "streak" table in the database in which case that's kinda weird. not jsut streak but liekw atchtitme and all that etc. is it all calcualted dynamically every time? or is it stored like wit ha sepcific logic). we coudl edit the widgets per user like to see the sepcific conditiosn ro wahtever i guess.and for reviews it'd be like for example "did ALL my reviews" or "did at least 5 reviews". obvbiosuyl if theres no revies to do in abatch or the last 2 reviews we ned will noyl come at the last 5m intues of the ad ay itd be bad so need a way to like soft cap it or soemthing (maybe if i complete a full batch regardless itll finsih it). we need like a builder for this cuz like also do we rseparrte revies from new cards? what if iwant a streak for new cards? also wanikani has like "savign grace" and shit we could optioanly ldo that int he buidler too.
-
 
 AI FEATURE TOUCH UP Like for cusotmsaziito nopf prompts? only the admi ncan customzie the prompt itself. users will be able to attach "user suffixes" to the prompts that will be sent on every prompt 9adn will also apepar int he conversation, it's like a "message" to send along with the prompt, a user style/preference).
 

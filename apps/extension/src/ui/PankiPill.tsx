@@ -1,5 +1,5 @@
 /** @panki Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`). Never a second drawing of the pill. */
-import type { Deck, Stats } from "@panki/contracts";
+import { DEFAULT_STREAKS, STREAK_PERIODS, periodCountWords, streakNameOf, type Deck, type Settings, type Stats, type StreakPer } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon, type IconName } from "@web/components/Icon";
@@ -14,44 +14,81 @@ import type { PillLayout, PillPart } from "../modules";
  * of it, with made-up numbers there (`SAMPLE_NUMBERS`). Never a second drawing of the pill.
  */
 
-/** The numbers the pill can say, from Panki's stats and decks. */
+/**
+ * The streak the pill says: its name, its type, its run, and the hours left while it's at risk and the
+ * reminder is shown on YouTube (null otherwise). A name of null is an older server's one streak, which has none and
+ * counts days.
+ */
+export type PillStreak = { name: string | null; per: StreakPer; current: number; hoursLeft: number | null };
+
+/** The numbers the pill can say, from Panki's stats and decks; no streak while Streaks is off. */
 export type PillNumbers = {
   watchedMs: number;
   due: number;
   reviews: number;
   reviewMs: number;
-  streak: number;
+  streak: PillStreak | null;
 };
 
-/** What the account's stats and decks come to for the pill: cards due counts what's new today too, as Review does. */
-export function pillNumbersOf(stats: Stats, decks: readonly Deck[]): PillNumbers {
+/** The account's settings the pill reads. */
+export type PillSettings = Pick<Settings, "streaksOn" | "pillStreak" | "reminderOnYouTube">;
+
+/**
+ * The streak picked for the pill (`pillStreak`, or the first when none is picked or the picked one is gone), as the pill
+ * says it; none while Streaks is off. Whether it's at risk is the server's (`StreakState.atRisk`); whether that shows on
+ * YouTube is On YouTube's.
+ */
+function pillStreakOf(stats: Stats, settings: PillSettings): PillStreak | null {
+  if (!settings.streaksOn) return null;
+  const streak = stats.streaks.find((s) => s.id === settings.pillStreak) ?? stats.streaks[0];
+  if (!streak) return { name: null, per: "day", current: stats.streak.current, hoursLeft: null };
+  return { name: streakNameOf(streak), per: streak.per, current: streak.current, hoursLeft: streak.atRisk && settings.reminderOnYouTube ? streak.hoursLeft : null };
+}
+
+/** What the account's stats, decks and settings come to for the pill: cards due counts what's new today too, as Review does. */
+export function pillNumbersOf(stats: Stats, decks: readonly Deck[], settings: PillSettings): PillNumbers {
   const lastDay = stats.time.byDay.at(-1);
   return {
     watchedMs: stats.watching.today,
     due: decks.reduce((sum, d) => sum + d.dueCount + d.newCount, 0),
     reviews: stats.reviews.today,
     reviewMs: lastDay && lastDay.day === stats.today ? lastDay.ms : 0,
-    streak: stats.streak.current,
+    streak: pillStreakOf(stats, settings),
   };
 }
 
-/** Numbers for the options page's preview: made up, none of the account's own. */
-export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: 7 };
+/** Numbers for the options page's preview: made up, none of the account's own; the streak is the one every account starts with. */
+export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: { name: streakNameOf(DEFAULT_STREAKS[0] ?? { name: "" }), per: "day", current: 7, hoursLeft: null } };
 
-/** Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it. */
-export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; words: string; said: string } | null {
+/**
+ * Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it; `left`, the
+ * hours left after the number while the part is at risk, tinting it.
+ */
+export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; words: string; said: string; left: string | null } | null {
   switch (part) {
     case "watched":
-      return { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watched today` };
+      return { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watching today`, left: null };
     case "due":
-      return { icon: "review", words: `${n.due} due`, said: `${count(n.due, "card", "cards")} due` };
+      return { icon: "review", words: `${n.due} due`, said: `${count(n.due, "card", "cards")} due`, left: null };
     case "reviews":
-      return { icon: "check", words: String(n.reviews), said: `${count(n.reviews, "review", "reviews")} today` };
+      return { icon: "check", words: String(n.reviews), said: `${count(n.reviews, "review", "reviews")} today`, left: null };
     case "reviewTime":
-      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} reviewing today` };
+      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} reviewing today`, left: null };
     case "streak":
-      return { icon: "flame", words: String(n.streak), said: `${count(n.streak, "day", "days")} review streak` };
+      return n.streak ? streakValue(n.streak) : null;
   }
+}
+
+/** The streak's part: its run ("3 weeks" for a streak per week, the number alone per day), and "· 3 h left" after it while it's at risk; said with its name. */
+function streakValue(s: PillStreak): { icon: IconName; words: string; said: string; left: string | null } {
+  const run = periodCountWords(s.per, s.current);
+  const atRisk = s.hoursLeft !== null ? `, at risk, ${s.hoursLeft} h left` : "";
+  return {
+    icon: "flame",
+    words: STREAK_PERIODS[s.per].unitOnPill ? run : s.current.toLocaleString("en"),
+    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${atRisk}`,
+    left: s.hoursLeft !== null ? `· ${s.hoursLeft} h left` : null,
+  };
 }
 
 /**
@@ -91,9 +128,10 @@ export function PankiPill({
         {update ? <i className={`ym-update is-${update}`} aria-hidden="true" /> : null}
         {profile ? <span className="ym-profile">{profile}</span> : null}
         {parts.map((p) => (
-          <span key={p.id} className={`ym-part is-${p.id}`}>
+          <span key={p.id} className={`ym-part is-${p.id} ${p.left ? "is-risk" : ""}`.trim()}>
             <Icon name={p.icon} />
             {p.words}
+            {p.left ? <span className="ym-part-left">{p.left}</span> : null}
           </span>
         ))}
       </Button>

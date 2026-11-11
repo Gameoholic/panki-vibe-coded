@@ -19,6 +19,7 @@ When the owner names a label, use it exactly, everywhere. A code name that diffe
 - Transcribing a video in parts is **chunks**, its player the chunk player; never "follower" or "piece".
 - **The entire video**, never "the whole video". It's transcribed, never "downloaded"; "download" isn't said on screen. The cap on a video's length is the **length limit** (`downloadLimit` in code).
 - The modes are **Full**, **Live** and **Hybrid**. A mode named in a sentence is its `ModeChip`.
+- A **review** is one card answered ("12 reviews", "Reviews a day", "next review in 3 h"), never the session; the time spent is **reviewing** ("10 min reviewing", "Finished reviewing"). One sitting-down to review is a **session**, in the code, the comments and the docs as well as on screen (`review_sessions`); never "sitting". The Review door and the Reviews settings panel keep their names.
 - Putting a card aside for a while is **Snooze** (snoozed, Unsnooze), never "Bury" (`bury` in code).
 - The place before an SRS type's first stage is **New**, everywhere, never "Lesson" (`lesson` in code).
 - The dictionary pointed at a word is the **Word pop-up**, what it opens **the pop-up** ("Let go on the word to keep the pop-up open", "Word pop-up layout"); never "popup", "word lookup" or "looking up words" (`popup`, `look` in code). The panel marking the words in the cards is "Highlight words that are in your decks"; the words on the seek bar, "Words that are in your decks".

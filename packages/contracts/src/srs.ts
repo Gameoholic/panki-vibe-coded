@@ -1,6 +1,7 @@
 /** @panki SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). */
 import { z } from "zod";
 import { DEFAULT_REVIEW_SETTINGS, ReviewSettings } from "./reviewSettings";
+import { DEFAULT_STREAKS, StreakId, StreakRules } from "./streaks";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
 import { TranscribeLanguage } from "./transcription";
 
@@ -20,7 +21,7 @@ export const Wait = z.object({ n: z.number().int().min(1).max(WAIT_MAX), unit: W
 export type Wait = z.infer<typeof Wait>;
 export const waitMinutes = (wait: Wait) => wait.n * MINUTES_PER_UNIT[wait.unit];
 
-/** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, but for the next review: reaching a stage is the end of the chart for that sitting, only an ask-again with no wait keeps a card in the one under way. */
+/** One rung of the ladder: a name (shown as "Stage N" when empty) and how long a card waits there. Cards start on the first rung; its wait is how long a card sent back to it (or kept on it) stays away. A stage's wait can be none at all (`n` 0): a card landing there is due at once, but for the next review: reaching a stage is the end of the chart for that session, only an ask-again with no wait keeps a card in the one under way. */
 export const StageWait = Wait.extend({ n: z.number().int().min(0).max(WAIT_MAX) });
 /** A colour as `#rrggbb`. */
 export const HexColour = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -495,6 +496,28 @@ export const Settings = z.object({
   aiActionDefaults: z.record(z.string().max(32), z.array(z.string().min(1).max(64)).max(400)),
   // `dailyGoal` (minutes a day that kept the watch streak) is gone with the streak: a row kept of it is read by nothing.
   // `shareWatching` (Off, Minutes and streak, Also what I watch) is gone too: a row kept of it is read by nothing.
+  /**
+   * **Streaks** on screen (Settings → General → Streaks): whether streaks are shown at all. Off hides every streak tile,
+   * the pill's streak and every reminder; the streaks themselves stay as they're kept. On to begin with.
+   */
+  streaksOn: z.boolean(),
+  /**
+   * The account's streaks (`streaks.ts`), each a name and goals; which days counted is worked out on every read, so a
+   * change re-reads the whole past. One streak to begin with, a review a day (`DEFAULT_STREAKS`).
+   */
+  streaks: StreakRules,
+  /** **Streak on the YouTube pill**: the id of the streak the pill shows; null, or one that's gone, is the first. */
+  pillStreak: StreakId.nullable(),
+  /**
+   * **Reminder** (Settings → General → Reminder): a streak with a run to lose whose day doesn't count yet is said to be
+   * at risk from `reminderHour` until the day turns, as a line in the app (`reminderInApp`) and on YouTube
+   * (`reminderOnYouTube`), never a pop-up and nothing sent to a device. On, from 20:00, in both, to begin with.
+   */
+  reminderOn: z.boolean(),
+  /** **Starts at**: the hour on the account's clock a day that doesn't count yet is said to be at risk from. */
+  reminderHour: z.number().int().min(0).max(23),
+  reminderInApp: z.boolean(),
+  reminderOnYouTube: z.boolean(),
   /** How every review runs, the same for every deck (`ReviewSettings`), each key a setting of its own. */
   ...ReviewSettings.shape,
 });
@@ -513,6 +536,13 @@ export const DEFAULT_SETTINGS: Settings = {
   aiInstructions: "",
   aiActionOrder: {},
   aiActionDefaults: {},
+  streaksOn: true,
+  streaks: DEFAULT_STREAKS,
+  pillStreak: null,
+  reminderOn: true,
+  reminderHour: 20,
+  reminderInApp: true,
+  reminderOnYouTube: true,
   ...DEFAULT_REVIEW_SETTINGS,
 };
 export const SettingsUpdate = Settings.omit({ videoTracking: true }).partial();
@@ -538,7 +568,7 @@ export const GivenId = z.uuid();
 
 /**
  * What the browser sends when a card is answered. The time and the outcome are the API's; the browser adds the
- * sitting it happened in and how long the card was on screen before the flip (`thinkMs`) and after it (`decideMs`),
+ * session it happened in and how long the card was on screen before the flip (`thinkMs`) and after it (`decideMs`),
  * spans measured on its own clock, kept for the stats; and, when the card opened on a Listen phase (its type's Listen
  * first), how long it was listened to before its front showed (`listenMs`; `thinkMs` then starts at the front).
  */

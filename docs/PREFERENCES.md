@@ -37,6 +37,7 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 ## Reporting
 
 - Every message to the owner is one sentence at most, reports and brainstorming included. Playbacks and proposals go in the plan file (`docs/<EPIC>.md`), never in chat.
+- Artifacts are for the owner's end, docs for Claude's. Anything the owner is to read in a brainstorm or a plan (the playback, the proposals, the order, a preview) is published as an artifact page as well, kept current with the plan file; the plan file in `docs/` is what Claude reads back.
 - The owner doesn't read reports: a question that's needed comes first, alone, in one short line.
 - Say only what the owner couldn't guess: a reading of their words that could have gone another way, something left out, something that will surprise, a default chosen.
 - No summary of what was done, no checklist, no list of calls, no artifact link.
@@ -47,7 +48,7 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 ## Designing with the owner
 
 - Build it, don't pitch it. For a change to what exists, decide, build it fully, and say in a line that it's there to try. No options page, no waiting for a pick.
-- An artifact only when the owner asks for a page, or for a genuinely new large mechanic where building the wrong thing would be costly, and then ask first in one line. Such a mechanic is simulated as a page they can play with, carrying "Calls to confirm" and "Decided".
+- An artifact only when the owner asks for a page, or for a genuinely new large mechanic where building the wrong thing would be costly, and then ask first in one line. Such a mechanic is simulated as a page they can play with: the UI alone, with made-up data, no notes, no questions and no text about it on the page. Questions and problems come after the owner has seen it and before anything is built, one at a time in chat.
 - An open product choice with no clear winner becomes a setting with a default picked by feel, not a question.
 - A control that picks a value (speed, size, amount) offers a proper range in `Dropdown` or `Segmented`, the neutral one the default; never a single preset button that flips to one value.
 - Product questions go one at a time: one question, wait for the answer, then the next, each with its recommendation.

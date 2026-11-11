@@ -81,6 +81,8 @@ import {
   type SrsType,
   type StorageReport,
   type SrsTypeUpdate,
+  type FrameWay,
+  type StatFrame,
   type Stats,
   type TranscriptionStatus,
   type TranscriptionUpdate,
@@ -174,7 +176,11 @@ export const api = {
   extensionZip: "/api/extension/chrome.zip",
   /** Everything Panki's data takes on that disk, account by account; an admin's to read. */
   storageReport: (): Promise<StorageReport> => request("/api/space/report", undefined, (b) => StorageReportResponse.parse(b).report),
-  stats: (deckId: string | null): Promise<Stats> => request(deckId === null ? "/api/stats" : `/api/stats?deck=${encodeURIComponent(deckId)}`, undefined, (b) => StatsResponse.parse(b).stats),
+  /** The stats for every deck or one; with a custom frame, its numbers too (`Stats.custom` for the last N, `customAhead` for the next). */
+  stats: (deckId: string | null, frame?: { way: FrameWay; frame: StatFrame }): Promise<Stats> => {
+    const query = new URLSearchParams({ ...(deckId === null ? {} : { deck: deckId }), ...(frame ? { [frame.way]: String(frame.frame.n), unit: frame.frame.unit } : {}) }).toString();
+    return request(query ? `/api/stats?${query}` : "/api/stats", undefined, (b) => StatsResponse.parse(b).stats);
+  },
   listTypes: (): Promise<CardType[]> => request("/api/types", undefined, (b) => CardTypeList.parse(b).types),
   addType: (type: NewCardType): Promise<CardType> => request("/api/types", send("POST", type), (b) => CardTypeResponse.parse(b).type),
   updateType: (typeId: string, update: CardTypeUpdate): Promise<CardType> => request(typePath(typeId), send("PATCH", update), (b) => CardTypeResponse.parse(b).type),
@@ -291,7 +297,7 @@ export const api = {
   /** Brings a card put aside (buried or suspended) back into reviews; its schedule stands as it was. */
   liftHold: (deckId: string, cardId: string): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/hold`, send("DELETE"), (b) => CardResponse.parse(b).card),
-  /** Flags a card or takes its flag off, from a review (with its sitting) or its row in the deck; the same again changes nothing. */
+  /** Flags a card or takes its flag off, from a review (with its session) or its row in the deck; the same again changes nothing. */
   flagCard: (deckId: string, cardId: string, change: CardFlagUpdate): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/flag`, send("PUT", change), (b) => CardResponse.parse(b).card),
   /**
@@ -313,10 +319,10 @@ export const api = {
   /** Takes an answer back by the id it was given (Undo): Panki keeps it, marked undone, and answers with the card where it stood before it; a 409 when the card has changed since. */
   undoAnswer: (deckId: string, cardId: string, givenId: string): Promise<Card> =>
     request(`${deckPath(deckId)}/cards/${encodeURIComponent(cardId)}/answers/${encodeURIComponent(givenId)}`, send("DELETE"), (b) => CardResponse.parse(b).card),
-  /** A sitting with a deck begins; the browser mints its id, so a retry returns the one already started. */
+  /** A session with a deck begins; the browser mints its id, so a retry returns the one already started. */
   startSession: (deckId: string, session: NewReviewSession): Promise<ReviewSession> =>
     request(`${deckPath(deckId)}/sessions`, send("POST", session), (b) => ReviewSessionResponse.parse(b).session),
-  /** How the sitting ended. `keepalive` for the one sent as the screen goes away. */
+  /** How the session ended. `keepalive` for the one sent as the screen goes away. */
   endSession: (deckId: string, sessionId: string, end: ReviewSessionEnd, keepalive = false): Promise<ReviewSession> =>
     request(`${deckPath(deckId)}/sessions/${encodeURIComponent(sessionId)}`, send("PATCH", end), (b) => ReviewSessionResponse.parse(b).session, { keepalive }),
 };

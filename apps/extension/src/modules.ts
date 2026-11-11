@@ -94,11 +94,12 @@ export const panelWidthOf = (dragged: number, room: number): number => Math.roun
 export const PillPart = z.enum(["watched", "due", "reviews", "reviewTime", "streak"]);
 export type PillPart = z.infer<typeof PillPart>;
 export const PILL_PARTS: Record<PillPart, string> = {
-  watched: "Watched today",
+  watched: "Time watching today",
   due: "Cards due",
   reviews: "Reviews today",
   reviewTime: "Time reviewing today",
-  streak: "Review streak",
+  // The streak picked for the pill in Panki's Settings (Streak on the YouTube pill), whatever its goals.
+  streak: "Streak",
 };
 export const PILL_PART_IDS = PillPart.options;
 /** The pill's parts as kept: every part once, in the order chosen, each shown or not. */

@@ -62,8 +62,8 @@ function Journey({ type, steps }: { type: SrsType; steps: JourneyStep[] }) {
 const NEW_CHOICES = [5, 10, 15, 20, 30, 50];
 const MONTH_CHOICES = [1, 3, 6, 12];
 const MONTH_DAYS = 30;
-/** How often reviews are done, for the forecast: a card that comes due waits for the next sitting. */
-const SITTING_OPTIONS: readonly { id: number; label: string }[] = [
+/** How often reviews are done, for the forecast: a card that comes due waits for the next session. */
+const SESSION_OPTIONS: readonly { id: number; label: string }[] = [
   { id: 1, label: "reviewing once a day" },
   { id: 2, label: "reviewing twice a day" },
   { id: 3, label: "reviewing 3 times a day" },
@@ -75,8 +75,8 @@ export function FlowPreview({ type }: Props) {
   const steps = useMemo(() => journey(type), [type]);
   const [newPerDay, setNewPerDay] = useState(DEFAULT_DECK_SETTINGS.newPerDay);
   const [months, setMonths] = useState(3);
-  const [sittings, setSittings] = useState(1);
-  const days = useMemo(() => forecast(type, { newPerDay }, months * MONTH_DAYS, sittings), [type, newPerDay, months, sittings]);
+  const [sessions, setSessions] = useState(1);
+  const days = useMemo(() => forecast(type, { newPerDay }, months * MONTH_DAYS, sessions), [type, newPerDay, months, sessions]);
   const newOptions = NEW_CHOICES.map((n) => ({ id: n, label: `${n} new cards a day` }));
   const monthOptions = MONTH_CHOICES.map((m) => ({ id: m, label: m === 12 ? "after a year" : m === 1 ? "after a month" : `after ${m} months` }));
   const horizon = months === 12 ? "year 1" : `month ${months}`;
@@ -116,7 +116,7 @@ export function FlowPreview({ type }: Props) {
       <div className="cost">
         <div className="cost-picks">
           <Dropdown id="preview-new" label="New cards a day" options={newOptions} value={newPerDay} onChange={setNewPerDay} />
-          <Dropdown id="preview-sittings" label="How often you review" options={SITTING_OPTIONS} value={sittings} onChange={setSittings} />
+          <Dropdown id="preview-sessions" label="How often you review" options={SESSION_OPTIONS} value={sessions} onChange={setSessions} />
           <Dropdown id="preview-months" label="How far ahead" options={monthOptions} value={months} onChange={setMonths} />
         </div>
         <div className="cost-plot" onPointerMove={point} onPointerDown={point} onPointerLeave={() => setAt(null)}>

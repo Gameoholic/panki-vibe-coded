@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Deck, Settings, SrsType, Stats } from "@panki/contracts";
+import type { Deck, Settings, SettingsUpdate, SrsType, Stats } from "@panki/contracts";
 import { api } from "../api";
 import { Board } from "../components/Board";
 import { Button } from "../components/Button";
@@ -9,12 +9,12 @@ type Props = {
   decks: Deck[];
   srsTypes: SrsType[];
   settings: Settings;
-  /** Into a review: of one deck, or from the picker when every deck is in scope. */
-  onReview: (deckId: string | null) => void;
+  /** A change to the settings from a tile (a streak edited beside it), saved; the stats are asked for again after it. */
+  onSettings: (patch: SettingsUpdate) => Promise<Settings>;
 };
 
 /** The Stats tab: every widget, for all decks or one, on the same board the home has. Nothing here is arranged: the page is fixed. */
-export function StatsView({ decks, srsTypes, settings, onReview }: Props) {
+export function StatsView({ decks, srsTypes, settings, onSettings }: Props) {
   const [deckId, setDeckId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +43,17 @@ export function StatsView({ decks, srsTypes, settings, onReview }: Props) {
     };
   }, [deckId, turn]);
 
-  const ctx: WidgetContext = { decks, srsTypes, settings, onReview: () => onReview(deckId), onStale: () => setTurn((n) => n + 1) };
+  const ctx: WidgetContext = {
+    decks,
+    srsTypes,
+    settings,
+    onStale: () => setTurn((n) => n + 1),
+    onSettings: async (patch) => {
+      const saved = await onSettings(patch);
+      setTurn((n) => n + 1);
+      return saved;
+    },
+  };
 
   return (
     <>

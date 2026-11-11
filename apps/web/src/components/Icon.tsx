@@ -33,10 +33,13 @@ const ICONS = {
   again: ["M20 12a8 8 0 1 1-2.3-5.7", "M20 4v4h-4"],
   close: ["M6 6l12 12", "M18 6L6 18"],
   grip: ["M9 5v1.5", "M15 5v1.5", "M9 11v1.5", "M15 11v1.5", "M9 17v1.5", "M15 17v1.5"],
+  /** A streak, and a streak at risk (in `--risk`). */
   flame: ["M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 3-2 4-3 4 0-3-1-6-4-9 0 4-4 6-4 11 0 4 3 8 7 8z"],
   undo: ["M9 14L4 9l5-5", "M4 9h11a5 5 0 0 1 0 10h-4"],
   redo: ["M15 14l5-5-5-5", "M20 9H9a5 5 0 0 0 0 10h4"],
   check: ["M5 12l5 5L20 7"],
+  /** Not met, beside `check`'s met (a streak's condition): a state, never a button; closing is `close`. */
+  cross: ["M7 7l10 10", "M17 7L7 17"],
   lock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 8 0v3"],
   edit: ["M4 20h4L19 9l-4-4L4 16z", "M13 7l4 4"],
   trash: ["M4 7h16", "M9 7V4h6v3", "M6 7l1 13h10l1-13", "M10 11v6", "M14 11v6"],
@@ -80,8 +83,10 @@ const ICONS = {
   autoplay: ["M7 7h10a5 5 0 0 1 0 10H7A5 5 0 0 1 7 7z", "M16 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 1 0 0-5z"],
   /** A wide frame with its two sides pointing out: the player made wider. */
   theater: ["M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z", "M8 10l-2 2 2 2", "M16 10l2 2-2 2"],
-  /** Two arrows out to opposite corners: full screen, as the site's player draws it (`full` is Panki's own player's). */
+  /** Two arrows out to opposite corners: full screen, as the site's player draws it (`full` is Panki's own player's), and a tile's Show more. */
   expand: ["M14 4h6v6", "M20 4l-6 6", "M10 20H4v-6", "M4 20l6-6"],
+  /** Two arrows in from opposite corners: a tile's Show less, `expand` undone. */
+  collapse: ["M4 10h6V4", "M10 10L4 4", "M20 14h-6v6", "M14 14l6 6"],
   /** A gear: the player's settings (`settings`, the sliders, is Panki's own). */
   gear: [gearOf(8), "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z"],
   /** An eye: a card seen as a review would show it (`CardPreview`). */

@@ -458,7 +458,7 @@ export function decksRouter(dbOf: DbOf, now: () => number) {
     res.json({ card });
   });
 
-  // A sitting with the deck. The browser mints the id, so a retried start returns the one already running.
+  // A session with the deck. The browser mints the id, so a retried start returns the one already running.
   router.post("/:deckId/sessions", (req, res) => {
     const deckId = deckIdFrom(req, res);
     if (!deckId) return;

@@ -35,7 +35,7 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 | `/api/types` | `types.ts` | Card types. A `PATCH` takes the whole field list (ids left out are hidden, known ones un-hidden); a layout sent is kept filled out against the fields and writes each field's side; any change writes `card_type_changes` whole |
 | `/api/srs` | `srs.ts` | SRS types. Hiding a stage with cards needs `moves` (`409 { needsMoves }` without); a built-in type is `409` to `PATCH` and `DELETE` |
 | `/api/settings` | `settings.ts` | The account's settings over the defaults |
-| `/api/decks` | `decks.ts` | Decks, and under them cards, answers, Undo, examples, holds, flags and sittings (below) |
+| `/api/decks` | `decks.ts` | Decks, and under them cards, answers, Undo, examples, holds, flags and sessions (below) |
 | `/api/cards` | `cards.ts` | Reads across decks: the cards called by some words (what a card about to be added says is there already) and every word the cards are called by |
 | `/api/media` | `media.ts` | A card's files: upload, serve, and a clip's cues and recording facts, each written once |
 | `/api/word-audio`, `/api/forvo` | `wordAudio.ts`, `forvo.ts` | Where word audio comes from (admin), Forvo's recordings of a word, one kept as the account's file (`forvo.md`) |
@@ -45,7 +45,7 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 | `/api/watching` | `watching.ts` | Time watched, where a video stopped, finished, saved videos, the glance on YouTube's thumbnails, each browser's Video tracking (`watching.md`) |
 | `/api/ai` | `ai.ts` | Panki AI's settings and keys (admin), templates, actions, and a message to each place (`ai.md`) |
 | `/api/usage` | `usage.ts` | The usage ledger added up per account (admin) |
-| `/api/stats` | `stats.ts` | Every number of the Stats tab, for all decks or one |
+| `/api/stats` | `stats.ts` | Every number of the Stats tab, for all decks or one; `?last=3&unit=week` adds a custom frame over the past (`Stats.custom`), `?next=` one ahead (`Stats.customAhead`), the days named by the API |
 | `/api/space` | `space.ts` | What's left on the disk (anyone: they share it), and the storage report (admin) |
 
 ### Under a deck, what isn't obvious
@@ -56,6 +56,6 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 - **Undo** is `DELETE …/answers/:givenId`: the card as it stood before; `409` unless that answer is the last thing that happened to the card.
 - **`PUT …/hold`** suspends a card by hand from its row; **`DELETE …/hold`** lifts every hold that still stands.
 - **`PUT …/flag`** sets the flag; the same again writes nothing.
-- **A sitting** is `POST …/sessions` with the browser's id, stamped with the API's time and the signed-in device; its end, `PATCH`, is set once.
+- **A session** is `POST …/sessions` with the browser's id, stamped with the API's time and the signed-in device; its end, `PATCH`, is set once.
 - **`GET …/cards`** pins an example on each card a review would take now that has examples and no live pin (`data-model.md` → "A card's other examples"): a read that writes, on purpose.
 - **The API never refuses an answer for being over the day's count;** it only stops offering new cards (`newCount` 0) until the day turns.

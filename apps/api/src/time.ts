@@ -79,28 +79,72 @@ export function dayReader(hour: number, timeZone: string): (instant: number) => 
   };
 }
 
-/** A run of days, as the review streak and the watch streak both count them (the contracts' `Streak`). */
-export type Streak = { current: number; best: number; week: boolean[]; todayIndex: number };
+/**
+ * The hour of the day an instant falls in, in the day's order: 0 the hour the day turns over at, 23 the last before it
+ * turns again. Worked out once per quarter hour of UTC, as `dayReader` is.
+ */
+export function hourReader(hour: number, timeZone: string): (instant: number) => number {
+  const QUARTER = 900_000;
+  const known = new Map<number, number>();
+  return (instant) => {
+    const quarter = Math.floor(instant / QUARTER);
+    let index = known.get(quarter);
+    if (index === undefined) {
+      index = (new Date(wallAt(instant, timeZone)).getUTCHours() - hour + 24) % 24;
+      known.set(quarter, index);
+    }
+    return index;
+  };
+}
+
+/** The instant a day of the account's begins: `hour`:00 on the zone's clock on that date. */
+export function dayBeginsAt(day: Day, hour: number, timeZone: string): number {
+  const [y, m, d] = day.split("-").map(Number);
+  return instantOf(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1, hour), timeZone);
+}
+
+/** The first day of the calendar month a day is in. */
+export function monthOf(day: Day): Day {
+  return `${day.slice(0, 7)}-01`;
+}
+
+/** The same day of the month `n` months on (or back), held to that month's last day (31 Mar back one month is 28 or 29 Feb). */
+export function shiftMonths(day: Day, n: number): Day {
+  const [y, m, d] = day.split("-").map(Number);
+  const first = Date.UTC(y ?? 1970, (m ?? 1) - 1 + n, 1);
+  const last = new Date(Date.UTC(new Date(first).getUTCFullYear(), new Date(first).getUTCMonth() + 1, 0)).getUTCDate();
+  return dayKey(first + (Math.min(d ?? 1, last) - 1) * DAY);
+}
+
+/** The first day of the calendar month `n` months on (or back) from the one a day is in. */
+export function addMonths(day: Day, n: number): Day {
+  const [y, m] = day.split("-").map(Number);
+  return dayKey(Date.UTC(y ?? 1970, (m ?? 1) - 1 + n, 1));
+}
 
 /**
- * The run the days that counted make: how many in a row up to today (today only once it counts, so a streak isn't
- * broken before the day is over), the longest run ever, and this week, Sunday first.
+ * The run the periods that counted make, each named by the day it starts on and `days` long: how many in a row up to
+ * the one going on (`now` only once it counts, so a streak isn't broken before the period is over), and the longest
+ * run ever.
  */
-export function streakOf(counted: ReadonlySet<Day>, today: Day): Streak {
+export function runOf(counted: ReadonlySet<Day>, now: Day, days: number): { current: number; best: number } {
   let current = 0;
-  for (let d = counted.has(today) ? today : addDays(today, -1); counted.has(d); d = addDays(d, -1)) current += 1;
-  const days = [...counted].sort();
-  let best = 0;
-  let run = 0;
-  days.forEach((d, i) => {
-    const previous = days[i - 1];
-    run = previous !== undefined && daysBetween(previous, d) === 1 ? run + 1 : 1;
-    best = Math.max(best, run);
-  });
-  const todayIndex = weekdayOf(today);
-  const weekStart = addDays(today, -todayIndex);
-  const week = Array.from({ length: 7 }, (_, i) => counted.has(addDays(weekStart, i)));
-  return { current, best, week, todayIndex };
+  for (let d = counted.has(now) ? now : addDays(now, -days); counted.has(d); d = addDays(d, -days)) current += 1;
+  const best = runsOf([...counted].sort(), days).reduce((most, r) => Math.max(most, r.n), 0);
+  return { current, best };
+}
+
+/** The runs sorted periods make, `days` long each, oldest first: each its first and last period and how many. */
+export function runsOf(sorted: readonly Day[], days: number): { from: Day; to: Day; n: number }[] {
+  const runs: { from: Day; to: Day; n: number }[] = [];
+  for (const d of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && daysBetween(last.to, d) === days) {
+      last.to = d;
+      last.n += 1;
+    } else runs.push({ from: d, to: d, n: 1 });
+  }
+  return runs;
 }
 
 /** The day's place in its week, 0 = Sunday. */

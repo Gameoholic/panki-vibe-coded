@@ -22,7 +22,7 @@ This file is the index; the content lives in `docs/`. Read the docs before touch
 | [docs/RUNNING.md](docs/RUNNING.md) | Run, build, deploy, load the extension; the commands; where the data lives | When running or deploying |
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Why it exists, who it's for, how it must feel, the features | On a product call |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | What the owner wants next; nothing there is approved | When picking what's next |
-| [docs/AI.md](docs/AI.md), [docs/DOCS.md](docs/DOCS.md) | Epic plans: why, settled, the order, open | During the epic |
+| [docs/AI.md](docs/AI.md), [docs/DOCS.md](docs/DOCS.md), [docs/STREAKS.md](docs/STREAKS.md), [docs/BLUR.md](docs/BLUR.md) | Epic plans: why, settled, the order, open | During the epic |
 | [README.md](README.md) | The VPS pull-and-restart block, the owner's alone | Never written to |
 
 ## Never open a browser

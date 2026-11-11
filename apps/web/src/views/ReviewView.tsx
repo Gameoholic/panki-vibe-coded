@@ -40,7 +40,7 @@ type Props = {
   review: ReviewSettings;
   /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the account's `todayFirst` says, folded. */
   begin?: ReviewBegin;
-  /** The answer with the sitting it happened in and how long the card was on screen before and after the flip. */
+  /** The answer with the session it happened in and how long the card was on screen before and after the flip. */
   onAnswer: (cardId: string, answer: CardAnswer) => Promise<Card>;
   /** An answer taken back, by the id it was given; the card as it stood before it. */
   onUndo: (cardId: string, givenId: string) => Promise<Card>;
@@ -57,15 +57,15 @@ const SPAN_MAX = DAY_MS;
 const span = (from: number, to: number) => Math.min(SPAN_MAX, Math.max(0, Math.round(to - from)));
 
 /**
- * A sitting with the deck, as the API knows it. Started as the screen opens and ended once, as the screen or the page
+ * A session with the deck, as the API knows it. Started as the screen opens and ended once, as the screen or the page
  * goes (or extra study starts): as done when the line had run out, so an answer undone at the end stays in it, or as
  * left with a card still on screen. `ok` is null until the start is answered; a start that failed never blocks the
- * review, the answers just go without a sitting.
+ * review, the answers just go without a session.
  */
-type Sitting = { id: string; ready: Promise<boolean>; ok: boolean | null; ended: boolean };
+type Session = { id: string; ready: Promise<boolean>; ok: boolean | null; ended: boolean };
 
 /**
- * An answer this sitting gave, newest last, that Undo can take back: the id it was given, its card, and the review as
+ * An answer this session gave, newest last, that Undo can take back: the id it was given, its card, and the review as
  * it stood just before it (the line, the tally), which taking it back puts on screen again.
  */
 type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
@@ -295,7 +295,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   const [answered, setAnswered] = useState(0);
   /** Each time a card is put on screen, by an answer or by Undo: a showing of its own, timed afresh, even the same card's. */
   const [turn, setTurn] = useState(0);
-  /** What Undo can take back, newest last: every answer of this sitting, until it's left. */
+  /** What Undo can take back, newest last: every answer of this session, until it's left. */
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
   /**
@@ -366,7 +366,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     setExtraPick(n > 0 && !extraToday.more ? null : { more: extraToday.more, picked: new Set(extraOrder.slice(0, n)) });
   }
   /**
-   * Extra study begins on what's picked, in the order it takes them: a sitting of its own, so Undo goes back no further
+   * Extra study begins on what's picked, in the order it takes them: a session of its own, so Undo goes back no further
    * than its start, and the day's ends as done. The pick is kept in the ledger as today's is, marked as extra study's.
    */
   function startExtra() {
@@ -374,9 +374,9 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     if (picked.length === 0) return;
     const left = extraOffered.filter((id) => !extraToday.picked.has(id));
     const added = picked.filter((id) => !extraOffered.includes(id));
-    endSitting({ how: "done" });
-    startSitting("extra");
-    ledger.record("pick", { data: { deckId: deck.id, sessionId: sitting.current?.id, extra: true, today: extraOffered, left, added } });
+    endSession({ how: "done" });
+    startSession("extra");
+    ledger.record("pick", { data: { deckId: deck.id, sessionId: session.current?.id, extra: true, today: extraOffered, left, added } });
     pickedByHand.current = left.length > 0 || added.length > 0;
     setGiven([]);
     setFailure(null);
@@ -419,7 +419,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     const at = Math.max(0, exampleIds.indexOf(onScreen));
     const next = exampleIds[(at + by + exampleIds.length) % exampleIds.length] ?? null;
     setBrowsed({ id: next });
-    ledger.record("example", { data: { deckId: deck.id, cardId: card.id, sessionId: sitting.current?.id, exampleId: next, shown: exampleId } });
+    ledger.record("example", { data: { deckId: deck.id, cardId: card.id, sessionId: session.current?.id, exampleId: next, shown: exampleId } });
   }
   // A new card on screen, or the answers going away, takes the glance down with them, and any key being held.
   useEffect(() => {
@@ -477,7 +477,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     };
   }, [doubles.join("\n")]); // eslint-disable-line react-hooks/exhaustive-deps -- the keys are what the joined list says
 
-  const sitting = useRef<Sitting | null>(null);
+  const session = useRef<Session | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh,
@@ -486,30 +486,30 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
    * it back there) to its front (`frontAt`).
    */
   const shown = useRef<{ cardId: string | null; at: number; listen: boolean; listenAt: number; frontAt: number | null; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, listen: false, listenAt: 0, frontAt: null, revealedAt: null, givenId: "" });
-  function startSitting(kind: "review" | "extra") {
-    const s: Sitting = { id: crypto.randomUUID(), ready: Promise.resolve(false), ok: null, ended: false };
+  function startSession(kind: "review" | "extra") {
+    const s: Session = { id: crypto.randomUUID(), ready: Promise.resolve(false), ok: null, ended: false };
     s.ready = api.startSession(deck.id, { id: s.id, kind }).then(
       () => (s.ok = true),
       () => (s.ok = false),
     );
-    sitting.current = s;
+    session.current = s;
   }
-  function endSitting(end: ReviewSessionEnd, keepalive = false) {
-    const s = sitting.current;
+  function endSession(end: ReviewSessionEnd, keepalive = false) {
+    const s = session.current;
     if (!s || s.ended) return;
     s.ended = true;
     void s.ready.then((ok) => (ok ? api.endSession(deck.id, s.id, end, keepalive).catch(() => undefined) : undefined));
   }
   /**
-   * The sitting in the ref (the day's, or extra study's) ends as the screen goes or the page is closed: left with a card
+   * The session in the ref (the day's, or extra study's) ends as the screen goes or the page is closed: left with a card
    * on screen, done at the end. Not as the line runs out, which an Undo at the end screen takes back.
    */
   function endHere() {
     const s = shown.current;
     // Where a card that opened on its Listen phase stood; nothing said of one that didn't.
     const phase = !s.listen ? undefined : s.revealedAt !== null ? "back" : s.frontAt !== null ? "front" : "listen";
-    if (s.cardId) endSitting({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: s.revealedAt !== null, phase }, true);
-    else endSitting({ how: "done" }, true);
+    if (s.cardId) endSession({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: s.revealedAt !== null, phase }, true);
+    else endSession({ how: "done" }, true);
   }
   useEffect(() => {
     // A remount straight after an unmount (StrictMode in development) is no leaving: the deferred end is called off.
@@ -517,8 +517,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       clearTimeout(leaveTimer.current);
       leaveTimer.current = null;
     }
-    // Opening on today's cards, the sitting starts with Start: leaving from there is no review.
-    if (!sitting.current && today === null) startSitting("review");
+    // Opening on today's cards, the session starts with Start: leaving from there is no review.
+    if (!session.current && today === null) startSession("review");
     window.addEventListener("pagehide", endHere);
     return () => {
       window.removeEventListener("pagehide", endHere);
@@ -581,15 +581,15 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   }
   /**
    * The review begins on what's picked: today's line as it was when every card is, else a line of the picked cards
-   * alone, in the review's order, new cards past today's count among them. The sitting starts here, and the pick is kept
+   * alone, in the review's order, new cards past today's count among them. The session starts here, and the pick is kept
    * in the ledger with it: what today offered, what was left for later, what was added.
    */
   function start() {
     if (!today || today.picked.size === 0) return;
     const left = queue.filter((id) => !today.picked.has(id));
     const added = [...today.picked].filter((id) => !queue.includes(id));
-    startSitting("review");
-    ledger.record("pick", { data: { deckId: deck.id, sessionId: sitting.current?.id, today: queue, left, added } });
+    startSession("review");
+    ledger.record("pick", { data: { deckId: deck.id, sessionId: session.current?.id, today: queue, left, added } });
     if (left.length > 0 || added.length > 0) {
       pickedByHand.current = true;
       setLine(startLine(buildQueue(cardsOf([...today.picked]), deck, review, false), review.pool));
@@ -625,13 +625,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     const revealedAt = t.revealedAt ?? now;
     // Thinking starts at the front: as the card came on, or as its Listen phase ended.
     const frontAt = t.listen ? (t.frontAt ?? revealedAt) : t.at;
-    const s = sitting.current;
+    const s = session.current;
     const before: Given = { givenId: t.givenId, cardId: card.id, line, counts, answered };
     try {
       const saved = await onAnswer(card.id, {
         givenId: t.givenId,
         answerId,
-        // A sitting that failed to start is left out; one still starting is named, the API has it by the time this lands.
+        // A session that failed to start is left out; one still starting is named, the API has it by the time this lands.
         sessionId: s && s.ok !== false ? s.id : undefined,
         listenMs: t.listen ? span(t.listenAt, frontAt) : undefined,
         thinkMs: span(frontAt, revealedAt),
@@ -691,14 +691,14 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   }
 
   /**
-   * The card on screen flagged, or its flag taken off: at once, on its front or its back, with its sitting. It answers
+   * The card on screen flagged, or its flag taken off: at once, on its front or its back, with its session. It answers
    * nothing, so the card stays where it is in the review, to be answered as ever; Undo leaves it be.
    */
   async function toggleFlag() {
     if (!card || flagging) return;
     setFlagging(true);
     setFailure(null);
-    const s = sitting.current;
+    const s = session.current;
     try {
       const saved = await onFlag(card.id, { flagged: card.flaggedAt === null, from: "review", sessionId: s && s.ok !== false ? s.id : undefined });
       setById((m) => new Map(m).set(saved.id, saved));

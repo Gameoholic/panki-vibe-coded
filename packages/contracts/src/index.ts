@@ -28,6 +28,7 @@ export * from "./space";
 export * from "./srs";
 export * from "./srsStarters";
 export * from "./stageColour";
+export * from "./streaks";
 export * from "./subtitleStyle";
 export * from "./touchUp";
 export * from "./transcription";

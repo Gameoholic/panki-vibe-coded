@@ -1,15 +1,15 @@
 /** @panki The board: the home's doors and tiles, and every tile on Stats, held to arrange (`Board`). Never a second way of arranging. */
-import { useEffect, type CSSProperties } from "react";
-import type { Stats } from "@panki/contracts";
+import { useEffect, type ReactNode } from "react";
+import { streakNameOf, type Settings, type Stats } from "@panki/contracts";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { KeyCap } from "./KeyCap";
-import { Bone, Skeleton } from "./Skeleton";
+import { Bone } from "./Skeleton";
 import type { Bind } from "../keys";
 import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
-import { isDoorId, type BoardItemId, type BoardLayout, type DoorId } from "../layout";
-import { controlOf, WIDGETS, Widget, widgetOf, type WidgetContext, type WidgetEntry, type WidgetId } from "../widgets";
+import { isDoorId, isStreakTile, type BoardItemId, type BoardLayout, type DoorId, type TileItemId } from "../layout";
+import { StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext } from "../widgets";
 
 /** One of the home's doors, as the home describes it; the Board draws it. */
 export type DoorSpec = {
@@ -20,6 +20,8 @@ export type DoorSpec = {
   detail: string | null;
   /** Small words after the line, when there's something to add to it. */
   note?: string | null;
+  /** Drawn before the note: the flame, while the note is a streak at risk. */
+  noteIcon?: IconName;
   /** The accent one: only while there's something to do. */
   hot?: boolean;
   /** The key that opens it from the keyboard, its keycap after the name (Settings → Keybinds). */
@@ -48,8 +50,10 @@ type Props = {
 /** How long a still press takes to start the arranging, and to lift a tile once it is (a pull lifts it sooner). */
 const HOLD_TO_ARRANGE = 450;
 const HOLD_WHILE_ARRANGING = 120;
-/** An id read off the DOM, back as what it names: the doors and the registry are the only lists. */
-const itemOf = (id: string): BoardItemId | null => (isDoorId(id) ? id : (widgetOf(id)?.id ?? null));
+/** How many streak tiles this device last drew, for the shells while the settings load. */
+const STREAK_TILES_SHAPE = "tiles:streaks";
+/** An id read off the DOM, back as what it names: the doors, the registry and the streaks are the only lists. */
+const itemOf = (id: string): BoardItemId | null => (isDoorId(id) || isStreakTile(id) ? id : (widgetOf(id)?.id ?? null));
 
 /** The two change places; everything else stays where it is. */
 function swap<T>(list: readonly T[], a: T, b: T): T[] {
@@ -62,21 +66,32 @@ function swap<T>(list: readonly T[], a: T, b: T): T[] {
   return next;
 }
 
+/** A tile's name for the put-away chips: the registry's, or its streak's. */
+function tileName(id: TileItemId, settings: Settings | null): string | null {
+  const streakId = streakIdOfTile(id);
+  if (streakId === null) return widgetOf(id)?.name ?? null;
+  const rule = settings?.streaks.find((s) => s.id === streakId);
+  return rule ? streakNameOf(rule) : null;
+}
+
 /**
  * The board: three tiles to a row on a PC, one on the phone. On the Stats tab it is every tile. On the home it is the
  * doors and the tiles this device was set up with, arranged by hand: a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
  * and let go on another to trade places with it, a × puts a tile away, the dashed tile at the end brings one back,
- * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on.
+ * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on. Streaks Off takes every
+ * streak's tile off the board, wherever it stands.
  */
 export function Board({ stats, ctx, stale = false, home }: Props) {
   const arranging = home?.arranging ?? false;
   const endArranging = home?.onArranging;
+  const settings = ctx?.settings ?? null;
+  const streaksOn = settings?.streaksOn ?? true;
 
-  function hide(id: WidgetId) {
+  function hide(id: TileItemId) {
     if (!home) return;
     home.onLayout({ order: home.layout.order.filter((x) => x !== id), hidden: [...home.layout.hidden, id] });
   }
-  function show(id: WidgetId) {
+  function show(id: TileItemId) {
     if (!home) return;
     home.onLayout({ order: [...home.layout.order.filter((x) => x !== id), id], hidden: home.layout.hidden.filter((x) => x !== id) });
   }
@@ -117,6 +132,12 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [arranging, endArranging]);
 
+  // How many streaks there are, for the Stats tab's shells next time the settings are still on their way.
+  const streakCount = settings?.streaksOn ? settings.streaks.length : settings ? 0 : null;
+  useEffect(() => {
+    if (streakCount !== null) rememberShape(STREAK_TILES_SHAPE, streakCount);
+  }, [streakCount]);
+
   const door = (spec: DoorSpec) => (
     <Button
       key={spec.id}
@@ -138,47 +159,50 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
       ) : (
         <span className="door-detail">
           {spec.detail}
-          {spec.note && <small className="door-note">{spec.note}</small>}
+          {spec.note && (
+            <small className="door-note">
+              {spec.noteIcon ? <Icon name={spec.noteIcon} /> : null}
+              {spec.note}
+            </small>
+          )}
         </span>
       )}
     </Button>
   );
 
-  // A tile's real height is remembered on this device, and held while its body is a skeleton, so nothing grows or
-  // shrinks as its numbers arrive (`skeletonMemory.ts`: the skeleton fits what comes).
-  const tileHeight = (id: string): CSSProperties | undefined => {
-    const kept = shapeOf(`tile:${id}`, 0);
-    return kept > 0 ? { minHeight: `${kept}px` } : undefined;
+  const overlayOf = (id: TileItemId, name: string) =>
+    arranging ? (
+      <Button className="btn-icon tile-x" aria-label={`Hide ${name}`} data-no-drag onClick={() => hide(id)}>
+        <Icon name="close" />
+      </Button>
+    ) : undefined;
+
+  /** A streak's tile, while Streaks is on and the streak is there; on Stats, its shell while the settings load. */
+  const streakTile = (id: TileItemId, streakId: string | null): ReactNode => {
+    const rule = streakId === null ? undefined : settings?.streaks.find((s) => s.id === streakId);
+    if (settings && (!streaksOn || !rule)) return null;
+    const state = stats?.streaks.find((s) => s.id === streakId);
+    return (
+      <StreakTile
+        key={id}
+        id={id}
+        rule={rule}
+        state={state}
+        today={stats?.today ?? null}
+        ctx={ctx}
+        className={drag.tileClass(id)}
+        style={drag.tileStyle(id)}
+        overlay={overlayOf(id, rule ? streakNameOf(rule) : "")}
+      />
+    );
   };
-  const tile = (entry: WidgetEntry) => (
-    <Widget
-      key={entry.id}
-      entry={entry}
-      control={controlOf(entry, stats)}
-      className={drag.tileClass(entry.id)}
-      ref={
-        stats && ctx
-          ? (el) => {
-              if (el !== null) rememberShape(`tile:${entry.id}`, el.offsetHeight);
-            }
-          : undefined
-      }
-      // A wide tile takes two of the board's columns.
-      style={{ ...(entry.wide ? ({ "--w": 2 } as CSSProperties) : undefined), ...drag.tileStyle(entry.id), ...(stats && ctx ? undefined : tileHeight(entry.id)) }}
-      overlay={
-        arranging ? (
-          <Button className="btn-icon tile-x" aria-label={`Hide ${entry.name}`} data-no-drag onClick={() => hide(entry.id)}>
-            <Icon name="close" />
-          </Button>
-        ) : undefined
-      }
-    >
-      {stats && ctx ? entry.render(stats, ctx) : <Skeleton shape="tile" />}
-    </Widget>
-  );
 
   const doorById = new Map((home?.doors ?? []).map((d) => [d.id, d]));
-  const away = (home?.layout.hidden ?? []).flatMap((id) => widgetOf(id) ?? []);
+  const away = (home?.layout.hidden ?? []).flatMap((id) => {
+    const name = tileName(id, settings);
+    // A streak's tile put away comes back only while Streaks is on.
+    return name === null || (isStreakTile(id) && !streaksOn) ? [] : [{ id, name }];
+  });
   const { className: dragClass, ...rootProps } = drag.rootProps;
   return (
     <div {...rootProps} className={`board ${arranging ? "is-arranging" : ""} ${stale ? "is-stale" : ""} ${dragClass}`.trim()} aria-label={home ? "Home" : "Stats"} aria-busy={stale}>
@@ -187,8 +211,16 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
           const spec = doorById.get(id);
           return spec ? door(spec) : null;
         }
+        if (isStreakTile(id)) return streakTile(id, streakIdOfTile(id));
         const entry = widgetOf(id);
-        return entry ? tile(entry) : null;
+        if (!entry) return null;
+        if ("streaks" in entry) {
+          // On Stats, every streak's tile stands here; on the home each is an item of its own.
+          if (home) return null;
+          if (settings) return streaksOn ? settings.streaks.map((s) => streakTile(streakTileId(s.id), s.id)) : null;
+          return Array.from({ length: shapeOf(STREAK_TILES_SHAPE, 1) }, (_, i) => streakTile(streakTileId(`shell-${i}`), null));
+        }
+        return <Tile key={entry.id} entry={entry} stats={stats} ctx={ctx} className={drag.tileClass(entry.id)} style={drag.tileStyle(entry.id)} overlay={overlayOf(entry.id, entry.name)} />;
       })}
       {/* Where a tile put away comes back from. */}
       {arranging ? (
@@ -196,10 +228,10 @@ export function Board({ stats, ctx, stale = false, home }: Props) {
           <span className="w-ctl">{away.length > 0 ? "Put away" : "Nothing put away"}</span>
           {away.length > 0 ? (
             <div className="chips">
-              {away.map((entry) => (
-                <Button key={entry.id} variant="chip" className="chip-add" onClick={() => show(entry.id)}>
+              {away.map((tile) => (
+                <Button key={tile.id} variant="chip" className="chip-add" onClick={() => show(tile.id)}>
                   <Icon name="add" />
-                  {entry.name}
+                  {tile.name}
                 </Button>
               ))}
             </div>

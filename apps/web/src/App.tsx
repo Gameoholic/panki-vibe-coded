@@ -74,6 +74,7 @@ import { SrsNewView } from "./views/SrsNewView";
 import { SrsTypeView, type SaveStatus } from "./views/SrsTypeView";
 import { SrsTypesView } from "./views/SrsTypesView";
 import { StatsView } from "./views/StatsView";
+import { STREAKS_SHAPE } from "./views/StreaksPanel";
 import { TypesView } from "./views/TypesView";
 import { TypeView } from "./views/TypeView";
 
@@ -137,8 +138,12 @@ const SKELETON_OF: Record<Screen["kind"], SkeletonShape> = {
   admin: "panels",
   stats: "board",
 };
-/** The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display, General, Reviews), and a deck's settings (About, Reviews). */
-const SETTINGS_ROWS = [2, 3, 7] as const;
+/**
+ * The setting rows in each panel a screen of settings opens on (`Skeleton`'s `panels`): Settings' General tab (Display,
+ * General, Streaks, Reminder, Reviews: Streaks its switch, the pill's streak, each streak's name, Streak type, Count from and
+ * Conditions as many as this device last drew, and Add a streak), and a deck's settings (About, Reviews).
+ */
+const settingsRows = () => [2, 3, 3 + 4 * shapeOf(STREAKS_SHAPE, 1), 4, 7];
 const DECK_SETTINGS_ROWS = [3, 3] as const;
 /** The most rows or tiles any skeleton draws: a screenful, not every card of a big deck. */
 const SKELETON_ROWS_MAX = 12;
@@ -860,10 +865,11 @@ export function App() {
     if (decks?.length === 1 && decks[0]) go({ kind: "review", deck: decks[0], from: "pick" });
     else go({ kind: "pick" });
   }
-  function reviewFromStats(forDeckId: string | null) {
-    const deck = forDeckId === null ? undefined : decks?.find((d) => d.id === forDeckId);
-    if (deck) go({ kind: "review", deck, from: "pick" });
-    else reviewAny();
+  /** A setting changed from the home's tiles (a streak edited beside its tile): saved, and the home's stats asked for again. */
+  async function settingsFromHome(patch: SettingsUpdate) {
+    const saved = await updateSettings(patch);
+    refreshStats();
+    return saved;
   }
 
   function signIn(next: Me) {
@@ -1058,7 +1064,7 @@ export function App() {
         // The real board's own shells: every widget's frame and title, each at the height this device remembers of it.
         return <Board stats={null} ctx={null} />;
       case "settings":
-        return <Skeleton shape="panels" tabs parts={SETTINGS_ROWS} />;
+        return <Skeleton shape="panels" tabs parts={settingsRows()} />;
       case "admin":
         return <Skeleton shape="panels" tabs />;
       default:
@@ -1119,6 +1125,7 @@ export function App() {
               settings={settings}
               onReview={reviewAny}
               onStale={refreshStats}
+              onSettings={settingsFromHome}
               onDecks={() => go({ kind: "decks" })}
               onAdd={() => go({ kind: "add" })}
               onTypes={() => go({ kind: "types" })}
@@ -1395,7 +1402,7 @@ export function App() {
           );
         break;
       case "stats":
-        body = decks === null || srsTypes === null || settings === null ? loading : <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onReview={reviewFromStats} />;
+        body = decks === null || srsTypes === null || settings === null ? loading : <StatsView decks={decks} srsTypes={srsTypes} settings={settings} onSettings={updateSettings} />;
         break;
     }
   }

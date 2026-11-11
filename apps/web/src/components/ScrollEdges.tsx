@@ -5,6 +5,8 @@ import { useScrollEdges } from "../hooks/useScrollEdges";
 type Props = {
   /** The box that scrolls inside itself. */
   of: RefObject<HTMLElement | null>;
+  /** Which way it scrolls: down (`y`, to begin with) or sideways (`x`, the fades at its sides and the bar along its foot). */
+  axis?: "x" | "y";
   /** A press on the thumb, for a box whose own presses mean something to what holds it (the pop-up kept open). */
   onPointerDown?: () => void;
 };
@@ -15,11 +17,11 @@ type Props = {
  * after its box, in the same place, so the two come and go together; laid over the box, never inside it, so nothing
  * of it moves with the box's scroll.
  */
-export function ScrollEdges({ of, onPointerDown }: Props) {
+export function ScrollEdges({ of, axis = "y", onPointerDown }: Props) {
   const edges = useRef<HTMLSpanElement>(null);
-  useScrollEdges(of, edges);
+  useScrollEdges(of, edges, axis);
   return (
-    <span ref={edges} className="scroll-edges" aria-hidden="true" onPointerDown={onPointerDown}>
+    <span ref={edges} className={axis === "x" ? "scroll-edges is-x" : "scroll-edges"} aria-hidden="true" onPointerDown={onPointerDown}>
       <span className="scroll-thumb" />
     </span>
   );
