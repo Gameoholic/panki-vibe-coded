@@ -632,19 +632,13 @@ export const WIDGETS: readonly TileEntry[] = [
     streaksScreen: true,
     make({ stats, ctx }) {
       const streaks = ctx.settings.streaksOn ? stats.streaks : [];
-      const counted = streaks.filter((s) => s.now).length;
       return {
         chart: (
           <>
             <TodayFacts stats={stats} />
             {streaks.length > 0 ? (
               <>
-                <p className="w-status-head">
-                  <span>Streaks</span>
-                  <span>
-                    {num(counted)} of {num(streaks.length)} counted
-                  </span>
-                </p>
+                <p className="w-status-head">Streaks</p>
                 <StatusRows streaks={streaks} />
               </>
             ) : null}
