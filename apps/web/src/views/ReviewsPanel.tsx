@@ -24,7 +24,7 @@ const REVIEW_ORDER_OPTIONS = [
 ] as const;
 /** Under a setting: what the choice made right now does, never a tour of the others. */
 const REVIEW_ORDER_WORDS: Record<ReviewSettings["reviewOrder"], string> = {
-  random: "The cards due come in a random order.",
+  random: "Cards due come in a random order.",
   overdue: "The card that has been due the longest comes first.",
 };
 const AGAIN_PLACE_OPTIONS = [

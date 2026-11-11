@@ -106,7 +106,7 @@ How every review runs is the account's, in **Settings → General → Reviews**:
 
 ### Settings
 
-- **General**: Display (Theme, Language: the one Panki speaks, English alone for now, **Time format**: 24-hour or 12-hour, 24-hour to begin with, and **Date format**: 31 Dec or Dec 31, 31 Dec to begin with, the account's, every date and time Panki shows following them), General (when the day starts, 4:00 to begin with; the account's Time zone; the Learning language), Reviews (above), Subtitles on cards (how a clip's subtitles look on cards).
+- **General**: Display (Theme, Language: the one Panki speaks, English alone for now, **Time format**: 21:47 or 9:47 pm, 21:47 to begin with, and **Date format**: 31 Dec or Dec 31, 31 Dec to begin with, the account's, every date and time Panki shows following them), General (when the day starts, 4:00 to begin with; the account's Time zone; the Learning language), Reviews (above), Subtitles on cards (how a clip's subtitles look on cards).
 - **Keybinds**: Enabled (Off on a phone to begin with), every key of a review and the players, each a press, a hold or a double press, Ctrl or Alt combinations allowed, Shift, Ctrl and Alt alone too; Blur (Shift), Show back of card and Step back in the order a card goes; A, S, D, F… playing each sound and clip on a card. Kept on the device, and the tab says so once.
 - **Panki AI**: below.
 - **Extension**: Download (a zip, with the update scripts), and Data tracking: what Video tracking records and every extension signed in with its switch (read-only here) and when it last sent.
