@@ -529,7 +529,7 @@ export const Settings = z.object({
   pillStreak: StreakId.nullable(),
   /**
    * `reminderOn` and `reminderInApp` are kept as they were set and read by nothing: the app shows every streak's state
-   * on its Status tile at any hour, and the reminder is YouTube's alone. Still in the shape, since an older
+   * on its Today tile at any hour, and the reminder is YouTube's alone. Still in the shape, since an older
    * extension parses the settings with them in.
    */
   reminderOn: z.boolean(),

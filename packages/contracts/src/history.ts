@@ -372,7 +372,7 @@ export const Stats = z.object({
   /** Reviews (answers to cards already started), never a new card's first answer: the pill's Reviews today. */
   reviews: z.object({ total: Count, today: Count, days7: Count, days30: Count }),
   /**
-   * Today's extra study (Status): the answers given today in sessions started as extra study (`ReviewSession.kind`
+   * Today's extra study (the Today tile): the answers given today in sessions started as extra study (`ReviewSession.kind`
    * "extra"), reviews and new cards apart, never added together; already counted among today's reviews and new cards.
    * Nothing from an older server.
    */

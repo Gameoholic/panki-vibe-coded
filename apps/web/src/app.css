@@ -7608,8 +7608,8 @@ mark.sub-blur {
   height: 1px;
   background: var(--line);
 }
-/* Status (widgets.tsx): today's facts as a grid of small label-over-value cells (`TodayFacts`), then the streaks
-   (`StatusRows`): a row per streak, tinted whole, green once its period counts and red until then, as a build that
+/* Today (widgets.tsx): today's facts as a grid of small label-over-value cells (`TodayFacts`), then the streaks
+   (`StreakChecks`): a row per streak, tinted whole, green once its period counts and red until then, as a build that
    passed or hasn't yet; its mark a filled round badge, its name and its run on one line, that it counts or the time
    left under them, then each condition with its own mark, as a build's checks. */
 .w-facts {
@@ -7633,7 +7633,7 @@ mark.sub-blur {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.w-status-head {
+.w-today-streak-head {
   margin: 14px 0 6px;
   font-size: 12px;
   font-weight: 700;
@@ -7668,11 +7668,11 @@ mark.sub-blur {
 .w-check.is-unmet .w-check-mark {
   color: var(--danger);
 }
-.w-status {
+.w-today-streaks {
   display: grid;
   gap: 6px;
 }
-.w-status-row {
+.w-today-streak-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -7682,13 +7682,13 @@ mark.sub-blur {
   font-size: 13px;
   line-height: 18px;
 }
-.w-status-row.is-pass {
+.w-today-streak-row.is-pass {
   background: var(--good-soft);
 }
-.w-status-row.is-fail {
+.w-today-streak-row.is-fail {
   background: var(--danger-soft);
 }
-.w-status-mark {
+.w-today-streak-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7696,27 +7696,27 @@ mark.sub-blur {
   height: 18px;
   border-radius: 50%;
 }
-.is-pass .w-status-mark {
+.is-pass .w-today-streak-mark {
   background: var(--good);
   color: var(--good-ink);
 }
-.is-fail .w-status-mark {
+.is-fail .w-today-streak-mark {
   background: var(--danger);
   color: var(--danger-ink);
 }
-.w-status-mark .icon {
+.w-today-streak-mark .icon {
   width: 12px;
   height: 12px;
   stroke-width: 3;
 }
-.w-status-name {
+.w-today-streak-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 700;
 }
-.w-status-run {
+.w-today-streak-run {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -7725,16 +7725,16 @@ mark.sub-blur {
   white-space: nowrap;
   color: var(--muted);
 }
-.w-status-run .icon {
+.w-today-streak-run .icon {
   width: 14px;
   height: 14px;
 }
-.w-status-said {
+.w-today-streak-said {
   grid-column: 2 / -1;
   font-weight: 600;
   color: var(--muted);
 }
-.is-fail .w-status-said {
+.is-fail .w-today-streak-said {
   color: var(--danger);
 }
 .w-runs {
@@ -8062,7 +8062,7 @@ mark.sub-blur {
   .w-more {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* Status's facts two to a row. */
+  /* Today's facts two to a row. */
   .w-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

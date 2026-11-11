@@ -32,12 +32,15 @@ export type BoardLayout = {
  * The tiles on the home before anything is changed. `streak` is the one Streak tile from before streaks were many:
  * kept so, it stands for the first streak's tile (`fitStreaks`).
  */
-const DEFAULT_TILES: readonly TileItemId[] = ["status", "streak", "heat", "coming"];
+const DEFAULT_TILES: readonly TileItemId[] = ["today", "streak", "heat", "coming"];
 // "hold" is this way of arranging's name among others it was once tried beside; the key keeps the name so what's
 // already arranged on a device stays.
 const KEY = "panki.board.hold";
-/** Tiles folded into another, read as the one they're in: Days studied into Activity, Watch time into Time watching. */
-const FOLDED: Readonly<Record<string, WidgetId>> = { days: "heat", "watch-time": "watched" };
+/**
+ * Tiles folded into another or renamed, read as the one they are now: Days studied into Activity, Watch time into
+ * Time watching, Status (`status`) as Today, in the layout and in the tiles already put out.
+ */
+const FOLDED: Readonly<Record<string, WidgetId>> = { days: "heat", "watch-time": "watched", status: "today" };
 
 const isHomeId = (x: unknown): x is WidgetId => typeof x === "string" && widgetOf(x)?.home === true;
 /** A tile the home keeps: one of the registry's it offers, a streak's, or the Streak tile from before. */
@@ -71,13 +74,14 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
  * stays away. Each goes at the end, or right after the last door (`afterDoors`), near the top. Each streak's tile is
  * put out so too, once its streak is known (`fitStreaks`).
  */
-const PUT_OUT: readonly { id: WidgetId; afterDoors?: true }[] = [{ id: "continue" }, { id: "watched" }, { id: "channels" }, { id: "recent" }, { id: "status", afterDoors: true }];
+const PUT_OUT: readonly { id: WidgetId; afterDoors?: true }[] = [{ id: "continue" }, { id: "watched" }, { id: "channels" }, { id: "recent" }, { id: "today", afterDoors: true }];
 const PUT_OUT_KEY = "panki.board.putOut";
 
 function readPutOut(): string[] {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(PUT_OUT_KEY) ?? "[]");
-    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : [];
+    // A tile put out under an older id is put out under the one it's read as, so it isn't put out twice.
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string").map((x) => FOLDED[x] ?? x) : [];
   } catch {
     // Unreadable: every tile is put out again, once.
     return [];
