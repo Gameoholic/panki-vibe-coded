@@ -120,7 +120,7 @@ import { hashOf, whileUnchanged } from "./kept";
 import { newDoneMoments } from "./newDone";
 import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 import { clipReader } from "./clips";
-import { streakStatesOf, streaksStamped, type DayTally } from "./streaks";
+import { dayTalliesOf, streakStatesOf, streaksStamped } from "./streaks";
 import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
 import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, weekdayOf, type Day } from "./time";
 
@@ -3439,25 +3439,17 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const everyAnswer = deckId === null ? kept : (selectScopeAnswers.all(null, null) as AnswerRow[]);
       const everySession = deckId === null ? sessions : (selectScopeSessions.all(null, null) as SessionStatRow[]);
       const everyShowing = deckId === null ? showings : showingsOf([...everyAnswer, ...(selectScopeHolds.all(null, null) as ShowingRow[])], everySession);
-      const facts = new Map<Day, DayTally>();
-      const factsOn = (d: Day) => {
-        const entry = facts.get(d) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0, newDone: 0 };
-        facts.set(d, entry);
-        return entry;
-      };
-      for (const a of everyAnswer) {
-        if (a.undoneAt !== null) continue;
-        // A new card's first answer starts it: it counts toward New cards alone, never Reviews, which are of cards already started.
-        const entry = factsOn(day(a.at));
-        if (started(a)) entry.started += 1;
-        else entry.reviews += 1;
-      }
-      for (const s of everyShowing) factsOn(day(s.at)).reviewMs += shownMs(s);
-      for (const s of stretches) factsOn(day(s.at)).watchMs += s.spentMs;
-      // All reviews done: a day on which an answer landed with nothing left due, replayed from the history.
-      for (const at of clearedOfHistory()) factsOn(day(at)).cleared = 1;
-      // All new cards done: a day on which an answer landed with every deck's new cards for the day learned, replayed too.
-      for (const at of newDoneOfHistory()) factsOn(day(at)).newDone = 1;
+      // Cards added counts every card by the day it was made, the deleted among them (`dayTalliesOf` says why), so it
+      // reads the replays' rows, not the living cards the Added tile counts.
+      const facts = dayTalliesOf({
+        answers: everyAnswer.flatMap((a) => (a.undoneAt === null ? [{ at: a.at, started: started(a) }] : [])),
+        showings: everyShowing.map((s) => ({ at: s.at, ms: shownMs(s) })),
+        stretches,
+        cleared: clearedOfHistory(),
+        newDone: newDoneOfHistory(),
+        cards: selectReplayCards.all() as { createdAt: number }[],
+        dayOf: day,
+      });
       // YouTube's reminder starts at its hour on the account's clock and runs until the day turns; whether it shows
       // there is the extension's to read (`reminderOnYouTube`). `reminderOn` is read by nothing (`Settings`).
       const nextDay = dayStartAt(today.dayStart + 26 * 3_600_000, settings.dayStartHour, zone);

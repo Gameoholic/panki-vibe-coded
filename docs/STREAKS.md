@@ -207,6 +207,11 @@ Later: notifications on a phone; anything about other people.
 
 - **No streak at all is allowed**: `StreakRules` lost its `.min(1)`, a leftover from when the one old streak became the first. Delete works on the last streak, asking first like every Delete. With none: Streaks shows Status and the dashed New streak tile; Status says today's facts with no Streaks part; the header bar's Streak says nothing and the options page's Streak shown says "No streaks"; `Stats.streak` for an older reader is 0. Streaks On / Off keeps its meaning. A new account still starts with `DEFAULT_STREAKS`; migration 54 ran once and never brings one back. `EXTENSION_PROTOCOL` 10: an extension built before refuses settings with an empty list.
 
+## Round 16 (the owner, 2026-11-12: a Cards added condition)
+
+- **Cards added ≥ N**, a count condition like Reviews and New cards, for daily and weekly streaks alike: the cards made in the day or week, every deck, a card typed or made from a video alike. Settled with the owner ("sounds good"): a card counts on the day it was made (its `createdAt`, on the account's day), and keeps counting once deleted, since streaks are replayed from the history and a deletion today must never break a past day; that's unlike the Added tile and Today's Cards added fact, which count the living cards. An additional example added to a card isn't a card and counts for nothing, as in the stats.
+- Built, Claude's calls: the kind's id is `added`, offered after Time watching, starting at 5, up to 999, not helped by reviewing (the YouTube reminder offers Review only for the others); what's left says "3 cards to add"; its row in the editor carries the one line that tells it from New cards and says a deleted card still counts. The day tallies the streaks read moved out of `db.ts` into `streaks.ts` → `dayTalliesOf`, pure and tested (`apps/api/test/streaks.test.ts`), fed every card ever made (`selectReplayCards`, the replays' rows). `EXTENSION_PROTOCOL` 11: an extension built before refuses a streak's state carrying the kind.
+
 ## Open
 
 - **A Time watching condition counts the clock alone** (the owner, 2026-11-11: "the actual real-life time we spent"); content watched is never a condition for now. Whether the Time watching tile shows content watched beside the clock is still open; default: not until the owner asks.

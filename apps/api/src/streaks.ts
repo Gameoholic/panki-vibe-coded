@@ -7,9 +7,54 @@ export type ReminderClock = { on: boolean; pastStart: boolean; hoursLeft: number
 /**
  * What one of the account's days held, as the goals read it: counts, the time spent in ms (rounded to minutes only once
  * a period's days are summed), 1 when an answer that day left all reviews done, else 0, and the same for all new cards
- * done, each learned (both replayed from the history, `cleared.ts` and `newDone.ts`).
+ * done, each learned (both replayed from the history, `cleared.ts` and `newDone.ts`), and the cards made that day,
+ * deleted since or not.
  */
-export type DayTally = { reviews: number; started: number; reviewMs: number; watchMs: number; cleared: number; newDone: number };
+export type DayTally = { reviews: number; started: number; reviewMs: number; watchMs: number; cleared: number; newDone: number; added: number };
+const NO_TALLY: DayTally = { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0, newDone: 0, added: 0 };
+
+/** The whole account's history as the day tallies read it, every deck's: each answer that stands, showing, stretch watched, card made, and the two replays' moments. */
+export type TallyInput = {
+  /** Each standing answer: a new card's first (`started`) or a review, never both (`data-model.md` → Reviews, new cards and studying). */
+  answers: readonly { at: number; started: boolean }[];
+  /** Each showing of a card, its time capped as the stats cap it. */
+  showings: readonly { at: number; ms: number }[];
+  stretches: readonly { at: number; spentMs: number }[];
+  /** The moments All reviews done and All new cards done happened (`cleared.ts`, `newDone.ts`). */
+  cleared: readonly number[];
+  newDone: readonly number[];
+  /** Every card ever made, the deleted among them: a card counts on the day it was made whatever became of it since. */
+  cards: readonly { createdAt: number }[];
+  dayOf: (at: number) => Day;
+};
+
+/**
+ * Each of the account's days as the goals read it, over every deck whatever is in scope. A card made counts for the day
+ * of its `createdAt` even once deleted, unlike the Added tile: a past day is replayed from what happened, and a deletion
+ * today must never break it. Another example given to a card is no card and counts for nothing.
+ */
+export function dayTalliesOf(input: TallyInput): Map<Day, DayTally> {
+  const facts = new Map<Day, DayTally>();
+  const on = (at: number): DayTally => {
+    const d = input.dayOf(at);
+    const entry = facts.get(d) ?? { ...NO_TALLY };
+    facts.set(d, entry);
+    return entry;
+  };
+  // A new card's first answer starts it: it counts toward New cards alone, never Reviews, which are of cards already started.
+  for (const a of input.answers) {
+    if (a.started) on(a.at).started += 1;
+    else on(a.at).reviews += 1;
+  }
+  for (const s of input.showings) on(s.at).reviewMs += s.ms;
+  for (const s of input.stretches) on(s.at).watchMs += s.spentMs;
+  // All reviews done: a day on which an answer landed with nothing left due; All new cards done, one on which an answer
+  // landed with every deck's new cards for the day learned, both replayed from the history.
+  for (const at of input.cleared) on(at).cleared = 1;
+  for (const at of input.newDone) on(at).newDone = 1;
+  for (const c of input.cards) on(c.createdAt).added += 1;
+  return facts;
+}
 
 /**
  * A streak's period on the account's calendar, the one place it's decided. Each period is named by the day it starts
@@ -59,7 +104,7 @@ function periodFactsOf(tallies: ReadonlyMap<Day, DayTally>, startOf: (d: Day) =>
   for (const [d, t] of tallies) {
     if (d > today || (first !== null && d < first)) continue;
     const p = startOf(d);
-    const sum = sums.get(p) ?? { reviews: 0, started: 0, reviewMs: 0, watchMs: 0, cleared: 0, newDone: 0 };
+    const sum = sums.get(p) ?? { ...NO_TALLY };
     sums.set(p, {
       reviews: sum.reviews + t.reviews,
       started: sum.started + t.started,
@@ -67,9 +112,10 @@ function periodFactsOf(tallies: ReadonlyMap<Day, DayTally>, startOf: (d: Day) =>
       watchMs: sum.watchMs + t.watchMs,
       cleared: Math.max(sum.cleared, t.cleared),
       newDone: Math.max(sum.newDone, t.newDone),
+      added: sum.added + t.added,
     });
   }
-  return new Map([...sums].map(([p, s]) => [p, { reviews: s.reviews, started: s.started, reviewMinutes: Math.floor(s.reviewMs / 60_000), watchMinutes: Math.floor(s.watchMs / 60_000), cleared: s.cleared, newDone: s.newDone }]));
+  return new Map([...sums].map(([p, s]) => [p, { reviews: s.reviews, started: s.started, reviewMinutes: Math.floor(s.reviewMs / 60_000), watchMinutes: Math.floor(s.watchMs / 60_000), cleared: s.cleared, newDone: s.newDone, added: s.added }]));
 }
 
 /**

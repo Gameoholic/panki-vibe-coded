@@ -31,6 +31,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 **Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
 - 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored; a new card done once learned, its review finished), counting per day or per week; the reminder on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Runtime watched.
+- 2026-11-12: the Cards added condition, the cards made in the day or week, a deleted one still counting (`EXTENSION_PROTOCOL` 11; `STREAKS.md` → Round 16).
 
 **The extension** (`architecture/extension.md`)
 - 2026-10-11: the capture drawer; the line under the player; the YouTube metadata field; Field mapping and Media.
@@ -73,7 +74,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 - Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
 - The docs: `docs/DOCS.md`.
-- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 15 (no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
+- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 16 (Cards added, `EXTENSION_PROTOCOL` 11; Round 15: no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - The extension's polish round: the owner sends what's off, a change at a time.

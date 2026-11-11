@@ -13,7 +13,9 @@ import { z } from "zod";
  * minutes of the time spent (each showing of a card at most `CARD_TIME_MAX_MS`), summed over the period and rounded down
  * once. `cleared` is 1 when, on a day in it, an answer landed with nothing left due in any deck (All reviews done), and
  * `newDone` 1 when one landed with every deck's new cards for the day learned, started and their reviews finished (All
- * new cards done), each worked out on read by replaying the history, never stored; else 0.
+ * new cards done), each worked out on read by replaying the history, never stored; else 0. `added` is the cards made in
+ * it (each on the account's day of its `createdAt`, every deck), a card deleted since among them, so a deletion today
+ * never undoes a past day; another example given to a card is no card.
  */
 export const PeriodFacts = z.object({
   reviews: z.number().int().nonnegative(),
@@ -22,9 +24,10 @@ export const PeriodFacts = z.object({
   watchMinutes: z.number().int().nonnegative(),
   cleared: z.number().int().min(0).max(1),
   newDone: z.number().int().min(0).max(1),
+  added: z.number().int().nonnegative(),
 });
 export type PeriodFacts = z.infer<typeof PeriodFacts>;
-export const NO_PERIOD_FACTS: PeriodFacts = { reviews: 0, started: 0, reviewMinutes: 0, watchMinutes: 0, cleared: 0, newDone: 0 };
+export const NO_PERIOD_FACTS: PeriodFacts = { reviews: 0, started: 0, reviewMinutes: 0, watchMinutes: 0, cleared: 0, newDone: 0, added: 0 };
 
 /** A streak's type, what it counts per (a day or a week), in the order offered. Each is one entry of `STREAK_PERIODS` and nothing else knows one by name. */
 export const STREAK_PER_IDS = ["day", "week"] as const;
@@ -58,7 +61,7 @@ export const STREAK_PERIODS: Record<StreakPer, StreakPeriodEntry> = {
 export const periodCountWords = (per: StreakPer, n: number): string => `${n.toLocaleString()} ${n === 1 ? STREAK_PERIODS[per].one : STREAK_PERIODS[per].many}`;
 
 /** The kinds a goal can be, in the order they're offered. Each is one entry of `GOAL_KINDS` and nothing else knows one by name. */
-export const GOAL_KIND_IDS = ["reviews", "new", "reviewing", "watching", "cleared", "newDone"] as const;
+export const GOAL_KIND_IDS = ["reviews", "new", "reviewing", "watching", "added", "cleared", "newDone"] as const;
 export const GoalKind = z.enum(GOAL_KIND_IDS);
 export type GoalKind = z.infer<typeof GoalKind>;
 
@@ -94,6 +97,9 @@ export const GOAL_KINDS: Record<GoalKind, GoalKindEntry> = {
   // Time on reviews and new cards alike, so it's "studying" on screen; the id stays `reviewing`, as streaks keep it.
   reviewing: { name: "Time studying", fact: "reviewMinutes", numbered: true, suffix: "min", byReviewing: true, max: 600, start: 15, left: { kind: "minutes", doing: "studying" }, fits: STREAK_PER_IDS },
   watching: { name: "Time watching", fact: "watchMinutes", numbered: true, suffix: "min", byReviewing: false, max: 600, start: 30, left: { kind: "minutes", doing: "watching" }, fits: STREAK_PER_IDS },
+  // Cards made, not started (that's New cards): each on the day it was made, kept for that day once deleted, unlike the
+  // Added tile, since a past day is replayed from the history and a deletion today must never break it.
+  added: { name: "Cards added", fact: "added", numbered: true, suffix: "", byReviewing: false, max: 999, start: 5, left: { kind: "count", one: "card to add", many: "cards to add" }, fits: STREAK_PER_IDS, why: "Cards made in the day or week, in any deck, typed or from a video; a card deleted since still counts." },
   // Nothing left due is a moment of a day: over a week it would ask only that it happened once.
   cleared: { name: "All reviews done", fact: "cleared", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all reviews" }, fits: ["day"], why: "Reviewed every due card at some point in the day." },
   // Every deck has a New cards a day (0 to 999), so this carries no number of its own: a deck at 0 needs nothing. A new
