@@ -2108,15 +2108,23 @@
   height: 15px;
   color: var(--yh-muted);
 }
+/* The streak's flame lights in the mark's orange once today (or this week) counts; until then it's unlit, the header
+   bar's quiet grey as the other parts' icons are. */
 .ym-part.is-streak .icon {
   color: var(--mark-orange);
 }
-/* The streak while the reminder is on for it: the part tinted with the flame's colour, the hours left after its number. */
+.ym-part.is-streak.is-pending .icon {
+  color: var(--yh-muted);
+}
+/* The streak while the reminder is on for it: the part tinted with the flame's colour, its flame in it, the hours left after its number. */
 .ym-part.is-risk {
   margin: -4px;
   padding: 4px 8px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--risk) 22%, transparent);
+}
+.ym-part.is-risk .icon {
+  color: var(--risk);
 }
 .ym-part-left {
   font-weight: 700;
@@ -2163,6 +2171,18 @@
 .btn.btn-icon.pill-grip {
   cursor: grab;
   touch-action: none;
+}
+/* A part's own settings (`PartRows`' `moreOf`: the Streak's which streak), inside its row under its name, set in to
+   line up with the name and reaching the switch's right edge, a hairline between them and the part. */
+.pill-row-more {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 8px 0 2px;
+  border-top: 1px solid var(--line);
+}
+.pill-row-more .setting-label {
+  font-weight: 600;
 }
 /* Whose a part is, after its name (the player bar's YouTube / Panki): quiet, as a dropdown choice's note is. */
 .pill-row-note {

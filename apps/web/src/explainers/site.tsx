@@ -48,7 +48,7 @@ const VIDEOS: readonly Video[] = [
 export const videoAt = (i: number): Video => VIDEOS[i % VIDEOS.length] ?? (VIDEOS[0] as Video);
 export const WATCHED = videoAt(0);
 
-/** The site's header bar: its menu, its mark, its search, and what's at its right (Panki's pill, on the home). */
+/** The site's header bar: its menu, its mark, its search, and what's at its right (Panki's header bar, on any page). */
 export function SiteTop({ right }: { right?: ReactNode }) {
   return (
     <header className="ex-yt-top">
@@ -61,11 +61,11 @@ export function SiteTop({ right }: { right?: ReactNode }) {
   );
 }
 
-/** A video's own page: the video, what's under it, its title and channel, and what's beside it. */
-export function WatchPage({ video, under, side, paused = false, children }: { video?: ReactNode; under?: ReactNode; side?: ReactNode; paused?: boolean; children?: ReactNode }) {
+/** A video's own page: what's at its header bar's right (`top`), the video, what's under it, its title and channel, and what's beside it. */
+export function WatchPage({ top, video, under, side, paused = false, children }: { top?: ReactNode; video?: ReactNode; under?: ReactNode; side?: ReactNode; paused?: boolean; children?: ReactNode }) {
   return (
     <div className="ex-yt">
-      <SiteTop />
+      <SiteTop right={top} />
       <div className="ex-yt-left">
         <div className={`ex-video ${paused ? "is-paused" : ""}`.trim()}>
           <img className="ex-frame" src={WATCHED.picture} alt="" />

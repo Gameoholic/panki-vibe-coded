@@ -33,11 +33,13 @@ import { tokensOn } from "../ui/styles";
  * own premium YouTube rather than an extension that adds a box. Nothing of the site is replaced; Panki is laid into it,
  * in the site's own shapes and colours (its tokens, `--yt-spec-*`, reach into Panki's places as custom properties do,
  * so what Panki draws is in the site's theme by construction; Panki's accent is the one colour of its own). Each part
- * below is its own switch on the options page's YouTube tab, under the master one.
+ * below is its own switch on the options page's YouTube tab: the header bar a panel of its own, the rest under YouTube
+ * home add-ons' master switch.
  *
- * - **In the header bar**, beside the site's own buttons: the mark and what the viewer picked for it, in their order
- *   (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time studying, the streak picked for the pill, tinted
- *   with the hours left while the streak reminder is on for it). Pressed, Panki opens.
+ * - **In the header bar**, on every page of the site, beside its own buttons: the mark and what the viewer picked for
+ *   it, in their order (`ui/PankiPill.tsx`: minutes watched, cards due, reviews, time studying, the streak picked for
+ *   it, its flame lit once it counts, tinted with the hours left while the streak reminder is on for it). Pressed,
+ *   Panki opens.
  * - **The line over the home**, only while the streak reminder is on for a streak (the options page's Streak
  *   reminder, from its Starts at): each such streak, what's left of its goals and the hours left, and Review while
  *   reviewing would help. Otherwise the home stays as it is. Never a pop-up.
@@ -881,7 +883,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     look() {
       const on = deps.modules();
       const theme = deps.theme();
-      // Panki in the header bar, first among the site's own buttons; with Panki off, still there, holding the switch to turn it back on.
+      // Panki in the header bar, first among the site's own buttons, on every page while the header bar is shown (the
+      // home add-ons aside); with Panki off, still there, holding the switch to turn it back on.
       const raw = deps.raw();
       const end = switchInPill(raw) ? document.querySelector(MASTHEAD_END) : null;
       if (!end) mast.host.remove();
@@ -899,7 +902,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         alignTop(contents);
       }
       top.host.dataset.theme = theme;
-      if (on.home && !asked) void load();
+      // What the home's parts and the header bar say is asked for while either is on: the header bar is on every page.
+      if ((on.home || on.homePill) && !asked) void load();
 
       sift(on);
 
@@ -923,7 +927,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     refresh() {
       glances.clear();
       restUntil = 0;
-      if (deps.modules().home) void load();
+      const on = deps.modules();
+      if (on.home || on.homePill) void load();
     },
     /** Drawn again: a part was switched, or the pill laid out afresh, on the options page. */
     redraw() {

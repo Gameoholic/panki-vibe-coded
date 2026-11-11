@@ -21,7 +21,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-25: Add as an additional example.
 - 2026-10-26: Undo; today's cards before a review; other examples on the review card.
 - 2026-11-07: Flag.
-- 2026-11-11: Streak on the pill picked in the extension, under the pill's parts.
+- 2026-11-11: the extension's Header bar a panel of its own before YouTube home add-ons, on every YouTube page whatever they say; Streak shown in the Streak's row; the Streak's flame unlit until it counts; the Streak reminder a panel of its own with its (?).
 - 2026-11-11: Streaks, a place of its own in the bar beside Stats, where streaks are made (the dashed New streak tile), changed and deleted, the last one too (`EXTENSION_PROTOCOL` 10), Streaks On / Off at its head; Stats is Stats alone; Settings → General → Streaks gone.
 - 2026-11-11: Today, its facts (extra study among them) and every streak green or red at any hour with each condition's own tick or cross, on the home and heading Streaks; the Reminder panel, the line at the top of the home, the Review door's note and the streak tile's tint gone; the Streak reminder and Starts at on the extension's YouTube tab (`STREAKS.md` → Rounds 10, 12 and 13).
 - 2026-11-11: a review's time left by its counts, the finish time on hover or press, and the time on every Start; Time studying ticking beside it; Time left and Time studying each Shown / Hidden in Settings → General → Reviews.

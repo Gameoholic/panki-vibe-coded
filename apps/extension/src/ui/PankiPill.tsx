@@ -1,4 +1,4 @@
-/** @panki Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`). Never a second drawing of the pill. */
+/** @panki Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`, `SAMPLE_STREAK`). Never a second drawing of the pill. */
 import { DEFAULT_STREAKS, STREAK_PERIODS, periodCountWords, streakNameOf, type Deck, type Settings, type Stats, type StreakPer } from "@panki/contracts";
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
@@ -15,10 +15,11 @@ import type { PillLayout, PillPart } from "../modules";
  */
 
 /**
- * The streak the pill says: its name, its type, its run, and the hours left while the streak reminder is on for it
- * (null otherwise). A name of null is an older server's one streak, which has none and counts days.
+ * The streak the pill says: its name, its type, its run, whether this period counts already (the flame lit), and the
+ * hours left while the streak reminder is on for it (null otherwise). A name of null is an older server's one streak,
+ * which has none and counts days.
  */
-export type PillStreak = { name: string | null; per: StreakPer; current: number; hoursLeft: number | null };
+export type PillStreak = { name: string | null; per: StreakPer; current: number; counted: boolean; hoursLeft: number | null };
 
 /** The numbers the pill can say, from Panki's stats and decks; no streak while Streaks is off. */
 export type PillNumbers = {
@@ -41,7 +42,7 @@ function pillStreakOf(stats: Stats, settings: PillSettings): PillStreak | null {
   if (!settings.streaksOn) return null;
   const streak = stats.streaks.find((s) => s.id === settings.pillStreak) ?? stats.streaks[0];
   if (!streak) return null;
-  return { name: streakNameOf(streak), per: streak.per, current: streak.current, hoursLeft: streak.atRisk && settings.reminderOnYouTube ? streak.hoursLeft : null };
+  return { name: streakNameOf(streak), per: streak.per, current: streak.current, counted: streak.now, hoursLeft: streak.atRisk && settings.reminderOnYouTube ? streak.hoursLeft : null };
 }
 
 /** What the account's stats, decks and settings come to for the pill: cards due counts what's new today too, as Review does. */
@@ -56,37 +57,48 @@ export function pillNumbersOf(stats: Stats, decks: readonly Deck[], settings: Pi
   };
 }
 
-/** Numbers for the options page's preview: made up, none of the account's own; the streak is the one every account starts with. */
-export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: { name: streakNameOf(DEFAULT_STREAKS[0] ?? { name: "" }), per: "day", current: 7, hoursLeft: null } };
+/** The made-up streak of the options page's previews: the one every account starts with, today counting. */
+export const SAMPLE_STREAK: PillStreak = { name: streakNameOf(DEFAULT_STREAKS[0] ?? { name: "" }), per: "day", current: 7, counted: true, hoursLeft: null };
+/** Numbers for the options page's preview: made up, none of the account's own. */
+export const SAMPLE_NUMBERS: PillNumbers = { watchedMs: 23 * 60_000, due: 11, reviews: 42, reviewMs: 14 * 60_000, streak: SAMPLE_STREAK };
+
+/** How a part stands: as it is, its streak not counting yet (its flame unlit), or tinted with the hours left while the streak reminder is on for it. */
+type PartState = "plain" | "pending" | "risk";
+type PartValue = { icon: IconName; words: string; said: string; left: string | null; state: PartState };
 
 /**
  * Each part as the pill draws it: its icon, its words, and the same said in full for whoever can't see it; `left`, the
- * hours left after the number while the streak reminder is on for the part, tinting it.
+ * hours left after the number while the streak reminder is on for the part; `state`, how it's coloured.
  */
-export function pillValue(part: PillPart, n: PillNumbers): { icon: IconName; words: string; said: string; left: string | null } | null {
+export function pillValue(part: PillPart, n: PillNumbers): PartValue | null {
   switch (part) {
     case "watched":
-      return { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watching today`, left: null };
+      return { icon: "watchTime", words: durationWords(n.watchedMs / 1000), said: `${durationWords(n.watchedMs / 1000)} watching today`, left: null, state: "plain" };
     case "due":
-      return { icon: "review", words: `${n.due} due`, said: `${count(n.due, "card", "cards")} due`, left: null };
+      return { icon: "review", words: `${n.due} due`, said: `${count(n.due, "card", "cards")} due`, left: null, state: "plain" };
     case "reviews":
-      return { icon: "check", words: String(n.reviews), said: `${count(n.reviews, "review", "reviews")} today`, left: null };
+      return { icon: "check", words: String(n.reviews), said: `${count(n.reviews, "review", "reviews")} today`, left: null, state: "plain" };
     case "reviewTime":
-      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} studying today`, left: null };
+      return { icon: "reviewTime", words: durationWords(n.reviewMs / 1000), said: `${durationWords(n.reviewMs / 1000)} studying today`, left: null, state: "plain" };
     case "streak":
       return n.streak ? streakValue(n.streak) : null;
   }
 }
 
-/** The streak's part: its run ("3 weeks" for a streak per week, the number alone per day), and "· 3 h left" after it while the reminder is on for it; said with its name. */
-function streakValue(s: PillStreak): { icon: IconName; words: string; said: string; left: string | null } {
+/**
+ * The streak's part: its run ("3 weeks" for a streak per week, the number alone per day), its flame unlit until this
+ * period counts, and "· 3 h left" after it while the reminder is on for it; said with its name, and whether it counts
+ * yet, as Panki's Today says it.
+ */
+function streakValue(s: PillStreak): PartValue {
   const run = periodCountWords(s.per, s.current);
   const hoursLeft = s.hoursLeft !== null ? `, ${s.hoursLeft} h left` : "";
   return {
     icon: "flame",
     words: STREAK_PERIODS[s.per].unitOnPill ? run : s.current.toLocaleString("en"),
-    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${hoursLeft}`,
+    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${s.counted ? "" : ", doesn't count yet"}${hoursLeft}`,
     left: s.hoursLeft !== null ? `· ${s.hoursLeft} h left` : null,
+    state: s.hoursLeft !== null ? "risk" : s.counted ? "plain" : "pending",
   };
 }
 
@@ -127,7 +139,7 @@ export function PankiPill({
         {update ? <i className={`ym-update is-${update}`} aria-hidden="true" /> : null}
         {profile ? <span className="ym-profile">{profile}</span> : null}
         {parts.map((p) => (
-          <span key={p.id} className={`ym-part is-${p.id} ${p.left ? "is-risk" : ""}`.trim()}>
+          <span key={p.id} className={`ym-part is-${p.id} ${p.state === "plain" ? "" : `is-${p.state}`}`.trim()}>
             <Icon name={p.icon} />
             {p.words}
             {p.left ? <span className="ym-part-left">{p.left}</span> : null}

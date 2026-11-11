@@ -24,7 +24,7 @@ The latest stretch's end (`stopOf`; none for a finished video). Read once as the
 
 ## YouTube's own pages made Panki's
 
-`content/feed.tsx`. Panki is laid into the site in the site's own shapes, not a box over it: a pill in the header bar, one line over the home, a Continue watching shelf of the site's own card, chips, marks on thumbnails, each a switch (`modules.ts`).
+`content/feed.tsx`. Panki is laid into the site in the site's own shapes, not a box over it: a pill in the header bar on every page (its own panel, Header bar, never under the home's add-ons switch: `switchInPill` reads `homePill` alone, and what it says is asked for while either is on), one line over the home, a Continue watching shelf of the site's own card, chips, marks on thumbnails, each a switch (`modules.ts`).
 
 - **The site's colours by construction:** its `--yt-spec-*` tokens are custom properties on `html`, which `all: initial` on a shadow host doesn't reset, so they reach into Panki's places and `.yt-home` maps them to `--yh-*` with the app's tokens as fallbacks. The deliberate exception to "tokens from `theme.css`".
 - **The feed is sifted in place:** each `ytd-rich-item-renderer` hidden or shown by `style.display`, remembered so it's shown again. Thumbnails are the site's own (`i.ytimg.com`), not Panki's. The marks and chips come from `POST /api/watching/glance`.

@@ -1,6 +1,7 @@
 /** @panki What each options panel's explainer plays (`SceneTitle`, `EXPLAINER_NAMES`). */
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { STAGE_RAMP, type VideoCard } from "@panki/contracts";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from "react";
+import { STAGE_RAMP, streakLeftWords, type VideoCard } from "@panki/contracts";
+import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { ExplainedTitle, Stage, type Site, type Spot, type Tools } from "@web/components/Explainer";
@@ -24,7 +25,7 @@ import { barOf, type Stored } from "../storage";
 import { Burst } from "../ui/Burst";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
-import { PankiPill, SAMPLE_NUMBERS } from "../ui/PankiPill";
+import { PankiPill, SAMPLE_NUMBERS, SAMPLE_STREAK, type PillNumbers } from "../ui/PankiPill";
 import { SeekMark, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { SpeedControl } from "../ui/SpeedControl";
 import { BarControls, YOUTUBE_OWN } from "./BarControls";
@@ -519,26 +520,83 @@ function UnderlineScene({ store }: { store: Stored }) {
   );
 }
 
-/** YouTube's home made Panki's: the pill in the header bar, the shelves over the feed, a video saved from its thumbnail. */
+/**
+ * YouTube's home as the scenes draw it: the site's header bar with Panki's at its right as this browser has it
+ * (`pill`), the rail, the chips, what Panki puts over the feed (`over`), then the feed's videos, each with what a scene
+ * puts on its picture (`onPicture`).
+ */
+function HomeSite({ pill, over, feed, onPicture }: { pill: ReactNode; over?: ReactNode; feed?: RefObject<HTMLDivElement | null>; onPicture?: (i: number) => ReactNode }) {
+  const grid = [1, 2, 3, 4, 5, 6].map(videoAt);
+  return (
+    <div className="ex-yt is-home">
+      <SiteTop right={pill} />
+      <div className="ex-rail">
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+      <div ref={feed} className="ex-feed">
+        <div className="ex-chips" lang="ja">
+          <span className="is-on">すべて</span>
+          <span>音楽</span>
+          <span>料理</span>
+          <span>旅行</span>
+          <span>ゲーム</span>
+          <span>ニュース</span>
+        </div>
+        {over}
+        <div className="ex-grid">
+          {grid.map(({ picture, title, channel, face, length }, i) => (
+            <div key={title} className="ex-card">
+              <span className="ex-card-pic">
+                <img className="ex-thumb" src={picture} alt="" />
+                <span className="yc-time">{length}</span>
+                {onPicture?.(i)}
+              </span>
+              <span className="ex-card-info">
+                <img className="ex-card-face" src={face} alt="" />
+                <span className="ex-card-words">
+                  <b lang="ja">{title}</b>
+                  <small lang="ja">
+                    {channel} · {(i + 2) * 70}K views
+                  </small>
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Panki's pill in the site's header bar, as this browser has it laid out, there from the start while the header bar is
+ * shown (`on`, for a scene it comes into); `numbers`, what it says; `at`, for a scene to find it by.
+ */
+function SitePill({ store, numbers = SAMPLE_NUMBERS, on = store.homePill, at }: { store: Stored; numbers?: PillNumbers; on?: boolean; at?: Ref<HTMLSpanElement> }) {
+  return (
+    <span ref={at} className={`ym-pill-wrap ex-pill ${on ? "is-on" : ""}`.trim()}>
+      <PankiPill layout={store.pill} numbers={numbers} profile={store.profileName || store.userName} power={{ on: true, onChange: nothing }} onClick={nothing} />
+    </span>
+  );
+}
+
+/** YouTube's home made Panki's: the shelves over the feed, a video saved from its thumbnail; the header bar as it's set, a panel of its own. */
 function HomeScene({ store }: { store: Stored }) {
-  const [pill, setPill] = useState(false);
   const [shelves, setShelves] = useState(0);
   const [hover, setHover] = useState(false);
   const [saved, setSaved] = useState(false);
   const feed = useRef<HTMLDivElement | null>(null);
   const script = async (t: Tools) => {
-    setPill(false);
     setShelves(0);
     setHover(false);
     setSaved(false);
     t.frame();
     await t.wait(200);
     // The whole home stays in view, no zoom needed, but for the + pressed.
-    if (store.homePill) {
-      setPill(true);
-      await t.move(feed.current?.closest(".ex-yt")?.querySelector(".ym-pill") ?? null, 550);
-      await t.wait(700);
-    }
     if (store.homeShelf || store.homeSaved) {
       await t.move([36, 34], 450);
       setShelves(1);
@@ -560,36 +618,23 @@ function HomeScene({ store }: { store: Stored }) {
     t.frame();
     await t.wait(600);
   };
-  const grid = [1, 2, 3, 4, 5, 6].map(videoAt);
   const lead = videoAt(7);
   const kept = videoAt(8);
-  const savedNow = grid[1] ?? lead;
+  // The feed's second video, the one saved from its thumbnail.
+  const savedNow = videoAt(2);
   return (
     <Stage site={HOME} script={script}>
-      <div className="ex-yt is-home">
-        <SiteTop
-          right={
-            <span className={`ym-pill-wrap ex-pill ${pill ? "is-on" : ""}`.trim()}>
-              <PankiPill layout={store.pill} numbers={SAMPLE_NUMBERS} profile={store.profileName || store.userName} power={{ on: true, onChange: nothing }} onClick={nothing} />
-            </span>
-          }
-        />
-        <div className="ex-rail">
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
-        </div>
-        <div ref={feed} className="ex-feed">
-          <div className="ex-chips" lang="ja">
-            <span className="is-on">すべて</span>
-            <span>音楽</span>
-            <span>料理</span>
-            <span>旅行</span>
-            <span>ゲーム</span>
-            <span>ニュース</span>
-          </div>
+      <HomeSite
+        pill={<SitePill store={store} />}
+        feed={feed}
+        onPicture={(i) =>
+          i === 1 && (hover || saved) ? (
+            <Button className={`btn-icon yt-save is-on-card ${saved ? "is-saved" : ""}`.trim()} aria-label="Save for later" aria-pressed={saved}>
+              <Icon name="bookmark" />
+            </Button>
+          ) : null
+        }
+        over={
           <div className={`yt-home ex-shelves ${shelves > 0 ? "is-on" : ""}`.trim()}>
             <div className="yh-shelves">
               <section className={`yh-shelf ex-shelf ${shelves > 0 ? "is-on" : ""}`.trim()} aria-label="Continue watching" hidden={!store.homeShelf}>
@@ -645,32 +690,122 @@ function HomeScene({ store }: { store: Stored }) {
               </section>
             </div>
           </div>
-          <div className="ex-grid">
-            {grid.map(({ picture, title, channel, face, length }, i) => (
-              <div key={title} className="ex-card">
-                <span className="ex-card-pic">
-                  <img className="ex-thumb" src={picture} alt="" />
-                  <span className="yc-time">{length}</span>
-                  {i === 1 && (hover || saved) ? (
-                    <Button className={`btn-icon yt-save is-on-card ${saved ? "is-saved" : ""}`.trim()} aria-label="Save for later" aria-pressed={saved}>
-                      <Icon name="bookmark" />
-                    </Button>
-                  ) : null}
-                </span>
-                <span className="ex-card-info">
-                  <img className="ex-card-face" src={face} alt="" />
-                  <span className="ex-card-words">
-                    <b lang="ja">{title}</b>
-                    <small lang="ja">
-                      {channel} · {(i + 2) * 70}K views
-                    </small>
+        }
+      />
+    </Stage>
+  );
+}
+
+/** The made-up streak as it stands before today counts (its run so far) and once it does, the same streak one day longer. */
+const streakAt = (counted: boolean, hoursLeft: number | null = null): PillNumbers => ({
+  ...SAMPLE_NUMBERS,
+  streak: { ...SAMPLE_STREAK, counted, current: counted ? SAMPLE_STREAK.current + 1 : SAMPLE_STREAK.current, hoursLeft },
+});
+const streakShown = (store: Stored) => store.pill.some((part) => part.id === "streak" && part.shown);
+
+/**
+ * The header bar, as it's laid out (the real `PankiPill`), on a video's page, since it's on every page of the site: it
+ * comes into the site's header bar and the camera leans in on it; with its Streak shown, the flame unlit until today
+ * counts, then lit, the run one day longer. Hidden, the site's header bar stays its own.
+ */
+function HeaderBarScene({ store }: { store: Stored }) {
+  const [pill, setPill] = useState(false);
+  const [counted, setCounted] = useState(false);
+  const pillAt = useRef<HTMLSpanElement | null>(null);
+  const find = (selector: string) => pillAt.current?.querySelector(selector) ?? null;
+  const script = async (t: Tools) => {
+    setPill(false);
+    setCounted(false);
+    t.frame();
+    await t.wait(400);
+    if (!store.homePill) {
+      await t.wait(1200);
+      return;
+    }
+    setPill(true);
+    await t.wait(300);
+    t.frame(pillAt.current);
+    await t.move(find(".ym-pill"), 600);
+    await t.wait(500);
+    if (streakShown(store)) {
+      await t.move(find(".ym-part.is-streak"), 450);
+      await t.wait(700);
+      setCounted(true);
+      await t.wait(1300);
+    }
+    t.frame();
+    await t.wait(500);
+  };
+  return (
+    <Stage site={WATCH} script={script}>
+      <WatchPage top={<SitePill store={store} numbers={streakAt(counted)} on={pill} at={pillAt} />} />
+    </Stage>
+  );
+}
+
+/** The made-up reminder: the made-up streak with nothing done yet today, what it needs, and the hours left. */
+const REMINDER_HOURS = 3;
+const REMINDER_LEFT = streakLeftWords([{ kind: "reviews", have: 0, need: 1 }]);
+
+/**
+ * The streak reminder on YouTube's home, as each place that shows it is set: past Starts at, the header bar's Streak
+ * tinted with the hours left (the real `PankiPill`) and Panki's line over the home (drawn in the classes of the home's
+ * own, `content/feed.tsx` → `RiskLine`), the camera on each in turn, then Review pointed at. With the header bar
+ * hidden or its Streak hidden, only the line; with YouTube home add-ons off, only the header bar.
+ */
+function ReminderScene({ store }: { store: Stored }) {
+  const [reminding, setReminding] = useState(false);
+  const pillAt = useRef<HTMLSpanElement | null>(null);
+  const lineAt = useRef<HTMLElement | null>(null);
+  const inPill = store.homePill && streakShown(store);
+  const onHome = store.moduleHome;
+  const script = async (t: Tools) => {
+    setReminding(false);
+    t.frame();
+    await t.wait(700);
+    setReminding(true);
+    await t.wait(800);
+    if (inPill) {
+      t.frame(pillAt.current);
+      await t.move(pillAt.current?.querySelector(".ym-part.is-streak") ?? null, 600);
+      await t.wait(1100);
+    }
+    if (onHome) {
+      t.frame(lineAt.current);
+      await t.move(lineAt.current?.querySelector(".yh-risk") ?? null, 600);
+      await t.wait(900);
+      await t.move(lineAt.current?.querySelector(".yh-review") ?? null, 450);
+      await t.wait(900);
+    }
+    t.frame();
+    await t.wait(600);
+  };
+  return (
+    <Stage site={HOME} script={script}>
+      <HomeSite
+        pill={<SitePill store={store} numbers={streakAt(false, reminding ? REMINDER_HOURS : null)} at={pillAt} />}
+        over={
+          onHome ? (
+            <div className={`yt-home ex-shelves ${reminding ? "is-on" : ""}`.trim()}>
+              <section ref={lineAt} className={`yh-bar is-risk ex-shelf ${reminding ? "is-on" : ""}`.trim()} aria-label="Streak reminder">
+                <p className="yh-bar-words">
+                  <Mark size={18} />
+                  <span className="yh-risk">
+                    <Icon name="flame" />
+                    <b>{SAMPLE_STREAK.name}</b> · {REMINDER_LEFT} to go · {REMINDER_HOURS} h left
                   </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+                </p>
+                <div className="yh-actions">
+                  <Button variant="primary" className="yh-review">
+                    <Icon name="review" />
+                    Review
+                  </Button>
+                </div>
+              </section>
+            </div>
+          ) : null
+        }
+      />
     </Stage>
   );
 }
@@ -1012,6 +1147,8 @@ export const EXPLAINER_NAMES = {
   panel: "Panki panel",
   underline: "Spoken word underline",
   seek: "Seek bar marks",
+  headerBar: "Header bar",
+  reminder: "Streak reminder",
   home: "YouTube home add-ons",
   utilities: "YouTube utilities",
   playerBar: "Player bar",
@@ -1040,6 +1177,10 @@ function ExplainerScene({ id, store }: { id: ExplainerId; store: Stored }) {
       return <UnderlineScene store={store} />;
     case "seek":
       return <SeekScene store={store} />;
+    case "headerBar":
+      return <HeaderBarScene store={store} />;
+    case "reminder":
+      return <ReminderScene store={store} />;
     case "home":
       return <HomeScene store={store} />;
     case "utilities":

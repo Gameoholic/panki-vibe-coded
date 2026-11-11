@@ -211,8 +211,8 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | messages | `messages.ts` | What a page's script asks the worker, each message a shape (`askLocal`, `askState`, `askDeck`, `askAdd`, `askUpload`). |
 | modules | `modules.ts` | Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). |
 | ColourByStage | `options/ColourByStage.tsx` | Words in the decks' colour, Use stage's colour or Custom colour (`ColourByStage`). |
-| PartRows | `options/PartRows.tsx` | Parts of something laid out as rows: a grip, its name, Shown / Hidden (`PartRows`, `LaidPart`). Never a second list of rows to lay out. |
-| PillPanel | `options/PillPanel.tsx` | The pill's parts, laid out and previewed on the options page, and the streak it shows (`PillParts`). |
+| PartRows | `options/PartRows.tsx` | Parts of something laid out as rows: a grip, its name, Shown / Hidden, a part's own settings under it (`PartRows`, `LaidPart`). Never a second list of rows to lay out. |
+| PillPanel | `options/PillPanel.tsx` | The Header bar panel on the options page: Shown / Hidden, the pill previewed, its parts laid out, the streak its Streak shows (`HeaderBarPanel`). |
 | Updates | `options/Updates.tsx` | An update for the extension on the options page: whether there is one, the banner, the version panel (`useUpdate`, `UpdateBanner`, `VersionPanel`). |
 | examples | `options/examples.ts` | The options page's made-up cards and Explain answer, built on the app's examples (`EXAMPLE_CARDS`, `EXAMPLE_EXPLAIN`, `exampleTint`). |
 | explainerScenes | `options/explainerScenes.tsx` | What each options panel's explainer plays (`SceneTitle`, `EXPLAINER_NAMES`). |
@@ -237,7 +237,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | Panel | `ui/Panel.tsx` | The capture drawer, a card made from the page (`Panel`), and a notice in it (`Notice`). |
 | PanelButton | `ui/PanelButton.tsx` | The Panki panel's button in the screen's corner while it's folded in full screen, and Hide panel (`PanelButton`, `HidePanelButton`). Never a second way back. |
 | PanelMenu | `ui/PanelMenu.tsx` | The Panki panel's one menu on its head (`PanelMenu`). Never a second menu on the head. |
-| PankiPill | `ui/PankiPill.tsx` | Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`). Never a second drawing of the pill. |
+| PankiPill | `ui/PankiPill.tsx` | Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`, `SAMPLE_STREAK`). Never a second drawing of the pill. |
 | Rename | `ui/Rename.tsx` | A name of one's own on a row, renamed in place (`Rename`). Never a second rename in place. |
 | ResumeOffer | `ui/ResumeOffer.tsx` | Going on from where a video was stopped, offered on the picture (`ResumeOffer`). Never a second drawing of the offer. |
 | SaveControl | `ui/SaveControl.tsx` | Save for later as a control of the player's bar (`SaveControl`). |

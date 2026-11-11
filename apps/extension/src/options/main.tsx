@@ -32,8 +32,8 @@ import { Dictionaries, KnownWords, Looking } from "./Dictionary";
 import { SceneTitle } from "./explainerScenes";
 import { exampleTint } from "./examples";
 import { PopupLayoutPanel } from "./PopupLayout";
-import { PillParts } from "./PillPanel";
-import { StreakReminder } from "./StreakReminder";
+import { HeaderBarPanel } from "./PillPanel";
+import { StreakReminderPanel } from "./StreakReminder";
 import { useAccountSettings } from "./useAccountSettings";
 import { PlayerBarPanel } from "./PlayerBar";
 import { SeekBarPanel } from "./SeekBar";
@@ -546,16 +546,15 @@ function CurrentWord({ store, onChanged }: { store: Stored; onChanged: () => voi
 }
 
 // Each of Panki's parts is switched at the head of the panel of what it's about: the Panki panel's, the seek bar marks',
-// YouTube home add-ons', the Word pop-up's.
+// the header bar's, YouTube home add-ons', the Word pop-up's.
 
 /**
- * YouTube's home, part by part: the master switch first, then each its own under it, greyed while
- * the master is off. The header bar's pill is laid out under its switch (`PillParts`), the streak reminder (the pill's
- * streak tinted, the line over the home) after it, signed in; both are the account's settings, read once here.
+ * YouTube's home, part by part: the master switch first, then each its own under it, greyed while the master is off.
+ * The header bar is on every page of the site, so it's a panel of its own before this one (`HeaderBarPanel`), as is
+ * the streak reminder, shown in both (`StreakReminderPanel`).
  */
-function HomePanel({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
+function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const off = !store.moduleHome;
-  const account = useAccountSettings(door);
   const row = (id: string, label: string, on: boolean, says: { on: string; off: string }, write: (on: boolean) => Partial<Stored>) => (
     <Setting id={id} label={label} control={<Toggle id={`${id}-on`} says={says} on={on} disabled={off} onChange={(next) => void writeStore(write(next)).then(onChanged)} />} />
   );
@@ -563,9 +562,6 @@ function HomePanel({ store, onChanged, door }: { store: Stored; onChanged: () =>
     <section className="panel" aria-labelledby="home-title">
       <SceneTitle id="home" titleId="home-title" store={store} />
       <Setting id="module-home" label="YouTube home add-ons" control={<Toggle id="module-home-on" says={{ on: "On", off: "Off" }} on={store.moduleHome} onChange={(moduleHome) => void writeStore({ moduleHome }).then(onChanged)} />} />
-      {row("home-pill", "Header bar", store.homePill, { on: "Shown", off: "Hidden" }, (homePill) => ({ homePill }))}
-      <PillParts store={store} door={door} settings={account.settings} failure={account.failure} disabled={off || !store.homePill} onChanged={onChanged} />
-      {door && account.settings ? <StreakReminder door={door} settings={account.settings} disabled={off} /> : null}
       {row("home-shelf", "Continue watching", store.homeShelf, { on: "Shown", off: "Hidden" }, (homeShelf) => ({ homeShelf }))}
       {/* How many it shows is always 5 (`modules.ts` → `SHELF_MAX`). */}
       {row("home-saved", "Saved for later", store.homeSaved, { on: "Shown", off: "Hidden" }, (homeSaved) => ({ homeSaved }))}
@@ -777,6 +773,8 @@ function Options() {
     history.replaceState(null, "", `#${next}`);
   }
   const door = address && token ? { address, token } : null;
+  /** The account's settings the YouTube tab sets some of (the header bar's streak, the streak reminder), read once a sign-in. */
+  const account = useAccountSettings(door);
   /** An update for the extension, as the worker last found it. */
   const updates = useUpdate();
   // Sent here by the drawer to sign in or to switch a deck's field mapping on: turned to that tab, once.
@@ -845,7 +843,10 @@ function Options() {
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
-            <HomePanel store={store} onChanged={refresh} door={door} />
+            {/* The header bar is on every page of the site, so it comes before the home's add-ons, and the reminder shown in both after it. */}
+            <HeaderBarPanel store={store} door={door} account={account} onChanged={refresh} />
+            {door ? <StreakReminderPanel store={store} door={door} account={account} /> : null}
+            <HomePanel store={store} onChanged={refresh} />
             <UtilitiesPanel store={store} onChanged={refresh} />
             <PlayerBarPanel store={store} onChanged={refresh} />
           </div>

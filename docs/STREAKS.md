@@ -181,7 +181,7 @@ Later: notifications on a phone; anything about other people.
 
 - **Streak status**, a tile (`status`): every streak a row, green with a tick once its day or week counts, red with a cross until then; what's left and the time left on a red one; never "at risk". On the home to begin with, put away and back like any tile, gone from it while Streaks is off; on Stats it heads the Streaks tab, not Overview. The Reminder panel leaves Settings (undoing Round 9's "Reminder stays") and the line leaves the top of the home.
 - Claude's calls, each the owner's to undo: **red from the day's start**, not from Starts at, since a status shows what is and the hour is a reminder's; **the Review door's note goes** and **the streak tile's at-risk line, ring and map tint go**, the status tile saying it once; Streak status put out once on each device **right after the last door** (`PUT_OUT`'s `afterDoors`), near where the line stood; the run on each row; "2 of 3 counted" as the figure; no Review button on it (Due now's precedent); the account's order, never red first, so rows stay put.
-- **YouTube's reminder stays and moves to the extension**: Streak reminder On / Off and Starts at, a group under YouTube home add-ons, the account's (`reminderOnYouTube`, `reminderHour`), saved as Streak on the pill is. "At risk" goes from YouTube's line and the pill's spoken words too.
+- **YouTube's reminder stays and moves to the extension**: Streak reminder On / Off and Starts at, a panel of its own on the extension's YouTube tab after Header bar, the account's (`reminderOnYouTube`, `reminderHour`), saved as Streak shown is. "At risk" goes from YouTube's line and the pill's spoken words too.
 - `reminderOn` and `reminderInApp` stay kept and in the shape (an older extension parses them), read by nothing; YouTube's reminder needs Streaks on alone. No migration, no `EXTENSION_PROTOCOL` change.
 
 ## Round 11 (the owner, 2026-11-11: "a separate tab next to Stats … just for Streaks")
@@ -205,7 +205,7 @@ Later: notifications on a phone; anything about other people.
 
 ## Round 15 (the owner, 2026-11-11: "yeah" to the last streak being deletable)
 
-- **No streak at all is allowed**: `StreakRules` lost its `.min(1)`, a leftover from when the one old streak became the first. Delete works on the last streak, asking first like every Delete. With none: Streaks shows Status and the dashed New streak tile; Status says today's facts with no Streaks part; the pill's Streak says nothing and the options page's Streak on the pill says "No streaks"; `Stats.streak` for an older reader is 0. Streaks On / Off keeps its meaning. A new account still starts with `DEFAULT_STREAKS`; migration 54 ran once and never brings one back. `EXTENSION_PROTOCOL` 10: an extension built before refuses settings with an empty list.
+- **No streak at all is allowed**: `StreakRules` lost its `.min(1)`, a leftover from when the one old streak became the first. Delete works on the last streak, asking first like every Delete. With none: Streaks shows Status and the dashed New streak tile; Status says today's facts with no Streaks part; the header bar's Streak says nothing and the options page's Streak shown says "No streaks"; `Stats.streak` for an older reader is 0. Streaks On / Off keeps its meaning. A new account still starts with `DEFAULT_STREAKS`; migration 54 ran once and never brings one back. `EXTENSION_PROTOCOL` 10: an extension built before refuses settings with an empty list.
 
 ## Open
 

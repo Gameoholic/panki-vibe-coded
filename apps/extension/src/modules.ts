@@ -98,7 +98,7 @@ export const PILL_PARTS: Record<PillPart, string> = {
   due: "Cards due",
   reviews: "Reviews today",
   reviewTime: "Time studying today",
-  // The streak picked for the pill under its parts (Streak on the pill, the account's), whatever its goals.
+  // The streak picked under its row (Streak shown, the account's `pillStreak`), whatever its goals.
   streak: "Streak",
 };
 export const PILL_PART_IDS = PillPart.options;
@@ -281,10 +281,14 @@ export const Modules = z.object({
   afterAdd: AfterAdd,
   /**
    * YouTube's home made Panki's, shaped around learning while still looking and feeling like YouTube: the master
-   * switch, and each part its own under it in the options page's YouTube home panel.
+   * switch, and each part its own under it in the options page's YouTube home add-ons panel. The header bar isn't one.
    */
   home: z.boolean(),
-  /** Panki in the site's own header bar: the mark and the parts picked (`pill`). */
+  /**
+   * Panki in the site's own header bar, on every page of the site: the mark and the parts picked (`pill`). A panel of
+   * its own on the options page (Header bar), whatever YouTube home add-ons says: the `home` in its key is only a name,
+   * kept so what's stored needs no moving.
+   */
   homePill: z.boolean(),
   pill: PillLayout,
   // No `pillPower`: the switch is at the pill's end whenever the pill is on (`switchInPill`).
@@ -356,12 +360,11 @@ export const DEFAULT_MODULES: Modules = {
 };
 
 /**
- * Where Panki's own on / off switch is, in one place only: at the end of the pill in YouTube's header bar while that's
- * on (YouTube home's master switch and its Header bar), the pill then staying while Panki is off as the mark and the
- * switch alone; otherwise in the strip under a video. Read on what's switched, not
- * on what's on while Panki is off.
+ * Where Panki's own on / off switch is, in one place only: at the end of the pill in YouTube's header bar while the
+ * header bar is shown, the pill then staying while Panki is off as the mark and the switch alone; otherwise in the
+ * strip under a video. Read on what's switched, not on what's on while Panki is off.
  */
-export const switchInPill = (raw: Pick<Modules, "home" | "homePill">): boolean => raw.home && raw.homePill;
+export const switchInPill = (raw: Pick<Modules, "homePill">): boolean => raw.homePill;
 
 /** How long the button offering to continue stays on the picture, in ms, before it goes by itself. */
 export const OFFER_MS = 6_000;
