@@ -1,17 +1,30 @@
-/** @panki What Settings → General → Reviews' Start cards blurred plays: a card opening blurred, Unblur, and Blur's key (`BlurScene`). */
+/** @panki What Settings → General → Reviews' Start cards blurred plays: a card opening blurred, then Unblur or Blur's key clearing it (`BlurScene`). */
 import { useRef, useState } from "react";
-import { DEFAULT_FLAG_MARK, DEFAULT_SPARK_MARK, DEFAULT_STAGE_TAG, DEFAULT_STARTER, NEW_PLACE, defaultLayout, makeStarter, type CardField, type CardType } from "@panki/contracts";
+import {
+  DEFAULT_FLAG_MARK,
+  DEFAULT_REVIEW_SETTINGS,
+  DEFAULT_SPARK_MARK,
+  DEFAULT_STAGE_TAG,
+  DEFAULT_STARTER,
+  NEW_PLACE,
+  defaultLayout,
+  makeStarter,
+  type CardField,
+  type CardType,
+} from "@panki/contracts";
 import { Stage, type Site, type Tools } from "../components/Explainer";
 import { ReviewCard } from "../components/ReviewCard";
+import { ReviewCounts } from "../components/ReviewScreen";
 import { ShowButton } from "../components/ShowButton";
 import { useKeyBinds } from "../keys";
 import { EXAMPLE_SENTENCE, IN_DECKS } from "./examples";
 
 /**
- * What Start cards blurred plays (`components/Explainer.tsx`): a review in Panki, its card a made-up one of the examples'
- * (`examples.ts`), drawn by the review's own pieces (`ReviewCard`, its `BlurButton`, `ShowButton`). It opens blurred,
- * the pointer presses Unblur and the front clears, then Blur's key blurs it again, as this device has the key; with no
- * key, Blur in the corner does. Never one of the account's own cards or card types.
+ * What Start cards blurred plays (`components/Explainer.tsx`): Panki's own review, in the app's own theme, filling the
+ * picture: its counts, a card and Show back of card, the review's real pieces (`ReviewCounts`, `ReviewCard` with its
+ * `BlurButton`, `ShowButton`). The card is a made-up one of the examples' (`examples.ts`), never one of the account's.
+ * Each round a card opens blurred and is cleared: by Unblur in its corner, and every other round by Blur's key as this
+ * device has it (Unblur again where there's no key). Held still (reduced motion), it's the card blurred.
  */
 
 /** Panki in a browser, on its review. */
@@ -42,58 +55,65 @@ const TYPE: CardType = {
 const VALUES: Readonly<Record<string, string>> = { [WORD]: IN_DECKS.words, [SENTENCE]: EXAMPLE_SENTENCE, [MEANING]: "coffee shop; café" };
 /** Where the card stands: New, on the SRS type Panki starts an account with. */
 const SRS = makeStarter(DEFAULT_STARTER, () => crypto.randomUUID());
+/** The review's counts as a made-up review has them, a new card on screen. */
+const COUNTS = { settings: DEFAULT_REVIEW_SETTINGS, togo: { new: 3, again: 0, review: 12 }, now: "new" as const, line: { active: [], waiting: [] }, leftMs: 14 * 60_000 };
+/** How long the made-up session has gone on. */
+const STUDYING_MS = 6 * 60_000;
 
-/** Where the pointer rests while a key does the work, clear of the card's corner. */
-const ASIDE = [86, 86] as const;
+/** Where the pointer waits while a key does the work: on the ground beside the card. */
+const ASIDE = [93, 46] as const;
 
 export function BlurScene() {
   const page = useRef<HTMLDivElement>(null);
+  const round = useRef(0);
   const [blurred, setBlurred] = useState(true);
+  const [studyingFrom] = useState(() => Date.now() - STUDYING_MS);
   const binds = useKeyBinds();
   const key = binds.blur.key;
   const nothing = () => undefined;
 
   async function script(t: Tools) {
-    const card = page.current?.querySelector(".review-card") ?? null;
-    const chip = () => page.current?.querySelector(".review-blur") ?? null;
+    const chip = page.current?.querySelector(".review-blur") ?? null;
+    const byKey = key !== null && round.current % 2 === 1;
+    round.current += 1;
     setBlurred(true);
-    await t.wait(1100);
-    t.frame(card);
-    await t.move(chip(), 800);
-    await t.click();
-    setBlurred(false);
-    await t.wait(2000);
-    if (key) {
+    if (t.still) return;
+    await t.wait(1400);
+    if (byKey) {
       await t.move(ASIDE, 600);
       t.hold(key);
-      setBlurred(true);
+      setBlurred(false);
       await t.wait(450);
       t.letGo(key);
     } else {
+      await t.move(chip, 900);
       await t.click();
-      setBlurred(true);
+      setBlurred(false);
     }
-    await t.wait(1800);
-    t.frame();
-    await t.wait(900);
+    await t.wait(2200);
   }
 
   return (
     <Stage site={PANKI} script={script}>
-      <div ref={page} className="ex-review">
-        <ReviewCard
-          type={TYPE}
-          values={VALUES}
-          srsType={SRS}
-          place={NEW_PLACE}
-          revealed={false}
-          blur={{ blurred, bind: binds.blur, onToggle: nothing }}
-          hint={false}
-          keys={false}
-        />
-        <div className="review-actions">
-          <ShowButton bind={binds.reveal} onPress={nothing} />
-        </div>
+      <div ref={page} className="ex-panki">
+        <section className="review">
+          <div className="review-top">
+            <ReviewCounts counts={{ ...COUNTS, studyingFrom }} />
+          </div>
+          <ReviewCard
+            type={TYPE}
+            values={VALUES}
+            srsType={SRS}
+            place={NEW_PLACE}
+            revealed={false}
+            blur={{ blurred, bind: binds.blur, onToggle: nothing }}
+            hint={false}
+            keys={false}
+          />
+          <div className="review-actions">
+            <ShowButton bind={binds.reveal} onPress={nothing} />
+          </div>
+        </section>
       </div>
     </Stage>
   );

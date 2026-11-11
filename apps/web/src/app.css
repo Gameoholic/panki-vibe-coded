@@ -9077,11 +9077,21 @@ mark.sub-blur {
   white-space: normal;
 }
 /* A (?) that plays a setting (`Setting`'s `explain`), after its label as the hint's mark stands; the label's weight
-   stays the label's, never the picture's. */
+   stays the label's, never the picture's. Its window hangs from the whole setting, at the panel's left as a panel
+   title's does, rather than from the mark partway along the row. */
 .setting-label > .explain {
   vertical-align: middle;
   margin-left: 8px;
   font-weight: 400;
+}
+.setting.is-explained {
+  position: relative;
+}
+.setting.is-explained .explain {
+  position: static;
+}
+.setting.is-explained:has(.explain.is-open) {
+  z-index: 40;
 }
 .btn.explain-q:hover,
 .btn.explain-q[aria-expanded="true"] {
@@ -9107,16 +9117,14 @@ mark.sub-blur {
     transform: translateY(6px);
   }
 }
-/* On a phone the window hangs from the whole title row (or the whole setting), as wide as the panel, never past the
+/* On a phone the window hangs from the whole title row (a setting's always does), as wide as the panel, never past the
    screen's edge (the page in it scales to fit, as it does in any width). */
 @media (max-width: 640px) {
-  .explain-head,
-  .setting.is-explained {
+  .explain-head {
     position: relative;
     z-index: 40;
   }
-  .explain-head > .explain,
-  .setting.is-explained .explain {
+  .explain-head > .explain {
     position: static;
   }
   .explain-window {
@@ -9318,13 +9326,31 @@ mark.sub-blur {
   }
 }
 
-/* Start cards blurred's scene (explainers/blurScene.tsx): a review's card and Show back of card under it, at a
-   review's width, in the page's middle. */
-.ex-review {
-  display: grid;
+/* Start cards blurred's scene (explainers/blurScene.tsx): Panki's own review on the app's own ground, in its theme,
+   filling the picture top to bottom: the counts' line as a computer's review has it, the card taking the room, and
+   Show back of card under it, all in view without the camera moving. */
+.ex-panki {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  padding: 26px 0 30px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.ex-panki > .review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 760px;
+}
+.ex-panki .review-top {
+  justify-content: flex-start;
   gap: 16px;
-  width: 640px;
-  margin: 64px auto 0;
+}
+.ex-panki .review-card {
+  flex: 1;
+  min-height: 0;
 }
 
 /* A video's thumbnail (bundled: explainers/thumbs/), cropped to its box as the site crops it. */

@@ -78,7 +78,7 @@ Paths from `apps/web/src/`.
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
 | TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field (`TouchUpAll`, `Tied`, `fieldShown`, `proposes`, `UnmarkAi`). Never a second proposal. |
 | aiScenes | `explainers/aiScenes.tsx` | What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). |
-| blurScene | `explainers/blurScene.tsx` | What Settings → General → Reviews' Start cards blurred plays: a card opening blurred, Unblur, and Blur's key (`BlurScene`). |
+| blurScene | `explainers/blurScene.tsx` | What Settings → General → Reviews' Start cards blurred plays: a card opening blurred, then Unblur or Blur's key clearing it (`BlurScene`). |
 | examples | `explainers/examples.ts` | The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. |
 | site | `explainers/site.tsx` | The made-up video site an explainer plays on (`WatchPage`, `SiteTop`, `WATCH`, `WATCHED`, `videoAt`). |
 
