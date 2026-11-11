@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { makeStarter, type CardPlace } from "@panki/contracts";
+import { makeStarter, NEW_PLACE, type CardPlace } from "@panki/contracts";
 import type { Changed, ReplayHold, ReplayPlace } from "../src/cleared";
 import { newDoneMoments, type NewDoneInput } from "../src/newDone";
 
@@ -21,8 +21,12 @@ const day = (d: number) => dayOf(at(d, 12));
 
 const LADDER = makeStarter("anki", mint);
 const onFirst = (): CardPlace => ({ stageId: LADDER.stages[0]?.id ?? null, past: 0, node: [], burned: false });
-/** A card's answer: the first for a new card is its start, the rest are reviews. */
+/** A card's answer landing it on the first stage, learned: the first for a new card is its start, the rest are reviews. */
 const answer = (cardId: string, instant: number, start = false): ReplayPlace => ({ cardId, at: instant, answer: true, to: onFirst(), start });
+/** A new card's answer asking it again in New: its start when it's the first, the card not yet learned. */
+const again = (cardId: string, instant: number, start = false): ReplayPlace => ({ cardId, at: instant, answer: true, to: { ...NEW_PLACE, node: ["miss"] }, start });
+/** An answer sending a card inside an ask-again back to New, a new card again. */
+const backToNew = (cardId: string, instant: number): ReplayPlace => ({ cardId, at: instant, answer: true, to: NEW_PLACE, start: false });
 /** A card made before day 1, in the one deck unless said otherwise. */
 const card = (id: string, over: Partial<NewDoneInput["cards"][number]> = {}) => ({ id, deckId: "deck", createdAt: 0, removedAt: null, ...over });
 const deck = (id: string, newPerDay: number, removedAt: number | null = null) => ({ id, removedAt, newPerDay });
@@ -38,12 +42,39 @@ function input(over: Partial<NewDoneInput> & { places: ReplayPlace[] }): NewDone
   };
 }
 
-test("a day is done once the new cards started reach the deck's New cards a day, cards left or not", () => {
+test("a day is done once the new cards learned reach the deck's New cards a day, cards left or not", () => {
   const moments = newDoneMoments(input({ decks: [deck("deck", 2)], places: [answer("a", at(1, 10), true), answer("b", at(1, 11), true)] }));
-  // One of two started: not done; the second reaches the limit with c still to start.
+  // One of two learned: not done; the second reaches the limit with c still to start.
   assert.ok(!moments.includes(at(1, 10)));
   assert.ok(moments.includes(at(1, 11)));
   assert.deepEqual(daysOf(moments), [day(1)]);
+});
+
+test("a new card started isn't learned until its review is finished: a day of Forgot alone never counts", () => {
+  const starts = [again("a", at(1, 10), true), again("b", at(1, 11), true)];
+  assert.deepEqual(newDoneMoments(input({ decks: [deck("deck", 2)], places: starts })), []);
+  // a's answer out of its ask-again learns it; b is still asking again until its own.
+  const learned = newDoneMoments(input({ decks: [deck("deck", 2)], places: [...starts, answer("a", at(1, 12)), answer("b", at(1, 13))] }));
+  assert.ok(!learned.includes(at(1, 12)));
+  assert.ok(learned.includes(at(1, 13)));
+});
+
+test("a card an answer sends back to New is a new card again, to start and learn again, each start counted", () => {
+  const places = [again("a", at(1, 10), true), backToNew("a", at(1, 11)), again("a", at(1, 12), true), answer("a", at(1, 13))];
+  // With b to start under 2 a day: a back in New at 11:00 is to start; a's second start at 12:00 is the day's second,
+  // reaching the limit, but a isn't learned until 13:00.
+  const moments = newDoneMoments(input({ cards: [card("a"), card("b")], decks: [deck("deck", 2)], places }));
+  assert.deepEqual(moments, [at(1, 13)]);
+  // Under 1 a day, a's first start reached the limit, but the day waits for a to be learned all the same.
+  assert.deepEqual(newDoneMoments(input({ cards: [card("a"), card("b")], decks: [deck("deck", 1)], places })), [at(1, 13)]);
+});
+
+test("a card left asking again past the day's end counts for neither day", () => {
+  // a is started on day 1 and left waiting; b is learned. Day 1 isn't done. On day 2 a's answer learns it, and with
+  // nothing started that day and nothing to start, day 2 is done.
+  const places = [again("a", at(1, 10), true), answer("b", at(1, 11), true), answer("a", at(2, 9))];
+  const moments = newDoneMoments(input({ cards: [card("a"), card("b")], places }));
+  assert.deepEqual(moments, [at(2, 9)]);
 });
 
 test("a deck with no new card left to start is done short of its limit", () => {
@@ -87,6 +118,11 @@ test("a new card held out isn't one to start while its hold stands", () => {
   const lifted = newDoneMoments(input({ cards, places: [answer("a", at(1, 10), true), answer("a", at(1, 12))], holds: [{ ...bury, liftedAt: at(1, 11) }] }));
   assert.ok(lifted.includes(at(1, 10.5)));
   assert.ok(!lifted.includes(at(1, 12)));
+  // One started and suspended while asking again is out too: neither to start nor to learn while its hold stands.
+  const suspend: ReplayHold = { cardId: "b", at: at(1, 11.5), kind: "suspend", until: null, liftedAt: null };
+  const putAside = newDoneMoments(input({ cards, places: [answer("a", at(1, 10), true), again("b", at(1, 11), true)], holds: [suspend] }));
+  assert.ok(!putAside.includes(at(1, 11)));
+  assert.ok(putAside.includes(at(1, 11.5)));
 });
 
 test("a deck removed, or a card removed, has nothing left to start from its removal on", () => {
@@ -104,13 +140,15 @@ test("an answer taken back never happened: the start that would have finished th
   // b's start at 11:00 was undone, so the history holds a's alone and b is still to start.
   const moments = newDoneMoments(input({ cards: [card("a"), card("b")], places: [answer("a", at(1, 10), true)] }));
   assert.deepEqual(moments, []);
+  // a's answer out of its ask-again was undone too: the history holds its start alone, and a isn't learned.
+  assert.deepEqual(newDoneMoments(input({ cards: [card("a")], places: [again("a", at(1, 10), true)] })), []);
 });
 
 test("the limit is the one in force at the moment: raised that evening, the morning's done stands", () => {
   const changes: Changed<number>[] = [{ at: at(1, 20), from: 1, to: 5 }];
   const places = [answer("a", at(1, 10), true), answer("b", at(2, 10), true)];
   const moments = newDoneMoments(input({ decks: [deck("deck", 5)], limitChanges: new Map([["deck", changes]]), places }));
-  // Under 1 a day, a's start finished day 1; under 5, b's start on day 2 leaves c to start.
+  // Under 1 a day, a learned finished day 1; under 5, b learned on day 2 leaves c to start.
   assert.ok(moments.includes(at(1, 10)));
   assert.ok(!moments.includes(at(2, 10)));
 });

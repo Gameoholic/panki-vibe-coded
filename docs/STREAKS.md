@@ -198,6 +198,11 @@ Later: notifications on a phone; anything about other people.
 
 - **Status → Today**, everywhere it's said, the id too (`today`). A home layout kept with `status` reads it as `today`, and a device that already had it put out isn't given it again (`layout.ts` → `FOLDED`, read into the put-out list as well), so no board loses it, gains it twice or gets it back once put away; nothing is rewritten until the layout is next saved.
 
+## Round 14 (the owner, 2026-11-11: "we learned the card, aka we started it and finished it")
+
+- **All new cards done asks that each new card be learned**, not just answered: Round 8 counted a card at its first answer, so Forgot on every one counted, which the owner read the condition's line and refused. A new card is learned once started and its review finished: out of any ask-again (right away or with a wait), on a stage or burned. The condition's line says it ("Learned every new card up to each deck's New cards a day at some point in the day: each started and its review finished, not just answered."); its name, id and what's-left stay.
+- Built, Claude's calls: a card an answer sends back to New (a `lesson` step) is a new card again, to start and learn again that day, each start counted off New cards a day as the door counts them; a card left asking again with a wait past the day's end counts for neither day (it's neither started on the next day nor to start, so the next day asks nothing of it); a card held while asking again is out while its hold stands, as a held card isn't due in All reviews done. `newDone.ts` keeps each day's starts and the cards started; its tests cover a day of Forgot, back to New, over the day's end, a started card suspended. No shape changes, so nothing for `EXTENSION_PROTOCOL`.
+
 ## Open
 
 - **A Time watching condition counts the clock alone** (the owner, 2026-11-11: "the actual real-life time we spent"); content watched is never a condition for now. Whether the Time watching tile shows content watched beside the clock is still open; default: not until the owner asks.

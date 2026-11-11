@@ -2137,8 +2137,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   });
   /**
    * The moments All new cards done happened, replayed from the whole history (`newDone.ts`) and kept the same way: each
-   * deck's New cards a day as it stood at each moment, the new cards started counted on the account's days as its
-   * settings say now.
+   * deck's New cards a day as it stood at each moment, the new cards started and learned counted on the account's days
+   * as its settings say now.
    */
   const newDoneOfHistory = whileUnchanged(db, (): number[] => {
     const settings = settingsFrom(selectSettings.all() as SettingRow[]);
@@ -3444,7 +3444,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       for (const s of stretches) factsOn(day(s.at)).watchMs += s.spentMs;
       // All reviews done: a day on which an answer landed with nothing left due, replayed from the history.
       for (const at of clearedOfHistory()) factsOn(day(at)).cleared = 1;
-      // All new cards done: a day on which an answer landed with every deck's new cards for the day done, replayed too.
+      // All new cards done: a day on which an answer landed with every deck's new cards for the day learned, replayed too.
       for (const at of newDoneOfHistory()) factsOn(day(at)).newDone = 1;
       // YouTube's reminder starts at its hour on the account's clock and runs until the day turns; whether it shows
       // there is the extension's to read (`reminderOnYouTube`). `reminderOn` is read by nothing (`Settings`).

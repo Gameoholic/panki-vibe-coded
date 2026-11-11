@@ -7,7 +7,7 @@ export type ReminderClock = { on: boolean; pastStart: boolean; hoursLeft: number
 /**
  * What one of the account's days held, as the goals read it: counts, the time spent in ms (rounded to minutes only once
  * a period's days are summed), 1 when an answer that day left all reviews done, else 0, and the same for all new cards
- * done (both replayed from the history, `cleared.ts` and `newDone.ts`).
+ * done, each learned (both replayed from the history, `cleared.ts` and `newDone.ts`).
  */
 export type DayTally = { reviews: number; started: number; reviewMs: number; watchMs: number; cleared: number; newDone: number };
 

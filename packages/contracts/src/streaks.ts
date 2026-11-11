@@ -12,8 +12,8 @@ import { z } from "zod";
  * What a period held, as every goal reads it: each a whole number over the account's days in it. Minutes are whole
  * minutes of the time spent (each showing of a card at most `CARD_TIME_MAX_MS`), summed over the period and rounded down
  * once. `cleared` is 1 when, on a day in it, an answer landed with nothing left due in any deck (All reviews done), and
- * `newDone` 1 when one landed with every deck's new cards for the day done (All new cards done), each worked out on read
- * by replaying the history, never stored; else 0.
+ * `newDone` 1 when one landed with every deck's new cards for the day learned, started and their reviews finished (All
+ * new cards done), each worked out on read by replaying the history, never stored; else 0.
  */
 export const PeriodFacts = z.object({
   reviews: z.number().int().nonnegative(),
@@ -96,8 +96,9 @@ export const GOAL_KINDS: Record<GoalKind, GoalKindEntry> = {
   watching: { name: "Time watching", fact: "watchMinutes", numbered: true, suffix: "min", byReviewing: false, max: 600, start: 30, left: { kind: "minutes", doing: "watching" }, fits: STREAK_PER_IDS },
   // Nothing left due is a moment of a day: over a week it would ask only that it happened once.
   cleared: { name: "All reviews done", fact: "cleared", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all reviews" }, fits: ["day"], why: "Reviewed every due card at some point in the day." },
-  // Every deck has a New cards a day (0 to 999), so this carries no number of its own: a deck at 0 needs nothing.
-  newDone: { name: "All new cards done", fact: "newDone", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all new cards" }, fits: ["day"], why: "Started every new card up to each deck's New cards a day at some point in the day." },
+  // Every deck has a New cards a day (0 to 999), so this carries no number of its own: a deck at 0 needs nothing. A new
+  // card is learned once started and its review finished, not left asking again: Forgot on every one isn't done.
+  newDone: { name: "All new cards done", fact: "newDone", numbered: false, suffix: "", byReviewing: true, max: 1, start: 1, left: { kind: "once", words: "all new cards" }, fits: ["day"], why: "Learned every new card up to each deck's New cards a day at some point in the day: each started and its review finished, not just answered." },
 };
 
 /** Whether a kind of goal fits a streak type. */
