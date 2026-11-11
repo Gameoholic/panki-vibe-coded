@@ -58,7 +58,7 @@ test("a deck without a kind of run takes the account's; a deck with no answers i
   assert.deepEqual(paceFor(null, "deck"), NO_PACE);
 });
 
-const NONE: SideMedia = { sum: null, longest: null, word: null };
+const NONE: SideMedia = { sum: null, word: null };
 const replayed = (cardId: string, instant: number, ms: number, over: Partial<ReplayAnswer> = {}): ReplayAnswer => ({
   ...answer(cardId, instant, ms),
   sessionId: "s",
@@ -69,13 +69,13 @@ const replayed = (cardId: string, instant: number, ms: number, over: Partial<Rep
   ...over,
 });
 
-test("a side's clips: their lengths summed and the longest, a sound with no length kept counting for nothing, the word's place from the first that has one", () => {
-  assert.deepEqual(sideMediaOf([{ lengthMs: 3_000, wordMs: null }, { lengthMs: null, wordMs: null }, { lengthMs: 5_000, wordMs: 1_200 }]), { sum: 8_000, longest: 5_000, word: 1_200 });
+test("a side's clips: their lengths summed, one with no length kept counting for nothing, the word's place from the first that has one", () => {
+  assert.deepEqual(sideMediaOf([{ lengthMs: 3_000, wordMs: null }, { lengthMs: null, wordMs: null }, { lengthMs: 5_000, wordMs: 1_200 }]), { sum: 8_000, word: 1_200 });
   assert.deepEqual(sideMediaOf([{ lengthMs: null, wordMs: null }]), NONE);
 });
 
 test("a side's share is fitted from its own span against its own clips, never below 0, and only from enough showings", () => {
-  const clip = (ms: number): SideMedia => ({ sum: ms, longest: ms, word: null });
+  const clip = (ms: number): SideMedia => ({ sum: ms, word: null });
   // The front takes 2 s plus its clip once over; the back nothing to do with the clips.
   const answers = Array.from({ length: MEDIA_MIN }, (_, i) => replayed(`c${i}`, at(1, 9 + i / 60), 0, { thinkMs: 2_000 + 1_000 * i, decideMs: 3_000, front: clip(1_000 * i), back: clip(1_000 * i) }));
   const fit = mediaFitOf(answers, "sum");
@@ -86,7 +86,7 @@ test("a side's share is fitted from its own span against its own clips, never be
 });
 
 test("a variant with clips stretches a long clip's card and shrinks a short one's, from the deck's fit before the session", () => {
-  const clip = (ms: number): SideMedia => ({ sum: ms, longest: ms, word: null });
+  const clip = (ms: number): SideMedia => ({ sum: ms, word: null });
   // Before: a card takes 2 s plus its clip, clips of 0 to 9 s.
   const history = Array.from({ length: MEDIA_MIN }, (_, i) => replayed(`h${i}`, at(1, 9 + i / 60), 0, { sessionId: null, thinkMs: 2_000 + 1_000 * i, decideMs: 0, front: clip(1_000 * i) }));
   const session = [replayed("long", at(2, 9), 0, { thinkMs: 11_000, decideMs: 0, front: clip(9_000) }), replayed("short", at(2, 9.1), 0, { thinkMs: 2_000, decideMs: 0, front: clip(0) })];

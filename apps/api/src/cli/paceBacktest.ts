@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { CaptureFacts, DEFAULT_SETTINGS } from "@panki/contracts";
-import { backtest, mediaFitOf, sideMediaOf, variantsOf, type MediaMeasure, type ReplayAnswer, type SideFile, type SideMedia } from "../paceBacktest";
+import { backtest, mediaFitOf, sideMediaOf, variantsOf, type MediaMeasure, type ReplayAnswer, type SideClip, type SideMedia } from "../paceBacktest";
 import { PACE_DAYS } from "../pace";
 import { dayReader } from "../time";
 
@@ -10,9 +10,9 @@ import { dayReader } from "../time";
  * `PACE_DAYS`, each way of working it out side by side, a card's clips among them. Opens the database it's given
  * read-only and changes nothing; run it on a copy, never on an account's live file.
  *
- * A file's length is what's kept of it: a recording's own stretch, else, for a file that isn't a dictionary's word
- * sound, the stretch of the video its card or example was taken from. Where the picked word starts in the clip is the
- * capture's word less the clip's start. Which example an answer showed is the one it names.
+ * Clips alone count: a file of the video kind, not a recording of the picked word's own cut. Its length is what's kept of it: its recording's own stretch, else the
+ * stretch of the video its card or example was taken from. Where the picked word starts in it is the capture's word
+ * less the clip's start. Which example an answer showed is the one it names.
  */
 
 const EASES = [2, 5, 10, 20];
@@ -62,30 +62,31 @@ function main() {
     const cardFiles = valuesOf(all("SELECT v.card_id AS owner, v.field_id AS fieldId, v.value FROM card_values v JOIN card_fields f ON f.id = v.field_id WHERE f.kind = 'media'"));
     const exampleFiles = valuesOf(all("SELECT v.example_id AS owner, v.field_id AS fieldId, v.value FROM card_example_values v JOIN card_fields f ON f.id = v.field_id WHERE f.kind = 'media'"));
     const recordings = new Map(all<{ mediaId: string; cut: string; startMs: number; endMs: number }>("SELECT media_id AS mediaId, cut, start_ms AS startMs, end_ms AS endMs FROM media_recordings").map((r) => [r.mediaId, r]));
-    const wordSounds = new Set(all<{ mediaId: string }>("SELECT media_id AS mediaId FROM forvo_recordings").map((r) => r.mediaId));
-    const files = new Set(all<{ id: string }>("SELECT id FROM media").map((r) => r.id));
+    const clips = new Set(all<{ id: string }>("SELECT id FROM media WHERE kind = 'video'").map((r) => r.id));
     const cardTaken = new Map(all<{ id: string; startMs: number | null; endMs: number | null; capture: string | null }>("SELECT card_id AS id, start_ms AS startMs, end_ms AS endMs, capture FROM card_sources").map((r) => [r.id, takenOf(r)]));
     const exampleTaken = new Map(all<{ id: string; startMs: number | null; endMs: number | null; capture: string | null }>("SELECT id, start_ms AS startMs, end_ms AS endMs, capture FROM card_examples").map((r) => [r.id, takenOf(r)]));
 
-    /** A file as kept: its recording's stretch, else its source's for a file that isn't a word sound; the word's start in it from the source's capture. */
-    const fileOf = (mediaId: string, taken: Taken | undefined): SideFile | null => {
-      if (!files.has(mediaId)) return null;
+    /** A clip as kept: its recording's stretch, else its source's; the word's start in it from the source's capture. Anything but a clip is nothing. */
+    const clipOf = (mediaId: string, taken: Taken | undefined): SideClip | null => {
+      if (!clips.has(mediaId)) return null;
       const recording = recordings.get(mediaId);
+      // The picked word's own cut is the word's, a short sound like any other, not the sentence's clip.
+      if (recording?.cut === "word") return null;
       if (recording) {
-        const wordMs = recording.cut === "clip" && taken?.wordMs != null ? Math.max(0, taken.wordMs - recording.startMs) : null;
+        const wordMs = taken?.wordMs != null ? Math.max(0, taken.wordMs - recording.startMs) : null;
         return { lengthMs: Math.max(0, recording.endMs - recording.startMs), wordMs };
       }
-      if (wordSounds.has(mediaId) || !taken || taken.startMs === null || taken.endMs === null) return { lengthMs: null, wordMs: null };
+      if (!taken || taken.startMs === null || taken.endMs === null) return { lengthMs: null, wordMs: null };
       return { lengthMs: Math.max(0, taken.endMs - taken.startMs), wordMs: taken.wordMs === null ? null : Math.max(0, taken.wordMs - taken.startMs) };
     };
     /** What each side of a card showed of its clips, with the example an answer named: its own files where it has them, the card's elsewhere. */
     const mediaOf = (cardId: string, exampleId: string | null): { front: SideMedia; back: SideMedia } => {
-      const sides: Record<"front" | "back", SideFile[]> = { front: [], back: [] };
+      const sides: Record<"front" | "back", SideClip[]> = { front: [], back: [] };
       for (const field of fieldsOfType.get(cardTypes.get(cardId) ?? "") ?? []) {
         const fromExample = exampleId === null ? undefined : exampleFiles.get(exampleId)?.get(field.id);
         const value = fromExample ?? cardFiles.get(cardId)?.get(field.id) ?? "";
-        const file = value === "" ? null : fileOf(value, fromExample !== undefined && exampleId !== null ? exampleTaken.get(exampleId) : cardTaken.get(cardId));
-        if (file) sides[field.side].push(file);
+        const clip = value === "" ? null : clipOf(value, fromExample !== undefined && exampleId !== null ? exampleTaken.get(exampleId) : cardTaken.get(cardId));
+        if (clip) sides[field.side].push(clip);
       }
       return { front: sideMediaOf(sides.front), back: sideMediaOf(sides.back) };
     };
@@ -106,7 +107,7 @@ function main() {
       const known = (side: "front" | "back") => recent.filter((a) => a[side][measure] !== null).length;
       console.log(`  with ${words}: ${known("front")} on the front, ${known("back")} on the back`);
     }
-    for (const measure of ["sum", "longest", "word"] as MediaMeasure[]) {
+    for (const measure of ["sum", "word"] as MediaMeasure[]) {
       const fit = mediaFitOf(recent, measure);
       const said = (side: "front" | "back") => {
         const f = fit[side];

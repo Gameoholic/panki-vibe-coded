@@ -4,24 +4,25 @@
  * and set against the time it really took. Pure: the answers come in oldest first, with the account's day reader.
  *
  * Besides the live way, it tries a card's clips as candidates not yet in the live estimate: a side's time as a fixed
- * part plus a share of a length on it (its clips' lengths summed, its longest clip, or where the picked word falls in
- * its clip), fitted per deck from the answers before the session, the front's span against the front's clips and the
- * back's against the back's. Lengths are as said (speed 1): how fast a field plays is a device's own, not kept.
+ * part plus a share of a length on it (its clips' lengths summed, as they're heard one after another, or where the
+ * picked word falls in its clip), fitted per deck from the answers before the session, the front's span against the
+ * front's clips and the back's against the back's. Clips alone: a sound (a word's, or any other) is no part of it.
+ * Lengths are as said (speed 1): how fast a field plays is a device's own, not kept.
  */
 import { CARD_TIME_MAX_MS, NEW_SESSION_PACE, TODAY_EASE, cardLeftMs, countedMs, paceAfter, todaySpeed, type CardLeft, type DeckPace, type SessionPace } from "@panki/contracts";
 import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 
-/** What a side of a card shows of its clips, in ms: their lengths summed, the longest, and where the picked word starts in its clip; null where none is known. */
-export type SideMedia = { sum: number | null; longest: number | null; word: number | null };
+/** What a side of a card shows of its clips, in ms: their lengths summed, and where the picked word starts in its clip; null where none is known. */
+export type SideMedia = { sum: number | null; word: number | null };
 export type MediaMeasure = keyof SideMedia;
-/** A file on a side as the backtest knows it: its length and where the picked word starts in it, each when kept. */
-export type SideFile = { lengthMs: number | null; wordMs: number | null };
+/** A clip on a side as the backtest knows it: its length and where the picked word starts in it, each when kept. */
+export type SideClip = { lengthMs: number | null; wordMs: number | null };
 
-/** A side's clips as each measure reads them; a file with no length kept (a word's sound from a dictionary) counts for nothing. */
-export function sideMediaOf(files: readonly SideFile[]): SideMedia {
-  const lengths = files.flatMap((f) => (f.lengthMs === null ? [] : [f.lengthMs]));
-  const word = files.find((f) => f.wordMs !== null)?.wordMs ?? null;
-  return { sum: lengths.length === 0 ? null : lengths.reduce((s, l) => s + l, 0), longest: lengths.length === 0 ? null : Math.max(...lengths), word };
+/** A side's clips as each measure reads them: every length kept, summed; a clip with none kept counts for nothing. */
+export function sideMediaOf(clips: readonly SideClip[]): SideMedia {
+  const lengths = clips.flatMap((c) => (c.lengthMs === null ? [] : [c.lengthMs]));
+  const word = clips.find((c) => c.wordMs !== null)?.wordMs ?? null;
+  return { sum: lengths.length === 0 ? null : lengths.reduce((s, l) => s + l, 0), word };
 }
 
 /**
@@ -189,8 +190,7 @@ export function variantsOf(eases: readonly number[]): Variant[] {
     { name: "+ asked-again showing", pace: whole, ease: NO_TODAY },
     ...eases.map((ease) => ({ name: `+ today's speed, ease ${ease}`, pace: plain, ease })),
     ...eases.map((ease) => ({ name: `Both, ease ${ease}`, pace: whole, ease })),
-    { name: "Live + clip lengths summed", pace: whole, ease: TODAY_EASE, media: "sum" },
-    { name: "Live + longest clip", pace: whole, ease: TODAY_EASE, media: "longest" },
+    { name: "Live + clip lengths", pace: whole, ease: TODAY_EASE, media: "sum" },
     { name: "Live + word's place in clip", pace: whole, ease: TODAY_EASE, media: "word" },
   ];
 }
