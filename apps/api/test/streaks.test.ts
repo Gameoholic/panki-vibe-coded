@@ -39,7 +39,7 @@ test("a day with no card made has nothing added, and the other facts stay as the
 
 test("Cards added ≥ n counts a day once n cards were made that day", () => {
   const made = tallies({ cards: [{ createdAt: at(1, 9) }, { createdAt: at(1, 10) }, { createdAt: at(2, 9) }, { createdAt: at(3, 9) }, { createdAt: at(3, 10) }] });
-  const [state] = streakStatesOf([addedStreak(2)], made, day(3), CLOCK);
+  const [state] = streakStatesOf([addedStreak(2)], made, day(3), "sat", CLOCK);
   assert.ok(state);
   // Days 1 and 3 count, day 2 falls short: a run of 1 going, the best 1.
   assert.deepEqual(state.counted, [day(1), day(3)]);
@@ -47,17 +47,33 @@ test("Cards added ≥ n counts a day once n cards were made that day", () => {
   assert.equal(state.now, true);
   assert.deepEqual(state.groups, [[{ kind: "added", have: 2, need: 2 }]]);
   // On day 2 the one card made leaves one to add.
-  const [onDay2] = streakStatesOf([addedStreak(2)], made, day(2), CLOCK);
+  const [onDay2] = streakStatesOf([addedStreak(2)], made, day(2), "sat", CLOCK);
   assert.deepEqual(onDay2?.groups, [[{ kind: "added", have: 1, need: 2 }]]);
   assert.equal(onDay2?.now, false);
 });
 
 test("over a week the cards made on its days are summed", () => {
   const made = tallies({ cards: [{ createdAt: at(1, 9) }, { createdAt: at(3, 9) }, { createdAt: at(7, 9) }, { createdAt: at(8, 9) }] });
-  // Day 1 is a Sunday: days 1 to 7 are one week, day 8 the next.
-  const [state] = streakStatesOf([addedStreak(3, "week")], made, day(8), CLOCK);
+  // Day 1 is a Sunday: a week ending Saturday has days 1 to 7 as one week, day 8 the next.
+  const [state] = streakStatesOf([addedStreak(3, "week")], made, day(8), "sat", CLOCK);
   assert.deepEqual(state?.counted, [day(1)]);
   assert.deepEqual(state?.groups, [[{ kind: "added", have: 1, need: 3 }]]);
+});
+
+test("a week ending Sunday runs Monday to Sunday: the same days fall in other weeks, and the row starts on Monday", () => {
+  const made = tallies({ cards: [{ createdAt: at(1, 9) }, { createdAt: at(3, 9) }, { createdAt: at(7, 9) }, { createdAt: at(8, 9) }] });
+  // Day 1, a Sunday, ends the week before; days 2 (Monday) to 8 (Sunday) are one week, holding days 3, 7 and 8.
+  const [weekly] = streakStatesOf([addedStreak(3, "week")], made, day(8), "sun", CLOCK);
+  assert.deepEqual(weekly?.counted, [day(2)]);
+  assert.equal(weekly?.now, true);
+  assert.equal(weekly?.daysLeft, 1);
+  // A daily streak's row is this week's days, Monday first: Sunday, today, is its last.
+  const [daily] = streakStatesOf([addedStreak(1)], made, day(8), "sun", CLOCK);
+  assert.deepEqual(
+    daily?.row.map((p) => p.start),
+    [2, 3, 4, 5, 6, 7, 8].map(day),
+  );
+  assert.equal(daily?.rowNow, 6);
 });
 
 test("the kind is a count that reviewing doesn't help, offered to daily and weekly streaks alike", () => {

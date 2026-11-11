@@ -183,6 +183,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | unread | `unread.ts` | Why a Panki AI answer couldn't be used, said as Expected … Got … (`expectedGot`, `UNREAD_REASONS`, `issueWords`, `knobsBroken`). Never a label of whose rule it was. |
 | usage | `usage.ts` | The usage ledger as shapes: a paid call's kinds, costs and totals (`UsageKind`, `UsageTotals`, `UsageReport`, `soundCostMicros`). Writing a row is the API's alone. |
 | watching | `watching.ts` | Video tracking and Save for later as shapes: stretches watched, a video's marks and glance, saved videos (`WatchBatch`, `VideoGlance`, `SavedVideo`). |
+| week | `week.ts` | The account's week, its one home: the weekdays (`WEEK_DAYS`, `WEEK_DAY_NAMES`) and the week a day falls in (`weekStartOf`, `placeInWeek`, `weekdaysInOrder`). |
 | wordAudio | `wordAudio.ts` | Where word audio comes from, the sources one registry, and the settings everyone shares (`WORD_AUDIO_SOURCES`, `WordAudio`, `DEFAULT_WORD_AUDIO`). |
 | youtube | `youtube.ts` | A YouTube link as a field holds it, and a video's metadata (`youtubeUrl`, `youtubeLinkOf`, `YouTubeMeta`, `momentWanted`). Never an address pasted and trusted. |
 | zip | `zip.ts` | Reading a zip, as dictionaries come (`readZip`, `ZipEntry`, `ZipError`). Never a library for it, never a second zip reader. |

@@ -114,6 +114,8 @@ import {
   type WatchedVideo,
   type Watching,
   type WordsInCards,
+  placeInWeek,
+  weekStartOf,
 } from "@panki/contracts";
 import { clearedMoments, type Changed, type ReplayHold, type ReplayPlace } from "./cleared";
 import { hashOf, whileUnchanged } from "./kept";
@@ -122,7 +124,7 @@ import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 import { clipReader } from "./clips";
 import { dayTalliesOf, streakStatesOf, streaksStamped } from "./streaks";
 import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
-import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, weekdayOf, type Day } from "./time";
+import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, type Day } from "./time";
 
 export type Db = ReturnType<typeof openDb>;
 
@@ -1149,6 +1151,17 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     const next = JSON.stringify([{ id: "streak", name: "Streak", per: "day", countFrom: "all", groups: [[{ kind: "reviews", n: 1 }], [{ kind: "new", n: 1 }]] }]);
     db.prepare("UPDATE settings SET value = ? WHERE key = 'streaks'").run(next);
     db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('streaks', ?, ?, ?)").run(row.value, next, now);
+  },
+  (db, now) => {
+    // 55. The week became each account's own (`weekEndsOn`), ending on Sunday to begin with. Every account from before
+    // had a week ending on Saturday: it keeps Saturday, said once as a setting of its own with its change row, so no
+    // week of its moves. A new account (nothing of its own yet: no deck, no event, no setting, nothing watched) starts
+    // on Sunday like the contracts say.
+    const has = (table: string) => (db.prepare(`SELECT EXISTS (SELECT 1 FROM ${table}) AS yes`).get() as { yes: number }).yes === 1;
+    const chosen = db.prepare("SELECT 1 FROM settings WHERE key = 'weekEndsOn'").get() !== undefined;
+    if (chosen || !["decks", "events", "settings", "watch_stretches"].some(has)) return;
+    db.prepare("INSERT INTO settings (key, value) VALUES ('weekEndsOn', ?)").run(JSON.stringify("sat"));
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('weekEndsOn', ?, ?, ?)").run(JSON.stringify(null), JSON.stringify("sat"), now);
   },
 ];
 
@@ -3263,7 +3276,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const byDayCount = new Map<Day, number>();
       for (const a of dayed) byDayCount.set(a.day, (byDayCount.get(a.day) ?? 0) + 1);
       const studiedDays = [...byDayCount.keys()].sort();
-      const weekStart = addDays(todayKey, -weekdayOf(todayKey));
+      const weekStart = weekStartOf(todayKey, settings.weekEndsOn);
 
       // Where the cards stand now, where they stood as the 30 days began (for burned in 30 days), and what's coming due.
       // A card's past place is its last place row by then; a card made later wasn't there yet.
@@ -3458,7 +3471,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       // YouTube's reminder starts at its hour on the account's clock and runs until the day turns; whether it shows
       // there is the extension's to read (`reminderOnYouTube`). `reminderOn` is read by nothing (`Settings`).
       const nextDay = dayStartAt(today.dayStart + 26 * 3_600_000, settings.dayStartHour, zone);
-      const streaks = streakStatesOf(settings.streaks, facts, todayKey, {
+      const streaks = streakStatesOf(settings.streaks, facts, todayKey, settings.weekEndsOn, {
         on: settings.streaksOn,
         pastStart: dayStartAt(now, settings.reminderHour, zone) >= today.dayStart,
         hoursLeft: Math.max(0, Math.ceil((nextDay - now) / 3_600_000)),
@@ -3473,7 +3486,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         // Today's answers given in extra study, reviews and new cards apart.
         extraToday: { reviews: reviewsOf(extraToday), started: extraToday.filter(started).length },
         right: { days30: rightOf(inWindow(from30)), before: rightOf(inWindow(addDays(todayKey, -59), addDays(todayKey, -30))) },
-        streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: weekdayOf(todayKey) },
+        streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: placeInWeek(todayKey, settings.weekEndsOn) },
         streaks,
         windows,
         custom,

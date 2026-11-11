@@ -7193,7 +7193,7 @@ mark.sub-blur {
   font-weight: 600;
   color: var(--muted);
 }
-/* The year as a heat map: a column a week, Sunday at the top, scaled to the column it sits in; the months named above. */
+/* The year as a heat map: a column a week, the week's first day at the top, scaled to the column it sits in; the months named above. */
 .heat-months {
   display: grid;
   grid-template-columns: repeat(var(--cols, 53), 1fr);

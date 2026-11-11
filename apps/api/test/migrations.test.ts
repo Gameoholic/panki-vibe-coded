@@ -70,8 +70,8 @@ test("53 merges each listening span into its front's, row by row, and drops the 
   const before = all(db, "SELECT id, think_ms AS think, decide_ms AS decide, at, card_id AS cardId FROM card_places ORDER BY id");
   const frontBefore = sumOf(db, "SELECT SUM(COALESCE(think_ms, 0) + COALESCE(listen_ms, 0)) AS n FROM card_places");
   const holdsBefore = sumOf(db, "SELECT SUM(COALESCE(think_ms, 0) + COALESCE(listen_ms, 0)) AS n FROM card_holds");
-  migrate(db, NOW);
-  assert.equal(version(db), 54);
+  migrate(db, NOW, 53);
+  assert.equal(version(db), 53);
   for (const table of ["card_places", "card_holds"]) assert.ok(!columnsOf(db, table).some((c) => c.name === "listen_ms"), `${table}.listen_ms is gone`);
   const after = all(db, "SELECT id, think_ms AS think, decide_ms AS decide, at, card_id AS cardId FROM card_places ORDER BY id");
   assert.equal(after.length, before.length);
@@ -164,7 +164,7 @@ test("54 leaves a streak changed in any way, a list of more than one, and an acc
     assert.deepEqual(all(db, "SELECT 1 FROM settings_changes WHERE key = 'streaks'"), []);
   }
   const none = at53();
-  migrate(none, NOW);
+  migrate(none, NOW, 54);
   assert.equal(streaksOf(none), undefined);
   assert.equal(version(none), 54);
 });
@@ -174,6 +174,39 @@ test("53 runs once: a database brought up to date stays as it is", () => {
   migrate(db, NOW);
   const once = all(db, "SELECT think_ms AS think FROM card_places ORDER BY id");
   migrate(db, NOW);
-  assert.equal(version(db), 54);
+  assert.equal(version(db), 55);
   assert.deepEqual(all(db, "SELECT think_ms AS think FROM card_places ORDER BY id"), once);
+});
+
+/** A database as migration 54 left it, with the settings given kept. */
+function at54(settings: Record<string, unknown> = {}): DatabaseSync {
+  const db = new DatabaseSync(":memory:", { enableForeignKeyConstraints: false });
+  migrate(db, NOW, 54);
+  for (const [key, value] of Object.entries(settings)) insert(db, "settings", { key, value: JSON.stringify(value) });
+  return db;
+}
+const weekEndsOnOf = (db: DatabaseSync) => (db.prepare("SELECT value FROM settings WHERE key = 'weekEndsOn'").get() as { value: string } | undefined)?.value;
+
+test("55 keeps Saturday for an account from before, with its change row, whatever it has of its own", () => {
+  const withSetting = at54({ timeZone: "Asia/Jerusalem" });
+  const withDeck = at54();
+  insert(withDeck, "decks", {});
+  for (const db of [withSetting, withDeck]) {
+    migrate(db, NOW);
+    assert.equal(version(db), 55);
+    assert.equal(weekEndsOnOf(db), JSON.stringify("sat"));
+    const logged = all(db, "SELECT key, from_value AS fromValue, to_value AS toValue, at FROM settings_changes WHERE key = 'weekEndsOn'").map((r) => ({ ...r }));
+    assert.deepEqual(logged, [{ key: "weekEndsOn", fromValue: "null", toValue: JSON.stringify("sat"), at: NOW }]);
+  }
+});
+
+test("55 leaves a new account on the default and a week already chosen as it is", () => {
+  const fresh = at54();
+  migrate(fresh, NOW);
+  assert.equal(version(fresh), 55);
+  assert.equal(weekEndsOnOf(fresh), undefined);
+  const chosen = at54({ weekEndsOn: "fri" });
+  migrate(chosen, NOW);
+  assert.equal(weekEndsOnOf(chosen), JSON.stringify("fri"));
+  assert.deepEqual(all(chosen, "SELECT 1 FROM settings_changes WHERE key = 'weekEndsOn'"), []);
 });

@@ -1,5 +1,5 @@
-import { NO_PERIOD_FACTS, STREAK_PERIODS, goalFits, goalHave, goalMet, goalNeed, type Goal, type PeriodFacts, type StreakPer, type StreakRule, type StreakState } from "@panki/contracts";
-import { addDays, daysBetween, runOf, runsOf, weekdayOf, type Day } from "./time";
+import { NO_PERIOD_FACTS, STREAK_PERIODS, goalFits, goalHave, goalMet, goalNeed, weekStartOf, type Goal, type PeriodFacts, type StreakPer, type StreakRule, type StreakState, type WeekDay } from "@panki/contracts";
+import { addDays, daysBetween, runOf, runsOf, type Day } from "./time";
 
 /** What YouTube's reminder needs of the clock (on with Streaks): whether it's past the hour it starts at today, and whole hours until the day turns. */
 export type ReminderClock = { on: boolean; pastStart: boolean; hoursLeft: number };
@@ -58,14 +58,14 @@ export function dayTalliesOf(input: TallyInput): Map<Day, DayTally> {
 
 /**
  * A streak's period on the account's calendar, the one place it's decided. Each period is named by the day it starts
- * on: a day is itself, a week its Sunday (the weekday counted back modulo the period's length, so a day stays put). The
- * tile's row is a day's week, Sunday first, or the past seven weeks, this one last.
+ * on: a day is itself, a week its first day, the day after the account's week last ended (`weekStartOf`). The tile's
+ * row is a day's week, its first day first, or the past seven weeks, this one last.
  */
-function calendarOf(per: StreakPer, today: Day) {
+function calendarOf(per: StreakPer, today: Day, weekEndsOn: WeekDay) {
   const { days, recent } = STREAK_PERIODS[per];
-  const startOf = (d: Day): Day => addDays(d, -(weekdayOf(d) % days));
+  const startOf = (d: Day): Day => (days === 1 ? d : weekStartOf(d, weekEndsOn));
   const now = startOf(today);
-  const rowFrom = days === 1 ? addDays(today, -weekdayOf(today)) : addDays(now, -6 * days);
+  const rowFrom = days === 1 ? weekStartOf(today, weekEndsOn) : addDays(now, -6 * days);
   return {
     days,
     startOf,
@@ -137,10 +137,10 @@ function nearness(group: readonly { have: number; need: number }[]): number {
  * YouTube's reminder is on for a streak (`atRisk`) while Streaks is on, it has a run to lose, this period doesn't count
  * yet, today is its last day and the clock is past Starts at.
  */
-export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMap<Day, DayTally>, today: Day, clock: ReminderClock): StreakState[] {
-  const sixMonthsFrom = addDays(today, -weekdayOf(today) - 25 * 7);
+export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMap<Day, DayTally>, today: Day, weekEndsOn: WeekDay, clock: ReminderClock): StreakState[] {
+  const sixMonthsFrom = addDays(weekStartOf(today, weekEndsOn), -25 * 7);
   return rules.map((rule) => {
-    const cal = calendarOf(rule.per, today);
+    const cal = calendarOf(rule.per, today, weekEndsOn);
     const facts = periodFactsOf(tallies, cal.startOf, firstDayOf(rule, today), today);
     // A goal kept that doesn't fit the streak's type is read as not there.
     const groups = rule.groups.map((group) => group.filter((g) => goalFits(g.kind, rule.per))).filter((group) => group.length > 0);

@@ -4,6 +4,7 @@ import { DEFAULT_REVIEW_SETTINGS, ReviewSettings } from "./reviewSettings";
 import { DEFAULT_STREAKS, StreakId, StreakRules } from "./streaks";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
 import { TranscribeLanguage } from "./transcription";
+import { WeekDay } from "./week";
 
 export const SrsTypeId = z.uuid();
 export const SrsStageId = z.uuid();
@@ -439,6 +440,13 @@ export const Settings = z.object({
   /** The hour the day turns over, so a review at 01:00 counts for the day before. */
   dayStartHour: z.number().int().min(0).max(23),
   /**
+   * **Week ends on** (Settings → General → Display): the last day of the account's week, which ends when that day does,
+   * at `dayStartHour` the day after. Every week reads it (`week.ts`): weekly streaks, the stats' weeks, every map and row
+   * of weeks; read on every read, so a change moves past weeks too. Sunday to begin with; an account from before keeps
+   * Saturday, the week every account had until then (migration 55).
+   */
+  weekEndsOn: WeekDay,
+  /**
    * How a card's clip's subtitles look in the app (`subtitleStyle.ts`), set in Settings. The app's own: the extension
    * keeps its own for YouTube, in the browser.
    */
@@ -554,6 +562,7 @@ export const Settings = z.object({
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = {
   dayStartHour: 4,
+  weekEndsOn: "sun",
   subtitleStyle: DEFAULT_SUBTITLE_STYLE,
   timeZone: "",
   language: "eng",

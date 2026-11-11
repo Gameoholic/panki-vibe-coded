@@ -1,5 +1,5 @@
-import { STAT_WINDOWS, type FrameWay, type SeriesUnit, type StatFrame, type Stats, type StatWindow, type TrendUnit, type WindowId, type WindowStats } from "@panki/contracts";
-import { addDays, addMonths, daysBetween, monthOf, shiftMonths, weekdayOf, type Day } from "./time";
+import { STAT_WINDOWS, weekdayOf, type FrameWay, type SeriesUnit, type StatFrame, type Stats, type StatWindow, type TrendUnit, type WindowId, type WindowStats } from "@panki/contracts";
+import { addDays, addMonths, daysBetween, monthOf, shiftMonths, type Day } from "./time";
 
 /**
  * What every tile shows over each window, worked out on read from the rows as they're kept (`db.ts` → `stats` gathers

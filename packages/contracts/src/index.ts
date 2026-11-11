@@ -37,6 +37,7 @@ export * from "./type";
 export * from "./unread";
 export * from "./usage";
 export * from "./watching";
+export * from "./week";
 export * from "./wordAudio";
 export * from "./youtube";
 export * from "./zip";

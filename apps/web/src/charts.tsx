@@ -16,7 +16,7 @@ export const dayDate = (day: Day) => new Date(`${day}T00:00:00Z`);
 export const dayOf = (date: Date): Day => date.toISOString().slice(0, 10);
 export const addDays = (day: Day, n: number): Day => dayOf(new Date(dayDate(day).getTime() + n * DAY_MS));
 export const daysFrom = (from: Day, to: Day) => Math.round((dayDate(to).getTime() - dayDate(from).getTime()) / DAY_MS);
-/** The days of the week as every chart labels them, Sunday first: three letters, never two or an initial. */
+/** The days of the week as every chart labels them, by calendar weekday (0 Sunday, `weekdayOf`): three letters, never two or an initial. */
 export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 /**
@@ -192,7 +192,8 @@ const PITCH = 12;
 const YEAR_COLS = 53;
 
 /**
- * Days as a heat map: a column a week from the Sunday `first`, Sunday at the top; only the days from `from` to `to`
+ * Days as a heat map: a column a week from `first`, the first day of a week of the account's (`weekStartOf`), at the
+ * top; only the days from `from` to `to`
  * drawn; the months named above where each begins. Scaled to the width it's in (`fit`), or (`year`) at the size a
  * year's 53 columns fill the width with, so a few weeks are a few columns at the left and more than a year runs on to
  * the right, scrolling sideways inside its box.
@@ -217,15 +218,15 @@ function HeatGrid({ first, cols, from, to, step, wordsOf, onAt, label, share }: 
   const months: { col: number; label: string }[] = [];
   let lastMonth = "";
   for (let col = 0; col < cols; col++) {
-    const sunday = addDays(first, col * 7);
+    const weekFirst = addDays(first, col * 7);
     const shown: Day[] = [];
     for (let row = 0; row < 7; row++) {
-      const day = addDays(sunday, row);
+      const day = addDays(weekFirst, row);
       if (day < from || day > to) continue;
       shown.push(day);
       cells.push({ col, row, day, step: step(day) });
     }
-    const named = shown[0] ?? sunday;
+    const named = shown[0] ?? weekFirst;
     const month = named.slice(0, 7);
     if (month !== lastMonth) {
       // Three letters need about three columns: a month cut short at the map's start gives way to the next.
@@ -273,7 +274,5 @@ function HeatGrid({ first, cols, from, to, step, wordsOf, onAt, label, share }: 
   );
 }
 
-/** The Sunday a day's week starts on. */
-export const sundayOf = (day: Day): Day => addDays(day, -dayDate(day).getUTCDay());
-/** How many week columns run from the Sunday `first` to a day. */
+/** How many week columns run from the week's first day `first` (`weekStartOf`) to a day. */
 export const weeksTo = (first: Day, to: Day) => Math.floor(daysFrom(first, to) / 7) + 1;

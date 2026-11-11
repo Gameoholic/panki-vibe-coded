@@ -76,21 +76,21 @@ export const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export type Day = z.infer<typeof Day>;
 const Count = z.number().int().nonnegative();
 
-/** A run of days, as the pill of an extension from before reads a streak: Sunday-first this week, today's place in it. */
+/** A run of days, as the pill of an extension from before reads a streak: this week, its first day first (`Settings.weekEndsOn`), today's place in it. */
 const Streak = z.object({
   /** Days in a row, counting today if it counts and yesterday if not. */
   current: Count,
   best: Count,
-  /** This week, Sunday first: whether each day counted. Days still to come are false. */
+  /** This week, its first day first (`Settings.weekEndsOn`): whether each day counted. Days still to come are false. */
   week: z.array(z.boolean()).length(7),
-  /** Today's index in `week`, 0 = Sunday. */
+  /** Today's index in `week`, 0 its first day. */
   todayIndex: z.number().int().min(0).max(6),
 });
 
 /**
  * One of the account's streaks as it stands, worked out on read over every deck from each period's facts
- * (`PeriodFacts`), a period being what the streak's type counts per (`STREAK_PERIODS`: Daily a day, Weekly a week from
- * Sunday), from the day Count from names on: the run, this period's goals by group, and whether YouTube's reminder is
+ * (`PeriodFacts`), a period being what the streak's type counts per (`STREAK_PERIODS`: Daily a day, Weekly the account's
+ * week, `Settings.weekEndsOn`), from the day Count from names on: the run, this period's goals by group, and whether YouTube's reminder is
  * on for it now (`atRisk`, a code name never said on screen): Streaks on, a run to lose, this period not counting yet,
  * its last day, and the clock past Starts at; whether it shows on YouTube is `Settings.reminderOnYouTube`'s to say.
  * Every period is named by the day it starts on.
@@ -103,7 +103,7 @@ export const StreakState = z.object({
   current: Count,
   best: Count,
   /**
-   * The row the tile draws, oldest first: for a streak per day this week's days, Sunday first; per week the past seven
+   * The row the tile draws, oldest first: for a streak per day this week's days, its first day first; per week the past seven
    * weeks, this one last. Whether each counted; days still to come didn't.
    */
   row: z.array(z.object({ start: Day, counted: z.boolean() })).length(7),
@@ -121,7 +121,7 @@ export const StreakState = z.object({
   atRisk: z.boolean(),
   /** Whole hours until the day turns, rounded up, at any hour. */
   hoursLeft: Count,
-  /** The periods that counted in the past 26 weeks (this week's Sunday and the 25 weeks before), oldest first. */
+  /** The periods that counted in the past 26 weeks (this week from its first day and the 25 weeks before), oldest first. */
   counted: z.array(Day),
   /** How many of the recent periods counted, this one among them: the past 30 for a streak per day, the past 26 per week. */
   recent: z.object({ n: Count, of: Count }),

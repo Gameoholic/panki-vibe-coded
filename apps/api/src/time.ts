@@ -151,11 +151,6 @@ export function runsOf(sorted: readonly Day[], days: number): { from: Day; to: D
   return runs;
 }
 
-/** The day's place in its week, 0 = Sunday. */
-export function weekdayOf(day: Day): number {
-  return new Date(`${day}T00:00:00Z`).getUTCDay();
-}
-
 /** The day `n` days on (or back, for a negative `n`). */
 export function addDays(day: Day, n: number): Day {
   return dayKey(Date.parse(`${day}T00:00:00Z`) + n * DAY);

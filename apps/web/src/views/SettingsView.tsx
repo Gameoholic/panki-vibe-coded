@@ -4,6 +4,8 @@ import {
   AI_PLACE_IDS,
   AI_LIMITS,
   APP_LANGUAGES,
+  WEEK_DAYS,
+  WEEK_DAY_NAMES,
   DATE_FORMATS,
   DateFormat,
   TIME_FORMATS,
@@ -160,6 +162,7 @@ const PAUSED_OPTIONS = [
 const ENGINE_OPTIONS = ENGINE_IDS.map((id) => ({ id, label: ENGINES[id].name }));
 const LANGUAGE_OPTIONS = TRANSCRIBE_LANGUAGE_IDS.map((id) => ({ id, label: TRANSCRIBE_LANGUAGES[id] }));
 const APP_LANGUAGE_OPTIONS = AppLanguage.options.map((id) => ({ id, label: APP_LANGUAGES[id] }));
+const WEEK_DAY_OPTIONS = WEEK_DAYS.map((id) => ({ id, label: WEEK_DAY_NAMES[id] }));
 const SOURCE_OPTIONS = WORD_AUDIO_SOURCE_IDS.map((id) => ({ id, label: WORD_AUDIO_SOURCES[id].name }));
 const PROVIDER_OPTIONS = AI_PROVIDER_IDS.map((id) => ({ id, label: AI_PROVIDERS[id].name }));
 /** Whole cents as a listed price, "$0.10", "$3.75": a price, not an estimate, so it says nothing more. */
@@ -1493,6 +1496,12 @@ export function SettingsView({
             label="The day starts at"
             control={<NumberField id="setting-day-start" label="Hour the day starts" value={current.dayStartHour} min={0} max={23} suffix=":00" onChange={(dayStartHour) => patch({ dayStartHour })} />}
             why={`A review before ${hourOfDayWords(current.dayStartHour)} counts for the day before. Each deck's new cards and review limit reset at ${hourOfDayWords(current.dayStartHour)}.`}
+          />
+          {/* The last day of every week: weekly streaks, the stats' weeks and every map of weeks (`week.ts`). */}
+          <Setting
+            id="weekEndsOn"
+            label="Week ends on"
+            control={<Dropdown id="setting-week-ends-on" label="Week ends on" options={WEEK_DAY_OPTIONS} value={current.weekEndsOn} onChange={(weekEndsOn) => patch({ weekEndsOn })} />}
           />
           {/* Never empty once the account has opened Panki (App writes the device's zone); shown as this device's until that write lands. */}
           <Setting

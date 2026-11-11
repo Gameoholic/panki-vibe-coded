@@ -11,6 +11,10 @@ import {
   goalSaysWords,
   periodCountWords,
   streakNameOf,
+  placeInWeek,
+  weekdayOf,
+  weekdaysInOrder,
+  weekStartOf,
   type ContinueVideo,
   type Day,
   type Deck,
@@ -27,10 +31,11 @@ import {
   type StreakRule,
   type StreakState,
   type WindowId,
+  type WeekDay,
   type WindowStats,
 } from "@panki/contracts";
 import { api } from "./api";
-import { Columns, DOW, HeatMap, LineChart, Rows, addDays, dayDate, daysFrom, stepOf, sundayOf, weeksTo, type HeatStep, type RowSpec } from "./charts";
+import { Columns, DOW, HeatMap, LineChart, Rows, addDays, dayDate, daysFrom, stepOf, weeksTo, type HeatStep, type RowSpec } from "./charts";
 import { QuietIconButton } from "./components/AiRun";
 import { Ask } from "./components/Ask";
 import { Button } from "./components/Button";
@@ -214,22 +219,23 @@ function pointsOf(cur: number, prev: number | null, before: string | null): Delt
 
 /**
  * A day's label under its column among `n` days: its weekday up to a week of columns ("Sun"), else the date with its
- * month on each Sunday ("18 Oct", "Oct 18"; a bare day number said nothing of which month) and nothing on the rest.
+ * month on each week's first day (the account's, `weekEndsOn`: "18 Oct", "Oct 18"; a bare day number said nothing of
+ * which month) and nothing on the rest.
  */
-const dayLabel = (day: Day, n: number): string => (n > 7 ? (dayDate(day).getUTCDay() === 0 ? shortDayWords(day) : "") : (DOW[dayDate(day).getUTCDay()] ?? ""));
+const dayLabel = (day: Day, n: number, weekEndsOn: WeekDay): string => (n > 7 ? (placeInWeek(day, weekEndsOn) === 0 ? shortDayWords(day) : "") : (DOW[weekdayOf(day)] ?? ""));
 
 /**
  * Each stretch a window's numbers come in, as a column's label and the words said for it, read from the window's units
- * (any length, a range's too): a day (its weekday up to a week of columns, else the date on each Sunday), a week
- * running to the day before the next, or a calendar month. `weeks` reads the trend's unit.
+ * (any length, a range's too): a day (its weekday up to a week of columns, else the date on each week's first day), a
+ * week running to the day before the next, or a calendar month. `weeks` reads the trend's unit.
  */
-function stretchesOf(win: WindowStats, starts: readonly Day[], weeks = false): { labels: string[]; words: string[] } {
+function stretchesOf(win: WindowStats, starts: readonly Day[], weekEndsOn: WeekDay, weeks = false): { labels: string[]; words: string[] } {
   const unit = weeks ? win.trendUnit : win.unit;
   const byDay = unit === "day" || unit === "one";
   const byWeek = unit === "week";
   const labels = starts.map((start) => {
     if (byWeek) return shortDayWords(start);
-    if (byDay) return dayLabel(start, starts.length);
+    if (byDay) return dayLabel(start, starts.length, weekEndsOn);
     // A month is its three letters, never an initial; past a year of columns only each quarter's first is labelled, so they never crowd.
     return starts.length <= 13 || dayDate(start).getUTCMonth() % 3 === 0 ? monthWords(start) : "";
   });
@@ -279,15 +285,21 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
     };
   }
   if (view === "weekday" && weekdays) {
-    const values = weekdays.map((w) => (w.days > 0 ? Math.round(w.n / w.days) : 0));
+    // The API counts by calendar weekday, 0 Sunday; the columns run in the account's week, its first day first.
+    const order = weekdaysInOrder(ctx.settings.weekEndsOn);
+    const values = order.map((d) => {
+      const w = weekdays[d];
+      return w && w.days > 0 ? Math.round(w.n / w.days) : 0;
+    });
     const averaged = weekdays.some((w) => w.days > 1);
-    const said = (d: number) => `${DOW_LONG[d] ?? ""} · ${say(values[d] ?? 0)}${averaged ? " a day" : ""}`;
-    return { chart: <Columns values={values} labels={DOW} words={said} cap={capOf} onAt={onAt} />, foot: `Busiest: ${said(argmax(values))}` };
+    const said = (j: number) => `${DOW_LONG[order[j] ?? 0] ?? ""} · ${say(values[j] ?? 0)}${averaged ? " a day" : ""}`;
+    return { chart: <Columns values={values} labels={order.map((d) => DOW[d] ?? "")} words={said} cap={capOf} onAt={onAt} />, foot: `Busiest: ${said(argmax(values))}` };
   }
   const values = series.map((s) => s.n);
   const { labels, words } = stretchesOf(
     win,
     series.map((s) => s.start),
+    ctx.settings.weekEndsOn,
   );
   const said = (j: number) => `${words[j] ?? ""} · ${say(values[j] ?? 0)}`;
   return { chart: <Columns values={values} labels={labels} words={said} now={values.length - 1} cap={capOf} onAt={onAt} />, foot: `Busiest: ${said(argmax(values))}` };
@@ -661,7 +673,7 @@ export const WIDGETS: readonly TileEntry[] = [
       { id: "time", label: "Time studying" },
       { id: "watching", label: "Time watching" },
     ],
-    make({ stats, win, view, onAt }) {
+    make({ stats, ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const days = new Map(stats.activity.map((a) => [a.day, view === "watching" ? a.watchMs : view === "time" ? a.ms : a.reviews]));
       const get = (day: Day) => days.get(day) ?? 0;
@@ -675,7 +687,7 @@ export const WIDGETS: readonly TileEntry[] = [
       const step = (day: Day) => stepOf(get(day), max);
       const wordsOf = (day: Day) => `${dayWords(day)} · ${get(day) === 0 ? "nothing" : say(get(day))}`;
       // Every window the one map, at a year's cell size: 30 d is its weeks, All time the whole history, scrolling sideways when wider.
-      const first = sundayOf(win.from);
+      const first = weekStartOf(win.from, ctx.settings.weekEndsOn);
       const chart = <HeatMap first={first} cols={weeksTo(first, win.to)} from={win.from} to={win.to} step={step} wordsOf={wordsOf} onAt={onAt} label={say(total)} size="year" />;
       return {
         figure: { parts: [[num(shown.length), `${shown.length === 1 ? "day" : "days"} ${view === "watching" ? "watched" : "studied"}`]], delta: deltaOf(shown.length, prev, beforeWords(win), true) },
@@ -719,7 +731,7 @@ export const WIDGETS: readonly TileEntry[] = [
       { id: "time", label: "Until today" },
       { id: "stage", label: "Stage" },
     ],
-    make({ win, view, onAt }) {
+    make({ ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const r = win.right;
       if (r.of === 0) return { empty: emptyOf(win) };
@@ -734,6 +746,7 @@ export const WIDGETS: readonly TileEntry[] = [
         const { labels, words } = stretchesOf(
           win,
           r.series.map((s) => s.start),
+          ctx.settings.weekEndsOn,
         );
         chart = <LineChart values={values} labels={labels} words={(j) => `${words[j] ?? ""} · ${values[j] ?? 0}% right`} fmt={(v) => `${Math.round(v)}%`} onAt={onAt} />;
       }
@@ -790,7 +803,7 @@ export const WIDGETS: readonly TileEntry[] = [
         const values = next.series.map((b) => b.n);
         const starts = next.series.map((b) => b.start);
         const byDay = next.unit === "day";
-        const labels = starts.map((d) => (byDay ? dayLabel(d, starts.length) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : ""));
+        const labels = starts.map((d) => (byDay ? dayLabel(d, starts.length, ctx.settings.weekEndsOn) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : ""));
         const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
         const total = sum(values);
         if (total === 0) return { empty: `Nothing coming up in the next ${frameWords(next.frame)}.` };
@@ -811,7 +824,7 @@ export const WIDGETS: readonly TileEntry[] = [
       } else {
         values = ahead.days.slice(0, win.window === "days7" ? 7 : 30);
         const days = values.map((_, j) => addDays(stats.today, j));
-        labels = days.map((d) => dayLabel(d, days.length));
+        labels = days.map((d) => dayLabel(d, days.length, ctx.settings.weekEndsOn));
         said = (j) => `${j === 0 ? "Today" : dayWords(days[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
       }
       const total = sum(values);
@@ -829,7 +842,7 @@ export const WIDGETS: readonly TileEntry[] = [
     home: true,
     windows: ["today", "days7", "days30", "months12"],
     window: "days7",
-    make({ win, onAt }) {
+    make({ ctx, win, onAt }) {
       if (!win) return { empty: "" };
       const s = win.started;
       if (win.window === "today") {
@@ -846,6 +859,7 @@ export const WIDGETS: readonly TileEntry[] = [
       const { labels, words } = stretchesOf(
         win,
         s.series.map((b) => b.start),
+        ctx.settings.weekEndsOn,
       );
       return {
         figure: { parts: [[num(s.n), s.n === 1 ? "new card" : "new cards"]], delta: deltaOf(s.n, s.before, beforeWords(win), true) },
@@ -991,7 +1005,7 @@ export const WIDGETS: readonly TileEntry[] = [
     // Front: the card on screen to the flip; Back: the flip to the answer; Total: both.
     views: PACE_SIDES,
     view: "total",
-    make({ win, view, onAt }) {
+    make({ ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const side = PACE_SIDES.find((s) => s.id === view) ?? PACE_SIDES[2];
       const p = win.pace[side.id];
@@ -1001,6 +1015,7 @@ export const WIDGETS: readonly TileEntry[] = [
       const { labels, words } = stretchesOf(
         win,
         p.series.map((s) => s.start),
+        ctx.settings.weekEndsOn,
         true,
       );
       // The foot says the other two sides, in the order a card goes, as one line: "Front 5.6 s · back 1.8 s".
@@ -1063,7 +1078,7 @@ export const WIDGETS: readonly TileEntry[] = [
       { id: "time", label: "Time" },
       { id: "cards", label: "Cards" },
     ],
-    make({ win, view, onAt }) {
+    make({ ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const w = win.watching;
       const rows = w.channels.filter((c) => c.ms > 0);
@@ -1075,6 +1090,7 @@ export const WIDGETS: readonly TileEntry[] = [
       const { labels, words } = stretchesOf(
         win,
         w.topSeries.map((s) => s.start),
+        ctx.settings.weekEndsOn,
       );
       const others = rows.length - w.top.length;
       return {
@@ -1566,11 +1582,11 @@ type StreakTileProps = {
 
 /**
  * How each streak type's period is drawn, the web's one place for it: the row's words, a cell's label under its
- * block, the period said in full, and the period a day falls in (Show more's map is of days).
+ * block, the period said in full, and the period a day falls in (Show more's map is of days), a week the account's.
  */
-const PERIOD_DRAWN: Record<StreakPer, { row: string; label: (start: Day) => string; said: (start: Day) => string; startOf: (day: Day) => Day }> = {
-  day: { row: "This week", label: (d) => DOW[dayDate(d).getUTCDay()] ?? "", said: dayWords, startOf: (d) => d },
-  week: { row: "Past 7 weeks", label: shortDayWords, said: (d) => `Week of ${shortDayWords(d)}`, startOf: sundayOf },
+const PERIOD_DRAWN: Record<StreakPer, { row: string; label: (start: Day) => string; said: (start: Day) => string; startOf: (day: Day, weekEndsOn: WeekDay) => Day }> = {
+  day: { row: "This week", label: (d) => DOW[weekdayOf(d)] ?? "", said: dayWords, startOf: (d) => d },
+  week: { row: "Past 7 weeks", label: shortDayWords, said: (d) => `Week of ${shortDayWords(d)}`, startOf: weekStartOf },
 };
 
 /** A streak's row of seven periods: a block each, filled for one that counted, the one going on ringed, days still to come fainter, its label under each. */
@@ -1627,7 +1643,7 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
   );
   return (
     <Widget id={id} name={name} span={open && !loading ? 3 : 1} loading={loading} open={open} overlay={overlay} className={className} style={style} tools={tools}>
-      {loading || !state || today === null ? (
+      {loading || !state || !ctx || today === null ? (
         <Skeleton shape="tile" />
       ) : (
         <>
@@ -1667,7 +1683,7 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
             ))}
           </div>
           <PeriodRow state={state} />
-          {open ? <StreakMore state={state} today={today} name={name} at={at} onAt={setAt} /> : null}
+          {open ? <StreakMore state={state} today={today} weekEndsOn={ctx.settings.weekEndsOn} name={name} at={at} onAt={setAt} /> : null}
         </>
       )}
     </Widget>
@@ -1678,14 +1694,15 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
  * A streak's Show more: the past six months as days, each lit when the period it's in counted (a week that counted is a
  * whole column), how many of the recent periods did, and the longest runs.
  */
-function StreakMore({ state, today, name, at, onAt }: { state: StreakState; today: Day; name: string; at: string | null; onAt: (words: string | null) => void }) {
+function StreakMore({ state, today, weekEndsOn, name, at, onAt }: { state: StreakState; today: Day; weekEndsOn: WeekDay; name: string; at: string | null; onAt: (words: string | null) => void }) {
   const counted = new Set(state.counted);
   const drawn = PERIOD_DRAWN[state.per];
   const period = STREAK_PERIODS[state.per];
   const now = state.row[state.rowNow]?.start ?? today;
-  const first = addDays(sundayOf(today), -25 * 7);
-  const step = (day: Day): HeatStep => (counted.has(drawn.startOf(day)) ? 4 : 0);
-  const wordsOf = (day: Day) => `${drawn.said(drawn.startOf(day))} · ${counted.has(drawn.startOf(day)) ? "counted" : drawn.startOf(day) === now ? "not yet" : "didn't count"}`;
+  const first = addDays(weekStartOf(today, weekEndsOn), -25 * 7);
+  const startOf = (day: Day) => drawn.startOf(day, weekEndsOn);
+  const step = (day: Day): HeatStep => (counted.has(startOf(day)) ? 4 : 0);
+  const wordsOf = (day: Day) => `${drawn.said(startOf(day))} · ${counted.has(startOf(day)) ? "counted" : startOf(day) === now ? "not yet" : "didn't count"}`;
   return (
     <div className="w-more">
       <MoreBlock title="Past 6 months">

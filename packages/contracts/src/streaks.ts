@@ -43,7 +43,7 @@ export type StreakPeriodEntry = {
   /** The one going on, in a sentence ("to go today") and heading one ("Today counts"). */
   now: string;
   Now: string;
-  /** How many of the account's days it spans; a week runs Sunday to Saturday, as the heat map's columns. */
+  /** How many of the account's days it spans; a week is the account's (`week.ts`), as the heat map's columns. */
   days: 1 | 7;
   /** How many of the latest a streak's Show more says counted ("12 of the past 30 days"). */
   recent: number;
