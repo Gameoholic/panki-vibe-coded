@@ -3010,6 +3010,32 @@ canvas.media-frame {
 .review-count.is-now {
   border-bottom-color: var(--count);
 }
+/* About how long the review has left (`TimeLeft`): words on the counts' line, pressed for the finish time. */
+.time-left {
+  position: relative;
+  display: inline-flex;
+}
+.btn.time-left-words {
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) {
+  .btn.time-left-words:hover {
+    background: none;
+    color: var(--fg);
+  }
+}
+/* The time a Start's review takes, after its words (`TimeLeft` → `timeWords`). */
+.start-time {
+  font-weight: 600;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
 .review-card {
   background: var(--surface);
   border: 1px solid var(--line);

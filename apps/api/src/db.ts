@@ -118,6 +118,7 @@ import {
 import { clearedMoments, type Changed, type ReplayHold, type ReplayPlace } from "./cleared";
 import { hashOf, whileUnchanged } from "./kept";
 import { newDoneMoments } from "./newDone";
+import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 import { streakStatesOf, streaksStamped, type DayTally } from "./streaks";
 import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
 import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, weekdayOf, type Day } from "./time";
@@ -1493,6 +1494,11 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       AND NOT EXISTS (SELECT 1 FROM card_places q WHERE q.card_id = p.card_id AND q.reason = 'answer' AND q.undone_at IS NULL AND q.node_to = '[]' AND q.at > p.at)`);
   const selectLastPin = db.prepare("SELECT example_id AS exampleId FROM example_pins WHERE card_id = ? ORDER BY id DESC LIMIT 1");
   const insertPin = db.prepare("INSERT INTO example_pins (card_id, example_id, at) VALUES (?, ?, ?)");
+  // Every answer since a moment, undone ones too (their time was spent), as a deck's pace reads them (`pace.ts`).
+  const selectPaceAnswers = db.prepare(`
+    SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, (p.stage_from IS NULL AND p.burned_from = 0 AND p.node_from = '[]') AS start, p.think_ms AS thinkMs, p.decide_ms AS decideMs
+    FROM card_places p JOIN cards c ON c.id = p.card_id
+    WHERE p.reason = 'answer' AND p.at >= ? ORDER BY p.at ASC, p.id ASC`);
   const selectDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ? AND d.removed_at IS NULL`);
   const selectAnyDeck = db.prepare(`SELECT ${deckColumns} FROM decks d WHERE d.id = ?`);
   // The cheap reads a route makes before it does anything: a deck's counts walk every card of it, and aren't wanted there.
@@ -2054,9 +2060,18 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     const dueCount = Math.min(due, ownLeft);
     return { own, fresh, due, newCount, dueCount };
   }
-  function deckFrom(row: unknown, today: Today, typeOf: (srsTypeId: string) => SrsType = srsTypeOf): Deck {
-    const { own, fresh, due, newCount, dueCount } = deckCountsOf(row as { id: string; srsTypeId: string; settings: string }, today, typeOf);
-    return Deck.parse({ ...(row as object), settings: own, newCount, dueCount, newAvailable: fresh, dueAvailable: due });
+  /** Every deck's pace as it stands (`pace.ts`): a list of decks reads them once and hands them in. */
+  function pacesAt(today: Today) {
+    const rows = selectPaceAnswers.all(today.now - PACE_DAYS * 86_400_000) as (Omit<PaceAnswer, "start"> & { start: number })[];
+    return pacesOf(
+      rows.map((r) => ({ ...r, start: r.start === 1 })),
+      dayReader(today.settings.dayStartHour, zoneOf(today.settings)),
+    );
+  }
+  function deckFrom(row: unknown, today: Today, typeOf: (srsTypeId: string) => SrsType = srsTypeOf, paces: ReturnType<typeof pacesAt> = pacesAt(today)): Deck {
+    const base = row as { id: string; srsTypeId: string; settings: string };
+    const { own, fresh, due, newCount, dueCount } = deckCountsOf(base, today, typeOf);
+    return Deck.parse({ ...(row as object), settings: own, newCount, dueCount, newAvailable: fresh, dueAvailable: due, pace: paceFor(paces, base.id) });
   }
   /**
    * The whole account's history as the replays walk it (`cleared.ts`, `newDone.ts`): every card and deck, removed or
@@ -2526,7 +2541,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         }
         return type;
       };
-      return selectDecks.all().map((row) => deckFrom(row, today, typeOf));
+      const paces = pacesAt(today);
+      return selectDecks.all().map((row) => deckFrom(row, today, typeOf, paces));
     },
     getDeck(id: string, now: number): Deck | null {
       const row = selectDeck.get(id);

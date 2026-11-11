@@ -71,6 +71,7 @@ Paths from `apps/web/src/`.
 | SubtitleStyleFields | `components/SubtitleStyleFields.tsx` | How subtitles look, as rows of settings (`SubtitleStyleFields`). Never a second set. |
 | Swatches | `components/Swatches.tsx` | A colour picked from the palette, or one of one's own (`Swatches`, `Swatch`, `hexOfCss`). Never a second row of swatches. |
 | TextField | `components/TextField.tsx` | A labelled text field with its error bubble (`TextField`). |
+| TimeLeft | `components/TimeLeft.tsx` | About how long a review has left, beside its counts, its finish time on the clock pointed at or pressed (`TimeLeft`, `timeWords`). |
 | Tip | `components/Tip.tsx` | The one hint bubble, on hover or focus (`Tip`). Never a `title` attribute, never a hover bubble drawn by hand. |
 | TodayBar | `components/TodayBar.tsx` | Today's cards folded to their counts (`TodayBar`, `todayWords`). |
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
@@ -120,7 +121,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
 | playback | `playback.ts` | How loud and how fast every player plays, one of each for the page, and whether clips' subtitles show (`useVolume`, `useSpeed`, `SPEEDS`, `useSubtitlesShown`). |
-| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left of it by kind (`buildQueue`, `startLine`, `advance`, `togoOf`, `KINDS`). |
+| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left by kind and how long it takes (`buildQueue`, `startLine`, `advance`, `togoOf`, `timeLeftMs`, `KINDS`). |
 | romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | routes | `routes.ts` | Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). |
 | shuffle | `shuffle.ts` | A list shuffled, on a copy (`shuffle`). |

@@ -9,6 +9,7 @@ import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { KeyCap } from "./KeyCap";
 import { ShowButton } from "./ShowButton";
+import { TimeLeft } from "./TimeLeft";
 
 /**
  * The review's screen, the one drawing of it: the counts over the card with Step back, Undo, Chart and the card's Flag
@@ -72,10 +73,11 @@ const KIND_WORDS: Record<Kind, (n: number) => string> = {
 
 /**
  * What's left of a review, by kind, each count with its word ("2 + 0 + 9" says nothing), in the order they come, the
- * kind of the card on screen underlined; with a limit on how many are in play, how many that is and how many wait.
+ * kind of the card on screen underlined; with a limit on how many are in play, how many that is and how many wait;
+ * and about how long it all takes (`TimeLeft`), where it's known.
  * With no deck (`counts` null) the line holds its room with nothing in it.
  */
-export function ReviewCounts({ counts }: { counts: { settings: ReviewSettings; togo: Record<Kind, number>; now: Kind | null; line: Line } | null }) {
+export function ReviewCounts({ counts }: { counts: { settings: ReviewSettings; togo: Record<Kind, number>; now: Kind | null; line: Line; leftMs?: number | null } | null }) {
   if (counts === null) {
     // A count's own room, with nothing in it: the line stands as tall as it does with its counts.
     return (
@@ -86,7 +88,7 @@ export function ReviewCounts({ counts }: { counts: { settings: ReviewSettings; t
       </span>
     );
   }
-  const { settings, togo, now, line } = counts;
+  const { settings, togo, now, line, leftMs = null } = counts;
   return (
     <>
       <span className="review-counts" role="status">
@@ -97,6 +99,7 @@ export function ReviewCounts({ counts }: { counts: { settings: ReviewSettings; t
         ))}
       </span>
       {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
+      {leftMs !== null ? <TimeLeft ms={leftMs} /> : null}
     </>
   );
 }

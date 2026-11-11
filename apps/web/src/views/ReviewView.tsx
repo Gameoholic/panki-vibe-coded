@@ -10,13 +10,14 @@ import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
 import { ReviewCard } from "../components/ReviewCard";
 import { ReviewButtons, ReviewCounts, ReviewScreen, answerLead, stepFor } from "../components/ReviewScreen";
+import { timeWords } from "../components/TimeLeft";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { useBlur } from "../hooks/useBlur";
 import { keepDouble, useHold } from "../hooks/useHold";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
-import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, nextFresh, startLine, togoOf, type Line } from "../reviewLine";
+import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, nextFresh, startLine, timeLeftMs, togoOf, type Line } from "../reviewLine";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
@@ -101,7 +102,7 @@ type Today = { picked: ReadonlySet<string>; more: boolean };
  * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`). Extra study at the
  * end is this too, with how many to pick added: its new cards past today's, under its name, with how many in the bar after Show cards.
  */
-function TodayCards({ id = "today", label, tools, available, type, srsType, reviews, fresh, others, today, startKey, opened, onPick, onMore, onStart }: {
+function TodayCards({ id = "today", label, tools, available, type, srsType, reviews, fresh, others, today, startKey, opened, timeOf, onPick, onMore, onStart }: {
   /** What its ids and its Start's hold go by: `today` before a review, `extra` for extra study. */
   id?: string;
   /** Its name, at the head of the bar: "Extra study"; none before a review. */
@@ -125,6 +126,8 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
   startKey: Bind;
   /** Whether the cards are shown to begin with (Show cards on the deck picker); folded to the counts otherwise. */
   opened: boolean;
+  /** About how long a review of these cards takes, in ms; null while it can't be said. Said on Start. */
+  timeOf: (ids: readonly string[]) => number | null;
   onPick: (ids: readonly string[], on: boolean) => void;
   onMore: (more: boolean) => void;
   onStart: () => void;
@@ -136,6 +139,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
   const offered = today.more && !locked ? [...fresh, ...others] : fresh;
   const picked = (list: readonly Card[]) => list.filter((c) => today.picked.has(c.id));
   const total = picked(reviews).length + picked(offered).length;
+  const takes = total > 0 ? timeOf([...picked(reviews), ...picked(offered)].map((c) => c.id)) : null;
   const leftReviews = reviews.length - picked(reviews).length;
   const leftNew = fresh.length - picked(fresh).length;
   const left = [leftReviews > 0 ? count(leftReviews, "review", "reviews") : "", leftNew > 0 ? `${leftNew} new` : ""].filter(Boolean).join(" and ");
@@ -183,6 +187,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
         <Button id={`${id}-start`} variant="primary" size="lg" data-hold={`${id}-start`} disabled={total === 0} onClick={onStart}>
           <Icon name="play" />
           Start {count(total, "card", "cards")}
+          {takes !== null ? <span className="start-time">· {timeWords(takes)}</span> : null}
           <KeyCap bind={startKey} />
         </Button>
       </TodayBar>
@@ -542,6 +547,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
    */
   const best = mainAnswers(srsType.answers).at(-1)?.id ?? "";
   const togo = togoOf([...line.active, ...line.waiting], byId, srsType, best);
+  /** About how long a review of these cards takes at the deck's pace, counted as the review counts them. */
+  const timeOf = (ids: readonly string[]) => timeLeftMs(togoOf(ids, byId, srsType, best), deck.pace);
   // The main answers first, then the ones set apart: that's the order of the number keys too.
   const answers = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
   /** The answer waiting for a yes, when it's one that asks first. */
@@ -786,7 +793,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
 
   if (today) {
     return (
-      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} onPick={pick} onMore={offerMore} onStart={start} />
+      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} timeOf={timeOf} onPick={pick} onMore={offerMore} onStart={start} />
     );
   }
   if (!card) {
@@ -828,6 +835,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
             today={extraToday}
             startKey={binds.start}
             opened={false}
+            timeOf={timeOf}
             onPick={pickExtra}
             onMore={offerAllExtra}
             onStart={startExtra}
@@ -883,7 +891,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       place={place}
       stage={stage}
       staging={stagedOrder(type.layout, type.fields)}
-      counts={<ReviewCounts counts={{ settings: review, togo, now: kindOf(card), line }} />}
+      counts={<ReviewCounts counts={{ settings: review, togo, now: kindOf(card), line, leftMs: timeLeftMs(togo, deck.pace) }} />}
       busy={busy}
       binds={binds}
       onStepBack={stepBack}

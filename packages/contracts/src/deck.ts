@@ -30,6 +30,19 @@ export const DeckSettings = z.object({
 export type DeckSettings = z.infer<typeof DeckSettings>;
 export const DEFAULT_DECK_SETTINGS: DeckSettings = { newPerDay: 10, reviewsPerDay: null };
 
+/**
+ * How long this deck's cards tend to take, from its answers of the past 30 days, each showing at most
+ * `CARD_TIME_MAX_MS`, in ms: a new card on the day it's started and a review on its day, every showing of it that day
+ * (a miss and the asking again included), and one showing of a card. What the deck has none of is the account's over
+ * every deck; null with none at all. What a review's time left is worked out from.
+ */
+export const DeckPace = z.object({
+  newMs: z.number().int().nonnegative().nullable(),
+  reviewMs: z.number().int().nonnegative().nullable(),
+  showingMs: z.number().int().nonnegative().nullable(),
+});
+export type DeckPace = z.infer<typeof DeckPace>;
+
 export const Deck = NewDeck.extend({
   settings: DeckSettings,
   /** Stamped by the API, ms since epoch. */
@@ -42,6 +55,8 @@ export const Deck = NewDeck.extend({
   /** Past today's limits: every new card not yet started, and every card due, whatever New cards a day and Reviews a day say. */
   newAvailable: z.number().int().nonnegative(),
   dueAvailable: z.number().int().nonnegative(),
+  /** Derived on every read; none from an older server. */
+  pace: DeckPace.default({ newMs: null, reviewMs: null, showingMs: null }),
 });
 
 /** What a deck's settings can change: the name, the SRS type its cards follow, and any of its own settings. The rules are NewDeck's and DeckSettings', never restated. */

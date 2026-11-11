@@ -3,7 +3,9 @@ import type { Deck } from "@panki/contracts";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { NoDecksYet } from "../components/NoDecksYet";
+import { timeWords } from "../components/TimeLeft";
 import { TodayBar, todayWords } from "../components/TodayBar";
+import { timeLeftMs } from "../reviewLine";
 import type { ReviewBegin } from "./ReviewView";
 
 type Props = {
@@ -30,6 +32,8 @@ export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
         <ul className="pick-list">
           {decks.map((deck) => {
             const words = todayWords(deck.dueCount, deck.newCount);
+            // Each card due as one review at the deck's pace: what a card due being asked again still takes isn't known here.
+            const takes = timeLeftMs({ new: deck.newCount, review: deck.dueCount, again: 0 }, deck.pace);
             return (
               <li key={deck.id}>
                 <TodayBar id={`pick-${deck.id}`} name={deck.name} counts={words ?? "Nothing due right now"} onShow={words ? () => onPick(deck, "cards") : undefined}>
@@ -37,6 +41,7 @@ export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
                     <Button id={`pick-${deck.id}-start`} variant="primary" onClick={() => onPick(deck, "start")}>
                       <Icon name="play" />
                       Start
+                      {takes !== null ? <span className="start-time">· {timeWords(takes)}</span> : null}
                     </Button>
                   ) : (
                     <Button id={`pick-${deck.id}-open`} onClick={() => onPick(deck)}>
