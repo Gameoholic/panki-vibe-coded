@@ -72,25 +72,7 @@ export type KeyBinds = {
   homeReview: Bind;
   /** How much longer an answer that requires confirmation is held, on top of its own key's hold. */
   confirmMs: number;
-  /**
-   * The Hold button's keys: held, it
-   * carries the card through every stage. Its hold is `holdChain`'s, never its own: each key here is only which key.
-   */
-  holdButton: Bind;
-  /** Back to start while the Hold button is on: the card on its start again, nothing answered (Space pressed twice to begin with). */
-  holdReset: Bind;
-  /** The Hold button on or off on this device, and how long each of its stages is held (`HoldChain`). */
-  holdChain: HoldChain;
 };
-/**
- * The Hold button's own: on or off (off to begin with), and each stage's own hold, counted from where the stage before
- * it landed, or from the press when it's the first that applies: `listenMs` Done listening's,
- * a stage only a card that listens first has (its time unused otherwise); `backMs` Show back of card's; `answerMs` Pick
- * the answer's, the answer the deck's Hold button answers with (`DeckSettings.holdAnswer`), an answer that requires
- * confirmation `confirmMs` more. A hold let go stays at the stage it reached; a new one goes on with the next stage's
- * own time.
- */
-export type HoldChain = { on: boolean; listenMs: number; backMs: number; answerMs: number };
 /** How long a hold can be, and how much longer for confirmation; none at all is a press. */
 export const HOLD_TIMES = [0, 250, 500, 1000, 1500, 2000] as const;
 /** A key pressed twice in quick succession (`useHold.ts` → `DOUBLE_MS`) as a kind of press of its own, kept where a hold's time is. */
@@ -128,17 +110,11 @@ export const DEFAULT_KEYS: KeyBinds = {
   start: one(" ", 250),
   homeReview: one(" ", 500),
   confirmMs: 1000,
-  // Shift held, so it never meets Space. Its hold's time is its stages'
-  // (`holdChain`); what's kept on the key is only its shape, a hold.
-  holdButton: one("Shift", HOLD_START),
-  holdReset: one(" ", DOUBLE_PRESS),
-  holdChain: { on: false, listenMs: 500, backMs: 1000, answerMs: 2000 },
 };
 
 /**
  * Keys that are never bound: the Windows or Command key and the locks, and the ones the page keeps for itself (Escape
- * cancels, Tab moves on). Shift, Ctrl and Alt are keys by themselves too (the Hold button is on
- * Shift to begin with), as `MODIFIERS` names them.
+ * cancels, Tab moves on). Shift, Ctrl and Alt are keys by themselves too, as `MODIFIERS` names them.
  */
 const NEVER = new Set(["AltGraph", "Meta", "OS", "CapsLock", "NumLock", "ScrollLock", "Escape", "Tab", "Dead", "Process", "Unidentified", "ContextMenu"]);
 export const bindable = (key: string) => !NEVER.has(key);
@@ -180,19 +156,15 @@ export const pressed = (e: KeyboardEvent, key: string | null) => !e.metaKey && s
 /** Which of an action's keys a press is, or null: `pressed` for either. */
 export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKey ? null : keyIn(bind, keyOf(e)));
 
-/** Every review key but the home's and today's Start, and the Hold button's two: what's on the review's own screen (`screenOf`). */
+/** Every review key but the home's and today's Start: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
   return [binds.reveal, binds.showCard, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.flag, binds.examplePrev, binds.exampleNext];
 }
-/**
- * The keys held on the review, each with how long: every review key that's a hold, and the Hold button's while it's on,
- * held as long as its quickest stage (its keys keep no hold of their own: `holdChain` holds them).
- */
+/** The keys held on the review, each with how long: every review key that's a hold. */
 function heldOnReview(binds: KeyBinds): Key[] {
-  const chain = binds.holdChain;
-  const quickest = Math.min(...[chain.listenMs, chain.backMs, chain.answerMs].filter((ms) => ms > 0), HOLD_START);
-  const holdButton = chain.on ? keysOf(binds.holdButton).map((key) => ({ ...key, holdMs: quickest })) : [];
-  return [...reviewBinds(binds).flatMap(keysOf).filter((key) => pressKind(key) === "hold"), ...holdButton];
+  return reviewBinds(binds)
+    .flatMap(keysOf)
+    .filter((key) => pressKind(key) === "hold");
 }
 /** How long something else on the review takes a key held: a press of it then acts only when let go sooner (`Heard.tapUnder`). */
 function tapUnderOf(binds: KeyBinds | undefined, key: Key): number {
@@ -260,31 +232,14 @@ function bindOf(raw: unknown, fallback: Bind, oldHold: number | undefined): Bind
 function bindsOf(raw: unknown, fallback: readonly Bind[], oldHold: number | undefined): Bind[] {
   return fallback.map((bind, i) => bindOf(Array.isArray(raw) ? raw[i] : undefined, bind, oldHold));
 }
-/**
- * The Hold button's own as kept: each value that reads, the rest the default's. An older shape kept a first hold
- * and the back after listening (`firstMs`, `thenMs`), those read as Done listening's and Show back of card's.
- */
-function holdChainOf(raw: unknown): HoldChain {
-  const fallback = DEFAULT_KEYS.holdChain;
-  if (typeof raw !== "object" || raw === null) return fallback;
-  const kept = raw as Record<string, unknown>;
-  const time = (name: string, was: string, own: number) => holdOf(kept[name]) ?? holdOf(kept[was]) ?? own;
-  return {
-    on: typeof kept.on === "boolean" ? kept.on : fallback.on,
-    listenMs: time("listenMs", "firstMs", fallback.listenMs),
-    backMs: time("backMs", "thenMs", fallback.backMs),
-    answerMs: time("answerMs", "answerMs", fallback.answerMs),
-  };
-}
 
 const KEY = "panki.keys";
 /**
  * What's written beside the keys as `kept`: kept since the examples had ← and → to begin with. Kept without it, an
- * example's key left with none was never chosen, so it takes its arrow; kept with it, none was chosen on purpose.
+ * example's key left with none was never chosen, so it takes its arrow; kept with it, none was chosen on purpose. An
+ * older shape's `holdButton`, `holdReset` and `holdChain`, and its `kept` of 2, are read by nothing.
  */
 const ARROWS_KEPT = 1;
-/** `kept` from when the Hold button was moved to Shift: kept before it, a Hold button still on Space, its old default, takes Shift. */
-const SHIFT_KEPT = 2;
 /** `kept` from when Hide back of card became Step back (`hide`): kept before it, its keys are carried over (`read`). */
 const STEP_BACK_KEPT = 3;
 /** Hide back of card's hold of Space to begin with, before it was Step back. */
@@ -343,16 +298,7 @@ function read(): KeyBinds {
     const exampleNext = exampleOf("exampleNext");
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    // The Hold button's keys are holds (an older shape kept them as presses, when its hold wasn't kept on the key). Kept
-    // before it moved to Shift and still on its old Space alone, it takes Shift, unless Shift is held for something else
-    // on the review here.
-    const keptHold = asHolds("holdButton" in raw ? bindOf(raw.holdButton, DEFAULT_KEYS.holdButton, undefined) : DEFAULT_KEYS.holdButton);
-    const shifted = "kept" in raw && typeof raw.kept === "number" && raw.kept >= SHIFT_KEPT;
-    const onOldSpace = keptHold.key === " " && keptHold.also.length === 0;
-    const holdButton = shifted || !onOldSpace || takenBy([showCard, ...rest, examplePrev, exampleNext], DEFAULT_KEYS.holdButton) ? keptHold : DEFAULT_KEYS.holdButton;
-    const holdReset = "holdReset" in raw ? bindOf(raw.holdReset, DEFAULT_KEYS.holdReset, undefined) : DEFAULT_KEYS.holdReset;
-    const holdChain = holdChainOf("holdChain" in raw ? raw.holdChain : undefined);
-    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs, holdButton, holdReset, holdChain };
+    return { reveal, showCard, hide, answers, media, restart, fullScreen, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -385,8 +331,7 @@ const isBind = (value: unknown): value is Bind => typeof value === "object" && v
 const keyless = (bind: Bind): Bind => ({ ...bind, key: null, also: [] });
 /**
  * The keys with every action left without a key, whatever kind of thing holds it (one bind, or a row of them), so an
- * action added later is covered without being named here. The Hold button stays as it's set: held by a finger or a mouse
- * it still works, with no key.
+ * action added later is covered without being named here.
  */
 function unbound(binds: KeyBinds): KeyBinds {
   const each = Object.entries(binds).map(([name, value]: [string, unknown]) => [name, Array.isArray(value) ? value.map((bind) => (isBind(bind) ? keyless(bind) : bind)) : isBind(value) ? keyless(value) : value]);
@@ -410,19 +355,16 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, showCard: next.showCard, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs, holdButton: next.holdButton, holdReset: next.holdReset, holdChain: next.holdChain } });
+  ledger.record("keys", { data: { reveal: next.reveal, showCard: next.showCard, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, Flag's, an example's either way, Start's, the home's Review door's, the Hold button's and its Back to start's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
-export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" | "holdButton" | "holdReset" } | { kind: "answers" | "media" | "restart"; index: number };
-const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview", "holdButton", "holdReset"] as const;
-/** The Hold button's two, heard only while it's on. */
-const HOLD_KINDS: readonly Slot["kind"][] = ["holdButton", "holdReset"];
+/** Where a key is bound: showing the back, showing the card out of its Listen phase, hiding the back, full screen's, Undo's, Flag's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "showCard" | "hide" | "fullScreen" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
+const NAMED = ["reveal", "showCard", "hide", "fullScreen", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview"] as const;
 /**
  * Done listening, Show back of card and Step back never take each other's key: a key that's more than one of them is
  * heard by precedence, Done listening's on the Listen phase, Show back of card's on the front, Step back's where neither
- * does anything (the back, or a front whose key is Step back's alone). The Hold button and its Back to start are heard
- * beside them, on every face, so they share keys with them only by the shape rule (`clash`), as every other action does.
+ * does anything (the back, or a front whose key is Step back's alone).
  */
 const FACE_KEYS: readonly Slot["kind"][] = ["showCard", "reveal", "hide"];
 const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
@@ -450,20 +392,11 @@ const partsOf = (bind: Bind): Part[] => ["main", ...bind.also.map((_, i) => i)];
 
 /**
  * Two keys the same on one screen get in each other's way when they're the same kind of press (`pressKind`): a press, a
- * double press and a hold of one key are three things (Space tapped plays the clip, Space held shows the answer,
- * Space pressed twice goes back to start). Let go before the hold is done, it was the press; a press of a key
+ * double press and a hold of one key are three things (Space tapped plays the clip, Space held shows the answer, Space
+ * pressed twice whatever's set to it). Let go before the hold is done, it was the press; a press of a key
  * whose double press does something waits to see whether it's the double (`useHold.ts` → `keepDouble`).
  */
 const clash = (a: Key, b: Key) => sameKey(a.key, b.key) && pressKind(a) === pressKind(b);
-/**
- * A bind whose every key is a hold: the Hold button's, held through its stages (`holdChain` keeps the times), so by
- * `clash` it shares its key with a press of it (a clip's Space tapped) and a double press (Back to start), as Show back
- * of card's hold does (kept as a press, it would lose its Space to a clip's).
- */
-function asHolds(bind: Bind): Bind {
-  const hold = (key: Key): Key => (pressKind(key) === "hold" ? key : { ...key, holdMs: HOLD_START });
-  return { ...hold(bind), also: bind.also.map(hold) };
-}
 
 /**
  * The keys with one of a slot's keys changed, that key taken from whatever else on the same screen it would clash with
@@ -476,8 +409,6 @@ export function withPart(binds: KeyBinds, slot: Slot, part: Part, change: (key: 
   let next = binds;
   for (const other of slotsOf(binds)) {
     if (screenOf(other.kind) !== screen || apart(other, slot)) continue;
-    // Switched off, the Hold button is heard nowhere: its keys are kept for when it's on again, and take nothing.
-    if (HOLD_KINDS.includes(other.kind) && !binds.holdChain.on) continue;
     const bind = bindAt(next, other);
     let changed = bind;
     for (const p of partsOf(bind)) {
@@ -499,24 +430,11 @@ export function withKey(binds: KeyBinds, slot: Slot, key: string | null, part: P
   return withPart(binds, slot, part, (k) => ({ ...k, key }));
 }
 /**
- * The keys with the Hold button switched on or off. On, its keys take theirs from whatever else on the review has them
- * the same way (another hold of Space, a double press of it), as setting them would; off, nothing else changes.
- */
-export function withHoldChain(binds: KeyBinds, on: boolean): KeyBinds {
-  let next: KeyBinds = { ...binds, holdChain: { ...binds.holdChain, on } };
-  if (!on) return next;
-  for (const kind of ["holdButton", "holdReset"] as const) {
-    for (const part of partsOf(next[kind])) next = withPart(next, { kind }, part, (key) => key);
-  }
-  return next;
-}
-/**
- * Every key whose double press does something on the review just now (the Hold button's Back to start, kept only while
- * it's on, and any other action set to a double press): a press of one of them waits to see whether it's the double.
+ * Every key whose double press does something on the review just now (any action set to a double press): a press of
+ * one of them waits to see whether it's the double.
  */
 export function doubleKeys(binds: KeyBinds): string[] {
-  const held = binds.holdChain.on ? [binds.holdButton, binds.holdReset] : [];
-  return [...reviewBinds(binds), ...held, binds.start]
+  return [...reviewBinds(binds), binds.start]
     .flatMap(keysOf)
     .flatMap((key) => (pressKind(key) === "double" && key.key !== null ? [key.key] : []));
 }

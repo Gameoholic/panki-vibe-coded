@@ -31,9 +31,8 @@ const tapLive = (e: KeyboardEvent) => [...liveTaps.keys()].some((key) => pressed
  */
 export const TAP_MS = 200;
 /**
- * A second press of a key this soon after the first is a double press (`keys.ts` → `DOUBLE_PRESS`: the Hold
- * button's Back to start, and any key set to it); a press of a key whose double press does
- * something waits this long before it's a press.
+ * A second press of a key this soon after the first is a double press (`keys.ts` → `DOUBLE_PRESS`, any key set to
+ * it); a press of a key whose double press does something waits this long before it's a press.
  */
 export const DOUBLE_MS = 300;
 
@@ -106,17 +105,15 @@ export function useHold() {
   /**
    * Starts holding the key going down (`e`) on `el`; `done` once it's been held for `ms` (at once for none). Nothing
    * while another hold is on. While a tap of the key does something too, the fill waits out the tap (`TAP_MS`), then
-   * fills over the rest, so it's still done when it's set to be. `e` can be a name instead of a key (a pointer held on a
-   * button, the Hold button's "pointer"), let go by that name; `quiet` says whether the fill waits out a tap whatever
-   * the keys say (the Hold button's first stage does, a tap of it being Back to start; its later stages don't).
+   * fills over the rest, so it's still done when it's set to be.
    */
-  function begin(e: KeyboardEvent | string, el: HTMLElement | null, ms: number, done: () => void, quiet?: boolean) {
-    const key = typeof e === "string" ? e : e.key;
+  function begin(e: KeyboardEvent, el: HTMLElement | null, ms: number, done: () => void) {
+    const key = e.key;
     const named = key.toLowerCase();
     if (current.current) return;
     // Shift, Ctrl or Alt pressed (or pressed twice) is its own press only if nothing else went down while it was: heard
     // as it goes up, then as any press is.
-    if (typeof e !== "string" && ms <= 0 && isModifier(key)) {
+    if (ms <= 0 && isModifier(key)) {
       if (e.type === "keyup") {
         if (ownModifier(key)) pressNow(e, named, ms, done);
         return;
@@ -140,7 +137,7 @@ export function useHold() {
       easing.current.delete(el);
     }
     const t0 = performance.now();
-    const still = (quiet ?? (typeof e !== "string" && tapLive(e))) ? Math.min(TAP_MS, ms) : 0;
+    const still = tapLive(e) ? Math.min(TAP_MS, ms) : 0;
     // A hold of Shift, Ctrl or Alt lets go the moment another key goes down: it's that key's, held with it.
     const other = (d: KeyboardEvent) => {
       if (d.key.toLowerCase() !== named) release();
@@ -165,7 +162,7 @@ export function useHold() {
   }
 
   /** A press, or a double press (`DOUBLE_PRESS`), heard now. */
-  function pressNow(e: KeyboardEvent | string, named: string, ms: number, done: () => void) {
+  function pressNow(e: KeyboardEvent, named: string, ms: number, done: () => void) {
     // A double press: the first press noted, the second within `DOUBLE_MS` does it.
     if (ms === DOUBLE_PRESS) {
       const first = firsts.current.get(named);
@@ -178,7 +175,7 @@ export function useHold() {
     }
     // A press; one of a key whose double press does something waits to see it isn't that, a second press of it in time
     // calling it off.
-    if (typeof e === "string" || !doubleLive(e)) {
+    if (!doubleLive(e)) {
       done();
       return;
     }

@@ -406,7 +406,7 @@ export function dueAt(type: SrsLadder, place: CardPlace, lastAt: number): number
 /**
  * The account's settings, in the Settings tab: when its day turns over, its languages, and how every review of every
  * deck runs (`ReviewSettings`). One row of defaults, changed in Settings. What differs from deck to deck (how many new
- * cards and reviews a day, the Hold button's answer) is the deck's own `DeckSettings`.
+ * cards and reviews a day) is the deck's own `DeckSettings`.
  */
 /**
  * The languages Panki can speak to an account in, one registry: English alone for now, so its

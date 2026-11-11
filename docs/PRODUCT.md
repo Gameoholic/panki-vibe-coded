@@ -54,7 +54,7 @@ Under 2 GB left on the server's disk, everyone signed in sees "Panki is nearly o
 
 ### Decks and cards
 
-**Decks** lists each deck with its card type and count, and a settings button per row. **New deck** asks a name, a card type and an SRS type, both fixed once made. Inside a deck, two tabs. **Settings**: the name, the card type and SRS type as buttons to their own screens, the deck's review settings (New cards a day, Max reviews a day, the answer the Hold button gives), and Delete, which asks with what it costs ("Delete 'Mined' and its 31 cards?") and hides the deck and its cards, never destroying them.
+**Decks** lists each deck with its card type and count, and a settings button per row. **New deck** asks a name, a card type and an SRS type, both fixed once made. Inside a deck, two tabs. **Settings**: the name, the card type and SRS type as buttons to their own screens, the deck's review settings (New cards a day, Max reviews a day), and Delete, which asks with what it costs ("Delete 'Mined' and its 31 cards?") and hides the deck and its cards, never destroying them.
 
 **Cards**: Add card and Review side by side, then the cards. Add card opens the form above the list, a field per field of the card type, required ones enforced in Panki's own words. A row shows the card's stage pill in the stage's colour and when it comes back. The list has **Search** (fuzzy, over every field, a video's title or channel, other examples and the stage; katakana and hiragana alike) and **Sort by** Added, Due, Word or Stage with both directions in words, kept on the device. Each row has Edit (the same form, filled in; a file has Replace and Delete; Save and Cancel), Preview (the card turned as a review would, in any deck's shape), Flag / Unflag, and Snooze / Suspend's undo, Unsnooze / Unsuspend. A deleted card leaves the deck, its counts and its reviews at once; its answers stay in Stats.
 
@@ -87,7 +87,6 @@ The top counts what's left as "2 new 9 reviews 0 again", each in its colour, the
 - **Today's cards** come first (Shown or Skipped, in Settings): one bar with the counts and Start, unfolding into tiles of every due and new card, every one picked; a press leaves one for later, a stage's chip, All and None do many, Show every new card offers more. With several decks, a bar per deck.
 - **Undo** takes back the last answer, then the one before, to the start of the session: the card comes back at its start, the counts as they were, the answer kept but marked undone. Leaving the review ends it.
 - **Step back** takes the card a phase back (back to front, front to Listen).
-- **The Hold button** (Keybinds, Off to begin with) carries a card through on one held key, Shift to begin with: Done listening, the back, then the deck's chosen answer, drawn as one clock face. Let go and the card stays where it got to.
 - **Flag** marks a card to come back to, without answering it: a highlighter's yellow on its deck row, Show → Flagged in the list, and on YouTube wherever the word appears.
 - **A clip's full screen fills the screen with the whole review**: the clip, and the rest of the card in a rail at the right fitting with no scroll, the answers' keys working throughout. It holds from card to card and the device remembers it; "That's the lot" leaves it without forgetting.
 
@@ -106,7 +105,7 @@ How every review runs is the account's, in **Settings → General → Reviews**:
 ### Settings
 
 - **General**: Display (Theme, Language: the one Panki speaks, English alone for now), General (when the day starts, 4:00 to begin with; the account's Time zone; the Learning language), Reviews (above), **Streaks** (Streaks On / Off; Streak on the YouTube pill; each streak's Name, Streak type (Daily / Weekly), Count from (Now / All time), Conditions (a row each: the kind, its number, Delete; an and / or between each two, pressed to flip; Add a condition) and Delete; Add a streak), **Reminder** (the account's alone, governing every streak: On / Off, On to begin with; Starts at, 20:00 to begin with; In the app and On YouTube, each Shown / Hidden), Subtitles on cards (how a clip's subtitles look on cards).
-- **Keybinds**: Enabled (Off on a phone to begin with), every key of a review and the players, each a press, a hold or a double press, Ctrl or Alt combinations allowed, Shift, Ctrl and Alt alone too; the Hold button's panel; A, S, D, F… playing each sound and clip on a card. Kept on the device, and the tab says so once.
+- **Keybinds**: Enabled (Off on a phone to begin with), every key of a review and the players, each a press, a hold or a double press, Ctrl or Alt combinations allowed, Shift, Ctrl and Alt alone too; A, S, D, F… playing each sound and clip on a card. Kept on the device, and the tab says so once.
 - **Panki AI**: below.
 - **Extension**: Download (a zip, with the update scripts), and Data tracking: what Video tracking records and every extension signed in with its switch (read-only here) and when it last sent.
 - **Account**: who's signed in, every signed-in device ("Firefox on Windows") with Sign out, Sign out everywhere, Watch history with Forget my watch history….
@@ -184,7 +183,8 @@ Kept as chosen; never simplified, widened or "made consistent" later.
 - Reaching a stage ends the card for this session; only Ask again right away keeps it in.
 - Burned is a row of the Stages list; a stage's wait is set on its box on the chart; scrolling zooms and the ground pans; removing a stage with cards on it asks where they go.
 - A miss is the first main answer; set-apart answers count as neither.
-- How reviews run is the account's; only New cards a day, Max reviews a day and the Hold button's answer are a deck's.
+- How reviews run is the account's; only New cards a day and Max reviews a day are a deck's.
+- No Hold button: taken out, not to come back as a convenience.
 - Stats is fixed; the home is the one you arrange, by holding a tile and only that way: no Customize button, no tray, no sizes, no pins, a drop is a swap, nothing shakes. The layout is per device.
 - Accounts are made from the terminal, password on the command line.
 - The capture panel is a side drawer, and its card preview is the app's own review card, one card that turns, never a front and back side by side, never with answers.

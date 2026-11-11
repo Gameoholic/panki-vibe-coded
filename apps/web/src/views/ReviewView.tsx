@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SrsAnswer, type SrsType, type SubtitleStyle } from "@panki/contracts";
+import { againPlaceOf, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SrsType, type SubtitleStyle } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { ExampleArrows } from "../components/ExampleArrows";
@@ -12,7 +12,6 @@ import { ReviewCard, listensFirst } from "../components/ReviewCard";
 import { ReviewButtons, ReviewCounts, ReviewScreen, answerLead, stepFor } from "../components/ReviewScreen";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { keepDouble, useHold } from "../hooks/useHold";
-import { useHoldButton, type HoldStage } from "../hooks/useHoldButton";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
@@ -301,7 +300,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   /**
    * The showing (its `turn`) whose Listen phase is over: Done listening pressed, or its sound or clip begun the play that
    * shows it. A card's start is its Listen phase where it has one, its front otherwise: a new showing (an answer, Undo)
-   * and Back to start all put it there.
+   * puts it there.
    */
   const [listenedTurn, setListenedTurn] = useState<number | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -414,6 +413,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
    * in the example the review picked, and this showing hasn't gone on to its front yet.
    */
   const listening = card !== undefined && !revealed && listenedTurn !== turn && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
+  // Whether the card starts in its Listen phase, as every showing of it does where it has one.
+  const listensHere = card !== undefined && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
   function stepExample(by: 1 | -1) {
     if (exampleIds.length < 2 || !card) return;
     const at = Math.max(0, exampleIds.indexOf(onScreen));
@@ -426,48 +427,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     leave();
     hold.release();
   }, [cardId, revealed, listening]); // eslint-disable-line react-hooks/exhaustive-deps -- `leave` and `hold.release` read nothing that changes
-  /**
-   * The Hold button, while it's on (Settings → Keybinds): the card's stages from its start, Done listening on a card
-   * that listens first, Show back of card, and the deck's answer (`holdAnswer`) where the chart offers it here, each held
-   * for its own time; what's done is where the card stands. One more action with its own key, beside the review's own
-   * buttons and their keys.
-   */
-  const chainOn = binds.holdChain.on;
-  const holdAnswer = card ? srsType.answers.find((a) => a.id === deck.settings.holdAnswer && offered(srsType, card.place, a.id)) : undefined;
-  // Whether the card starts in its Listen phase, as every showing of it does where it has one.
-  const listensHere = card !== undefined && listensFirst(type, valuesWithExample(type, card, exampleId), card.files);
-  const lead = listensHere ? 1 : 0;
-  const chainStages: HoldStage[] = [
-    ...(listensHere ? [{ label: "Done listening", ms: binds.holdChain.listenMs, done: showCard }] : []),
-    { label: "Show back of card", ms: binds.holdChain.backMs, done: reveal },
-    ...(holdAnswer ? [answerStage(holdAnswer)] : []),
-  ];
-  /** Pick the answer: the deck's answer by its name, in its colour, an answer that requires confirmation its extra hold on top. */
-  function answerStage(given: SrsAnswer): HoldStage {
-    const confirmMs = given.confirm ? binds.confirmMs : 0;
-    const ordered = [...srsType.answers.filter((a) => !a.aside), ...srsType.answers.filter((a) => a.aside)];
-    return { label: given.name, ms: binds.holdChain.answerMs + confirmMs, confirmMs, tone: answerClass(ordered, ordered.indexOf(given)), done: () => void answer(given.id) };
-  }
-  /** The Hold button on screen, where its holds are drawn. */
-  function chainAt() {
-    return place.current?.querySelector<HTMLElement>("[data-hold='chain']") ?? null;
-  }
-  /** Back to start: the card on its start again (its Listen phase where it has one, its front otherwise), nothing answered. */
-  function backToStart() {
-    if (busy) return;
-    setAsking(null);
-    setRevealed(false);
-    setListenedTurn(null);
-  }
-  const chain = useHoldButton({
-    stages: chainStages,
-    at: listening ? 0 : revealed ? lead + 1 : lead,
-    rest: "Back to start",
-    back: backToStart,
-    showing: `${cardId ?? ""}:${turn}`,
-    bind: binds.holdButton,
-    where: chainAt,
-  });
   // Every key whose double press does something here: a press of it waits to see it isn't that (`useHold.ts` → `keepDouble`).
   const doubles = doubleKeys(binds);
   useEffect(() => {
@@ -776,27 +735,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
         hold.begin(e,place.current?.querySelector<HTMLElement>(`[data-hold='example-${step < 0 ? "prev" : "next"}']`) ?? null, (back ?? on)?.holdMs ?? 0, () => stepExample(step));
         return;
       }
-      // The Hold button's Back to start, while it's on: its own key (Space pressed twice to begin with), heard beside the
-      // Hold button's, which shares it; done, this press holds nothing. Until it's done (the first press of its double
-      // press), the press goes on to whatever else its key is in another shape (Done listening's Space held), as every key
-      // shared by shape is (`keys.ts` → `clash`), so a hold of Back to start's key still does what that hold is set to.
-      const resetting = chainOn ? keyIn(binds.holdReset, key) : null;
-      let reset = false;
-      if (resetting) {
-        e.preventDefault();
-        if (!e.repeat && !busy)
-          hold.begin(e, chainAt(), resetting.holdMs, () => {
-            reset = true;
-            backToStart();
-          });
-      }
-      // The Hold button's key, while it's on: the card's stages held through.
-      if (chainOn && keyIn(binds.holdButton, key)) {
-        e.preventDefault();
-        if (!busy && !reset) chain.keyDown(e, key);
-        return;
-      }
-      if (reset) return;
       // Enter shows the answer too, at a press, whatever the keys are (the card, while it's listened to); on a button
       // it's that button's own.
       if (enter) {
@@ -850,9 +788,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
      */
     function onUp(e: KeyboardEvent) {
       hold.release(e.key);
-      chain.keyUp(e);
       const starts = today !== null || (!card && extraOrder.length > 0);
-      const own = starts ? [binds.start] : [listening ? binds.showCard : binds.reveal, ...(chainOn ? [binds.holdButton] : [])];
+      const own = starts ? [binds.start] : [listening ? binds.showCard : binds.reveal];
       if (own.some((bind) => pressedIn(e, bind)) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) e.preventDefault();
     }
     window.addEventListener("keydown", onKey);
@@ -972,7 +909,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       chart={{ open: chartOpen, onToggle: toggleChart }}
       flag={{ on: card.flaggedAt !== null, busy: flagging, onToggle: () => void toggleFlag() }}
       failure={failure}
-      hold={chainOn ? chain.view : null}
       card={
         // Each card its own: what was opened or played on the last one doesn't carry over.
         <ReviewCard

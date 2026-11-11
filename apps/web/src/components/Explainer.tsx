@@ -9,8 +9,7 @@ import { KeyCap } from "./KeyCap";
  * beside the panel's title opens a window, under it, playing the feature being used on a page as it would really be,
  * round and round, Panki's own components doing it. Pointed at it opens; let go of, it closes; a click keeps it open
  * until a press elsewhere or Escape. What each panel plays is its scene's: the extension's options page has its own
- * (`apps/extension/src/options/explainerScenes.tsx`), the app's Settings → Keybinds the Hold button's
- * (`views/HoldButtonScene.tsx`), and Settings → Panki AI's are in `explainers/aiScenes.tsx`.
+ * (`apps/extension/src/options/explainerScenes.tsx`), and the app's Settings → Panki AI's are in `explainers/aiScenes.tsx`.
  */
 
 /** The page a picture is drawn on, at a real page's size: a scene lays itself out in these pixels, Panki's components at their own size, and the whole is scaled to the window. */
@@ -26,8 +25,8 @@ const LOOP_REST_MS = 1100;
 /** How long the window waits, once the pointer has left the (?) and the window, before it closes: time to cross the gap between them. */
 const CLOSE_AFTER_MS = 180;
 
-/** The browser a picture's page is in: what its tab says, its icon (a made-up site's, or Panki's own mark), its address. */
-export type Site = { tab: string; url: string; icon: "news" | "video" | "panki" };
+/** The browser a picture's page is in: what its tab says, its made-up site's icon, its address. */
+export type Site = { tab: string; url: string; icon: "news" | "video" };
 /** A place on the page, as shares of its width and height (0 to 100). */
 export type Spot = { left: number; top: number; right: number; bottom: number };
 type Point = readonly [x: number, y: number];

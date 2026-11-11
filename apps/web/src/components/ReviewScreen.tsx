@@ -1,7 +1,6 @@
 /** @panki The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. */
 import { useLayoutEffect, type ReactNode, type RefObject } from "react";
 import { branchAt, flowOf, isNew, offered, resolve, stageIndex, type CardPlace, type HoldKind, type ReviewSettings, type SrsType, type Step } from "@panki/contracts";
-import type { HoldButtonView } from "../hooks/useHoldButton";
 import { ScreenStageContext, type Stage } from "../hooks/useScreenStage";
 import type { KeyBinds } from "../keys";
 import { countOrder, type Kind, type Line } from "../reviewLine";
@@ -9,12 +8,11 @@ import { FLAG_WORDS, HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, 
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { KeyCap } from "./KeyCap";
-import { HoldButton, ShowButton } from "./ShowButton";
+import { ShowButton } from "./ShowButton";
 
 /**
  * The review's screen, the one drawing of it: the counts over the card with Step back, Undo, Chart and the card's Flag
- * at their right, the card, the Hold button's row, the buttons under the card, and the
- * card's chart hanging under all of it; filling the screen, the stage (`useScreenStage`). The review runs it, and a
+ * at their right, the card, the buttons under the card, and the card's chart hanging under all of it; filling the screen, the stage (`useScreenStage`). The review runs it, and a
  * card type's Layout tab draws its card in it, so what's laid out is what a review shows.
  */
 
@@ -214,8 +212,6 @@ type Props = {
   /** The fields whose clip the full screen fills the screen with, the one to try first first (`stagedOrder`, the card type's layout). */
   staging: readonly string[];
   failure: string | null;
-  /** The Hold button, while it's on: under the card on both its sides. */
-  hold: HoldButtonView | null;
   /** The buttons under the card (`ReviewButtons`). */
   buttons: ReactNode;
   /** A question asked in the buttons' place (an answer that requires confirmation): the buttons, the phone's tools and the chart give way to it. */
@@ -227,7 +223,7 @@ type Props = {
 };
 
 /** The review's screen around its card: one drawing, the review's and the Layout tab's. */
-export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, flag, card, staging, failure, hold, buttons, ask = null, chartView = null, children }: Props) {
+export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, flag, card, staging, failure, buttons, ask = null, chartView = null, children }: Props) {
   // The clip that takes the screen's room while it's filled, marked for the stage's styles: of the fields the layout
   // names, the first whose part holds a clip in the Player look there to see (not a sound, not under a spoiler).
   useLayoutEffect(() => {
@@ -311,12 +307,6 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
         <p className="load-error" role="alert">
           {failure}
         </p>
-      ) : null}
-      {/* The Hold button, while it's on: under the card on both its sides, beside the review's own buttons and their keys. */}
-      {hold ? (
-        <div className="review-hold">
-          <HoldButton view={hold} />
-        </div>
       ) : null}
       {ask ?? (
         <>

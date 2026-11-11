@@ -42,7 +42,7 @@ Paths from `apps/web/src/`.
 | HintMark | `components/HintMark.tsx` | A (?) after a label that opens words, not a scene (`HintMark`). |
 | Icon | `components/Icon.tsx` | Every icon, one registry (`Icon`, `IconName`); a missing one is drawn in here. Never an icon library. |
 | JudgedRow | `components/JudgedRow.tsx` | A meaning Panki AI judged, wherever it's listed, its reason folded under a chevron (`JudgedRow`, `WhyButton`, `meaningsChip`). Never a second drawing of one. |
-| KeyCap | `components/KeyCap.tsx` | A key as its keycap on the button it presses, and a held key's filling clock (`KeyCap`, `holdFor`, `HoldClock`). |
+| KeyCap | `components/KeyCap.tsx` | A key as its keycap on the button it presses, a clock face filling while it's held (`KeyCap`, `holdFor`). |
 | KeyField | `components/KeyField.tsx` | A key set by pressing it (`KeyField`). |
 | LinkView | `components/LinkView.tsx` | A video's metadata on a card, shown or opened, anywhere (`LinkView`). Never a bare link, never an embedded player. |
 | MediaField | `components/MediaField.tsx` | A field that holds a file: a sound, a clip, a picture, picked or dropped (`MediaField`). Never a bare `<input type="file">`. |
@@ -63,7 +63,7 @@ Paths from `apps/web/src/`.
 | ScrollEdges | `components/ScrollEdges.tsx` | A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. |
 | Segmented | `components/Segmented.tsx` | A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). |
 | Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, the `perDevice` tag (`Setting`). |
-| ShowButton | `components/ShowButton.tsx` | What shows the next of a review card, Done listening or Show back of card (`ShowButton`), and the Hold button (`HoldButton`). Never a second of either. |
+| ShowButton | `components/ShowButton.tsx` | What shows the next of a review card, Done listening or Show back of card (`ShowButton`). Never a second of it. |
 | Skeleton | `components/Skeleton.tsx` | Anything loading, anywhere: the shape of what's coming (`Skeleton`, `Bone`, `SkeletonShape`). Never "Loading…", a spinner, or a blank that pops in. |
 | SpaceNotice | `components/SpaceNotice.tsx` | Saying the disk is nearly full (`SpaceNotice`). |
 | StreakEditor | `components/StreakEditor.tsx` | One streak's settings: name, Streak type, Count from, Conditions (`goals` in code) joined by and / or, in Settings and on its tile alike (`StreakEditor`). |
@@ -93,7 +93,6 @@ Paths from `apps/web/src/`.
 | useHeardKeys | `hooks/useHeardKeys.ts` | An action's keys heard on the window, pressed or held, a tap told from a hold (`useHeardKeys`): a player's keys and the full screen's. |
 | useHoist | `hooks/useHoist.ts` | Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `goTo`). Never a second way of reordering rows by themselves. |
 | useHold | `hooks/useHold.ts` | A key held on a button until it does its thing, a tap told from a hold (`useHold`, `keepTap`, `keepDouble`, `TAP_MS`, `DOUBLE_MS`). |
-| useHoldButton | `hooks/useHoldButton.ts` | A button held through a card's stages, the Hold button (`useHoldButton`, `HoldStage`, `holdShares`). Never a second chain of holds. |
 | usePlayback | `hooks/usePlayback.ts` | A sound or a clip played by one of the app's players, in any look (`usePlayback`). Never a second way of playing a file. |
 | useSavedSoon | `hooks/useSavedSoon.ts` | A handful of settings that save themselves a moment after each change (`useSavedSoon`). |
 | useScreenStage | `hooks/useScreenStage.ts` | A review filling the screen, kept as its cards change and from one review to the next (`useScreenStage`, `ScreenStageContext`). Never a second way of filling it. |

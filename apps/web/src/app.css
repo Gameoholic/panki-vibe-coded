@@ -4008,86 +4008,7 @@ mark.sub-blur {
   display: inline-flex;
   gap: 3px;
 }
-/* The Hold button (`ShowButton.tsx` → `HoldButton`): its clock and, beside it, the next stage over how it's held and
-   what follows, in a row of its own under the card on both its sides (`.review-hold`). Held by a finger it's a hold, never a scroll, a selection or the phone's menu. */
-.review-hold {
-  display: flex;
-  justify-content: center;
-}
-.btn.hold-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  min-height: 76px;
-  padding: 4px 16px;
-  text-align: left;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-.hold-button-words {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-.hold-button-words b {
-  font-size: 18px;
-  font-weight: 800;
-}
-.hold-button-words span {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-/* Its clock (`KeyCap.tsx` → `HoldClock`): a ring cut into each stage's stretch (`--clock-gaps`), the track under it,
-   and each stretch in its own colour (`--clock-paint`) as far as what's done (`--hold-from`) and the stage being held
-   (`--hold`, `useHold`'s, over `--hold-span`) reach, round from the top; the key's name in its middle. */
-.hold-clock {
-  --clock-at: calc((var(--hold-from, 0) + var(--hold, 0) * var(--hold-span, 0)) * 1turn);
-  --clock-ring: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px));
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-}
-.hold-clock::before,
-.hold-clock::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  pointer-events: none;
-}
-.hold-clock::before {
-  background: var(--line-strong);
-  -webkit-mask: var(--clock-ring), var(--clock-gaps);
-  -webkit-mask-composite: source-in;
-  mask: var(--clock-ring), var(--clock-gaps);
-  mask-composite: intersect;
-}
-.hold-clock::after {
-  background: var(--clock-paint);
-  -webkit-mask:
-    var(--clock-ring),
-    var(--clock-gaps),
-    conic-gradient(#000 var(--clock-at), transparent 0);
-  -webkit-mask-composite: source-in;
-  mask:
-    var(--clock-ring),
-    var(--clock-gaps),
-    conic-gradient(#000 var(--clock-at), transparent 0);
-  mask-composite: intersect;
-}
-.hold-clock-key {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--fg);
-}/* Show answer carries its key too, the one to hold. */
+/* Show answer carries its key too, the one to hold. */
 .review-actions > .btn-primary {
   gap: 10px;
 }
@@ -8925,7 +8846,7 @@ mark.sub-blur {
 }
 
 /* ---------- What a panel's feature is, shown (components/Explainer.tsx; the extension's options/explainerScenes.tsx,
-   the app's views/HoldButtonScene.tsx and explainers/aiScenes.tsx) ----------
+   the app's explainers/aiScenes.tsx) ----------
    A (?) beside the panel's title; its window holds a browser with a page in it, the feature being used there. The page
    is drawn at a real page's size (CANVAS) and scaled to the window, so Panki's components keep their own sizes. The
    video site the scenes play on is here too (`.ex-yt`), since Settings → Panki AI plays on it, and what only the extension's scenes draw is still its own. */
@@ -9073,11 +8994,6 @@ mark.sub-blur {
 }
 .explain-favicon.is-video {
   background: var(--mark-red);
-  border-radius: 4px;
-}
-/* Panki's own tab: its accent, as its mark's tile. */
-.explain-favicon.is-panki {
-  background: var(--accent);
   border-radius: 4px;
 }
 .explain-address {
@@ -9535,17 +9451,4 @@ span.ex-under-pencil {
   .ex-under-ai {
     animation: none;
   }
-}
-/* Panki's own page in a picture (the Hold button's): the app's ground, its review in the middle at the width a review
-   stands at on a computer. */
-.explain-panki {
-  width: 100%;
-  height: 100%;
-  padding: 28px 0;
-  background: var(--bg);
-  color: var(--fg);
-}
-.explain-panki .review {
-  width: 640px;
-  margin: 0 auto;
 }

@@ -27,7 +27,7 @@ type Props = {
   removable?: boolean;
   /** It listens for its key from the start: one just added with +. */
   listen?: boolean;
-  /** Shown and not changed: a key that does nothing just now (Show back of card's while the Hold button stands for it). */
+  /** Shown and not changed: a key that does nothing just now (every key while keybinds are off). */
   disabled?: boolean;
 };
 
