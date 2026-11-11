@@ -129,7 +129,7 @@ type TileEntry = {
   /** Its windows look ahead (Coming up): its Custom… frame is the next N units from today, its panel saying "Next". */
   ahead?: true;
   /**
-   * What its number measures, where it measures more than one thing (Time watching: Time spent / Of video): a second,
+   * What its number measures, where it measures more than one thing (Time watching: Time spent / Runtime watched): a second,
    * small `Segmented` before its views, the number, the change, the chart and Show more all following it.
    */
   measures?: readonly View[];
@@ -307,7 +307,7 @@ const PACE_SIDES = [
 /** Time watching's measures: the clock, or how much of the videos was covered, each part once. */
 const WATCH_MEASURES: readonly View[] = [
   { id: "spent", label: "Time spent" },
-  { id: "video", label: "Of video" },
+  { id: "video", label: "Runtime watched" },
 ];
 const deckName = (ctx: WidgetContext, deckId: string) => ctx.decks.find((d) => d.id === deckId)?.name ?? "";
 
@@ -1032,17 +1032,17 @@ export const WIDGETS: readonly TileEntry[] = [
       const w = win.watching;
       // Nothing watched is said once, whichever is measured, so the measure stays to switch back from.
       if (w.ms === 0) return { empty: emptyOf(win, "Nothing watched today yet.") };
-      // Time spent is the clock; Of video, each part of a video once (`WindowStats.watching.ofVideo`).
+      // Time spent is the clock; Runtime watched, each part of a video once (`WindowStats.watching.ofVideo`).
       const ofVideo = measure === "video";
       const m = ofVideo ? w.ofVideo : { ms: w.ms, before: w.before, series: w.series, hours: w.hours, weekdays: w.weekdays };
-      const say = ofVideo ? (ms: number) => `${spent(ms)} of video` : spent;
+      const say = ofVideo ? (ms: number) => `${spent(ms)} of runtime` : spent;
       const drawn = byView({ win, view, series: m.series, hours: m.hours, weekdays: m.weekdays, say, cap: spentCap, stats, ctx, onAt });
       const facts = `${count(w.videos, "video", "videos")} · ${count(w.channels.length, "channel", "channels")} · ${num(w.finished)} finished`;
       const channelMs = (c: (typeof w.channels)[number]) => (ofVideo ? c.ofVideoMs : c.ms);
-      // "1 h 40 min of video": the last unit carries it.
+      // "1 h 40 min of runtime": the last unit carries it.
       const parts = spentParts(m.ms);
       return {
-        figure: { parts: ofVideo ? parts.map(([n, unit], i) => [n, i === parts.length - 1 ? `${unit} of video` : unit] as const) : parts, delta: deltaOf(m.ms, m.before, beforeWords(win), true) },
+        figure: { parts: ofVideo ? parts.map(([n, unit], i) => [n, i === parts.length - 1 ? `${unit} of runtime` : unit] as const) : parts, delta: deltaOf(m.ms, m.before, beforeWords(win), true) },
         chart: drawn.chart,
         foot: view === "time" || win.unit === "one" ? facts : drawn.foot,
         more: (
@@ -1449,7 +1449,7 @@ type SavedStreaks = { streaks: StreakRule[]; pillStreak: Settings["pillStreak"] 
 
 /**
  * A streak's own settings, hanging from its tile's settings button: the streak's editor for that streak alone, saved a
- * moment after each change, and Delete asking first (not for the last streak). Kept while the tile stands once it's
+ * moment after each change, and Delete asking first, the last streak too. Kept while the tile stands once it's
  * been opened, so a change made just before it closes still goes up. What it sends is the account's streaks as they
  * stand with this one's change, so a streak made or changed since it opened is never sent back as it was.
  */
@@ -1467,7 +1467,7 @@ function StreakPanel({ rule, ctx, open, anchor, onClose }: { rule: StreakRule; c
     <StreakPanelFrame anchor={anchor} open={open} onClose={onClose} title="Streak" label={`${name}: settings`} failure={failure}>
       <StreakEditor idPrefix={`tile-streak-${rule.id}`} streak={streak} anchored onChange={(change) => patch({ streaks: streaks.map((s) => (s.id === rule.id ? { ...streak, ...change } : s)) })} />
       <div className="tile-panel-foot">
-        <Button ref={deleteAt} id={`tile-streak-${rule.id}-delete`} className="is-danger" aria-pressed={asking} aria-expanded={asking} disabled={streaks.length <= 1} onClick={() => setAsking(!asking)}>
+        <Button ref={deleteAt} id={`tile-streak-${rule.id}-delete`} className="is-danger" aria-pressed={asking} aria-expanded={asking} onClick={() => setAsking(!asking)}>
           <Icon name="trash" />
           Delete
         </Button>

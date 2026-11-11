@@ -53,7 +53,14 @@ function PillStreak({ door, settings, disabled }: { door: Door; settings: Settin
     <Setting
       id="pill-streak"
       label="Streak on the pill"
-      control={<Dropdown id="pill-streak-pick" label="Streak on the pill" options={streaks.map((s) => ({ id: s.id, label: streakNameOf(s) }))} value={picked} disabled={disabled} onChange={(pillStreak) => patch({ pillStreak })} />}
+      control={
+        // An account with no streak has nothing to pick, and the pill's Streak says nothing.
+        streaks.length === 0 ? (
+          <span className="setting-value">No streaks</span>
+        ) : (
+          <Dropdown id="pill-streak-pick" label="Streak on the pill" options={streaks.map((s) => ({ id: s.id, label: streakNameOf(s) }))} value={picked} disabled={disabled} onChange={(pillStreak) => patch({ pillStreak })} />
+        )
+      }
     >
       {failure ? (
         <p className="form-failure" role="alert">

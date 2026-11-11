@@ -522,10 +522,11 @@ export const Settings = z.object({
   streaksOn: z.boolean(),
   /**
    * The account's streaks (`streaks.ts`), each a name and goals; which days counted is worked out on every read, so a
-   * change re-reads the whole past. One streak to begin with, a card answered a day, a review or a new card (`DEFAULT_STREAKS`).
+   * change re-reads the whole past. One streak to begin with, a card answered a day, a review or a new card (`DEFAULT_STREAKS`);
+   * every one can be deleted, the last too.
    */
   streaks: StreakRules,
-  /** **Streak on the pill**, picked in the extension under the pill's parts: the id of the streak the pill shows; null, or one that's gone, is the first. */
+  /** **Streak on the pill**, picked in the extension under the pill's parts: the id of the streak the pill shows; null, or one that's gone, is the first; with no streak, the pill's Streak says nothing. */
   pillStreak: StreakId.nullable(),
   /**
    * `reminderOn` and `reminderInApp` are kept as they were set and read by nothing: the app shows every streak's state

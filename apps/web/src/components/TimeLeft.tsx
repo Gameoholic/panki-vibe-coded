@@ -4,11 +4,11 @@ import { durationWords, hourWords } from "../words";
 import { Button } from "./Button";
 import { Tip } from "./Tip";
 
-/** A time left in words, to the minute and never "0 min": "14 min", "1 h 5 min". The review's counts and its Start say it so. */
-export const timeWords = (ms: number) => durationWords(Math.max(60, ms / 1000));
+/** A time left in words, rough as it is, to the minute and never "0 min": "~14 min", "~1 h 5 min". The review's counts and its Start say it so. */
+export const timeWords = (ms: number) => `~${durationWords(Math.max(60, ms / 1000))}`;
 
 /**
- * "about 14 min left" after a review's counts. Pointed at, the app's hint says when that is on the clock ("Done by
+ * "~14 min left" after a review's counts. Pointed at, the app's hint says when that is on the clock ("Done by
  * 21:47"); pressed, the words say it in their place until pressed again, so a phone, which has no hover, has it too.
  * The clock is read as it's asked for, so the time stays true however long the review has stood.
  */
@@ -29,7 +29,7 @@ export function TimeLeft({ ms }: { ms: number }) {
         onBlur={() => setOver(null)}
         onClick={() => setDoneAt(doneAt === null ? Date.now() : null)}
       >
-        {doneAt === null ? `about ${timeWords(ms)} left` : done(doneAt)}
+        {doneAt === null ? `${timeWords(ms)} left` : done(doneAt)}
       </Button>
       {over !== null && doneAt === null ? (
         <Tip x={over.x} y={0}>

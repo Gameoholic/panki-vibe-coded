@@ -27,7 +27,8 @@ import { z } from "zod";
 // one (`TouchUpAsk.opening`, `send`), which 6 doesn't.
 // 8: Time reviewing is split by side, front and back (`WindowStats.time.sides`), in place of the three spans 7 reads.
 // 9: a streak's condition can be All new cards done (`GoalKind` `newDone`), which 8 refuses in a streak's state.
-export const EXTENSION_PROTOCOL = 9;
+// 10: an account can have no streak at all (`Settings.streaks` empty), which 9 refuses in the settings it reads.
+export const EXTENSION_PROTOCOL = 10;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

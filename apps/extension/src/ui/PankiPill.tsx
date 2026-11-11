@@ -34,13 +34,13 @@ export type PillSettings = Pick<Settings, "streaksOn" | "pillStreak" | "reminder
 
 /**
  * The streak picked for the pill (`pillStreak`, or the first when none is picked or the picked one is gone), as the pill
- * says it; none while Streaks is off. Whether the reminder is on for it is the server's (`StreakState.atRisk`); whether
+ * says it; none while Streaks is off or the account has no streak. Whether the reminder is on for it is the server's (`StreakState.atRisk`); whether
  * that shows is the options page's Streak reminder (`reminderOnYouTube`).
  */
 function pillStreakOf(stats: Stats, settings: PillSettings): PillStreak | null {
   if (!settings.streaksOn) return null;
   const streak = stats.streaks.find((s) => s.id === settings.pillStreak) ?? stats.streaks[0];
-  if (!streak) return { name: null, per: "day", current: stats.streak.current, hoursLeft: null };
+  if (!streak) return null;
   return { name: streakNameOf(streak), per: streak.per, current: streak.current, hoursLeft: streak.atRisk && settings.reminderOnYouTube ? streak.hoursLeft : null };
 }
 

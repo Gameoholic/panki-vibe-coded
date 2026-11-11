@@ -175,10 +175,9 @@ export const StreakRule = z.preprocess(
 );
 export type StreakRule = z.infer<typeof StreakRule>;
 
-/** The account's streaks, at least one, each id once. */
+/** The account's streaks, none at all or up to `STREAKS_MAX`, each id once. */
 export const StreakRules = z
   .array(StreakRule)
-  .min(1)
   .max(STREAKS_MAX)
   .refine((streaks) => new Set(streaks.map((s) => s.id)).size === streaks.length, { message: "Each streak has an id of its own." });
 

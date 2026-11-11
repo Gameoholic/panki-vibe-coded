@@ -37,6 +37,7 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 ## Reporting
 
 - Every message to the owner is one sentence at most, reports and brainstorming included. Playbacks and proposals go in the plan file (`docs/<EPIC>.md`), never in chat.
+- When the owner has asked several things since the last answer, the answer is a bullet per thing, each its one sentence, none left out.
 - Artifacts are for the owner's end, docs for Claude's. Anything the owner is to read in a brainstorm or a plan (the playback, the proposals, the order, a preview) is published as an artifact page as well, kept current with the plan file; the plan file in `docs/` is what Claude reads back.
 - The owner doesn't read reports: a question that's needed comes first, alone, in one short line.
 - Say only what the owner couldn't guess: a reading of their words that could have gone another way, something left out, something that will surprise, a default chosen.

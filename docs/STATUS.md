@@ -22,7 +22,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-26: Undo; today's cards before a review; other examples on the review card.
 - 2026-11-07: Flag.
 - 2026-11-11: Streak on the pill picked in the extension, under the pill's parts.
-- 2026-11-11: Streaks, a place of its own in the bar beside Stats, where streaks are made (the dashed New streak tile), changed and deleted, Streaks On / Off at its head; Stats is Stats alone; Settings → General → Streaks gone.
+- 2026-11-11: Streaks, a place of its own in the bar beside Stats, where streaks are made (the dashed New streak tile), changed and deleted, the last one too (`EXTENSION_PROTOCOL` 10), Streaks On / Off at its head; Stats is Stats alone; Settings → General → Streaks gone.
 - 2026-11-11: Today, its facts (extra study among them) and every streak green or red at any hour with each condition's own tick or cross, on the home and heading Streaks; the Reminder panel, the line at the top of the home, the Review door's note and the streak tile's tint gone; the Streak reminder and Starts at on the extension's YouTube tab (`STREAKS.md` → Rounds 10, 12 and 13).
 - 2026-11-11: a review's time left by its counts, the finish time on hover or press, and the time on every Start; Time studying ticking beside it; Time left and Time studying each Shown / Hidden in Settings → General → Reviews.
 - 2026-11-11: Start cards blurred (its line and its (?) playing it), Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
@@ -71,7 +71,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 - Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
 - The docs: `docs/DOCS.md`.
-- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 14 (All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
+- Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 15 (no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - The extension's polish round: the owner sends what's off, a change at a time.

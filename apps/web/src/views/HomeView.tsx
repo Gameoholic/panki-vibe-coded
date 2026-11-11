@@ -65,7 +65,8 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   const streakIds = settings?.streaks.map((s) => s.id).join("\n") ?? null;
   useEffect(() => {
     if (streakIds === null) return;
-    const next = fitStreaks(layout, streakIds.split("\n"));
+    // No streak at all is an empty list, never one streak with no id.
+    const next = fitStreaks(layout, streakIds === "" ? [] : streakIds.split("\n"));
     if (next) changeLayout(next);
     // The layout is read as it stands when the streaks change; a change of the layout alone needs no fitting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
