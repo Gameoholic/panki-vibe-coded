@@ -41,7 +41,7 @@ export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
                     <Button id={`pick-${deck.id}-start`} variant="primary" onClick={() => onPick(deck, "start")}>
                       <Icon name="play" />
                       Start
-                      {takes !== null ? <span className="start-time">· {timeWords(takes)}</span> : null}
+                      {takes !== null ? <span className="start-time">{timeWords(takes)}</span> : null}
                     </Button>
                   ) : (
                     <Button id={`pick-${deck.id}-open`} onClick={() => onPick(deck)}>

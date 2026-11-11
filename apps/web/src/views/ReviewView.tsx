@@ -208,7 +208,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
         <Button id={`${id}-start`} variant="primary" size="lg" data-hold={`${id}-start`} disabled={total === 0} onClick={onStart}>
           <Icon name="play" />
           Start {count(total, "card", "cards")}
-          {takes !== null ? <span className="start-time">· {timeWords(takes)}</span> : null}
+          {takes !== null ? <span className="start-time">{timeWords(takes)}</span> : null}
           <KeyCap bind={startKey} />
         </Button>
       </TodayBar>
