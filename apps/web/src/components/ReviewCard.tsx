@@ -81,7 +81,7 @@ export type CardEdit = {
 type CornerMark = { id: CornerMarkId; corner: TagCorner; shown: boolean; here: boolean; look: string; label: string; node: ReactNode };
 
 /**
- * The front's blur, while the account's Blur the front is on: whether it's blurred now, Blur's key, and Unblur and Blur.
+ * The front's blur, while the account's Start cards blurred is on: whether it's blurred now, Blur's key, and Unblur and Blur.
  * The card blurs only its front, and only as its type marks it (`blursFront`); the rest is the caller's (`useBlur`).
  */
 export type CardBlur = { blurred: boolean; bind: Key | undefined; onToggle: () => void };
@@ -198,7 +198,7 @@ type Props = {
   /** Turned to its back. */
   revealed: boolean;
   /**
-   * The front's blur while the account's Blur the front is on (a review, a card laid out): blurred, each part shown,
+   * The front's blur while the account's Start cards blurred is on (a review, a card laid out): blurred, each part shown,
    * blurred or hidden as its `blur` says, keeping its room so nothing moves as it unblurs, its sounds and clips there to
    * hear but a hidden one; and Unblur and Blur in the card's corner, held unseen on the back and on a card whose type
    * marks nothing. Left out (the setting off, or a card only looked at), the front is clear and there's no Unblur.

@@ -5,7 +5,7 @@ import { useState } from "react";
 type Showing = string | number;
 
 /**
- * Whether the card on screen is to be blurred, while the account's Blur the front is on (`on`): every showing opens
+ * Whether the card on screen is to be blurred, while the account's Start cards blurred is on (`on`): every showing opens
  * blurred until it's unblurred by hand (Unblur, its key) or turned to its back, which leaves its front clear for Step
  * back. Off, nothing is blurred, at once; switched on, blurring starts with the next showing, the one on screen staying
  * as it is. Whether the card has anything to blur is its type's to say (`blursFront`), never this.

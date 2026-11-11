@@ -34,7 +34,7 @@ export const ReviewSettings = z.object({
    */
   exampleShown: z.enum(["rotate", "newest", "random"]),
   /**
-   * **Blur the front**: a card whose type marks a part of its front Blur or Hide (its Layout tab's Blurred front,
+   * **Start cards blurred**: a card whose type marks a part of its front Blur or Hide (its Layout tab's Blurred front,
    * `LayoutPart.blur`) opens blurred, Unblur and Blur toggling it on the front; off, every front opens clear. A helper on
    * screen alone: nothing is kept of it but this setting.
    */

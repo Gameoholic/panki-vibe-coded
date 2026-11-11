@@ -304,7 +304,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   const [given, setGiven] = useState<Given[]>([]);
   const [revealed, setRevealed] = useState(false);
   /**
-   * The front's blur, by the showing (its `turn`), while the account's Blur the front is on: a fresh showing opens
+   * The front's blur, by the showing (its `turn`), while the account's Start cards blurred is on: a fresh showing opens
    * blurred, Unblur and Blur toggle it, turning the card leaves its front clear for Step back, and Undo puts the card
    * before back clear.
    */
@@ -726,7 +726,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
         reveal();
         return;
       }
-      // Blur's key on the front, while Blur the front is on and the card has something to blur, held as long as it's
+      // Blur's key on the front, while Start cards blurred is on and the card has something to blur, held as long as it's
       // set to be; its hold drawn on Unblur and Blur in the card's corner.
       const blurring = !revealed && review.blurFront && blurrable ? keyIn(binds.blur, key) : null;
       if (blurring) {

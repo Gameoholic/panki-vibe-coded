@@ -3,6 +3,7 @@ import { NumberField } from "../components/NumberField";
 import { Segmented } from "../components/Segmented";
 import { Setting } from "../components/Setting";
 import { Toggle } from "../components/Toggle";
+import { BlurScene } from "../explainers/blurScene";
 import { count } from "../words";
 
 /** How many cards are in play when the limit is first switched on. */
@@ -37,6 +38,11 @@ const AGAIN_PLACE_WORDS: Record<ReviewSettings["againPlace"], string> = {
 };
 /** With only so many cards in play, a card asked again lands anywhere among them (`againPlaceOf`). */
 const againInPool = (pool: number) => `A card you're asked again comes back at a random point within the next ${count(pool, "card", "cards")}.`;
+/** Start cards blurred, on and off: what each card's front does. */
+const BLUR_WORDS = {
+  on: "Cards open with the front blurred where their card type's Layout tab marks it; Unblur shows it.",
+  off: "Cards open with the front clear, and there's no Unblur.",
+};
 const EXAMPLE_SHOWN_OPTIONS = [
   { id: "rotate", label: "Rotate" },
   { id: "newest", label: "Newest" },
@@ -108,8 +114,10 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
       {/* Beside Example shown: both are what the card shows. */}
       <Setting
         id="blurFront"
-        label="Blur the front"
+        label="Start cards blurred"
         control={<Toggle id="setting-blur-front" says={{ on: "On", off: "Off" }} on={current.blurFront} onChange={(blurFront) => patch({ blurFront })} />}
+        why={current.blurFront ? BLUR_WORDS.on : BLUR_WORDS.off}
+        explain={{ name: "Blur", scene: <BlurScene /> }}
       />
     </section>
   );

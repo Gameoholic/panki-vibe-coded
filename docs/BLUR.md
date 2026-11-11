@@ -32,7 +32,7 @@
 
 ## Claude's objections and proposals
 
-1. **The name is Blur.** The setting **Blur the front** (On / Off), the button **Unblur** while blurred and **Blur** while clear (an action saying what it does), the key the one Done listening had, the time **Blurred** in Stats. Never "listen" or "veil" on screen.
+1. **The name is Blur.** The setting **Start cards blurred** (On / Off), the button **Unblur** while blurred and **Blur** while clear (an action saying what it does), the key the one Done listening had, the time **Blurred** in Stats. Never "listen" or "veil" on screen.
 2. **Blur only a card with something to hear.** Blurring the front of a card with no sound or clip on it leaves nothing to do but press Unblur. The account's switch is on for every deck; a card blurs only when its front has a sound or clip, as Listen first already decides (`listensFirst`). A card with nothing to hear opens clear.
 3. **Keep what's blurred per field, in the type.** "Blur everything" would blur the player too. Today's per-field Shown / Blurred / Hidden (the Layout tab) is already the right data, kept per type; it becomes that type's **Blurred front** and the account switch turns the whole thing on and off. A new type's default: text fields blurred, sounds and clips shown.
 4. **Keep the sound ending the blur.** "Unblur after the sound's Nth play" is what makes listen-then-read hands-free; it stays as the type's option, renamed. Off for a new type unless the owner says otherwise.
@@ -46,7 +46,7 @@
 2. Blur only cards with a sound or clip on the front (default), or every card.
 3. Keep "unblur after the sound's Nth play" as the type's option (default), or drop it.
 4. Undo puts the previous card's front back unblurred (default), or blurred afresh.
-5. Where the switch lives: Settings → General → Reviews, "Blur the front", On to begin with (default).
+5. Where the switch lives: Settings → General → Reviews, "Start cards blurred", On to begin with (default).
 6. Step back from the back goes to the front as it stands, unblurred (default); there's no further step.
 7. The button on a phone is the same button; on a PC the Done listening key becomes Blur's (default).
 
@@ -61,8 +61,9 @@
 - **Blurring is a front-end helper, not a side of the card, and the database doesn't know it** (the owner): no blurred span, no "time listening" stat. What's kept and shown is **time on the front** and **time on the back**.
 - **Listening is removed from the data, by one migration, the owner lifting the no-rewrite rule for this one case knowingly** (the owner, 2026-11-11: "it's my call… I want 0 references to the old listen beside the migration… port over the old listen data to the current front of card so we don't lose that data"). Claude's objection, argued once and overruled: `docs/conventions/mindset.md` and `data.md` forbid an UPDATE that loses a value and a migration that drops; the merge could have happened on read for the same numbers. The rule itself stands for everything else; this migration is the one exception and says so in its comment. What the migration does, in one step, inside one transaction: `card_places.think_ms` and `card_holds.think_ms` become `think_ms + listen_ms` wherever `listen_ms` is set (the front's time is the two merged; nothing lost), then both `listen_ms` columns are dropped; `review_sessions.left_phase` rows saying `listen` become `front`; each card type's layout JSON renames its per-part key `listen` to `blur` with the same three values; `card_types.listen` (Listen first's On and the Nth-play rule, both features gone) is dropped. After it, no column, key, contract field, code name, event kind or doc line says listen; the one place the word survives is the migration's own comment, which says what it rewrote and why. The owner runs `pnpm backup` on the VPS before the push that deploys it.
 - Claude's flag on the blurred span itself, said once: the time before unblurring could have been kept for nothing; the owner's call stands: not written.
-- **The button is a chip in the card's corner** (the owner, from the preview): glass over the card (`--blur-glass`), Unblur while blurred and Blur while clear, its icon in the accent; gone with its room held on the back and on a card whose type marks nothing, gone without room while Blur the front is Off.
-- **Undo** puts the previous card's front back unblurred; **Step back** from the back goes to the front as it stands; the switch is **Settings → General → Reviews → Blur the front**, On to begin with (defaults, not objected to).
+- **The button is a chip in the card's corner** (the owner, from the preview): glass over the card (`--blur-glass`), Unblur while blurred and Blur while clear, its icon in the accent; gone with its room held on the back and on a card whose type marks nothing, gone without room while Start cards blurred is Off.
+- **Undo** puts the previous card's front back unblurred; **Step back** from the back goes to the front as it stands; the switch is **Settings → General → Reviews → Start cards blurred**, On to begin with (defaults, not objected to).
+- **The switch is the whole feature, On / Off, named Start cards blurred** (the owner found "Blur the front" unclear): Off, nothing blurs and there's no Unblur; On, cards open blurred as their type marks, with Unblur. A line under it says what the state does ("Cards open with the front blurred where their card type's Layout tab marks it; Unblur shows it." / "Cards open with the front clear, and there's no Unblur."), and a (?) after its label plays it (`Setting`'s `explain`, `explainers/blurScene.tsx`: a made-up card opening blurred, Unblur pressed, Blur's key blurring it again). The kept key stays `blurFront`.
 
 ## The order
 
@@ -82,16 +83,16 @@ The page offers seven places (Above Show back, Beside Show back, Card corner, Ca
 2. The button's own look, distinct from the answers (white, line), Show back (filled accent) and the tools (bare grey words): a ground of its own, a breath of the spoiler's grey (`--blur-soft`, a new token in each theme), its icon in the accent. Default: that; the Chip look is the same button as glass over the card (`--blur-glass`).
 3. Its icons: Show back of card already has the eye, so Unblur and Blur take two new ones for `Icon.tsx`, `focus` (corners round a sharp ring) and `blur` (the same corners round a broken ring). Default: those; `eyeOff` stays unused here.
 4. On the back, and on a card whose type marks nothing, the button is gone but holds its room, so turning the card moves nothing; With the tools it stands greyed instead, as Step back does. Default: that.
-5. With Blur the front Off, the button is gone with no room held (it's the account's setting, not the card's). Default: that.
+5. With Start cards blurred Off, the button is gone with no room held (it's the account's setting, not the card's). Default: that.
 6. The Layout tab's per-field row: named **Blurred front**, its choices Show / Blur / Hide (verbs, as On the front's Show / Spoiler / Hide beside it), under On the front and On the back. Default: that; "On the blurred front" the longer alternative.
 7. A clip's subtitles keep their own row under the clip's Subtitles (Show / Blur highlight / Blur / Hide today, labelled While listening), else a clip's subtitles show the very sentence the front blurs. Default: kept, renamed **Blurred front** too. Not on the page.
 8. The Layout tab loses Listen first's switch and Ends listening; its Side becomes Front / Back, and the card there is the review's own, so its Blur / Unblur button works there as in a review to see the blurred front. Default: that.
-9. The Layout tab's Blurred front row stays live while the account's Blur the front is Off (it's the type's, kept for when it's on). Default: not greyed.
-10. Turning Blur the front Off unblurs the card on screen at once; turning it On blurs from the next card. Default: that.
+9. The Layout tab's Blurred front row stays live while the account's Start cards blurred is Off (it's the type's, kept for when it's on). Default: not greyed.
+10. Turning Start cards blurred Off unblurs the card on screen at once; turning it On blurs from the next card. Default: that.
 11. The Time reviewing tile's view named **Side** (Front / Back), since nothing is a phase any more and the Layout tab already says Side. Default: Side; "Phase" if the owner prefers the word kept.
 12. Answer time's foot: "Front 5.6 s · back 1.8 s", the front first as a card goes. Default: that.
 13. Blur's row in Settings → Keybinds stands where Done listening's did, first after Start, in the order a card goes (Blur, Show back of card, Step back); Shift pressed, not held. Default: that.
 14. Blur and Show back of card are heard together on the front, so they can't share a key and shape (`clash`); Done listening's place in `apart` goes. Default: that.
-15. Blur the front sits last in Settings → General → Reviews, beside Example shown (both are about what the card shows). Default: there.
+15. Start cards blurred sits last in Settings → General → Reviews, beside Example shown (both are about what the card shows). Default: there.
 16. Unblur fades the blur out in 0.18 s rather than snapping. Default: that quick fade; a snap if it feels slow.
 17. A hidden part on the blurred front fades in with the same 0.18 s. Default: that.

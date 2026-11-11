@@ -25,7 +25,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-11: Streaks, a place of its own in the bar beside Stats, where streaks are made (the dashed New streak tile), changed and deleted, Streaks On / Off at its head; Stats is Stats alone; Settings → General → Streaks gone.
 - 2026-11-11: Today, its facts (extra study among them) and every streak green or red at any hour with each condition's own tick or cross, on the home and heading Streaks; the Reminder panel, the line at the top of the home, the Review door's note and the streak tile's tint gone; the Streak reminder and Starts at on the extension's YouTube tab (`STREAKS.md` → Rounds 10, 12 and 13).
 - 2026-11-11: a review's time left by its counts, the finish time on hover or press, and the time on every Start.
-- 2026-11-11: Blur the front, Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
+- 2026-11-11: Start cards blurred (its line and its (?) playing it), Unblur and Blur in the card's corner and on Shift, a field's Blurred front; a card's two sides in Stats (migration 53 merged the old phase's time into the front's).
 
 **Streaks and the tiles** (`docs/STREAKS.md`, `architecture/web.md`, `architecture/data-model.md` → The silo)
 - 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored), counting per day or per week; the reminder on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Of video.

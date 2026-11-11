@@ -36,7 +36,7 @@ export type AutoPlay = z.infer<typeof AutoPlay>;
 export const playsOn = (plays: AutoPlay, side: "front" | "back") => plays === "both" || plays === (side === "front" ? "shown" : "turned");
 
 /**
- * What the blurred front does with a part (its "Blurred front", while the account's Blur the front is on): shows it,
+ * What the blurred front does with a part (its "Blurred front", while the account's Start cards blurred is on): shows it,
  * blurs it, or leaves it unseen, its room kept either way so nothing moves as it unblurs. A blurred sound or clip
  * still plays, its picture blurred; a hidden one doesn't.
  */
@@ -169,7 +169,7 @@ export type CardSide = "front" | "back";
 
 /**
  * Whether a type's front has anything to blur: a part on the front its Blurred front blurs or hides. Its cards open
- * blurred while the account's Blur the front is on; a type marking nothing opens clear.
+ * blurred while the account's Start cards blurred is on; a type marking nothing opens clear.
  */
 export const blursFront = (layout: readonly Pick<LayoutPart, "front" | "blur">[]): boolean => layout.some((p) => p.front !== "hide" && p.blur !== "show");
 

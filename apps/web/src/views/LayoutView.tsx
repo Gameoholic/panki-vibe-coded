@@ -245,7 +245,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
   const stepBack = () => {
     if (canStepBack) showSide("front");
   };
-  /** Whether Blur's key does anything here: on the front, while Blur the front is on and something is marked to blur. */
+  /** Whether Blur's key does anything here: on the front, while Start cards blurred is on and something is marked to blur. */
   const blurrable = review.blurFront && side === "front" && blursFront(draft);
 
   // The review's own keys turn the card here as they do there: Blur's, Show back of card's and Step back's, held as long
@@ -379,7 +379,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           label="On the back"
           control={<Segmented idPrefix="part-back" label="On the back" options={SHOW_OPTIONS} value={part.back} onChange={(back) => update(id, { back })} />}
         />
-        {/* What the blurred front does with it: the type's own, live while the account's Blur the front is off too. */}
+        {/* What the blurred front does with it: the type's own, live while the account's Start cards blurred is off too. */}
         <Setting
           id="part-blur"
           label="Blurred front"

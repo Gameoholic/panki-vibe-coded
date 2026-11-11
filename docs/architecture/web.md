@@ -77,7 +77,7 @@ In a review a clip's full screen is the review's: `ReviewView` hands the card a 
 
 ## The Layout tab
 
-`views/LayoutView.tsx` is the review screen with the card editable: the same width, fitting rules and full screen. The card is always live (`ReviewCard` with `edit`): it plays and answers its keys as in a review, and a press on a part picks it (`onClickCapture`, heard on the way down, so a press on its player picks it too). Its settings are `FloatPanel`, inside the review's element so it stands in full screen too, its place kept on this device. The draft is the parts and the marks together, one Undo history. The card blurs as in a review, with its Unblur and Blur, and a part's Blurred front stays live while the account's Blur the front is off.
+`views/LayoutView.tsx` is the review screen with the card editable: the same width, fitting rules and full screen. The card is always live (`ReviewCard` with `edit`): it plays and answers its keys as in a review, and a press on a part picks it (`onClickCapture`, heard on the way down, so a press on its player picks it too). Its settings are `FloatPanel`, inside the review's element so it stands in full screen too, its place kept on this device. The draft is the parts and the marks together, one Undo history. The card blurs as in a review, with its Unblur and Blur, and a part's Blurred front stays live while the account's Start cards blurred is off.
 
 ## Files on a card
 

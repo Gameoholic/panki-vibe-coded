@@ -3473,7 +3473,7 @@ mark.sub-mark {
   font-weight: 600;
 }
 
-/* Blur (components/ReviewCard.tsx, a part's `LayoutPart.blur`, while Blur the front is on): the front with a part
+/* Blur (components/ReviewCard.tsx, a part's `LayoutPart.blur`, while Start cards blurred is on): the front with a part
    blurred or hidden as its type marks it. A part blurred or hidden keeps exactly its room, so nothing moves as it
    unblurs. Blurred words, a picture or a link are out of reach (`inert` in the review) and can't be selected; a blurred
    sound or clip still plays, its picture blurred. The blur is a share of the words' own size, so big words are as
@@ -9060,6 +9060,13 @@ mark.sub-blur {
   max-width: 300px;
   white-space: normal;
 }
+/* A (?) that plays a setting (`Setting`'s `explain`), after its label as the hint's mark stands; the label's weight
+   stays the label's, never the picture's. */
+.setting-label > .explain {
+  vertical-align: middle;
+  margin-left: 8px;
+  font-weight: 400;
+}
 .btn.explain-q:hover,
 .btn.explain-q[aria-expanded="true"] {
   border-color: var(--accent);
@@ -9084,14 +9091,16 @@ mark.sub-blur {
     transform: translateY(6px);
   }
 }
-/* On a phone the window hangs from the whole title row, as wide as the panel, never past the screen's edge (the page in
-   it scales to fit, as it does in any width). */
+/* On a phone the window hangs from the whole title row (or the whole setting), as wide as the panel, never past the
+   screen's edge (the page in it scales to fit, as it does in any width). */
 @media (max-width: 640px) {
-  .explain-head {
+  .explain-head,
+  .setting.is-explained {
     position: relative;
     z-index: 40;
   }
-  .explain-head > .explain {
+  .explain-head > .explain,
+  .setting.is-explained .explain {
     position: static;
   }
   .explain-window {
@@ -9163,6 +9172,9 @@ mark.sub-blur {
 .explain-favicon.is-video {
   background: var(--mark-red);
   border-radius: 4px;
+}
+.explain-favicon.is-panki {
+  background: var(--accent);
 }
 .explain-address {
   flex: 1;
@@ -9288,6 +9300,15 @@ mark.sub-blur {
   .explain-pointer {
     transition: none;
   }
+}
+
+/* Start cards blurred's scene (explainers/blurScene.tsx): a review's card and Show back of card under it, at a
+   review's width, in the page's middle. */
+.ex-review {
+  display: grid;
+  gap: 16px;
+  width: 640px;
+  margin: 64px auto 0;
 }
 
 /* A video's thumbnail (bundled: explainers/thumbs/), cropped to its box as the site crops it. */

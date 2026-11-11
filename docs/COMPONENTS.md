@@ -63,7 +63,7 @@ Paths from `apps/web/src/`.
 | ReviewScreen | `components/ReviewScreen.tsx` | The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. |
 | ScrollEdges | `components/ScrollEdges.tsx` | A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. |
 | Segmented | `components/Segmented.tsx` | A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). |
-| Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, the `perDevice` tag (`Setting`). |
+| Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, an `explain` scene, the `perDevice` tag (`Setting`). |
 | ShowButton | `components/ShowButton.tsx` | Show back of card, the button under a review card that turns it (`ShowButton`). Never a second of it. |
 | Skeleton | `components/Skeleton.tsx` | Anything loading, anywhere: the shape of what's coming (`Skeleton`, `Bone`, `SkeletonShape`). Never "Loading…", a spinner, or a blank that pops in. |
 | SpaceNotice | `components/SpaceNotice.tsx` | Saying the disk is nearly full (`SpaceNotice`). |
@@ -77,6 +77,7 @@ Paths from `apps/web/src/`.
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
 | TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field (`TouchUpAll`, `Tied`, `fieldShown`, `proposes`, `UnmarkAi`). Never a second proposal. |
 | aiScenes | `explainers/aiScenes.tsx` | What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). |
+| blurScene | `explainers/blurScene.tsx` | What Settings → General → Reviews' Start cards blurred plays: a card opening blurred, Unblur, and Blur's key (`BlurScene`). |
 | examples | `explainers/examples.ts` | The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. |
 | site | `explainers/site.tsx` | The made-up video site an explainer plays on (`WatchPage`, `SiteTop`, `WATCH`, `WATCHED`, `videoAt`). |
 

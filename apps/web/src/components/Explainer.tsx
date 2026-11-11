@@ -9,7 +9,8 @@ import { KeyCap } from "./KeyCap";
  * beside the panel's title opens a window, under it, playing the feature being used on a page as it would really be,
  * round and round, Panki's own components doing it. Pointed at it opens; let go of, it closes; a click keeps it open
  * until a press elsewhere or Escape. What each panel plays is its scene's: the extension's options page has its own
- * (`apps/extension/src/options/explainerScenes.tsx`), and the app's Settings → Panki AI's are in `explainers/aiScenes.tsx`.
+ * (`apps/extension/src/options/explainerScenes.tsx`), the app's Settings → Panki AI's are in `explainers/aiScenes.tsx`,
+ * and a setting can carry one after its label too (`Setting`'s `explain`: Start cards blurred, `explainers/blurScene.tsx`).
  */
 
 /** The page a picture is drawn on, at a real page's size: a scene lays itself out in these pixels, Panki's components at their own size, and the whole is scaled to the window. */
@@ -26,7 +27,7 @@ const LOOP_REST_MS = 1100;
 const CLOSE_AFTER_MS = 180;
 
 /** The browser a picture's page is in: what its tab says, its made-up site's icon, its address. */
-export type Site = { tab: string; url: string; icon: "news" | "video" };
+export type Site = { tab: string; url: string; icon: "news" | "video" | "panki" };
 /** A place on the page, as shares of its width and height (0 to 100). */
 export type Spot = { left: number; top: number; right: number; bottom: number };
 type Point = readonly [x: number, y: number];
@@ -216,7 +217,7 @@ export function Stage({ site, script, children }: { site: Site; script: (t: Tool
 }
 
 /**
- * The (?) beside a panel's title, and the window it opens with the feature playing in it. The picture is made only
+ * The (?) beside a panel's title or a setting's label, and the window it opens with the feature playing in it. The picture is made only
  * while the window is open, so nothing plays for a panel nobody is looking at.
  */
 export function Explainer({ name, children }: { name: string; children: ReactNode }) {
