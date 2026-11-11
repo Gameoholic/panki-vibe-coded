@@ -65,10 +65,11 @@ export const EventBatch = z.object({ events: z.array(NewEvent).min(1).max(100) }
 export type EventBatch = z.infer<typeof EventBatch>;
 
 /**
- * The most one showing of a card counts for in the time spent studying, 2 minutes: a card left on screen while away isn't time spent on it. What's kept is the time as measured; only
- * what's worked out from it is capped.
+ * The most one showing of a card counts for in the time spent studying, a minute and a half: a card left on screen
+ * while away isn't time spent on it. What's kept is the time as measured; only what's worked out from it is capped, so
+ * a new cap reads the whole past again.
  */
-export const CARD_TIME_MAX_MS = 120_000;
+export const CARD_TIME_MAX_MS = 90_000;
 
 /** A day on the account's clock, "YYYY-MM-DD", turning over at the Settings' hour. */
 export const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
