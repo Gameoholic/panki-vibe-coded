@@ -6,6 +6,7 @@ import {
   DEFAULT_ADMIN_PROMPTS,
   PROMPT_MAX,
   adminPromptOf,
+  messagePartOf,
   variableOf,
   variablesIn,
   type AdminPromptPlaceId,
@@ -30,6 +31,8 @@ const WORDS = {
   name: "Panki AI's prompts",
   /** Under a box while its prompt has nowhere for an account's User instructions to go. */
   noInstructions: `User instructions aren't sent: this prompt has no ${variableOf("instructions")}.`,
+  /** Over what Panki sends with every message, under each prompt: where the first goes, and that every later one goes alone. */
+  messagePart: `Sent with each message: the first at ${variableOf("firstMessage")} (after the prompt without it), every later one on its own after the conversation so far`,
 };
 
 /** Each place's prompt as it's edited, by place. */
@@ -139,6 +142,13 @@ export function AiPromptSection({ status, onStatus, onSaveStatus, onGuard }: Pro
               />
             </div>
             {sendsInstructions ? null : <p className="ai-prompt-note">{WORDS.noInstructions}</p>}
+            {/* What Panki sends with every message, read-only, in plain view: the user's words, then Panki's own lines. */}
+            <div className="answer-parts-body">
+              <div className="answer-parts-shape">
+                <p className="answer-parts-title">{WORDS.messagePart}</p>
+                <pre className="answer-parts-message">{messagePartOf(place)}</pre>
+              </div>
+            </div>
             <div className="add-actions add-actions-start">
               <Button id={`ai-prompt-${place}-reset`} disabled={isDefaultOf(place, prompt)} onClick={() => history.change({ ...draft, [place]: DEFAULT_ADMIN_PROMPTS[place] })}>
                 <Icon name="reset" />

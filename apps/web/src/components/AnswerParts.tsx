@@ -1,6 +1,6 @@
 /** @panki What a place's answer holds, folded (`AnswerParts`). */
 import { useState } from "react";
-import { ANSWER_FIXED, answerShapesOf, answerWordsUnsent, messagePartOf, variableOf, type AiPlaceId, type AnswerPart } from "@panki/contracts";
+import { ANSWER_FIXED, answerShapesOf, answerWordsUnsent, type AiPlaceId, type AnswerPart } from "@panki/contracts";
 import { Button } from "./Button";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
@@ -12,9 +12,6 @@ type Props = {
   /** The provider set in Admin, by name: what never sees the descriptions. */
   provider: string;
 };
-
-/** The heading over what Panki sends with every message: the first where the prompt has its place, every later one alone. */
-const MESSAGE_PART_TITLE = `Each message: the first at ${variableOf("firstMessage")} (after the prompt without it), every later one on its own`;
 
 /** An answer's parts as a list, each key's own parts indented under it. */
 function PartsList({ parts }: { parts: readonly AnswerPart[] }) {
@@ -54,13 +51,6 @@ export function AnswerParts({ id, place, provider }: Props) {
               <PartsList parts={shape.parts} />
             </div>
           ))}
-          {/* What Panki sends after the prompt with every message: the user's words apart from its own requirements. */}
-          {place === "word" || place === "card" ? (
-            <div className="answer-parts-shape">
-              <p className="answer-parts-title">{MESSAGE_PART_TITLE}</p>
-              <pre className="answer-parts-message">{messagePartOf(place)}</pre>
-            </div>
-          ) : null}
           {[ANSWER_FIXED, answerWordsUnsent(provider)].map((note) => (
             <p key={note} className="answer-parts-fixed">
               <Icon name="info" />

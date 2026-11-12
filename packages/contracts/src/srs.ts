@@ -438,9 +438,10 @@ export const AI_INSTRUCTIONS_MAX = 2_000;
  * User instructions as every account begins with them (`Settings.aiInstructions`'s default): how Panki AI's words
  * read, in both places, the one home of it. The places' prompts hold only what they need to work (`ai.ts` →
  * `DEFAULT_TOUCH_UP_PROMPT`, `DEFAULT_EXPLAIN_PROMPT`), so how an answer reads is here, where the account can change it.
- * A few lines of what to aim for, never a list of what not to do.
+ * A few lines of what to aim for, never a list of what not to do; only what holds in every place, since both send it.
+ * What one place's fields want is that place's action's words (`aiActions.ts` → `AI_ACTIONS.touchUp`).
  */
-export const DEFAULT_AI_INSTRUCTIONS = `Write like a fluent friend helping a learner: plain, everyday English, short, the point first and nothing after it. Every sentence earns its place by teaching something about the word; anything else is left out. Use the video to get the meaning right, not to retell it. Help me read the sentence myself rather than translating it for me. An explanation covers only what the Meaning and the sentence don't already show, in a few words, and stays empty when they show it all. Reasons are a few words. Example sentences are short, everyday, and nothing to do with the video.`;
+export const DEFAULT_AI_INSTRUCTIONS = `Write like a fluent friend helping a learner: plain, everyday English, short, the point first and nothing after it. Every sentence earns its place by teaching something about the word; anything else is left out. Use the video to get the meaning right, not to retell it. Help me read the sentence myself rather than translating it for me. Keep every why and reason to a few words.`;
 
 export const Settings = z.object({
   // `fuzz` (each wait spread ±10 %) is gone: a row kept of it is read by nothing.

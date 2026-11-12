@@ -80,7 +80,16 @@ const panki = (action: Pick<AiAction, "place" | "name" | "words"> & Partial<Omit
   ...action,
 });
 export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
-  touchUp: panki({ place: "card", name: "Touch up", words: `Touch up the card. ${QUIET_REPLY}`, requires: TOUCH_UP_KEYS }, "touchUp"),
+  // What the card's own fields want rides here, not in User instructions, which the word's conversation sends too.
+  touchUp: panki(
+    {
+      place: "card",
+      name: "Touch up",
+      words: `Touch up the card. Leave the Explanation empty when the Meaning and the sentence already show it all, and keep it to a few words otherwise. Example sentences are short, everyday, and nothing to do with the video. ${QUIET_REPLY}`,
+      requires: TOUCH_UP_KEYS,
+    },
+    "touchUp",
+  ),
   // The word's reply actions on the card: about the card's word in the card's sentence, each requiring the reply, so
   // these come back with words said whatever the fields do.
   cardExplain: panki(
