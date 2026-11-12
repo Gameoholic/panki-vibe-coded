@@ -1767,9 +1767,13 @@ function monthsBack(day: Day, n: number): Day {
   const last = new Date(Date.UTC(new Date(first).getUTCFullYear(), new Date(first).getUTCMonth() + 1, 0)).getUTCDate();
   return new Date(first + (Math.min(d.getUTCDate(), last) - 1) * 86_400_000).toISOString().slice(0, 10);
 }
-/** The first day a stretch draws, up to today; All time from the first period that counted (at least the last 6 months). */
-function streakSpanFrom(span: StreakSpan | "custom", frame: StatFrame | null, today: Day, firstCounted: Day | undefined): Day {
+/**
+ * The first day a stretch draws, up to today; Last 6 mo is this week and the 25 before, whole weeks, as the map always
+ * was; All time from the first period that counted (at least those 26 weeks).
+ */
+function streakSpanFrom(span: StreakSpan | "custom", frame: StatFrame | null, today: Day, weekEndsOn: WeekDay, firstCounted: Day | undefined): Day {
   const months = (n: number) => addDays(monthsBack(today, n), 1);
+  const weeks26 = addDays(weekStartOf(today, weekEndsOn), -(HEAT_FILL_COLS - 1) * 7);
   switch (span) {
     case "month":
       return `${today.slice(0, 7)}-01`;
@@ -1778,18 +1782,21 @@ function streakSpanFrom(span: StreakSpan | "custom", frame: StatFrame | null, to
     case "days30":
       return addDays(today, -29);
     case "months6":
-      return months(6);
+      return weeks26;
     case "months12":
       return months(12);
     case "all":
-      return firstCounted !== undefined && firstCounted < months(6) ? firstCounted : months(6);
+      return firstCounted !== undefined && firstCounted < weeks26 ? firstCounted : weeks26;
     case "custom":
-      if (!frame) return months(6);
+      if (!frame) return weeks26;
       return frame.unit === "day" ? addDays(today, 1 - frame.n) : frame.unit === "week" ? addDays(today, 1 - 7 * frame.n) : months(frame.unit === "month" ? frame.n : 12 * frame.n);
   }
 }
-/** How many columns of weeks a heat map up to a year wide draws whole; past that it scrolls sideways. */
-const HEAT_FIT_COLS = 27;
+/**
+ * How many columns of weeks fill a streak's map's width, Last 6 mo's: every stretch is drawn at that size, a shorter one
+ * fewer columns at the left, a longer one scrolling sideways.
+ */
+const HEAT_FILL_COLS = 26;
 
 /**
  * A streak's Show more: the stretch picked as days (Last 6 mo to begin with, kept on this device as a tile's window is),
@@ -1810,7 +1817,7 @@ function StreakMore({ id, state, today, weekEndsOn, name, at, onAt }: { id: stri
   const period = STREAK_PERIODS[state.per];
   const now = state.row[state.rowNow]?.start ?? today;
   const startOf = (day: Day) => drawn.startOf(day, weekEndsOn);
-  const from = streakSpanFrom(span, frame, today, state.counted[0]);
+  const from = streakSpanFrom(span, frame, today, weekEndsOn, state.counted[0]);
   const first = weekStartOf(from, weekEndsOn);
   const cols = Math.floor(daysFrom(first, today) / 7) + 1;
   // Its periods: each day, or each week, from the one `from` falls in to the one going on.
@@ -1866,7 +1873,7 @@ function StreakMore({ id, state, today, weekEndsOn, name, at, onAt }: { id: stri
             }}
           />
         ) : null}
-        <HeatMap first={first} cols={cols} from={from} to={today} step={step} wordsOf={wordsOf} onAt={onAt} label={`${name}, ${said}`} size={cols > HEAT_FIT_COLS ? "year" : "fit"} />
+        <HeatMap first={first} cols={cols} from={from} to={today} step={step} wordsOf={wordsOf} onAt={onAt} label={`${name}, ${said}`} fills={HEAT_FILL_COLS} />
         <p className="w-foot">{at ?? `${num(n)} of ${periodCountWords(state.per, periods.size)} counted`}</p>
       </div>
       <MoreBlock title="Longest runs">

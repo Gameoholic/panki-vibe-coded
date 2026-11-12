@@ -194,17 +194,28 @@ const YEAR_COLS = 53;
 /**
  * Days as a heat map: a column a week from `first`, the first day of a week of the account's (`weekStartOf`), at the
  * top; only the days from `from` to `to`
- * drawn; the months named above where each begins. Scaled to the width it's in (`fit`), or (`year`) at the size a
- * year's 53 columns fill the width with, so a few weeks are a few columns at the left and more than a year runs on to
- * the right, scrolling sideways inside its box.
+ * drawn; the months named above where each begins. Drawn at the size `fills` columns fill the width with (a year's 53
+ * for `size` "year"; to begin with, its own columns, scaled to the width it's in), so fewer weeks are fewer columns at
+ * the left, never cells blown up to fill it, and more run on to the right, scrolling sideways inside its box.
  */
-export function HeatMap({ first, cols, from, to, step, wordsOf, onAt, label, size = "fit" }: Pointed & { first: Day; cols: number; from: Day; to: Day; step: (day: Day) => HeatStep; wordsOf: (day: Day) => string; label: string; size?: "fit" | "year" }) {
+export function HeatMap({
+  first,
+  cols,
+  from,
+  to,
+  step,
+  wordsOf,
+  onAt,
+  label,
+  size,
+  fills = size === "year" ? YEAR_COLS : cols,
+}: Pointed & { first: Day; cols: number; from: Day; to: Day; step: (day: Day) => HeatStep; wordsOf: (day: Day) => string; label: string; size?: "year"; fills?: number }) {
   const box = useRef<HTMLDivElement>(null);
-  if (size === "fit") return <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} />;
+  if (cols === fills) return <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} />;
   return (
     <div className="heat-frame">
       <div ref={box} className="heat-scroll">
-        <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} share={`${(cols / YEAR_COLS) * 100}%`} />
+        <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} share={`${(cols / fills) * 100}%`} />
       </div>
       <ScrollEdges of={box} axis="x" />
     </div>
