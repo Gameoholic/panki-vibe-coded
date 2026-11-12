@@ -350,8 +350,6 @@ export type ComposerAction = {
   name: string;
   on: boolean;
   disabled: boolean;
-  /** The action it stands under in the list (`AiAction.under`), nested there, closed until opened; at the top when that one isn't listed. */
-  under?: string | null;
 };
 /** What the actions' dropdown says: the one lit by name, "Touch up · 2 more" for several, "Actions…" with none. */
 export function actionsSummary(actions: readonly ComposerAction[]): string {
@@ -598,7 +596,7 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
             <Dropdown
               id={`${id}-actions`}
               label={MESSAGE_WORDS.actions}
-              options={actions.map((action) => ({ id: action.id, label: action.name, disabled: action.disabled, ...(action.under ? { under: action.under } : {}) }))}
+              options={actions.map((action) => ({ id: action.id, label: action.name, disabled: action.disabled }))}
               values={actions.filter((action) => action.on && !action.disabled).map((action) => action.id)}
               summary={actionsSummary(actions)}
               onToggle={onToggle}

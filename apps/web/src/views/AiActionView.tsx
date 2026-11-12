@@ -3,19 +3,16 @@ import {
   ACTION_NAME_MAX,
   ACTION_SECONDS_MAX,
   ACTION_WORDS_MAX,
-  AI_ACTIONS,
   AiActionUpdate,
   CARD_LEAVES,
   CARD_PARTS,
   EXPLAIN_PARTS,
   EXPLAIN_PART_NAMES,
   TOUCH_UP,
-  actionsOf,
   contextLengthOf,
   eachWayOf,
   isPankiAction,
   knobsProblem,
-  underProblem,
   type ActionPart,
   type AiActionUpdate as Update,
   type KeptAction,
@@ -26,7 +23,6 @@ import { actionCeilingWords } from "../aiTemplateKinds";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { KNOB_WORDS } from "../components/AiRun";
-import { Dropdown } from "../components/Dropdown";
 import { Icon } from "../components/Icon";
 import { NumberField } from "../components/NumberField";
 import { Setting } from "../components/Setting";
@@ -42,11 +38,6 @@ const MESSAGES = {
   nameLong: `Keep the name under ${ACTION_NAME_MAX} characters.`,
   wordsLong: `At most ${ACTION_WORDS_MAX.toLocaleString("en")} characters.`,
 };
-/** Stands under's words: none, at the top of the list; and why it can't be changed while others stand under it. */
-const UNDER_WORDS = { none: "None", hasChildren: "Other actions stand under this one." };
-/** Stands under's value for none, never an action's id (one is letters, digits, - and _ alone). */
-const NO_PARENT = " none";
-
 
 /** What's edited: everything an action is but its id and its place, which never change, and whether it's a default. */
 type Draft = Update & { isDefault: boolean };
@@ -55,7 +46,6 @@ const draftOf = (action: KeptAction, isDefault: boolean): Draft => ({
   words: action.words,
   requires: action.requires,
   leaves: action.leaves,
-  under: action.under,
   seconds: action.seconds,
   isDefault,
 });
@@ -120,16 +110,7 @@ export function AiActionView({ action, isNew, isDefault, ai, onSave, onRemove, o
     }
     return found;
   }, [parsed]);
-  // Where it stands in the composer's Actions menu and in Settings: at the top, or under another of its place's actions at
-  // the top. One with others under it stays at the top (one level only, `underProblem`).
-  const placed = actionsOf(ai.actions, place);
-  const hasChildren = keptId !== null && placed.some((each) => each.under === keptId);
-  const tops = placed.filter((each) => each.under === null && each.id !== keptId).map((each) => ({ id: each.id, label: each.name }));
-  // One of Panki's the account deleted, still named here: kept as it's chosen until it's restored.
-  const gone = draft.under !== null && !tops.some((each) => each.id === draft.under) && isPankiAction(draft.under) ? [{ id: draft.under, label: AI_ACTIONS[draft.under].name }] : [];
-  const underOptions = [{ id: NO_PARENT, label: UNDER_WORDS.none }, ...tops, ...gone];
-  const underIssue = draft.under === null ? null : underProblem(ai.actions, { id: keptId ?? "", place, under: draft.under });
-  const valid = parsed.success && knobs === null && underIssue === null;
+  const valid = parsed.success && knobs === null;
   const status: SaveStatus["state"] = saving ? "saving" : saveFailure ? "failed" : dirty ? "unsaved" : "saved";
 
   // While there's unsaved work, leaving asks first: the app's own question for its screens, and the browser's for a
@@ -280,28 +261,6 @@ export function AiActionView({ action, isNew, isDefault, ai, onSave, onRemove, o
           label="Default"
           control={<Toggle id="ai-action-default" says={{ on: "On", off: "Off" }} on={draft.isDefault} onChange={(on) => change({ ...draft, isDefault: on })} />}
         />
-        <Setting
-          id="aiActionUnder"
-          label="Stands under"
-          control={
-            <>
-              <Dropdown
-                id="ai-action-under"
-                label="Stands under"
-                options={underOptions}
-                value={draft.under ?? NO_PARENT}
-                disabled={hasChildren}
-                onChange={(id) => change({ ...draft, under: id === NO_PARENT ? null : id })}
-              />
-              {hasChildren ? <span className="btn-beside">{UNDER_WORDS.hasChildren}</span> : null}
-            </>
-          }
-        />
-        {underIssue !== null ? (
-          <p className="field-error" role="alert">
-            {underIssue}
-          </p>
-        ) : null}
       </section>
 
       <section className="panel" aria-labelledby="ai-action-knobs-title">

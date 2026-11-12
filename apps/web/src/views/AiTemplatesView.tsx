@@ -162,54 +162,16 @@ function moved<T>(list: readonly T[], from: number, to: number): T[] {
  * One place's actions in the account's order, the composer's: a row each, its grip to drag it (or the arrow keys on it),
  * its name with Default where it's ticked as a conversation opens, its words on one quiet line, and what a message with
  * it alone can cost on the model set in Admin. One of Panki's as it comes is quieter, with the lock; edited, it reads as
- * the account's own. Those standing under an action (`AiAction.under`, as `actionsOf` gives it) are listed set in under
- * its row and dragged among themselves; the action at the top carries them with it. The order kept is the whole, each
- * action at the top followed by those under it.
+ * the account's own.
  */
 function ActionRows({ place, ai, onOpen, onArrange }: { place: ActionPlaceId; ai: PankiAiStatus; onOpen: (action: KeptAction) => void; onArrange: (place: ActionPlaceId, order: string[]) => void }) {
-  const book = ai.actions;
-  const all = actionsOf(book, place);
-  const top = all.filter((action) => action.under === null);
-  const under = (parent: string) => all.filter((action) => action.under === parent);
-  /** The whole order, each at the top followed by those under it, with one parent's children put in a new order. */
-  const whole = (tops: readonly AiAction[], parent?: string, children?: readonly AiAction[]) =>
-    tops.flatMap((action) => [action.id, ...(action.id === parent && children ? children : under(action.id)).map((child) => child.id)]);
-  const order = useDragOrder(top.length, (from, to) => onArrange(place, whole(moved(top, from, to))));
+  const all = actionsOf(ai.actions, place);
+  const order = useDragOrder(all.length, (from, to) => onArrange(place, moved(all, from, to).map((action) => action.id)));
   return (
     <ul className={`deck-list action-list ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
-      {top.map((action, i) => {
-        const children = under(action.id);
-        return (
-          <li key={action.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`deck-item action-item ${order.dragging === i ? "is-dragging" : ""}`.trim()}>
-            <ActionRow action={action} ai={ai} grip={order.handleProps(i)} gripOff={top.length === 1} onOpen={onOpen} />
-            {children.length > 0 ? (
-              <NestedActionRows children={children} ai={ai} onOpen={onOpen} onMove={(next) => onArrange(place, whole(top, action.id, next))} />
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** The actions standing under one, set in under its row and dragged among themselves. */
-function NestedActionRows({
-  children,
-  ai,
-  onOpen,
-  onMove,
-}: {
-  children: readonly AiAction[];
-  ai: PankiAiStatus;
-  onOpen: (action: KeptAction) => void;
-  onMove: (next: AiAction[]) => void;
-}) {
-  const order = useDragOrder(children.length, (from, to) => onMove(moved(children, from, to)));
-  return (
-    <ul className={`deck-list action-list action-nested ${order.dragging !== null ? "is-reordering" : ""}`.trim()}>
-      {children.map((action, i) => (
+      {all.map((action, i) => (
         <li key={action.id} ref={order.rowRef(i)} style={order.rowStyle(i)} className={`deck-item action-item ${order.dragging === i ? "is-dragging" : ""}`.trim()}>
-          <ActionRow action={action} ai={ai} grip={order.handleProps(i)} gripOff={children.length === 1} onOpen={onOpen} />
+          <ActionRow action={action} ai={ai} grip={order.handleProps(i)} gripOff={all.length === 1} onOpen={onOpen} />
         </li>
       ))}
     </ul>

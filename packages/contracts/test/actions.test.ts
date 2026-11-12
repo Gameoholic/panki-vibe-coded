@@ -40,7 +40,9 @@ import {
   sendPieces,
   sendTokens,
   cardPromptOf,
-  underProblem,
+  cardPiecesOf,
+  keysWithLines,
+  sentenceLinesOf,
 } from "../src/aiActions";
 import { aiSent, explainProblem } from "../src/prompt";
 import { touchUpProblem, type TouchUpNow } from "../src/touchUp";
@@ -58,8 +60,23 @@ const card = (...ids: string[]) => lit("card", ...ids);
 const word = (...ids: string[]) => lit("word", ...ids);
 const ids = (book: AccountActions, place: ActionPlaceId) => actionsOf(book, place).map((action) => action.id);
 /** An account's own card action reaching further than Panki's, words alone: 90 s each way (3 min of video context). */
-const WIDE = { id: "wide1", place: "card" as const, name: "Wide", words: "Look again with more of the video.", requires: [], leaves: [], under: null, seconds: 90 };
+const WIDE = { id: "wide1", place: "card" as const, name: "Wide", words: "Look again with more of the video.", requires: [], leaves: [], seconds: 90 };
 const withWide: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: [WIDE] };
+const ALL_KEYS = ["meaning", "reading", "dictionaryForm", "pitchAccent", "sentence", "explanation", "examples"] as const;
+type Key = (typeof ALL_KEYS)[number];
+/** An account's own action for one field: its field required, every other left out. */
+const fieldOwn = (key: Key) => ({
+  id: `own-${key}`,
+  place: "card" as const,
+  name: `Own ${key}`,
+  words: `Touch up the ${key}.`,
+  requires: [key],
+  leaves: ALL_KEYS.filter((other) => other !== key),
+  seconds: 30,
+});
+const OWN: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: ALL_KEYS.map(fieldOwn) };
+/** The account's own field actions by their fields. */
+const own = (...keys: Key[]) => litNow(OWN, "card", keys.map((key) => `own-${key}`));
 
 test("Touch up may answer and requires every field the deck maps, in the keys' order", () => {
   assert.deepEqual(keysFor(DECK), ["meaning", "reading", "sentence", "explanation", "examples"]);
@@ -67,10 +84,20 @@ test("Touch up may answer and requires every field the deck maps, in the keys' o
 });
 
 test("A field's own action requires its field alone; free text requires nothing; ticked together, the union", () => {
-  assert.deepEqual(requiredFor(DECK, card("touchUpExplanation")), ["explanation"]);
+  assert.deepEqual(requiredFor(DECK, own("explanation")), ["explanation"]);
   assert.deepEqual(requiredFor(DECK, []), []);
-  assert.deepEqual(requiredFor(DECK, card("touchUpSentence", "touchUpExamples")), ["sentence", "examples"]);
-  assert.deepEqual(requiredFor(["sentence"], card("touchUpExplanation")), []);
+  assert.deepEqual(requiredFor(DECK, own("sentence", "examples")), ["sentence", "examples"]);
+  assert.deepEqual(requiredFor(["sentence"], own("explanation")), []);
+});
+
+test("The Sentence is asked only where there are subtitle lines to pick it from, the message's wider ones first", () => {
+  assert.deepEqual(keysWithLines(DECK, ["駅で"]), [...DECK]);
+  assert.deepEqual(keysWithLines(DECK, []), ["meaning", "reading", "explanation", "examples"]);
+  assert.deepEqual(sentenceLinesOf({ surrounding: "前\n駅で" }, {}), ["前", "駅で"]);
+  assert.deepEqual(sentenceLinesOf({ surrounding: "駅で" }, { wider: "前\n駅で\n次" }), ["前", "駅で", "次"]);
+  assert.deepEqual(sentenceLinesOf({}, {}), []);
+  assert.deepEqual(cardPiecesOf({ surrounding: "前\n駅で", word: "駅" }), { surrounding: "1\t前\n2\t駅で", word: "駅" });
+  assert.deepEqual(cardPiecesOf({ word: "駅" }), { word: "駅" });
 });
 
 test("Panki's actions taken away are no action, whatever an account kept of them", () => {
@@ -85,12 +112,15 @@ test("Panki's actions taken away are no action, whatever an account kept of them
   assert.equal(actionOf(kept, "noExplanation"), null);
   assert.ok(!actionsOf(kept, "card").some((action) => action.id === "noExplanation"));
   assert.deepEqual(restorableOf(kept, "card"), []);
+  // Each field's own Touch up went: Touch up leaves an Explanation empty when it isn't needed.
+  assert.equal(actionOf(NO_ACCOUNT_ACTIONS, "touchUpSentence"), null);
+  assert.ok(!ids({ ...NO_ACCOUNT_ACTIONS, hidden: ["touchUpExplanation"] }, "card").some((id) => id.startsWith("touchUp") && id !== "touchUp"));
 });
 
 test("An action requiring fields is shown only where the deck maps one of them", () => {
-  const shown = actionsFor(NO_ACCOUNT_ACTIONS, ["sentence", "explanation"]).map((action) => action.id);
-  assert.ok(shown.includes("touchUpSentence") && shown.includes("touchUpExplanation"));
-  assert.ok(!shown.includes("touchUpMeaning") && !shown.includes("touchUpExamples"));
+  const shown = actionsFor(OWN, ["sentence", "explanation"]).map((action) => action.id);
+  assert.ok(shown.includes("own-sentence") && shown.includes("own-explanation"));
+  assert.ok(!shown.includes("own-meaning") && !shown.includes("own-examples"));
   assert.deepEqual(shown.slice(0, 1), ["touchUp"]);
   assert.ok(shown.includes("cardGrammar"));
   assert.ok(actionsFor(withWide, ["sentence"]).some((action) => action.id === "wide1"));
@@ -98,7 +128,7 @@ test("An action requiring fields is shown only where the deck maps one of them",
 
 test("A message asks something with a field it requires or words to say; nothing typed and nothing ticked asks nothing", () => {
   assert.ok(asksSomething(DECK, card("touchUp"), ""));
-  assert.ok(asksSomething(DECK, card("touchUpReading"), ""));
+  assert.ok(asksSomething(DECK, own("reading"), ""));
   assert.ok(asksSomething(DECK, [], "give me the correct meanings"));
   assert.ok(!asksSomething(DECK, [], "  "));
   assert.ok(asksSomething(DECK, [WIDE], ""));
@@ -107,9 +137,9 @@ test("A message asks something with a field it requires or words to say; nothing
 test("A message's words are the ticked actions' in the place's order then what was typed; Panki's requirements stand apart", () => {
   assert.equal(messageOf(card("touchUp"), ""), "Touch up the card. Leave the reply empty unless there's something of note.");
   assert.equal(requirementsOf(DECK, card("touchUp")), "Answer meaning, reading, sentence, explanation, examples: judge each that holds a value, and write each that's empty.");
-  assert.equal(messageOf(card("touchUpExplanation"), " shorter please "), "Touch up the Explanation. Leave the reply empty unless there's something of note.\nshorter please");
+  assert.equal(messageOf(own("explanation"), " shorter please "), "Touch up the explanation.\nshorter please");
   assert.equal(
-    requirementsOf(DECK, card("touchUpExplanation")),
+    requirementsOf(DECK, own("explanation")),
     "Answer explanation: judge each that holds a value, and write each that's empty. Do not answer meaning, reading, sentence, examples, whatever this message says: leave each exactly as it is.",
   );
   assert.equal(messageOf([], "give me the correct meanings"), "give me the correct meanings");
@@ -161,10 +191,10 @@ test("What the user typed, and an action's words, go inside <user_message>; Pank
 
 test("A message's answer limit is shared by the fields it requires, never under its floor; with words of its own, the whole of it", () => {
   assert.equal(sendTokens(2_000, DECK, card("touchUp"), ""), 2_000);
-  assert.equal(sendTokens(2_000, DECK, card("touchUpMeaning", "touchUpReading", "touchUpSentence", "touchUpExamples"), ""), 1_600);
-  assert.equal(sendTokens(2_000, DECK, card("touchUpExplanation"), ""), 400);
-  assert.equal(sendTokens(2_000, DECK, card("touchUpSentence", "touchUpExplanation", "touchUpExamples"), ""), 1_200);
-  assert.equal(sendTokens(2_000, DECK, card("touchUpExplanation"), "shorter"), 2_000);
+  assert.equal(sendTokens(2_000, DECK, own("meaning", "reading", "sentence", "examples"), ""), 1_600);
+  assert.equal(sendTokens(2_000, DECK, own("explanation"), ""), 400);
+  assert.equal(sendTokens(2_000, DECK, own("sentence", "explanation", "examples"), ""), 1_200);
+  assert.equal(sendTokens(2_000, DECK, own("explanation"), "shorter"), 2_000);
   assert.equal(sendTokens(2_000, DECK, [], "give me the correct meanings"), 2_000);
   assert.equal(sendTokens(2_000, DECK, [WIDE], ""), 2_000);
 });
@@ -182,7 +212,7 @@ test("A message's subtitles reach as far as the most of its actions', 30 s with 
   assert.equal(reachOf([near, far]), 120);
   // A later message carries its own only when it reaches further than the first.
   assert.equal(widerOf([WIDE], card("touchUp")), 90);
-  assert.equal(widerOf(card("touchUpSentence"), card("touchUp")), null);
+  assert.equal(widerOf(own("sentence"), card("touchUp")), null);
   assert.equal(widerOf([], [near]), 30);
   assert.equal(widerOf([far], word("explain")), 120);
   assert.equal(widerOf(word("explain"), [far]), null);
@@ -260,9 +290,11 @@ test("The first prompt is the admin's, its User instructions where they stand, t
 test("A message reaching further carries the wider subtitles in its own message alone", () => {
   const wider: TouchUpSend = { actions: [], text: "And here?", card: "Sentence [sentence]: 駅で", reach: 90, wider: "前の行\n駅で\n次の行" };
   const [, , later = ""] = aiSent(cardPromptOf(DEFAULT_PANKI_AI), {}, [{ role: "assistant", text: "{}" }], sendPieces(wider, ["sentence"], NO_ACCOUNT_ACTIONS), sendPieces(run, ["sentence"], NO_ACCOUNT_ACTIONS));
-  assert.ok(later.includes("<wider_video_subtitles>前の行\n駅で\n次の行</wider_video_subtitles>"));
+  // Numbered a line each, as the Sentence is picked from them.
+  assert.ok(later.includes("<wider_video_subtitles>1\t前の行\n2\t駅で\n3\t次の行</wider_video_subtitles>"));
   const [first = ""] = aiSent(cardPromptOf(DEFAULT_PANKI_AI), {}, [], {}, sendPieces(run, ["sentence"], NO_ACCOUNT_ACTIONS));
-  assert.ok(!first.includes("wider_video_subtitles"));
+  // The prompt names the tag; the subtitles in it are a later message's alone.
+  assert.ok(!first.includes("</wider_video_subtitles>"));
 });
 
 test("An admin's prompt without User instructions sends none", () => {
@@ -336,18 +368,18 @@ test("A word's first prompt is the admin's, its User instructions where they sta
 
 // ---------- The account's actions
 
-const shorter = { id: "touchUpExplanation", place: "card" as const, name: "Short explanation", words: "One line in the Explanation.", requires: ["explanation" as const], leaves: [], seconds: 30 };
+const shorter = { id: "cardExplain", place: "card" as const, name: "Short explanation", words: "One line in the Explanation.", requires: ["explanation" as const], leaves: [], seconds: 30 };
 const mine = { id: "a1b2", place: "card" as const, name: "Casual", words: "Keep the Explanation casual.", requires: [], leaves: [], seconds: 30 };
 
 test("An action resolves to the account's copy first, then Panki's; one it deleted to nothing", () => {
   const book: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: [shorter, mine], hidden: ["cardNuance"] };
-  assert.equal(actionOf(book, "touchUpExplanation")?.name, "Short explanation");
-  assert.equal(actionOf(book, "touchUpExplanation")?.words, "One line in the Explanation.");
+  assert.equal(actionOf(book, "cardExplain")?.name, "Short explanation");
+  assert.equal(actionOf(book, "cardExplain")?.words, "One line in the Explanation.");
   assert.equal(actionOf(book, "touchUp")?.name, AI_ACTIONS.touchUp.name);
   assert.equal(actionOf(book, "a1b2")?.name, "Casual");
   assert.equal(actionOf(book, "cardNuance"), null);
   assert.equal(actionOf(book, "nobody"), null);
-  assert.equal(messageOf(litNow(book, "card", ["touchUpExplanation"]), ""), "One line in the Explanation.");
+  assert.equal(messageOf(litNow(book, "card", ["cardExplain"]), ""), "One line in the Explanation.");
   assert.equal(litOf(book, "card", ["cardNuance"]), null);
   assert.deepEqual(
     litOf(book, "card", ["a1b2", "touchUp"])?.map((action) => action.id),
@@ -358,13 +390,13 @@ test("An action resolves to the account's copy first, then Panki's; one it delet
 test("Panki's actions as the account has them: as they come, edited, or its own; Restore lists what it edited or deleted", () => {
   const book: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: [shorter, mine], hidden: ["cardNuance"] };
   assert.equal(actionKindOf(book, "touchUp"), "panki");
-  assert.equal(actionKindOf(book, "touchUpExplanation"), "edited");
+  assert.equal(actionKindOf(book, "cardExplain"), "edited");
   assert.equal(actionKindOf(book, "a1b2"), "own");
-  assert.deepEqual(restorableOf(book, "card"), ["touchUpExplanation", "cardNuance"]);
+  assert.deepEqual(restorableOf(book, "card"), ["cardExplain", "cardNuance"]);
   assert.deepEqual(restorableOf(book, "word"), []);
   // Restored, Panki's own again: the copy and the deletion gone from what the account tells.
   const restored: AccountActions = { ...book, saved: [mine], hidden: [] };
-  assert.equal(actionOf(restored, "touchUpExplanation")?.name, AI_ACTIONS.touchUpExplanation.name);
+  assert.equal(actionOf(restored, "cardExplain")?.name, AI_ACTIONS.cardExplain.name);
   assert.equal(actionOf(restored, "cardNuance")?.name, AI_ACTIONS.cardNuance.name);
   assert.deepEqual(restorableOf(restored, "card"), []);
 });
@@ -412,21 +444,20 @@ test("A place takes the knobs it can: a word's action requires and leaves out pa
 });
 
 test("Leave out: a field's own action leaves out every other field; Requires wins over another's Leave out", () => {
-  assert.deepEqual(AI_ACTIONS.touchUpSentence.leaves, ["meaning", "reading", "dictionaryForm", "pitchAccent", "explanation", "examples"]);
   assert.deepEqual(AI_ACTIONS.touchUp.leaves, []);
   assert.ok(actionsOf(NO_ACCOUNT_ACTIONS, "word").every((action) => action.leaves.length === 0));
-  assert.deepEqual(leftOutFor(DECK, card("touchUpSentence")), ["meaning", "reading", "explanation", "examples"]);
-  assert.deepEqual(leftOutFor(DECK, card("touchUpSentence", "touchUpMeaning")), ["reading", "explanation", "examples"]);
-  assert.deepEqual(leftOutFor(DECK, card("touchUp", "touchUpSentence")), []);
+  assert.deepEqual(leftOutFor(DECK, own("sentence")), ["meaning", "reading", "explanation", "examples"]);
+  assert.deepEqual(leftOutFor(DECK, own("sentence", "meaning")), ["reading", "explanation", "examples"]);
+  assert.deepEqual(leftOutFor(DECK, [...card("touchUp"), ...own("sentence")]), []);
   assert.deepEqual(leftOutFor(DECK, []), []);
   assert.equal(
-    requirementsOf(DECK, card("touchUpSentence", "touchUpMeaning")),
+    requirementsOf(DECK, own("sentence", "meaning")),
     "Answer meaning, sentence: judge each that holds a value, and write each that's empty. Do not answer reading, explanation, examples, whatever this message says: leave each exactly as it is.",
   );
   // An action of the account's own leaving one field out, with others left free.
-  const own = { id: "x1", place: "card" as const, name: "No reading", words: "", requires: [], leaves: ["reading" as const], seconds: 30 };
+  const noReading = { id: "x1", place: "card" as const, name: "No reading", words: "", requires: [], leaves: ["reading" as const], seconds: 30 };
   assert.equal(
-    requirementsOf(DECK, [own]),
+    requirementsOf(DECK, [noReading]),
     "Answer only the other keys this message asks about, and leave the rest untouched. Do not answer reading, whatever this message says: leave it exactly as it is.",
   );
   // The word's: a part left out is said so, absolutely.
@@ -435,36 +466,15 @@ test("Leave out: a field's own action leaves out every other field; Requires win
   assert.equal(explainRequirementsOf([quiet]), 'Judge every meaning in <meaning>. Do not reply, whatever this message says: leave the reply exactly "".');
   assert.deepEqual(explainLeftOutFor([quiet, ...word("explain")]), []);
   // Leave out never raises what a message may cost.
-  assert.equal(sendTokens(2_000, DECK, card("touchUpSentence"), ""), sendTokens(2_000, DECK, [{ ...AI_ACTIONS.touchUpSentence, leaves: [] }], ""));
+  assert.equal(sendTokens(2_000, DECK, own("sentence"), ""), sendTokens(2_000, DECK, [{ ...fieldOwn("sentence"), leaves: [] }], ""));
 });
 
-test("Actions nest one level: Touch up's per-field ones under it, an orphan coming up, no cycle or second level", () => {
-  const card = ids(NO_ACCOUNT_ACTIONS, "card");
-  // Touch up then the seven under it, then the rest at the top.
-  assert.deepEqual(card.slice(0, 8), ["touchUp", "touchUpMeaning", "touchUpReading", "touchUpDictionaryForm", "touchUpPitchAccent", "touchUpSentence", "touchUpExplanation", "touchUpExamples"]);
-  const placed = actionsOf(NO_ACCOUNT_ACTIONS, "card");
-  assert.equal(placed.find((action) => action.id === "touchUpSentence")?.under, "touchUp");
-  assert.equal(placed.find((action) => action.id === "touchUp")?.under, null);
-  // An order kept with a child before its parent still reads nested.
-  assert.deepEqual(ids({ ...NO_ACCOUNT_ACTIONS, order: { card: ["touchUpSentence", "cardNuance", "touchUp"] } }, "card").slice(0, 3), ["cardNuance", "touchUp", "touchUpSentence"]);
-  // Touch up deleted: its seven come up to the top, and may still name it.
-  const gone: AccountActions = { ...NO_ACCOUNT_ACTIONS, hidden: ["touchUp"] };
-  assert.ok(actionsOf(gone, "card").every((action) => action.under === null));
-  assert.equal(underProblem(gone, { id: "touchUpSentence", place: "card", under: "touchUp" }), null);
-  // The guards: not itself, not under a nested one, not with others under it, not another place's.
-  assert.notEqual(underProblem(NO_ACCOUNT_ACTIONS, { id: "x", place: "card", under: "x" }), null);
-  assert.notEqual(underProblem(NO_ACCOUNT_ACTIONS, { id: "x", place: "card", under: "touchUpSentence" }), null);
-  assert.notEqual(underProblem(NO_ACCOUNT_ACTIONS, { id: "touchUp", place: "card", under: "cardNuance" }), null);
-  assert.notEqual(underProblem(NO_ACCOUNT_ACTIONS, { id: "x", place: "card", under: "explain" }), null);
-  assert.equal(underProblem(NO_ACCOUNT_ACTIONS, { id: "x", place: "card", under: "cardNuance" }), null);
-  assert.notEqual(underProblem(NO_ACCOUNT_ACTIONS, { id: "x", place: "card", under: "widerContext" }), null);
-  // Two naming each other stand at the top both.
-  const a = { id: "a1", place: "card" as const, name: "A", words: "a", requires: [], leaves: [], under: "b1", seconds: 30 };
-  const b = { ...a, id: "b1", name: "B", under: "a1" };
-  assert.ok(actionsOf({ ...NO_ACCOUNT_ACTIONS, saved: [a, b] }, "card").filter((action) => action.id === "a1" || action.id === "b1").every((action) => action.under === null));
-  // A copy kept without where it stands stands at the top; Restore brings Panki's back under Touch up.
-  const copy = { ...a, id: "touchUpReading", name: "Reading", under: null };
-  assert.equal(actionsOf({ ...NO_ACCOUNT_ACTIONS, saved: [copy] }, "card").find((action) => action.id === "touchUpReading")?.under, null);
+test("A place's actions are one flat list, in the account's order; an `under` kept from before is read by nothing", () => {
+  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "card"), ["touchUp", "cardExplain", "cardGrammar", "cardConjugation", "cardNuance"]);
+  assert.deepEqual(ids({ ...NO_ACCOUNT_ACTIONS, order: { card: ["cardNuance", "touchUp"] } }, "card").slice(0, 2), ["cardNuance", "touchUp"]);
+  const kept = KeptAction.parse({ id: "a1", place: "card", name: "A", words: "a", under: "touchUp" });
+  assert.ok(!("under" in kept));
+  assert.deepEqual(ids({ ...NO_ACCOUNT_ACTIONS, saved: [kept] }, "card").at(-1), "a1");
 });
 
 test("A message's knobs broken fail it whole, checked before any other rule, every breach said in turn", () => {

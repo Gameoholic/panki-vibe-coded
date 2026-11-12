@@ -24,7 +24,9 @@
 - **A broken knob fails the whole message**: a required part that didn't come back, or a left-out part that did, and nothing of it lands.
 - **A reply only when there's something to say**, said in the words of Panki's actions that want no reply, never in the prompt or the reader.
 - **The Meaning**: a dictionary's words are kept when they fit, because they're the same across cards (search, duplicates and highlighting lean on it). A meaning is named by its number, judged Fits / Close / Doesn't fit with a reason, and when none fits Panki AI proposes one of its own. On screen it's a "meaning", never a "sense".
-- **The Sentence** is cut to the part about the word, or given the line it leans on, never reworded; accepting it moves the clip to those words.
+- **The Sentence** is what the clip plays: on a video, whole subtitle lines, the word's with the lines it needs, picked by their numbers and copied by Panki, so it can never be reworded; accepting it moves the clip to those lines. Off a video it isn't asked.
+- **The prompts are neutral**: each holds only what its place needs to work (the pieces, the shape, what each field holds). How Panki AI writes (its length, tone, what it leaves out) is User instructions' alone, Panki's own few lines to begin with (`DEFAULT_AI_INSTRUCTIONS`), aims rather than a list of don'ts.
+- **The Explanation is optional**: Touch up leaves it empty, with a why, when the Meaning and the sentence already say it; so there are no per-field Touch up actions, and actions are one flat list.
 - **Explanation and Example sentences** are two fields the AI fills through the field mapping, always its own text, always in addition to Meaning.
 - **Cost before it runs**: "Up to $… (est.)" beside Send, a threshold under which nothing asks, and what it came to after. Every dollar is an estimate from listed prices.
 - **Metering now, billing later**: every paid call (AI, transcription, Forvo) is one usage row; credits and payments build on those rows.
@@ -93,7 +95,7 @@ A new place or action follows these; one that can't is talked through first.
   - [x] 1. The card's conversation over the admin's prompt; User instructions.
   - [x] 1b. One answer shape for every message; Requires per message.
   - [x] 1c. The words, everywhere; the composer's actions as one dropdown.
-  - [x] 2. Actions: the list and editor per place, Panki's and the account's, Restore, defaults and order; Requires, Leave out, Video context length; the conversation's settings fold (Video context length, Clear conversation); a chip goes to its part; the field actions folded under Touch up.
+  - [x] 2. Actions: the list and editor per place, Panki's and the account's, Restore, defaults and order; Requires, Leave out, Video context length; the conversation's settings fold (Video context length, Clear conversation); a chip goes to its part.
   - [ ] 3. **Example sentences, the field kind**: rows of scene, sentence and source, dragged, deleted, added; a list on the review card; a Paragraph field converted when its kind is changed; Touch up answering a list. Raises `EXTENSION_PROTOCOL`.
   - [x] 4. Explain in the same format: the admin's prompt, Grammar, Conjugation and Nuance as actions, the pop-up's conversation.
 - [ ] **Rules**: automatic runs per card, video or pop-up, each with its cap. Proofread's automation lives here (when a transcription finishes, a part comes in, or after every chunk), and transcribing's own (starting by itself, the length limit) moves from the admin to each account.

@@ -4587,10 +4587,6 @@ mark.sub-blur {
   align-items: center;
   gap: 6px;
 }
-/* The actions standing under one (Touch up's per-field ones under Touch up): set in under its row, past its grip. */
-.deck-list.action-nested {
-  margin: 2px 0 0 28px;
-}
 .btn-row.action-row {
   flex: 1;
   min-width: 0;

@@ -42,16 +42,16 @@ const Why = z.string().max(2_000);
 
 /**
  * Why a field came back with nothing to accept, one registry, each with Panki's own words for it (the code is Panki's
- * to read, never shown): no_context, the model had not enough to go on; rewrote, Panki set aside a Sentence that was
- * reworded rather than cut or extended (`sentenceHeld`). A new kind is one id and its words; one the model may answer
- * is in `MODEL_ERROR_IDS` too.
+ * to read, never shown): no_context, the model had not enough to go on; rewrote, Panki set aside a Sentence whose
+ * subtitle lines couldn't be used (none to pick from, none picked beside a judgement, or lines without the word:
+ * `sentenceOfWire`). A new kind is one id and its words; one the model may answer is in `MODEL_ERROR_IDS` too.
  */
 export const TOUCH_UP_ERROR_IDS = ["no_context", "rewrote"] as const;
 export const TouchUpErrorId = z.enum(TOUCH_UP_ERROR_IDS);
 export type TouchUpErrorId = z.infer<typeof TouchUpErrorId>;
 export const TOUCH_UP_ERRORS: Record<TouchUpErrorId, string> = {
   no_context: "Panki AI couldn't decide without more context.",
-  rewrote: "Panki AI rewrote the sentence instead of cutting or extending it.",
+  rewrote: "Panki AI picked subtitle lines for the sentence that couldn't be used.",
 };
 /** The errors the model itself may answer, on the wire; the rest are Panki's own verdicts on what it answered. */
 const MODEL_ERROR_IDS = ["no_context"] as const satisfies readonly TouchUpErrorId[];
@@ -87,11 +87,47 @@ export const FieldWire = z.object({
 export type FieldWire = z.infer<typeof FieldWire>;
 /** A text field Panki sent empty, on the wire: nothing to judge, so no judgement. */
 export const EmptyFieldWire = z.object({
-  proposed: Proposed.describe('what belongs in the field; "" when untouched'),
-  why: Why.describe('a sentence whenever it writes the field, what it was written from, shown open under the field; "" when untouched'),
+  proposed: Proposed.describe('what belongs in the field; "" with a why when nothing does (an Explanation the Meaning already makes clear), and when untouched'),
+  why: Why.describe('a sentence whenever it answers the field: what it was written from, or why it stays empty; shown under the field; "" when untouched'),
   error: ErrorCode.describe('"" when it wrote one or left it; no_context when it can\'t write the field from what it was given'),
 });
 export type EmptyFieldWire = z.infer<typeof EmptyFieldWire>;
+/** A subtitle line by its number in the subtitles the message holds (`numberedSubtitles`), 0 for none. */
+const LineNumber = z.number().int();
+/**
+ * The Sentence on the wire, when the field holds one: judged like any field, but what it proposes is subtitle lines by
+ * their numbers, never words, so it can't be reworded; Panki copies the lines (`sentenceOfWire`).
+ */
+export const SentenceWire = z.object({
+  judgement: WireJudgement.describe('good, meh or bad when it judged the Sentence; "" when it left it untouched, or changed it as asked without judging it'),
+  first: LineNumber.describe("the number of the first subtitle line the Sentence should be, with meh, bad or a change asked for; 0 with good, and when untouched"),
+  last: LineNumber.describe("the number of its last line, the same way"),
+  why: Why.describe('a sentence whenever the Sentence is answered, shown under it; "" when untouched'),
+  error: ErrorCode.describe('"" when it answered or left it; no_context when it can\'t'),
+});
+export type SentenceWire = z.infer<typeof SentenceWire>;
+/** The Sentence on the wire when Panki sent it empty: the lines it should be, with no judgement. */
+export const EmptySentenceWire = z.object({
+  first: LineNumber.describe("the number of the first subtitle line the Sentence should be; 0 when untouched"),
+  last: LineNumber.describe("the number of its last line, the same way"),
+  why: Why.describe('a sentence whenever it picks the lines; "" when untouched'),
+  error: ErrorCode.describe('"" when it picked or left it; no_context when it can\'t'),
+});
+export type EmptySentenceWire = z.infer<typeof EmptySentenceWire>;
+
+/**
+ * The subtitles a Sentence is picked from, a line each as the message holds them: every line not blank, trimmed, in
+ * order. What `numberedSubtitles` numbers, and what the numbers an answer sends are read against.
+ */
+export const subtitleLinesOf = (text: string): string[] =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+/** Subtitles as a card's prompt sends them: each line its number from 1, a tab, then the line (`subtitleLinesOf`). */
+export const numberedSubtitles = (text: string): string => subtitleLinesOf(text).map((line, i) => `${i + 1}\t${line}`).join("\n");
+/** What a Sentence's line numbers are read against: the lines of the subtitles the message holds, and the word as met, which the lines picked must hold. */
+export type SentenceLines = { lines: readonly string[]; word: string };
 /** The reply on the wire: the model's words to the message, "" for none (a send that asks nothing but fields). */
 const Reply = z.string().max(AI_TEXT_MAX);
 
@@ -124,14 +160,16 @@ export const KEY_WORDS: Record<TouchUpKey, string> = {
   reading: "the dictionary form's reading: judged, changed as asked, written when it's empty, the error, or untouched",
   dictionaryForm: "the dictionary form, the same way",
   pitchAccent: "the dictionary form's pitch accent as its field writes it (くう 1), the same way",
-  sentence: "the sentence as it carries the word, the same way",
-  explanation: "what the word does in this sentence, so it's understood there, the same way",
+  sentence: "the subtitle lines the card's clip plays, the same way, but proposed as the numbers of its first and last line, which Panki copies",
+  explanation: "what the word does in this sentence where the Meaning alone doesn't make it clear, the same way, or left empty with a why",
   examples: "a few made-up sentences, each after a line setting its scene, the same way",
 };
 /** The reply's words in Admin, beside the keys. */
 const REPLY_WORDS = 'the reply to the message, shown under it: what the message asked to be said; "" otherwise, unless there is something of note the fields can\'t say';
 /** The answer on the wire: the reply, and each key in whichever shape it was asked in (`touchUpShape`). */
-export type TouchUpWire = { reply: string; meaning?: MeaningWire | EmptyMeaningWire } & Partial<Record<Exclude<TouchUpKey, "meaning">, FieldWire | EmptyFieldWire>>;
+export type TouchUpWire = { reply: string; meaning?: MeaningWire | EmptyMeaningWire; sentence?: SentenceWire | EmptySentenceWire } & Partial<
+  Record<Exclude<TouchUpKey, "meaning" | "sentence">, FieldWire | EmptyFieldWire>
+>;
 
 /** A field the model can't judge or write from what it was given, in its judgement's place: the code and what was missing. */
 export const TouchUpError = z.object({ error: TouchUpErrorId, why: Why });
@@ -176,14 +214,40 @@ export const FIELD_KEYS = TOUCH_UP_KEYS.filter((key): key is FieldKey => key !==
 const orNull = (text: string): string | null => (text === NONE ? null : text);
 /**
  * A text field from the wire, or null when it was left untouched: an error code makes it the error, whatever else it
- * holds; no judgement and nothing proposed is untouched; no judgement with a value (a field sent empty, or a change a
- * message asked for) is a judgement null.
+ * holds; no judgement and nothing proposed is untouched, but for a field sent empty answered with a why alone, which
+ * stays empty (a judgement null, nothing proposed: drawn as nothing to change); no judgement with a value (a field sent
+ * empty, or a change a message asked for) is a judgement null.
  */
 function fieldOfWire(wire: FieldWire | EmptyFieldWire): FieldAnswer | null {
   if (wire.error !== NONE) return { error: wire.error, why: wire.why };
-  const judgement = "judgement" in wire && wire.judgement !== NONE ? wire.judgement : null;
-  if (judgement === null && wire.proposed.trim() === "") return null;
+  const sentEmpty = !("judgement" in wire);
+  const judgement = !sentEmpty && wire.judgement !== NONE ? wire.judgement : null;
+  if (judgement === null && wire.proposed.trim() === "" && !(sentEmpty && wire.why.trim() !== "")) return null;
   return { judgement, proposed: orNull(wire.proposed), why: wire.why };
+}
+/** A Sentence whose lines couldn't be used, set aside as Panki's own error, why said as expected against got. */
+const linesUnusable = (expected: string, got: string): TouchUpError => ({ error: "rewrote", why: expectedGot(expected, got) });
+/**
+ * The Sentence from the wire, or null when it was left untouched: the error; good with nothing to copy; otherwise the
+ * subtitle lines from its first to its last, copied as the message held them and joined a line each, the numbers put
+ * in order and held to the lines there are. Set aside as `rewrote`, that part alone, when there are no lines to pick
+ * from, when a judgement or a change comes with none picked, or when the lines picked don't hold the word.
+ */
+function sentenceOfWire(wire: SentenceWire | EmptySentenceWire, at: SentenceLines | null): FieldAnswer | null {
+  if (wire.error !== NONE) return { error: wire.error, why: wire.why };
+  const judgement = "judgement" in wire && wire.judgement !== NONE ? wire.judgement : null;
+  const picked = [wire.first, wire.last].filter((n) => n > 0);
+  if (judgement === null && picked.length === 0) return null;
+  if (judgement === "good") return { judgement, proposed: null, why: wire.why };
+  const lines = at?.lines ?? [];
+  if (lines.length === 0) return linesUnusable("subtitle lines to pick from", "none sent");
+  if (picked.length === 0) return linesUnusable(`the lines of a sentence judged ${judgement ?? "to change"}`, "0 and 0");
+  const first = Math.min(lines.length, Math.min(...picked));
+  const last = Math.min(lines.length, Math.max(...picked));
+  const text = lines.slice(first - 1, last).join("\n");
+  const word = at?.word.trim() ?? "";
+  if (word !== "" && runsOf(text, word).length === 0) return linesUnusable(`lines holding ${word}`, `lines ${first} to ${last}, without it`);
+  return { judgement, proposed: text, why: wire.why };
 }
 /** The Meaning from the wire, the same way: no rows and nothing proposed is untouched; one asked without rows (no meanings to judge) has none. */
 function meaningOfWire(wire: MeaningWire | EmptyMeaningWire): MeaningAnswer | null {
@@ -194,12 +258,20 @@ function meaningOfWire(wire: MeaningWire | EmptyMeaningWire): MeaningAnswer | nu
 }
 /** An answer read: the model's reply ("" for none), and the keys it answered. */
 export type TouchUpRead = { reply: string; answer: TouchUpAnswer };
-/** The answer as Panki reads it, from the wire: the one translation, run before any rule. */
-export function answerOfWire(wire: TouchUpWire): TouchUpRead {
+/**
+ * The answer as Panki reads it, from the wire: the one translation, run before any rule. `lines` are what a Sentence's
+ * numbers are read against (`sentenceOfWire`): the subtitles the message held, none off a video.
+ */
+export function answerOfWire(wire: TouchUpWire, lines: SentenceLines | null = null): TouchUpRead {
   const answer: TouchUpAnswer = {};
   const meaning = wire.meaning ? meaningOfWire(wire.meaning) : null;
   if (meaning) answer.meaning = meaning;
   for (const key of FIELD_KEYS) {
+    if (key === "sentence") {
+      const part = wire.sentence ? sentenceOfWire(wire.sentence, lines) : null;
+      if (part) answer.sentence = part;
+      continue;
+    }
     const wired = wire[key];
     const part = wired ? fieldOfWire(wired) : null;
     if (part) answer[key] = part;
@@ -400,6 +472,8 @@ export function answerShapesOf(place: AiPlaceId): AnswerShape[] {
     },
     { title: "A field that holds a value", parts: partsOf(FieldWire.shape) },
     { title: "A field sent empty", parts: partsOf(EmptyFieldWire.shape) },
+    { title: "The Sentence", parts: partsOf(SentenceWire.shape) },
+    { title: "The Sentence, sent empty", parts: partsOf(EmptySentenceWire.shape) },
     { title: "The Meaning", parts: partsOf(MeaningWire.shape) },
     { title: "The Meaning, when the dictionary has none", parts: partsOf(EmptyMeaningWire.shape) },
   ];
@@ -409,11 +483,16 @@ export function answerShapesOf(place: AiPlaceId): AnswerShape[] {
  * The one fixed shape a provider is asked to answer in, every send, built for this card: the reply, then a key for each
  * field the send may answer (`keys`), each required on the wire though it may come back untouched, a field sent empty with
  * no judgement (`EmptyFieldWire`) and one holding a value with one (`FieldWire`), the Meaning with rows when there are
- * meanings to judge (`MeaningWire`) and without when there are none (`EmptyMeaningWire`). Read with `answerOfWire`.
+ * meanings to judge (`MeaningWire`) and without when there are none (`EmptyMeaningWire`), the Sentence as line
+ * numbers (`SentenceWire`, `EmptySentenceWire`). Read with `answerOfWire`.
  */
 export function touchUpShape(keys: readonly TouchUpKey[], now: TouchUpNow, meaningCount: number): z.ZodType<TouchUpWire> {
-  const shapeOf = (key: TouchUpKey) =>
-    key === "meaning" ? (meaningCount > 0 ? MeaningWire : EmptyMeaningWire) : (now.values[key] ?? "").trim() === "" ? EmptyFieldWire : FieldWire;
+  const shapeOf = (key: TouchUpKey) => {
+    if (key === "meaning") return meaningCount > 0 ? MeaningWire : EmptyMeaningWire;
+    const empty = (now.values[key] ?? "").trim() === "";
+    if (key === "sentence") return empty ? EmptySentenceWire : SentenceWire;
+    return empty ? EmptyFieldWire : FieldWire;
+  };
   return z.object({ reply: Reply, ...Object.fromEntries(keys.map((key) => [key, shapeOf(key)])) }) as unknown as z.ZodType<TouchUpWire>;
 }
 
@@ -440,7 +519,8 @@ function fieldProblem(key: FieldKey, part: FieldAnswer, held: string): string | 
   if (held.trim() === "" && part.judgement !== null) return expectedGot(`no judgement at ${key}, which was sent empty`, part.judgement);
   const proposed = part.proposed?.trim() ?? "";
   if (part.judgement === "good" && part.proposed !== null) return expectedGot(`proposed "" at ${key}, judged good`, "a value");
-  if (part.judgement !== "good" && proposed === "") return expectedGot(part.judgement === null ? `a proposed value at ${key}, which was sent empty` : `a proposed value at ${key}, judged ${part.judgement}`, '""');
+  // A field sent empty may stay empty, said with a why alone (`fieldOfWire`).
+  if (part.judgement !== "good" && proposed === "" && held.trim() !== "") return expectedGot(part.judgement === null ? `a proposed value at ${key}, a change asked for` : `a proposed value at ${key}, judged ${part.judgement}`, '""');
   // Example sentences come as pairs, a line setting the scene before each sentence, never a bare list of sentences: a
   // proposal of an odd count, or fewer than two, is refused.
   if (key === "examples" && proposed !== "") {
@@ -574,37 +654,12 @@ export function runsOf(text: string, words: string): { from: number; to: number 
   return runs;
 }
 
-/** What a proposed Sentence is held to: every sentence that was sent (the `{Sentence}` piece, the card's field), and the surrounding video subtitles ("" off a video). */
-export type SentenceSent = { sentences: readonly string[]; surrounding: string };
-
-/**
- * A proposed Sentence is only ever a cut of what was sent or an extension of it by the lines around it: a run of a
- * sentence sent, or of the surrounding video subtitles (which hold the sentence's own lines with those either side),
- * spaces and punctuation aside. One that's neither was reworded, and only that part is set aside, as the `rewrote`
- * error with its why said as expected against got; the rest of the answer stands. Nothing to hold it to (an empty
- * sentence off a video), and it stands as written.
- */
-export function sentenceHeld(answer: TouchUpAnswer, sent: SentenceSent): TouchUpAnswer {
-  const part = answer.sentence;
-  if (!part || isError(part)) return answer;
-  const proposed = part.proposed?.trim() ?? "";
-  if (proposed === "") return answer;
-  const surrounding = sent.surrounding.trim();
-  const sources = [...sent.sentences, surrounding].filter((text) => text.trim() !== "");
-  if (sources.length === 0 || sources.some((text) => runsOf(text, proposed).length > 0)) return answer;
-  const expected =
-    surrounding !== ""
-      ? "a cut of the sentence sent, or a run of the surrounding video subtitles, spaces and punctuation aside"
-      : "a cut of the sentence sent, spaces and punctuation aside";
-  return { ...answer, sentence: { error: "rewrote", why: expectedGot(expected, `"${proposed}"`) } };
-}
-
 /** The answer, the tokens in and out as the provider counted them and what they came to, and Panki AI as it stood. */
 export const TouchedUp = z.object({
   /**
-   * The keys the model answered, nothing in them changed but the Meaning's rows in the list's order and a reworded
-   * Sentence set aside (`sentenceHeld`). Every key the send required is there and none it left out: an answer that
-   * broke either failed whole (`touchUpProblem`).
+   * The keys the model answered, nothing in them changed but the Meaning's rows in the list's order and the Sentence's
+   * line numbers made its lines, or set aside (`sentenceOfWire`). Every key the send required is there and none it left
+   * out: an answer that broke either failed whole (`touchUpProblem`).
    */
   answer: TouchUpAnswer,
   /** The model's reply to the send; "" for none. */

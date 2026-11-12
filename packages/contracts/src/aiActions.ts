@@ -16,7 +16,7 @@ import {
 import { adminPromptOf, type AdminPromptPlaceId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 import { PIECE_MAX, PromptPieces, Said } from "./prompt";
-import { MEANINGS_MAX, TOUCH_UP, TouchUpNow } from "./touchUp";
+import { MEANINGS_MAX, TouchUpNow, numberedSubtitles, subtitleLinesOf } from "./touchUp";
 import { VALUE_MAX } from "./type";
 
 /**
@@ -36,13 +36,6 @@ import { VALUE_MAX } from "./type";
  */
 export const AI_ACTION_IDS = [
   "touchUp",
-  "touchUpMeaning",
-  "touchUpReading",
-  "touchUpDictionaryForm",
-  "touchUpPitchAccent",
-  "touchUpSentence",
-  "touchUpExplanation",
-  "touchUpExamples",
   "cardExplain",
   "cardGrammar",
   "cardConjugation",
@@ -70,12 +63,6 @@ export type AiAction = {
    * with it that requires the same part wins.
    */
   leaves: readonly ActionPart[];
-  /**
-   * The action of the same place it stands under (the composer's Actions menu nests it there, closed until opened, and
-   * Settings draws and orders it within it), or null at the top. Read through `actionsOf`, which gives it as it stands:
-   * null whenever what it names isn't there or itself stands under another.
-   */
-  under: AiActionId | null;
   /** How many seconds of video subtitles it sends each way (`DEFAULT_ACTION_SECONDS` to begin with), either place's. */
   seconds: number;
 };
@@ -84,32 +71,11 @@ const panki = (action: Pick<AiAction, "place" | "name" | "words"> & Partial<Omit
   id,
   requires: [],
   leaves: [],
-  under: null,
   seconds: DEFAULT_ACTION_SECONDS,
   ...action,
 });
-/** A field's own action: "Touch up the Explanation", requiring it and leaving out every other field, standing under Touch up. */
-const fieldAction = (key: TouchUpKey, id: PankiActionId): AiAction =>
-  panki(
-    {
-      place: "card",
-      name: `Touch up the ${TOUCH_UP[key].name}`,
-      words: `Touch up the ${TOUCH_UP[key].name}. Leave the reply empty unless there's something of note.`,
-      requires: [key],
-      leaves: TOUCH_UP_KEYS.filter((other) => other !== key),
-      under: "touchUp",
-    },
-    id,
-  );
 export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
   touchUp: panki({ place: "card", name: "Touch up", words: "Touch up the card. Leave the reply empty unless there's something of note.", requires: TOUCH_UP_KEYS }, "touchUp"),
-  touchUpMeaning: fieldAction("meaning", "touchUpMeaning"),
-  touchUpReading: fieldAction("reading", "touchUpReading"),
-  touchUpDictionaryForm: fieldAction("dictionaryForm", "touchUpDictionaryForm"),
-  touchUpPitchAccent: fieldAction("pitchAccent", "touchUpPitchAccent"),
-  touchUpSentence: fieldAction("sentence", "touchUpSentence"),
-  touchUpExplanation: fieldAction("explanation", "touchUpExplanation"),
-  touchUpExamples: fieldAction("examples", "touchUpExamples"),
   // The word's reply actions on the card: about the card's word in the card's sentence, each requiring the reply, so
   // these come back with words said whatever the fields do.
   cardExplain: panki(
@@ -196,10 +162,22 @@ export const PANKI_DEFAULTS: Record<ActionPlaceId, readonly PankiActionId[]> = {
 export const isPankiAction = (id: string): id is PankiActionId => (AI_ACTION_IDS as readonly string[]).includes(id);
 /**
  * The ids of Panki's actions taken away (Explain the grammar, No explanation; Wider context, whose reach the
- * conversation's Video context length sets now): an account's copy of one, or its hiding of one, is kept in its row and
- * read by nothing, never taken for an action of the account's own.
+ * conversation's Video context length sets now; each field's own Touch up, since Touch up leaves an Explanation empty
+ * when it isn't needed): an account's copy of one, or its hiding of one, is kept in its row and read by nothing, never
+ * taken for an action of the account's own.
  */
-export const RETIRED_ACTION_IDS: readonly string[] = ["grammar", "noExplanation", "widerContext"];
+export const RETIRED_ACTION_IDS: readonly string[] = [
+  "grammar",
+  "noExplanation",
+  "widerContext",
+  "touchUpMeaning",
+  "touchUpReading",
+  "touchUpDictionaryForm",
+  "touchUpPitchAccent",
+  "touchUpSentence",
+  "touchUpExplanation",
+  "touchUpExamples",
+];
 /** Whether an id is one an account's action can be read under: anything but a retired one of Panki's. */
 export const isLiveActionId = (id: string): boolean => !RETIRED_ACTION_IDS.includes(id);
 
@@ -208,14 +186,13 @@ export const isLiveActionId = (id: string): boolean => !RETIRED_ACTION_IDS.inclu
 /** An action the account keeps, as a message is made of it. */
 const actionOfKept = (kept: KeptAction): AiAction => ({ ...kept });
 /** An action as the account would keep it: one of Panki's as it comes, to edit or delete. */
-export const keptActionOf = ({ id, place, name, words, requires, leaves, under, seconds }: AiAction): KeptAction => ({
+export const keptActionOf = ({ id, place, name, words, requires, leaves, seconds }: AiAction): KeptAction => ({
   id,
   place,
   name,
   words,
   requires: [...requires],
   leaves: [...leaves],
-  under,
   seconds,
 });
 /** An action as the account has it: its copy first (Panki's edited, or its own), then Panki's; null for one it deleted, or none by that id. */
@@ -227,53 +204,16 @@ export function actionOf(book: AccountActions, id: string): AiAction | null {
 }
 /**
  * A place's actions as the account has them, in its order: those it set in order first, then the rest (Panki's in the
- * registry's order, then its own in the order they were made); one it deleted left out. Then as they nest
- * (`nestedOrder`): each action at the top followed by those standing under it, each with `under` as it stands.
+ * registry's order, then its own in the order they were made); one it deleted left out. One flat list.
  */
 export function actionsOf(book: AccountActions, place: ActionPlaceId): AiAction[] {
   const own = book.saved.filter((each) => each.place === place && !isPankiAction(each.id) && isLiveActionId(each.id)).map((each) => each.id);
   const all = [...AI_ACTION_IDS.filter((id) => AI_ACTIONS[id].place === place), ...own];
   const ordered = [...(book.order[place] ?? []).filter((id) => all.includes(id)), ...all];
-  return nestedOrder(
-    [...new Set(ordered)].flatMap((id) => {
-      const action = actionOf(book, id);
-      return action && action.place === place ? [action] : [];
-    }),
-  );
-}
-/**
- * Actions in order as they nest, one level only: an action stands under the one its `under` names while that one is in
- * the list and stands at the top itself (its own `under` naming nothing there), and otherwise at the top, its `under`
- * read as null, so one whose parent was deleted, hidden or nested comes up rather than going. Each at the top is
- * followed by those under it, both in the order given.
- */
-function nestedOrder(flat: readonly AiAction[]): AiAction[] {
-  const byId = new Map(flat.map((action) => [action.id, action]));
-  const names = (action: AiAction) => action.under !== null && action.under !== action.id && byId.has(action.under);
-  const parentOf = (action: AiAction): string | null => {
-    if (!names(action)) return null;
-    const parent = byId.get(action.under ?? "");
-    return parent && !names(parent) ? parent.id : null;
-  };
-  const top = flat.filter((action) => parentOf(action) === null);
-  return top.flatMap((parent) => [{ ...parent, under: null }, ...flat.filter((action) => parentOf(action) === parent.id)]);
-}
-/**
- * What's wrong with where an action would stand, said so; null when it holds. It stands under another action of its
- * place that the account has and that stands at the top, never under itself, and only while nothing stands under it.
- * One of Panki's the account deleted may still be named (Touch up, its per-field ones standing under it): they stand at
- * the top until it's restored, so an edit to one never has to move it.
- */
-export function underProblem(book: AccountActions, action: Pick<AiAction, "id" | "place" | "under">): string | null {
-  if (action.under === null) return null;
-  if (action.under === action.id) return "An action can't stand under itself.";
-  const placed = actionsOf(book, action.place);
-  const parent = placed.find((each) => each.id === action.under);
-  const deletedPanki = isPankiAction(action.under) && AI_ACTIONS[action.under].place === action.place && book.hidden.includes(action.under);
-  if (!parent && !deletedPanki) return "That action isn't there to stand under.";
-  if (parent && parent.under !== null) return "An action can't stand under one that stands under another.";
-  if (placed.some((each) => each.under === action.id)) return "Actions stand under this one, so it can't stand under another.";
-  return null;
+  return [...new Set(ordered)].flatMap((id) => {
+    const action = actionOf(book, id);
+    return action && action.place === place ? [action] : [];
+  });
 }
 /** The actions ticked as a place's conversation opens, by id in the place's order: the account's defaults, Panki's until it sets them. */
 export function openingActionsOf(book: AccountActions, place: ActionPlaceId): AiActionId[] {
@@ -342,7 +282,7 @@ export const CARD_LEAVES: readonly ActionPart[] = TOUCH_UP_KEYS;
 export const replyRequired = (lit: readonly AiAction[]): boolean => lit.some((action) => action.requires.includes("reply"));
 /**
  * The parts a message's ticked actions leave out, of those given, in their order: any one of them leaves it out and none
- * of them requires it (Requires wins, so Touch up the Sentence and Touch up the Meaning ticked together answer both).
+ * of them requires it (Requires wins, so an action leaving a field out and Touch up ticked together answer it).
  */
 const leftOf = <P extends ActionPart>(parts: readonly P[], lit: readonly AiAction[]): P[] =>
   parts.filter((part) => lit.some((action) => action.leaves.includes(part)) && !lit.some((action) => action.requires.includes(part)));
@@ -399,8 +339,8 @@ export const messageOf = (lit: readonly AiAction[], text: string): string => wor
 /** The least a message's answer may be, however few fields it requires: room for one field's proposal, its why and a reply. */
 const SEND_TOKENS_MIN = 400;
 /**
- * A card's message's answer limit: Max Touch up answer length shared by the fields it requires out of the deck's, so a
- * field's own action lowers "Up to" too, never under `SEND_TOKENS_MIN`. A message with words of its own (typed, or an
+ * A card's message's answer limit: Max Touch up answer length shared by the fields it requires out of the deck's, so an
+ * action requiring fewer lowers "Up to" too, never under `SEND_TOKENS_MIN`. A message with words of its own (typed, or an
  * action's that requires nothing) may answer any field, so it has the whole of it, as one requiring
  * nothing does.
  */
@@ -475,7 +415,8 @@ export const TouchUpSend = z.object({
 export type TouchUpSend = z.infer<typeof TouchUpSend>;
 /**
  * A message's own pieces, its actions read through the account's: its message (the user's), Panki's requirements apart
- * from it, its card, its field and its wider subtitles.
+ * from it, its card, its field and its wider subtitles, numbered a line each as the Sentence is picked from them
+ * (`numberedSubtitles`).
  */
 export const sendPieces = (send: TouchUpSend, mapped: readonly TouchUpKey[], book: AccountActions): PromptPieces => {
   const lit = litNow(book, "card", send.actions);
@@ -484,9 +425,26 @@ export const sendPieces = (send: TouchUpSend, mapped: readonly TouchUpKey[], boo
     requirements: requirementsOf(mapped, lit),
     card: send.card,
     ...(send.field ? { field: send.field } : {}),
-    ...(send.wider ? { wider: send.wider } : {}),
+    ...(send.wider ? { wider: numberedSubtitles(send.wider) } : {}),
   };
 };
+/**
+ * A card's conversation's first pieces as its prompt has them: the surrounding video subtitles numbered a line each
+ * (`numberedSubtitles`), what a Sentence's line numbers name. What the page sends stays as the page has it; the server
+ * and the page each number it here before the prompt is filled.
+ */
+export const cardPiecesOf = (pieces: PromptPieces): PromptPieces => (pieces.surrounding ? { ...pieces, surrounding: numberedSubtitles(pieces.surrounding) } : pieces);
+/**
+ * The subtitles a card's message picks its Sentence from, a line each, as it holds them: its own wider subtitles when it
+ * has them, the surrounding ones of the conversation's first message otherwise; none off a video.
+ */
+export const sentenceLinesOf = (pieces: PromptPieces, send: Pick<TouchUpSend, "wider">): string[] => subtitleLinesOf(send.wider ?? pieces.surrounding ?? "");
+/**
+ * The keys a card's message may answer as it's sent: the deck's, the Sentence only where there are subtitle lines to
+ * pick it from (`sentenceLinesOf`), since it's answered as lines and never written.
+ */
+export const keysWithLines = (mapped: readonly TouchUpKey[], lines: readonly string[]): TouchUpKey[] =>
+  lines.length > 0 ? [...mapped] : mapped.filter((key) => key !== "sentence");
 
 /**
  * The user's words inside a tag that names them so, the one way both places send them: what a user, or an action the

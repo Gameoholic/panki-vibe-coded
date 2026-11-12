@@ -43,10 +43,13 @@ import {
   requiredFor,
   runNameOf,
   sendPieces,
+  cardPiecesOf,
   sendTokens,
   cardPromptOf,
   fieldVerdictOf,
   isError,
+  TOUCH_UP_ERRORS,
+  TouchUpErrorId,
   meaningTicked,
   meaningVerdictOf,
   meaningWithout,
@@ -735,7 +738,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const field = role ? fieldOf(role) : null;
     return field && isTyped(field.kind) ? field : null;
   };
-  const touchKeys = TOUCH_UP_KEYS.filter((key) => keyField(key) !== null);
+  // The Sentence is answered as subtitle lines (`touchUp.ts` → `SentenceWire`), so only on a video.
+  const touchKeys = TOUCH_UP_KEYS.filter((key) => keyField(key) !== null && (key !== "sentence" || capture.more !== undefined));
   const keyOfField = (fieldId: string): TouchUpKey | null => touchKeys.find((key) => keyField(key)?.id === fieldId) ?? null;
   const aiSettings = ai.ai?.settings ?? null;
   /**
@@ -864,7 +868,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const template = cardPromptOf(settings);
     const maxTokens = sendTokens(settings.aiMaxTouchUpTokens, touchKeys, lit, send.text);
     const asking = begun ? sendPieces(send, touchKeys, book) : {};
-    const ceiling = ceilingOf(settings, template, first.pieces, said, asking, maxTokens, sendPieces(opening, touchKeys, book));
+    // The subtitles numbered a line each, as the server sends them (`cardPiecesOf`); what goes to the server stays as it is.
+    const ceiling = ceilingOf(settings, template, cardPiecesOf(first.pieces), said, asking, maxTokens, sendPieces(opening, touchKeys, book));
     return { run, keys, required, read, send, opening, first, said, template, maxTokens, asking, ceiling };
   }
   /** Whether a send would send anything: Panki AI able to run, nothing on its way, a field left to answer, and a field it requires or words to say. */
@@ -928,7 +933,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       why,
       settings: aiSettings,
       template: ready.template,
-      pieces: first.pieces,
+      pieces: cardPiecesOf(first.pieces),
       gaps: first.gaps,
       said,
       asking: ready.asking,
@@ -987,6 +992,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         { role: "assistant" as const, text: done.raw || JSON.stringify({ reply: done.reply, ...done.answer }) },
       ],
       changed: changesOf(done.answer, read.now, first.meanings),
+      aside: touchKeys.flatMap((key) => {
+        const part = done.answer[key];
+        return part && isError(part) ? [{ part: key, error: part.error }] : [];
+      }),
     };
     setTouch((was) => ({
       ...was,
@@ -1070,6 +1079,21 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         })
         .sort((a, b) => place(a.id) - place(b.id));
     },
+    // A part that came back with nothing to accept is said under the reply, by its field, so it never reads as nothing changed.
+    notes: (made) => {
+      const aside = (made.aside ?? []).flatMap(({ part, error }) => {
+        const key = TOUCH_UP_KEYS.find((each) => each === part);
+        const why = TouchUpErrorId.safeParse(error);
+        const field = key ? keyField(key) : null;
+        return field && why.success ? [{ id: field.id, words: `${field.name}: ${TOUCH_UP_ERRORS[why.data]}` }] : [];
+      });
+      return aside.map((each) => (
+        <p key={each.id} className="ai-explain-cut">
+          <Icon name="info" />
+          {each.words}
+        </p>
+      ));
+    },
     fieldName: (fieldId) => type?.fields.find((f) => f.id === fieldId)?.name ?? null,
     canRun: canTouch && touch.busy === false,
     onRetry: () => {
@@ -1113,7 +1137,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             name: action.name,
             on: litActions.includes(action.id),
             disabled: false,
-            under: action.under,
           })),
           sending: touch.busy !== false,
           canSend: sendable(sent) && !busy,

@@ -79,6 +79,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-08: the card's conversation over the admin's prompt; User instructions.
 - 2026-11-09: one answer shape; the words; actions of one's own, Requires, Leave out, Video context length, Clear conversation; Explain as the word's conversation.
 - 2026-11-10: the conversation's messages scrolling in their box; the whole block folded under its name; Actions….
+- 2026-11-12: the prompts neutral, how Panki AI writes moved to User instructions (Panki's own few lines to begin with); the Explanation left empty when it isn't needed, each field's own Touch up and the actions' grouping gone; the Sentence picked as whole subtitle lines by number, never reworded, and not asked off a video; a part that couldn't be used said under its reply.
 
 ## Under way
 

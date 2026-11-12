@@ -108,7 +108,7 @@ export const NEW_ACTION_NAME = "New action";
 export function draftAction(place: ActionPlaceId, base: AiAction | null, taken: readonly string[]): KeptAction {
   const id = crypto.randomUUID();
   if (base) return { ...keptActionOf(base), id, name: copyNameOf(base.name, taken) };
-  return { id, place, name: NEW_ACTION_NAME, words: "", requires: [], leaves: [], under: null, seconds: DEFAULT_ACTION_SECONDS };
+  return { id, place, name: NEW_ACTION_NAME, words: "", requires: [], leaves: [], seconds: DEFAULT_ACTION_SECONDS };
 }
 
 /** A price per million tokens, from whole cents: "$0.10". */

@@ -12,7 +12,6 @@ import {
   actionOf,
   actionsOf,
   knobsProblem,
-  underProblem,
   litNow,
   litOf,
   replyRequired,
@@ -60,7 +59,9 @@ import {
   proofreadProblem,
   proofreadTokens,
   sentLength,
-  sentenceHeld,
+  cardPiecesOf,
+  keysWithLines,
+  sentenceLinesOf,
   templateById,
   tokenCostMicros,
   touchUpProblem,
@@ -273,12 +274,6 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       return;
     }
     const db = dbOf(res);
-    // A new action has nothing under it yet, so only where it would stand is checked.
-    const under = underProblem(db.aiActions(), { ...parsed.data, id: "" });
-    if (under !== null) {
-      bad(res, under, ["under"]);
-      return;
-    }
     res.status(201).json({ action: db.insertAiAction(parsed.data, now()), actions: db.aiActions() });
   });
 
@@ -324,11 +319,6 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     const problem = knobsProblem({ ...parsed.data, place: standing.place });
     if (problem !== null) {
       bad(res, problem, ["requires"]);
-      return;
-    }
-    const under = underProblem(db.aiActions(), { id: id.data, place: standing.place, under: parsed.data.under });
-    if (under !== null) {
-      bad(res, under, ["under"]);
       return;
     }
     const action = db.saveAiAction(id.data, parsed.data, now());
@@ -463,7 +453,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     /** A follow-up's Follow-up prompt as filled and sent, handed back for the page to keep in `Said`; "" for a first ask. */
     asked: string;
     ref: string;
-    /** The pieces as they were sent (`piecesAsSent`): what an answer is held to beyond its shape (a Touch up Sentence, `sentenceHeld`). */
+    /** The pieces as they were sent (`piecesAsSent`): what an answer is held to beyond its shape. */
     pieces: PromptPieces;
   };
   /** An ask that runs a template: the template by its id, the pieces, the meanings, and for a follow-up the conversation so far and its question. */
@@ -624,8 +614,12 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     const opening = withoutWider(ask.opening);
     const plain = sendOf(ask);
     const send = widenedOr(plain, later && widerOf(lit, litNow(book, "card", ask.opening.actions), plain.reach ?? null, ask.opening.reach ?? null) !== null);
-    const keys = keysFor(ask.keys);
-    if (!asksSomething(ask.keys, lit, send.text)) {
+    // The Sentence is picked as subtitle lines by their numbers, from the subtitles this message holds; with none, it
+    // isn't asked at all.
+    const lines = sentenceLinesOf(ask.pieces, send);
+    const mapped = keysWithLines(ask.keys, lines);
+    const keys = keysFor(mapped);
+    if (!asksSomething(mapped, lit, send.text)) {
       res.status(400).json({ error: { message: "A message needs words." } });
       return;
     }
@@ -642,33 +636,31 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     const custom = customOf(card, meanings);
     const meaningsSent = meanings.length + custom.length > 0 ? { dictMeaning: meaningsPiece(meanings, custom) } : {};
     const pieces = piecesFor(res, { ...ask.pieces, ...meaningsSent }, settings);
-    const sent = aiSent(cardPromptOf(settings), pieces, ask.said, sendPieces(send, ask.keys, book), sendPieces(opening, ask.keys, book));
+    const sent = aiSent(cardPromptOf(settings), cardPiecesOf(pieces), ask.said, sendPieces(send, mapped, book), sendPieces(opening, mapped, book));
     const asked = later ? (sent[sent.length - 1] ?? "") : "";
     const call = {
       place: "card",
       prompt: sent[0] ?? "",
       said: later ? [...ask.said, { role: "user" as const, text: asked }] : [],
-      maxTokens: sendTokens(settings.aiMaxTouchUpTokens, ask.keys, lit, send.text),
+      maxTokens: sendTokens(settings.aiMaxTouchUpTokens, mapped, lit, send.text),
       ref: pieces.dictForm || pieces.word || "",
       actions: send.actions,
     } as const;
-    // A proposed Sentence is held to what was sent, the first send's sentence, the card's as it stands and the
-    // surrounding subtitles (the wider ones too, where a message sent them): one reworded is that part alone set aside as
-    // the `rewrote` error, the rest standing.
-    const surrounding = [pieces.surrounding, opening.wider, send.wider].filter((text): text is string => (text ?? "").trim() !== "").join("\n");
-    const sentence = { sentences: [pieces.sentence ?? "", card.values.sentence ?? ""], surrounding };
+    // A proposed Sentence is the lines its numbers name, copied, never words the model wrote; lines that can't be used
+    // (none picked, or without the word) are that part alone set aside as the `rewrote` error, the rest standing.
+    const sentence = { lines, word: pieces.word ?? "" };
     // `{Meaning}` is the one meanings list, Explain's, with the Meaning's custom ones after; what it holds is in
     // `{Card}`, for the Meaning's own why. Every send answers in the one shape, asked on the wire, which has no union,
     // nothing optional and nothing nullable (a provider refuses a schema past 16 of those), read into Panki's own shapes
     // at once (`answerOfWire`) and held to the card as it was sent (`touchUpProblem`): a rule broken fails it whole, and
     // so do the message's knobs broken, said in Panki's words: a key it requires untouched, a reply it requires (the
     // card's Explain, Grammar…) empty, a key it leaves out (`leftOutFor`) answered. Nothing of such a message lands.
-    const held = { meanings, now: card, requires: requiredFor(ask.keys, lit), reply: replyRequired(lit), leaves: leftOutFor(ask.keys, lit) };
-    const shape = ruled(touchUpShape(keys, card, meanings.length + custom.length), (wire) => touchUpProblem(answerOfWire(wire), held));
+    const held = { meanings, now: card, requires: requiredFor(mapped, lit), reply: replyRequired(lit), leaves: leftOutFor(mapped, lit) };
+    const shape = ruled(touchUpShape(keys, card, meanings.length + custom.length), (wire) => touchUpProblem(answerOfWire(wire, sentence), held));
     const answer = await run(res, settings, { ...call, shape });
     if (!answer) return;
-    const read = answerOfWire(answer.value);
-    res.json({ touchUp: { answer: meaningsInOrder(sentenceHeld(read.answer, sentence)), reply: read.reply, asked, ...spent(answer) }, ai: statusOf(res) });
+    const read = answerOfWire(answer.value, sentence);
+    res.json({ touchUp: { answer: meaningsInOrder(read.answer), reply: read.reply, asked, ...spent(answer) }, ai: statusOf(res) });
   });
 
   /**

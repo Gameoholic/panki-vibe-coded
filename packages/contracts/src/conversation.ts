@@ -48,6 +48,12 @@ export type Commit<C> = {
   changed: readonly C[];
   /** Its reply stopped at Max answer length, kept as it came: Panki says so under it. Only a place that keeps a cut reply (Explain) sets it. */
   cut?: boolean;
+  /**
+   * The parts of its reply that came back with nothing to accept, each by its part (a card's Touch up key) and why (a
+   * Touch up error's id): Panki says so under it, so a part set aside never passes for one that changed nothing. Only
+   * Touch up sets it.
+   */
+  aside?: readonly { part: string; error: string }[];
 };
 
 /** A field's branch: the commit of main it stands on, its own commits, and whether it was reset since a question was last asked there. */

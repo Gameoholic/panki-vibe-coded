@@ -228,7 +228,7 @@ export function gapsOf(pieces: PromptPieces, onVideo: boolean): PromptGaps {
 
 /** The word's actions as the composer lists them, the account's in its order, the ticked ones on. */
 const switchesOf = (book: AccountActions, lit: readonly AiActionId[], disabled: boolean): ComposerProps["actions"] =>
-  actionsOf(book, "word").map((action) => ({ id: action.id, name: action.name, on: lit.includes(action.id), disabled, under: action.under }));
+  actionsOf(book, "word").map((action) => ({ id: action.id, name: action.name, on: lit.includes(action.id), disabled }));
 /** The one place a word's conversation's sends are asked from: the composer's foot. */
 const FOOT = "foot";
 

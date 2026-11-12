@@ -1283,13 +1283,13 @@ const pankiKept = (id: PankiActionId): KeptAction => keptActionOf(AI_ACTIONS[id]
 /**
  * An action's knobs as its row keeps them, in one JSON. `leaves` is Leave out; a row written while the knob was away
  * holds none and reads as leaving nothing out, and one from before it went holds the keys it was told to leave, read
- * as Leave out. `under` is the action it stands under; a row without it stands at the top.
+ * as Leave out. An `under` a row holds from when an action could stand under another is read by nothing.
  */
-const aiActionKnobs = ({ requires, leaves, under, seconds }: Pick<KeptAction, "requires" | "leaves" | "under" | "seconds">): string => JSON.stringify({ requires, leaves, under, seconds });
+const aiActionKnobs = ({ requires, leaves, seconds }: Pick<KeptAction, "requires" | "leaves" | "seconds">): string => JSON.stringify({ requires, leaves, seconds });
 /** An action as its change log keeps it: all of it, and how it stood (its copy standing, deleted). */
 function aiActionSnapshot(action: KeptAction, state: { edited: boolean; removed: boolean }): string {
-  const { name, words, requires, leaves, under, seconds } = action;
-  return JSON.stringify(canonical({ name, words, requires, leaves, under, seconds, ...state }));
+  const { name, words, requires, leaves, seconds } = action;
+  return JSON.stringify(canonical({ name, words, requires, leaves, seconds, ...state }));
 }
 
 type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean; finishedAt: number | null };

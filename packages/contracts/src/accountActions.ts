@@ -61,9 +61,9 @@ export const ACTION_SECONDS_MAX = 300;
  * what must come back (`requires`: a card's Touch up keys and the reply, or a word's parts), what must not
  * (`leaves`, Leave out: a card's Touch up keys, or a word's parts; one that comes back answered is dropped and named),
  * and how many seconds of video subtitles it sends each way, either place's (`seconds`). Which knobs a place takes is
- * `knobsProblem`'s to say. `under` is the action of the same place it stands under in the composer's Actions menu and in
- * Settings (Panki's per-field actions under Touch up), null at the top; one level only (`aiActions.ts` → `underProblem`). A `seconds` kept as null (Admin's Surrounding video subtitles, when that was the reach)
- * reads as the default, and one past the most as the most.
+ * `knobsProblem`'s to say. A `seconds` kept as null (Admin's Surrounding video subtitles, when that was the reach)
+ * reads as the default, and one past the most as the most. An `under` kept from when an action could stand under
+ * another is read by nothing.
  */
 export const KeptAction = z.object({
   id: AiActionId,
@@ -72,7 +72,6 @@ export const KeptAction = z.object({
   words: z.string().max(ACTION_WORDS_MAX, { message: `At most ${ACTION_WORDS_MAX.toLocaleString("en")} characters.` }),
   requires: z.array(ActionPart).max(TOUCH_UP_KEYS.length + EXPLAIN_PARTS.length).default([]),
   leaves: z.array(ActionPart).max(TOUCH_UP_KEYS.length + EXPLAIN_PARTS.length).default([]),
-  under: AiActionId.nullable().default(null),
   seconds: z.preprocess(
     (value) => (value === null || value === undefined ? DEFAULT_ACTION_SECONDS : typeof value === "number" ? Math.min(value, ACTION_SECONDS_MAX) : value),
     z.number().int().min(0).max(ACTION_SECONDS_MAX),
