@@ -189,15 +189,13 @@ const Stored = z.object({
   playerBar: z.boolean().catch(DEFAULT_MODULES.playerBar),
   playerBarLayout: KeptBar.nullable().catch(null),
   /**
-   * Whether the bar stays on the video as it plays, in full screen and out of it (`modules.ts` → `barKeptFull`,
-   * `barKeptNotFull`): null until each is set, read until then from the one switch that held both (`barKeptOf`).
+   * Whether the bar stays on the video as it plays, in full screen and out of it (`modules.ts` → `barKept`), as its key
+   * last left it on a YouTube page. A browser that kept `playerBarKeptFull` and `playerBarKeptNotFull` (a switch for
+   * each screen) keeps them unread.
    */
-  playerBarKeptFull: z.boolean().nullable().catch(null),
-  playerBarKeptNotFull: z.boolean().nullable().catch(null),
-  /** The key that takes the kept bar out of view and back (options page, YouTube → Player bar). */
+  playerBarKept: z.boolean().catch(DEFAULT_MODULES.barKept),
+  /** The key that keeps the bar visible or lets it fade (options page, YouTube → Player bar). */
   playerBarKey: BoundKey.catch(DEFAULT_MODULES.barKey),
-  /** The one switch for both before they were two: read into each until it's set, never written again. */
-  playerBarKept: z.boolean().catch(false),
   /** The speed button's and the end time's own switches, before they were rows of the player bar: read once into its layout, never written again. */
   speedControl: z.boolean().catch(true),
   endTime: z.boolean().catch(true),
@@ -237,15 +235,6 @@ export const barOf = (store: Stored): BarLayout =>
   store.playerBarLayout ??
   DEFAULT_BAR.map((control) => (control.id === "speed" ? { ...control, shown: store.speedControl } : control.id === "endTime" ? { ...control, shown: store.endTime } : control));
 
-/**
- * Whether the bar is kept shown in full screen and out of it, each as set or, until it is, from the one old switch:
- * kept On, both On; otherwise each its default.
- */
-export const barKeptOf = (store: Stored): { full: boolean; notFull: boolean } => ({
-  full: store.playerBarKeptFull ?? (store.playerBarKept || DEFAULT_MODULES.barKeptFull),
-  notFull: store.playerBarKeptNotFull ?? (store.playerBarKept || DEFAULT_MODULES.barKeptNotFull),
-});
-
 /** Which parts are on, as one value, as a page gets them. */
 export const modulesOf = (store: Stored): Modules => ({
   on: store.pankiOn,
@@ -273,8 +262,7 @@ export const modulesOf = (store: Stored): Modules => ({
   shorts: store.moduleShorts,
   playerBar: store.playerBar,
   bar: barOf(store),
-  barKeptFull: barKeptOf(store).full,
-  barKeptNotFull: barKeptOf(store).notFull,
+  barKept: store.playerBarKept,
   barKey: store.playerBarKey,
   shortSkip: store.shortSkip,
   shortSkipKey: store.shortSkipKey,

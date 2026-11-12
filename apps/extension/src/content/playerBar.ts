@@ -14,9 +14,8 @@ import { BAR_HELD } from "../ui/SpeedControl";
  * - **Panki's own** (the speed button, when the video will end, Watching, Save for later, Subtitles): each a place of Panki's, put right after
  *   the control before it in the layout (the first of its side at the start of the side's box), and taken off when
  *   it's hidden, has nothing to show this moment, or the bar is the site's.
- * - **Kept shown**: the site woken the moment it hides its bar (`wake`), never a style holding the bar in sight.
- * - **Taken away** while kept, by its key: the bottom hidden by the same stylesheet, and the site no longer woken, so
- *   it fades its pointer and lowers its captions as it does once its controls are gone.
+ * - **Kept shown**, by its key: the site woken the moment it hides its bar (`wake`), never a style holding the bar in
+ *   sight; pressed again, the site is no longer woken and fades the bar as it does by itself.
  *
  * Looked at with the rest of the page every second, so a control the site redraws comes back as it was laid out.
  */
@@ -27,39 +26,25 @@ const findOf = (id: BarControl): string | null => {
   return control.from === "youtube" ? `${PLAYER} ${BAR_SIDES[control.side].find} ${control.find}` : null;
 };
 /**
- * The bar kept on the video as it plays (`Modules.barKeptFull`, `barKeptNotFull`; and while Panki's speed panel is
+ * The bar kept on the video as it plays (`Modules.barKept`, flipped by its key; and while Panki's speed panel is
  * open, `SpeedControl` → `BAR_HELD`, as the site holds its bar while its gear menu is): the site marks its player
  * `ytp-autohide` a few seconds after the pointer rests, fades its bottom and, while it's marked so, stops drawing the
  * bar's time, its playhead and what's loaded. So the bar isn't held shown by a style of Panki's (it would stand still
  * in every one of those): the moment the site marks the player, the player is handed a made-up pointer move, the one
- * thing that has the site bring its controls back itself and draw them again (`wake`). Full screen is judged as the
- * page judges it, the watch page marked `[fullscreen]` by the site. The pointer stays shown over the picture while the
- * bar is kept, as the site shows it while its controls are. Unproven: that the player takes a made-up move (the seek
- * bar's pins rest on the same).
+ * thing that has the site bring its controls back itself and draw them again (`wake`). The pointer stays shown over
+ * the picture while the bar is kept, as the site shows it while its controls are. Unproven: that the player takes a
+ * made-up move (the seek bar's pins rest on the same).
  */
 const AUTOHIDE = "ytp-autohide";
-const FULL = "ytd-watch-flexy[fullscreen]";
-/**
- * The player's bottom, its control bar and the shade the site lays behind it: out of view while the kept bar is taken
- * away by its key (`Modules.barKey`), by the same stylesheet as the controls hidden, so nothing of the site's is touched.
- * Hidden rather than see-through, so nothing unseen there can be pressed.
- */
-const BOTTOM = [".ytp-chrome-bottom", ".ytp-gradient-bottom"];
 /** How a Panki control stands among the player's own: as tall as they are, its panel (the speed's) opening above it. */
 const AMONG_CONTROLS = "display: inline-flex; align-items: center; height: 100%; vertical-align: top; position: relative;";
-
-/** Whether the bar is kept shown in full screen and out of it. */
-export type BarKept = { full: boolean; notFull: boolean };
-const NOT_KEPT: BarKept = { full: false, notFull: false };
 
 export type BarNow = {
   /** The bar laid out by Panki: off, it's the site's own. */
   on: boolean;
   layout: BarLayout;
-  /** The bar kept on the video as it plays, rather than fading once the pointer rests: in full screen, and out of it. */
-  kept: BarKept;
-  /** The kept bar taken out of view by its key: only while it's kept (`keptBySetting`), when it's the one way to be rid of it. */
-  away: boolean;
+  /** The bar kept on the video as it plays, in full screen and out of it, rather than fading once the pointer rests. */
+  kept: boolean;
   /** Whether a Panki control has anything to show this moment (a video, no ad). */
   shows: (id: PankiBarControl) => boolean;
   adPlaying: boolean;
@@ -79,24 +64,17 @@ export function createPlayerBar() {
   let style: HTMLStyleElement | null = null;
   /** The site's own order of each box Panki has moved controls in, to put back. */
   const before = new Map<Element, Element[]>();
-  /** Whether the bar is kept shown, in full screen and out of it, as the bar stands this moment. */
-  let kept: BarKept = NOT_KEPT;
-  /** Whether the kept bar is out of view, as its key last left it. */
-  let away = false;
+  /** Whether the bar is kept shown, as the bar stands this moment. */
+  let kept = false;
   /** The player watched for the site marking it hidden; a player the site builds afresh is watched in its turn. */
   let watched: Element | null = null;
   const hiding = new MutationObserver(() => wake());
   /** A pixel to either side each time: a move to where the pointer already stands may be no move to the site. */
   let nudge = 0;
 
-  /** Whether the bar is kept this moment by its setting, for a full screen or none. */
-  function keptBySetting(): boolean {
-    return document.querySelector(FULL) ? kept.full : kept.notFull;
-  }
-  /** Whether the bar is to be kept shown this moment: as its setting says, or while the speed panel is open; never while its key has it out of view. */
+  /** Whether the bar is to be kept shown this moment: as its key left it, or while the speed panel is open. */
   function keptNow(player: Element): boolean {
-    if (away && keptBySetting()) return false;
-    return player.classList.contains(BAR_HELD) || keptBySetting();
+    return kept || player.classList.contains(BAR_HELD);
   }
   /** The player, marked hidden by the site while the bar is to be kept, handed a pointer move over its middle so it brings its controls back itself. */
   function wake() {
@@ -110,7 +88,7 @@ export function createPlayerBar() {
     player.dispatchEvent(new MouseEvent("mousemove", init));
   }
   /** The bar kept as said from now, the page's player watched for the site hiding it, and woken at once if it has. */
-  function keep(next: BarKept) {
+  function keep(next: boolean) {
     kept = next;
     const player = document.querySelector(PLAYER);
     if (player !== watched) {
@@ -121,14 +99,14 @@ export function createPlayerBar() {
     wake();
   }
 
-  /** The rules hiding the controls hidden, and the whole bottom while it's taken away, on the page while there are any. */
-  function hide(ids: readonly BarControl[], bottom: boolean) {
-    const rules = ids.flatMap((id) => {
-      const find = findOf(id);
-      return find ? [`${find} { display: none !important; }`] : [];
-    });
-    if (bottom) rules.push(`${BOTTOM.map((part) => `${PLAYER} ${part}`).join(", ")} { visibility: hidden !important; }`);
-    const text = rules.join("\n");
+  /** The rules hiding the controls hidden, on the page while there are any. */
+  function hide(ids: readonly BarControl[]) {
+    const text = ids
+      .flatMap((id) => {
+        const find = findOf(id);
+        return find ? [`${find} { display: none !important; }`] : [];
+      })
+      .join("\n");
     if (!text) {
       style?.remove();
       return;
@@ -228,13 +206,10 @@ export function createPlayerBar() {
 
   return {
     places,
-    /** Whether the bar is kept this moment by its setting, as last applied: when its key has anything to do. */
-    keptBySetting,
     /** The bar as it should stand this moment. */
     apply(now: BarNow) {
-      away = now.away;
-      keep(now.on ? now.kept : NOT_KEPT);
-      hide(now.on ? now.layout.filter((control) => !control.shown).map((control) => control.id) : [], away && keptBySetting());
+      keep(now.on && now.kept);
+      hide(now.on ? now.layout.filter((control) => !control.shown).map((control) => control.id) : []);
       if (!now.adPlaying) arrange(now.on && barReordered(now.layout) ? now.layout : null);
       mount(now);
       typeOfTime();

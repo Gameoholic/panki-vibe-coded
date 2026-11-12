@@ -3,7 +3,7 @@ import { KeyField } from "@web/components/KeyField";
 import { Setting } from "@web/components/Setting";
 import { Toggle } from "@web/components/Toggle";
 import { BAR_CONTROLS, BAR_FROM, BAR_SIDES, BAR_SIDE_IDS, barSide, type BarLayout } from "../modules";
-import { barKeptOf, barOf, writeStore, type Stored } from "../storage";
+import { barOf, writeStore, type Stored } from "../storage";
 import { BarControls, YOUTUBE_OWN } from "./BarControls";
 import { SceneTitle } from "./explainerScenes";
 import { PartRows } from "./PartRows";
@@ -16,7 +16,6 @@ import { PartRows } from "./PartRows";
  */
 export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const layout = barOf(store);
-  const kept = barKeptOf(store);
   const keep = (next: BarLayout) => void writeStore({ playerBarLayout: next }).then(onChanged);
   return (
     // A panel of its own on the YouTube tab, after YouTube utilities.
@@ -27,41 +26,20 @@ export function PlayerBarPanel({ store, onChanged }: { store: Stored; onChanged:
         label="Custom player bar"
         control={<Toggle id="player-bar-on" says={{ on: "On", off: "Off" }} on={store.playerBar} onChange={(playerBar) => void writeStore({ playerBar }).then(onChanged)} />}
       />
-      {/* In full screen On to begin with; outside it Off, the bar fading as YouTube's does. */}
-      <Setting
-        id="player-bar-kept-full"
-        label="Keep the bar visible in full screen"
-        control={
-          <Toggle id="player-bar-kept-full-on" says={{ on: "On", off: "Off" }} on={kept.full} disabled={!store.playerBar} onChange={(playerBarKeptFull) => void writeStore({ playerBarKeptFull }).then(onChanged)} />
-        }
-      />
-      <Setting
-        id="player-bar-kept-not-full"
-        label="Keep the bar visible outside full screen"
-        control={
-          <Toggle
-            id="player-bar-kept-not-full-on"
-            says={{ on: "On", off: "Off" }}
-            on={kept.notFull}
-            disabled={!store.playerBar}
-            onChange={(playerBarKeptNotFull) => void writeStore({ playerBarKeptNotFull }).then(onChanged)}
-          />
-        }
-      />
-      {/* Under the two it depends on: with neither kept the bar fades by itself, and the key is left to the site. */}
+      {/* The one way the bar is kept visible: the key flips it on the video's page, kept for every video after. */}
       <Setting
         id="player-bar-key"
-        label="Toggle player bar keybind"
+        label="Keep player bar visible keybind"
         control={
           <KeyField
             id="player-bar-key-choice"
-            label="Toggle player bar keybind"
+            label="Keep player bar visible keybind"
             value={store.playerBarKey}
-            disabled={!store.playerBar || (!kept.full && !kept.notFull)}
+            disabled={!store.playerBar}
             onChange={(playerBarKey) => void writeStore({ playerBarKey }).then(onChanged)}
           />
         }
-        why="Hides or shows the player bar while it's kept visible."
+        why="Keeps the player bar visible as the video plays, or lets it fade again."
       />
       <BarPreview layout={store.playerBar ? layout : YOUTUBE_OWN} off={!store.playerBar} />
       {BAR_SIDE_IDS.map((side) => (

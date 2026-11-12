@@ -312,16 +312,11 @@ export const Modules = z.object({
   bar: BarLayout,
   /**
    * With the bar laid out by Panki, whether it stays on the video as it plays rather than fading a few seconds after
-   * the pointer rests: in full screen (`barKeptFull`) and out of it (`barKeptNotFull`), each its own. In full screen On
-   * to begin with, out of it Off.
+   * the pointer rests, in full screen and out of it alike: flipped by `barKey` alone, and kept for every video from
+   * then on. Off to begin with, the bar fading as the site's does.
    */
-  barKeptFull: z.boolean(),
-  barKeptNotFull: z.boolean(),
-  /**
-   * The key that takes the player bar out of view, and brings it back, while it's kept (`barKeptFull` or
-   * `barKeptNotFull`, whichever the screen is in), there being no other way to be rid of it then (`content/youtube.tsx`
-   * → `PAGE_KEYS`). X to begin with.
-   */
+  barKept: z.boolean(),
+  /** The key that keeps the player bar visible, or lets it fade again (`barKept`; `content/youtube.tsx` → `PAGE_KEYS`). X to begin with. */
   barKey: BoundKey,
   /**
    * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube
@@ -358,8 +353,7 @@ export const DEFAULT_MODULES: Modules = {
   shorts: true,
   playerBar: true,
   bar: DEFAULT_BAR,
-  barKeptFull: true,
-  barKeptNotFull: false,
+  barKept: false,
   barKey: "x",
   shortSkip: true,
   shortSkipKey: "shift",
