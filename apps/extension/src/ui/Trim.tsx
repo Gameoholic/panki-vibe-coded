@@ -209,7 +209,11 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
   return (
     <div className={`trim ${disabled ? "is-off" : ""}`.trim()}>
       <div ref={track} className="trim-track">
-        {heard ? stretchOn(share, "trim-heard", Math.max(heard.from, view.from), Math.min(heard.to, view.to)) : null}
+        {/* What Panki AI heard: outside it hatched, a notch where it begins and ends. An edge past the bar's isn't drawn. */}
+        {heard ? stretchOn(share, "trim-unheard", view.from, Math.min(heard.from, view.to)) : null}
+        {heard ? stretchOn(share, "trim-unheard", Math.max(heard.to, view.from), view.to) : null}
+        {heard && heard.from > view.from && heard.from < view.to ? <i className="trim-heard-edge" style={{ left: `${share(heard.from)}%` }} /> : null}
+        {heard && heard.to > view.from && heard.to < view.to ? <i className="trim-heard-edge" style={{ left: `${share(heard.to)}%` }} /> : null}
         {ticks.map((tick, i) => (tick.at > view.from && tick.at < view.to ? <i key={i} className={`trim-tick is-${tick.kind}`} style={{ left: `${share(tick.at)}%` }} /> : null))}
         {adds.map((add, i) => (add ? <span key={i}>{stretchOn(share, "trim-diff is-in", add.from, add.to)}</span> : null))}
         <div
@@ -235,29 +239,10 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
           </>
         )}
       </div>
-      {heard ? <HeardEdges heard={heard} view={view} /> : null}
     </div>
   );
 }
 
-/** Whole seconds, as a count beside the bar says them. */
-const seconds = (n: number) => `${Math.round(n)} s`;
-
-/**
- * What Panki AI heard, said under the bar's edges: how far past each edge its hearing goes, in words; the bar itself is
- * tinted where it heard. Nothing on a side it doesn't pass.
- */
-function HeardEdges({ heard, view }: { heard: Stretch; view: Stretch }) {
-  const before = view.from - heard.from;
-  const after = heard.to - view.to;
-  if (before < 1 && after < 1) return null;
-  return (
-    <div className="trim-heard-row" title={`Panki AI heard ${stamp(heard.from)} to ${stamp(heard.to)}`}>
-      <span>{before >= 1 ? `◂ Panki AI heard ${seconds(before)} more` : ""}</span>
-      <span>{after >= 1 ? `${seconds(after)} more ▸` : ""}</span>
-    </div>
-  );
-}
 
 
 /** Where the video stands, as a line on the bar. It moves many times a second, so it moves itself and nothing else is drawn again for it. */
