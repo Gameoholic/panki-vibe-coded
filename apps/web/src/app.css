@@ -7800,10 +7800,18 @@ mark.sub-blur {
   gap: 8px;
   width: 100%;
   padding: 8px 10px;
+  border-color: transparent;
   border-radius: 10px;
+  background: transparent;
   color: inherit;
   font-weight: inherit;
   text-align: left;
+}
+/* The row is the one box: its line draws none of its own, pointed at or not. */
+@media (hover: hover) {
+  .btn.w-today-streak-line:hover {
+    background: transparent;
+  }
 }
 .w-today-streak-chevron {
   width: 14px;
@@ -7834,8 +7842,10 @@ mark.sub-blur {
   margin: 0;
   padding: 0 10px 0 36px;
 }
+/* Room between the line and its conditions, and under them; only while open, since padding would hold a folded one open. */
 .is-open .w-today-streak-more > .w-checks {
-  padding-bottom: 8px;
+  padding-top: 4px;
+  padding-bottom: 10px;
 }
 .w-today-streak-row.is-pass {
   background: var(--good-soft);

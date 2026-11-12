@@ -1145,7 +1145,7 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ stats, ctx }) {
       const { continuing } = stats.watching;
       if (continuing.length === 0) return { empty: "No videos left part-way." };
-      return { chart: <ContinueRows videos={continuing} onStale={ctx.onStale} />, foot: `${count(continuing.length, "video", "videos")} left part-way` };
+      return { chart: <ContinueRows videos={continuing} onStale={ctx.onStale} /> };
     },
   },
   {
