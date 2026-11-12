@@ -121,7 +121,7 @@ export const StreakState = z.object({
   atRisk: z.boolean(),
   /** Whole hours until the day turns, rounded up, at any hour. */
   hoursLeft: Count,
-  /** The periods that counted in the past 26 weeks (this week from its first day and the 25 weeks before), oldest first. */
+  /** Every period that counted, oldest first: the tile's Show more draws whichever stretch of them is picked. */
   counted: z.array(Day),
   /** How many of the recent periods counted, this one among them: the past 30 for a streak per day, the past 26 per week. */
   recent: z.object({ n: Count, of: Count }),
@@ -138,8 +138,19 @@ export type StreakState = z.infer<typeof StreakState>;
 export const STAT_WINDOWS = ["today", "days7", "days30", "months12", "all"] as const;
 export const StatWindow = z.enum(STAT_WINDOWS);
 export type StatWindow = z.infer<typeof StatWindow>;
+/**
+ * The calendar's stretches so far, each as Today is the day so far: this week from its first day (the account's,
+ * `weekEndsOn`), this month from its 1st, this year from 1 January, each up to today; the window before is the one
+ * before up to the same point (last week's same days, last month to the same date, last year to the same date). Sent
+ * apart from `STAT_WINDOWS` (`Stats.calendar`), so an extension from before still reads the five it knows.
+ */
+export const CALENDAR_WINDOWS = ["week", "month", "year"] as const;
+export const CalendarWindow = z.enum(CALENDAR_WINDOWS);
+export type CalendarWindow = z.infer<typeof CalendarWindow>;
+/** Any fixed window a tile can cover: a span ending today, All time, or the calendar's so far. */
+export type FixedWindow = StatWindow | CalendarWindow;
 /** A window's numbers: one of the fixed windows, or `custom`, the range a tile asked for (`Stats.custom`). */
-export const WindowId = z.enum([...STAT_WINDOWS, "custom"]);
+export const WindowId = z.enum([...STAT_WINDOWS, ...CALENDAR_WINDOWS, "custom"]);
 export type WindowId = z.infer<typeof WindowId>;
 
 /**
@@ -389,6 +400,8 @@ export const Stats = z.object({
   streaks: z.array(StreakState).default([]),
   /** Each window's numbers, in `STAT_WINDOWS`' order. */
   windows: z.array(WindowStats).length(STAT_WINDOWS.length),
+  /** This week, this month and this year so far, in `CALENDAR_WINDOWS`' order; none from an older server. */
+  calendar: z.array(WindowStats).max(CALENDAR_WINDOWS.length).default([]),
   /** The frame asked for over the past (`?last=&unit=`), worked out as every window is (`window` "custom"); null when none was. */
   custom: WindowStats.nullable().default(null),
   /**

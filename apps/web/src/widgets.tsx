@@ -26,6 +26,8 @@ import {
   type SrsType,
   type StatFrame,
   type StatWindow,
+  type CalendarWindow,
+  type FixedWindow,
   type Stats,
   type StreakPer,
   type StreakRule,
@@ -128,6 +130,10 @@ type TileEntry = {
   home: boolean;
   /** Heads the Streaks screen rather than standing on Stats (Today); on the home like any tile. */
   streaksScreen?: true;
+  /**
+   * The spans ending today it covers (and Today, All time); the calendar's so far come with them where they fit
+   * (`windowsOf`): This week with 7 days, This month with 30, This year with 12 months; none for a tile that looks ahead.
+   */
   windows?: readonly StatWindow[];
   /** The window it opens on until one is picked on this device. */
   window?: StatWindow;
@@ -171,16 +177,45 @@ const argmax = (values: readonly number[]) => values.reduce((best, v, j) => (v >
 const sum = (values: readonly number[]) => values.reduce((a, b) => a + b, 0);
 
 /**
- * The windows in words, the shared vocabulary of every tile: the control's (Today, 7 d, 30 d, 1 y, All time), what the
- * change is against, and the stretch in a sentence ("these 30 days", "the past year").
+ * The windows in words, the shared vocabulary of every tile: the control's (Today, This week, Last 7 d, All time; a span
+ * says Next where the tile looks ahead), what the change is against, the stretch in a sentence ("these 30 days", "the
+ * past year"), and where a count of it stands after the count ("today", "this week", "in these 30 days", "so far").
  */
-const WINDOW_WORDS: Record<StatWindow, { label: string; before: string | null; these: string | null }> = {
-  today: { label: "Today", before: "yesterday by this hour", these: "today" },
-  days7: { label: "7 d", before: "the 7 days before", these: "these 7 days" },
-  days30: { label: "30 d", before: "the 30 days before", these: "these 30 days" },
-  months12: { label: "1 y", before: "the year before", these: "the past year" },
-  all: { label: "All time", before: null, these: null },
+const WINDOW_WORDS: Record<FixedWindow, { label: string; span?: true; before: string | null; these: string | null; within: string }> = {
+  today: { label: "Today", before: "yesterday by this hour", these: "today", within: "today" },
+  week: { label: "This week", before: "this time last week", these: "this week", within: "this week" },
+  month: { label: "This month", before: "this time last month", these: "this month", within: "this month" },
+  year: { label: "This year", before: "this time last year", these: "this year", within: "this year" },
+  days7: { label: "7 d", span: true, before: "the 7 days before", these: "these 7 days", within: "in these 7 days" },
+  days30: { label: "30 d", span: true, before: "the 30 days before", these: "these 30 days", within: "in these 30 days" },
+  months12: { label: "12 mo", span: true, before: "the year before", these: "the past year", within: "in the past year" },
+  all: { label: "All time", before: null, these: null, within: "so far" },
 };
+/** A window as its tile's dropdown says it: a span with the way it runs from today ("Last 7 d", "Next 30 d"), the rest as they are. */
+const windowLabel = (w: FixedWindow, way: FrameWay) => (WINDOW_WORDS[w].span ? `${FRAME_LEAD[way]} ${WINDOW_WORDS[w].label}` : WINDOW_WORDS[w].label);
+/**
+ * The windows a tile's dropdown offers, in two groups and what stands alone: the calendar's so far (Today, This week,
+ * This month, This year) and the spans ending today (Last 7 d, Last 30 d, Last 12 mo), each group's first a choice with
+ * the rest under it, opened by its arrow; then All time. The calendar's come with the spans they match, never for a tile
+ * that looks ahead (This week ahead is no stretch Coming up counts).
+ */
+const SO_FAR: readonly FixedWindow[] = ["today", "week", "month", "year"];
+const LAST: readonly FixedWindow[] = ["days7", "days30", "months12"];
+const CALENDAR_FOR: Partial<Record<StatWindow, CalendarWindow>> = { days7: "week", days30: "month", months12: "year" };
+function windowsOf(entry: TileEntry): FixedWindow[] {
+  const own = entry.windows ?? [];
+  if (entry.ahead) return [...own];
+  return [...own, ...own.flatMap((w) => CALENDAR_FOR[w] ?? [])];
+}
+function windowOptions(entry: TileEntry, way: FrameWay): { id: FixedWindow; label: string; under?: FixedWindow }[] {
+  const offered = windowsOf(entry);
+  const group = (of: readonly FixedWindow[]) => {
+    const here = of.filter((w) => offered.includes(w));
+    const head = here[0];
+    return here.map((w) => ({ id: w, label: windowLabel(w, way), ...(head !== undefined && w !== head ? { under: head } : {}) }));
+  };
+  return [...group(SO_FAR), ...group(LAST), ...(offered.includes("all") ? [{ id: "all" as const, label: windowLabel("all", way) }] : [])];
+}
 /** The word a custom frame's panel puts before its amount, by the way the tile looks (its entry's `ahead`). */
 const FRAME_LEAD: Record<FrameWay, string> = { last: "Last", next: "Next" };
 /** A custom frame in a sentence: "3 weeks", "1 day". */
@@ -195,7 +230,7 @@ function windowWords(win: WindowStats): { before: string | null; these: string; 
     return { before: `the ${said} before`, these: `the last ${said}`, within: `in the last ${said}` };
   }
   const words = WINDOW_WORDS[win.window];
-  return { before: words.before, these: words.these ?? "all time", within: win.window === "today" ? "today" : words.these === null ? "so far" : `in ${words.these}` };
+  return { before: words.before, these: words.these ?? "all time", within: words.within };
 }
 const beforeWords = (win: WindowStats) => (win.before === null ? null : windowWords(win).before);
 /**
@@ -1326,7 +1361,7 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
     if (!entry.windows) return null;
     const kept = readTilePick(entry.id).window;
     if (kept === "custom" && frame) return kept;
-    return kept && kept !== "custom" && entry.windows.includes(kept) ? kept : (entry.window ?? entry.windows[0] ?? null);
+    return kept && kept !== "custom" && windowsOf(entry).includes(kept) ? kept : (entry.window ?? entry.windows[0] ?? null);
   });
   const [view, setView] = useState<string>(() => {
     const kept = readTilePick(entry.id).view;
@@ -1342,7 +1377,7 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   const windowAt = useRef<HTMLSpanElement>(null);
   const custom = useFrameStats(win === "custom" ? frame : null, way, stats);
   const loading = stats === null || ctx === null || (win === "custom" && custom.win === null && custom.ahead === null && custom.failure === null);
-  const winStats = stats === null || win === null ? null : win === "custom" ? custom.win : (stats.windows.find((w) => w.window === win) ?? null);
+  const winStats = stats === null || win === null ? null : win === "custom" ? custom.win : ([...stats.windows, ...stats.calendar].find((w) => w.window === win) ?? null);
   const next = win === "custom" ? custom.ahead : null;
   const out = loading ? null : win === "custom" && custom.failure !== null ? { empty: custom.failure } : entry.make({ stats, ctx, win: winStats, next, view, measure, onAt: setAt });
   const shown = out && out.empty === undefined ? out : null;
@@ -1350,9 +1385,9 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   // A day alone is drawn by the hour: no views over it, Today's or a range's of one day.
   const views = entry.views && shown && !(entry.noViewsOn && winStats?.unit === "one") ? entry.views : null;
   const isOpen = open && more !== null;
-  const options: { id: WindowId | "pick"; label: string }[] = [
-    ...(entry.windows ?? []).map((w) => ({ id: w, label: WINDOW_WORDS[w].label })),
-    ...(framed && frame ? [{ id: "custom" as const, label: frameShort(frame) }] : []),
+  const options: { id: WindowId | "pick"; label: string; under?: WindowId }[] = [
+    ...windowOptions(entry, way),
+    ...(framed && frame ? [{ id: "custom" as const, label: `${FRAME_LEAD[way]} ${frameShort(frame)}` }] : []),
     ...(framed ? [{ id: "pick" as const, label: "Custom…" }] : []),
   ];
   return (
@@ -1701,7 +1736,7 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
             ))}
           </div>
           <PeriodRow state={state} />
-          {open ? <StreakMore state={state} today={today} weekEndsOn={ctx.settings.weekEndsOn} name={name} at={at} onAt={setAt} /> : null}
+          {open ? <StreakMore id={id} state={state} today={today} weekEndsOn={ctx.settings.weekEndsOn} name={name} at={at} onAt={setAt} /> : null}
         </>
       )}
     </Widget>
@@ -1709,24 +1744,131 @@ export function StreakTile({ id, rule, state, today, ctx, overlay, className = "
 }
 
 /**
- * A streak's Show more: the past six months as days, each lit when the period it's in counted (a week that counted is a
- * whole column), how many of the recent periods did, and the longest runs.
+ * The stretches a streak's Show more can draw as a heat map of days, the tile's own (no window of the stats, since the
+ * streak's periods come whole with it): the calendar's so far and the spans ending today, each group's first with the
+ * rest under it as every tile's dropdown has them, then All time, and Custom… for any other (`FramePicker`, the last N
+ * days, weeks, months or years). Today and This week are left out: a day or a week is no map, and the tile's row already
+ * says them. Last 6 mo to begin with.
  */
-function StreakMore({ state, today, weekEndsOn, name, at, onAt }: { state: StreakState; today: Day; weekEndsOn: WeekDay; name: string; at: string | null; onAt: (words: string | null) => void }) {
+type StreakSpan = "month" | "year" | "months6" | "days30" | "months12" | "all";
+const STREAK_SPANS: readonly { id: StreakSpan; label: string; under?: StreakSpan }[] = [
+  { id: "month", label: "This month" },
+  { id: "year", label: "This year", under: "month" },
+  { id: "months6", label: "Last 6 mo" },
+  { id: "days30", label: "Last 30 d", under: "months6" },
+  { id: "months12", label: "Last 12 mo", under: "months6" },
+  { id: "all", label: "All time" },
+];
+const STREAK_SPAN_FIRST: StreakSpan = "months6";
+/** The same day `n` months back, held to that month's last day. */
+function monthsBack(day: Day, n: number): Day {
+  const d = dayDate(day);
+  const first = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - n, 1);
+  const last = new Date(Date.UTC(new Date(first).getUTCFullYear(), new Date(first).getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(first + (Math.min(d.getUTCDate(), last) - 1) * 86_400_000).toISOString().slice(0, 10);
+}
+/** The first day a stretch draws, up to today; All time from the first period that counted (at least the last 6 months). */
+function streakSpanFrom(span: StreakSpan | "custom", frame: StatFrame | null, today: Day, firstCounted: Day | undefined): Day {
+  const months = (n: number) => addDays(monthsBack(today, n), 1);
+  switch (span) {
+    case "month":
+      return `${today.slice(0, 7)}-01`;
+    case "year":
+      return `${today.slice(0, 4)}-01-01`;
+    case "days30":
+      return addDays(today, -29);
+    case "months6":
+      return months(6);
+    case "months12":
+      return months(12);
+    case "all":
+      return firstCounted !== undefined && firstCounted < months(6) ? firstCounted : months(6);
+    case "custom":
+      if (!frame) return months(6);
+      return frame.unit === "day" ? addDays(today, 1 - frame.n) : frame.unit === "week" ? addDays(today, 1 - 7 * frame.n) : months(frame.unit === "month" ? frame.n : 12 * frame.n);
+  }
+}
+/** How many columns of weeks a heat map up to a year wide draws whole; past that it scrolls sideways. */
+const HEAT_FIT_COLS = 27;
+
+/**
+ * A streak's Show more: the stretch picked as days (Last 6 mo to begin with, kept on this device as a tile's window is),
+ * each lit when the period it's in counted (a week that counted is a whole column), how many of its periods did, and the
+ * longest runs ever.
+ */
+function StreakMore({ id, state, today, weekEndsOn, name, at, onAt }: { id: string; state: StreakState; today: Day; weekEndsOn: WeekDay; name: string; at: string | null; onAt: (words: string | null) => void }) {
+  const [frame, setFrame] = useState<StatFrame | null>(() => readTilePick(id).frame ?? null);
+  const [span, setSpan] = useState<StreakSpan | "custom">(() => {
+    const kept = readTilePick(id).span;
+    if (kept === "custom" && frame) return "custom";
+    return STREAK_SPANS.find((s) => s.id === kept)?.id ?? STREAK_SPAN_FIRST;
+  });
+  const [picking, setPicking] = useState(false);
+  const spanAt = useRef<HTMLSpanElement>(null);
   const counted = new Set(state.counted);
   const drawn = PERIOD_DRAWN[state.per];
   const period = STREAK_PERIODS[state.per];
   const now = state.row[state.rowNow]?.start ?? today;
-  const first = addDays(weekStartOf(today, weekEndsOn), -25 * 7);
   const startOf = (day: Day) => drawn.startOf(day, weekEndsOn);
+  const from = streakSpanFrom(span, frame, today, state.counted[0]);
+  const first = weekStartOf(from, weekEndsOn);
+  const cols = Math.floor(daysFrom(first, today) / 7) + 1;
+  // Its periods: each day, or each week, from the one `from` falls in to the one going on.
+  const periods = new Set<Day>();
+  for (let d = from; d <= today; d = addDays(d, 1)) periods.add(startOf(d));
+  const n = [...periods].filter((p) => counted.has(p)).length;
   const step = (day: Day): HeatStep => (counted.has(startOf(day)) ? 4 : 0);
   const wordsOf = (day: Day) => `${drawn.said(startOf(day))} · ${counted.has(startOf(day)) ? "counted" : startOf(day) === now ? "not yet" : "didn't count"}`;
+  const options: { id: StreakSpan | "custom" | "pick"; label: string; under?: StreakSpan }[] = [
+    ...STREAK_SPANS,
+    ...(frame ? [{ id: "custom" as const, label: `${FRAME_LEAD.last} ${frameShort(frame)}` }] : []),
+    { id: "pick", label: "Custom…" },
+  ];
+  const said = options.find((o) => o.id === span)?.label ?? "";
   return (
     <div className="w-more">
-      <MoreBlock title="Past 6 months">
-        <HeatMap first={first} cols={26} from={first} to={today} step={step} wordsOf={wordsOf} onAt={onAt} label={`${name}, past 6 months`} />
-        <p className="w-foot">{at ?? `${num(state.recent.n)} of the past ${periodCountWords(state.per, state.recent.of)} counted`}</p>
-      </MoreBlock>
+      <div className="w-more-block">
+        <span ref={spanAt} className="w-window w-more-window" data-no-drag>
+          <Dropdown
+            id={`tile-${id}-span`}
+            label={`${name}: stretch shown`}
+            size="sm"
+            anchored
+            options={options}
+            value={span}
+            onChange={(next) => {
+              if (next === "pick") {
+                setPicking(true);
+                return;
+              }
+              setSpan(next);
+              onAt(null);
+              if (next === "custom") {
+                if (frame) writeTilePick(id, { span: "custom", frame });
+              } else writeTilePick(id, { span: next });
+            }}
+          />
+        </span>
+        {picking ? (
+          <FramePicker
+            idPrefix={`tile-${id}-span-frame`}
+            anchor={spanAt}
+            open={picking}
+            frame={frame}
+            lead={FRAME_LEAD.last}
+            onClose={() => setPicking(false)}
+            onPick={(next) => {
+              setPicking(false);
+              setFrame(next);
+              setSpan("custom");
+              onAt(null);
+              writeTilePick(id, { span: "custom", frame: next });
+            }}
+          />
+        ) : null}
+        <HeatMap first={first} cols={cols} from={from} to={today} step={step} wordsOf={wordsOf} onAt={onAt} label={`${name}, ${said}`} size={cols > HEAT_FIT_COLS ? "year" : "fit"} />
+        <p className="w-foot">{at ?? `${num(n)} of ${periodCountWords(state.per, periods.size)} counted`}</p>
+      </div>
       <MoreBlock title="Longest runs">
         {state.runs.length === 0 ? (
           <p className="w-quiet">No runs yet.</p>

@@ -7037,9 +7037,10 @@ mark.sub-blur {
   grid-column: span var(--w, 1);
   min-width: 0;
 }
-/* On the home a tile's settings and Show more are for arranging: out of sight until the board is being arranged, so
-   the home is its numbers alone. One already open stays, to close it again. */
-.board.is-home:not(.is-arranging) .w-tools :is(.w-more-button, .w-streak-settings):not(:has([aria-expanded="true"])) {
+/* On the home a tile's settings and Show more / Show less are for arranging: out of sight until the board is being
+   arranged, so the home is its numbers alone, what it covers (its window, its views) the one thing changed there. A
+   streak's settings panel already open keeps its button, which it hangs from, to close it again. */
+.board.is-home:not(.is-arranging) .w-tools :is(.w-more-button, .w-streak-settings:not(:has([aria-expanded="true"]))) {
   display: none;
 }
 /* The last numbers stay, dimmed, while the next scope loads. */
@@ -7195,6 +7196,10 @@ mark.sub-blur {
 }
 .w-more-block .w-foot {
   margin: 0;
+}
+/* A streak's Show more: the stretch its map draws, a tile's own small dropdown heading the block in its title's place. */
+.w-more-window {
+  justify-self: start;
 }
 /* The quiet words at the right of a title row: what the tile covers. */
 .w-ctl {

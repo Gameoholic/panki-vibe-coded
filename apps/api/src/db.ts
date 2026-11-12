@@ -3420,9 +3420,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const marks = marksOf(selectWatchMarks.all() as WatchMarkRow[]);
       const stretches = (selectWatchStretches.all() as WatchStretchRow[]).filter((s) => marks.get(s.videoId)?.counted ?? true);
 
-      const { windows, custom, activity } = tilesOf({
+      const { windows, calendar, custom, activity } = tilesOf({
         now,
         today: todayKey,
+        weekStart,
         day,
         hour,
         answers: answers.map((a) => ({
@@ -3490,6 +3491,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: placeInWeek(todayKey, settings.weekEndsOn) },
         streaks,
         windows,
+        calendar,
         custom,
         customAhead: frame && aheadSpan ? aheadOf(frame.frame, aheadSpan, coming) : null,
         activity,

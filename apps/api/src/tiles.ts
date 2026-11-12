@@ -1,4 +1,4 @@
-import { STAT_WINDOWS, weekdayOf, type FrameWay, type SeriesUnit, type StatFrame, type Stats, type StatWindow, type TrendUnit, type WindowId, type WindowStats } from "@panki/contracts";
+import { CALENDAR_WINDOWS, STAT_WINDOWS, weekdayOf, type FixedWindow, type FrameWay, type SeriesUnit, type StatFrame, type Stats, type TrendUnit, type WindowId, type WindowStats } from "@panki/contracts";
 import { addDays, addMonths, daysBetween, monthOf, shiftMonths, type Day } from "./time";
 
 /**
@@ -25,6 +25,8 @@ export type TileStage = { key: string; name: string; colour: string | null };
 export type TilesInput = {
   now: number;
   today: Day;
+  /** This week's first day, the account's (`weekStartOf`): where This week starts. */
+  weekStart: Day;
   day: (at: number) => Day;
   /** The hour an instant falls in, in the day's order. */
   hour: (at: number) => number;
@@ -123,9 +125,9 @@ function coverage(): (videoId: string, fromMs: number, toMs: number) => number {
 const add = <K>(map: Map<K, number>, key: K, n: number) => map.set(key, (map.get(key) ?? 0) + n);
 const shownMs = (s: TileShowing) => s.frontMs + s.backMs;
 
-/** Every window's numbers, in `STAT_WINDOWS`' order, the range asked for, and the days studied for Activity. */
-export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "activity"> {
-  const { today, day, hour } = input;
+/** Every window's numbers, in `STAT_WINDOWS`' order, the calendar's in `CALENDAR_WINDOWS`', the range asked for, and the days studied for Activity. */
+export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "calendar" | "custom" | "activity"> {
+  const { today, weekStart, day, hour } = input;
   const answers = input.answers.map((a) => ({ ...a, day: day(a.at) }));
   const showings = input.showings.map((s) => ({ ...s, day: day(s.at) }));
   const sessions = input.sessions.map((s) => ({ ...s, day: day(s.startedAt) }));
@@ -139,8 +141,12 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
   const yesterday = addDays(today, -1);
   const cutoff = input.now - DAY_MS;
 
-  /** A fixed window as a frame: its days, the window before, and how it comes over time. */
-  function frameOf(window: StatWindow): Frame {
+  /**
+   * A fixed window as a frame: its days, the window before, and how it comes over time. The calendar's so far are each
+   * compared with the one before up to the same point: last week's same days, last month to the same date (held to its
+   * last day), last year to the same date.
+   */
+  function frameOf(window: FixedWindow): Frame {
     switch (window) {
       case "today":
         return { window, span: { from: today, to: today }, before: { from: yesterday, to: yesterday }, unit: "one", trendUnit: "day" };
@@ -153,6 +159,16 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
         return { window, span: { from: addMonths(today, -11), to: today }, before: { from: addMonths(today, -23), to: addDays(addMonths(today, -11), -1) }, unit: "month", trendUnit: "month" };
       case "all":
         return { window, span: { from: first, to: today }, before: null, unit: "month", trendUnit: "month" };
+      case "week":
+        return { window, span: { from: weekStart, to: today }, before: { from: addDays(weekStart, -7), to: addDays(today, -7) }, unit: "day", trendUnit: "day" };
+      case "month": {
+        const from = monthOf(today);
+        return { window, span: { from, to: today }, before: { from: addMonths(today, -1), to: shiftMonths(today, -1) }, unit: "day", trendUnit: "week" };
+      }
+      case "year": {
+        const from = `${today.slice(0, 4)}-01-01`;
+        return { window, span: { from, to: today }, before: { from: `${shiftMonths(today, -12).slice(0, 4)}-01-01`, to: shiftMonths(today, -12) }, unit: "month", trendUnit: "month" };
+      }
     }
   }
 
@@ -465,7 +481,7 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "custom" | "
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([d, e]) => ({ day: d, ...e }));
 
-  return { windows: STAT_WINDOWS.map((w) => windowOf(frameOf(w))), custom: input.range ? windowOf(rangeFrame(input.range)) : null, activity };
+  return { windows: STAT_WINDOWS.map((w) => windowOf(frameOf(w))), calendar: CALENDAR_WINDOWS.map((w) => windowOf(frameOf(w))), custom: input.range ? windowOf(rangeFrame(input.range)) : null, activity };
 }
 
 /**

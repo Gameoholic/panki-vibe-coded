@@ -138,7 +138,6 @@ function nearness(group: readonly { have: number; need: number }[]): number {
  * yet, today is its last day and the clock is past Starts at.
  */
 export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMap<Day, DayTally>, today: Day, weekEndsOn: WeekDay, clock: ReminderClock): StreakState[] {
-  const sixMonthsFrom = addDays(weekStartOf(today, weekEndsOn), -25 * 7);
   return rules.map((rule) => {
     const cal = calendarOf(rule.per, today, weekEndsOn);
     const facts = periodFactsOf(tallies, cal.startOf, firstDayOf(rule, today), today);
@@ -169,7 +168,7 @@ export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMa
       daysLeft: cal.daysLeft,
       atRisk: clock.on && clock.pastStart && !countsNow && current > 0 && cal.daysLeft === 1,
       hoursLeft: clock.hoursLeft,
-      counted: sorted.filter((p) => p >= sixMonthsFrom),
+      counted: sorted,
       recent: { n: sorted.filter((p) => p >= cal.recentFrom).length, of: cal.recent },
       runs: runsOf(sorted, cal.days)
         .sort((a, b) => b.n - a.n || b.to.localeCompare(a.to))
