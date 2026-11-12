@@ -185,21 +185,24 @@ const WINDOW_WORDS: Record<StatWindow, { label: string; before: string | null; t
 const FRAME_LEAD: Record<FrameWay, string> = { last: "Last", next: "Next" };
 /** A custom frame in a sentence: "3 weeks", "1 day". */
 const frameWords = (frame: StatFrame) => count(frame.n, FRAME_UNITS[frame.unit].name.toLowerCase().replace(/s$/, ""), FRAME_UNITS[frame.unit].name.toLowerCase());
-/** What a window's change is against, its one empty line, and the stretch in a sentence: a fixed window's, or a custom frame's. */
-function windowWords(win: WindowStats): { before: string | null; empty: string; these: string } {
+/**
+ * What a window's change is against, the stretch in a sentence, and where a count of it stands after the count
+ * ("today", "in these 30 days", "so far"): a fixed window's, or a custom frame's.
+ */
+function windowWords(win: WindowStats): { before: string | null; these: string; within: string } {
   if (win.window === "custom") {
     const said = win.frame ? frameWords(win.frame) : count(daysFrom(win.from, win.to) + 1, "day", "days");
-    return { before: `the ${said} before`, empty: `Nothing in the last ${said}.`, these: `the last ${said}` };
+    return { before: `the ${said} before`, these: `the last ${said}`, within: `in the last ${said}` };
   }
   const words = WINDOW_WORDS[win.window];
-  return { before: words.before, empty: words.these === null ? "Nothing yet." : `Nothing in ${words.these}.`, these: words.these ?? "all time" };
+  return { before: words.before, these: words.these ?? "all time", within: win.window === "today" ? "today" : words.these === null ? "so far" : `in ${words.these}` };
 }
 const beforeWords = (win: WindowStats) => (win.before === null ? null : windowWords(win).before);
 /**
- * A tile's one empty line: for Today, the tile's own words with its own verb ("Nothing reviewed today yet."), never a
- * generated "Nothing today."; for a longer window, "Nothing in these 30 days.".
+ * A tile's one line when its window holds none of what it counts: the count as it is, with the tile's own words and
+ * its window, never "nothing": "0 reviews today.", "0 min watched in these 30 days.", "0 cards added so far.".
  */
-const emptyOf = (win: WindowStats, today = "Nothing here today yet.") => (win.window === "today" ? today : windowWords(win).empty);
+const zeroOf = (win: WindowStats, what: string) => `${what} ${windowWords(win).within}.`;
 
 function deltaOf(cur: number, prev: number | null, before: string | null, betterUp: boolean | null): Delta | null {
   if (prev === null || before === null || prev === 0) return null;
@@ -633,7 +636,7 @@ export const WIDGETS: readonly TileEntry[] = [
             ))}
           </div>
         ),
-        foot: later > 0 ? `${num(later)} more ${later === 1 ? "comes" : "come"} due today.` : "Nothing more comes due today.",
+        foot: later > 0 ? `${num(later)} more ${later === 1 ? "comes" : "come"} due today.` : "0 more come due today.",
       };
     },
   },
@@ -680,12 +683,12 @@ export const WIDGETS: readonly TileEntry[] = [
       const say = view === "reviews" ? sayReviews : spent;
       const inside = (from: Day, to: Day) => [...days.entries()].filter(([d, v]) => d >= from && d <= to && v > 0);
       const shown = inside(win.from, win.to);
-      if (shown.length === 0) return { empty: emptyOf(win) };
+      if (shown.length === 0) return { empty: zeroOf(win, `0 days ${view === "watching" ? "watched" : "studied"}`) };
       const total = sum(shown.map(([, v]) => v));
       const [best, max] = shown.reduce((top, entry) => (entry[1] > top[1] ? entry : top));
       const prev = win.before === null ? null : inside(win.before.from, win.before.to).length;
       const step = (day: Day) => stepOf(get(day), max);
-      const wordsOf = (day: Day) => `${dayWords(day)} · ${get(day) === 0 ? "nothing" : say(get(day))}`;
+      const wordsOf = (day: Day) => `${dayWords(day)} · ${say(get(day))}`;
       // Every window the one map, at a year's cell size: 30 d is its weeks, All time the whole history, scrolling sideways when wider.
       const first = weekStartOf(win.from, ctx.settings.weekEndsOn);
       const chart = <HeatMap first={first} cols={weeksTo(first, win.to)} from={win.from} to={win.to} step={step} wordsOf={wordsOf} onAt={onAt} label={say(total)} size="year" />;
@@ -707,7 +710,7 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ stats, ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const r = win.reviews;
-      if (r.n === 0) return { empty: emptyOf(win, "Nothing reviewed today yet.") };
+      if (r.n === 0) return { empty: zeroOf(win, "0 reviews") };
       const { chart, foot } = byView({ win, view, series: r.series, hours: r.hours, weekdays: r.weekdays, say: sayReviews, stats, ctx, onAt });
       return {
         figure: { parts: [[num(r.n), r.n === 1 ? "review" : "reviews"]], delta: deltaOf(r.n, r.before, beforeWords(win), true) },
@@ -734,7 +737,7 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const r = win.right;
-      if (r.of === 0) return { empty: emptyOf(win) };
+      if (r.of === 0) return { empty: zeroOf(win, "0 reviews") };
       const share = pct1(r.right, r.of);
       const shareRow = (key: string, name: string, x: { right: number; of: number }, tint?: CSSProperties): RowSpec => ({ key, name, n: pct1(x.right, x.of), says: `${pct1(x.right, x.of)}%`, lang: langOf(name), ...(tint ? { tint } : {}) });
       const countRow = (row: RowSpec, x: { right: number; of: number }): RowSpec => ({ ...row, says: `${num(x.right)} of ${num(x.of)}` });
@@ -806,7 +809,7 @@ export const WIDGETS: readonly TileEntry[] = [
         const labels = starts.map((d) => (byDay ? dayLabel(d, starts.length, ctx.settings.weekEndsOn) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : ""));
         const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
         const total = sum(values);
-        if (total === 0) return { empty: `Nothing coming up in the next ${frameWords(next.frame)}.` };
+        if (total === 0) return { empty: `0 reviews coming up in the next ${frameWords(next.frame)}.` };
         return {
           figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
           chart: <Columns values={values} labels={labels} words={said} now={0} onAt={onAt} />,
@@ -828,7 +831,7 @@ export const WIDGETS: readonly TileEntry[] = [
         said = (j) => `${j === 0 ? "Today" : dayWords(days[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
       }
       const total = sum(values);
-      if (total === 0) return { empty: win.window === "today" ? "Nothing due today." : `Nothing coming up in the next ${values.length} days.` };
+      if (total === 0) return { empty: win.window === "today" ? "0 reviews due today." : `0 reviews coming up in the next ${values.length} days.` };
       return {
         figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
         chart: <Columns values={values} labels={labels} words={said} now={0} onAt={onAt} />,
@@ -853,7 +856,7 @@ export const WIDGETS: readonly TileEntry[] = [
           foot: s.n >= s.limit ? "Today's limit reached" : `${count(s.limit - s.n, "new card", "new cards")} left today`,
         };
       }
-      if (s.n === 0) return { empty: emptyOf(win) };
+      if (s.n === 0) return { empty: zeroOf(win, "0 new cards") };
       const values = s.series.map((b) => b.n);
       const ticks = s.series.map((b) => b.limit);
       const { labels, words } = stretchesOf(
@@ -877,7 +880,7 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ ctx, win }) {
       if (!win) return { empty: "" };
       const t = win.tough;
-      if (t.misses === 0) return { empty: win.window === "all" ? "No misses yet." : `No misses in ${windowWords(win).these}.` };
+      if (t.misses === 0) return { empty: zeroOf(win, "0 misses") };
       const rate = (c: { misses: number; of: number }) => (c.of === 0 ? 0 : Math.round((c.misses / c.of) * 100));
       // The stage missed most, of those with enough answers to say so.
       const judged = win.right.stages.filter((s) => s.of >= 20);
@@ -936,7 +939,7 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ stats, ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const a = win.added;
-      if (a.n === 0) return { empty: emptyOf(win) };
+      if (a.n === 0) return { empty: zeroOf(win, "0 cards added") };
       const sources = [
         { key: "typed", name: "Typed manually", n: a.sources.typed, says: "typed manually" },
         { key: "youtube", name: "YouTube", n: a.sources.youtube, says: "from YouTube" },
@@ -972,7 +975,7 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ stats, ctx, win, view, onAt }) {
       if (!win) return { empty: "" };
       const t = win.time;
-      if (t.ms === 0) return { empty: emptyOf(win, "Nothing studied today yet.") };
+      if (t.ms === 0) return { empty: zeroOf(win, "0 min studied") };
       let chart: ReactNode;
       // A card each answer, a review's or a new card's: the time covers both, so a card's share is over both counts.
       const cards = win.reviews.n + win.started.n;
@@ -1009,7 +1012,7 @@ export const WIDGETS: readonly TileEntry[] = [
       if (!win) return { empty: "" };
       const side = PACE_SIDES.find((s) => s.id === view) ?? PACE_SIDES[2];
       const p = win.pace[side.id];
-      if (win.pace.total.ms === null) return { empty: emptyOf(win) };
+      if (win.pace.total.ms === null) return { empty: zeroOf(win, "0 cards timed") };
       const seconds = (ms: number) => (ms / 1000).toFixed(1);
       const values = p.series.map((s) => (s.ms === null ? null : Math.round(s.ms / 100) / 10));
       const { labels, words } = stretchesOf(
@@ -1045,8 +1048,8 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ stats, ctx, win, view, measure, onAt }) {
       if (!win) return { empty: "" };
       const w = win.watching;
-      // Nothing watched is said once, whichever is measured, so the measure stays to switch back from.
-      if (w.ms === 0) return { empty: emptyOf(win, "Nothing watched today yet.") };
+      // None watched is said once, whichever is measured, so the measure stays to switch back from.
+      if (w.ms === 0) return { empty: zeroOf(win, "0 min watched") };
       // Time spent is the clock; Runtime watched, each part of a video once (`WindowStats.watching.ofVideo`).
       const ofVideo = measure === "video";
       const m = ofVideo ? w.ofVideo : { ms: w.ms, before: w.before, series: w.series, hours: w.hours, weekdays: w.weekdays };
@@ -1082,7 +1085,7 @@ export const WIDGETS: readonly TileEntry[] = [
       if (!win) return { empty: "" };
       const w = win.watching;
       const rows = w.channels.filter((c) => c.ms > 0);
-      if (rows.length === 0) return { empty: emptyOf(win) };
+      if (rows.length === 0) return { empty: zeroOf(win, "0 channels watched") };
       const byCards = view === "cards";
       const sorted = [...rows].sort((a, b) => (byCards ? b.cards - a.cards : b.ms - a.ms) || a.name.localeCompare(b.name));
       const stacks = w.topSeries.map((s) => [...w.top.map((name, i) => ({ n: s.ms[i] ?? 0, colour: channelTint(w.top, name) })), { n: s.othersMs, colour: OTHERS_TINT }]);

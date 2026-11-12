@@ -36,7 +36,7 @@ export function ReviewPickView({ decks, onPick, onMakeDeck }: Props) {
             const takes = timeLeftMs(countsLeft(deck.newCount, deck.dueCount), deck.pace);
             return (
               <li key={deck.id}>
-                <TodayBar id={`pick-${deck.id}`} name={deck.name} counts={words ?? "Nothing due right now"} onShow={words ? () => onPick(deck, "cards") : undefined}>
+                <TodayBar id={`pick-${deck.id}`} name={deck.name} counts={words ?? "0 reviews · 0 new"} onShow={words ? () => onPick(deck, "cards") : undefined}>
                   {words ? (
                     <Button id={`pick-${deck.id}-start`} variant="primary" onClick={() => onPick(deck, "start")}>
                       <Icon name="play" />

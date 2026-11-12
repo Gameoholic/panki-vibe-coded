@@ -7,6 +7,7 @@ Every string the owner sees is product copy: it says what the thing is or does f
 - **Never echo the request.** The prompt describes a change; the UI describes the product.
 - **Don't narrate the mechanism,** and never say "the user" or "the app".
 - **A hint earns its place.** One that only repeats the label is dropped.
+- **A count with none in it says the number, never "nothing".** A tile, a hover's words, a door or a foot line with none of what it counts says it as data: "0 reviews today.", "Fri 25 Sept · 0 reviews", "0 due · 0 new", "0 more come due today." (a tile's line is `zeroOf` in `widgets.tsx`).
 - **An empty state says what's empty, and nothing more.** "No card types yet.", "No word picked.": never which button to press, where it is or what happens once there's something. Where a list's heading already says it, no line under it at all.
 - **No explaining line under a setting or a choice.** A setting is its label and its control. A line under it (`Setting`'s `why`), a note beside a choice or a sentence on how something behaves is added only when the owner asks, or when without it the setting would do something no one could guess (a cost, a loss).
 - **It reads like a professional product.** Read each label as on a paid product's settings page. A setting has a plain noun for a label ("Field name", "Position"), never a quirky phrase ("Its name: Over it"). Standard terms over the house's own poetic phrasing.

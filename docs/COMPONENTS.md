@@ -30,7 +30,7 @@ Paths from `apps/web/src/`.
 | ColourWheel | `components/ColourWheel.tsx` | A colour of one's own, picked on a wheel (`ColourWheel`). Never the browser's `<input type="color">`. |
 | DeckList | `components/DeckList.tsx` | Decks as rows with their counts (`DeckList`). |
 | DeckNameForm | `components/DeckNameForm.tsx` | A deck's name, typed and validated (`DeckNameForm`). |
-| Door | `components/Door.tsx` | A home door (`Door`, `DoorSpec`, `DoorWay`): one way in, a figure at its right if it has one, or two in rows (`rows`) with their counts. |
+| Door | `components/Door.tsx` | A home door (`Door`, `DoorSpec`, `DoorWay`): one way in, or two in rows (`rows`), each with how many there are. The board draws them. |
 | Dropdown | `components/Dropdown.tsx` | One value from a list too long for a row of chips, or picked inside a sentence (`Dropdown`). Never a native `<select>`. |
 | ExampleArrows | `components/ExampleArrows.tsx` | The arrows that switch a card's examples (`ExampleArrows`). Never a second drawing of the arrows. |
 | Explainer | `components/Explainer.tsx` | What a panel's feature is, shown as a scene that plays (`Explainer`, `ExplainedTitle`, `Stage`, `CANVAS`). Never a second explainer. |
