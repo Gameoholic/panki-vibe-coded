@@ -1965,13 +1965,13 @@ function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waiti
     const { box, row } = found;
     setAway(row.offsetTop + row.offsetHeight < box.scrollTop ? "up" : row.offsetTop > box.scrollTop + box.clientHeight ? "down" : null);
   };
-  /** Scrolls the list to the line being said: a third of the way down, so what was just said stays in sight above it. */
+  /** Scrolls the list to the line being said: its first line, so the whole list under it is what's still to come. */
   const follow = (still: boolean) => {
     const found = litRow();
     if (!found) return;
     const { box, row } = found;
     ownUntil.current = Date.now() + 900;
-    box.scrollTo({ top: Math.max(0, row.offsetTop - box.clientHeight / 3), behavior: still || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    box.scrollTo({ top: Math.max(0, row.offsetTop), behavior: still || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
   useEffect(() => {
     judge();
