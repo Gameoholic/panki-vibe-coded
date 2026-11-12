@@ -1,5 +1,5 @@
 /** @panki The capture drawer, a card made from the page (`Panel`), and a notice in it (`Notice`). */
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   APP_LANGUAGES,
   AiActionId,
@@ -56,6 +56,7 @@ import {
   readMeaning,
   startCall,
   startConversation,
+  subtitleLinesOf,
   tidyMeaning,
   wordsFieldOf,
   type AiCall,
@@ -73,6 +74,7 @@ import {
   type PankiAi,
   type PromptGaps,
   type PromptPieces,
+  type SubtitleLine,
   type TouchUpAnswer,
   type TouchUpKey,
   type TouchUpNow,
@@ -259,6 +261,8 @@ type Touch = {
    * ones, as one stretch. Null until a message goes, or off a video.
    */
   heard: Stretch | null;
+  /** The subtitle lines Panki AI heard, as sent (the first message's surrounding ones, a later one's wider ones), each number once, in order: the head's Heard chip opens them. */
+  heardLines: readonly SubtitleLine[];
   /**
    * How much of the video the conversation hears each way, as its settings set it (`ConversationKnobs.reach`), from the
    * next message on: null until it's set, each card starting at the default; and the notes each change wrote where it
@@ -288,9 +292,13 @@ const NO_TOUCH: Touch = {
   asked: 0,
   clipTo: null,
   heard: null,
+  heardLines: [],
   reach: null,
   marks: [],
 };
+/** Lines heard before and lines heard now as one list, each number once, in order. */
+const linesJoined = (was: readonly SubtitleLine[], now: readonly SubtitleLine[]): readonly SubtitleLine[] =>
+  now.length === 0 ? was : [...new Map([...was, ...now].map((line) => [line.n, line])).values()].sort((a, b) => a.n - b.n);
 /** Two stretches of the video as one, from the first's start to the last's end; either missing, the other. */
 const spanJoined = (a: Stretch | null, b: Stretch | null): Stretch | null => (a && b ? { from: Math.min(a.from, b.from), to: Math.max(a.to, b.to) } : (a ?? b));
 /** A proposal a commit made, kept with the commit: its key, the colour it was drawn in, and how it was decided, once it was. */
@@ -319,7 +327,39 @@ const TOUCH_WORDS = {
   noMore: "That's the most messages a card's conversation takes.",
   /** Under Clear conversation's question: what goes, and what stays. */
   clearDetail: "Every message, its answers and any proposal still waiting go. What's on the card stays as it is.",
+  /** The head's Heard chip: how many subtitle lines Panki AI heard, and over how long a stretch of the video. */
+  heard: (lines: number, seconds: number | null) =>
+    `Heard ${lines} ${lines === 1 ? "line" : "lines"}${seconds === null ? "" : ` · ${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`}`}`,
+  /** Over the lines the Heard chip opens. */
+  heardTitle: "The subtitles Panki AI heard, your Line lit",
 };
+
+/**
+ * The subtitle lines Panki AI heard (`Touch.heardLines`), by their numbers, the card's Line lit (`mine`), in a box of
+ * their own that opens on the Line: what the head's Heard chip opens.
+ */
+function HeardLines({ id, lines, mine }: { id: string; lines: readonly SubtitleLine[]; mine: { first: number; last: number } | null }) {
+  const box = useRef<HTMLDivElement>(null);
+  const first = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const at = first.current;
+    if (box.current && at) box.current.scrollTop = Math.max(0, at.offsetTop - box.current.clientHeight / 3);
+  }, []);
+  const isMine = (n: number) => mine !== null && n >= mine.first && n <= mine.last;
+  return (
+    <div id={id} className="ai-heard" role="region" aria-label={TOUCH_WORDS.heardTitle}>
+      <p className="ai-heard-title">{TOUCH_WORDS.heardTitle}</p>
+      <div ref={box} className="ai-heard-lines">
+        {lines.map((line) => (
+          <div key={line.n} ref={mine !== null && line.n === mine.first ? first : undefined} className={`ai-heard-line${isMine(line.n) ? " is-mine" : ""}`}>
+            <span className="ai-heard-n">{line.n}</span>
+            <span lang="ja">{line.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 /**
  * A value Panki AI wrote into a field, once accepted: the words, its source, and what holds it in the drawer (the
  * sentence typed, a dictionary field typed over, a field typed in). It stays the AI's when it's changed by hand
@@ -562,6 +602,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** Panki AI as the worker keeps it: unknown until it answers; null signed out; or why it couldn't be told. */
   const [ai, setAi] = useState<{ known: boolean; ai: AiShown | null; failure: string | null }>({ known: false, ai: null, failure: null });
   const [touch, setTouch] = useState<Touch>(NO_TOUCH);
+  /** Whether the head's Heard chip has the lines Panki AI heard open. */
+  const [heardOpen, setHeardOpen] = useState(false);
+  const heardId = useId();
   /**
    * The actions ticked on the composer for its next send, by id: null while they're the account's defaults, ticked as a
    * card's conversation opens (read once Panki AI is known); none after each send.
@@ -937,6 +980,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     // What of the video this send hears: the first's surrounding subtitles, a later one's wider ones where it has them.
     const heardReach = firstSend ? reachOf(litOf(sent.actions), touch.reach) : send.wider ? ready.widerReach : null;
     const heardNow = heardReach !== null ? (capture.more?.(aiSettings)?.spanOf?.(heardReach) ?? null) : null;
+    const heardLinesNow = subtitleLinesOf(firstSend ? (read.pieces.surrounding ?? "") : (send.wider ?? ""));
     const runs = touch.runs + (run !== null ? 1 : 0);
     const call = startCall({
       label: run !== null ? (runs === 1 ? run : `${run} ${runs}`) : `${TOUCH_WORDS.message} ${touch.asked + 1}`,
@@ -967,6 +1011,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       asking: pending,
       ...(firstSend ? { first: read, opening: send, meanings: read.meanings } : {}),
       heard: spanJoined(was.heard, heardNow),
+      heardLines: linesJoined(was.heardLines, heardLinesNow),
     }));
     const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }) });
     const now = Date.now();
@@ -1288,6 +1333,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       }
     }
     decide(key, "accepted");
+  }
+  /** The card's Line as subtitle lines, by their numbers, for the Heard chip's list to light; null off a video or with none. */
+  function heardMine(): { first: number; last: number } | null {
+    const value = sentenceField ? (values[sentenceField.id] ?? "").trim() : "";
+    return value !== "" && aiSettings ? (capture.more?.(aiSettings)?.linesOf?.(value) ?? null) : null;
   }
   /** Where Accept on the Sentence proposal waiting now would put the clip; null with none waiting, off a video, or when its words aren't in the subtitles kept. */
   function clipProposed(): { start: number; end: number } | null {
@@ -2275,6 +2325,14 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               if (touch.retry) pressSend(touch.retry, { kind: "retry" });
             }}
             tools={<TouchUpAll pending={pendingKeys.length} onAcceptAll={acceptAll} onDismissAll={dismissAll} />}
+            headBeside={
+              touch.heardLines.length > 0 ? (
+                <Button className={`ai-heard-chip${heardOpen ? " is-open" : ""}`} aria-expanded={heardOpen} aria-controls={heardId} onClick={() => setHeardOpen(!heardOpen)}>
+                  {TOUCH_WORDS.heard(touch.heardLines.length, touch.heard ? touch.heard.to - touch.heard.from : null)}
+                </Button>
+              ) : null
+            }
+            above={heardOpen && touch.heardLines.length > 0 ? <HeardLines id={heardId} lines={touch.heardLines} mine={heardMine()} /> : null}
             conversation={touch.conversation}
             asking={touch.asking}
             of={touchOf}

@@ -383,6 +383,10 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
   onRunAgain: () => void;
   /** Under the head while the run stands (no failure): what's the place's own there, Touch up's Accept all and Dismiss all. */
   tools?: ReactNode;
+  /** In the head beside the status, the place's own (the card's: what of the video Panki AI heard, `HeardChip`). */
+  headBeside?: ReactNode;
+  /** First under the head, the place's own: what `headBeside` opens (the card's: the lines heard). */
+  above?: ReactNode;
   /**
    * A conversation (a card's in the drawer, a word's in the pop-up): the block is there before any call, its head and
    * its foot (the composer) with it. User instructions and what the actions say stand in the head's Details, never in the conversation.
@@ -395,16 +399,17 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
  * back by the head's name, the run's failure with Try again or the place's `tools`, main's
  * conversation (`ConversationTurns`), and its foot. Open to begin with, while this drawer or pop-up is open.
  */
-export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, always = false, ...place }: AiConversationProps<C>) {
+export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, headBeside = null, above = null, always = false, ...place }: AiConversationProps<C>) {
   const classes = `${className ? `${className} ` : ""}ai-explain`;
   const id = useId();
   const [open, setOpen] = useState(true);
   if (calls.length === 0 && !always) return null;
   return (
     <section ref={ref} className={classes} aria-label="Panki AI" aria-busy={busy} inert={inert}>
-      <AiStatus calls={calls} burst={burst} always={always} fold={{ open, onToggle: () => setOpen(!open), controls: `${id}-body` }} />
+      <AiStatus calls={calls} burst={burst} always={always} fold={{ open, onToggle: () => setOpen(!open), controls: `${id}-body` }} beside={headBeside} />
       <Fold open={open} arrives={false}>
         <div id={`${id}-body`} className="ai-explain-body">
+          {above}
           {failure ? (
             <div className="ai-explain-failure">
               <p className="form-failure" role="alert">

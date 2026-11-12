@@ -2721,6 +2721,57 @@
 .trim-heard-name {
   color: var(--muted);
 }
+/* The conversation head's Heard chip (Panel's `TOUCH_WORDS.heard`), and the lines it opens over the conversation
+   (`HeardLines`): numbered, the card's Line lit, in a box of their own that opens on the Line. */
+.btn.ai-heard-chip {
+  min-height: 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.btn.ai-heard-chip.is-open {
+  border-color: var(--accent);
+}
+.ai-heard {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.ai-heard-title {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ai-heard-lines {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.ai-heard-line {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 8px;
+  padding: 3px 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ai-heard-line.is-mine {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  font-weight: 700;
+}
+.ai-heard-n {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
 /* An end Accept would move: its time struck red, the new one in green after it (Panel's `stampAt`). The time is a
    button, which a strike on its wrapper doesn't reach, so it's set on what's inside. */
 .capture-stamp-was,
