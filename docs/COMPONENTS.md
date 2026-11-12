@@ -73,7 +73,7 @@ Paths from `apps/web/src/`.
 | Swatches | `components/Swatches.tsx` | A colour picked from the palette, or one of one's own (`Swatches`, `Swatch`, `hexOfCss`). Never a second row of swatches. |
 | TextField | `components/TextField.tsx` | A labelled text field with its error bubble (`TextField`). |
 | TimeLeft | `components/TimeLeft.tsx` | About how long a review has left, beside its counts, its finish time on the clock pointed at or pressed (`TimeLeft`, `timeWords`). |
-| TimeStudying | `components/TimeStudying.tsx` | How long a review's session has gone on, beside its counts, ticking, its start on the clock pointed at or pressed (`TimeStudying`). |
+| TimeStudying | `components/TimeStudying.tsx` | How long a review's session has gone on with Panki in view, beside its counts, ticking, its start on the clock pointed at or pressed (`TimeStudying`). |
 | Tip | `components/Tip.tsx` | The one hint bubble, on hover or focus, above its point or below it (`Tip`). Never a `title` attribute, never a hover bubble drawn by hand. |
 | TodayBar | `components/TodayBar.tsx` | Today's cards folded to their counts (`TodayBar`, `todayWords`). |
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |

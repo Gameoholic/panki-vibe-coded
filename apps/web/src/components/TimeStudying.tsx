@@ -1,5 +1,6 @@
-/** @panki How long a review's session has gone on, beside its counts, ticking, its start on the clock pointed at or pressed (`TimeStudying`). */
+/** @panki How long a review's session has gone on with Panki in view, beside its counts, ticking, its start on the clock pointed at or pressed (`TimeStudying`). */
 import { useEffect, useState } from "react";
+import { activeBetween, momentNow, type Moment } from "../away";
 import { durationWords, hourWords } from "../words";
 import { Button } from "./Button";
 import { Tip } from "./Tip";
@@ -13,7 +14,7 @@ const TICK_MS = 1000;
  * Pointed at, the app's hint says when it started ("Started at 21:12"), under the words as the time left's does;
  * pressed, the words say it in their place until pressed again, so a phone, which has no hover, has it too.
  */
-export function TimeStudying({ from }: { from: number }) {
+export function TimeStudying({ from, since }: { from: number; since?: Moment }) {
   const [now, setNow] = useState(() => Date.now());
   // Where the hint points: the middle of the words' foot.
   const [over, setOver] = useState<{ x: number; y: number } | null>(null);
@@ -23,7 +24,8 @@ export function TimeStudying({ from }: { from: number }) {
     const tick = window.setInterval(() => setNow(Date.now()), TICK_MS);
     return () => window.clearInterval(tick);
   }, [from]);
-  const minutes = Math.floor(Math.max(0, now - from) / 60_000);
+  // In view only, when the session's start moment is known; the explainers' made-up sessions count the clock alone.
+  const minutes = Math.floor((since ? activeBetween(since, momentNow()) : Math.max(0, now - from)) / 60_000);
   const started = `Started at ${hourWords(from)}`;
   const point = (e: { currentTarget: HTMLElement }) => setOver({ x: e.currentTarget.offsetWidth / 2, y: e.currentTarget.offsetHeight });
   return (

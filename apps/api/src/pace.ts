@@ -3,6 +3,7 @@
  * answers come in oldest first, with the account's day reader.
  */
 import { CARD_TIME_MAX_MS, NO_PACE, countedMs, type DeckPace } from "@panki/contracts";
+import { foldUndone } from "./undone";
 
 /** How far back a pace looks. */
 export const PACE_DAYS = 30;
@@ -12,10 +13,10 @@ export const WORD_AT_MIN = 10;
 
 /**
  * An answer as a pace reads it: its card and deck, when, whether it started a new card, the spans the browser
- * measured, and how far into the clip on the card's front the picked word started as it was shown (`clips.ts`), when
- * that's known.
+ * measured, how far into the clip on the card's front the picked word started as it was shown (`clips.ts`), when
+ * that's known, and whether it was taken back with Undo (left out, it wasn't).
  */
-export type PaceAnswer = { cardId: string; deckId: string; at: number; start: boolean; thinkMs: number | null; decideMs: number | null; wordAtMs: number | null };
+export type PaceAnswer = { cardId: string; deckId: string; at: number; start: boolean; thinkMs: number | null; decideMs: number | null; wordAtMs: number | null; undone?: boolean };
 
 /** A card's showings on one day: whether the first started it, and the time each took. */
 type Run = { deckId: string; start: boolean; times: number[]; measured: boolean };
@@ -63,9 +64,11 @@ export function wordAtFitOf(answers: readonly PaceAnswer[]): WordAtFit {
  * it, so the times a card was missed and asked again are in it; a showing after a run's first is an asked-again one.
  * A run with a showing the browser didn't measure counts for nothing, rather than as quicker than it was. The front's
  * stretch by where the word falls is fitted over the deck's showings (`wordAtFitOf`). A deck's value it has none of is
- * the account's.
+ * the account's. An answer taken back with Undo and the card's next go are one showing (`foldUndone`), never an
+ * asked-again one.
  */
-export function pacesOf(answers: readonly PaceAnswer[], dayOf: (at: number) => string): { byDeck: Map<string, DeckPace>; all: DeckPace } {
+export function pacesOf(given: readonly PaceAnswer[], dayOf: (at: number) => string): { byDeck: Map<string, DeckPace>; all: DeckPace } {
+  const answers = foldUndone(given, dayOf);
   const runs = new Map<string, Run>();
   for (const a of answers) {
     const key = `${a.cardId}|${dayOf(a.at)}`;

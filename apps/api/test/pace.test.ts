@@ -5,6 +5,7 @@ import { CARD_TIME_MAX_MS, NO_PACE } from "@panki/contracts";
 import { clipReader } from "../src/clips";
 import { WORD_AT_MIN, paceFor, pacesOf, wordAtFitOf, type PaceAnswer } from "../src/pace";
 import { NO_TODAY, backtest, type ReplayAnswer } from "../src/paceBacktest";
+import { foldUndone } from "../src/undone";
 
 /*
  * A deck's pace from its answers (`pace.ts`), a card's clips as it reads them (`clips.ts`), and the backtest of the
@@ -45,6 +46,31 @@ test("a new card's day is every showing of it that day, a review's likewise; a s
 test("the same card on another day is another run, a review once it's started", () => {
   const { byDeck } = pacesOf([answer("a", at(1, 9), 20_000, { start: true }), answer("a", at(2, 9), 8_000)], dayOf);
   assert.deepEqual(byDeck.get("deck"), { newMs: 20_000, reviewMs: 8_000, showingMs: 14_000, againMs: null, ...NO_CLIPS });
+});
+
+test("an answer taken back with Undo and the card's next go are one showing of both, never an asked-again one", () => {
+  const { byDeck } = pacesOf(
+    [answer("a", at(1, 9), 10_000, { start: true, undone: true }), answer("a", at(1, 9.01), 5_000, { start: true }), answer("b", at(1, 9.1), 6_000)],
+    dayOf,
+  );
+  assert.deepEqual(byDeck.get("deck"), { newMs: 15_000, reviewMs: 6_000, showingMs: 10_500, againMs: null, ...NO_CLIPS });
+});
+
+test("undone showings fold into the card's next go that day, however many; one with no next go stays as it was", () => {
+  const rows = [
+    { cardId: "a", at: at(1, 9), undone: true, thinkMs: 4_000, decideMs: 6_000 },
+    { cardId: "a", at: at(1, 9.01), undone: true, thinkMs: 1_000, decideMs: 1_000 },
+    { cardId: "b", at: at(1, 9.02), undone: false, thinkMs: 2_000, decideMs: 2_000 },
+    { cardId: "a", at: at(1, 9.03), undone: false, thinkMs: 2_000, decideMs: 1_000 },
+    { cardId: "c", at: at(1, 9.04), undone: true, thinkMs: 3_000, decideMs: null },
+    { cardId: "c", at: at(2, 9), undone: false, thinkMs: 1_000, decideMs: 1_000 },
+  ];
+  assert.deepEqual(foldUndone(rows, dayOf), [
+    { cardId: "b", at: at(1, 9.02), undone: false, thinkMs: 2_000, decideMs: 2_000 },
+    { cardId: "a", at: at(1, 9.03), undone: false, thinkMs: 7_000, decideMs: 8_000 },
+    { cardId: "c", at: at(1, 9.04), undone: true, thinkMs: 3_000, decideMs: null },
+    { cardId: "c", at: at(2, 9), undone: false, thinkMs: 1_000, decideMs: 1_000 },
+  ]);
 });
 
 test("a showing is at most CARD_TIME_MAX_MS, and a run with one unmeasured counts for nothing", () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { againPlaceOf, blursFront, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type Settings, type SrsType, type SubtitleStyle, dayOf, weekStartOf } from "@panki/contracts";
 import { addDays } from "../charts";
 import { ApiError, api } from "../api";
+import { activeBetween, momentNow, type Moment } from "../away";
 import { Button } from "../components/Button";
 import { ExampleArrows } from "../components/ExampleArrows";
 import { FlowCanvas } from "../components/FlowCanvas";
@@ -57,8 +58,8 @@ type Props = {
 const DAY_MS = 86_400_000;
 /** The longest span the silo takes (the contracts' `Ms`): a tab left open for a day sends that, not a refusal. */
 const SPAN_MAX = DAY_MS;
-/** A span between two of the browser's own moments, in whole ms. */
-const span = (from: number, to: number) => Math.min(SPAN_MAX, Math.max(0, Math.round(to - from)));
+/** The time between two of the browser's own moments that Panki was in view (`away.ts`), in whole ms. */
+const span = (from: Moment, to: Moment) => Math.min(SPAN_MAX, Math.round(activeBetween(from, to)));
 
 /**
  * A session with the deck, as the API knows it. Started as the screen opens and ended once, as the screen or the page
@@ -460,14 +461,15 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
 
   const session = useRef<Session | null>(null);
   /** When the session on screen started, on the clock, for Time studying; null before Start. */
-  const [studyingFrom, setStudyingFrom] = useState<number | null>(null);
+  /** And the same start as a moment, so the time studying leaves out the time Panki was out of view (`away.ts`). */
+  const [studying, setStudying] = useState<{ from: number; since: Moment } | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * The card on screen and when it came on and was flipped, on the browser's clock; every appearance is timed afresh,
    * and has the id its answer will be given (so the same answer sent again is kept once). Blurred or not, its front is
-   * one span, from coming on to the flip.
+   * one span, from coming on to the flip. Time with Panki out of view is none of it (`away.ts`).
    */
-  const shown = useRef<{ cardId: string | null; at: number; revealedAt: number | null; givenId: string }>({ cardId: null, at: 0, revealedAt: null, givenId: "" });
+  const shown = useRef<{ cardId: string | null; at: Moment; revealedAt: Moment | null; givenId: string }>({ cardId: null, at: momentNow(), revealedAt: null, givenId: "" });
   function startSession(kind: "review" | "extra") {
     const s: Session = { id: crypto.randomUUID(), ready: Promise.resolve(false), ok: null, ended: false };
     s.ready = api.startSession(deck.id, { id: s.id, kind }).then(
@@ -475,7 +477,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
       () => (s.ok = false),
     );
     session.current = s;
-    setStudyingFrom(Date.now());
+    setStudying({ from: Date.now(), since: momentNow() });
   }
   function endSession(end: ReviewSessionEnd, keepalive = false) {
     const s = session.current;
@@ -490,7 +492,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   function endHere() {
     const s = shown.current;
     const turned = s.revealedAt !== null;
-    if (s.cardId) endSession({ how: "left", cardId: s.cardId, shownMs: span(s.at, performance.now()), revealed: turned, phase: turned ? "back" : "front" }, true);
+    if (s.cardId) endSession({ how: "left", cardId: s.cardId, shownMs: span(s.at, momentNow()), revealed: turned, phase: turned ? "back" : "front" }, true);
     else endSession({ how: "done" }, true);
   }
   useEffect(() => {
@@ -510,13 +512,13 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   }, []);
   // A card comes on screen: its clock starts. A card back for another go, even the same one, starts afresh.
   useEffect(() => {
-    shown.current = { cardId: cardId ?? null, at: performance.now(), revealedAt: null, givenId: crypto.randomUUID() };
+    shown.current = { cardId: cardId ?? null, at: momentNow(), revealedAt: null, givenId: crypto.randomUUID() };
   }, [cardId, turn]);
 
   /** Show back of card: the card turned, its front left clear for Step back. */
   function reveal() {
     if (revealed) return;
-    shown.current.revealedAt ??= performance.now();
+    shown.current.revealedAt ??= momentNow();
     blur.unblur();
     setRevealed(true);
   }
@@ -591,7 +593,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     setFailure(null);
     setAsking(null);
     const outcome = resolve(srsType, card.place, answerId);
-    const now = performance.now();
+    const now = momentNow();
     const t = shown.current;
     const revealedAt = t.revealedAt ?? now;
     const s = session.current;
@@ -923,7 +925,8 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
             now: kindOf(card),
             line,
             leftMs: review.timeLeft ? timeOf([...line.active, ...line.waiting]) : null,
-            studyingFrom: review.timeStudying ? studyingFrom : null,
+            studyingFrom: review.timeStudying ? (studying?.from ?? null) : null,
+            studyingSince: studying?.since,
           }}
         />
       }

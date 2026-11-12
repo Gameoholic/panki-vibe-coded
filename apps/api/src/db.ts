@@ -121,6 +121,7 @@ import { clearedMoments, type Changed, type ReplayHold, type ReplayPlace } from 
 import { hashOf, whileUnchanged } from "./kept";
 import { newDoneMoments } from "./newDone";
 import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
+import { foldUndone } from "./undone";
 import { clipReader } from "./clips";
 import { dayTalliesOf, streakStatesOf, streaksStamped } from "./streaks";
 import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
@@ -1231,7 +1232,7 @@ type AnswerRow = {
   extra: number;
 };
 /** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
-type ShowingRow = Pick<AnswerRow, "at" | "deckId" | "thinkMs" | "decideMs" | "undoneAt">;
+type ShowingRow = Pick<AnswerRow, "cardId" | "at" | "deckId" | "thinkMs" | "decideMs" | "undoneAt">;
 /** A session as the stats read it. */
 type SessionStatRow = { deckId: string; startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null; leftRevealed: number | null };
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string; settings: string; createdAt: number };
@@ -1506,7 +1507,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const insertPin = db.prepare("INSERT INTO example_pins (card_id, example_id, at) VALUES (?, ?, ?)");
   // Every answer since a moment, undone ones too (their time was spent), as a deck's pace reads them (`pace.ts`).
   const selectPaceAnswers = db.prepare(`
-    SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, (p.stage_from IS NULL AND p.burned_from = 0 AND p.node_from = '[]') AS start, p.think_ms AS thinkMs, p.decide_ms AS decideMs, p.example_id AS exampleId
+    SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, (p.stage_from IS NULL AND p.burned_from = 0 AND p.node_from = '[]') AS start, p.think_ms AS thinkMs, p.decide_ms AS decideMs, p.example_id AS exampleId,
+      p.undone_at IS NOT NULL AS undone
     FROM card_places p JOIN cards c ON c.id = p.card_id
     WHERE p.reason = 'answer' AND p.at >= ? ORDER BY p.at ASC, p.id ASC`);
   // A card's front clips with an example showing, from what's kept: where the picked word starts in them (`clips.ts`).
@@ -1704,7 +1706,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
   // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
   const selectScopeHolds = db.prepare(`
-    SELECT h.at, c.deck_id AS deckId, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
+    SELECT h.card_id AS cardId, h.at, c.deck_id AS deckId, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
     JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
     WHERE ${scopeWhere} ORDER BY h.at ASC, h.id ASC`);
   const selectScopeSessions = db.prepare(`
@@ -2078,7 +2080,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
   /** Every deck's pace as it stands (`pace.ts`): a list of decks reads them once and hands them in. */
   function pacesAt(today: Today) {
-    const rows = selectPaceAnswers.all(today.now - PACE_DAYS * 86_400_000) as (Omit<PaceAnswer, "start" | "wordAtMs"> & { start: number; exampleId: string | null })[];
+    const rows = selectPaceAnswers.all(today.now - PACE_DAYS * 86_400_000) as (Omit<PaceAnswer, "start" | "wordAtMs" | "undone"> & { start: number; exampleId: string | null; undone: number })[];
     // Each card read once for each example it was shown with.
     const wordAt = new Map<string, number | null>();
     const wordAtOf = (cardId: string, exampleId: string | null) => {
@@ -2087,7 +2089,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return wordAt.get(key) ?? null;
     };
     return pacesOf(
-      rows.map(({ exampleId, ...r }) => ({ ...r, start: r.start === 1, wordAtMs: wordAtOf(r.cardId, exampleId) })),
+      rows.map(({ exampleId, ...r }) => ({ ...r, start: r.start === 1, undone: r.undone === 1, wordAtMs: wordAtOf(r.cardId, exampleId) })),
       dayReader(today.settings.dayStartHour, zoneOf(today.settings)),
     );
   }
@@ -3344,14 +3346,19 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
 
       // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
       // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it, split front
-      // (`think_ms`) then back (`decide_ms`) under the cap.
+      // (`think_ms`) then back (`decide_ms`) under the cap. An undone answer's showing and the card's next go are one
+      // showing, the card's time (`foldUndone`); one never had another go stays apart, counted in no card's time.
       const showingsOf = (shown: readonly ShowingRow[], sessionRows: readonly SessionStatRow[]): TileShowing[] => {
         const split = (at: number, deckOf: string, front: number, back: number, measured: boolean): TileShowing => {
           const frontMs = Math.min(front, CARD_TIME_MAX_MS);
           return { at, deckId: deckOf, frontMs, backMs: Math.min(back, CARD_TIME_MAX_MS - frontMs), measured };
         };
+        const folded = foldUndone(
+          [...shown].sort((a, b) => a.at - b.at).map((s) => ({ ...s, undone: s.undoneAt !== null })),
+          day,
+        );
         return [
-          ...shown.map((s) => split(s.at, s.deckId, s.thinkMs ?? 0, s.decideMs ?? 0, s.undoneAt === null && s.thinkMs !== null && s.decideMs !== null)),
+          ...folded.map((s) => split(s.at, s.deckId, s.thinkMs ?? 0, s.decideMs ?? 0, !s.undone && s.thinkMs !== null && s.decideMs !== null)),
           ...sessionRows.flatMap((s) =>
             s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null ? [split(s.endedAt, s.deckId, s.leftRevealed === 1 ? 0 : s.leftShownMs, s.leftRevealed === 1 ? s.leftShownMs : 0, false)] : [],
           ),

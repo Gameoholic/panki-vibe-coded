@@ -1,6 +1,7 @@
 /** @panki The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. */
 import { useLayoutEffect, type ReactNode, type RefObject } from "react";
 import { branchAt, flowOf, isNew, offered, resolve, stageIndex, type CardPlace, type HoldKind, type ReviewSettings, type SrsType, type Step } from "@panki/contracts";
+import type { Moment } from "../away";
 import { ScreenStageContext, type Stage } from "../hooks/useScreenStage";
 import type { KeyBinds } from "../keys";
 import { countOrder, type Kind, type Line } from "../reviewLine";
@@ -82,7 +83,7 @@ const KIND_WORDS: Record<Kind, (n: number) => string> = {
 export function ReviewCounts({
   counts,
 }: {
-  counts: { settings: ReviewSettings; togo: Record<Kind, number>; now: Kind | null; line: Line; leftMs?: number | null; studyingFrom?: number | null } | null;
+  counts: { settings: ReviewSettings; togo: Record<Kind, number>; now: Kind | null; line: Line; leftMs?: number | null; studyingFrom?: number | null; studyingSince?: Moment } | null;
 }) {
   if (counts === null) {
     // A count's own room, with nothing in it: the line stands as tall as it does with its counts.
@@ -94,7 +95,7 @@ export function ReviewCounts({
       </span>
     );
   }
-  const { settings, togo, now, line, leftMs = null, studyingFrom = null } = counts;
+  const { settings, togo, now, line, leftMs = null, studyingFrom = null, studyingSince } = counts;
   return (
     <>
       <span className="review-counts" role="status">
@@ -106,7 +107,7 @@ export function ReviewCounts({
       </span>
       {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
       {leftMs !== null ? <TimeLeft ms={leftMs} /> : null}
-      {studyingFrom !== null ? <TimeStudying from={studyingFrom} /> : null}
+      {studyingFrom !== null ? <TimeStudying from={studyingFrom} since={studyingSince} /> : null}
     </>
   );
 }

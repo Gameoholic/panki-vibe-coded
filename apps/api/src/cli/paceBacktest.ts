@@ -43,13 +43,13 @@ function main() {
       .prepare(
         `SELECT p.card_id AS cardId, c.deck_id AS deckId, p.at, (p.stage_from IS NULL AND p.burned_from = 0 AND p.node_from = '[]') AS start,
            p.think_ms AS thinkMs, p.decide_ms AS decideMs, p.session_id AS sessionId, p.example_id AS exampleId,
-           p.node_from <> '[]' AS fromAgain, p.node_to <> '[]' AS toAgain
+           p.node_from <> '[]' AS fromAgain, p.node_to <> '[]' AS toAgain, p.undone_at IS NOT NULL AS undone
          FROM card_places p JOIN cards c ON c.id = p.card_id WHERE p.reason = 'answer' ORDER BY p.at ASC, p.id ASC`,
       )
-      .all() as (Omit<PaceAnswer, "start" | "wordAtMs"> & { sessionId: string | null; exampleId: string | null; start: number; fromAgain: number; toAgain: number })[];
+      .all() as (Omit<PaceAnswer, "start" | "wordAtMs" | "undone"> & { sessionId: string | null; exampleId: string | null; start: number; fromAgain: number; toAgain: number; undone: number })[];
     const answers: (ReplayAnswer & { backClipMs: number | null })[] = rows.map(({ exampleId, ...r }) => {
       const { front, back } = clipsOfAnswer(r.cardId, exampleId);
-      return { ...r, start: r.start === 1, fromAgain: r.fromAgain === 1, toAgain: r.toAgain === 1, wordAtMs: front.word, clipMs: front.sum, backClipMs: back.sum };
+      return { ...r, start: r.start === 1, fromAgain: r.fromAgain === 1, toAgain: r.toAgain === 1, undone: r.undone === 1, wordAtMs: front.word, clipMs: front.sum, backClipMs: back.sum };
     });
     const since = Date.now() - PACE_DAYS * 86_400_000;
     const recent = answers.filter((a) => a.at >= since);
