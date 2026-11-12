@@ -576,7 +576,7 @@ function TodayFacts({ stats }: { stats: Stats }) {
   const facts: readonly (readonly [string, string])[] = [
     ["Reviews", num(today.reviews.n)],
     ["New cards", started.limit > 0 ? `${num(started.n)} / ${num(started.limit)}` : num(started.n)],
-    ["Extra study", extra.length > 0 ? extra.join(" · ") : "None"],
+    ["Extra study", extra.length > 0 ? extra.join(", ") : "None"],
     ["Time studying", spent(today.time.ms)],
     ["Time watching", spent(today.watching.ms)],
     ["Cards added", num(today.added.n)],
