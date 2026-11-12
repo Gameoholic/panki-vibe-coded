@@ -32,9 +32,9 @@ export const paintOf = (value: string): MarkPaint | null => {
 export const paintCss = (paint: MarkPaint): string => (isPalette(paint) ? MARK_COLOURS[paint].css : paint);
 /**
  * A new card's colour where its SRS type has no New colour of its own, wherever a word or a card is marked by its
- * stage: white, never Panki blue, which is the picked word's to begin with (`transcribe/prefs.ts` → `pick`).
+ * stage: the type's Default, Panki blue, as the app draws New (`SrsTypeView.tsx` → `NEW_DEFAULT`).
  */
-export const NEW_PAINT: MarkPaint = "white";
+export const NEW_PAINT: MarkPaint = "accent";
 /** What a mark's colour is called: the palette's name, or the viewer's own colour as it's written. */
 export const paintName = (paint: MarkPaint): string => (isPalette(paint) ? MARK_COLOURS[paint].name : paint.toUpperCase());
 

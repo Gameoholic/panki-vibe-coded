@@ -85,7 +85,7 @@ const Stored = z.object({
    */
   knownSubtitles: z.boolean().catch(false),
   knownPages: z.boolean().catch(false),
-  /** Each word tinted in its highest card's stage's colour (New in its type's New colour, else white: `seekLook.ts` → `NEW_PAINT`), or all in `knownColour`. By stage to begin with. */
+  /** Each word tinted in its highest card's stage's colour (New in its type's New colour, else its Default, Panki blue: `seekLook.ts` → `NEW_PAINT`), or all in `knownColour`. By stage to begin with. */
   knownByStage: z.boolean().catch(true),
   knownColour: MarkPaint.catch("green"),
   /** The words only suspended cards are, in a colour of their own; red to begin with, as their mark on the seek bar is. */

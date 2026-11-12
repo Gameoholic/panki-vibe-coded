@@ -22,6 +22,8 @@ type Starter = {
   /** What sets it apart, under its name in the list. */
   description: string;
   stages: Rung[];
+  /** New's own colour (left out, the Default's: Panki's accent). */
+  newColour?: string;
   after: SrsAfter;
   /** What the wait is multiplied by on each rung past the top, when the ladder keeps growing. */
   growBy?: number;
@@ -112,6 +114,8 @@ function wanikaniLesson(a: string[]): Flow {
 // Panki Default's stages are named for how well a card is known, and coloured one green per kind: every Learning stage
 // the ramp's light green, every Familiar its middle one, every Strong its dark one.
 const [LEARNING, FAMILIAR, STRONG] = STAGE_RAMP;
+/** Panki Default's New: white, the palette's (`theme.css` → `--mark-white`). */
+const NEW_WHITE = "#ffffff";
 
 const STARTERS: Record<SrsStarterId, Starter> = {
   wanikaniPlus: {
@@ -127,6 +131,7 @@ const STARTERS: Record<SrsStarterId, Starter> = {
       [1, "mo", "Strong 1", STRONG],
       [4, "mo", "Strong 2", STRONG],
     ],
+    newColour: NEW_WHITE,
     after: "burn",
     // Snooze's rule is the `bury` step. Easy third, on key 3, and Reset last, matched to what each account has by name.
     // Every one set apart asks for confirmation, a held key being the yes: held longer instead of asked, `keys.ts` → `askMs`.
@@ -231,6 +236,7 @@ export function makeStarter(starter: SrsStarterId, mint: () => string, as?: { id
     after: s.after,
     growBy: s.growBy ?? 2,
     burnedName: "Burned",
+    ...(s.newColour ? { newColour: s.newColour } : {}),
   };
 }
 
