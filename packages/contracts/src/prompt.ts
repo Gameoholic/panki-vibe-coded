@@ -34,7 +34,7 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
     case "dictPitch":
       return "Where the voice falls, as the reading and its number";
     case "sentence":
-      return "The sentence the word was pointed at in";
+      return "The card's Line: the words the word was pointed at in";
     case "source":
       return "The video's title, its channel, and its link with the timestamp";
     case "surrounding":
