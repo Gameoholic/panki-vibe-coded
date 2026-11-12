@@ -2,30 +2,12 @@
 import { useEffect, type ReactNode } from "react";
 import { streakNameOf, type Settings, type Stats } from "@panki/contracts";
 import { Button } from "./Button";
-import { Icon, type IconName } from "./Icon";
-import { KeyCap } from "./KeyCap";
-import { Bone } from "./Skeleton";
-import type { Bind } from "../keys";
+import { Door, type DoorSpec } from "./Door";
+import { Icon } from "./Icon";
 import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
-import { isDoorId, isStreakTile, type BoardItemId, type BoardLayout, type DoorId, type TileItemId } from "../layout";
+import { isDoorId, isStreakTile, type BoardItemId, type BoardLayout, type TileItemId } from "../layout";
 import { NewStreakTile, StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext } from "../widgets";
-
-/** One of the home's doors, as the home describes it; the Board draws it. */
-export type DoorSpec = {
-  id: DoorId;
-  icon: IconName;
-  label: string;
-  /** The line under its name; null while what it says is loading, drawn as its shape (`Bone`). */
-  detail: string | null;
-  /** Small words after the line, when there's something to add to it. */
-  note?: string | null;
-  /** The accent one: only while there's something to do. */
-  hot?: boolean;
-  /** The key that opens it from the keyboard, its keycap after the name (Settings → Keybinds). */
-  bind?: Bind;
-  onClick: () => void;
-};
 
 /** What makes a board the home's: its doors, its layout on this device, and the arranging, which the home owns so its header can end it. */
 type HomeBoard = {
@@ -140,32 +122,7 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
     if (streakCount !== null) rememberShape(STREAK_TILES_SHAPE, streakCount);
   }, [streakCount]);
 
-  const door = (spec: DoorSpec) => (
-    <Button
-      key={spec.id}
-      id={spec.id}
-      variant="door"
-      data-id={spec.id}
-      className={`${spec.hot ? "is-hot" : ""} ${spec.id === "door-review" ? "is-main" : ""} ${drag.tileClass(spec.id)}`.trim()}
-      style={drag.tileStyle(spec.id)}
-      // While the board is being arranged a door is a tile to move, not a place to go.
-      onClick={arranging ? undefined : spec.onClick}
-    >
-      <Icon name={spec.icon} className="door-icon" />
-      <span className="door-label">
-        {spec.label}
-        <KeyCap bind={spec.bind} />
-      </span>
-      {spec.detail === null ? (
-        <Bone w="6em" h="0.8em" className="door-detail" />
-      ) : (
-        <span className="door-detail">
-          {spec.detail}
-          {spec.note && <small className="door-note">{spec.note}</small>}
-        </span>
-      )}
-    </Button>
-  );
+  const door = (spec: DoorSpec) => <Door key={spec.id} spec={spec} arranging={arranging} className={drag.tileClass(spec.id)} style={drag.tileStyle(spec.id)} />;
 
   const overlayOf = (id: TileItemId, name: string) =>
     arranging ? (

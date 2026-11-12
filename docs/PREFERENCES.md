@@ -57,6 +57,16 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 - A family of data has one registry and one name on every screen. Show where data comes from both ways (what a source provides, where a part's data comes from). State counts and facts read from the data, never inferred labels; when a part can be empty, say why.
 - When the owner asks to "go beyond my words", do the reverse view and the legend too, not just the literal ask.
 
+### The look and feel the owner wants
+
+Every piece of UI built in Panki, the app and the extension, leans this way, and so does every page of ways: a modern SaaS product's, never a plain list of links. The page that set it: `types-tile/index.html`, the eight ways of folding Card types and SRS types into one home tile (`memory/artifacts.md`).
+- **Spatial, not linear.** A thing moves, grows or opens where it is: a split whose half grows under the pointer, a 3D flip behind a small `Segmented`, a stack whose back card rises out from behind, a tile that blooms over its neighbours, satellites that swing out of a tile on an arc, a panel anchored to its tile with a filter and arrow keys.
+- **Data in the shape.** A tile shows what's in it, not only its name: the SRS ladder as small bars, counts, names as chips, the links between things drawn as lines with what joins them (which deck), what isn't used dashed.
+- **Motion with spring.** Short eased moves, a slight overshoot, a short delay before a hover opens anything; calm at rest, alive on touch; `prefers-reduced-motion` honoured.
+- **Panki's own materials.** Its tokens, Urbanist, its icons, its tile sizes and radii, both themes; nothing that looks pasted in from another product.
+- **Touch too.** What opens on hover opens on a tap on a phone; a tap outside or Esc closes it.
+- **Several ways, boldest to plainest.** A page of ways offers about eight, each a different idea rather than a restyle, each playable, named by a letter and a word ("A Split"), and nothing else written on the page.
+
 ## Building
 
 - The owner's data and running servers are live: never test against them, and give a one-line heads-up before any command that could touch them. A watch-mode server hot-reloads edits into their live data.

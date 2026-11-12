@@ -48,7 +48,7 @@ The look is "Paper": a light neutral ground, white bordered cards, Urbanist (sel
 
 ### Getting around
 
-The home is a board: the doors **Review** (blue only when something is due or new within today's counts; with one deck it goes straight in), **Decks**, **Add a card**, **Card types** and **SRS types**, and the tiles the owner picks from Stats. **Home**, **Settings** and **Stats** are the fixed tabs, a bar across the top on the PC and along the bottom on the phone; every other screen has a back arrow and a title. Every screen has its own address, so back, forward, a mouse's side buttons and a reload all go where expected.
+The home is a board: the doors **Review** (blue only when something is due or new within today's counts; with one deck it goes straight in), **Decks** with **Add a card** stacked behind it (pointed at, focused or tapped, Add a card rises out over the top; on a phone the first tap raises it, the next picks), **Card types** and **SRS types** as one door of two rows, each with how many there are, and the tiles the owner picks from Stats. **Home**, **Settings** and **Stats** are the fixed tabs, a bar across the top on the PC and along the bottom on the phone; every other screen has a back arrow and a title. Every screen has its own address, so back, forward, a mouse's side buttons and a reload all go where expected.
 
 Under 2 GB left on the server's disk, everyone signed in sees "Panki is nearly out of room" at the top of their home, with what's left; it goes away by itself once there's room. Nothing is ever deleted to make room.
 

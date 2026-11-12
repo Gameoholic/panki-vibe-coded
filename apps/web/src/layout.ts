@@ -2,8 +2,12 @@
 import { ledger } from "./ledger";
 import { STREAK_TILE, WIDGETS, streakTileId, widgetOf, type WidgetId } from "./widgets";
 
-/** The home's doors, in the order they stand before anything is moved. Their details are the home's. */
-export const DOOR_IDS = ["door-review", "door-decks", "door-add", "door-types", "door-srs"] as const;
+/**
+ * The home's doors, in the order they stand before anything is moved. Their details are the home's. Add a card is
+ * stacked behind Decks and SRS types is a row of Card types: a layout stored when they were doors of their own
+ * (`door-add`, `door-srs`) drops them, the door they're folded into keeping its place.
+ */
+export const DOOR_IDS = ["door-review", "door-decks", "door-types"] as const;
 export type DoorId = (typeof DOOR_IDS)[number];
 /** A streak's tile (`streakTileId`): one per streak, the streaks being the account's. */
 export type StreakTileId = `${typeof STREAK_TILE}${string}`;
