@@ -182,16 +182,23 @@ function follow(el: HTMLElement, bar: HTMLElement, axis: "x" | "y"): () => void 
   // A press on the thumb is the thumb's: the card or the chart under it doesn't take it as pressed.
   const onThumbClick = (e: MouseEvent) => e.stopPropagation();
 
+  const passive = { passive: true } as const;
   // Every box it stands in, out through a shadow root to the page's root: whatever moves the box changes the size of
-  // one of them (something above it growing grows the box both stand in), and any of them may cut it.
+  // one of them (something above it growing grows the box both stand in), or scrolls it, and any of them may cut it.
+  // Each is heard scrolling itself: a scroll inside a shadow root never reaches the window, and a box scrolling between
+  // the overlay's containing block and the box (the extension's drawer) moves the box from under a still overlay.
   let chain: Element[] = [];
   const sized = new ResizeObserver(soon);
   const watch = () => {
     sized.disconnect();
+    for (const a of chain) a.removeEventListener("scroll", soon);
     sized.observe(el);
     for (const child of el.children) sized.observe(child);
     chain = ancestorsOf(el);
-    for (const a of chain) sized.observe(a);
+    for (const a of chain) {
+      sized.observe(a);
+      a.addEventListener("scroll", soon, passive);
+    }
   };
   watch();
   const changed = new MutationObserver((records) => {
@@ -200,7 +207,6 @@ function follow(el: HTMLElement, bar: HTMLElement, axis: "x" | "y"): () => void 
   });
   changed.observe(el, { childList: true, attributes: true, attributeFilter: ["style", "class"] });
 
-  const passive = { passive: true } as const;
   el.addEventListener("scroll", onScroll, passive);
   el.addEventListener("wheel", onHand, passive);
   el.addEventListener("touchmove", onHand, passive);
@@ -217,6 +223,7 @@ function follow(el: HTMLElement, bar: HTMLElement, axis: "x" | "y"): () => void 
     clearTimeout(quiet);
     sized.disconnect();
     changed.disconnect();
+    for (const a of chain) a.removeEventListener("scroll", soon);
     el.removeEventListener("scroll", onScroll);
     el.removeEventListener("wheel", onHand);
     el.removeEventListener("touchmove", onHand);
