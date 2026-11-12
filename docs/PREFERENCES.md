@@ -60,6 +60,7 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 ### The look and feel the owner wants
 
 Every piece of UI built in Panki, the app and the extension, leans this way, and so does every page of ways: a modern SaaS product's, never a plain list of links. The page that set it: `types-tile/index.html`, the eight ways of folding Card types and SRS types into one home tile (`memory/artifacts.md`).
+- **Calm before clever.** Few things on a screen, with room around them, and one accent; never panel on panel or every fact at once. A side fact (a time, a count) is a quiet line, not a hero; a choice with nothing in it (an answer given 0 times) is left out; what's for later folds to a line.
 - **Spatial, not linear.** A thing moves, grows or opens where it is: a split whose half grows under the pointer, a 3D flip behind a small `Segmented`, a stack whose back card rises out from behind, a tile that blooms over its neighbours, satellites that swing out of a tile on an arc, a panel anchored to its tile with a filter and arrow keys.
 - **Data in the shape.** A tile shows what's in it, not only its name: the SRS ladder as small bars, counts, names as chips, the links between things drawn as lines with what joins them (which deck), what isn't used dashed.
 - **Motion with spring.** Short eased moves, a slight overshoot, a short delay before a hover opens anything; calm at rest, alive on touch; `prefers-reduced-motion` honoured.
