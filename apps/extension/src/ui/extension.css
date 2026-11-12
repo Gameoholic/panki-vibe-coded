@@ -2724,11 +2724,6 @@
   display: grid;
   gap: 6px;
 }
-.ai-heard-title {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted);
-}
 .ai-heard-lines {
   max-height: 220px;
   overflow-y: auto;

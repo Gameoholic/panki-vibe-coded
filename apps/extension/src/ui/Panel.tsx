@@ -334,8 +334,8 @@ const TOUCH_WORDS = {
    */
   heard: (lines: number, seconds: number | null, later: boolean) =>
     `${later ? "This message also heard" : "Panki AI heard"} ${lines} ${lines === 1 ? "line" : "lines"} of the video${seconds === null ? "" : `, ${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`}`}.`,
-  /** Over the lines a Heard note opens. */
-  heardTitle: "The subtitles Panki AI heard, your Line lit",
+  /** The lines a Heard note opens, as a screen reader names them. */
+  heardLabel: "Subtitles Panki AI heard",
 };
 /** Where the Heard notes' ids begin, past any setting-change note's (`Touch.marks`). */
 const HEARD_NOTE_IDS = 1_000_000;
@@ -353,8 +353,7 @@ function HeardLines({ lines, mine }: { lines: readonly SubtitleLine[]; mine: { f
   }, []);
   const isMine = (n: number) => mine !== null && n >= mine.first && n <= mine.last;
   return (
-    <div className="ai-heard" role="region" aria-label={TOUCH_WORDS.heardTitle}>
-      <p className="ai-heard-title">{TOUCH_WORDS.heardTitle}</p>
+    <div className="ai-heard" role="region" aria-label={TOUCH_WORDS.heardLabel}>
       <div ref={box} className="ai-heard-lines">
         {lines.map((line) => (
           <div key={line.n} ref={mine !== null && line.n === mine.first ? first : undefined} className={`ai-heard-line${isMine(line.n) ? " is-mine" : ""}`}>
@@ -1014,10 +1013,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       asking: pending,
       ...(firstSend ? { first: read, opening: send, meanings: read.meanings } : {}),
       heard: spanJoined(was.heard, heardNow),
-      // Under the message once its reply is in: on main, after it; asked on a field, at main's end.
+      // Over the message that sent them, the first thing it says: on main, before it; asked on a field, at main's end.
       heardNotes:
         heardLinesNow.length > 0
-          ? [...was.heardNotes, { after: was.conversation.main.length + (sent.where === null ? 1 : 0), lines: heardLinesNow, seconds: heardNow ? heardNow.to - heardNow.from : null }]
+          ? [...was.heardNotes, { after: was.conversation.main.length, lines: heardLinesNow, seconds: heardNow ? heardNow.to - heardNow.from : null }]
           : was.heardNotes,
     }));
     const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }) });
