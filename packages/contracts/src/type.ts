@@ -8,13 +8,14 @@ export const CardTypeId = z.uuid();
 export const CardFieldId = z.uuid();
 export const FieldSide = z.enum(["front", "back"]);
 /**
- * What a field holds: one line of text, several, a file (media: a clip or a sound, whichever is put there; or a
- * picture), a link to a YouTube video, or a pitch accent (drawn as the line over its reading, `pitch.ts`). The ids live
- * here so the API refuses a kind that doesn't exist; the word for each and how it's filled in and shown is the web's
- * `FIELD_KINDS` registry. (Sound and clips were once two kinds, `audio` and `video`; they're one, since the same field
- * takes either.)
+ * What a field holds: one line of text, several, the sentence the card's word was met in (a Line: on a card from a
+ * video, the clip's words, read-only wherever it's shown; `holdsLine`), a file (media: a clip or a sound, whichever is
+ * put there; or a picture), a link to a YouTube video, or a pitch accent (drawn as the line over its reading,
+ * `pitch.ts`). The ids live here so the API refuses a kind that doesn't exist; the word for each and how it's filled
+ * in and shown is the web's `FIELD_KINDS` registry. (Sound and clips were once two kinds, `audio` and `video`; they're
+ * one, since the same field takes either.)
  */
-export const FieldKind = z.enum(["text", "long", "media", "image", "youtube", "pitch"]);
+export const FieldKind = z.enum(["text", "long", "line", "media", "image", "youtube", "pitch"]);
 
 /** The kinds of file each kind of field takes. One home: a kind that isn't here holds no file. */
 const FILES_IN: Partial<Record<FieldKind, readonly MediaKind[]>> = {
@@ -53,6 +54,18 @@ export function linkOf(kind: FieldKind, value: string): YouTubeLink | null {
 /** Whether a field holds a pitch accent: its value is then the accents (`pitch.ts` → `pitchesOf`), drawn over their readings. */
 export function holdsPitch(kind: FieldKind): boolean {
   return kind === "pitch";
+}
+
+/**
+ * Whether a field is a Line: the sentence the card's word was met in, a type's one (`NewCardType`). On a card from a
+ * video it's the clip's words, read-only in the drawer and in the deck (`lineLocked`); otherwise words like any.
+ */
+export function holdsLine(kind: FieldKind): boolean {
+  return kind === "line";
+}
+/** Whether a field's words read as running words: a line of text, a paragraph or a Line, what another field's words can be lit in. */
+export function holdsProse(kind: FieldKind): boolean {
+  return kind === "text" || kind === "long" || holdsLine(kind);
 }
 
 /** Whether a field's value is typed in a box: words, a paragraph, a pitch accent. A file's id isn't, and an address isn't. */
@@ -94,7 +107,11 @@ export const CardField = z.object({
 export const NewCardType = z.object({
   id: CardTypeId,
   name: z.string().trim().min(1).max(100),
-  fields: z.array(CardField).min(1),
+  // One Line at most, so the sentence is never in doubt (the drawer fills it, Panki AI judges it).
+  fields: z
+    .array(CardField)
+    .min(1)
+    .refine((fields) => fields.filter((field) => holdsLine(field.kind)).length <= 1, { message: "A card type has one Line field at most." }),
   /** How its cards look in a review (`layout.ts`); left out, it's worked out from the fields' sides. */
   layout: CardLayout.optional(),
   /** Where its cards' stage tag sits and how (`layout.ts` → `StageTag`); left out, as it stands (or the default). */

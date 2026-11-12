@@ -1,6 +1,6 @@
 /** @panki What the extension can fill a field with by itself, and which field takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `valuesFor`). Never a guess. */
 import { z } from "zod";
-import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
+import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsLine, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
 import { DATA_KINDS } from "./dataKinds";
 
 /**
@@ -68,7 +68,10 @@ type Role = {
   dictionary?: DataKind;
 };
 
-const holdsText = (field: CardField) => holdsWords(field.kind);
+/** Words of any piece but the sentence: a Line is the sentence's alone (`cleanMap`). */
+const holdsText = (field: CardField) => holdsWords(field.kind) && !holdsLine(field.kind);
+/** The sentence goes in words, a Line above all. */
+const holdsSentence = (field: CardField) => holdsWords(field.kind);
 /** What's recorded off a video goes where a clip or a sound can. */
 const holdsClip = (field: CardField) => {
   const kinds = mediaKindsOf(field.kind);
@@ -98,7 +101,7 @@ export const ROLES: Record<RoleId, Role> = {
   dictWordType: fromDictionary("wordType"),
   dictFrequency: fromDictionary("frequency"),
   dictPitch: fromDictionary("pitch"),
-  sentence: { name: PIECE_NAMES.sentence, from: "text", takes: holdsText },
+  sentence: { name: PIECE_NAMES.sentence, from: "text", takes: holdsSentence },
   // The four things recorded off the video: either stretch, either way. (`clip` was the only one, and is the id kept
   // maps already hold: the sentence with its picture.)
   clip: { name: "Sentence video", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
@@ -143,6 +146,9 @@ export function cleanMap(map: FieldMap, type: CardType): FieldMap {
     const field = type.fields.find((f) => f.id === map[role]);
     if (field && ROLES[role].takes(field)) clean[role] = field.id;
   }
+  // A type's Line is the sentence by itself, whatever the map says: no other piece goes there (`holdsText`).
+  const line = type.fields.find((f) => holdsLine(f.kind));
+  if (line) clean.sentence = line.id;
   return clean;
 }
 

@@ -646,6 +646,16 @@ body {
 .field-input:disabled {
   opacity: 0.55;
 }
+/* Shown, not edited (TextField's `readOnly`: a Line from a video): a quieter box than one that's typed in, its words
+   as they are. Behind a box with a lit stretch it's the copy behind that carries it, the box in front see-through. */
+.field-input.is-readonly {
+  background: var(--surface-2);
+  border-color: var(--line);
+  cursor: default;
+}
+.field-input.is-readonly:focus-visible {
+  outline-color: var(--line-strong);
+}
 /* A field of several lines: never the browser's resize grip; the box grows with the text instead, where the browser can. */
 textarea.field-input {
   display: block;

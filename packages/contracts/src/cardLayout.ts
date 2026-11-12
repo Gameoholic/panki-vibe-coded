@@ -23,7 +23,7 @@ import {
   type SparkMark,
   type StageTag,
 } from "./layout";
-import { holdsWords, type CardField } from "./type";
+import { holdsProse, holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
 const KeptPart = z.object({
@@ -99,10 +99,10 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
   const byId = new Map(defaults.map((p) => [p.fieldId, p]));
   const kindOf = new Map(fields.map((f) => [f.id, f.kind]));
   const overFits = (fieldId: string, word: string) => word !== fieldId && kindOf.get(word) === "text" && kindOf.get(fieldId) === "text";
-  /** Words: a line or a paragraph, what can be lit in and what a clip's subtitles are made of. */
+  /** Words: a line, a paragraph or a Line, what can be lit in and what a clip's subtitles are made of. */
   const wordy = (fieldId: string) => {
     const kind = kindOf.get(fieldId);
-    return kind === "text" || kind === "long";
+    return kind !== undefined && holdsProse(kind);
   };
   const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(other) && (wordy(fieldId) || kindOf.get(fieldId) === "media");
   const placed = new Set<string>();

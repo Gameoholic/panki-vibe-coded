@@ -9,6 +9,7 @@ import {
   examplesAt,
   examplesToColumn,
   holdsLink,
+  holdsProse,
   holdsWords,
   isTyped,
   mainAnswers,
@@ -353,8 +354,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     // Words of one line can be written small over another field's words of one line, as their reading.
     const oneLine = field.kind === "text";
     const overable = type.fields.filter((f) => f.id !== id && f.kind === "text");
-    // Words (a line or a paragraph) can have another field's words lit in them.
-    const wordy = (f: CardField) => f.kind === "text" || f.kind === "long";
+    // Words (a line, a paragraph or a Line) can have another field's words lit in them.
+    const wordy = (f: CardField) => holdsProse(f.kind);
     const others = type.fields.filter((f) => f.id !== id && wordy(f)).map((f) => ({ id: f.id, label: f.name }));
     const pictured = media && (part.look === "player" || part.look === "plain");
     /** Written above another field's words: its size, field name and position are the word's to say, and off. */

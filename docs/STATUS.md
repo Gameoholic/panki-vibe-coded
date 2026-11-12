@@ -88,5 +88,6 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 18 (time conditions in hours; Round 17: Week ends on; Round 16: Cards added, `EXTENSION_PROTOCOL` 11; Round 15: no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
+- Line, the sentence's field kind: `docs/SENTENCE.md`, steps 1 to 3 on main and on prod (`EXTENSION_PROTOCOL` 12); the owner backs up and switches their field by hand.
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

@@ -29,7 +29,8 @@ import { z } from "zod";
 // 9: a streak's condition can be All new cards done (`GoalKind` `newDone`), which 8 refuses in a streak's state.
 // 10: an account can have no streak at all (`Settings.streaks` empty), which 9 refuses in the settings it reads.
 // 11: a streak's condition can be Cards added (`GoalKind` `added`), which 10 refuses in a streak's state.
-export const EXTENSION_PROTOCOL = 11;
+// 12: a field can be a Line (`FieldKind` `line`), which 11 refuses in the card types it reads.
+export const EXTENSION_PROTOCOL = 12;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

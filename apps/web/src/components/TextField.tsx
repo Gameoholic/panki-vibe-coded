@@ -45,7 +45,7 @@ export function TextField({ id, label, value, onChange, error, multiline = false
     id,
     readOnly,
     disabled,
-    className: "field-input",
+    className: readOnly ? "field-input is-readonly" : "field-input",
     value,
     lang,
     autoFocus,
@@ -80,7 +80,7 @@ export function TextField({ id, label, value, onChange, error, multiline = false
     // same room, with only the lit stretch showing; the box is see-through. It's there whether or not anything is
     // lit, so the box is never made anew (and the cursor lost) as the lit stretch comes and goes.
     <div className="field-marked">
-      <div ref={behind} className="field-input field-behind" lang={lang} aria-hidden="true">
+      <div ref={behind} className={`field-input field-behind${readOnly ? " is-readonly" : ""}`} lang={lang} aria-hidden="true">
         {mark ? (
           <>
             {value.slice(0, mark.from)}

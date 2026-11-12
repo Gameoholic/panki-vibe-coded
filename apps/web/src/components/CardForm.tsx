@@ -14,6 +14,7 @@ import {
   exampleFieldsOf,
   holdsFile,
   holdsWords,
+  lineLocked,
   mediaFor,
   mediaKindsOf,
   wordsFieldOf,
@@ -158,7 +159,7 @@ function OtherExamples({
           <CardForm
             key={example.id}
             type={exampleType}
-            card={{ ...card, values: example.values, sources: example.sources, examples: [] }}
+            card={{ ...card, values: example.values, sources: example.sources, examples: [], fromVideo: example.fromVideo }}
             heading="Edit example"
             deleting={DELETE_EXAMPLE}
             subtitleStyle={subtitleStyle}
@@ -294,6 +295,9 @@ export function CardForm(props: Props) {
   /** The field the card is called by: a card being added says under it when one is already called so. */
   const lead = card ? null : wordsFieldOf(type);
   const called = useCalled(lead ? [draft[lead.id] ?? ""] : [], api.cardsCalled);
+  /** The words the card is called by, as it holds them now: what a Line from a video has lit in it. */
+  const main = wordsFieldOf(type);
+  const calledBy = main ? (draft[main.id] ?? card?.values[main.id] ?? "").trim() : "";
   /** What the card being added holds in the fields its type compares, and their names: how each card called so stands to it. */
   const mine = apartOf(type, draft);
   const compared = comparedOf(type);
@@ -450,6 +454,9 @@ export function CardForm(props: Props) {
             // What Panki AI wrote is marked as the drawer marks it, changed by hand or not, until it's marked as the owner's;
             // once it holds other words than it did, the offer to do that stands under it.
             const ai = aiSourceFor(card, field.id, value, marked[field.id] === true);
+            // A Line taken from a video is the clip's words, read-only, the card's word lit in it where it's there.
+            const locked = lineLocked(field, card);
+            const wordAt = locked && calledBy ? value.indexOf(calledBy) : -1;
             shown = (
               <>
                 <TextField
@@ -460,8 +467,10 @@ export function CardForm(props: Props) {
                   multiline={FIELD_KINDS[field.kind].multiline}
                   lang={langOf(value)}
                   autoComplete="off"
-                  autoFocus={autoFocus && field.id === first?.id}
+                  autoFocus={autoFocus && field.id === first?.id && !locked}
                   value={value}
+                  readOnly={locked}
+                  {...(locked ? { mark: wordAt >= 0 ? { from: wordAt, to: wordAt + calledBy.length } : null } : {})}
                   onChange={(text) => edit(field.id, text)}
                   error={errors[field.id] || undefined}
                 />

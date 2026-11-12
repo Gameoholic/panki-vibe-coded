@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NewCardType, holdsWords, wordsFieldOf, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
+import { NewCardType, holdsLine, holdsWords, wordsFieldOf, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -296,7 +296,14 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                   />
                 ) : null}
                 <div className="field-row-options">
-                  <Dropdown id={`field-kind-${field.id}`} label="Kind" options={FIELD_KIND_OPTIONS} value={field.kind} onChange={(kind) => edit(field.id, { kind })} />
+                  <Dropdown
+                    id={`field-kind-${field.id}`}
+                    label="Kind"
+                    // A type has one Line at most: while another field is it, it's offered greyed.
+                    options={FIELD_KIND_OPTIONS.map((option) => (holdsLine(option.id) && fields.some((other) => other.id !== field.id && holdsLine(other.kind)) ? { ...option, disabled: true } : option))}
+                    value={field.kind}
+                    onChange={(kind) => edit(field.id, { kind })}
+                  />
                   <Toggle id={`field-required-${field.id}`} says={{ on: "Required", off: "Optional" }} on={field.required} onChange={(required) => edit(field.id, { required })} />
                   {/* The field cards are called by is the card's own: it's how a card that's already there is found to give another example to. */}
                   {field.id !== called?.id ? (

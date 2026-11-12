@@ -1185,7 +1185,7 @@ type FieldRow = { id: string; name: string; kind: string; side: string; required
  */
 type ValueRow = { cardId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null; source: string | null; capture: string | null };
 /** A living example added to a card (`card_examples`); `url` is null for one typed, with its title. */
-type ExampleRow = { id: string; cardId: string; createdAt: number; url: string | null; title: string | null };
+type ExampleRow = { id: string; cardId: string; createdAt: number; url: string | null; title: string | null; fromVideo: number };
 /** One of an example's values, its file's kind, cues, source and its example's capture as a card's own (`ValueRow`). */
 type ExampleValueRow = { exampleId: string; fieldId: string; value: string; mediaKind: string | null; cues: string | null; source: string | null; capture: string | null };
 /** What a card is read with, beside its row. */
@@ -1199,7 +1199,7 @@ type PlaceRow = { placeId: number | null; stageId: string | null; past: number |
  * `suspendedAt` is when its latest suspend not lifted was made, `buriedUntil` when the last of its buries not lifted
  * ends, `flaggedAt` when its standing flag was set; null when there's none.
  */
-type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null; suspendedAt: number | null; buriedUntil: number | null; flaggedAt: number | null };
+type CardRow = PlaceRow & { id: string; deckId: string; createdAt: number; seen: number; lastAt: number | null; suspendedAt: number | null; buriedUntil: number | null; flaggedAt: number | null; fromVideo: number };
 /** A living card holding some words in a field: which field, its deck with the deck's type and name, and whether it's flagged (1 or 0). */
 type CalledRow = { cardId: string; fieldId: string; value: string; deckId: string; createdAt: number; typeId: string | null; deckName: string; flagged: number };
 /** What a read at one moment needs of the clock: the settings as they are, and how much of today's allowance is used. */
@@ -1537,7 +1537,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     (SELECT MAX(a.at) FROM card_places a WHERE a.card_id = c.id AND a.reason = 'answer' AND a.undone_at IS NULL) AS lastAt,
     (SELECT MAX(h.at) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'suspend' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS suspendedAt,
     (SELECT MAX(h.until) FROM card_holds h WHERE h.card_id = c.id AND h.kind = 'bury' AND h.lifted_at IS NULL AND h.undone_at IS NULL) AS buriedUntil,
-    ${flaggedAtOf("c.id")} AS flaggedAt`;
+    ${flaggedAtOf("c.id")} AS flaggedAt,
+    EXISTS (SELECT 1 FROM card_sources s WHERE s.card_id = c.id AND s.start_ms IS NOT NULL) AS fromVideo`;
   const cardsWithPlace = `FROM cards c LEFT JOIN card_places p ON p.card_id = c.id AND p.id = ${lastPlaceOf("c.id")}`;
   // A deleted card is out of everything from the moment it leaves: the lists, the counts, a review, the ladder, and
   // whatever is later done to its deck's cards (a switch of SRS type, a stage taken away). Only an insert's read-back
@@ -1564,7 +1565,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   /** What was known as a card or an example was captured, as it's kept (`CaptureFacts`); null for none. */
   const captureOf = (from: CardSource | undefined): string | null => (from?.capture ? JSON.stringify(from.capture) : null);
   // A card's living examples after its own, oldest first, and their values, each file named with what it is, as a card's are.
-  const exampleColumns = "e.id, e.card_id AS cardId, e.created_at AS createdAt, e.url, e.title";
+  const exampleColumns = "e.id, e.card_id AS cardId, e.created_at AS createdAt, e.url, e.title, e.start_ms IS NOT NULL AS fromVideo";
   const selectDeckExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id IN (SELECT id FROM cards WHERE deck_id = ? AND removed_at IS NULL) ORDER BY e.created_at ASC, e.id ASC`);
   const selectCardExamples = db.prepare(`SELECT ${exampleColumns} FROM card_examples e WHERE e.removed_at IS NULL AND e.card_id = ? ORDER BY e.created_at ASC, e.id ASC`);
   const exampleValueColumns = "x.example_id AS exampleId, x.field_id AS fieldId, x.value, m.kind AS mediaKind, c.cues AS cues, x.source AS source, e.capture AS capture";
@@ -2001,7 +2002,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const values: Record<string, string> = {};
       const sources: ValueSources = {};
       examples.set(e.id, { cardId: e.cardId, values, sources });
-      heldOf(e.cardId).examples.push({ id: e.id, values, sources, source: e.url === null ? null : { url: e.url, title: e.title ?? "" }, createdAt: e.createdAt });
+      heldOf(e.cardId).examples.push({ id: e.id, values, sources, source: e.url === null ? null : { url: e.url, title: e.title ?? "" }, fromVideo: e.fromVideo === 1, createdAt: e.createdAt });
     }
     for (const v of read.exampleValues) {
       const example = examples.get(v.exampleId);
@@ -2016,6 +2017,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const shownExample = livePinOf(row.id)?.exampleId ?? null;
       return Card.parse({
         ...row,
+        fromVideo: row.fromVideo === 1,
         values: held?.values ?? {},
         sources: held?.sources ?? {},
         files: held?.files ?? {},

@@ -10,6 +10,8 @@ import { FieldKind, holdsFile, type MediaKind } from "@panki/contracts";
 export const FIELD_KINDS: Record<FieldKind, { name: string; multiline: boolean }> = {
   text: { name: "Text", multiline: false },
   long: { name: "Paragraph", multiline: true },
+  // The sentence the word was met in: on a card from a video the clip's words, read-only (`lineLocked`). One per type.
+  line: { name: "Line", multiline: true },
   media: { name: "Media", multiline: false },
   image: { name: "Image", multiline: false },
   // Holds the video's link, title and channel as one value (`youtubeMetaValue`); an older value is the link alone.
