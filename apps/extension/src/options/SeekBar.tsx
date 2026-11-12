@@ -25,7 +25,7 @@ import {
   type WordsMarkId,
 } from "../seekLook";
 import type { KnownMoment } from "../capture/known";
-import { seekLookOf, writeStore, type Stored } from "../storage";
+import { writeStore, type Stored } from "../storage";
 import { SeekMark, type ClipMark } from "../ui/SeekMark";
 import { ColourByStage } from "./ColourByStage";
 import { SceneTitle } from "./explainerScenes";
@@ -41,18 +41,14 @@ const WORDS_OPTIONS = [
   { id: "off", label: "Hidden" },
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
-/**
- * Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, then where the words that are in the decks are said.
- * `ownColour`: set here, the YouTube-only marks' alone; the rest are coloured wherever the words are marked, on every
- * site, so their colours are the highlight's (Word pop-up → Highlight words that are in your decks; `storage.ts` → `seekLookOf`).
- */
-const MARKS: readonly { id: SeekMarkId; name: string; ownColour: boolean }[] = [
-  { id: "transcript", name: "Transcript", ownColour: true },
-  { id: "cards", name: "Cards made from this video", ownColour: true },
-  { id: "suspended", name: "Suspended cards", ownColour: false },
-  { id: "flagged", name: "Flagged cards", ownColour: false },
-  { id: "clip", name: "Clip", ownColour: true },
-  { id: "known", name: "Words that are in your decks", ownColour: false },
+/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, then where the words that are in the decks are said. */
+const MARKS: readonly { id: SeekMarkId; name: string }[] = [
+  { id: "transcript", name: "Transcript" },
+  { id: "cards", name: "Cards made from this video" },
+  { id: "suspended", name: "Suspended cards" },
+  { id: "flagged", name: "Flagged cards" },
+  { id: "clip", name: "Clip" },
+  { id: "known", name: "Words that are in your decks" },
 ];
 /** Where the made-up video says words that are in the decks, for the preview: a few ticks across what's transcribed, each with its word. */
 const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
@@ -211,14 +207,12 @@ function WordsRows({ id, look, off, onChange }: { id: WordsMarkId; look: WordsLo
  * Kept the moment it's changed; a video page reads it again as it gets the focus.
  */
 export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
-  const kept = store.seekLook;
-  // As the marks are drawn: the colours shared with the highlight are the highlight's.
-  const look = seekLookOf(store);
+  const look = store.seekLook;
   // All of Panki's marks on the bar at once, the row that heads the panel; off, every mark's own rows are greyed.
   const off = !store.moduleSeek;
   function change<K extends SeekMarkId>(id: K, patch: Partial<SeekLook[K]>) {
-    const next: SeekLook = { ...kept };
-    next[id] = { ...kept[id], ...patch };
+    const next: SeekLook = { ...look };
+    next[id] = { ...look[id], ...patch };
     void writeStore({ seekLook: next }).then(onChanged);
   }
   return (
@@ -226,7 +220,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
       <SceneTitle id="seek" titleId="seek-bar-title" store={store} />
       <SeekPreview look={look} how={store.resumeHow} back={store.resumeBack} marked={store.moduleSeek && store.markStop} />
       <Setting id="module-seek" label="Seek bar marks" control={<Toggle id="module-seek-on" says={{ on: "On", off: "Off" }} on={store.moduleSeek} onChange={(moduleSeek) => void writeStore({ moduleSeek }).then(onChanged)} />} />
-      {MARKS.map(({ id, name, ownColour }) => {
+      {MARKS.map(({ id, name }) => {
         const mark: MarkLook = look[id];
         return (
           // Each mark a block of its own, its name led by a stroke of the mark as it's drawn, so they don't read as one clump.
@@ -240,35 +234,33 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
               {name}
             </h3>
             <Setting id={`seek-${id}-shown`} label="Visibility" control={<Toggle id={`seek-${id}-shown-on`} says={{ on: "Shown", off: "Hidden" }} on={mark.shown} disabled={off} onChange={(shown) => change(id, { shown })} />} />
-            {ownColour ? (
-              <Setting
-                id={`seek-${id}-colour`}
-                label="Colour"
-                control={
-                  id === "cards" ? (
-                    <ColourByStage
-                      id={`seek-${id}-colour`}
-                      byStage={look.cards.byStage}
-                      colour={mark.colour}
-                      disabled={off || !mark.shown}
-                      onByStage={(byStage) => change("cards", { byStage })}
-                      onColour={(colour) => change(id, { colour })}
-                    />
-                  ) : (
-                    <Swatches
-                      id={`seek-${id}-colour`}
-                      swatches={MARK_SWATCHES}
-                      value={mark.colour}
-                      disabled={off || !mark.shown}
-                      onChange={(value) => {
-                        const colour = paintOf(value);
-                        if (colour) change(id, { colour });
-                      }}
-                    />
-                  )
-                }
-              />
-            ) : null}
+            <Setting
+              id={`seek-${id}-colour`}
+              label="Colour"
+              control={
+                id === "known" || id === "cards" ? (
+                  <ColourByStage
+                    id={`seek-${id}-colour`}
+                    byStage={look[id].byStage}
+                    colour={mark.colour}
+                    disabled={off || !mark.shown}
+                    onByStage={(byStage) => change(id, { byStage })}
+                    onColour={(colour) => change(id, { colour })}
+                  />
+                ) : (
+                  <Swatches
+                    id={`seek-${id}-colour`}
+                    swatches={MARK_SWATCHES}
+                    value={mark.colour}
+                    disabled={off || !mark.shown}
+                    onChange={(value) => {
+                      const colour = paintOf(value);
+                      if (colour) change(id, { colour });
+                    }}
+                  />
+                )
+              }
+            />
             <Setting
               id={`seek-${id}-size`}
               label="Thickness"

@@ -17,12 +17,14 @@ import { Segmented } from "@web/components/Segmented";
 import { Ask } from "@web/components/Ask";
 import { VIDEO_TRACKING_WHY } from "@web/words";
 import { Setting } from "@web/components/Setting";
+import { Swatches } from "@web/components/Swatches";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
 import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
+import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
@@ -382,6 +384,23 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         label="Replace YouTube subtitles"
         control={<Toggle id="transcribe-over-video-on" says={{ on: "On", off: "Off" }} on={store.transcribeOverVideo} disabled={off} onChange={(transcribeOverVideo) => void writeStore({ transcribeOverVideo }).then(onChanged)} />}
         why="The subtitles picked in the Panki panel replace YouTube's subtitles on the video."
+      />
+      {/* The word pressed in the subtitles, under the player and over the video: a colour of its own, so it's told from the words in the decks. */}
+      <Setting
+        id="pick-colour"
+        label="Picked word colour"
+        control={
+          <Swatches
+            id="pick-colour"
+            swatches={MARK_SWATCHES}
+            value={store.pickColour}
+            disabled={off}
+            onChange={(value) => {
+              const pickColour = paintOf(value);
+              if (pickColour) void writeStore({ pickColour }).then(onChanged);
+            }}
+          />
+        }
       />
       <Setting
         id="after-add"
@@ -812,9 +831,8 @@ function Options() {
           ) : null}
           {/* Every tab stays drawn, the ones not chosen hidden: nothing laid out and unsaved is lost by looking at another. */}
           <div className="options-tab" hidden={tab !== "dictionary"}>
-            {/* Word pop-up, the words in the decks marked, the pop-up's layout (which shows both), then the dictionaries it reads. */}
+            {/* Word pop-up, the pop-up's layout (which shows the words in the decks marked, as set on the Decks tab), then the dictionaries it reads. */}
             <Looking store={store} onChanged={refresh} />
-            <KnownWords store={store} onChanged={refresh} />
             <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} lookDelay={store.lookDelayMs} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour }) }} onSaved={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
@@ -823,6 +841,8 @@ function Options() {
             {door ? (
               lists ? (
                 <>
+                  {/* The words in the decks marked wherever they're met: every site, and Panki's subtitles over the video and in the panel. */}
+                  <KnownWords store={store} onChanged={refresh} />
                   <DefaultDeck decks={lists.decks} store={store} onChanged={refresh} />
                   <Mapping decks={lists.decks} types={lists.types} store={store} onSaved={refresh} />
                 </>

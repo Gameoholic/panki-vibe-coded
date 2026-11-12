@@ -136,6 +136,8 @@ const Stored = z.object({
   // admin's, Panki's `Transcription.fixes`.
   /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (YouTube → Seek bar). */
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
+  /** The picked word's colour in Panki's subtitles (`transcribe/prefs.ts` → `pick`), set on the options page (YouTube → Panki panel). */
+  pickColour: MarkPaint.catch(DEFAULT_PREFS.pick),
   /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
   transcribeMode: TranscribeMode.nullable().catch(DEFAULT_PREFS.mode),
   /** Which of Panki's parts are on, and what happens where a video was stopped (`modules.ts`), set on the options page; `pankiOn` in the strip's head too. */
@@ -216,22 +218,6 @@ const Stored = z.object({
 });
 export type Stored = z.infer<typeof Stored>;
 
-/**
- * The seek bar's marks as they're drawn: their own look, but for the colours of the words in the decks, the suspended
- * cards and the flagged ones, which are the highlight's (`knownByStage`, `knownColour`, `knownSuspendedColour`,
- * `knownFlaggedColour`; options page, Word pop-up → Highlight words that are in your decks), one set wherever they're
- * marked. What the seek bar's own look kept of those colours is unread.
- */
-export const seekLookOf = (store: Stored): SeekLook => {
-  const look = store.seekLook;
-  return {
-    ...look,
-    known: { ...look.known, byStage: store.knownByStage, colour: store.knownColour },
-    suspended: { ...look.suspended, colour: store.knownSuspendedColour },
-    flagged: { ...look.flagged, colour: store.knownFlaggedColour },
-  };
-};
-
 /** The viewer's transcribing preferences as one value. */
 export const prefsOf = (store: Stored): TranscribePrefs => ({
   trigger: store.transcribeTrigger,
@@ -239,7 +225,8 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   style: store.subtitleStyle,
   markUnder: store.markUnder,
   markOver: store.markOver,
-  seek: seekLookOf(store),
+  seek: store.seekLook,
+  pick: store.pickColour,
   mode: store.transcribeMode,
 });
 

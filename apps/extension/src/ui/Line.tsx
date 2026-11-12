@@ -91,7 +91,7 @@ type Props = {
    * card's one for the line; none, and nothing is.
    */
   known?: { at: (at: number) => KnownAs | null; tintAt: (at: number) => string; suspendedColour: string; flaggedColour: string } | null;
-  /** The picked word's colour, as CSS: the seek bar's Clip's on a video's subtitles, the word being made a card; Panki blue without one. */
+  /** The picked word's colour, as CSS: the viewer's Picked word colour on a video's subtitles; Panki blue without one. */
   pickColour?: string | null;
   /** Which words Panki AI's Proofread edited (AI step 6): lit in the accent with the spark after them, under the player and over the video. */
   edited?: ((at: number) => boolean) | null;

@@ -1,6 +1,6 @@
 /** @panki Words already in the cards, marked where they stand, and each one's cards (`startKnown`, `useKnown`, `knownAs`, `knownCards`, `markKnownOnPage`). Never a second way of marking one. */
 import { useMemo, useSyncExternalStore } from "react";
-import type { CalledCard, VideoCard } from "@panki/contracts";
+import type { CalledCard } from "@panki/contracts";
 import { isJapanese } from "@web/words";
 import type { Lattice } from "../dictionary/found";
 import { wordsOf } from "../dictionary/split";
@@ -137,17 +137,6 @@ export const stageCssOf = (colours: ReadonlyMap<string, string>, term: string | 
 
 /** The colour a word that's in the decks (`knownAs` "known") is marked in, as CSS: its stage's under By stage, else the one chosen. */
 export const knownCssOf = (known: Pick<KnownNow, "byStage" | "colour" | "colours">, token: Pick<Token, "term">): string => (known.byStage ? stageCssOf(known.colours, token.term) : paintCss(known.colour));
-
-/**
- * The card of a word that's in the decks that was made from the video on the page (`VideoCard`, the seek bar's Cards
- * made from this video), if any: one of the word's cards, as the pop-up has them, among the video's. Panki's subtitles
- * mark such a word in the cards' colour, as the seek bar marks the card.
- */
-export const videoCardOf = (known: Pick<KnownNow, "cards">, videoCards: readonly VideoCard[], token: Pick<Token, "term">): VideoCard | null => {
-  if (token.term === undefined || videoCards.length === 0) return null;
-  const ids = new Set((known.cards.get(token.term) ?? NO_CARDS).map((card) => card.cardId));
-  return videoCards.find((card) => ids.has(card.cardId)) ?? null;
-};
 
 /** The names the page's highlight layer knows Panki's marks by: one only suspended cards are, one a flagged card is; a word that's in the decks is one per colour in use (`KNOWN_PREFIX`). */
 const HIGHLIGHT: Record<Exclude<KnownAs, "known">, string> = { suspended: "panki-known-suspended", flagged: "panki-known-flagged" };

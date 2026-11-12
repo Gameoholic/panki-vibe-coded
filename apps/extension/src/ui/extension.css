@@ -111,9 +111,8 @@
     background: var(--surface);
   }
 }
-/* The word picked, in the pick's colour (`Line`'s `pickColour` as `--pick`: on a video's subtitles the seek bar's Clip
-   colour, the word being made a card, so it's told apart from the words in the decks by the colours set for each;
-   Panki blue elsewhere): filled with it as the words in the decks are tinted, a little stronger, and edged in it whole,
+/* The word picked, in the pick's colour (`Line`'s `pickColour` as `--pick`: on a video's subtitles the viewer's Picked
+   word colour, so it's told apart from the words in the decks by the colours set for each; Panki blue elsewhere): filled with it as the words in the decks are tinted, a little stronger, and edged in it whole,
    its letters as they are, so any colour picked reads. */
 .btn.tok[aria-pressed="true"],
 .line.is-small .btn.tok[aria-pressed="true"] {
@@ -137,8 +136,7 @@
   white-space: pre-wrap;
 }
 /* A word already in the cards (capture/known.ts): tinted as the line's `--known` says, the colour picked and how
-   strongly (`tintOf`, its one home); one of a card made from the video, in the cards' colour. A picked word keeps the
-   pick's own colour. */
+   strongly (`tintOf`, its one home). A picked word keeps the pick's own colour. */
 .btn.tok.is-known:not([aria-pressed="true"]) {
   background: var(--known);
 }

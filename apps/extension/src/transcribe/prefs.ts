@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle, TranscribeMode } from "@panki/contracts";
-import { DEFAULT_SEEK_LOOK, SeekLook } from "../seekLook";
+import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "../seekLook";
 
 /**
  * How transcribing behaves for this browser's viewer, theirs to set on the options page (YouTube → Transcribing),
@@ -30,8 +30,10 @@ export const TranscribePrefs = z.object({
   markOver: z.boolean(),
   /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's. */
   seek: SeekLook,
+  /** The colour the picked word is lit in, under the player and over the video (`Line`'s `pickColour`): the Clip's to begin with. */
+  pick: MarkPaint,
   /** The transcription mode this viewer picked in the strip's menu, among those an admin left on; null for the one everyone starts on (`modeOf`). */
   mode: TranscribeMode.nullable(),
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, mode: null };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: DEFAULT_SEEK_LOOK.clip.colour, mode: null };
