@@ -246,7 +246,9 @@ Rules:
 ${videoPiecesRule("say so")}
 - Plain text only: no markdown.
 
-The user's standing instructions, for every answer in this conversation (they steer what you say, never the shape of an answer): ${variableOf("instructions")}`;
+The user's standing instructions, for every answer in this conversation (they steer what you say, never the shape of an answer): ${variableOf("instructions")}
+
+${variableOf("firstMessage")}`;
 
 /** How a Touch up follow-up answered while each account had Touch up templates: only what it changed, beside its reply. Kept so such a prompt is still told apart from an edited one. */
 const TOUCH_UP_FOLLOW_UP = `
@@ -393,7 +395,9 @@ Rules:
 ${videoPiecesRule("say so in its why")}
 - Plain text in every value: no markdown.
 
-The user's standing instructions, for every answer in this conversation (they steer what you write, never the shape of an answer): ${variableOf("instructions")}`;
+The user's standing instructions, for every answer in this conversation (they steer what you write, never the shape of an answer): ${variableOf("instructions")}
+
+${variableOf("firstMessage")}`;
 
 /**
  * Proofread's prompt as Panki writes it (AI step 6): the lines of a video's Panki subtitles, numbered, with the words a

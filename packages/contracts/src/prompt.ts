@@ -61,6 +61,8 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
       return "What a message says in your words: its actions' words, then what you typed; sent as yours, inside <user_message>";
     case "requirements":
       return "Panki's own line after a message: what the answer must hold, never yours to change";
+    case "firstMessage":
+      return "Where Touch up's and Explain's prompt puts the conversation's first message, as Panki sends it; without it, after the prompt's end";
     case "instructions":
       return "Your standing message to Panki AI, as Settings → Panki AI → User instructions says; empty, its line isn't sent";
     case "wider":
@@ -230,7 +232,7 @@ export const EXPLAIN_PART_NAMES: Record<ExplainPart, string> = { reply: "Answer"
 export const ExplainShape = z.object({
   // What each key holds and what Panki does with it, in plain words, said in Admin under the prompt
   // (`answerShapesOf`); never sent to the provider (`schemaFor` leaves descriptions out: the prompt is the admin's alone).
-  reply: z.string().max(AI_TEXT_MAX).describe('the reply to the message: what the message asked to be said (what the word does here, its grammar, …); "" otherwise, unless there is something of note. Panki shows it as the answer'),
+  reply: z.string().max(AI_TEXT_MAX).describe('the reply to the message: what the message asked to be said (what the word does here, its grammar, …); "" otherwise, unless something the message asked couldn\'t be done or was done differently. Panki shows it as the answer'),
   meanings: z
     .array(MeaningWireRow)
     .max(200)

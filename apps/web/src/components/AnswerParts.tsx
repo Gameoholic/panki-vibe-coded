@@ -1,6 +1,6 @@
 /** @panki What a place's answer holds, folded (`AnswerParts`). */
 import { useState } from "react";
-import { ANSWER_FIXED, answerShapesOf, answerWordsUnsent, messagePartOf, type AiPlaceId, type AnswerPart } from "@panki/contracts";
+import { ANSWER_FIXED, answerShapesOf, answerWordsUnsent, messagePartOf, variableOf, type AiPlaceId, type AnswerPart } from "@panki/contracts";
 import { Button } from "./Button";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
@@ -13,8 +13,8 @@ type Props = {
   provider: string;
 };
 
-/** The heading over what Panki sends after a place's prompt with every message. */
-const MESSAGE_PART_TITLE = "Each message, after the prompt";
+/** The heading over what Panki sends with every message: the first where the prompt has its place, every later one alone. */
+const MESSAGE_PART_TITLE = `Each message: the first at ${variableOf("firstMessage")} (after the prompt without it), every later one on its own`;
 
 /** An answer's parts as a list, each key's own parts indented under it. */
 function PartsList({ parts }: { parts: readonly AnswerPart[] }) {

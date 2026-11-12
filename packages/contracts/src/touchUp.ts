@@ -165,7 +165,7 @@ export const KEY_WORDS: Record<TouchUpKey, string> = {
   examples: "a few made-up sentences, each after a line setting its scene, the same way",
 };
 /** The reply's words in Admin, beside the keys. */
-const REPLY_WORDS = 'the reply to the message, shown under it: what the message asked to be said; "" otherwise, unless there is something of note the fields can\'t say';
+const REPLY_WORDS = 'the reply to the message, shown under it: what the message asked to be said; "" otherwise, unless something the message asked couldn\'t be done or was done differently';
 /** The answer on the wire: the reply, and each key in whichever shape it was asked in (`touchUpShape`). */
 export type TouchUpWire = { reply: string; meaning?: MeaningWire | EmptyMeaningWire; sentence?: SentenceWire | EmptySentenceWire } & Partial<
   Record<Exclude<TouchUpKey, "meaning" | "sentence">, FieldWire | EmptyFieldWire>

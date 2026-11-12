@@ -4,6 +4,7 @@ import { KeptAction, NO_ACCOUNT_ACTIONS, type AccountActions, type ActionPlaceId
 import { DEFAULT_EXPLAIN_PROMPT, DEFAULT_PANKI_AI, DEFAULT_TOUCH_UP_PROMPT, adminPromptOf } from "../src/ai";
 import {
   AI_ACTIONS,
+  QUIET_REPLY,
   CONVERSATION_REACHES,
   contextLengthOf,
   eachWayOf,
@@ -135,7 +136,7 @@ test("A message asks something with a field it requires or words to say; nothing
 });
 
 test("A message's words are the ticked actions' in the place's order then what was typed; Panki's requirements stand apart", () => {
-  assert.equal(messageOf(card("touchUp"), ""), "Touch up the card. Leave the reply empty unless there's something of note.");
+  assert.equal(messageOf(card("touchUp"), ""), `Touch up the card. ${QUIET_REPLY}`);
   assert.equal(requirementsOf(DECK, card("touchUp")), "Answer meaning, reading, sentence, explanation, examples: judge each that holds a value, and write each that's empty.");
   assert.equal(messageOf(own("explanation"), " shorter please "), "Touch up the explanation.\nshorter please");
   assert.equal(
@@ -148,7 +149,7 @@ test("A message's words are the ticked actions' in the place's order then what w
 });
 
 test("Panki's actions that don't ask for a reply say to leave it empty in their own words; those that do, and the prompts, don't", () => {
-  const quiet = "Leave the reply empty unless there's something of note.";
+  const quiet = QUIET_REPLY;
   for (const action of actionsOf(NO_ACCOUNT_ACTIONS, "card")) {
     assert.equal(action.words.includes(quiet), !replyRequired([action]), action.id);
   }
@@ -304,6 +305,17 @@ test("An admin's prompt without User instructions sends none", () => {
     first,
     `PROMPT\n\n<user_message>${AI_ACTIONS.touchUp.words}</user_message>\n<answer_requirements>Answer sentence: judge each that holds a value, and write each that's empty.</answer_requirements>\n<card>${run.card}</card>`,
   );
+});
+
+test("The first message goes where the prompt has {First message}, at its end without one; Panki's own prompts have it", () => {
+  const [placed = ""] = aiSent(cardPromptOf({ aiPrompts: { card: "BEFORE\n{First message}\nAFTER" } }), {}, [], {}, sendPieces(run, ["sentence"], NO_ACCOUNT_ACTIONS));
+  assert.ok(placed.startsWith(`BEFORE\n<user_message>${AI_ACTIONS.touchUp.words}</user_message>`));
+  assert.ok(placed.endsWith(`<card>${run.card}</card>\nAFTER`));
+  const [word = ""] = aiSent(wordPromptOf({ aiPrompts: { word: "{First message}\nAFTER" } }), {}, [], {}, explainSendPieces({ actions: [], text: "Is it rude?" }, NO_ACCOUNT_ACTIONS));
+  assert.ok(word.startsWith("<user_message>Is it rude?</user_message>") && word.endsWith("AFTER"));
+  assert.ok(DEFAULT_TOUCH_UP_PROMPT.endsWith("{First message}") && DEFAULT_EXPLAIN_PROMPT.endsWith("{First message}"));
+  const [own = ""] = aiSent(cardPromptOf(DEFAULT_PANKI_AI), {}, [], {}, sendPieces(run, ["sentence"], NO_ACCOUNT_ACTIONS));
+  assert.ok(!own.includes("{First message}") && own.endsWith(`<card>${run.card}</card>`));
 });
 
 test("The message answered is the first until the conversation has begun, then the one sent after it", () => {

@@ -66,6 +66,11 @@ export type AiAction = {
   /** How many seconds of video subtitles it sends each way (`DEFAULT_ACTION_SECONDS` to begin with), either place's. */
   seconds: number;
 };
+/**
+ * What every one of Panki's actions that wants no reply says of it: when a reply is wanted at all, said concretely, in
+ * the action's own words rather than the prompt's (`AI.md` → Settled).
+ */
+export const QUIET_REPLY = "Leave the reply empty, unless something I asked couldn't be done, or was done differently from what I asked or would expect.";
 /** One of Panki's, its knobs as given and the rest the defaults. */
 const panki = (action: Pick<AiAction, "place" | "name" | "words"> & Partial<Omit<AiAction, "id" | "place" | "name" | "words">>, id: PankiActionId): AiAction => ({
   id,
@@ -75,7 +80,7 @@ const panki = (action: Pick<AiAction, "place" | "name" | "words"> & Partial<Omit
   ...action,
 });
 export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
-  touchUp: panki({ place: "card", name: "Touch up", words: "Touch up the card. Leave the reply empty unless there's something of note.", requires: TOUCH_UP_KEYS }, "touchUp"),
+  touchUp: panki({ place: "card", name: "Touch up", words: `Touch up the card. ${QUIET_REPLY}`, requires: TOUCH_UP_KEYS }, "touchUp"),
   // The word's reply actions on the card: about the card's word in the card's sentence, each requiring the reply, so
   // these come back with words said whatever the fields do.
   cardExplain: panki(
@@ -463,21 +468,25 @@ ${taggedOf("wider")}
 ${taggedOf("card")}`;
 /** What Panki sends after the admin's prompt with every message, by place: shown under the prompt in Admin, read-only. */
 export const messagePartOf = (place: ActionPlaceId): string => (place === "card" ? SEND_MESSAGE : WORD_MESSAGE);
+/** Where the admin's prompt puts a conversation's first message: its first `{First message}`. */
+const FIRST_MESSAGE = variableOf("firstMessage");
+/**
+ * An admin's prompt with a conversation's first message in it (`part`, the message part, filled with the prompt): where
+ * the prompt has `{First message}`, there; at the prompt's end otherwise, so a prompt saved without it still works.
+ */
+const withFirstMessage = (prompt: string, part: string): string =>
+  prompt.includes(FIRST_MESSAGE) ? prompt.replace(FIRST_MESSAGE, () => part) : `${prompt}
+
+${part}`;
 
 /**
  * What a card's conversation sends, as a template for `aiSent`: the first prompt is the admin's prompt (its
- * `{User instructions}` where it stands in it, the account's standing message), then the conversation's first message;
- * every later message is its own. Built the same way by the server, which sends it, and the page, which says what it
- * costs and what went (Details).
+ * `{User instructions}` where it stands in it, the account's standing message) with the conversation's first message
+ * where it has `{First message}`, after it otherwise (`withFirstMessage`); every later message is its own. Built the
+ * same way by the server, which sends it, and the page, which says what it costs and what went (Details).
  */
 export function cardPromptOf(settings: { aiPrompts: Partial<Record<AdminPromptPlaceId, string>> }): { name: string; prompt: string; followUp: string } {
-  return {
-    name: AI_ACTIONS.touchUp.name,
-    prompt: `${adminPromptOf(settings, "card")}
-
-${SEND_MESSAGE}`,
-    followUp: SEND_MESSAGE,
-  };
+  return { name: AI_ACTIONS.touchUp.name, prompt: withFirstMessage(adminPromptOf(settings, "card"), SEND_MESSAGE), followUp: SEND_MESSAGE };
 }
 
 /**
@@ -547,17 +556,12 @@ ${taggedOf("wider")}
 ${taggedOf("requirements")}`;
 /**
  * What a word's conversation sends, as a template for `aiSent`: the first prompt is the admin's (its
- * `{User instructions}` where it stands in it), then the conversation's first message; every later message is its own.
- * Built the same way by the server, which sends it, and the page, which says what it costs and what went (Details).
+ * `{User instructions}` where it stands in it) with the conversation's first message where it has `{First message}`,
+ * after it otherwise (`withFirstMessage`); every later message is its own. Built the same way by the server, which
+ * sends it, and the page, which says what it costs and what went (Details).
  */
 export function wordPromptOf(settings: { aiPrompts: Partial<Record<AdminPromptPlaceId, string>> }): { name: string; prompt: string; followUp: string } {
-  return {
-    name: AI_ACTIONS.explain.name,
-    prompt: `${adminPromptOf(settings, "word")}
-
-${WORD_MESSAGE}`,
-    followUp: WORD_MESSAGE,
-  };
+  return { name: AI_ACTIONS.explain.name, prompt: withFirstMessage(adminPromptOf(settings, "word"), WORD_MESSAGE), followUp: WORD_MESSAGE };
 }
 /**
  * What a word's message sends: the pieces of the word pointed at, every meaning of the dictionaries in `{Meaning}`'s

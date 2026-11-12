@@ -36,6 +36,7 @@ export const PROMPT_PIECE_IDS = [
   "instructions",
   "wider",
   "requirements",
+  "firstMessage",
 ] as const;
 export const PromptPieceId = z.enum(PROMPT_PIECE_IDS);
 export type PromptPieceId = z.infer<typeof PromptPieceId>;
@@ -111,6 +112,9 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   // Panki's own line after a message, apart from it: what the answer must hold (the parts or keys that must come back),
   // never the user's words (`aiActions.ts` → `requirementsOf`, `explainRequirementsOf`).
   requirements: "Answer requirements",
+  // Where a conversation's first message goes in the admin's prompt (`aiActions.ts` → `withFirstMessage`): put in by
+  // Panki before the prompt is filled, never a value of its own.
+  firstMessage: "First message",
 };
 export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   word: "text",
@@ -137,6 +141,7 @@ export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   instructions: "settings",
   wider: "video",
   requirements: "panki",
+  firstMessage: "panki",
 };
 
 /**
