@@ -6,6 +6,7 @@ import { Door, type DoorSpec } from "./Door";
 import { Icon } from "./Icon";
 import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
+import { useMasonry } from "../hooks/useMasonry";
 import { isDoorId, isStreakTile, type BoardItemId, type BoardLayout, type TileItemId } from "../layout";
 import { NewStreakTile, StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext } from "../widgets";
 
@@ -57,7 +58,8 @@ function tileName(id: TileItemId, settings: Settings | null): string | null {
 }
 
 /**
- * The board: three tiles to a row on a PC, one on the phone. On Stats it is every tile but the streaks', on the
+ * The board: three tiles across on a PC, one on the phone, each its own height, the next in its column coming up
+ * under it (`useMasonry`). On Stats it is every tile but the streaks', on the
  * Streaks screen Today, every streak's and the dashed one that makes a new one. On the home it is the
  * doors and the tiles this device was set up with, arranged by hand: a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
  * and let go on another to trade places with it, a × puts a tile away, the dashed tile at the end brings one back,
@@ -100,6 +102,7 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
       if (next) home?.onLayout(next);
     },
   });
+  const pack = useMasonry();
   // While a tile is carried the board is drawn as letting go right now would leave it; the layout itself changes once, on the drop.
   const carried = drag.lifted !== null && drag.over !== null ? dropped(drag.lifted, drag.over) : null;
   // Stats leaves out what heads the Streaks screen (Today).
@@ -157,11 +160,11 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
     // A streak's tile put away comes back only while Streaks is on.
     return name === null || (isStreakTile(id) && !streaksOn) ? [] : [{ id, name }];
   });
-  const { className: dragClass, ...rootProps } = drag.rootProps;
+  const { className: dragClass, ref: dragRef, ...rootProps } = drag.rootProps;
   if (streaks) {
     const off = settings !== null && !streaksOn;
     return (
-      <div className={`board ${stale ? "is-stale" : ""} ${off ? "is-off" : ""}`.trim()} aria-label="Streaks" aria-busy={stale} inert={off}>
+      <div ref={pack} className={`board ${stale ? "is-stale" : ""} ${off ? "is-off" : ""}`.trim()} aria-label="Streaks" aria-busy={stale} inert={off}>
         {WIDGETS.filter((w) => w.streaksScreen).map((entry) => (
           <Tile key={entry.id} entry={entry} stats={stats} ctx={ctx} />
         ))}
@@ -171,7 +174,13 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
     );
   }
   return (
-    <div {...rootProps} className={`board ${arranging ? "is-arranging" : ""} ${stale ? "is-stale" : ""} ${dragClass}`.trim()} aria-label={home ? "Home" : "Stats"} aria-busy={stale}>
+    <div
+      {...rootProps}
+      ref={(el) => {
+        dragRef(el);
+        pack(el);
+      }}
+      className={`board ${arranging ? "is-arranging" : ""} ${stale ? "is-stale" : ""} ${dragClass}`.trim()} aria-label={home ? "Home" : "Stats"} aria-busy={stale}>
       {items.map((id) => {
         if (isDoorId(id)) {
           const spec = doorById.get(id);

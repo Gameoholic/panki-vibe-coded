@@ -33,6 +33,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-11: streaks with conditions (All reviews done and All new cards done worked out from the history, nothing stored; a new card done once learned, its review finished), counting per day or per week; the reminder on YouTube; every Stats tile in one anatomy with windows (Today, 7 d, 30 d, 1 y, All time, and a Custom… frame, "Last 3 weeks", Coming up's "Next"), views and Show more, nothing by deck; Activity, New cards, Time per card; Time watching's Runtime watched.
 - 2026-11-12: the Cards added condition, the cards made in the day or week, a deleted one still counting (`EXTENSION_PROTOCOL` 11; `STREAKS.md` → Round 16).
 - 2026-11-12: Week ends on, every week in Panki following it, Sunday for every account until it's changed (`STREAKS.md` → Round 17; `architecture/data-model.md` → The week).
+- 2026-11-12: every board packed by height, a tile never stretched to its row (`architecture/web.md` → Packed by height).
 - 2026-11-12: Card types and SRS types one door of two rows on the home (`components/Door.tsx`); a stored layout drops the old SRS types door.
 - 2026-11-12: a time condition said in hours from an hour up ("≥ 1.5 h"), entered in min or h, up to the day's or the week's length (`STREAKS.md` → Round 18).
 

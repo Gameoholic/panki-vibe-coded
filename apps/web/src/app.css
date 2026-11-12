@@ -7022,20 +7022,31 @@ mark.sub-blur {
 
 /* ---------- Stats and the home's tiles ---------- */
 
-/* The board (components/Board.tsx): the home's doors and tiles, and every tile on Stats, three to a row on a PC with
+/* The board (components/Board.tsx): the home's doors and tiles, and every tile on Stats, three across on a PC with
    12px between them. A thing that takes more than one column says so through --w (a wide tile's two, the Review
    door's whole row); the phone breakpoint at the end makes it one column and ignores that. Dense, so a small tile
-   fills a gap a wide one left. */
+   fills a gap a wide one left. Once packed by height (hooks/useMasonry.ts, `data-packed`; a skeleton's board never
+   is) the rows are 2px and each tile spans what its own height needs, the gap under it as its margin, so nothing is
+   stretched to a taller neighbour and the next tile in a column comes up under a short one. */
 .board {
+  --board-gap: 12px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--board-gap);
   grid-auto-flow: dense;
   transition: opacity 0.15s ease;
 }
 .board > * {
   grid-column: span var(--w, 1);
   min-width: 0;
+}
+.board[data-packed] {
+  grid-auto-rows: 2px;
+  row-gap: 0;
+  align-items: start;
+}
+.board[data-packed] > * {
+  margin-bottom: var(--board-gap);
 }
 /* The last numbers stay, dimmed, while the next scope loads. */
 .board.is-stale {
