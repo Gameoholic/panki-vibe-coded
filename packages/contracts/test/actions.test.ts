@@ -92,10 +92,18 @@ test("A field's own action requires its field alone; free text requires nothing;
 });
 
 test("The Sentence is asked only where there are subtitle lines to pick it from, the message's wider ones first", () => {
-  assert.deepEqual(keysWithLines(DECK, ["駅で"]), [...DECK]);
+  assert.deepEqual(keysWithLines(DECK, [{ n: 1, text: "駅で" }]), [...DECK]);
   assert.deepEqual(keysWithLines(DECK, []), ["meaning", "reading", "explanation", "examples"]);
-  assert.deepEqual(sentenceLinesOf({ surrounding: "前\n駅で" }, {}), ["前", "駅で"]);
-  assert.deepEqual(sentenceLinesOf({ surrounding: "駅で" }, { wider: "前\n駅で\n次" }), ["前", "駅で", "次"]);
+  assert.deepEqual(sentenceLinesOf({ surrounding: "前\n駅で" }, {}), [
+    { n: 1, text: "前" },
+    { n: 2, text: "駅で" },
+  ]);
+  // Every line keeps its number in every message: the wider subtitles' and the first message's are one list.
+  assert.deepEqual(sentenceLinesOf({ surrounding: "18\t駅で" }, { wider: "17\t前\n18\t駅で\n19\t次" }), [
+    { n: 17, text: "前" },
+    { n: 18, text: "駅で" },
+    { n: 19, text: "次" },
+  ]);
   assert.deepEqual(sentenceLinesOf({}, {}), []);
   assert.deepEqual(cardPiecesOf({ surrounding: "前\n駅で", word: "駅" }), { surrounding: "1\t前\n2\t駅で", word: "駅" });
   assert.deepEqual(cardPiecesOf({ word: "駅" }), { word: "駅" });

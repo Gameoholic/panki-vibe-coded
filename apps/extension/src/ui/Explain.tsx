@@ -40,6 +40,7 @@ import {
   type ExplainSend,
   type Explained,
   type JudgedMeaning,
+  type LinesHeld,
   type PankiAi,
   type ProposedMeaning,
   type PromptGaps,
@@ -172,8 +173,16 @@ export type PieceLimits = Pick<PankiAi, "aiMaxDescriptionChars">;
 /**
  * What a video adds to a prompt, read at a moment: its metadata and description (`pieces`), and the subtitles around
  * that moment as far as a message reaches (`around(seconds)`, one a line; a message's reach is its actions', `reachOf`).
+ * A card's conversation reads them numbered instead (`numbered`, each line after its place among the video's lines and
+ * a tab, the same number in every message, as `numberedSubtitles` reads them), and which of those lines a sentence is
+ * (`linesOf`: null when it isn't in them).
  */
-export type VideoMore = { pieces: PromptPieces; around: (seconds: number) => string };
+export type VideoMore = {
+  pieces: PromptPieces;
+  around: (seconds: number) => string;
+  numbered?: (seconds: number) => string;
+  linesOf?: (sentence: string) => LinesHeld | null;
+};
 /** What the page knows besides the pop-up: on a video, what it adds to a prompt, read as the pop-up opens. */
 export type MorePieces = (pointed: Pointed, limits: PieceLimits) => VideoMore;
 

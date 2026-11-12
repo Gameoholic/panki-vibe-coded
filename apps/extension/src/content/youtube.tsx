@@ -13,7 +13,7 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type WatchMarkSource } from "@panki/contracts";
+import { bareOf, defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type WatchMarkSource } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { MESSAGE_WORDS, MessageAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
@@ -371,15 +371,43 @@ function videoPieces(limits: PieceLimits): VideoMore {
   const { title, channel } = aboutVideo();
   const source = [title, channel ? `on ${channel.name}` : "", youtubeUrl({ videoId: id, seconds: Math.floor(at) })].filter((part) => part !== "").join(", ");
   const shown = lines.snapshot();
+  const reached = (reach: number) => (reach > 0 ? shown.flatMap((line, i) => (line.start <= at + reach && (line.end ?? line.start) >= at - reach ? [{ n: i + 1, text: line.text.replace(/\s*\n\s*/g, " ") }] : [])) : []);
   const around = (reach: number) =>
-    reach > 0
-      ? shown
-          .filter((line) => line.start <= at + reach && (line.end ?? line.start) >= at - reach)
-          .map((line) => line.text)
-          .join("\n")
-      : "";
+    reached(reach)
+      .map((line) => line.text)
+      .join("\n");
+  const numbered = (reach: number) =>
+    reached(reach)
+      .map((line) => `${line.n}\t${line.text}`)
+      .join("\n");
   const description = descriptionText().slice(0, limits.aiMaxDescriptionChars);
-  return { pieces: { source, description }, around };
+  return { pieces: { source, description }, around, numbered, linesOf: (sentence: string) => linesHeldOf(shown, sentence, at) };
+}
+
+/**
+ * Which of the lines a sentence is, by their numbers (each line's place among them, from 1, as `videoPieces` numbers
+ * them): the lines its words run over, found as an accepted Sentence's are (`runsOf`, `withEdges`), the run nearest
+ * `at` where they're there more than once; whole when it's every word of those lines, spaces and punctuation aside.
+ * Null when its words aren't in them.
+ */
+function linesHeldOf(shown: readonly CaptionLine[], sentence: string, at: number): LinesHeld | null {
+  const { text, parts } = transcriptOf(shown);
+  // The line a character of the text is in, by its place: the last that begins at or before it.
+  const lineOf = (offset: number) => parts.reduce((found, part, i) => (part.at <= offset ? i : found), 0);
+  const placed = runsOf(text, sentence).flatMap((found) => {
+    const run = withEdges(text, sentence, found);
+    const first = lineOf(run.from);
+    const last = lineOf(Math.max(run.from, run.to - 1));
+    const from = parts[first];
+    return from ? [{ first, last, start: from.line.start }] : [];
+  });
+  const best = placed.reduce<(typeof placed)[number] | null>((was, each) => (was === null || Math.abs(each.start - at) < Math.abs(was.start - at) ? each : was), null);
+  if (!best) return null;
+  const held = shown
+    .slice(best.first, best.last + 1)
+    .map((line) => line.text)
+    .join("\n");
+  return { first: best.first + 1, last: best.last + 1, whole: bareOf(held).bare === bareOf(sentence).bare };
 }
 
 /** Panki on YouTube's pages beyond a video's: the shelf over its home's videos, the marks on every thumbnail (`feed.tsx`). */

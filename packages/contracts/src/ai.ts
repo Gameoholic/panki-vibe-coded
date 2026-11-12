@@ -360,7 +360,7 @@ ${MEANING_LIST}
 
 The card is for the dictionary form of the selected word; Reading, Pitch accent and Meaning describe that form, never the inflected form met in the sentence.
 
-<surrounding_video_subtitles> is what was said around the sentence, in order, one line a line: its number, a tab, then the line. A message's <wider_video_subtitles>, when it has one, is the same over more of the video, numbered on its own.
+<surrounding_video_subtitles> is what was said around the sentence, in order, one line a line: its number, a tab, then the line. A message's <wider_video_subtitles>, when it has one, is the same over more of the video. A line has the same number everywhere, in every message: its place among the video's lines.
 
 Every message ends with <card>, the card as it stands at that moment, after anything the user accepted or typed. In it a field you may answer is marked with a key in brackets; a field marked (empty) holds nothing yet. The numbers before the Meaning's words are the meanings the user ticked, by their index in <meaning>.
 
@@ -381,7 +381,7 @@ What each field holds, proposed in "proposed" unless it says otherwise:
 - dictionaryForm: the dictionary form, as a dictionary lists it (for 思います, 思う).
 - reading: the dictionary form's reading, in kana, as it is read where it has this meaning (for 思います, おもう).
 - pitchAccent: the dictionary form's reading and the number of the mora after which the voice falls, 0 for never, as <pitch_accent> writes it (for example: くう 1).
-- sentence: the subtitle lines the card's clip plays: the line holding the word, with the lines around it that the word needs to be understood. Proposed as "first" and "last", the numbers of its first and last line, from <wider_video_subtitles> when the message has one and from <surrounding_video_subtitles> otherwise; Panki copies those lines as they are. The card's Sentence is those lines' words, joined with or without line breaks: it's good when it already holds the lines it needs, however they're broken, and is judged by its words, never its line breaks. 0 and 0 when nothing is proposed.
+- sentence: the subtitle lines the card's clip plays: the line holding the word, with the lines around it that the word needs to be understood. Proposed as "first" and "last", the numbers of its first and last line, from any subtitles you were given; Panki copies those lines as they are. In <card> the Sentence says which lines it is: "(lines 18–19)" when it's those lines whole, however its line breaks fall, and "(part of lines 18–19)" when it's part of them, which is the user's choice. It's good when it holds what the word needs to be understood: propose lines only when the word needs words it doesn't hold, never just to make it whole lines, and never the lines it already is. 0 and 0 when nothing is proposed.
 - explanation: what the word means in this sentence where the Meaning alone doesn't make it clear, in {Language}. For a field marked (empty), "proposed" "" when nothing is needed, with "why" saying so.
 - examples: six lines: three made-up sentences using the word, each after a line in {Language} that sets its scene, each sentence in {Learning language}.
 

@@ -92,7 +92,6 @@ import type { VideoPictures } from "@web/components/LinkView";
 import { MediaView } from "@web/components/MediaView";
 import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
-import { Toggle } from "@web/components/Toggle";
 import {
   ClipMove,
   UnmarkAi,
@@ -520,7 +519,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [wordTyped, setWordTyped] = useState(false);
   /** What's typed into the fields nothing fills, by field id. */
   const [typed, setTyped] = useState<Record<string, string>>({});
-  /** The sentence locked, as it was then or as typed over since: the clip's ends pulled leave it as it is. Null while it follows the clip. */
+  /** The sentence as typed or as Panki AI's accepted, off a video, where there's no clip for it to follow. Null while it's the capture's own (on a video, always). */
   const [written, setWritten] = useState<string | null>(null);
   /** About where in the sentence the word was picked, for a sentence that has it twice. */
   const [near, setNear] = useState(0);
@@ -775,7 +774,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   function touchPieces(limits: PieceLimits, reach: number, keys: readonly TouchUpKey[] = touchKeys): TouchRead {
     const meanings = dictMeanings;
     const more = capture.more?.(limits) ?? null;
-    const video: PromptPieces = more ? { ...more.pieces, surrounding: more.around(reach) } : {};
+    // Each line under its number among the video's lines, the same in every message, which a Sentence is picked by.
+    const video: PromptPieces = more ? { ...more.pieces, surrounding: (more.numbered ?? more.around)(reach) } : {};
     // The card as it stands, what the answer is held against: each key's field (the Meaning tidied), and the rows of
     // `{Meaning}` the Meaning holds, the dictionary's by number and its own custom ones after them, so the model judges
     // it by number.
@@ -796,7 +796,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             .filter((f) => isTyped(f.kind))
             .map((f) => {
               const key = keyOfField(f.id);
-              return { name: f.name, key: key && keys.includes(key) ? key : null, value: sentValue(f), ...(f.id === meaningField?.id ? { ticked } : {}) };
+              const value = sentValue(f);
+              // On a video the Sentence says which subtitle lines it is, by the numbers its lines are sent under.
+              const lines = f.id === sentenceField?.id && value.trim() !== "" ? (more?.linesOf?.(value) ?? null) : null;
+              return { name: f.name, key: key && keys.includes(key) ? key : null, value, ...(f.id === meaningField?.id ? { ticked } : {}), ...(lines ? { lines } : {}) };
             }),
         )
       : "";
@@ -853,7 +856,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const read = touchPieces(settings, reachOf(lit, at), keys);
     const field = sent.where ? type?.fields.find((f) => f.id === sent.where) : undefined;
     const reach = begun && touch.opening ? widerOf(lit, litOf(touch.opening.actions), at, touch.opening.reach ?? null) : null;
-    const wider = reach !== null ? (capture.more?.(settings).around(reach) ?? "").slice(0, PIECE_MAX) : "";
+    const widerMore = reach !== null ? (capture.more?.(settings) ?? null) : null;
+    const wider = reach !== null && widerMore ? (widerMore.numbered ?? widerMore.around)(reach).slice(0, PIECE_MAX) : "";
     const send: TouchUpSend = {
       actions: [...sent.actions],
       text: sent.text.trim(),
@@ -876,13 +880,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const sendable = (sent: Sent) =>
     canTouch && touch.busy === false && sendsLeft && asksSomething(touchKeys, litOf(sent.actions), sent.text);
 
-  /**
-   * Touch up answered: a video's sentence is locked as it stands, so the clip's ends pulled after
-   * can't rewrite what Panki AI just judged or proposed against. Unlocking it by hand is still a press.
-   */
-  const lockSentence = () => {
-    if (clip !== null && sentenceField !== null) setWritten((was) => was ?? capture.sentence);
-  };
   /**
    * Where Accept would put the clip for an answer's Sentence proposal (`held` what the field held as it was asked), so
    * its note can say the times: the proposed words looked for in the subtitles the page keeps. None with no proposal, or
@@ -1017,7 +1014,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       // A send that changes the Sentence brings its own clip; one that doesn't leaves the last proposal's.
       clipTo: done.answer.sentence ? clipToOf(done.answer, read.now.values.sentence ?? "") : was.clipTo,
     }));
-    lockSentence();
     // The worker keeps Panki AI as this answer said it stands: what's said beside Send follows any change.
     readAi();
   }
@@ -1230,7 +1226,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     // A field only Touch up fills is its own; any other it corrected (so only the first's name is sparked).
     const source = ai && (role === null || ROLES[role].from !== "ai") ? { ...ai, corrected: true } : ai;
     const holder = role === "sentence" ? "sentence" : isDictRole(role) ? "dict" : "typed";
-    if (holder === "sentence") setWritten(text);
+    // On a video the Sentence is the clip's words alone: Accept moves the clip to the lines (`accept`), and they follow.
+    if (holder === "sentence") {
+      if (clip === null) setWritten(text);
+    }
     else if (field.id === meaningField?.id) setMeaningText(text);
     else if (holder === "dict") setDictTyped((was) => ({ ...was, [field.id]: text }));
     else setTyped((was) => ({ ...was, [field.id]: text }));
@@ -1269,7 +1268,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       const verdict = fieldVerdict(key);
       if (verdict && "proposed" in verdict) {
         writeAi(field, verdict.proposed);
-        // On a video the clip goes to the accepted words, where its note said; the sentence stays locked as written.
+        // On a video the clip goes to the accepted lines, where its note said, and the Sentence is its words.
         const to = key === "sentence" ? clipToFor(verdict.proposed) : null;
         if (to?.ends) clip?.follow?.moveTo(to.ends);
       }
@@ -1373,6 +1372,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     if (followingField === fieldId) return <AiWaiting label={CONVERSATION_WORDS.answering}>{inside}</AiWaiting>;
     return inside;
   };
+  /**
+   * How what Panki AI wrote stands against what its field holds now (`aiSourceNow`): a Sentence by its words alone,
+   * its line breaks and spaces aside, since on a video it's the clip's words, joined as the subtitles join them.
+   */
+  const wroteNow = (wrote: AiWrote, now: string) =>
+    wrote.holder === "sentence" ? aiSourceNow(wrote.source, wrote.value.replace(/\s+/g, ""), now.replace(/\s+/g, "")) : aiSourceNow(wrote.source, wrote.value, now);
   /** The mark after a field's name: the spark while the AI's words stand in it. */
   const marksOf = (field: CardField) => fieldMarks(aiHolds(field.id));
   /**
@@ -1382,7 +1387,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   function unmarkOffer(field: CardField | null): ReactNode {
     const wrote = field ? aiWrote[field.id] : undefined;
     if (!field || !wrote || !aiHolds(field.id) || touch.busy !== false) return null;
-    if (aiSourceNow(wrote.source, wrote.value, values[field.id] ?? "").edited !== true) return null;
+    if (wroteNow(wrote, values[field.id] ?? "").edited !== true) return null;
     const key = keyOfField(field.id);
     if (key && waiting(key)) return null;
     const id = field.id;
@@ -1399,7 +1404,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const subtitles = capture.facts?.subtitles;
     const sourceOf = (fieldId: string): ValueSource => {
       const wrote = aiWrote[fieldId];
-      if (wrote) return aiSourceNow(wrote.source, wrote.value, filled[fieldId] ?? "");
+      if (wrote) return wroteNow(wrote, filled[fieldId] ?? "");
       const role = roleOf(map, fieldId);
       if (role === null || ROLES[role].from === "ai") return OWNER;
       if (role === "word") return wordTyped ? OWNER : { by: "text", ...(subtitles ? { subtitles } : {}) };
@@ -1798,12 +1803,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * The sentence: a box to type in, with the word lit in it. On a deck that keeps no sentence it's only for looking at
-   * and picking from. On a video it's locked by hand or by typing in it: the clip's ends pulled after that leave the
-   * sentence as it is. Unlocked, what was typed is let go and it's the clip's words again.
+   * The sentence, with the word lit in it. On a video it's the clip's words and nothing else, read-only: it's shaped
+   * by pulling the clip's ends, a word at a time, so it always says what the clip plays, and a misheard word is fixed
+   * in the subtitles. Off a video it's a box to type in. On a deck that keeps no sentence it's only for looking at and
+   * picking from.
    */
   function sentenceBlock() {
-    const lockable = clip !== null && sentenceField !== null;
     return (
       <div className="capture-sentence" onDoubleClick={pickInSentence}>
         {tied(sentenceField, (labelEnd) =>
@@ -1815,34 +1820,16 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               labelEnd={labelEnd}
               lead={sentenceField ? marksOf(sentenceField) : null}
               multiline
-              readOnly={!sentenceField || still}
+              readOnly={!sentenceField || still || clip !== null}
               lang={langOf(sentence)}
               autoComplete="off"
               value={sentence}
-              // Typing in it locks it: what's typed stays, however the clip's ends are pulled.
               onChange={setWritten}
               mark={lit}
             />,
           ),
         )}
         {unmarkOffer(sentenceField)}
-        {lockable ? (
-          <div className="capture-tools">
-            <Toggle
-              id="panki-sentence-lock"
-              className="capture-tool strip-switch"
-              icon="lock"
-              says={{ on: "Locked", off: "Unlocked" }}
-              on={written !== null}
-              disabled={still}
-              onChange={(on) => {
-                setWritten(on ? capture.sentence : null);
-                // Unlocked, the clip's words are the sentence again, and what Panki AI wrote there is let go with what was typed.
-                if (!on) setAiWrote((was) => aiLetGo(was, (_, wrote) => wrote.holder === "sentence"));
-              }}
-            />
-          </div>
-        ) : null}
       </div>
     );
   }

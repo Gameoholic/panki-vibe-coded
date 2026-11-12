@@ -16,7 +16,7 @@ import {
 import { adminPromptOf, type AdminPromptPlaceId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 import { PIECE_MAX, PromptPieces, Said } from "./prompt";
-import { MEANINGS_MAX, TouchUpNow, numberedSubtitles, subtitleLinesOf } from "./touchUp";
+import { MEANINGS_MAX, TouchUpNow, numberedSubtitles, subtitleLinesOf, type SubtitleLine } from "./touchUp";
 import { VALUE_MAX } from "./type";
 
 /**
@@ -449,15 +449,20 @@ export const sendPieces = (send: TouchUpSend, mapped: readonly TouchUpKey[], boo
  */
 export const cardPiecesOf = (pieces: PromptPieces): PromptPieces => (pieces.surrounding ? { ...pieces, surrounding: numberedSubtitles(pieces.surrounding) } : pieces);
 /**
- * The subtitles a card's message picks its Sentence from, a line each, as it holds them: its own wider subtitles when it
- * has them, the surrounding ones of the conversation's first message otherwise; none off a video.
+ * The subtitles a card's message picks its Sentence from, a line each by its number: the surrounding ones of the
+ * conversation's first message and its own wider ones together, each number once, in order (every line has one number
+ * in every message, so either list can be picked from); none off a video.
  */
-export const sentenceLinesOf = (pieces: PromptPieces, send: Pick<TouchUpSend, "wider">): string[] => subtitleLinesOf(send.wider ?? pieces.surrounding ?? "");
+export function sentenceLinesOf(pieces: PromptPieces, send: Pick<TouchUpSend, "wider">): SubtitleLine[] {
+  const byNumber = new Map<number, SubtitleLine>();
+  for (const line of [...subtitleLinesOf(pieces.surrounding ?? ""), ...subtitleLinesOf(send.wider ?? "")]) byNumber.set(line.n, line);
+  return [...byNumber.values()].sort((a, b) => a.n - b.n);
+}
 /**
  * The keys a card's message may answer as it's sent: the deck's, the Sentence only where there are subtitle lines to
  * pick it from (`sentenceLinesOf`), since it's answered as lines and never written.
  */
-export const keysWithLines = (mapped: readonly TouchUpKey[], lines: readonly string[]): TouchUpKey[] =>
+export const keysWithLines = (mapped: readonly TouchUpKey[], lines: readonly SubtitleLine[]): TouchUpKey[] =>
   lines.length > 0 ? [...mapped] : mapped.filter((key) => key !== "sentence");
 
 /**

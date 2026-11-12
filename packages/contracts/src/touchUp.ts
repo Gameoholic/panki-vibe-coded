@@ -92,7 +92,7 @@ export const EmptyFieldWire = z.object({
   error: ErrorCode.describe('"" when it wrote one or left it; no_context when it can\'t write the field from what it was given'),
 });
 export type EmptyFieldWire = z.infer<typeof EmptyFieldWire>;
-/** A subtitle line by its number in the subtitles the message holds (`numberedSubtitles`), 0 for none. */
+/** A subtitle line by its number, the same in every message (`numberedSubtitles`), 0 for none. */
 const LineNumber = z.number().int();
 /**
  * The Sentence on the wire, when the field holds one: judged like any field, but what it proposes is subtitle lines by
@@ -115,19 +115,34 @@ export const EmptySentenceWire = z.object({
 });
 export type EmptySentenceWire = z.infer<typeof EmptySentenceWire>;
 
+/** A subtitle line as a card's message holds it: its number, the same in every message of the video (its place among the video's lines, from 1), and its words. */
+export type SubtitleLine = { n: number; text: string };
+/** A line as the page sends it numbered: its number, a tab, then its words. */
+const NUMBERED = /^(\d{1,7})\t(.*)$/;
 /**
  * The subtitles a Sentence is picked from, a line each as the message holds them: every line not blank, trimmed, in
- * order. What `numberedSubtitles` numbers, and what the numbers an answer sends are read against.
+ * order, under the number the page put before it (its place among the video's lines, so a line has one number in
+ * every message, the wider subtitles' too); a line without one is numbered on from the line before it, 1 for the
+ * first, as an older page sends them. What `numberedSubtitles` writes, and what the numbers an answer sends are read against.
  */
-export const subtitleLinesOf = (text: string): string[] =>
-  text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "");
-/** Subtitles as a card's prompt sends them: each line its number from 1, a tab, then the line (`subtitleLinesOf`). */
-export const numberedSubtitles = (text: string): string => subtitleLinesOf(text).map((line, i) => `${i + 1}\t${line}`).join("\n");
-/** What a Sentence's line numbers are read against: the lines of the subtitles the message holds, and the word as met, which the lines picked must hold. */
-export type SentenceLines = { lines: readonly string[]; word: string };
+export function subtitleLinesOf(text: string): SubtitleLine[] {
+  const lines: SubtitleLine[] = [];
+  for (const raw of text.split("\n")) {
+    const numbered = NUMBERED.exec(raw);
+    const words = (numbered ? (numbered[2] ?? "") : raw).trim();
+    if (words === "") continue;
+    const n = numbered ? Number(numbered[1]) : (lines.at(-1)?.n ?? 0) + 1;
+    lines.push({ n, text: words });
+  }
+  return lines;
+}
+/** Subtitles as a card's prompt sends them: each line its number, a tab, then the line (`subtitleLinesOf`). */
+export const numberedSubtitles = (text: string): string =>
+  subtitleLinesOf(text)
+    .map((line) => `${line.n}\t${line.text}`)
+    .join("\n");
+/** What a Sentence's line numbers are read against: the lines of the subtitles the conversation holds, and the word as met, which the lines picked must hold. */
+export type SentenceLines = { lines: readonly SubtitleLine[]; word: string };
 /** The reply on the wire: the model's words to the message, "" for none (a send that asks nothing but fields). */
 const Reply = z.string().max(AI_TEXT_MAX);
 
@@ -229,8 +244,8 @@ function fieldOfWire(wire: FieldWire | EmptyFieldWire): FieldAnswer | null {
 const linesUnusable = (expected: string, got: string): TouchUpError => ({ error: "rewrote", why: expectedGot(expected, got) });
 /**
  * The Sentence from the wire, or null when it was left untouched: the error; good with nothing to copy; otherwise the
- * subtitle lines from its first to its last, copied as the message held them and joined a line each, the numbers put
- * in order and held to the lines there are. Set aside as `rewrote`, that part alone, when there are no lines to pick
+ * subtitle lines numbered from its first to its last, copied as the conversation held them and joined a line each, the
+ * numbers put in order. Set aside as `rewrote`, that part alone, when there are no lines to pick
  * from, when a judgement or a change comes with none picked, or when the lines picked don't hold the word.
  */
 function sentenceOfWire(wire: SentenceWire | EmptySentenceWire, at: SentenceLines | null): FieldAnswer | null {
@@ -242,9 +257,11 @@ function sentenceOfWire(wire: SentenceWire | EmptySentenceWire, at: SentenceLine
   const lines = at?.lines ?? [];
   if (lines.length === 0) return linesUnusable("subtitle lines to pick from", "none sent");
   if (picked.length === 0) return linesUnusable(`the lines of a sentence judged ${judgement ?? "to change"}`, "0 and 0");
-  const first = Math.min(lines.length, Math.min(...picked));
-  const last = Math.min(lines.length, Math.max(...picked));
-  const text = lines.slice(first - 1, last).join("\n");
+  const first = Math.min(...picked);
+  const last = Math.max(...picked);
+  const chosen = lines.filter((line) => line.n >= first && line.n <= last);
+  if (chosen.length === 0) return linesUnusable(`lines among ${lines[0]?.n ?? 0} to ${lines.at(-1)?.n ?? 0}`, `lines ${first} to ${last}`);
+  const text = chosen.map((line) => line.text).join("\n");
   const word = at?.word.trim() ?? "";
   if (word !== "" && runsOf(text, word).length === 0) return linesUnusable(`lines holding ${word}`, `lines ${first} to ${last}, without it`);
   return { judgement, proposed: text, why: wire.why };
@@ -681,17 +698,25 @@ export const TouchUpResponse = z.object({ touchUp: TouchedUp, ai: PankiAiStatus 
  * One of the card's fields as `{Card}` tells of it: its name, the key Touch up fills it by (none for a field it doesn't fill),
  * what it holds now, and for the Meaning the rows of `{Meaning}` it holds, by their numbers there (`TouchUpNow.ticked`).
  */
-export type CardPieceRow = { name: string; key: TouchUpKey | null; value: string; ticked?: readonly number[] };
+export type CardPieceRow = { name: string; key: TouchUpKey | null; value: string; ticked?: readonly number[]; lines?: LinesHeld | null };
+/** The subtitle lines a Sentence is, by their numbers (`numberedSubtitles`), and whether it's those lines whole or a part of them. */
+export type LinesHeld = { first: number; last: number; whole: boolean };
+/** Which lines a Sentence is, as its row says it: "(lines 18–19)", "(line 18)", "(part of lines 18–19)". */
+function linesWords({ first, last, whole }: LinesHeld): string {
+  const span = first === last ? `line ${first}` : `lines ${first}–${last}`;
+  return `(${whole ? "" : "part of "}${span})`;
+}
 /**
  * The card as the model reads it (`{Card}`): a line each field, its name, the key it's judged by in brackets, and what
  * it holds; the Meaning's ticked numbers before its words ("Meaning [meaning]: 1 · to think"), so it's judged by number
- * rather than by words the model may misread; a value of several lines goes on under it, indented; an empty one says
- * so, "(empty)", the field the answer judges null. One home for how it's written.
+ * rather than by words the model may misread; a Sentence of the video's subtitles, which lines it is
+ * ("Sentence [sentence] (lines 18–19): …"), so it's judged by number too; a value of several lines goes on under it,
+ * indented; an empty one says so, "(empty)", the field the answer judges null. One home for how it's written.
  */
 export function cardPiece(rows: readonly CardPieceRow[]): string {
   return rows
-    .map(({ name, key, value, ticked = [] }) => {
-      const head = `${name}${key ? ` [${key}]` : ""}:${ticked.length > 0 ? ` ${ticked.join(", ")} ·` : ""}`;
+    .map(({ name, key, value, ticked = [], lines: held = null }) => {
+      const head = `${name}${key ? ` [${key}]` : ""}${held ? ` ${linesWords(held)}` : ""}:${ticked.length > 0 ? ` ${ticked.join(", ")} ·` : ""}`;
       const text = value.trim();
       if (text === "") return `${head} (empty)`;
       const lines = text.split("\n");
