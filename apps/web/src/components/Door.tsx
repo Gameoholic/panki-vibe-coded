@@ -1,4 +1,4 @@
-/** @panki A home door (`Door`, `DoorSpec`, `DoorWay`): one way in, or two in rows (`rows`), each with how many there are. The board draws them. */
+/** @panki A home door (`Door`, `DoorSpec`, `DoorWay`): one way in, a figure at its right if it has one, or two in rows (`rows`) with their counts. */
 import type { CSSProperties } from "react";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -17,6 +17,8 @@ export type DoorWay = {
   note?: string | null;
   /** How many there are behind it, drawn large at the end of its row; left out while loading. Rows only. */
   count?: number;
+  /** A number drawn large at the door's right, its unit beside it and a line under it ("38 min", "Done by 21:47"). One way in only. */
+  figure?: { value: string; unit: string; under: string } | null;
   /** The key that opens it from the keyboard, its keycap after the name (Settings → Keybinds). */
   bind?: Bind;
   onClick: () => void;
@@ -72,13 +74,22 @@ export function Door({ spec, arranging, className, style }: Props) {
         id={spec.id}
         variant="door"
         data-id={spec.id}
-        className={`${spec.hot ? "is-hot" : ""} ${spec.id === "door-review" ? "is-main" : ""} ${className}`.trim()}
+        className={`${spec.hot ? "is-hot" : ""} ${spec.id === "door-review" ? "is-main" : ""} ${way.figure ? "has-figure" : ""} ${className}`.trim()}
         style={style}
         onClick={go(way, arranging)}
       >
         <Icon name={way.icon} className="door-icon" />
         <Label way={way} />
         <Detail way={way} />
+        {way.figure && (
+          <span className="door-figure">
+            <span className="door-figure-value">
+              {way.figure.value}
+              <small>{way.figure.unit}</small>
+            </span>
+            <span className="door-figure-under">{way.figure.under}</span>
+          </span>
+        )}
       </Button>
     );
   }
