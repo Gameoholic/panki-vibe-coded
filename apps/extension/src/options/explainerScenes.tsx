@@ -21,7 +21,7 @@ import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
 import { barShows, barSide, isPankiBar, resumeTo, type BarControl, type BarLayout } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
-import { barOf, type Stored } from "../storage";
+import { barOf, seekLookOf, type Stored } from "../storage";
 import { Burst } from "../ui/Burst";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
@@ -954,7 +954,7 @@ const SEEK_STOP = 640;
  * was stopped pressed; then a clip opened on the bar and its end pulled. Off, the bar is the site's alone.
  */
 function SeekScene({ store }: { store: Stored }) {
-  const look = store.seekLook;
+  const look = seekLookOf(store);
   const on = store.moduleSeek;
   const [reach, setReach] = useState(0.3);
   const [hover, setHover] = useState(false);

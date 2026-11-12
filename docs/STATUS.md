@@ -50,6 +50,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-06: one full screen; the panel's head and menu; Watching and Save for later on the player bar.
 - 2026-11-07: the panel's button in the video's corner.
 - 2026-11-10: Subtitles on the player bar and its key, C; Keep the bar visible waking the site instead of holding the bar (`architecture/watching.md`); the panel's left edge dragged for its width; Cancel while Adding…; the Add button bursting as the card lands; the list beside the video scrolling only once the line is second to last in view.
+- 2026-11-12: one set of mark colours: in-deck, suspended and flagged set on the Highlight panel alone, the seek bar wearing them; in Panki subtitles a card made from the video in the seek bar's Cards colour and the picked word in its Clip colour (`architecture/dictionary.md` → Colours).
 - 2026-11-12: Keep player bar visible keybind, X, the one way to keep the player bar on the video or let it fade, kept for every video; the two Keep the bar visible switches gone (`architecture/watching.md`).
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
 - 2026-11-05: what the extension keeps of Panki's, one registry; 2026-11-07: this browser's own settings (`architecture/kept.md`).

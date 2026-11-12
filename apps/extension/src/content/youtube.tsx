@@ -2,7 +2,7 @@ import "../setup";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
-import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
+import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments, videoCardOf } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
@@ -1623,13 +1623,22 @@ type RowProps = {
 
 function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, editedAt = null, waiting = false }: RowProps) {
   const tokens = useWords(text, forced);
-  // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`).
+  // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`): one of a card made from this
+  // video in the cards' colour as the seek bar has it; the word picked in the clip's.
   const known = useKnown();
+  const seek = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs.seek;
+  const videoCards = useSyncExternalStore(carded.subscribe, carded.get);
+  const tintAt = (i: number) => {
+    const token = tokens[i] ?? {};
+    const fromVideo = videoCardOf(known, videoCards, token);
+    if (!fromVideo) return tintOf(knownCssOf(known, token));
+    return tintOf(seek.cards.byStage ? (fromVideo.colour ?? paintCss("accent")) : paintCss(seek.cards.colour));
+  };
   const knownHere =
     known.subtitles && known.words.size > 0
       ? {
           at: (i: number) => knownAs(known, tokens[i] ?? {}),
-          tintAt: (i: number) => tintOf(knownCssOf(known, tokens[i] ?? {})),
+          tintAt,
           suspendedColour: tintOf(paintCss(known.suspendedColour)),
           flaggedColour: tintOf(paintCss(known.flaggedColour)),
         }
@@ -1683,6 +1692,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
       now={now ? spanOver(tokens, now.from - at, now.to - at) : null}
       look={look}
       known={knownHere}
+      pickColour={paintCss(seek.clip.colour)}
       onPick={(span) => {
         const own = charsOf(tokens, span);
         if (own) onTake({ from: at + own.from, to: at + own.to });

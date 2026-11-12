@@ -91,6 +91,8 @@ type Props = {
    * card's one for the line; none, and nothing is.
    */
   known?: { at: (at: number) => KnownAs | null; tintAt: (at: number) => string; suspendedColour: string; flaggedColour: string } | null;
+  /** The picked word's colour, as CSS: the seek bar's Clip's on a video's subtitles, the word being made a card; Panki blue without one. */
+  pickColour?: string | null;
   /** Which words Panki AI's Proofread edited (AI step 6): lit in the accent with the spark after them, under the player and over the video. */
   edited?: ((at: number) => boolean) | null;
 };
@@ -99,7 +101,7 @@ type Props = {
 const KNOWN_CLASS: Record<KnownAs | "none", string> = { none: "", known: "is-known", suspended: "is-known is-suspended", flagged: "is-known is-flagged" };
 
 /** A line as words to press: one press picks a word, a press on the word beside it widens the pick to both. */
-export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null, known = null, edited = null }: Props) {
+export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null, known = null, pickColour = null, edited = null }: Props) {
   const text = tokens.map((token) => token.text).join("");
   const within = (span: Span | null, i: number) => span !== null && i >= span[0] && i <= span[1];
   const root = useRef<HTMLDivElement>(null);
@@ -129,7 +131,12 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
       ref={root}
       className={`line ${small ? "is-small" : ""}`.trim()}
       lang={langOf(text)}
-      style={known ? ({ "--known-suspended": known.suspendedColour, "--known-flagged": known.flaggedColour } as CSSProperties) : undefined}
+      style={
+        {
+          ...(known ? { "--known-suspended": known.suspendedColour, "--known-flagged": known.flaggedColour } : {}),
+          ...(pickColour ? { "--pick": pickColour } : {}),
+        } as CSSProperties
+      }
       onPointerMove={(e) => onMove(e.target, e)}
       onPointerLeave={(e) => look?.move(null, null, e)}
     >

@@ -111,28 +111,34 @@
     background: var(--surface);
   }
 }
+/* The word picked, in the pick's colour (`Line`'s `pickColour` as `--pick`: on a video's subtitles the seek bar's Clip
+   colour, the word being made a card, so it's told apart from the words in the decks by the colours set for each;
+   Panki blue elsewhere): filled with it as the words in the decks are tinted, a little stronger, and edged in it whole,
+   its letters as they are, so any colour picked reads. */
 .btn.tok[aria-pressed="true"],
 .line.is-small .btn.tok[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--accent-ink);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--pick, var(--accent)) 45%, transparent);
+  box-shadow: inset 0 0 0 2px var(--pick, var(--accent));
 }
 /* Where the video is: the words being said this moment carry a mark under them, like the ribbon in a book. It's the
-   place to look after the video was put somewhere else, or while a clip is played back. On a picked word, which is
-   the accent's own colour all over, the mark is drawn in the colour of its letters. */
+   place to look after the video was put somewhere else, or while a clip is played back. On a picked word the mark is
+   drawn in the pick's colour, under its edge. */
 .btn.tok.is-now {
   box-shadow:
     inset 0 0 0 1px var(--line),
     inset 0 -3px 0 var(--accent);
 }
 .btn.tok.is-now[aria-pressed="true"] {
-  box-shadow: inset 0 -3px 0 var(--accent-ink);
+  box-shadow:
+    inset 0 0 0 2px var(--pick, var(--accent)),
+    inset 0 -3px 0 var(--pick, var(--accent));
 }
 .tok-gap {
   white-space: pre-wrap;
 }
 /* A word already in the cards (capture/known.ts): tinted as the line's `--known` says, the colour picked and how
-   strongly (`tintOf`, its one home). A picked word keeps the pick's own colour. */
+   strongly (`tintOf`, its one home); one of a card made from the video, in the cards' colour. A picked word keeps the
+   pick's own colour. */
 .btn.tok.is-known:not([aria-pressed="true"]) {
   background: var(--known);
 }
@@ -1239,11 +1245,6 @@
   .over-line .btn.tok:hover {
     background: color-mix(in srgb, var(--theater-ink) 18%, transparent);
   }
-}
-/* The word picked, lit as a card's clip lights its word (`app.css` → `.sub-mark`) rather than filled as under the player. */
-.over-line .btn.tok[aria-pressed="true"] {
-  background: var(--theater-mark);
-  color: var(--theater-ink);
 }
 /* The player's speed among its own controls (ui/SpeedControl.tsx, a YouTube utility): − and + of the player's own kind,
    white on the picture, round the speed; the speed pressed, the site's own Playback speed panel above it. Its words,

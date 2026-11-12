@@ -216,6 +216,22 @@ const Stored = z.object({
 });
 export type Stored = z.infer<typeof Stored>;
 
+/**
+ * The seek bar's marks as they're drawn: their own look, but for the colours of the words in the decks, the suspended
+ * cards and the flagged ones, which are the highlight's (`knownByStage`, `knownColour`, `knownSuspendedColour`,
+ * `knownFlaggedColour`; options page, Word pop-up → Highlight words that are in your decks), one set wherever they're
+ * marked. What the seek bar's own look kept of those colours is unread.
+ */
+export const seekLookOf = (store: Stored): SeekLook => {
+  const look = store.seekLook;
+  return {
+    ...look,
+    known: { ...look.known, byStage: store.knownByStage, colour: store.knownColour },
+    suspended: { ...look.suspended, colour: store.knownSuspendedColour },
+    flagged: { ...look.flagged, colour: store.knownFlaggedColour },
+  };
+};
+
 /** The viewer's transcribing preferences as one value. */
 export const prefsOf = (store: Stored): TranscribePrefs => ({
   trigger: store.transcribeTrigger,
@@ -223,7 +239,7 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   style: store.subtitleStyle,
   markUnder: store.markUnder,
   markOver: store.markOver,
-  seek: store.seekLook,
+  seek: seekLookOf(store),
   mode: store.transcribeMode,
 });
 

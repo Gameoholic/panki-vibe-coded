@@ -529,7 +529,9 @@ export function Dictionaries({ onChanged, door }: { onChanged: () => void; door:
 
 /**
  * Words already in the cards, marked where they stand (`capture/known.ts`): on pages and in
- * Panki's subtitles, each its own switch, and the colour, by stage or one picked as the seek bar's marks pick theirs. Kept the
+ * Panki's subtitles, each its own switch, and the colours, by stage or one picked as the seek bar's marks pick theirs:
+ * the seek bar's marks of the same words and cards wear them too (`storage.ts` → `seekLookOf`), so they're never
+ * greyed with the two switches off. Kept the
  * moment it's changed; a page takes it up as it gets the focus back. Its two switches are named as Looking up words
  * names its two keys, "globally" and "in Panki subtitles", in the same order: one name for each place everywhere.
  */
@@ -555,7 +557,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
             id="known-colour"
             byStage={store.knownByStage}
             colour={store.knownColour}
-            disabled={!store.knownSubtitles && !store.knownPages}
+            disabled={false}
             onByStage={(knownByStage) => void writeStore({ knownByStage }).then(onChanged)}
             onColour={(knownColour) => void writeStore({ knownColour }).then(onChanged)}
           />
@@ -570,7 +572,6 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
             id="known-suspended-colour"
             swatches={MARK_SWATCHES}
             value={store.knownSuspendedColour}
-            disabled={!store.knownSubtitles && !store.knownPages}
             onChange={(value) => {
               const knownSuspendedColour = paintOf(value);
               if (knownSuspendedColour) void writeStore({ knownSuspendedColour }).then(onChanged);
@@ -587,7 +588,6 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
             id="known-flagged-colour"
             swatches={MARK_SWATCHES}
             value={store.knownFlaggedColour}
-            disabled={!store.knownSubtitles && !store.knownPages}
             onChange={(value) => {
               const knownFlaggedColour = paintOf(value);
               if (knownFlaggedColour) void writeStore({ knownFlaggedColour }).then(onChanged);
