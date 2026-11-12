@@ -333,7 +333,7 @@ const TOUCH_WORDS = {
    * ones, how many lines and over how long a stretch.
    */
   heard: (lines: number, seconds: number | null, later: boolean) =>
-    `${later ? "This message also heard" : "Panki AI heard"} ${lines} ${lines === 1 ? "line" : "lines"} of the video${seconds === null ? "" : `, ${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`}`}.`,
+    `${later ? "This message also heard" : "Panki AI heard"} ${lines} ${lines === 1 ? "line" : "lines"} of the video${seconds === null ? "" : ` (${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`})`}.`,
   /** The lines a Heard note opens, as a screen reader names them. */
   heardLabel: "Subtitles Panki AI heard",
 };
