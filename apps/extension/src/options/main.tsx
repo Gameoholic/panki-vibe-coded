@@ -388,7 +388,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
       {/* The word pressed in the subtitles, under the player and over the video: a colour of its own, so it's told from the words in the decks. */}
       <Setting
         id="pick-colour"
-        label="Picked word colour"
+        label="Picked word color"
         control={
           <Swatches
             id="pick-colour"
@@ -405,7 +405,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
       {/* A word in the subtitles where you added a card for it, the same word elsewhere tinted by its stage; the seek bar's mark of the same has its own. */}
       <Setting
         id="added-colour"
-        label="Where you added a card colour"
+        label="Where you added a card color"
         control={
           <Swatches
             id="added-colour"
@@ -418,6 +418,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
             }}
           />
         }
+        why="Highlights the exact moment you added a card from."
       />
       <Setting
         id="after-add"

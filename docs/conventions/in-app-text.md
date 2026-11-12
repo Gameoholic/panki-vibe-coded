@@ -4,6 +4,7 @@ Every string the owner sees is product copy: it says what the thing is or does f
 
 ## Copy
 
+- **American English.** Every word on screen is spelled the American way: color, gray, center, theater, behavior, favorite, canceled, -ize. A name in the code that's spelled otherwise (`knownColour`, `--cards-colour`, a stored key) stays as it is: stored keys can't change, and code is renamed only when touched for its own sake.
 - **Never echo the request.** The prompt describes a change; the UI describes the product.
 - **Don't narrate the mechanism,** and never say "the user" or "the app".
 - **A hint earns its place.** One that only repeats the label is dropped.
