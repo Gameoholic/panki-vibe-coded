@@ -2714,33 +2714,15 @@
   gap: 8px;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  margin-bottom: 4px;
-}
-.trim-heard-name {
   color: var(--muted);
-}
-/* The conversation head's Heard chip (Panel's `TOUCH_WORDS.heard`), and the lines it opens over the conversation
-   (`HeardLines`): numbered, the card's Line lit, in a box of their own that opens on the Line. */
-.btn.ai-heard-chip {
-  min-height: 0;
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  margin-top: 8px;
 }
-.btn.ai-heard-chip.is-open {
-  border-color: var(--accent);
-}
+/* The lines a Heard note in the card's conversation opens (Panel's `HeardLines`): numbered, the card's Line lit, in a
+   box of their own that opens on the Line. */
 .ai-heard {
   display: grid;
   gap: 6px;
-  margin-bottom: 10px;
 }
 .ai-heard-title {
   margin: 0;

@@ -266,8 +266,33 @@ type PlaceProps<C> = {
 /**
  * A note of Panki's in a conversation's main, where one of its settings changed ("From here on, 90 s of the video each
  * way."): `after` is how many of main's messages stood before it (0 before the first), so it stays where it was made.
+ * One with `detail` is pressed to open it under the note (the card's "Panki AI heard 28 lines…", opening the lines).
  */
-export type ConversationMark = { id: number; after: number; words: string };
+export type ConversationMark = { id: number; after: number; words: string; detail?: ReactNode };
+
+/** A note of Panki's in the conversation (`ConversationMark`): its words, and pressed, what it has to show under it. */
+function MarkNote({ mark }: { mark: ConversationMark }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  if (!mark.detail) {
+    return (
+      <p className="ai-explain-cut ai-mark">
+        <Icon name="info" />
+        {mark.words}
+      </p>
+    );
+  }
+  return (
+    <div className="ai-mark-block">
+      <button type="button" className="ai-explain-cut ai-mark is-pressable" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+        <Icon name="info" />
+        {mark.words}
+        <Icon name="down" />
+      </button>
+      {open ? <div id={id}>{mark.detail}</div> : null}
+    </div>
+  );
+}
 
 /**
  * One place of the conversation: main (the run first, each commit a merge brought as its branch's block, the ones of
@@ -312,12 +337,7 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
   const marksAt = (i: number) =>
     noted
       .filter((mark) => Math.min(mark.after, here.length) === i)
-      .map((mark) => (
-        <p key={`mark-${mark.id}`} className="ai-explain-cut ai-mark">
-          <Icon name="info" />
-          {mark.words}
-        </p>
-      ));
+      .map((mark) => <MarkNote key={`mark-${mark.id}`} mark={mark} />);
   const drawn = [
     ...turns.flatMap((turn, i) => [
       ...marksAt(i),
@@ -383,10 +403,6 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
   onRunAgain: () => void;
   /** Under the head while the run stands (no failure): what's the place's own there, Touch up's Accept all and Dismiss all. */
   tools?: ReactNode;
-  /** In the head beside the status, the place's own (the card's: what of the video Panki AI heard, `HeardChip`). */
-  headBeside?: ReactNode;
-  /** First under the head, the place's own: what `headBeside` opens (the card's: the lines heard). */
-  above?: ReactNode;
   /**
    * A conversation (a card's in the drawer, a word's in the pop-up): the block is there before any call, its head and
    * its foot (the composer) with it. User instructions and what the actions say stand in the head's Details, never in the conversation.
@@ -399,17 +415,16 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
  * back by the head's name, the run's failure with Try again or the place's `tools`, main's
  * conversation (`ConversationTurns`), and its foot. Open to begin with, while this drawer or pop-up is open.
  */
-export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, headBeside = null, above = null, always = false, ...place }: AiConversationProps<C>) {
+export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, always = false, ...place }: AiConversationProps<C>) {
   const classes = `${className ? `${className} ` : ""}ai-explain`;
   const id = useId();
   const [open, setOpen] = useState(true);
   if (calls.length === 0 && !always) return null;
   return (
     <section ref={ref} className={classes} aria-label="Panki AI" aria-busy={busy} inert={inert}>
-      <AiStatus calls={calls} burst={burst} always={always} fold={{ open, onToggle: () => setOpen(!open), controls: `${id}-body` }} beside={headBeside} />
+      <AiStatus calls={calls} burst={burst} always={always} fold={{ open, onToggle: () => setOpen(!open), controls: `${id}-body` }} />
       <Fold open={open} arrives={false}>
         <div id={`${id}-body`} className="ai-explain-body">
-          {above}
           {failure ? (
             <div className="ai-explain-failure">
               <p className="form-failure" role="alert">

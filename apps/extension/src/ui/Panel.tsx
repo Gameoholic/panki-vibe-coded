@@ -1,5 +1,5 @@
 /** @panki The capture drawer, a card made from the page (`Panel`), and a notice in it (`Notice`). */
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   APP_LANGUAGES,
   AiActionId,
@@ -261,8 +261,12 @@ type Touch = {
    * ones, as one stretch. Null until a message goes, or off a video.
    */
   heard: Stretch | null;
-  /** The subtitle lines Panki AI heard, as sent (the first message's surrounding ones, a later one's wider ones), each number once, in order: the head's Heard chip opens them. */
-  heardLines: readonly SubtitleLine[];
+  /**
+   * What each message heard of the video, a note under it: the subtitle lines it sent as numbered (the first message's
+   * surrounding ones, a later one's wider ones), how long a stretch they cover, and how many of main's messages stood
+   * before the note (`ConversationMark.after`).
+   */
+  heardNotes: readonly { after: number; lines: readonly SubtitleLine[]; seconds: number | null }[];
   /**
    * How much of the video the conversation hears each way, as its settings set it (`ConversationKnobs.reach`), from the
    * next message on: null until it's set, each card starting at the default; and the notes each change wrote where it
@@ -292,13 +296,10 @@ const NO_TOUCH: Touch = {
   asked: 0,
   clipTo: null,
   heard: null,
-  heardLines: [],
+  heardNotes: [],
   reach: null,
   marks: [],
 };
-/** Lines heard before and lines heard now as one list, each number once, in order. */
-const linesJoined = (was: readonly SubtitleLine[], now: readonly SubtitleLine[]): readonly SubtitleLine[] =>
-  now.length === 0 ? was : [...new Map([...was, ...now].map((line) => [line.n, line])).values()].sort((a, b) => a.n - b.n);
 /** Two stretches of the video as one, from the first's start to the last's end; either missing, the other. */
 const spanJoined = (a: Stretch | null, b: Stretch | null): Stretch | null => (a && b ? { from: Math.min(a.from, b.from), to: Math.max(a.to, b.to) } : (a ?? b));
 /** A proposal a commit made, kept with the commit: its key, the colour it was drawn in, and how it was decided, once it was. */
@@ -327,18 +328,23 @@ const TOUCH_WORDS = {
   noMore: "That's the most messages a card's conversation takes.",
   /** Under Clear conversation's question: what goes, and what stays. */
   clearDetail: "Every message, its answers and any proposal still waiting go. What's on the card stays as it is.",
-  /** The head's Heard chip: how many subtitle lines Panki AI heard, and over how long a stretch of the video. */
-  heard: (lines: number, seconds: number | null) =>
-    `Heard ${lines} ${lines === 1 ? "line" : "lines"}${seconds === null ? "" : ` · ${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`}`}`,
-  /** Over the lines the Heard chip opens. */
+  /**
+   * The note under a message of what it heard of the video: the first message's subtitles, or a later one's wider
+   * ones, how many lines and over how long a stretch.
+   */
+  heard: (lines: number, seconds: number | null, later: boolean) =>
+    `${later ? "This message also heard" : "Panki AI heard"} ${lines} ${lines === 1 ? "line" : "lines"} of the video${seconds === null ? "" : `, ${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`}`}.`,
+  /** Over the lines a Heard note opens. */
   heardTitle: "The subtitles Panki AI heard, your Line lit",
 };
+/** Where the Heard notes' ids begin, past any setting-change note's (`Touch.marks`). */
+const HEARD_NOTE_IDS = 1_000_000;
 
 /**
- * The subtitle lines Panki AI heard (`Touch.heardLines`), by their numbers, the card's Line lit (`mine`), in a box of
- * their own that opens on the Line: what the head's Heard chip opens.
+ * Subtitle lines Panki AI heard, by their numbers, the card's Line lit (`mine`), in a box of their own that opens on
+ * the Line: what a Heard note opens.
  */
-function HeardLines({ id, lines, mine }: { id: string; lines: readonly SubtitleLine[]; mine: { first: number; last: number } | null }) {
+function HeardLines({ lines, mine }: { lines: readonly SubtitleLine[]; mine: { first: number; last: number } | null }) {
   const box = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -347,7 +353,7 @@ function HeardLines({ id, lines, mine }: { id: string; lines: readonly SubtitleL
   }, []);
   const isMine = (n: number) => mine !== null && n >= mine.first && n <= mine.last;
   return (
-    <div id={id} className="ai-heard" role="region" aria-label={TOUCH_WORDS.heardTitle}>
+    <div className="ai-heard" role="region" aria-label={TOUCH_WORDS.heardTitle}>
       <p className="ai-heard-title">{TOUCH_WORDS.heardTitle}</p>
       <div ref={box} className="ai-heard-lines">
         {lines.map((line) => (
@@ -602,9 +608,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** Panki AI as the worker keeps it: unknown until it answers; null signed out; or why it couldn't be told. */
   const [ai, setAi] = useState<{ known: boolean; ai: AiShown | null; failure: string | null }>({ known: false, ai: null, failure: null });
   const [touch, setTouch] = useState<Touch>(NO_TOUCH);
-  /** Whether the head's Heard chip has the lines Panki AI heard open. */
-  const [heardOpen, setHeardOpen] = useState(false);
-  const heardId = useId();
   /**
    * The actions ticked on the composer for its next send, by id: null while they're the account's defaults, ticked as a
    * card's conversation opens (read once Panki AI is known); none after each send.
@@ -1011,7 +1014,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       asking: pending,
       ...(firstSend ? { first: read, opening: send, meanings: read.meanings } : {}),
       heard: spanJoined(was.heard, heardNow),
-      heardLines: linesJoined(was.heardLines, heardLinesNow),
+      // Under the message once its reply is in: on main, after it; asked on a field, at main's end.
+      heardNotes:
+        heardLinesNow.length > 0
+          ? [...was.heardNotes, { after: was.conversation.main.length + (sent.where === null ? 1 : 0), lines: heardLinesNow, seconds: heardNow ? heardNow.to - heardNow.from : null }]
+          : was.heardNotes,
     }));
     const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }) });
     const now = Date.now();
@@ -2325,19 +2332,20 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               if (touch.retry) pressSend(touch.retry, { kind: "retry" });
             }}
             tools={<TouchUpAll pending={pendingKeys.length} onAcceptAll={acceptAll} onDismissAll={dismissAll} />}
-            headBeside={
-              touch.heardLines.length > 0 ? (
-                <Button className={`ai-heard-chip${heardOpen ? " is-open" : ""}`} aria-expanded={heardOpen} aria-controls={heardId} onClick={() => setHeardOpen(!heardOpen)}>
-                  {TOUCH_WORDS.heard(touch.heardLines.length, touch.heard ? touch.heard.to - touch.heard.from : null)}
-                </Button>
-              ) : null
-            }
-            above={heardOpen && touch.heardLines.length > 0 ? <HeardLines id={heardId} lines={touch.heardLines} mine={heardMine()} /> : null}
             conversation={touch.conversation}
             asking={touch.asking}
             of={touchOf}
             foot={footOf(null)}
-            marks={touch.marks}
+            marks={[
+              ...touch.marks,
+              // What each message heard of the video, a note under it, pressed for the lines themselves.
+              ...touch.heardNotes.map((note, i) => ({
+                id: HEARD_NOTE_IDS + i,
+                after: note.after,
+                words: TOUCH_WORDS.heard(note.lines.length, note.seconds, i > 0),
+                detail: <HeardLines lines={note.lines} mine={heardMine()} />,
+              })),
+            ]}
           />
         ) : null}
       </>

@@ -8548,6 +8548,32 @@ mark.sub-blur {
 .ai-explain-cut.ai-mark {
   justify-self: start;
 }
+/* A note with something to show under it (`ConversationMark.detail`): the note itself the press, a chevron after it. */
+.ai-mark-block {
+  display: grid;
+  gap: 6px;
+}
+.ai-explain-cut.ai-mark.is-pressable {
+  font: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: start;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .ai-explain-cut.ai-mark.is-pressable:hover {
+    color: var(--fg);
+  }
+}
+.ai-explain-cut.ai-mark.is-pressable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.ai-explain-cut.ai-mark.is-pressable[aria-expanded="true"] .icon:last-child {
+  transform: rotate(180deg);
+}
 
 /* Touch up in the drawer (AI step 3): its head over the card's fields, a proposal under each field it's for. */
 .touch-up.ai-explain {

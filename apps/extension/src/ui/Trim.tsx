@@ -208,7 +208,6 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
     : [];
   return (
     <div className={`trim ${disabled ? "is-off" : ""}`.trim()}>
-      {heard ? <HeardEdges heard={heard} view={view} /> : null}
       <div ref={track} className="trim-track">
         {heard ? stretchOn(share, "trim-heard", Math.max(heard.from, view.from), Math.min(heard.to, view.to)) : null}
         {ticks.map((tick, i) => (tick.at > view.from && tick.at < view.to ? <i key={i} className={`trim-tick is-${tick.kind}`} style={{ left: `${share(tick.at)}%` }} /> : null))}
@@ -236,6 +235,7 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
           </>
         )}
       </div>
+      {heard ? <HeardEdges heard={heard} view={view} /> : null}
     </div>
   );
 }
@@ -244,17 +244,17 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
 const seconds = (n: number) => `${Math.round(n)} s`;
 
 /**
- * What Panki AI heard, said at the bar's edges: how far past each edge its hearing goes, a count each side; the bar
- * itself is tinted where it heard. Nothing on a side it doesn't pass.
+ * What Panki AI heard, said under the bar's edges: how far past each edge its hearing goes, in words; the bar itself is
+ * tinted where it heard. Nothing on a side it doesn't pass.
  */
 function HeardEdges({ heard, view }: { heard: Stretch; view: Stretch }) {
   const before = view.from - heard.from;
   const after = heard.to - view.to;
+  if (before < 1 && after < 1) return null;
   return (
     <div className="trim-heard-row" title={`Panki AI heard ${stamp(heard.from)} to ${stamp(heard.to)}`}>
-      <span className="trim-heard-more">{before >= 1 ? `◂ ${seconds(before)}` : ""}</span>
-      <span className="trim-heard-name">Panki AI heard</span>
-      <span className="trim-heard-more">{after >= 1 ? `${seconds(after)} ▸` : ""}</span>
+      <span>{before >= 1 ? `◂ Panki AI heard ${seconds(before)} more` : ""}</span>
+      <span>{after >= 1 ? `${seconds(after)} more ▸` : ""}</span>
     </div>
   );
 }

@@ -412,7 +412,7 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
  */
 export type HeadFold = { open: boolean; onToggle: () => void; controls: string };
 
-export function AiStatus({ calls, burst = 0, always = false, fold = null, beside = null }: { calls: readonly AiCall[]; burst?: number; always?: boolean; fold?: HeadFold | null; beside?: ReactNode }) {
+export function AiStatus({ calls, burst = 0, always = false, fold = null }: { calls: readonly AiCall[]; burst?: number; always?: boolean; fold?: HeadFold | null }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const last = calls[calls.length - 1];
@@ -447,7 +447,6 @@ export function AiStatus({ calls, burst = 0, always = false, fold = null, beside
       <header className="ai-status-head">
         {name}
         <span className="ai-status-end">
-          {beside}
           <Button
             className={`ai-status-button is-${status.look}`}
             aria-expanded={open}
