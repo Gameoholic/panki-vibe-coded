@@ -24,6 +24,7 @@ import {
   DEFAULT_ACTION_SECONDS,
   litNow,
   meaningsPiece,
+  messageOf,
   openingActionsOf,
   actionsOf,
   runNameOf,
@@ -362,7 +363,8 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     else counts.current.messages += 1;
     const label = name !== null ? (counts.current.runs === 1 ? name : `${name} ${counts.current.runs}`) : `${MESSAGES.message} ${counts.current.messages}`;
     const names = actionNamesOf(book, "word", send.actions);
-    const pending: Asking = { id: ++ids.current, run: name, field: null, question: send.text, actions: names, failure: null };
+    const actionWords = messageOf(litNow(book, "word", send.actions), "");
+    const pending: Asking = { id: ++ids.current, run: name, field: null, question: send.text, actions: names, actionWords, failure: null };
     const call = startCall({
       label,
       why,
@@ -408,6 +410,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
         field: null,
         question: send.text,
         actions: names,
+        actionWords,
         reply: done.text,
         // The model reads its own turn back as it wrote it, its JSON; a later send's message goes before it, as sent.
         said: [

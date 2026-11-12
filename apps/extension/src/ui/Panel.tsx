@@ -35,6 +35,7 @@ import {
   keysFor,
   litNow,
   mapCommits,
+  messageOf,
   meaningsPiece,
   actionsFor,
   openingActionsOf,
@@ -942,7 +943,15 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       maxAnswerTokens: ready.maxTokens,
       steering: { instructions: ai.ai?.instructions ?? "", actions: litOf(sent.actions).map((action) => action.name), typed: send.text },
     });
-    const pending: Asking = { id: ++roundIds.current, run, field: sent.where, question: send.text, actions: actionNamesOf(book, "card", sent.actions), failure: null };
+    const pending: Asking = {
+      id: ++roundIds.current,
+      run,
+      field: sent.where,
+      question: send.text,
+      actions: actionNamesOf(book, "card", sent.actions),
+      actionWords: messageOf(litOf(sent.actions), ""),
+      failure: null,
+    };
     // Accept and Dismiss stay pressable while it's out: the Conversation is always taken as it stands, never from before.
     setTouch((was) => ({
       ...was,
@@ -985,6 +994,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       field: sent.where,
       question: send.text,
       actions: pending.actions ?? [],
+      actionWords: pending.actionWords ?? "",
       reply: done.reply,
       // The model reads its own turn back as it wrote it, its JSON; a later send's message goes before it, as sent.
       said: [

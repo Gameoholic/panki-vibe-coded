@@ -8686,6 +8686,12 @@ mark.sub-blur {
 .btn.ai-standing.is-open .ai-standing-words {
   display: block;
 }
+/* A message's actions' words in its bubble, under their names: the same fold, a touch tighter. */
+.btn.ai-standing.is-action {
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
 /* Under Admin's Touch up prompt while it has nowhere for User instructions to go (`AiPromptSection`): quiet. */
 .ai-prompt-note {
   margin: 0;

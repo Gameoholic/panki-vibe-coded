@@ -62,7 +62,7 @@ export type Failure = { message: string; retry: boolean };
  * (`field` null) or on a field's branch (its id); `failure` once it failed, so it stands with Try again until the next
  * is sent.
  */
-export type Asking = { id: number; run: string | null; field: string | null; question: string; actions?: readonly string[]; failure: Failure | null };
+export type Asking = { id: number; run: string | null; field: string | null; question: string; actions?: readonly string[]; actionWords?: string; failure: Failure | null };
 
 /** What a place hands the conversation: everything about a commit that's its own, and what a press does. */
 export type ConversationOf<C> = {
@@ -102,6 +102,7 @@ type Drawn = {
   run: string | null;
   question: string;
   actions?: readonly string[] | undefined;
+  actionWords?: string | undefined;
   /** The field it was asked under, where that isn't plain (in the head: a merged branch's). */
   about: { id: string; name: string } | null;
   /** Its reply once it's in: null while it's on its way or failed. */
@@ -120,6 +121,7 @@ function drawnOf<C>(made: Commit<C>, of: ConversationOf<C>, marked: boolean): Dr
     run: made.run,
     question: made.question,
     actions: made.actions,
+    actionWords: made.actionWords,
     about: name !== null && made.field !== null ? { id: made.field, name } : null,
     reply: made.reply,
     notes: of.notes?.(made) ?? null,
@@ -163,7 +165,7 @@ const pressOf = (turn: Drawn): readonly string[] => (turn.actions && turn.action
 
 /**
  * One turn: its question (a message with actions as its press: the spark and their names joined by a comma, what
- * was typed under them as a quiet note; the same for every action, a place's default or not), then its reply, Panki's
+ * the actions' words folded under them to their first line, what was typed under those as a quiet note; the same for every action, a place's default or not), then its reply, Panki's
  * notes and what it changed, the spark while it's on its way, or the failure with Try again.
  */
 function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
@@ -183,6 +185,7 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
             <AiSpark />
             {press.join(", ")}
           </span>
+          <FoldedWords text={turn.actionWords ?? ""} action />
           {turn.question !== "" ? <span className="ai-message-note">{turn.question}</span> : null}
         </div>
       ) : (
@@ -436,11 +439,19 @@ export function AiConversation<C>({ ref, className, inert = false, calls, burst,
  * until it's pressed, then whole; never edited here (Settings → Panki AI). Nothing while it's empty.
  */
 export function StandingMessage({ text }: { text: string }) {
+  return <FoldedWords name={CONVERSATION_WORDS.standing} text={text} />;
+}
+
+/**
+ * Words Panki sent that the user didn't type, quiet and dashed, their first line alone until pressed, then whole: the
+ * standing message, and a message's actions' words in its bubble (`is-action`, under their names). Nothing while empty.
+ */
+function FoldedWords({ name, text, action = false }: { name?: string; text: string; action?: boolean }) {
   const [open, setOpen] = useState(false);
   if (text.trim() === "") return null;
   return (
-    <Button className={`ai-standing${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-      <span className="ai-standing-name">{CONVERSATION_WORDS.standing}</span>
+    <Button className={`ai-standing${action ? " is-action" : ""}${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+      {name !== undefined ? <span className="ai-standing-name">{name}</span> : null}
       <span className="ai-standing-words">{text.trim()}</span>
     </Button>
   );
