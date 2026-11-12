@@ -127,6 +127,13 @@ export const StreakState = z.object({
   recent: z.object({ n: Count, of: Count }),
   /** The longest runs ever, longest first (the latest of runs alike first), 3 at most; the last period of a run still going is this one or the one before. */
   runs: z.array(z.object({ from: Day, to: Day, n: Count })).max(3),
+  /**
+   * The days a deck changed what this streak's own conditions ask, oldest first, each change said ("Mining: New cards a
+   * day 10 → 15"): New cards a day for All new cards done; Reviews a day, a deck's SRS type and a type's stages for All
+   * reviews done. A past day is judged as the decks stood then, so from here on a day can ask more. None for a streak
+   * without either condition: nothing of a deck changes what it asks.
+   */
+  changes: z.array(z.object({ day: Day, said: z.array(z.string().max(300)).max(50) })).default([]),
 });
 export type StreakState = z.infer<typeof StreakState>;
 

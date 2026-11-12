@@ -209,21 +209,33 @@ export function HeatMap({
   label,
   size,
   fills = size === "year" ? YEAR_COLS : cols,
-}: Pointed & { first: Day; cols: number; from: Day; to: Day; step: (day: Day) => HeatStep; wordsOf: (day: Day) => string; label: string; size?: "year"; fills?: number }) {
+  marked,
+}: Pointed & { first: Day; cols: number; from: Day; to: Day; step: (day: Day) => HeatStep; wordsOf: (day: Day) => string; label: string; size?: "year"; fills?: number; marked?: (day: Day) => boolean }) {
   const box = useRef<HTMLDivElement>(null);
-  if (cols === fills) return <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} />;
+  if (cols === fills) return <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} marked={marked} />;
   return (
     <div className="heat-frame">
       <div ref={box} className="heat-scroll">
-        <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} share={`${(cols / fills) * 100}%`} />
+        <HeatGrid first={first} cols={cols} from={from} to={to} step={step} wordsOf={wordsOf} onAt={onAt} label={label} marked={marked} share={`${(cols / fills) * 100}%`} />
       </div>
       <ScrollEdges of={box} axis="x" />
     </div>
   );
 }
 
-/** The map itself, as wide as its box (or `share`, a share of it). */
-function HeatGrid({ first, cols, from, to, step, wordsOf, onAt, label, share }: Pointed & { first: Day; cols: number; from: Day; to: Day; step: (day: Day) => HeatStep; wordsOf: (day: Day) => string; label: string; share?: string }) {
+/** The map itself, as wide as its box (or `share`, a share of it); a day `marked` says has something to say gets a dot in its corner. */
+function HeatGrid({
+  first,
+  cols,
+  from,
+  to,
+  step,
+  wordsOf,
+  onAt,
+  label,
+  share,
+  marked,
+}: Pointed & { first: Day; cols: number; from: Day; to: Day; step: (day: Day) => HeatStep; wordsOf: (day: Day) => string; label: string; share?: string; marked?: ((day: Day) => boolean) | undefined }) {
   const [at, setAt] = useState<Day | null>(null);
   const cells: { col: number; row: number; day: Day; step: HeatStep }[] = [];
   const months: { col: number; label: string }[] = [];
@@ -279,6 +291,7 @@ function HeatGrid({ first, cols, from, to, step, wordsOf, onAt, label, share }: 
           {cells.map((c) => (
             <rect key={c.day} x={c.col * PITCH} y={c.row * PITCH} width={CELL} height={CELL} rx="2" className={`heat-cell is-${c.step} ${at === c.day ? "is-at" : ""}`.trim()} />
           ))}
+          {marked ? cells.filter((c) => marked(c.day)).map((c) => <circle key={`mark-${c.day}`} cx={c.col * PITCH + CELL / 2} cy={c.row * PITCH + CELL / 2} r={CELL / 5} className="heat-mark" />) : null}
         </svg>
       </div>
     </div>

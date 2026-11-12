@@ -1838,7 +1838,13 @@ function StreakMore({ id, state, today, weekEndsOn, name, at, onAt }: { id: stri
   for (let d = from; d <= today; d = addDays(d, 1)) periods.add(startOf(d));
   const n = [...periods].filter((p) => counted.has(p)).length;
   const step = (day: Day): HeatStep => (counted.has(startOf(day)) ? 4 : 0);
-  const wordsOf = (day: Day) => `${drawn.said(startOf(day))} · ${counted.has(startOf(day)) ? "counted" : startOf(day) === now ? "not yet" : "didn't count"}`;
+  // The days a deck changed what this streak asks, a dot each, said on pointing: from then on a day can ask more.
+  const changed = new Map(state.changes.map((c) => [c.day, c.said]));
+  const wordsOf = (day: Day) => {
+    const said = `${drawn.said(startOf(day))} · ${counted.has(startOf(day)) ? "counted" : startOf(day) === now ? "not yet" : "didn't count"}`;
+    const changes = changed.get(day);
+    return changes ? `${said} · ${changes.join("; ")}` : said;
+  };
   const options: { id: StreakSpan | "custom" | "pick"; label: string; under?: StreakSpan }[] = [
     ...STREAK_SPANS,
     ...(frame ? [{ id: "custom" as const, label: `${FRAME_LEAD.last} ${frameShort(frame)}` }] : []),
@@ -1886,7 +1892,7 @@ function StreakMore({ id, state, today, weekEndsOn, name, at, onAt }: { id: stri
             }}
           />
         ) : null}
-        <HeatMap first={first} cols={cols} from={from} to={today} step={step} wordsOf={wordsOf} onAt={onAt} label={`${name}, ${said}`} fills={HEAT_FILL_COLS} />
+        <HeatMap first={first} cols={cols} from={from} to={today} step={step} wordsOf={wordsOf} onAt={onAt} label={`${name}, ${said}`} fills={HEAT_FILL_COLS} marked={(day) => changed.has(day)} />
         <p className="w-foot">{at ?? `${num(n)} of ${periodCountWords(state.per, periods.size)} counted`}</p>
       </div>
       <MoreBlock title="Longest runs">

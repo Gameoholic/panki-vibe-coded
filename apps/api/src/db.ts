@@ -124,7 +124,7 @@ import { newDoneMoments } from "./newDone";
 import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 import { foldUndone } from "./undone";
 import { clipReader } from "./clips";
-import { dayTalliesOf, streakStatesOf, streaksStamped } from "./streaks";
+import { dayTalliesOf, streakStatesOf, streaksStamped, type DeckChange } from "./streaks";
 import { aheadOf, aheadOver, frameSpan, restOf, tilesOf, type TileCard, type TileShowing } from "./tiles";
 import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, type Day } from "./time";
 
@@ -1742,6 +1742,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectReplayTypeIds = db.prepare("SELECT id FROM srs_types");
   const selectReplayTypeChanges = db.prepare(`SELECT type_id AS typeId, "before", "after", at FROM srs_type_changes ORDER BY at ASC, id ASC`);
   const selectReplayDeckTypeChanges = db.prepare("SELECT deck_id AS deckId, from_type_id AS fromTypeId, to_type_id AS toTypeId, at FROM deck_srs_changes ORDER BY at ASC, id ASC");
+  /** Every deck's name, a deleted one's too: what a streak's map says a change to a deck by. */
+  const selectDeckNames = db.prepare("SELECT id, name FROM decks");
   const selectReplayCapChanges = db.prepare("SELECT deck_id AS deckId, from_value AS fromValue, to_value AS toValue, at FROM deck_settings_changes WHERE key = 'reviewsPerDay' ORDER BY at ASC, id ASC");
   const selectValue = db.prepare("SELECT value, source FROM card_values WHERE card_id = ? AND field_id = ?");
 
@@ -2122,6 +2124,33 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       places,
       holds,
     };
+  }
+  /**
+   * Every change to a deck that changes what All new cards done or All reviews done asks from then on, said in words on
+   * the account's day it was made (`streaks.ts` → `DeckChange`): New cards a day; Reviews a day, a deck's SRS type, a
+   * type's stages. Every deck, a deleted one too, by its name.
+   */
+  function deckChangesOf(dayOf: (at: number) => Day, srsOf: (id: string) => SrsType | null): DeckChange[] {
+    const names = new Map((selectDeckNames.all() as { id: string; name: string }[]).map((d) => [d.id, d.name]));
+    const deck = (id: string) => names.get(id) ?? "A deleted deck";
+    const type = (id: string) => srsOf(id)?.name ?? "A deleted SRS type";
+    const rows = (select: typeof selectLimitChanges) => select.all() as { deckId: string; fromValue: string; toValue: string; at: number }[];
+    const newPerDay = (raw: string) => jsonOr(raw, DeckSettings.shape.newPerDay) ?? DEFAULT_DECK_SETTINGS.newPerDay;
+    const reviewsPerDay = (raw: string) => {
+      const n = jsonOr(raw, DeckSettings.shape.reviewsPerDay) ?? null;
+      return n === null ? "no limit" : n.toLocaleString();
+    };
+    return [
+      ...rows(selectLimitChanges).map((c): DeckChange => ({ day: dayOf(c.at), kind: "newDone", said: `${deck(c.deckId)}: New cards a day ${newPerDay(c.fromValue)} → ${newPerDay(c.toValue)}` })),
+      ...rows(selectReplayCapChanges).map((c): DeckChange => ({ day: dayOf(c.at), kind: "cleared", said: `${deck(c.deckId)}: Reviews a day ${reviewsPerDay(c.fromValue)} → ${reviewsPerDay(c.toValue)}` })),
+      ...(selectReplayDeckTypeChanges.all() as { deckId: string; fromTypeId: string; toTypeId: string; at: number }[]).map(
+        (c): DeckChange => ({ day: dayOf(c.at), kind: "cleared", said: `${deck(c.deckId)}: SRS type ${type(c.fromTypeId)} → ${type(c.toTypeId)}` }),
+      ),
+      // A type's save logs every change of it, its name and colours too: only one whose stages differ changes what's due.
+      ...(selectReplayTypeChanges.all() as { typeId: string; before: string; after: string; at: number }[]).flatMap((c): DeckChange[] =>
+        JSON.stringify(jsonOr(c.before, LadderSnapshot)) === JSON.stringify(jsonOr(c.after, LadderSnapshot)) ? [] : [{ day: dayOf(c.at), kind: "cleared", said: `${type(c.typeId)}: its stages edited` }],
+      ),
+    ];
   }
   /** A deck setting's logged changes, each deck's oldest first, read back as the setting's own shape (`deck_settings_changes`). */
   function deckSettingChanges<T>(rows: { deckId: string; fromValue: string; toValue: string; at: number }[], valueOf: (raw: string) => T): Map<string, Changed<T>[]> {
@@ -3478,11 +3507,18 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       // YouTube's reminder starts at its hour on the account's clock and runs until the day turns; whether it shows
       // there is the extension's to read (`reminderOnYouTube`). `reminderOn` is read by nothing (`Settings`).
       const nextDay = dayStartAt(today.dayStart + 26 * 3_600_000, settings.dayStartHour, zone);
-      const streaks = streakStatesOf(settings.streaks, facts, todayKey, settings.weekEndsOn, {
-        on: settings.streaksOn,
-        pastStart: dayStartAt(now, settings.reminderHour, zone) >= today.dayStart,
-        hoursLeft: Math.max(0, Math.ceil((nextDay - now) / 3_600_000)),
-      });
+      const streaks = streakStatesOf(
+        settings.streaks,
+        facts,
+        todayKey,
+        settings.weekEndsOn,
+        {
+          on: settings.streaksOn,
+          pastStart: dayStartAt(now, settings.reminderHour, zone) >= today.dayStart,
+          hoursLeft: Math.max(0, Math.ceil((nextDay - now) / 3_600_000)),
+        },
+        deckChangesOf(day, srsOf),
+      );
       const pill = streaks.find((s) => s.id === settings.pillStreak) ?? streaks[0];
 
       return Stats.parse({

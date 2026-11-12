@@ -7321,6 +7321,11 @@ mark.sub-blur {
   stroke: var(--fg);
   stroke-width: 1.5;
 }
+/* A day with something to say beyond its step (a streak's: a deck changed what it asks), a dot in its middle, pointed at to read. */
+.heat-mark {
+  fill: var(--fg);
+  pointer-events: none;
+}
 .heat-cell.is-1 {
   fill: var(--heat-1);
 }

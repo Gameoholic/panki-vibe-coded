@@ -137,7 +137,14 @@ function nearness(group: readonly { have: number; need: number }[]): number {
  * YouTube's reminder is on for a streak (`atRisk`) while Streaks is on, it has a run to lose, this period doesn't count
  * yet, today is its last day and the clock is past Starts at.
  */
-export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMap<Day, DayTally>, today: Day, weekEndsOn: WeekDay, clock: ReminderClock): StreakState[] {
+export function streakStatesOf(
+  rules: readonly StreakRule[],
+  tallies: ReadonlyMap<Day, DayTally>,
+  today: Day,
+  weekEndsOn: WeekDay,
+  clock: ReminderClock,
+  deckChanges: readonly DeckChange[] = [],
+): StreakState[] {
   return rules.map((rule) => {
     const cal = calendarOf(rule.per, today, weekEndsOn);
     const facts = periodFactsOf(tallies, cal.startOf, firstDayOf(rule, today), today);
@@ -173,6 +180,29 @@ export function streakStatesOf(rules: readonly StreakRule[], tallies: ReadonlyMa
       runs: runsOf(sorted, cal.days)
         .sort((a, b) => b.n - a.n || b.to.localeCompare(a.to))
         .slice(0, 3),
+      changes: changesFor(groups, deckChanges),
     };
   });
+}
+
+/**
+ * A change to a deck that changes what a condition asks from then on (`StreakState.changes`): the account's day it was
+ * made, the condition it touches, and what changed in words. New cards a day is All new cards done's; Reviews a day,
+ * a deck's SRS type and a type's stages are All reviews done's.
+ */
+export type DeckChange = { day: Day; kind: "newDone" | "cleared"; said: string };
+
+/** The deck changes a streak's own conditions read, a day each with every change of that day, oldest first. */
+function changesFor(groups: readonly (readonly Goal[])[], changes: readonly DeckChange[]): StreakState["changes"] {
+  const kinds = new Set(groups.flat().map((g) => g.kind));
+  const byDay = new Map<Day, string[]>();
+  for (const c of changes) {
+    if (!kinds.has(c.kind)) continue;
+    const said = byDay.get(c.day) ?? [];
+    if (!said.includes(c.said)) said.push(c.said);
+    byDay.set(c.day, said);
+  }
+  return [...byDay]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, said]) => ({ day, said: said.slice(0, 50) }));
 }
