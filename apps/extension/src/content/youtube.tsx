@@ -2008,26 +2008,34 @@ function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waiti
     const { box, row } = found;
     setAway(row.offsetTop + row.offsetHeight < box.scrollTop ? "up" : row.offsetTop > box.scrollTop + box.clientHeight ? "down" : null);
   };
-  /** Scrolls the list to the line being said: its first line, so the whole list under it is what's still to come. */
+  /**
+   * Scrolls the list to the line being said: its second line, the line before it over it, so it's never under the
+   * fade at the list's top edge and the rest of the list under it is what's still to come.
+   */
   const follow = (still: boolean) => {
     const found = litRow();
     if (!found) return;
     const { box, row } = found;
+    const before = row.previousElementSibling instanceof HTMLElement ? row.previousElementSibling : null;
     ownUntil.current = Date.now() + 900;
-    box.scrollTo({ top: Math.max(0, row.offsetTop), behavior: still || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    box.scrollTo({ top: Math.max(0, (before ?? row).offsetTop), behavior: still || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
   useEffect(() => {
     judge();
     const found = litRow();
     if (!found || Date.now() < heldUntil.current) return;
     const { box, row } = found;
-    // The list stays put while the line being said is anywhere in view with a line still to come under it: it's
-    // scrolled only once it's the second-to-last line in view (the two after it no longer both fit), never for
-    // standing a little off its place.
-    const next = row.nextElementSibling instanceof HTMLElement ? row.nextElementSibling : null;
-    const after = next?.nextElementSibling instanceof HTMLElement ? next.nextElementSibling : null;
-    const ahead = (next?.offsetHeight ?? row.offsetHeight) + (after?.offsetHeight ?? row.offsetHeight);
-    const inView = row.offsetTop >= box.scrollTop && row.offsetTop + row.offsetHeight + ahead <= box.scrollTop + box.clientHeight;
+    // The list stays put while the line being said is clear of the fades at its edges: it's scrolled once it's the
+    // second-to-last line in view not under the fade (the three after it no longer all fit), or up into the top
+    // line, never for standing a little off its place.
+    let ahead = 0;
+    let at: Element | null = row;
+    for (let i = 0; i < 3; i++) {
+      at = at?.nextElementSibling ?? null;
+      ahead += at instanceof HTMLElement ? at.offsetHeight : row.offsetHeight;
+    }
+    const before = row.previousElementSibling instanceof HTMLElement ? row.previousElementSibling.offsetHeight : 0;
+    const inView = row.offsetTop - before >= box.scrollTop && row.offsetTop + row.offsetHeight + ahead <= box.scrollTop + box.clientHeight;
     if (!first.current && inView) return;
     follow(first.current);
     first.current = false;
