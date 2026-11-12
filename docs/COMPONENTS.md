@@ -99,7 +99,6 @@ Paths from `apps/web/src/`.
 | useHeardKeys | `hooks/useHeardKeys.ts` | An action's keys heard on the window, pressed or held, a tap told from a hold (`useHeardKeys`): a player's keys and the full screen's. |
 | useHoist | `hooks/useHoist.ts` | Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `goTo`). Never a second way of reordering rows by themselves. |
 | useHold | `hooks/useHold.ts` | A key held on a button until it does its thing, a tap told from a hold (`useHold`, `keepTap`, `keepDouble`, `TAP_MS`, `DOUBLE_MS`). |
-| useMasonry | `hooks/useMasonry.ts` | The board packed by height (`useMasonry`): each tile keeps its own height and the next one in its column comes up under it; the doors share the tallest door's. |
 | usePlayback | `hooks/usePlayback.ts` | A sound or a clip played by one of the app's players, in any look (`usePlayback`). Never a second way of playing a file. |
 | useSavedSoon | `hooks/useSavedSoon.ts` | A handful of settings that save themselves a moment after each change (`useSavedSoon`). |
 | useScreenStage | `hooks/useScreenStage.ts` | A review filling the screen, kept as its cards change and from one review to the next (`useScreenStage`, `ScreenStageContext`). Never a second way of filling it. |

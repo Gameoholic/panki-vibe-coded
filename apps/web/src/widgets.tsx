@@ -560,46 +560,61 @@ function TodayFacts({ stats }: { stats: Stats }) {
 
 /**
  * Every streak as a build's checks, in the account's order: a row each, tinted whole, green with a tick once its period
- * counts and red with a cross until then, at any hour; its name and its run, that it counts or the time left, and under
- * them every condition in its own words ("Reviews ≥ 20", "All reviews done"), each with its own tick or cross, its
- * groups apart with "or" between them as the streak's tile has them.
+ * counts and red with a cross until then, at any hour; on one line its name, that it counts or the time left, its run
+ * and a chevron. Pressed, it opens to every condition in its own words ("Reviews ≥ 20", "All reviews done"), each with
+ * its own tick or cross, its groups apart with "or" between them as the streak's tile has them; pressed again, it
+ * folds. Which are open is the tile's while it's on screen, nowhere kept.
  */
 function StreakChecks({ streaks }: { streaks: readonly StreakState[] }) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const flip = (id: string) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   return (
     <div className="w-today-streaks">
       {streaks.map((s) => {
         const name = streakNameOf(s);
+        const isOpen = open.has(s.id);
+        const checksId = `today-streak-${s.id}`;
         return (
-          <div key={s.id} className={`w-today-streak-row ${s.now ? "is-pass" : "is-fail"}`}>
-            <span className="w-today-streak-mark" role="img" aria-label={s.now ? "Counts" : "Doesn't count yet"}>
-              <Icon name={s.now ? "check" : "cross"} />
-            </span>
-            <span className="w-today-streak-name" lang={langOf(name)}>
-              {name}
-            </span>
-            <span className="w-today-streak-run">
-              <Icon name="flame" />
-              {periodCountWords(s.per, s.current)}
-            </span>
-            <span className="w-today-streak-said">{s.now ? `${STREAK_PERIODS[s.per].Now} counts` : timeLeftOf(s)}</span>
-            <ul className="w-checks">
-              {s.groups.map((group, gi) => (
-                <Fragment key={gi}>
-                  {gi > 0 ? <li className="w-goal-or">or</li> : null}
-                  {group.map((g, ci) => {
-                    const met = g.have >= g.need;
-                    return (
-                      <li key={ci} className={`w-check ${met ? "is-met" : "is-unmet"}`}>
-                        <span className="w-check-mark" role="img" aria-label={met ? "Done" : "Not done"}>
-                          <Icon name={met ? "check" : "cross"} />
-                        </span>
-                        {goalRuleWords(g.kind, g.need)}
-                      </li>
-                    );
-                  })}
-                </Fragment>
-              ))}
-            </ul>
+          <div key={s.id} className={`w-today-streak-row ${s.now ? "is-pass" : "is-fail"} ${isOpen ? "is-open" : ""}`.trim()}>
+            <Button className="w-today-streak-line" aria-expanded={isOpen} aria-controls={checksId} onClick={() => flip(s.id)}>
+              <span className="w-today-streak-mark" role="img" aria-label={s.now ? "Counts" : "Doesn't count yet"}>
+                <Icon name={s.now ? "check" : "cross"} />
+              </span>
+              <span className="w-today-streak-name" lang={langOf(name)}>
+                {name}
+              </span>
+              <span className="w-today-streak-said">{s.now ? `${STREAK_PERIODS[s.per].Now} counts` : timeLeftOf(s)}</span>
+              <span className="w-today-streak-run">
+                <Icon name="flame" />
+                {periodCountWords(s.per, s.current)}
+              </span>
+              <Icon name="down" className="w-today-streak-chevron" />
+            </Button>
+            <div className="w-today-streak-more" id={checksId} inert={!isOpen}>
+              <ul className="w-checks">
+                {s.groups.map((group, gi) => (
+                  <Fragment key={gi}>
+                    {gi > 0 ? <li className="w-goal-or">or</li> : null}
+                    {group.map((g, ci) => {
+                      const met = g.have >= g.need;
+                      return (
+                        <li key={ci} className={`w-check ${met ? "is-met" : "is-unmet"}`}>
+                          <span className="w-check-mark" role="img" aria-label={met ? "Done" : "Not done"}>
+                            <Icon name={met ? "check" : "cross"} />
+                          </span>
+                          {goalRuleWords(g.kind, g.need)}
+                        </li>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </ul>
+            </div>
           </div>
         );
       })}

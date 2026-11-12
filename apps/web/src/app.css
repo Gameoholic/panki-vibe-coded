@@ -7025,14 +7025,11 @@ mark.sub-blur {
 /* The board (components/Board.tsx): the home's doors and tiles, and every tile on Stats, three across on a PC with
    12px between them. A thing that takes more than one column says so through --w (a wide tile's two, the Review
    door's whole row); the phone breakpoint at the end makes it one column and ignores that. Dense, so a small tile
-   fills a gap a wide one left. Once packed by height (hooks/useMasonry.ts, `data-packed`; a skeleton's board never
-   is) the rows are 2px and each tile spans what its own height needs, the gap under it as its margin, so nothing is
-   stretched to a taller neighbour and the next tile in a column comes up under a short one. */
+   fills a gap a wide one left. */
 .board {
-  --board-gap: 12px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--board-gap);
+  gap: 12px;
   grid-auto-flow: dense;
   transition: opacity 0.15s ease;
 }
@@ -7040,13 +7037,10 @@ mark.sub-blur {
   grid-column: span var(--w, 1);
   min-width: 0;
 }
-.board[data-packed] {
-  grid-auto-rows: 2px;
-  row-gap: 0;
-  align-items: start;
-}
-.board[data-packed] > * {
-  margin-bottom: var(--board-gap);
+/* On the home a tile's settings and Show more are for arranging: out of sight until the board is being arranged, so
+   the home is its numbers alone. One already open stays, to close it again. */
+.board.is-home:not(.is-arranging) .w-tools :is(.w-more-button, .w-streak-settings):not(:has([aria-expanded="true"])) {
+  display: none;
 }
 /* The last numbers stay, dimmed, while the next scope loads. */
 .board.is-stale {
@@ -7792,15 +7786,56 @@ mark.sub-blur {
   display: grid;
   gap: 6px;
 }
+/* A streak on Today: one line (its mark, name, the time left, its run, a chevron), pressed to open its conditions
+   under it, the chevron turning; the conditions fold away as smoothly. */
 .w-today-streak-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 2px 8px;
-  padding: 8px 10px;
   border-radius: 10px;
   font-size: 13px;
   line-height: 18px;
+}
+.btn.w-today-streak-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+.w-today-streak-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  transition: transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1), color 0.15s ease;
+}
+.is-open .w-today-streak-chevron {
+  transform: rotate(180deg);
+}
+@media (hover: hover) {
+  .w-today-streak-line:hover .w-today-streak-chevron {
+    color: var(--fg);
+  }
+}
+.w-today-streak-more {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.is-open .w-today-streak-more {
+  grid-template-rows: 1fr;
+}
+/* Under the name, past the mark and its gap. */
+.w-today-streak-more > .w-checks {
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0 10px 0 36px;
+}
+.is-open .w-today-streak-more > .w-checks {
+  padding-bottom: 8px;
 }
 .w-today-streak-row.is-pass {
   background: var(--good-soft);
@@ -7850,8 +7885,8 @@ mark.sub-blur {
   height: 14px;
 }
 .w-today-streak-said {
-  grid-column: 2 / -1;
   font-weight: 600;
+  white-space: nowrap;
   color: var(--muted);
 }
 .is-fail .w-today-streak-said {
