@@ -654,12 +654,14 @@ const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
  * together (looking words up, the dictionaries, the popup's layout), the decks and what fills their fields, how a
  * video's clip is cut, and the sign-in. The tab is in the address, so a reload stays on it.
  */
-// The site's own tab, as each video site Panki works on will have one.
-type Tab = "dictionary" | "decks" | "youtube" | "account";
+// Videos: what Panki does on a video on any site it works on (the panel, its subtitles, the seek bar's marks, what's
+// tracked). Then the site's own tab, as each video site Panki works on will have one, for that site's own page alone.
+type Tab = "dictionary" | "decks" | "videos" | "youtube" | "account";
 const TABS: readonly { id: Tab; label: string }[] = [
   // Named as its first panel; its id stays `dictionary`, the address.
   { id: "dictionary", label: "Word pop-up" },
   { id: "decks", label: "Decks" },
+  { id: "videos", label: "Videos" },
   { id: "youtube", label: "YouTube" },
   // About: the profiles and the extension's version; its id stays `account` (the address, the drawer's way to the sign-in).
   { id: "account", label: "About" },
@@ -859,12 +861,14 @@ function Options() {
               </section>
             )}
           </div>
-          <div className="options-tab" hidden={tab !== "youtube"}>
+          <div className="options-tab" hidden={tab !== "videos"}>
             {/* Data tracking first: what's recorded of the videos watched. */}
             <VideoTracking store={store} onChanged={refresh} door={door} />
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />
+          </div>
+          <div className="options-tab" hidden={tab !== "youtube"}>
             {/* The header bar is on every page of the site, so it comes before the home's add-ons, and the reminder shown in both after it. */}
             <HeaderBarPanel store={store} door={door} account={account} onChanged={refresh} />
             {door ? <StreakReminderPanel store={store} door={door} account={account} /> : null}

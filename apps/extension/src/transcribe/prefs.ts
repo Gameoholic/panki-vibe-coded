@@ -3,7 +3,7 @@ import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle, TranscribeMode } from "@panki/co
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "../seekLook";
 
 /**
- * How transcribing behaves for this browser's viewer, theirs to set on the options page (YouTube → Transcribing),
+ * How transcribing behaves for this browser's viewer, theirs to set on the options page (Videos → Transcribing),
  * apart from what it costs, which stays Panki's settings and an admin's (the speed, the lead, the engine, the pieces):
  * whatever only the viewer's own browser does is theirs to choose. The shapes live here, apart
  * from `storage.ts`, so a page's script carries no storage code; the page gets them with the rest of this browser's

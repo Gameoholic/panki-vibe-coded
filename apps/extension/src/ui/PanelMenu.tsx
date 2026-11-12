@@ -114,8 +114,8 @@ export function PanelMenu({ source, view, style }: Props) {
               <Icon name="out" />
               Open Panki
             </Button>
-            {/* The extension's own settings, on their YouTube tab. */}
-            <Button variant="item" onClick={() => done(() => void askOptions("youtube"))}>
+            {/* The extension's own settings, on their Videos tab, where the panel's are. */}
+            <Button variant="item" onClick={() => done(() => void askOptions("videos"))}>
               <Icon name="settings" />
               Extension settings
             </Button>

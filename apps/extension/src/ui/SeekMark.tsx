@@ -6,7 +6,7 @@ import { Icon } from "@web/components/Icon";
 import { clock } from "@web/words";
 import type { KnownMoment } from "../capture/known";
 import { stamp } from "../capture/words";
-import { APART_MARK_IDS, paintCss, seekVars, type ApartMarkId, type SeekLook, type WordsMarkId } from "../seekLook";
+import { APART_MARK_IDS, NEW_PAINT, paintCss, seekVars, type ApartMarkId, type SeekLook, type WordsMarkId } from "../seekLook";
 import type { ClipEnd, MoveBy } from "./Trim";
 
 /**
@@ -236,10 +236,10 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
 
   /** A word that's in the decks in its stage's colour, its tick and its pin, while that mark goes By stage; nothing otherwise, the mark's one colour standing. */
   const stageColour = (said: KnownMoment): CSSProperties => (look.known.byStage ? ({ "--known-colour": said.colour, "--pin-colour": said.colour } as CSSProperties) : {});
-  /** A card taken from the video in its own stage's colour, its mark and its pin, while the cards' mark uses the stage's colour; Panki blue for a new card whose type has no New colour. */
+  /** A card taken from the video in its own stage's colour, its mark and its pin, while the cards' mark uses the stage's colour; `NEW_PAINT` for a new card whose type has no New colour. */
   const cardColour = (card: VideoCard): CSSProperties => {
     if (!look.cards.byStage) return {};
-    const colour = card.colour ?? paintCss("accent");
+    const colour = card.colour ?? paintCss(NEW_PAINT);
     return { "--cards-colour": colour, "--pin-colour": colour } as CSSProperties;
   };
   const upOf = (id: WordsMarkId) => wordsOf(id) === "always" || (wordsOf(id) === "hover" && hover);

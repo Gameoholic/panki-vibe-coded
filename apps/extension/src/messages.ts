@@ -105,8 +105,8 @@ export const NO_UPDATE: UpdateState = { state: "unknown", own: null, latest: nul
 export const RecordingAsk = MediaRecording.omit({ client: true, build: true });
 export type RecordingAsk = z.infer<typeof RecordingAsk>;
 
-/** A tab of the options page the drawer sends the viewer to: the sign-in, or a deck's field mapping. */
-export const OptionsTab = z.enum(["account", "decks", "youtube"]);
+/** A tab of the options page a page sends the viewer to: the sign-in, a deck's field mapping, or the video's settings. */
+export const OptionsTab = z.enum(["account", "decks", "videos", "youtube"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
 /**

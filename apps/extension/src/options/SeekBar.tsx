@@ -44,7 +44,8 @@ const WORDS_OPTIONS = [
 /** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, then where the words that are in the decks are said. */
 const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
-  { id: "cards", name: "Cards made from this video" },
+  // Where each card of the video's was added from, its clip: also the colour Panki's subtitles give its word there, and only there.
+  { id: "cards", name: "Where cards came from" },
   { id: "suspended", name: "Suspended cards" },
   { id: "flagged", name: "Flagged cards" },
   { id: "clip", name: "Clip" },

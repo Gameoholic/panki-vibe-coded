@@ -485,7 +485,7 @@ export const Settings = z.object({
   /**
    * How close to its end, in seconds, a video played counts as finished (`watching.ts` → `inEndZone`): a flag kept on it
    * until it's taken off by hand, so it leaves Continue watching and isn't offered to continue. Each account's own,
-   * set on the extension's YouTube tab beside Video tracking. 20 to begin with.
+   * set on the extension's Videos tab beside Video tracking. 20 to begin with.
    */
   finishedWithinSec: z.number().int().min(0).max(600),
   /**

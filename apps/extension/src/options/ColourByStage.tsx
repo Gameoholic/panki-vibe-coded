@@ -11,8 +11,8 @@ const WAYS = [
 /**
  * A colour by where cards stand, as a `Setting`'s control: Use stage's colour (each word in its highest card's stage's
  * colour, each card in its own) or Custom colour, and under it the palette, greyed while the stage's is used. The
- * Highlight words that are in your decks panel, and the seek bar's Words that are in your decks and Cards made from this
- * video marks, pick theirs with this.
+ * Highlight words that are in your decks panel, and the seek bar's Words that are in your decks and Where cards came
+ * from marks, pick theirs with this.
  */
 export function ColourByStage({ id, byStage, colour, disabled, onByStage, onColour }: { id: string; byStage: boolean; colour: MarkPaint; disabled: boolean; onByStage: (byStage: boolean) => void; onColour: (colour: MarkPaint) => void }) {
   return (

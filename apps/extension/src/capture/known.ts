@@ -1,19 +1,19 @@
 /** @panki Words already in the cards, marked where they stand, and each one's cards (`startKnown`, `useKnown`, `knownAs`, `knownCards`, `markKnownOnPage`). Never a second way of marking one. */
 import { useMemo, useSyncExternalStore } from "react";
-import type { CalledCard } from "@panki/contracts";
+import type { CalledCard, VideoCard } from "@panki/contracts";
 import { isJapanese } from "@web/words";
 import type { Lattice } from "../dictionary/found";
 import { wordsOf } from "../dictionary/split";
 import { localNow, onLocal } from "../local";
 import { LATTICE_MAX, askKnown, askLattice, type KnownLook } from "../messages";
-import { paintCss } from "../seekLook";
+import { NEW_PAINT, paintCss } from "../seekLook";
 import { literalOf } from "../ui/styles";
 import type { Token } from "./words";
 
 /**
  * Words already in the account's cards, marked where they stand: in subtitles and on pages, each switched apart, in
- * the colour of the highest stage any card of the word stands on (By stage; New in its type's New colour, else Panki
- * blue) or in one colour that's
+ * the colour of the highest stage any card of the word stands on (By stage; New in its type's New colour, else
+ * `NEW_PAINT`) or in one colour that's
  * chosen. What's known is the words every card is called by, from Panki through the worker (`askKnown`); the two switches and
  * the colours are this browser's settings (`local.ts`, `Local`'s `known`). A word in a line is one of them by the
  * pop-up's own check, the same function, so the two can't drift apart:
@@ -132,8 +132,22 @@ export function knownAs({ words, suspended, flagged }: Pick<KnownNow, "words" | 
   return flagged.has(token.term) ? "flagged" : suspended.has(token.term) ? "suspended" : "known";
 }
 
-/** A word's stage's colour in CSS: its highest card's stage's, else (every card of it new, its type with no New colour) Panki blue. */
-export const stageCssOf = (colours: ReadonlyMap<string, string>, term: string | undefined): string => (term !== undefined ? colours.get(term) : undefined) ?? paintCss("accent");
+/** A word's stage's colour in CSS: its highest card's stage's, else (every card of it new, its type with no New colour) `NEW_PAINT`. */
+export const stageCssOf = (colours: ReadonlyMap<string, string>, term: string | undefined): string => (term !== undefined ? colours.get(term) : undefined) ?? paintCss(NEW_PAINT);
+
+/** How far either side of a card's clip a word still counts as said there: a word's time is when its stretch appeared, a little before the clip's cut. */
+const CLIP_SLACK_MS = 250;
+/**
+ * The card a word that's in the decks was added from, when this is where it was: one of the word's cards (as the pop-up
+ * has them) taken from the video on the page (`VideoCard`, the seek bar's Where cards came from), whose clip holds the
+ * moment this word is said (`atMs`, the video's time). The same word said elsewhere in the video is none, and marked by
+ * its stage as any word in the decks, as the seek bar marks only the clip.
+ */
+export function cameFromHere(known: Pick<KnownNow, "cards">, videoCards: readonly VideoCard[], token: Pick<Token, "term">, atMs: number): VideoCard | null {
+  if (token.term === undefined || videoCards.length === 0) return null;
+  const ids = new Set((known.cards.get(token.term) ?? NO_CARDS).map((card) => card.cardId));
+  return videoCards.find((card) => ids.has(card.cardId) && atMs >= card.startMs - CLIP_SLACK_MS && atMs <= card.endMs + CLIP_SLACK_MS) ?? null;
+}
 
 /** The colour a word that's in the decks (`knownAs` "known") is marked in, as CSS: its stage's under By stage, else the one chosen. */
 export const knownCssOf = (known: Pick<KnownNow, "byStage" | "colour" | "colours">, token: Pick<Token, "term">): string => (known.byStage ? stageCssOf(known.colours, token.term) : paintCss(known.colour));

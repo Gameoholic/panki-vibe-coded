@@ -2,7 +2,7 @@ import "../setup";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
-import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments } from "../capture/known";
+import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments, cameFromHere } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
@@ -38,7 +38,7 @@ import { SaveControl } from "../ui/SaveControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
 import type { Cut } from "../roles";
-import { paintCss } from "../seekLook";
+import { NEW_PAINT, paintCss } from "../seekLook";
 import { comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
@@ -1598,6 +1598,9 @@ const sameIds = (a: readonly number[], b: readonly number[]) => a.length === b.l
 /** The Transcription menu's run of Proofread over the whole transcript, as it's named there and in Details' Ran because. */
 const WHOLE_WORDS = "Proofread the entire video";
 
+/** A letter of what's under the player as its caption line has it: the line, the letter in it, and when in the video it's said, in seconds (`timeOf`). */
+type LetterPlace = { lineId: number; offset: number; time: number };
+
 /**
  * One row under the player: a stretch of the captions' text, as words to press. `at` is where the row begins in
  * everything under the player read as one text, which is how a pick is said (a sentence runs across rows); `chars` is
@@ -1611,8 +1614,8 @@ type RowProps = {
   /** The stretches taken as one word by hand (from the popup), in the row's own letters. */
   forced: readonly Forced[];
   onTake: (chars: Chars) => void;
-  /** Which caption line, and which letter of it, a letter of what's under the player is: what a word pointed at is kept as. */
-  placeOf: (at: number) => { lineId: number; offset: number } | null;
+  /** Which caption line, and which letter of it, a letter of what's under the player is (what a word pointed at is kept as), and when in the video it's said. */
+  placeOf: (at: number) => LetterPlace | null;
   /** A word double-clicked: the transcript's line opened to edit there, in the strip's editor or over the video (AI step 6). */
   onFix?: ((chars: Chars) => void) | null;
   /** Which letters of everything under the player are a word Panki AI's Proofread edited (AI step 6): those words carry the spark. */
@@ -1623,14 +1626,24 @@ type RowProps = {
 
 function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, editedAt = null, waiting = false }: RowProps) {
   const tokens = useWords(text, forced);
-  // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`); the word picked in its own colour.
+  // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`): by their stage, but where a
+  // card was added from (its clip in this video), in the seek bar's Where cards came from colour; the word picked in its own colour.
   const known = useKnown();
-  const pick = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs.pick;
+  const { seek, pick } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
+  const videoCards = useSyncExternalStore(carded.subscribe, carded.get);
+  const tintAt = (i: number) => {
+    const token = tokens[i];
+    if (!token) return tintOf(knownCssOf(known, {}));
+    const place = placeOf(at + token.start);
+    const from = place ? cameFromHere(known, videoCards, token, Math.round(place.time * 1000)) : null;
+    if (!from) return tintOf(knownCssOf(known, token));
+    return tintOf(seek.cards.byStage ? (from.colour ?? paintCss(NEW_PAINT)) : paintCss(seek.cards.colour));
+  };
   const knownHere =
     known.subtitles && known.words.size > 0
       ? {
           at: (i: number) => knownAs(known, tokens[i] ?? {}),
-          tintAt: (i: number) => tintOf(knownCssOf(known, tokens[i] ?? {})),
+          tintAt,
           suspendedColour: tintOf(paintCss(known.suspendedColour)),
           flaggedColour: tintOf(paintCss(known.flaggedColour)),
         }
@@ -1778,7 +1791,7 @@ function useLineAt(list: readonly CaptionLine[] | null): number | null {
 /** What a line in the list beside the video does when pressed: the screen's, read when it happens, so a line drawn once is never stale. */
 type ListHandlers = {
   onTake: (chars: Chars) => void;
-  placeOf: (at: number) => { lineId: number; offset: number } | null;
+  placeOf: (at: number) => LetterPlace | null;
   onFix: (chars: Chars) => void;
   onGo: (line: CaptionLine) => void;
 };
@@ -2059,10 +2072,10 @@ function App() {
 
   const clip = taking?.of === "caption" ? clipOf(taking.lineIds, taking.chars, taking.trim) : taking?.of === "stretch" ? stretchOf(taking.trim.start, taking.trim.end) : null;
   const sentence = clip?.sentence ?? "";
-  /** Which caption line, and which letter of it, a letter of what's under the player is. */
-  const placeOf = (at: number) => {
+  /** Which caption line, and which letter of it, a letter of what's under the player is, and when it's said. */
+  const placeOf = (at: number): LetterPlace | null => {
     const there = lineAt(underText.parts, at);
-    return there ? { lineId: there.line.id, offset: there.offset } : null;
+    return there ? { lineId: there.line.id, offset: there.offset, time: timeOf(there.line, there.offset) } : null;
   };
   /** The splits made by hand that fall in a row, in the row's own letters. */
   const forcedIn = (rowAt: number, length: number): Forced[] =>

@@ -85,7 +85,7 @@ const Stored = z.object({
    */
   knownSubtitles: z.boolean().catch(false),
   knownPages: z.boolean().catch(false),
-  /** Each word tinted in its highest card's stage's colour (New in Panki blue), or all in `knownColour`. By stage to begin with. */
+  /** Each word tinted in its highest card's stage's colour (New in its type's New colour, else white: `seekLook.ts` → `NEW_PAINT`), or all in `knownColour`. By stage to begin with. */
   knownByStage: z.boolean().catch(true),
   knownColour: MarkPaint.catch("green"),
   /** The words only suspended cards are, in a colour of their own; red to begin with, as their mark on the seek bar is. */
@@ -118,7 +118,7 @@ const Stored = z.object({
   subtitleSourceOn: z.string().catch(""),
   /**
    * How transcribing behaves for this viewer (`transcribe/prefs.ts`): when it starts, whether the transcript replaces
-   * the site's captions on the picture. Set on the options page (YouTube → Transcribing): what's client-side is the
+   * the site's captions on the picture. Set on the options page (Videos → Transcribing): what's client-side is the
    * viewer's own, what costs Panki's settings, an admin's.
    */
   transcribeTrigger: TranscribeTrigger.catch(DEFAULT_PREFS.trigger),
@@ -134,9 +134,9 @@ const Stored = z.object({
   markOver: z.boolean().catch(DEFAULT_PREFS.markOver),
   // A browser that kept `transcriptEdit` (whether Panki subtitles could be fixed here) keeps it unread: that's an
   // admin's, Panki's `Transcription.fixes`.
-  /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (YouTube → Seek bar). */
+  /** How Panki's marks on a video's seek bar look (`seekLook.ts`), set on the options page (Videos → Seek bar). */
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
-  /** The picked word's colour in Panki's subtitles (`transcribe/prefs.ts` → `pick`), set on the options page (YouTube → Panki panel). */
+  /** The picked word's colour in Panki's subtitles (`transcribe/prefs.ts` → `pick`), set on the options page (Videos → Panki panel). */
   pickColour: MarkPaint.catch(DEFAULT_PREFS.pick),
   /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
   transcribeMode: TranscribeMode.nullable().catch(DEFAULT_PREFS.mode),
@@ -152,13 +152,13 @@ const Stored = z.object({
     .catch(DEFAULT_MODULES.panelView),
   /** How wide the panel's column stands beside the video and in full screen, dragged by its left edge on the page; null, the site's own width. */
   panelWidth: PanelWidth.catch(DEFAULT_MODULES.panelWidth),
-  /** In the site's full screen, the key that toggles the panel (options page, YouTube → Panki panel). */
+  /** In the site's full screen, the key that toggles the panel (options page, Videos → Panki panel). */
   panelKey: BoundKey.catch(DEFAULT_MODULES.panelKey),
-  /** The key that toggles the subtitles off and back (options page, YouTube → Panki panel). */
+  /** The key that toggles the subtitles off and back (options page, Videos → Panki panel). */
   subtitlesKey: BoundKey.catch(DEFAULT_MODULES.subtitlesKey),
   /** In the site's full screen, whether the panel stands or is folded away, as its key or its handle last left it; hidden to begin with. */
   fullPanel: z.boolean().catch(DEFAULT_MODULES.fullPanel),
-  /** In the site's full screen, whether the button in the screen's corner that brings the folded panel back is shown (options page, YouTube → Panki panel). */
+  /** In the site's full screen, whether the button in the screen's corner that brings the folded panel back is shown (options page, Videos → Panki panel). */
   panelButton: z.boolean().catch(DEFAULT_MODULES.panelButton),
   // A browser that kept `stageFull` and `stageKey` (whether Panki's own Theatre mode took the browser's full screen,
   // and whether F opened it), `stageSide` (which side of the full screen the panel stood at) or `besideRecs` (whether
@@ -207,7 +207,7 @@ const Stored = z.object({
   shortSkipSeconds: SkipSeconds.catch(DEFAULT_MODULES.shortSkipSeconds),
   /**
    * Video tracking, this browser's own, so some devices can send while others don't: whether the videos watched here are noted and sent to Panki. Set on the options page
-   * (YouTube → Data tracking). Null until it's settled, once, by `watch/tracking.ts`: Off for a browser new to Panki,
+   * (Videos → Data tracking). Null until it's settled, once, by `watch/tracking.ts`: Off for a browser new to Panki,
    * the account's old switch for one that was already signed in.
    */
   videoTracking: z.boolean().nullable().catch(null),
