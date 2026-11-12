@@ -182,6 +182,8 @@ export type VideoMore = {
   around: (seconds: number) => string;
   numbered?: (seconds: number) => string;
   linesOf?: (sentence: string) => LinesHeld | null;
+  /** Where the subtitles that far either way begin and end, in the video's seconds: the stretch a message sending them hears. Null with none. */
+  spanOf?: (seconds: number) => { from: number; to: number } | null;
 };
 /** What the page knows besides the pop-up: on a video, what it adds to a prompt, read as the pop-up opens. */
 export type MorePieces = (pointed: Pointed, limits: PieceLimits) => VideoMore;

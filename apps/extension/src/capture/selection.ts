@@ -75,6 +75,27 @@ export function sentenceAround(text: string, from: number, to: number): Found {
 }
 
 /**
+ * Every sentence of a text, where each begins and ends in it, by the same rule as `sentenceAround`: ended by a full
+ * stop or a line break, its closing bracket with it, the space before it left out. A last one with nothing to end it
+ * runs to the text's end.
+ */
+export function sentencesIn(text: string): { from: number; to: number }[] {
+  const found: { from: number; to: number }[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (!endsSentence(text, i) && i < text.length - 1) continue;
+    let end = i + 1;
+    while (end < text.length && CLOSERS.includes(text[end] ?? "")) end++;
+    let from = start;
+    while (from < end && (/\s/.test(text[from] ?? "") || CLOSERS.includes(text[from] ?? ""))) from++;
+    if (from < end && !/^\s*$/.test(text.slice(from, end))) found.push({ from, to: end });
+    start = end;
+    i = end - 1;
+  }
+  return found;
+}
+
+/**
  * What's selected on the page right now, with the sentence it sits in; null when nothing is. Words selected inside a
  * box being typed into are taken with the whole of what's typed there as their surroundings.
  */

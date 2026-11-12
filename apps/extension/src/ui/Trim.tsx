@@ -4,8 +4,19 @@ import { stamp } from "../capture/words";
 
 /** One of a clip's two ends. */
 export type ClipEnd = "start" | "end";
-/** How an end is moved: to the nearest word, or exactly where it's put. */
-export type MoveBy = "word" | "exact";
+/** How an end is moved: to the nearest of its cut's stops (a sentence's edge on the clip's bar, a word's on the word's), or exactly where it's put. */
+export type MoveBy = "snap" | "exact";
+/** A mark on the bar where an end stops: where a stretch begins, or where it ends. */
+export type Tick = { at: number; kind: "start" | "end" };
+/** A stretch of the video, in its seconds. */
+export type Stretch = { from: number; to: number };
+/**
+ * How the bar shows what Panki AI heard of the video (the subtitles its messages were sent): `edges`, the bar tinted
+ * where it heard and a count at each edge of how far past it its hearing goes; `overview`, a thin strip over the whole
+ * stretch it heard, the clip a block in it and a bracket round what the bar shows. Both are on trial, a switch beside
+ * the Clip's name, until one is picked.
+ */
+export type HeardLook = "edges" | "overview";
 
 /** How much of the video shows either side of the clip to begin with, in seconds. */
 const ROOM = 5;
@@ -20,7 +31,6 @@ const PULL = 3;
 const NUDGE = 0.1;
 const EDGE_STEP = 1;
 
-type Stretch = { from: number; to: number };
 type Side = "from" | "to";
 
 type Props = {
@@ -31,8 +41,8 @@ type Props = {
   end: number | null;
   /** The whole of the video: as far as the bar can ever show. */
   limit: Stretch;
-  /** When each word that was heard begins: the faint ticks. */
-  ticks: readonly number[];
+  /** Where an end stops as it's pulled (Shift held, it doesn't): the ticks, a start's darker than an end's. */
+  ticks: readonly Tick[];
   disabled: boolean;
   /** Changes when the clip went somewhere else by itself (another sentence was taken): the bar goes there with it. */
   anchor: number;
@@ -46,6 +56,15 @@ type Props = {
   onSettle: (which: ClipEnd) => void;
   /** The clip pressed between its ends: it's heard from that moment. */
   onHear: (at: number) => void;
+  /**
+   * Where Accept on a waiting Sentence proposal would put the clip: what it adds drawn striped green beside the clip,
+   * what it cuts striped red over it (the Touch up diff's colours). The bar takes it in, as it takes in an end typed
+   * past its edge. Null with nothing waiting.
+   */
+  proposed?: { start: number; end: number } | null;
+  /** The stretch of the video Panki AI heard (the subtitles its messages were sent), and how it's shown; null before a message is sent, or off a video. */
+  heard?: Stretch | null;
+  heardLook?: HeardLook;
 };
 
 /** What the bar shows to begin with: the clip, with room either side to pull an end into. */
@@ -66,7 +85,7 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
  * where the pointer is, or stops at the edges of words while Alt is held; the arrow keys on it move it a tenth of a
  * second. The thin line is where the video stands; a press on the clip between its ends plays it from there.
  */
-export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle, onHear }: Props) {
+export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle, onHear, proposed = null, heard = null, heardLook = "edges" }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   /** An edge of the bar being pulled: where the pointer took hold, and what the bar showed and how much a pixel was worth just then. */
@@ -89,6 +108,9 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
     else if (start !== ends.start && start - from < NEAR) from = Math.max(limit.from, Math.min(from, start - MAKE_ROOM));
     if (last > to) to = around(start, last, limit).to;
     else if (last !== ends.last && to - last < NEAR) to = Math.min(limit.to, Math.max(to, last + MAKE_ROOM));
+    // Where Accept would put it is taken in too, so what it adds is there to see.
+    if (proposed && proposed.start < from) from = Math.max(limit.from, proposed.start - ROOM_MIN);
+    if (proposed && proposed.end > to) to = Math.min(limit.to, proposed.end + ROOM_MIN);
     if (start !== ends.start || last !== ends.last) setEnds({ start, last });
     if (from !== free.from || to !== free.to) setView({ from, to });
   }
@@ -125,7 +147,7 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
       onPointerMove(e: PointerEvent<HTMLSpanElement>) {
         if (held !== which) return;
         const to = timeAt(e.clientX);
-        if (to !== null) onMove(which, to, e.altKey ? "word" : "exact");
+        if (to !== null) onMove(which, to, e.shiftKey ? "exact" : "snap");
       },
       onLostPointerCapture() {
         if (held !== which) return;
@@ -180,10 +202,26 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
 
   const left = share(start);
   const right = end === null ? 100 : share(end);
+  /** A stretch drawn on a bar at its scale; nothing for one that's empty or off it. */
+  const stretchOn = (scale: (time: number) => number, className: string, from: number, to: number) => {
+    const a = scale(from);
+    const b = scale(to);
+    return b > a ? <i className={className} style={{ left: `${a}%`, width: `${b - a}%` }} /> : null;
+  };
+  // Accept's diff, drawn only while the clip has both its ends: what it adds either side, and what it cuts off it.
+  const diff = proposed && end !== null ? { ...proposed, held: end } : null;
+  const adds: (Stretch | null)[] = diff ? [diff.start < start ? { from: diff.start, to: start } : null, diff.end > diff.held ? { from: diff.held, to: diff.end } : null] : [];
+  const cuts: (Stretch | null)[] = diff
+    ? [diff.start > start ? { from: start, to: Math.min(diff.start, diff.held) } : null, diff.end < diff.held ? { from: Math.max(diff.end, start), to: diff.held } : null]
+    : [];
   return (
     <div className={`trim ${disabled ? "is-off" : ""}`.trim()}>
+      {heard && heardLook === "overview" ? <HeardOverview heard={heard} view={view} clip={{ from: start, to: last }} adds={adds} cuts={cuts} /> : null}
+      {heard && heardLook === "edges" ? <HeardEdges heard={heard} view={view} /> : null}
       <div ref={track} className="trim-track">
-        {ticks.map((tick, i) => (tick > view.from && tick < view.to ? <i key={i} className="trim-tick" style={{ left: `${share(tick)}%` }} /> : null))}
+        {heard && heardLook === "edges" ? stretchOn(share, "trim-heard", Math.max(heard.from, view.from), Math.min(heard.to, view.to)) : null}
+        {ticks.map((tick, i) => (tick.at > view.from && tick.at < view.to ? <i key={i} className={`trim-tick is-${tick.kind}`} style={{ left: `${share(tick.at)}%` }} /> : null))}
+        {adds.map((add, i) => (add ? <span key={i}>{stretchOn(share, "trim-diff is-in", add.from, add.to)}</span> : null))}
         <div
           className={`trim-clip ${end === null ? "is-open" : ""}`.trim()}
           style={{ left: `${left}%`, width: `${Math.max(0, right - left)}%` }}
@@ -197,6 +235,7 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
           <span {...grip("start", start)} />
           {end === null ? null : <span {...grip("end", end)} />}
         </div>
+        {cuts.map((cut, i) => (cut ? <span key={i}>{stretchOn(share, "trim-diff is-out", cut.from, cut.to)}</span> : null))}
         <Now video={video} view={view} />
         {/* A bar that is another cut from end to end has nothing either side of it to take in. */}
         {within ? null : (
@@ -205,6 +244,53 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
             <span {...edge("to")} />
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Whole seconds, as a count beside the bar says them. */
+const seconds = (n: number) => `${Math.round(n)} s`;
+
+/**
+ * What Panki AI heard, said at the bar's edges (`edges`): how far past each edge its hearing goes, a count each side;
+ * the bar itself is tinted where it heard. Nothing on a side it doesn't pass.
+ */
+function HeardEdges({ heard, view }: { heard: Stretch; view: Stretch }) {
+  const before = view.from - heard.from;
+  const after = heard.to - view.to;
+  return (
+    <div className="trim-heard-row" title={`Panki AI heard ${stamp(heard.from)} to ${stamp(heard.to)}`}>
+      <span className="trim-heard-more">{before >= 1 ? `◂ ${seconds(before)}` : ""}</span>
+      <span className="trim-heard-name">Panki AI heard</span>
+      <span className="trim-heard-more">{after >= 1 ? `${seconds(after)} ▸` : ""}</span>
+    </div>
+  );
+}
+
+/**
+ * What Panki AI heard, as a thin strip over the whole of it and what the bar shows (`overview`): the stretch it heard
+ * tinted, the clip a block in it with Accept's diff, and a bracket round the part the bar shows; its two times under it.
+ */
+function HeardOverview({ heard, view, clip, adds, cuts }: { heard: Stretch; view: Stretch; clip: Stretch; adds: readonly (Stretch | null)[]; cuts: readonly (Stretch | null)[] }) {
+  const from = Math.min(heard.from, view.from);
+  const to = Math.max(heard.to, view.to);
+  const span = Math.max(0.1, to - from);
+  const at = (time: number) => Math.max(0, Math.min(100, ((time - from) / span) * 100));
+  const stretch = (className: string, a: number, b: number, key?: number) => (at(b) > at(a) ? <i key={key} className={className} style={{ left: `${at(a)}%`, width: `${at(b) - at(a)}%` }} /> : null);
+  return (
+    <div className="trim-overview">
+      <div className="trim-overview-rail">
+        {stretch("trim-heard", heard.from, heard.to)}
+        {stretch("trim-overview-clip", clip.from, clip.to)}
+        {adds.map((add, i) => (add ? stretch("trim-diff is-in", add.from, add.to, i) : null))}
+        {cuts.map((cut, i) => (cut ? stretch("trim-diff is-out", cut.from, cut.to, i + 2) : null))}
+        {stretch("trim-overview-view", view.from, view.to)}
+      </div>
+      <div className="trim-heard-row">
+        <span className="trim-heard-more">{stamp(heard.from)}</span>
+        <span className="trim-heard-name">Panki AI heard</span>
+        <span className="trim-heard-more">{stamp(heard.to)}</span>
       </div>
     </div>
   );

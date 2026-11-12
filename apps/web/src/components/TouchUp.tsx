@@ -115,7 +115,7 @@ export function TouchUpAll({ pending, onAcceptAll, onDismissAll }: { pending: nu
  * One stretch of the diff, git's way: what goes struck in its proposal's colour (`out`: orange or red for a judged value,
  * the accent for one of Panki AI's own offered with no judgement), what comes in green (`in`).
  */
-function Mark({ out, children, block }: { out?: Exclude<Tone, "good">; children: string; block?: boolean }) {
+export function Mark({ out, children, block }: { out?: Exclude<Tone, "good">; children: string; block?: boolean }) {
   const look = out === "accent" ? "is-accent" : `ai-judgement is-${out ?? "good"}`;
   return (
     <span className={`touch-up-d ${look} ai-judgement-lit${out ? " is-out" : " is-in"}${block ? " is-block" : ""}`} lang={langOf(children)}>

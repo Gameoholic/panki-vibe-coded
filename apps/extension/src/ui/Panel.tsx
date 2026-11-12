@@ -94,6 +94,7 @@ import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import {
   ClipMove,
+  Mark,
   UnmarkAi,
   TOUCH_UP_WORDS,
   Tied,
@@ -137,7 +138,7 @@ import { ClipPlayer } from "./ClipPlayer";
 import { gapsOf, type PieceLimits, type VideoMore } from "./Explain";
 import { glossaryText } from "./Glossary";
 import { Stamp } from "./Stamp";
-import { Trim, type ClipEnd, type MoveBy } from "./Trim";
+import { Trim, type ClipEnd, type HeardLook, type MoveBy, type Stretch, type Tick } from "./Trim";
 
 /** What the panel says when something's wrong. One home. */
 const MESSAGES = {
@@ -254,6 +255,11 @@ type Touch = {
    */
   clipTo: { words: string; ends: ClipEnds | null } | null;
   /**
+   * On a video, the stretch of it Panki AI has heard: the subtitles the first message sent, and any later one's wider
+   * ones, as one stretch. Null until a message goes, or off a video.
+   */
+  heard: Stretch | null;
+  /**
    * How much of the video the conversation hears each way, as its settings set it (`ConversationKnobs.reach`), from the
    * next message on: null until it's set, each card starting at the default; and the notes each change wrote where it
    * was made.
@@ -281,9 +287,17 @@ const NO_TOUCH: Touch = {
   asking: null,
   asked: 0,
   clipTo: null,
+  heard: null,
   reach: null,
   marks: [],
 };
+/** Two stretches of the video as one, from the first's start to the last's end; either missing, the other. */
+const spanJoined = (a: Stretch | null, b: Stretch | null): Stretch | null => (a && b ? { from: Math.min(a.from, b.from), to: Math.max(a.to, b.to) } : (a ?? b));
+/**
+ * How the Clip's bar shows what Panki AI heard (`HeardLook`), on trial: the switch beside the Clip's name sets it for
+ * every drawer after, until the page goes. Picked for good, this and the switch go.
+ */
+let heardLookNow: HeardLook = "edges";
 /** A proposal a commit made, kept with the commit: its key, the colour it was drawn in, and how it was decided, once it was. */
 type Change = { key: TouchUpKey; tone: Tone; decided?: "accepted" | "dismissed" };
 /** The Conversation with a key's proposal decided, on the latest commit that proposed for it. */
@@ -341,7 +355,8 @@ export type ClipOffer = {
   /** The stretch its bar shows from edge to edge and its ends keep inside (the word's: its sentence's clip); null for a bar that shows the cut with room around it. */
   within: { from: number; to: number } | null;
   /** When each word that was heard begins. */
-  ticks: readonly number[];
+  /** Where its ends stop as they're pulled, and the ticks on its bar: the clip's at sentences, the word's at words. */
+  ticks: readonly Tick[];
   /** Whether any of it is being played right now: round and round, or once after an end was moved. */
   playing: boolean;
   /** Where it paused, in the video's seconds, while that's inside it: Play goes on from there, and its bar stands there. Null otherwise. */
@@ -552,6 +567,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** Panki AI as the worker keeps it: unknown until it answers; null signed out; or why it couldn't be told. */
   const [ai, setAi] = useState<{ known: boolean; ai: AiShown | null; failure: string | null }>({ known: false, ai: null, failure: null });
   const [touch, setTouch] = useState<Touch>(NO_TOUCH);
+  // On trial (`heardLookNow`): how the Clip's bar shows what Panki AI heard.
+  const [heardLook, setHeardLook] = useState<HeardLook>(heardLookNow);
   /**
    * The actions ticked on the composer for its next send, by id: null while they're the account's defaults, ticked as a
    * card's conversation opens (read once Panki AI is known); none after each send.
@@ -874,7 +891,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const asking = begun ? sendPieces(send, touchKeys, book) : {};
     // The subtitles numbered a line each, as the server sends them (`cardPiecesOf`); what goes to the server stays as it is.
     const ceiling = ceilingOf(settings, template, cardPiecesOf(first.pieces), said, asking, maxTokens, sendPieces(opening, touchKeys, book));
-    return { run, keys, required, read, send, opening, first, said, template, maxTokens, asking, ceiling };
+    return { run, keys, required, read, send, opening, first, said, template, maxTokens, asking, ceiling, widerReach: reach };
   }
   /** Whether a send would send anything: Panki AI able to run, nothing on its way, a field left to answer, and a field it requires or words to say. */
   const sendable = (sent: Sent) =>
@@ -924,6 +941,9 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const ready = prepared(sent, aiSettings);
     const { run, required, read, send, opening, first, said } = ready;
     const firstSend = !begun;
+    // What of the video this send hears: the first's surrounding subtitles, a later one's wider ones where it has them.
+    const heardReach = firstSend ? reachOf(litOf(sent.actions), touch.reach) : send.wider ? ready.widerReach : null;
+    const heardNow = heardReach !== null ? (capture.more?.(aiSettings)?.spanOf?.(heardReach) ?? null) : null;
     const runs = touch.runs + (run !== null ? 1 : 0);
     const call = startCall({
       label: run !== null ? (runs === 1 ? run : `${run} ${runs}`) : `${TOUCH_WORDS.message} ${touch.asked + 1}`,
@@ -953,6 +973,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       asked: run !== null ? was.asked : was.asked + 1,
       asking: pending,
       ...(firstSend ? { first: read, opening: send, meanings: read.meanings } : {}),
+      heard: spanJoined(was.heard, heardNow),
     }));
     const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }) });
     const now = Date.now();
@@ -1274,6 +1295,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       }
     }
     decide(key, "accepted");
+  }
+  /** Where Accept on the Sentence proposal waiting now would put the clip; null with none waiting, off a video, or when its words aren't in the subtitles kept. */
+  function clipProposed(): { start: number; end: number } | null {
+    if (!waiting("sentence")) return null;
+    const verdict = fieldVerdict("sentence");
+    return verdict && "proposed" in verdict ? (clipToFor(verdict.proposed)?.ends ?? null) : null;
   }
   /** Where the clip goes for the Sentence proposed, as worked out when it landed; null off a video or for other words. */
   const clipToFor = (proposed: string) => (touch.clipTo && touch.clipTo.words === proposed ? touch.clipTo : null);
@@ -1843,11 +1870,50 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       offer.move(which, seconds, "exact");
       offer.settle(which);
     };
+    // The clip's alone: where Accept on the waiting Sentence would put it, and what Panki AI heard of the video.
+    const proposed = what === "clip" ? clipProposed() : null;
+    const heard = what === "clip" ? touch.heard : null;
+    // An end Accept would move: struck red, its new time green after it, as the Touch up diff draws a change.
+    const moves = (now: number, to: number | undefined) => to !== undefined && Math.abs(to - now) >= 0.005;
+    const stampAt = (which: ClipEnd, at: number, to: number | undefined) =>
+      moves(at, to) ? (
+        <>
+          <span className="capture-stamp-was">
+            <Stamp id={`panki-${what}-${which}`} name={which === "start" ? "Where it starts" : "Where it ends"} at={at} disabled={still} onSet={set(which)} />
+          </span>{" "}
+          <Mark>{stamp(to ?? at)}</Mark>
+        </>
+      ) : (
+        <Stamp id={`panki-${what}-${which}`} name={which === "start" ? "Where it starts" : "Where it ends"} at={at} disabled={still} onSet={set(which)} />
+      );
     return (
       <div className="field capture-clip">
         {/* Whether it's kept with its picture or as sound alone is the mapping's to say, not a switch here. */}
-        <span className="field-label">{name}</span>
+        <span className="field-label">
+          {name}
+          {heard ? (
+            // On trial: the two ways of showing what Panki AI heard, until one is picked.
+            <span className="trim-heard-look" role="group" aria-label="How what Panki AI heard is shown">
+              {(["edges", "overview"] as const).map((look) => (
+                <button
+                  key={look}
+                  type="button"
+                  aria-pressed={heardLook === look}
+                  onClick={() => {
+                    heardLookNow = look;
+                    setHeardLook(look);
+                  }}
+                >
+                  {look === "edges" ? "E · Edges" : "G · Overview"}
+                </button>
+              ))}
+            </span>
+          ) : null}
+        </span>
         <Trim
+          proposed={proposed}
+          heard={heard}
+          heardLook={heardLook}
           video={offer.video}
           start={offer.start}
           end={offer.end}
@@ -1873,10 +1939,16 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             </span>
           ) : (
             <span className="capture-stamp">
-              <Stamp id={`panki-${what}-start`} name="Where it starts" at={offer.start} disabled={still} onSet={set("start")} />
+              {stampAt("start", offer.start, proposed?.start)}
               to
-              <Stamp id={`panki-${what}-end`} name="Where it ends" at={offer.end} disabled={still} onSet={set("end")} />
-              <span className="capture-length">{(offer.end - offer.start).toFixed(2)} s</span>
+              {stampAt("end", offer.end, proposed?.end)}
+              {proposed && (moves(offer.start, proposed.start) || moves(offer.end, proposed.end)) ? (
+                <span className="capture-length">
+                  <Mark out="bad">{`${(offer.end - offer.start).toFixed(2)} s`}</Mark> <Mark>{`${(proposed.end - proposed.start).toFixed(2)} s`}</Mark>
+                </span>
+              ) : (
+                <span className="capture-length">{(offer.end - offer.start).toFixed(2)} s</span>
+              )}
             </span>
           )}
         </div>

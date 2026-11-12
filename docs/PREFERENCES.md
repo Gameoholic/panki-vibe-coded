@@ -79,6 +79,7 @@ Every piece of UI built in Panki, the app and the extension, leans this way, and
 
 ## Tooling
 
+- **The owner is never asked to approve a command.** Every rule below is how: a step that would make the harness ask is done another way (Read, Grep, Glob, Edit, Write), and one that can't be is said in a line instead of run. Said again by the owner on 2026-11-12, after a turn of chained `sed`, `node -e` and piped commands.
 - Files are changed with Edit and Write, never through the shell: no `sed -i`, heredocs, `head`/`tail` splices, `cat >>`, `node` edit scripts, shell variables like `$TEMP`, or chained commands. Every file: the repo, the scratchpad, artifacts, memory. Each of those makes the harness ask the owner for permission.
 - A shell command is one plain step: `pnpm typecheck`, `pnpm build`, `git status`, `git add -A`, `git commit -m "…"`.
 - A rename across many files is Grep, then Edit per file. A brief for another session spells this out as a rule and never allows a scripted rename.

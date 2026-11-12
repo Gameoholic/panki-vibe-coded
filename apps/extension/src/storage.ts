@@ -64,7 +64,7 @@ const Stored = z.object({
   defaultDeckId: DeckId.nullable().catch(null),
   // A browser that kept `drawerLayout` (a choice of the drawer's layout) keeps it unread.
   // A browser that kept `clipToWords` (whether a clip's end snapped to the edges of words as it was pulled) keeps it
-  // unread: an end goes where it's put, Alt held snaps it.
+  // unread: an end stops at sentences (words, on the word's bar), Shift held puts it exactly.
   /** The key held to look a word up by pointing at it, everywhere but Panki's subtitles: Key to hold globally. */
   lookKey: LookKey.catch("shift"),
   /**

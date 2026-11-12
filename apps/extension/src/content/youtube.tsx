@@ -7,7 +7,7 @@ import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
 import { createReplay } from "../capture/replay";
-import { sentenceAround, takeSelection, type Taken } from "../capture/selection";
+import { sentenceAround, sentencesIn, takeSelection, type Taken } from "../capture/selection";
 import { pageSource } from "../capture/source";
 import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
@@ -56,7 +56,7 @@ import { SpeedControl } from "../ui/SpeedControl";
 import { SeekMark, markOf, type ClipMark, type Pinned } from "../ui/SeekMark";
 import { TranscribeMenu, type AiPart, type Seconds } from "../ui/TranscribeMenu";
 import { OverLineEditor, StripEditor, type EditorActions, type EditorLine } from "../ui/TranscriptEditor";
-import type { ClipEnd, MoveBy } from "../ui/Trim";
+import type { ClipEnd, MoveBy, Tick } from "../ui/Trim";
 
 /**
  * Panki on a video page. What the video's captions say stands under the player as words to press; a press, the
@@ -371,7 +371,16 @@ function videoPieces(limits: PieceLimits): VideoMore {
   const { title, channel } = aboutVideo();
   const source = [title, channel ? `on ${channel.name}` : "", youtubeUrl({ videoId: id, seconds: Math.floor(at) })].filter((part) => part !== "").join(", ");
   const shown = lines.snapshot();
-  const reached = (reach: number) => (reach > 0 ? shown.flatMap((line, i) => (line.start <= at + reach && (line.end ?? line.start) >= at - reach ? [{ n: i + 1, text: line.text.replace(/\s*\n\s*/g, " ") }] : [])) : []);
+  const reached = (reach: number) =>
+    reach > 0
+      ? shown.flatMap((line, i) => (line.start <= at + reach && (line.end ?? line.start) >= at - reach ? [{ n: i + 1, text: line.text.replace(/\s*\n\s*/g, " "), start: line.start, end: line.end ?? line.start }] : []))
+      : [];
+  /** Where the lines a message that far reaches begin and end: the stretch it hears. */
+  const spanOf = (reach: number) => {
+    const got = reached(reach);
+    const first = got[0];
+    return first ? { from: first.start, to: Math.max(...got.map((line) => line.end)) } : null;
+  };
   const around = (reach: number) =>
     reached(reach)
       .map((line) => line.text)
@@ -381,7 +390,7 @@ function videoPieces(limits: PieceLimits): VideoMore {
       .map((line) => `${line.n}\t${line.text}`)
       .join("\n");
   const description = descriptionText().slice(0, limits.aiMaxDescriptionChars);
-  return { pieces: { source, description }, around, numbered, linesOf: (sentence: string) => linesHeldOf(shown, sentence, at) };
+  return { pieces: { source, description }, around, numbered, linesOf: (sentence: string) => linesHeldOf(shown, sentence, at), spanOf };
 }
 
 /**
@@ -1350,6 +1359,40 @@ function withEdges(text: string, words: string, run: { from: number; to: number 
   return { from, to };
 }
 
+/** Where a pulled end of a cut stops (unless Shift is held), each a start or an end: also the ticks on its bar. */
+type Stops = { starts: readonly number[]; ends: readonly number[] };
+const NO_STOPS: Stops = { starts: [], ends: [] };
+/**
+ * The clip's stops: where each sentence's clip as it was said begins and ends (`saidEnds`: its lead held back from
+ * the words before, its tail from the words after), so an end pulled to a sentence's edge is exactly the clip taken as
+ * said. Sentences found as the drawer finds them (`sentencesIn`, by their full stops); the words before and after are
+ * the beats next to the sentence's own, read once in order, as long as the transcript is.
+ */
+function sentenceStops(text: string, beats: readonly Beat[]): Stops {
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let i = 0;
+  for (const sentence of sentencesIn(text)) {
+    while (i < beats.length && (beats[i] as Beat).to <= sentence.from) i++;
+    let j = i;
+    while (j < beats.length && (beats[j] as Beat).from < sentence.to) j++;
+    const first = beats[i];
+    const last = beats[j - 1];
+    if (!first || !last || j <= i) continue;
+    starts.push(beginsAt(first, beats[i - 1]));
+    const end = endsAt(last, beats[j]);
+    if (end !== null) ends.push(end);
+    i = j;
+  }
+  return { starts, ends };
+}
+/** The word's own stops: every word's edges, the word's bar being a cut out of one sentence. */
+function wordStops(beats: readonly Beat[]): Stops {
+  return { starts: beats.map((beat, i) => beginsAt(beat, beats[i - 1])), ends: beats.flatMap((beat, i) => endsAt(beat, beats[i + 1]) ?? []) };
+}
+/** Stops as a bar's ticks. */
+const ticksOf = (stops: Stops): Tick[] => [...stops.starts.map((at) => ({ at, kind: "start" as const })), ...stops.ends.map((at) => ({ at, kind: "end" as const }))];
+
 /**
  * Where the clip's ends go for some words (an accepted Touch up Sentence): the words found as a run of the lines kept
  * (`runsOf`, spaces and punctuation aside, then out over the punctuation they begin and end with, `withEdges`), the one nearest `near` where they're there more than once, and its ends
@@ -2144,8 +2187,15 @@ function App() {
     });
   /** The pick, said in what's under the player now: its lines may have moved on since it was made. */
   const pickedUnder = taking?.of === "caption" && !taking.added && taking.chars && clip ? reread(taking.chars, clip.base, underText.parts) : null;
-  /** Every word that's been heard and is still kept, with when: the ticks on the clip's bar, and where an end stops when it's set to stop at words. */
-  const heard = clip ? beatsOf(transcriptOf(view.lines).parts) : [];
+  /** Every word that's been heard and is still kept, with when; worked out again only when the lines change, as long as the transcript is. */
+  const heardText = useMemo(() => (clip ? transcriptOf(view.lines) : null), [clip !== null, view.lines]);
+  const heard = useMemo(() => (heardText ? beatsOf(heardText.parts) : []), [heardText]);
+  /** Where a pulled end stops, and the ticks on each bar: the clip's at sentences, the word's at words. */
+  const sentenceEdges = useMemo(() => (heardText ? sentenceStops(heardText.text, heard) : NO_STOPS), [heardText, heard]);
+  const wordEdges = useMemo(() => wordStops(heard), [heard]);
+  const clipTicks = useMemo(() => ticksOf(sentenceEdges), [sentenceEdges]);
+  // A word's bar ticks where each word begins alone: its ends fall on the next word's start.
+  const wordTicks = useMemo(() => ticksOf({ starts: wordEdges.starts, ends: [] }), [wordEdges]);
 
   /** The transcript's words by id, as it stands: which words Panki AI edited, and the editors' lines. */
   const wordsById = useMemo(() => new Map((tx.transcript?.words ?? []).map((w) => [w.id, w])), [tx.transcript]);
@@ -2616,18 +2666,21 @@ function App() {
     ends.current = { ...ends.current, [cut]: next };
     if (played.current === cut) replay.retarget({ from: next.start, to: next.end });
   }
-  /** An end is moved: exactly where it's put, or to the nearest word's edge. Never past the other end, nor out of the video (the word's: nor out of the clip), nor to a cut too long to keep. And not at all while something is being recorded. */
+  /**
+   * An end is moved: to the nearest of its cut's stops (the clip's at sentences, the word's at words), or exactly
+   * where it's put (Shift held, the arrow keys, a time typed). Never past the other end, nor out of the video (the
+   * word's: nor out of the clip), nor to a cut too long to keep. And not at all while something is being recorded.
+   */
   function moveEnd(cut: Cut, which: ClipEnd, to: number, by: MoveBy) {
     const now = ends.current[cut];
     if (recording || touching || !video || !clip || !now || now.end === null) return;
     const around = ends.current.clip;
     const limit = cut === "word" && around && around.end !== null ? { from: around.start, to: around.end } : limitOf(video);
+    const stops = by === "snap" ? (cut === "clip" ? sentenceEdges : wordEdges) : NO_STOPS;
     if (which === "start") {
-      const stops = by === "word" ? heard.map((beat, i) => beginsAt(beat, heard[i - 1])) : [];
-      setEnds(cut, { start: restAt(to, Math.max(limit.from, now.end - CLIP_MAX_SECONDS), now.end - CLIP_MIN, stops), end: now.end });
+      setEnds(cut, { start: restAt(to, Math.max(limit.from, now.end - CLIP_MAX_SECONDS), now.end - CLIP_MIN, stops.starts), end: now.end });
     } else {
-      const stops = by === "word" ? heard.flatMap((beat, i) => endsAt(beat, heard[i + 1]) ?? []) : [];
-      setEnds(cut, { start: now.start, end: restAt(to, now.start + CLIP_MIN, Math.min(limit.to, now.start + CLIP_MAX_SECONDS), stops) });
+      setEnds(cut, { start: now.start, end: restAt(to, now.start + CLIP_MIN, Math.min(limit.to, now.start + CLIP_MAX_SECONDS), stops.ends) });
     }
   }
   /**
@@ -2766,7 +2819,7 @@ function App() {
             limit: limitOf(player),
             // The word is cut out of the clip: its bar is the clip, end to end.
             within: cut === "word" && clip.end !== null ? { from: clip.start, to: clip.end } : null,
-            ticks: heard.map((beat) => beat.start),
+            ticks: cut === "clip" ? clipTicks : wordTicks,
             playing: replaying !== null && played.current === cut,
             pausedAt: replaying === null ? restOf(cut, now) : null,
             anchor,
