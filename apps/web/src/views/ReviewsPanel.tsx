@@ -134,9 +134,9 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
       />
       <Setting
         id="timeStudying"
-        label="Time studying"
+        label="Time elapsed"
         control={<Toggle id="setting-time-studying" says={{ on: "Shown", off: "Hidden" }} on={current.timeStudying} onChange={(timeStudying) => patch({ timeStudying })} />}
-        explain={{ name: "Time studying", scene: <TimeStudyingScene /> }}
+        explain={{ name: "Time elapsed", scene: <TimeStudyingScene /> }}
       />
     </section>
   );

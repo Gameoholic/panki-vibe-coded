@@ -196,7 +196,7 @@ export function TimeLeftScene() {
 }
 
 /**
- * Time studying: the counts' line leaned in on, "12 min studying" after the time left, ticking on a minute and another
+ * Time elapsed: the counts' line leaned in on, "12 min elapsed" after the time left, ticking on a minute and another
  * as the review goes on, a card answered between. Held still, the line as it opens.
  */
 export function TimeStudyingScene() {
