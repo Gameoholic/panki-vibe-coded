@@ -357,6 +357,8 @@ export type ClipOffer = {
   /** When each word that was heard begins. */
   /** Where its ends stop as they're pulled, and the ticks on its bar: the clip's at sentences, the word's at words. */
   ticks: readonly Tick[];
+  /** On trial: whether clips get their lead and tail, and switching it (the page's `roomOn`). */
+  room?: { on: boolean; set: (on: boolean) => void };
   /** Whether any of it is being played right now: round and round, or once after an end was moved. */
   playing: boolean;
   /** Where it paused, in the video's seconds, while that's inside it: Play goes on from there, and its bar stands there. Null otherwise. */
@@ -1907,6 +1909,14 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
                   {look === "edges" ? "E · Edges" : "G · Overview"}
                 </button>
               ))}
+            </span>
+          ) : null}
+          {what === "clip" && offer.room ? (
+            // On trial: a clip with its lead and tail (0.35 s before its first word, 0.25 s after its last), or without.
+            <span className="trim-heard-look">
+              <button type="button" aria-pressed={offer.room.on} onClick={() => offer.room?.set(!offer.room.on)} title="0.35 s before a clip's first word, 0.25 s after its last">
+                Lead and tail
+              </button>
             </span>
           ) : null}
         </span>

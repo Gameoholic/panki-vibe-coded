@@ -97,6 +97,14 @@ const DESCRIPTION = ["ytd-watch-metadata #description-inline-expander #expanded"
  */
 const LEAD = 0.35;
 const TAIL = 0.25;
+/**
+ * On trial (the owner, 2026-11-12): whether a clip gets its lead and tail at all, switched by the Lead and tail button
+ * beside the Clip's name. Off, a clip starts on its first word's start and ends on its last word's end, and the bar's
+ * stops are there too. Once settled, this and its switch go.
+ */
+let roomOn = true;
+const leadNow = () => (roomOn ? LEAD : 0);
+const tailNow = () => (roomOn ? TAIL : 0);
 /** A clip is never shorter than this, however its ends are pulled. */
 const CLIP_MIN = 0.3;
 /** A cut paused closer than this to its end plays again from its start: there's nothing left of it to go on with. */
@@ -1269,12 +1277,12 @@ const AS_SAID: Trim = { start: null, end: null };
  * caption's, timed as it was shown, have them whole.
  */
 function beginsAt(beat: Beat, before: Beat | undefined): number {
-  const lead = Math.max(0, beat.start - LEAD);
+  const lead = Math.max(0, beat.start - leadNow());
   return beat.over !== null && before !== undefined && before.over !== null ? Math.max(lead, Math.min(beat.start, before.over)) : lead;
 }
 function endsAt(beat: Beat, after: Beat | undefined): number | null {
-  if (beat.over === null) return beat.end === null ? null : beat.end + TAIL;
-  const tail = beat.over + TAIL;
+  if (beat.over === null) return beat.end === null ? null : beat.end + tailNow();
+  const tail = beat.over + tailNow();
   return after !== undefined && after.over !== null ? Math.min(tail, Math.max(beat.over, after.start)) : tail;
 }
 
@@ -1322,7 +1330,7 @@ function lastHeld(beats: readonly Beat[], end: number): Beat | null {
 function asSaidOf(said: { parts: Parts; found: { at: number; sentence: string }; start: number; end: number | null }): Ends {
   const stop = said.found.at + said.found.sentence.length;
   const own = beatsOf(said.parts).filter((beat) => beat.to > said.found.at && beat.from < stop);
-  const whole = { start: Math.max(0, said.start - LEAD), end: said.end === null ? null : said.end + TAIL };
+  const whole = { start: Math.max(0, said.start - leadNow()), end: said.end === null ? null : said.end + tailNow() };
   const first = own[0];
   if (!first || first.over === null) return whole;
   const kept = lines.snapshot();
@@ -2191,8 +2199,10 @@ function App() {
   const heardText = useMemo(() => (clip ? transcriptOf(view.lines) : null), [clip !== null, view.lines]);
   const heard = useMemo(() => (heardText ? beatsOf(heardText.parts) : []), [heardText]);
   /** Where a pulled end stops, and the ticks on each bar: the clip's at sentences, the word's at words. */
-  const sentenceEdges = useMemo(() => (heardText ? sentenceStops(heardText.text, heard) : NO_STOPS), [heardText, heard]);
-  const wordEdges = useMemo(() => wordStops(heard), [heard]);
+  // The trial switch for a clip's lead and tail (`roomOn`): flipped, every stop and the clip as said are worked out again.
+  const [padded, setPadded] = useState(roomOn);
+  const sentenceEdges = useMemo(() => (heardText ? sentenceStops(heardText.text, heard) : NO_STOPS), [heardText, heard, padded]);
+  const wordEdges = useMemo(() => wordStops(heard), [heard, padded]);
   const clipTicks = useMemo(() => ticksOf(sentenceEdges), [sentenceEdges]);
   // A word's bar ticks where each word begins alone: its ends fall on the next word's start.
   const wordTicks = useMemo(() => ticksOf({ starts: wordEdges.starts, ends: [] }), [wordEdges]);
@@ -2820,6 +2830,13 @@ function App() {
             // The word is cut out of the clip: its bar is the clip, end to end.
             within: cut === "word" && clip.end !== null ? { from: clip.start, to: clip.end } : null,
             ticks: cut === "clip" ? clipTicks : wordTicks,
+            room: {
+              on: padded,
+              set: (on: boolean) => {
+                roomOn = on;
+                setPadded(on);
+              },
+            },
             playing: replaying !== null && played.current === cut,
             pausedAt: replaying === null ? restOf(cut, now) : null,
             anchor,
