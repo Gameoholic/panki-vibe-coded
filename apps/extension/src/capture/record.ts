@@ -45,8 +45,8 @@ export type Stretch = {
 export type RecordFacts = { stoppedAt: number; width: number | null; height: number | null; frameRate: number | null; videoBits: number | null; audioBits: number | null };
 export type Recorded = { file: Blob; facts: RecordFacts };
 
-/** The longest a clip can be, whatever `until` says. */
-export const CLIP_MAX_SECONDS = 30;
+/** The longest a clip can be, whatever `until` says: about 10 MB at `VIDEO_BITS`, well inside a video's `MEDIA_MAX_BYTES`. 30 s until 2026-11-12. */
+export const CLIP_MAX_SECONDS = 60;
 /** How long the video may take to get going (a jump, a slow connection) before the recording gives up. */
 const STALL_MS = 12_000;
 
