@@ -1129,32 +1129,30 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    * field in the card type's order, the dot in its proposal's colour; a branch's field by name; a chip or a mark
    * pressed going to the field (`useHoist`'s `go`); Try again asking a failed follow-up again from where it was asked.
    */
+  /** A field's place in the card type, the order chips are drawn in. */
+  const fieldPlace = (fieldId: string) => (type?.fields ?? []).findIndex((f) => f.id === fieldId);
   const touchOf: ConversationOf<Change> = {
+    // What changed, a field it couldn't give left out: that's Failed's.
     chips: (made) => {
-      const fields = type?.fields ?? [];
-      const place = (fieldId: string) => fields.findIndex((f) => f.id === fieldId);
+      const failed = new Set((made.aside ?? []).map((each) => each.part));
       return made.changed
         .flatMap((change) => {
-          const field = keyField(change.key);
+          const field = failed.has(change.key) ? null : keyField(change.key);
           return field ? [{ id: field.id, name: field.name, tone: change.tone, state: chipState(made, change) }] : [];
         })
-        .sort((a, b) => place(a.id) - place(b.id));
+        .sort((a, b) => fieldPlace(a.id) - fieldPlace(b.id));
     },
-    // A part that came back with nothing to accept is said under the reply, by its field, so it never reads as nothing changed.
-    notes: (made) => {
-      const aside = (made.aside ?? []).flatMap(({ part, error }) => {
-        const key = TOUCH_UP_KEYS.find((each) => each === part);
-        const why = TouchUpErrorId.safeParse(error);
-        const field = key ? keyField(key) : null;
-        return field && why.success ? [{ id: field.id, words: `${field.name}: ${TOUCH_UP_ERRORS[why.data]}` }] : [];
-      });
-      return aside.map((each) => (
-        <p key={each.id} className="ai-explain-cut">
-          <Icon name="info" />
-          {each.words}
-        </p>
-      ));
-    },
+    // A part that came back with nothing to accept (couldn't decide, lines it couldn't use): a line of its own under
+    // Changed, so it never reads as nothing changed and never hides under the field alone.
+    failed: (made) =>
+      (made.aside ?? [])
+        .flatMap(({ part, error }) => {
+          const key = TOUCH_UP_KEYS.find((each) => each === part);
+          const why = TouchUpErrorId.safeParse(error);
+          const field = key ? keyField(key) : null;
+          return field && why.success ? [{ id: field.id, name: field.name, why: TOUCH_UP_ERRORS[why.data] }] : [];
+        })
+        .sort((a, b) => fieldPlace(a.id) - fieldPlace(b.id)),
     fieldName: (fieldId) => type?.fields.find((f) => f.id === fieldId)?.name ?? null,
     canRun: canTouch && touch.busy === false,
     onRetry: () => {

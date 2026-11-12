@@ -31,6 +31,8 @@ export const CONVERSATION_WORDS = {
   /** Before the chips of what a reply changed (`Changed`), and in their place when it changed nothing. */
   changed: "Changed:",
   changedNothing: "Changed nothing",
+  /** Before the chips of what a reply was asked for and couldn't give (`Failed`), on a line of their own under Changed. */
+  failed: "Failed:",
   /** The line a merged branch's questions that changed nothing are folded under, in the head. */
   foldedNothing: (n: number) => `${n} ${wordFor(n, "message", "messages")} · Changed nothing`,
   /** The line a field's branch folds under. */
@@ -52,6 +54,8 @@ export const TONE_CLASS: Record<Tone, string> = { good: "ai-judgement is-good", 
 export type ChipState = "live" | "accepted" | "dismissed" | "replaced";
 /** Something a reply changed, as its chip draws it: where a press goes (`id`, handed to `onGo`), its name, its colour, how it stands. */
 export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipState };
+/** Something a reply couldn't give, as its chip draws it: where a press goes (`id`), its name, and why, in Panki's words. */
+export type FailedChip = { id: string; name: string; why: string };
 
 export type Failure = { message: string; retry: boolean };
 /**
@@ -69,6 +73,11 @@ export type ConversationOf<C> = {
    * change anything (a plain answer), with no line at all.
    */
   chips: (commit: Commit<C>) => readonly ChangeChip[] | null;
+  /**
+   * What a commit was asked for and couldn't give (a field Panki AI couldn't decide, lines it couldn't use), a chip
+   * each: its own line under Changed, in red. None, no line.
+   */
+  failed?: (commit: Commit<C>) => readonly FailedChip[];
   /** Panki's own words under a reply, never the AI's (Explain's "Cut short at the answer limit."). */
   notes?: (commit: Commit<C>) => ReactNode;
   /** A field's name, by its id: a merged branch's mark in the head. Only a place whose messages have branches gives it. */
@@ -107,6 +116,7 @@ type Drawn = {
   notes: ReactNode;
   failure: Failure | null;
   chips: readonly ChangeChip[] | null;
+  failed: readonly FailedChip[];
   /** In the head, the commits of its branch that changed nothing and were merged with it. */
   folded: readonly Drawn[];
 };
@@ -123,10 +133,11 @@ function drawnOf<C>(made: Commit<C>, of: ConversationOf<C>, marked: boolean): Dr
     notes: of.notes?.(made) ?? null,
     failure: null,
     chips: of.chips(made),
+    failed: of.failed?.(made) ?? [],
     folded: [],
   };
 }
-const askingDrawn = (asking: Asking): Drawn => ({ ...asking, about: null, reply: null, notes: null, chips: null, folded: [] });
+const askingDrawn = (asking: Asking): Drawn => ({ ...asking, about: null, reply: null, notes: null, chips: null, failed: [], folded: [] });
 
 /** A chip's state in words, for a screen reader: the dot or the tick says it to the eye. */
 const CHIP_STATE_WORDS: Record<ChipState, string> = { live: "waiting", accepted: "accepted", dismissed: "dismissed", replaced: "replaced" };
@@ -144,6 +155,24 @@ function Changed({ chips, onGo }: { chips: readonly ChangeChip[]; onGo: (target:
       {chips.map((chip) => (
         <Button key={chip.id} variant="chip" className={`ai-chip ${TONE_CLASS[chip.tone]} is-${chip.state}`} aria-label={`${chip.name}, ${CHIP_STATE_WORDS[chip.state]}`} onClick={() => onGo(chip.id)}>
           {chip.state === "accepted" ? <Icon name="check" /> : <span className="ai-chip-dot" aria-hidden="true" />}
+          {chip.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * What a reply was asked for and couldn't give, on its own line under what it changed: "Failed:" in red and a chip
+ * each, its why on hover; pressed, it goes to the field, where the why stands in full.
+ */
+function Failed({ chips, onGo }: { chips: readonly FailedChip[]; onGo: (target: string) => void }) {
+  return (
+    <div className="ai-changed is-failed">
+      {CONVERSATION_WORDS.failed}
+      {chips.map((chip) => (
+        <Button key={chip.id} variant="chip" className="ai-chip ai-judgement is-bad is-failed" title={chip.why} aria-label={`${chip.name}, failed: ${chip.why}`} onClick={() => onGo(chip.id)}>
+          <Icon name="close" />
           {chip.name}
         </Button>
       ))}
@@ -206,6 +235,7 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
         <AnswerText text={turn.reply ?? ""}>
           {turn.notes}
           {turn.chips !== null ? <Changed chips={turn.chips} onGo={onGo} /> : null}
+          {turn.failed.length > 0 ? <Failed chips={turn.failed} onGo={onGo} /> : null}
         </AnswerText>
       )}
     </div>
