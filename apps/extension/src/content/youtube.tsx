@@ -2459,30 +2459,24 @@ function App() {
 
   const close = useCallback(() => {
     pauseAfter = null;
-    const stood = replay.leave();
-    // Put back where it stood before a clip was played, and going again if it was. A video that's playing by now was
-    // started by hand, and is left be.
-    if (video?.paused) {
-      if (stood !== null && Math.abs(video.currentTime - stood) > 0.05) video.currentTime = stood;
-      if (wasPlaying) void video.play().catch(() => undefined);
-    }
+    replay.leave();
+    // It goes on from exactly where it is now, never moved: going again if it was before the drawer held it. A video
+    // that's playing by now was started by hand, and is left be.
+    if (video?.paused && wasPlaying) void video.play().catch(() => undefined);
     wasPlaying = false;
     setTaking(null);
   }, []);
   /**
    * The card is in, so playing the video while the drawer still says Added never goes back into the clip: the video
    * is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
-   * with it; the drawer stays only to say Added, then closes as it always did. It goes on from the clip's last moment,
-   * as the card has it, whatever the video did while the drawer held it (where it stood before the clip was first
-   * played is let go: the clip's ends pulled in, or another sentence taken, make it the wrong place). Whether it then
-   * plays is the options page's After adding a card (`afterAdd`): as it was before the drawer held it (a video started
-   * by hand since is left be), paused, or playing.
+   * with it; the drawer stays only to say Added, then closes as it always did. It goes on from exactly where it is
+   * now, never moved (a recording puts the video back where it was before it, `record.ts`). Whether it then plays is the options page's After
+   * adding a card (`afterAdd`): as it was before the drawer held it (a video started by hand since is left be), paused,
+   * or playing.
    */
   const letGo = useCallback(() => {
     pauseAfter = null;
     replay.leave();
-    const end = ends.current.clip?.end ?? null;
-    if (video?.paused && end !== null && Math.abs(video.currentTime - end) > 0.05) video.currentTime = end;
     const then = modules.get().afterAdd;
     if (video && then === "pause") video.pause();
     else if (video?.paused && (then === "play" || wasPlaying)) void video.play().catch(() => undefined);

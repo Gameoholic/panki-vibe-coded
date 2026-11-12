@@ -4,8 +4,8 @@
  * until it's stopped, or once (the second around an end that was just moved). Nothing is recorded and nothing is
  * fetched: the video is moved to where the stretch begins and stopped, or sent back, where it ends.
  *
- * It also remembers where the video stood before the first time it was moved, so that whoever opened the panel can
- * put it back when the panel closes: looking a clip over must not lose someone their place in the video.
+ * It also remembers where the video stood before the first time it was moved, given back as the panel closes
+ * (`leave`); the video page leaves the video where it is then, so it goes on from exactly there.
  */
 
 /** How it's being played: round and round, or once. */
