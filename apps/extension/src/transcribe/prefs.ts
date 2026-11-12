@@ -30,10 +30,15 @@ export const TranscribePrefs = z.object({
   markOver: z.boolean(),
   /** How Panki's marks on the video's seek bar look (`seekLook.ts`): this viewer's. */
   seek: SeekLook,
-  /** The colour the picked word is lit in, under the player and over the video (`Line`'s `pickColour`): the Clip's to begin with. */
+  /** The colour the picked word is lit in, under the player and over the video (`Line`'s `pickColour`): Panki blue to begin with. */
   pick: MarkPaint,
+  /**
+   * The colour a word in Panki's subtitles takes where you added a card for it (`capture/known.ts` → `cameFromHere`),
+   * the same word elsewhere tinted by its stage: the subtitles' own, apart from the seek bar's mark of the same.
+   */
+  added: MarkPaint,
   /** The transcription mode this viewer picked in the strip's menu, among those an admin left on; null for the one everyone starts on (`modeOf`). */
   mode: TranscribeMode.nullable(),
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: DEFAULT_SEEK_LOOK.clip.colour, mode: null };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: "accent", added: "violet", mode: null };

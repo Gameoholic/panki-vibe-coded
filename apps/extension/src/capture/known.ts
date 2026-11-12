@@ -139,9 +139,10 @@ export const stageCssOf = (colours: ReadonlyMap<string, string>, term: string | 
 const CLIP_SLACK_MS = 250;
 /**
  * The card a word that's in the decks was added from, when this is where it was: one of the word's cards (as the pop-up
- * has them) taken from the video on the page (`VideoCard`, the seek bar's Where cards came from), whose clip holds the
- * moment this word is said (`atMs`, the video's time). The same word said elsewhere in the video is none, and marked by
- * its stage as any word in the decks, as the seek bar marks only the clip.
+ * has them) taken from the video on the page (`VideoCard`, the seek bar's Where you added a card), whose clip holds the
+ * moment this word is said (`atMs`, the video's time); Panki's subtitles tint it in their own Where you added a card
+ * colour (`TranscribePrefs.added`). The same word said elsewhere in the video is none, and marked by its stage as any
+ * word in the decks, as the seek bar marks only the clip.
  */
 export function cameFromHere(known: Pick<KnownNow, "cards">, videoCards: readonly VideoCard[], token: Pick<Token, "term">, atMs: number): VideoCard | null {
   if (token.term === undefined || videoCards.length === 0) return null;

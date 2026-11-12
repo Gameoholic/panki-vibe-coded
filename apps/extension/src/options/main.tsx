@@ -402,6 +402,23 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
           />
         }
       />
+      {/* A word in the subtitles where you added a card for it, the same word elsewhere tinted by its stage; the seek bar's mark of the same has its own. */}
+      <Setting
+        id="added-colour"
+        label="Where you added a card colour"
+        control={
+          <Swatches
+            id="added-colour"
+            swatches={MARK_SWATCHES}
+            value={store.addedColour}
+            disabled={off}
+            onChange={(value) => {
+              const addedColour = paintOf(value);
+              if (addedColour) void writeStore({ addedColour }).then(onChanged);
+            }}
+          />
+        }
+      />
       <Setting
         id="after-add"
         label="After adding a card"

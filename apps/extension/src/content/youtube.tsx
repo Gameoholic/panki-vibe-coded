@@ -38,7 +38,7 @@ import { SaveControl } from "../ui/SaveControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
 import type { Cut } from "../roles";
-import { NEW_PAINT, paintCss } from "../seekLook";
+import { paintCss } from "../seekLook";
 import { comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
 import { createLineSource } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
@@ -1627,17 +1627,16 @@ type RowProps = {
 function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, editedAt = null, waiting = false }: RowProps) {
   const tokens = useWords(text, forced);
   // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`): by their stage, but where a
-  // card was added from (its clip in this video), in the seek bar's Where cards came from colour; the word picked in its own colour.
+  // card was added from (its clip in this video), in the subtitles' own Where you added a card colour; the word picked in its own colour.
   const known = useKnown();
-  const { seek, pick } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
+  const { added, pick } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
   const videoCards = useSyncExternalStore(carded.subscribe, carded.get);
   const tintAt = (i: number) => {
     const token = tokens[i];
     if (!token) return tintOf(knownCssOf(known, {}));
     const place = placeOf(at + token.start);
     const from = place ? cameFromHere(known, videoCards, token, Math.round(place.time * 1000)) : null;
-    if (!from) return tintOf(knownCssOf(known, token));
-    return tintOf(seek.cards.byStage ? (from.colour ?? paintCss(NEW_PAINT)) : paintCss(seek.cards.colour));
+    return tintOf(from ? paintCss(added) : knownCssOf(known, token));
   };
   const knownHere =
     known.subtitles && known.words.size > 0

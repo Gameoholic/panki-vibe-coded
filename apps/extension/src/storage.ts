@@ -138,6 +138,8 @@ const Stored = z.object({
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
   /** The picked word's colour in Panki's subtitles (`transcribe/prefs.ts` → `pick`), set on the options page (Videos → Panki panel). */
   pickColour: MarkPaint.catch(DEFAULT_PREFS.pick),
+  /** A subtitle word's colour where you added a card for it (`transcribe/prefs.ts` → `added`), set on the options page (Videos → Panki panel). */
+  addedColour: MarkPaint.catch(DEFAULT_PREFS.added),
   /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
   transcribeMode: TranscribeMode.nullable().catch(DEFAULT_PREFS.mode),
   /** Which of Panki's parts are on, and what happens where a video was stopped (`modules.ts`), set on the options page; `pankiOn` in the strip's head too. */
@@ -227,6 +229,7 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   markOver: store.markOver,
   seek: store.seekLook,
   pick: store.pickColour,
+  added: store.addedColour,
   mode: store.transcribeMode,
 });
 
