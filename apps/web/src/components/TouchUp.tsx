@@ -65,8 +65,10 @@ export const TOUCH_UP_WORDS = {
   customMeaning: (n: number) => `Custom meaning ${n}`,
   /** What the Meaning list says while Panki AI's proposed meaning is the field's. */
   meaningProposed: "Panki AI's meaning",
-  /** Under a Sentence proposal on a video: where Accept puts the clip's ends, its two times as a clip's stamp writes them. */
-  clipMoves: (start: string, end: string) => `Accept also moves the clip to ${start} – ${end}.`,
+  /** Under a Sentence proposal on a video, before where Accept puts the clip's ends and its length, drawn as a diff of where it is (`ClipMove`). */
+  clipMoves: "Accept also moves the clip:",
+  /** A clip's length, as the drawer writes it beside its two ends. */
+  clipLength: (seconds: number) => `${seconds.toFixed(2)} s`,
   /** The same, when the proposed words aren't in the subtitles kept: Accept writes the sentence and leaves the clip. */
   clipStays: "The clip stays as it is.",
   accept: "Accept",
@@ -232,7 +234,7 @@ const nothingShown = (why: string): Shown => ({ tone: "good", diff: null, note: 
  * A proposal: its title, its why open, what else Accept does (`also`: the Sentence's clip on a video), and the two ways
  * out, always Accept and Dismiss. Nothing is written until one is pressed.
  */
-function Proposal({ title, why, also, onAccept, onDismiss }: { title: string; why: string; also?: string | null; onAccept: () => void; onDismiss: () => void }) {
+function Proposal({ title, why, also, onAccept, onDismiss }: { title: string; why: string; also?: ReactNode; onAccept: () => void; onDismiss: () => void }) {
   return (
     <div className="touch-up-note">
       <WithReason open reason={why} head={head(title)} />
@@ -253,9 +255,35 @@ function Proposal({ title, why, also, onAccept, onDismiss }: { title: string; wh
 
 /**
  * What a proposal does once pressed, and whether it still waits (decided, nothing of it is drawn but its field); `also`
- * is a line saying what else Accept does, given by whoever holds it (the drawer's `TOUCH_UP_WORDS.clipMoves`).
+ * is a line saying what else Accept does, given by whoever holds it (the drawer's `ClipMove`).
  */
-type Ways = { waiting: boolean; onAccept: () => void; onDismiss: () => void; also?: string | null };
+type Ways = { waiting: boolean; onAccept: () => void; onDismiss: () => void; also?: ReactNode };
+
+/** A clip's two ends, in the video's seconds; `end` null while its last words are still being said. */
+type ClipSpan = { start: number; end: number | null };
+/**
+ * Where Accept moves a clip, as a diff of where it is (`from`, null when there's none to compare with): each end and
+ * the length, plain where it stays, what goes struck in the proposal's colour (`out`) and what comes in green, the
+ * text diffs' own marks. "The clip stays as it is." when nothing of it moves.
+ */
+export function ClipMove({ from, to, stamp, out }: { from: ClipSpan | null; to: { start: number; end: number }; stamp: (seconds: number) => string; out: Exclude<Tone, "good"> }) {
+  const was = from ? { start: stamp(from.start), end: from.end === null ? null : stamp(from.end), length: from.end === null ? null : TOUCH_UP_WORDS.clipLength(from.end - from.start) } : null;
+  const now = { start: stamp(to.start), end: stamp(to.end), length: TOUCH_UP_WORDS.clipLength(to.end - to.start) };
+  if (was && was.start === now.start && was.end === now.end) return <>{TOUCH_UP_WORDS.clipStays}</>;
+  const part = (held: string | null | undefined, comes: string) =>
+    held === null || held === undefined || held === comes ? (
+      comes
+    ) : (
+      <>
+        <Mark out={out}>{held}</Mark> <Mark>{comes}</Mark>
+      </>
+    );
+  return (
+    <>
+      {TOUCH_UP_WORDS.clipMoves} {part(was?.start, now.start)} – {part(was?.end, now.end)} · {part(was?.length, now.length)}
+    </>
+  );
+}
 
 /** The error, the same under any field: Panki's own words for its code, in red, the why open, nothing to press. */
 const errorShown = (verdict: { error: keyof typeof TOUCH_UP_ERRORS; why: string }): Shown => ({

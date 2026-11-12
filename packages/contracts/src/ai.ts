@@ -381,7 +381,7 @@ What each field holds, proposed in "proposed" unless it says otherwise:
 - dictionaryForm: the dictionary form, as a dictionary lists it (for 思います, 思う).
 - reading: the dictionary form's reading, in kana, as it is read where it has this meaning (for 思います, おもう).
 - pitchAccent: the dictionary form's reading and the number of the mora after which the voice falls, 0 for never, as <pitch_accent> writes it (for example: くう 1).
-- sentence: the subtitle lines the card's clip plays: the line holding the word, with the lines around it that the word needs to be understood. Proposed as "first" and "last", the numbers of its first and last line, from <wider_video_subtitles> when the message has one and from <surrounding_video_subtitles> otherwise; Panki copies those lines as they are. 0 and 0 when nothing is proposed.
+- sentence: the subtitle lines the card's clip plays: the line holding the word, with the lines around it that the word needs to be understood. Proposed as "first" and "last", the numbers of its first and last line, from <wider_video_subtitles> when the message has one and from <surrounding_video_subtitles> otherwise; Panki copies those lines as they are. The card's Sentence is those lines' words, joined with or without line breaks: it's good when it already holds the lines it needs, however they're broken, and is judged by its words, never its line breaks. 0 and 0 when nothing is proposed.
 - explanation: what the word means in this sentence where the Meaning alone doesn't make it clear, in {Language}. For a field marked (empty), "proposed" "" when nothing is needed, with "why" saying so.
 - examples: six lines: three made-up sentences using the word, each after a line in {Language} that sets its scene, each sentence in {Learning language}.
 

@@ -35,7 +35,6 @@ import {
   keysFor,
   litNow,
   mapCommits,
-  messageOf,
   meaningsPiece,
   actionsFor,
   openingActionsOf,
@@ -95,6 +94,7 @@ import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import {
+  ClipMove,
   UnmarkAi,
   TOUCH_UP_WORDS,
   Tied,
@@ -112,7 +112,6 @@ import {
   AiConversation,
   CONVERSATION_WORDS,
   ConversationTurns,
-  StandingMessage,
   type Asking,
   type ChipState,
   type ConversationFoot,
@@ -943,15 +942,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       maxAnswerTokens: ready.maxTokens,
       steering: { instructions: ai.ai?.instructions ?? "", actions: litOf(sent.actions).map((action) => action.name), typed: send.text },
     });
-    const pending: Asking = {
-      id: ++roundIds.current,
-      run,
-      field: sent.where,
-      question: send.text,
-      actions: actionNamesOf(book, "card", sent.actions),
-      actionWords: messageOf(litOf(sent.actions), ""),
-      failure: null,
-    };
+    const pending: Asking = { id: ++roundIds.current, run, field: sent.where, question: send.text, actions: actionNamesOf(book, "card", sent.actions), failure: null };
     // Accept and Dismiss stay pressable while it's out: the Conversation is always taken as it stands, never from before.
     setTouch((was) => ({
       ...was,
@@ -994,7 +985,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       field: sent.where,
       question: send.text,
       actions: pending.actions ?? [],
-      actionWords: pending.actionWords ?? "",
       reply: done.reply,
       // The model reads its own turn back as it wrote it, its JSON; a later send's message goes before it, as sent.
       said: [
@@ -1288,12 +1278,17 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
   /** Where the clip goes for the Sentence proposed, as worked out when it landed; null off a video or for other words. */
   const clipToFor = (proposed: string) => (touch.clipTo && touch.clipTo.words === proposed ? touch.clipTo : null);
-  /** The Sentence proposal's line about the clip: the times Accept moves it to, that it stays, or nothing off a video. */
-  function clipNote(key: TouchUpKey): string | null {
+  /**
+   * The Sentence proposal's line about the clip: where Accept moves it, as a diff of where it is now (`ClipMove`), that
+   * it stays, or nothing off a video.
+   */
+  function clipNote(key: TouchUpKey): ReactNode {
     const verdict = key === "sentence" ? fieldVerdict(key) : null;
     const to = verdict && "proposed" in verdict ? clipToFor(verdict.proposed) : null;
-    if (!to) return null;
-    return to.ends ? TOUCH_UP_WORDS.clipMoves(stamp(to.ends.start), stamp(to.ends.end)) : TOUCH_UP_WORDS.clipStays;
+    if (!verdict || !to) return null;
+    if (!to.ends) return TOUCH_UP_WORDS.clipStays;
+    const tone = proposalTone(verdict);
+    return <ClipMove from={clip ? { start: clip.start, end: clip.end } : null} to={to.ends} stamp={stamp} out={tone === null || tone === "good" ? "accent" : tone} />;
   }
   const pendingKeys = touchKeys.filter(waiting);
   // Accept all and Dismiss all close every note under the fields, "Nothing to change." and the error's among them (a
@@ -2249,7 +2244,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
               if (touch.retry) pressSend(touch.retry, { kind: "retry" });
             }}
             tools={<TouchUpAll pending={pendingKeys.length} onAcceptAll={acceptAll} onDismissAll={dismissAll} />}
-            standing={<StandingMessage text={ai.ai?.instructions ?? ""} />}
             conversation={touch.conversation}
             asking={touch.asking}
             of={touchOf}

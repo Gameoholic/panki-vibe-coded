@@ -41,8 +41,6 @@ export type Commit<C> = {
   question: string;
   /** Every action it went with, by name in its place's order, the one it goes by (`run`) among them: what its bubble heads with. */
   actions?: readonly string[];
-  /** Its actions' words as they went, in its place's order, one a line (`messageOf` of them alone): drawn folded under the bubble's names. */
-  actionWords?: string;
   reply: string;
   /** What it adds to the conversation the model is sent, as sent: the question as it went (none for the run) and the reply as the model wrote it. */
   said: readonly ExplainMessage[];

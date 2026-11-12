@@ -13,7 +13,7 @@ Paths from `apps/web/src/`.
 | Name | File | For |
 | --- | --- | --- |
 | Mark | `brand/Mark.tsx` | The mark, パ on its tile (`Mark`). Never a second drawing of it. |
-| AiConversation | `components/AiConversation.tsx` | Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`, `StandingMessage`). Never a second drawing of a conversation. |
+| AiConversation | `components/AiConversation.tsx` | Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`). Never a second drawing of a conversation. |
 | AiRun | `components/AiRun.tsx` | Sending to Panki AI: its cost (`ceilingOf`), asking first (`useAskFirst`), `TemplateMenu`, `FieldMessage`, the `Composer`. Never a second cost, question or message box. |
 | AiStatus | `components/AiStatus.tsx` | The head over anything Panki AI answered: how the call stands and exactly what it sent (`AiStatus`). |
 | AiWaiting | `components/AiWaiting.tsx` | Any wait on Panki AI (`AiWaiting`), and the AI's spark (`AiSpark`). Never a spinner, never a second spark. |

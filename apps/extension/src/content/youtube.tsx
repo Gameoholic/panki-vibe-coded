@@ -1292,16 +1292,31 @@ function saidEnds(own: readonly Beat[], around: readonly Beat[]): Ends | null {
   return { start: beginsAt(first, before), end: endsAt(last, after) };
 }
 
+/** Punctuation or a symbol: what `runsOf` sets aside besides spaces. */
+const MARKS = /[\p{P}\p{S}]/u;
+/**
+ * A run of words found with their punctuation set aside (`runsOf`), taken out again over the punctuation the words
+ * themselves begin and end with, as the text has it right there: a transcript's 。 is a word of its own with its own
+ * time, so a sentence ending in it ends its clip after it, as the sentence's clip as it was said does (`asSaidOf`).
+ */
+function withEdges(text: string, words: string, run: { from: number; to: number }): { from: number; to: number } {
+  const said = words.trim();
+  let { from, to } = run;
+  if (MARKS.test(said.slice(-1))) while (to < text.length && MARKS.test(text[to] ?? "")) to += 1;
+  if (MARKS.test(said.slice(0, 1))) while (from > 0 && MARKS.test(text[from - 1] ?? "")) from -= 1;
+  return { from, to };
+}
+
 /**
  * Where the clip's ends go for some words (an accepted Touch up Sentence): the words found as a run of the lines kept
- * (`runsOf`, spaces and punctuation aside), the one nearest `near` where they're there more than once, and its ends
+ * (`runsOf`, spaces and punctuation aside, then out over the punctuation they begin and end with, `withEdges`), the one nearest `near` where they're there more than once, and its ends
  * worked out as a sentence's clip as it was said is (`saidEnds`), to the hundredth. Null when they aren't in the lines
  * kept, their end isn't known yet, or they'd make a clip longer than one is kept.
  */
 function endsOfWords(words: string, near: number, limit: { from: number; to: number }): { start: number; end: number } | null {
   const { text, parts } = transcriptOf(lines.snapshot());
   const beats = beatsOf(parts);
-  const found = runsOf(text, words).flatMap((run) => {
+  const found = runsOf(text, words).map((run) => withEdges(text, words, run)).flatMap((run) => {
     const ends = saidEnds(
       beats.filter((beat) => beat.to > run.from && beat.from < run.to),
       beats,

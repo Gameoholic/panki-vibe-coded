@@ -8653,45 +8653,6 @@ mark.sub-blur {
   color: var(--muted);
   font-size: 13.5px;
 }
-/* The account's standing message at a card's conversation's top (`StandingMessage`): quiet, dashed, its first line
-   alone until pressed, then whole. */
-.btn.ai-standing {
-  display: grid;
-  justify-items: start;
-  gap: 2px;
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px dashed var(--line-strong);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13.5px;
-  font-weight: 500;
-  text-align: left;
-}
-.ai-standing-name {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.ai-standing-words {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-.btn.ai-standing.is-open .ai-standing-words {
-  display: block;
-}
-/* A message's actions' words in its bubble, under their names: the same fold, a touch tighter. */
-.btn.ai-standing.is-action {
-  padding: 4px 8px;
-  border-radius: 8px;
-  font-size: 13px;
-}
 /* Under Admin's Touch up prompt while it has nowhere for User instructions to go (`AiPromptSection`): quiet. */
 .ai-prompt-note {
   margin: 0;

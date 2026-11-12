@@ -24,7 +24,6 @@ import {
   DEFAULT_ACTION_SECONDS,
   litNow,
   meaningsPiece,
-  messageOf,
   openingActionsOf,
   actionsOf,
   runNameOf,
@@ -47,7 +46,7 @@ import {
   type PromptPieceId,
   type PromptPieces,
 } from "@panki/contracts";
-import { AiConversation, StandingMessage, type Asking, type ConversationMark, type ConversationOf, type Failure } from "@web/components/AiConversation";
+import { AiConversation, type Asking, type ConversationMark, type ConversationOf, type Failure } from "@web/components/AiConversation";
 import { KNOB_WORDS, MESSAGE_WORDS, ceilingOf, questionProblem, useAskFirst, whyNot, type ComposerProps } from "@web/components/AiRun";
 import { Icon } from "@web/components/Icon";
 import { goTo } from "@web/hooks/useHoist";
@@ -63,7 +62,7 @@ import { glossaryText } from "./Glossary";
 /**
  * Explain, a part of the pop-up's layout: the word's conversation with Panki AI, about what the word shown means where
  * it was pointed at ("Touch up, steered" step 4, in the format of the card's conversation in the drawer). Always there:
- * the head once a call is made, the account's User instructions at its top, every message and its answer's reply, and
+ * the head once a call is made, every message (its actions by name) and its answer's reply, and
  * the composer at its foot, the word's actions in its dropdown (Explain, the default, lit as the pop-up opens; Grammar,
  * Conjugation, Nuance), one Send. Each message goes with the word, what the dictionaries say of it, its sentence and, on
  * a video, what's around it, to Panki through the worker, over the admin's prompt; every answer is one shape, its reply
@@ -363,8 +362,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     else counts.current.messages += 1;
     const label = name !== null ? (counts.current.runs === 1 ? name : `${name} ${counts.current.runs}`) : `${MESSAGES.message} ${counts.current.messages}`;
     const names = actionNamesOf(book, "word", send.actions);
-    const actionWords = messageOf(litNow(book, "word", send.actions), "");
-    const pending: Asking = { id: ++ids.current, run: name, field: null, question: send.text, actions: names, actionWords, failure: null };
+    const pending: Asking = { id: ++ids.current, run: name, field: null, question: send.text, actions: names, failure: null };
     const call = startCall({
       label,
       why,
@@ -410,7 +408,6 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
         field: null,
         question: send.text,
         actions: names,
-        actionWords,
         reply: done.text,
         // The model reads its own turn back as it wrote it, its JSON; a later send's message goes before it, as sent.
         said: [
@@ -509,7 +506,6 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
       onRunAgain={() => {
         if (retry) pressSend(retry, { kind: "retry" });
       }}
-      standing={<StandingMessage text={shown?.instructions ?? ""} />}
       conversation={conversation}
       asking={asking}
       of={explainOf}

@@ -1,4 +1,4 @@
-/** @panki Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`, `StandingMessage`). Never a second drawing of a conversation. */
+/** @panki Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`). Never a second drawing of a conversation. */
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode, type Ref } from "react";
 import { branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
 import { wordFor } from "../words";
@@ -35,8 +35,6 @@ export const CONVERSATION_WORDS = {
   foldedNothing: (n: number) => `${n} ${wordFor(n, "message", "messages")} · Changed nothing`,
   /** The line a field's branch folds under. */
   messages: (n: number) => `${n} ${wordFor(n, "message", "messages")}`,
-  /** The account's standing message, at a card's conversation's top: Settings → Panki AI's name for it. */
-  standing: "User instructions",
 };
 
 /**
@@ -62,7 +60,7 @@ export type Failure = { message: string; retry: boolean };
  * (`field` null) or on a field's branch (its id); `failure` once it failed, so it stands with Try again until the next
  * is sent.
  */
-export type Asking = { id: number; run: string | null; field: string | null; question: string; actions?: readonly string[]; actionWords?: string; failure: Failure | null };
+export type Asking = { id: number; run: string | null; field: string | null; question: string; actions?: readonly string[]; failure: Failure | null };
 
 /** What a place hands the conversation: everything about a commit that's its own, and what a press does. */
 export type ConversationOf<C> = {
@@ -102,7 +100,6 @@ type Drawn = {
   run: string | null;
   question: string;
   actions?: readonly string[] | undefined;
-  actionWords?: string | undefined;
   /** The field it was asked under, where that isn't plain (in the head: a merged branch's). */
   about: { id: string; name: string } | null;
   /** Its reply once it's in: null while it's on its way or failed. */
@@ -121,7 +118,6 @@ function drawnOf<C>(made: Commit<C>, of: ConversationOf<C>, marked: boolean): Dr
     run: made.run,
     question: made.question,
     actions: made.actions,
-    actionWords: made.actionWords,
     about: name !== null && made.field !== null ? { id: made.field, name } : null,
     reply: made.reply,
     notes: of.notes?.(made) ?? null,
@@ -165,7 +161,7 @@ const pressOf = (turn: Drawn): readonly string[] => (turn.actions && turn.action
 
 /**
  * One turn: its question (a message with actions as its press: the spark and their names joined by a comma, what
- * the actions' words folded under them to their first line, what was typed under those as a quiet note; the same for every action, a place's default or not), then its reply, Panki's
+ * what was typed under them as a quiet note, never what the actions or User instructions say; the same for every action, a place's default or not), then its reply, Panki's
  * notes and what it changed, the spark while it's on its way, or the failure with Try again.
  */
 function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
@@ -185,7 +181,6 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
             <AiSpark />
             {press.join(", ")}
           </span>
-          <FoldedWords text={turn.actionWords ?? ""} action />
           {turn.question !== "" ? <span className="ai-message-note">{turn.question}</span> : null}
         </div>
       ) : (
@@ -390,18 +385,17 @@ type AiConversationProps<C> = Omit<PlaceProps<C>, "where"> & {
   tools?: ReactNode;
   /**
    * A conversation (a card's in the drawer, a word's in the pop-up): the block is there before any call, its head and
-   * its foot (the composer) with it, and the account's standing message (`StandingMessage`) stands at its top.
+   * its foot (the composer) with it. User instructions and what the actions say stand in the head's Details, never in the conversation.
    */
   always?: boolean;
-  standing?: ReactNode;
 };
 
 /**
  * A place's run, whole: once a call is made (or `always`) the head (`AiStatus`), and under it, folded away and brought
- * back by the head's name, the run's failure with Try again or the place's `tools`, the standing message, main's
+ * back by the head's name, the run's failure with Try again or the place's `tools`, main's
  * conversation (`ConversationTurns`), and its foot. Open to begin with, while this drawer or pop-up is open.
  */
-export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, always = false, standing, ...place }: AiConversationProps<C>) {
+export function AiConversation<C>({ ref, className, inert = false, calls, burst, busy, failure, onRunAgain, tools, always = false, ...place }: AiConversationProps<C>) {
   const classes = `${className ? `${className} ` : ""}ai-explain`;
   const id = useId();
   const [open, setOpen] = useState(true);
@@ -426,33 +420,9 @@ export function AiConversation<C>({ ref, className, inert = false, calls, burst,
           ) : (
             tools
           )}
-          {standing}
           <ConversationTurns {...place} where={null} />
         </div>
       </Fold>
     </section>
-  );
-}
-
-/**
- * The account's standing message at the top of a card's conversation, User instructions: quiet, its first line alone
- * until it's pressed, then whole; never edited here (Settings → Panki AI). Nothing while it's empty.
- */
-export function StandingMessage({ text }: { text: string }) {
-  return <FoldedWords name={CONVERSATION_WORDS.standing} text={text} />;
-}
-
-/**
- * Words Panki sent that the user didn't type, quiet and dashed, their first line alone until pressed, then whole: the
- * standing message, and a message's actions' words in its bubble (`is-action`, under their names). Nothing while empty.
- */
-function FoldedWords({ name, text, action = false }: { name?: string; text: string; action?: boolean }) {
-  const [open, setOpen] = useState(false);
-  if (text.trim() === "") return null;
-  return (
-    <Button className={`ai-standing${action ? " is-action" : ""}${open ? " is-open" : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}>
-      {name !== undefined ? <span className="ai-standing-name">{name}</span> : null}
-      <span className="ai-standing-words">{text.trim()}</span>
-    </Button>
   );
 }

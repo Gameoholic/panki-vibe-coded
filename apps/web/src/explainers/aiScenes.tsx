@@ -42,7 +42,7 @@ import {
   type ProofreadLineAnswer,
   type Settings,
 } from "@panki/contracts";
-import { AiConversation, StandingMessage, type ChangeChip } from "../components/AiConversation";
+import { AiConversation, type ChangeChip } from "../components/AiConversation";
 import { MESSAGE_WORDS } from "../components/AiRun";
 import { AiStatus } from "../components/AiStatus";
 import { AiSpark, AiWaiting } from "../components/AiWaiting";
@@ -60,7 +60,7 @@ import { WATCH, WATCHED, WatchPage } from "./site";
 
 /**
  * What Settings → Panki AI's explainers play (`components/Explainer.tsx`): each action at work on the video site, as the extension does it, made of the
- * same pieces (`AiConversation`, `AiStatus`, `JudgedRow`, `Composer`, `StandingMessage`, `TouchUpAll`, `Tied`,
+ * same pieces (`AiConversation`, `AiStatus`, `JudgedRow`, `Composer`, `TouchUpAll`, `Tied`,
  * `fieldShown`, `useHoist`) in the pop-up's and the drawer's own classes; Proofread's (AI step 6) on the Panki panel under the
  * player, whose looks are the extension's alone, so the scene draws it in shapes of its own (`app.css` → `.ex-under`),
  * its menu of the app's menu rows. They play as the account has Panki AI set: its User instructions, Proofread's
@@ -316,7 +316,6 @@ function ExplainScene({ ai, showCostOver }: SceneProps) {
                 busy={sent && !answered}
                 failure={null}
                 onRunAgain={nothing}
-                standing={<StandingMessage text={instructions} />}
                 conversation={answered && ANSWER ? startConversation({ id: 1, run: template.name, field: null, question: "", actions: [], reply: ANSWER.text, said: [], changed: [ANSWER] }) : NO_CONVERSATION}
                 asking={sent && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
                 of={{
@@ -511,7 +510,6 @@ function TouchUpScene({ ai, showCostOver }: SceneProps) {
                   failure={null}
                   onRunAgain={nothing}
                   tools={<TouchUpAll pending={answered ? (accepted ? 1 : 2) : 0} onAcceptAll={nothing} onDismissAll={nothing} />}
-                  standing={<StandingMessage text={instructions} />}
                   conversation={conversation}
                   asking={calls.length > 0 && !answered ? { id: 1, run: template.name, field: null, question: "", failure: null } : null}
                   of={{ chips: (made) => made.changed, canRun: true, onRetry: nothing, onGo: hoist.go }}
