@@ -248,6 +248,7 @@ ${videoPiecesRule("say so")}
 
 The user's standing instructions, for every answer in this conversation (they steer what you say, never the shape of an answer): ${variableOf("instructions")}
 
+The user's first message:
 ${variableOf("firstMessage")}`;
 
 /** How a Touch up follow-up answered while each account had Touch up templates: only what it changed, beside its reply. Kept so such a prompt is still told apart from an edited one. */
@@ -397,6 +398,7 @@ ${videoPiecesRule("say so in its why")}
 
 The user's standing instructions, for every answer in this conversation (they steer what you write, never the shape of an answer): ${variableOf("instructions")}
 
+The user's first message:
 ${variableOf("firstMessage")}`;
 
 /**
