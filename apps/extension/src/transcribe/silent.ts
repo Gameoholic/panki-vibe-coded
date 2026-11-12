@@ -119,6 +119,13 @@ const urlOf = (source: SilentPage, videoId: string, at: number) =>
     ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}`
     : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s`;
 
+/**
+ * A play the browser refused without a press: `NotAllowedError`, by the spec. Every other rejection (`AbortError`
+ * from a pause or a new load before it started) isn't a refusal. Read by its name, since the error is the frame's
+ * `DOMException`, never an instance of this page's.
+ */
+const refused = (error: unknown) => typeof error === "object" && error !== null && "name" in error && error.name === "NotAllowedError";
+
 /** The frame stands off the screen, a player's size so the site lays it out, and takes no press. */
 const FRAME_STYLE = "position: fixed; left: -10000px; top: 0; width: 320px; height: 180px; opacity: 0; pointer-events: none; border: 0;";
 
@@ -266,21 +273,27 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     return -1;
   };
 
+  /**
+   * Plays it, and says it's blocked only when the browser refused. A play still waiting for the video's data is also
+   * ended by a pause or a new page before it starts (a hold, a page opened again where it was stuck), and that isn't
+   * the browser's doing: the run carries on. Whatever comes back for a player or a graph no longer wired is left alone.
+   */
   function play() {
     const v = video;
     const c = ctx;
     if (!v || !c) return;
     v.play().then(
       () => {
+        if (gone || video !== v) return;
         blocked = false;
         void c.resume();
         // A graph the browser won't start without a press stays suspended and says nothing; it's asked after a moment.
         setTimeout(() => {
-          if (!gone && c.state !== "running") blocked = true;
+          if (!gone && ctx === c && c.state !== "running") blocked = true;
         }, SOUND_WAIT_MS);
       },
-      () => {
-        blocked = true;
+      (error: unknown) => {
+        if (!gone && video === v && refused(error)) blocked = true;
       },
     );
   }
