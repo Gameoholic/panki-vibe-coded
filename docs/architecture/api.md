@@ -45,7 +45,7 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 | `/api/watching` | `watching.ts` | Time watched, where a video stopped, finished, saved videos, the glance on YouTube's thumbnails, each browser's Video tracking (`watching.md`) |
 | `/api/ai` | `ai.ts` | Panki AI's settings and keys (admin), templates, actions, and a message to each place (`ai.md`) |
 | `/api/usage` | `usage.ts` | The usage ledger added up per account (admin) |
-| `/api/stats` | `stats.ts` | Every number of the Stats tab, for all decks or one; `?last=3&unit=week` adds a custom frame over the past (`Stats.custom`), `?next=` one ahead (`Stats.customAhead`), the days named by the API |
+| `/api/stats` | `stats.ts` | Every number of the Stats tab, for all decks or one; `?last=3&unit=week` adds a custom frame over the past (`Stats.custom`), `?next=` one ahead (`Stats.customAhead`); what's left of this week, month and year always (`Stats.calendarAhead`), the days named by the API |
 | `/api/space` | `space.ts` | What's left on the disk (anyone: they share it), and the storage report (admin) |
 
 ### Under a deck, what isn't obvious

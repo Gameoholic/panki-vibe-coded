@@ -5,6 +5,7 @@ import {
   GOAL_KINDS,
   GOAL_KIND_IDS,
   STAT_WINDOWS,
+  CALENDAR_WINDOWS,
   STREAKS_MAX,
   STREAK_PERIODS,
   goalRuleWords,
@@ -132,7 +133,8 @@ type TileEntry = {
   streaksScreen?: true;
   /**
    * The spans ending today it covers (and Today, All time); the calendar's so far come with them where they fit
-   * (`windowsOf`): This week with 7 days, This month with 30, This year with 12 months; none for a tile that looks ahead.
+   * (`windowsOf`): This week with 7 days, This month with 30, This year with 12 months; all three, each the rest of it,
+   * for a tile that looks ahead.
    */
   windows?: readonly StatWindow[];
   /** The window it opens on until one is picked on this device. */
@@ -196,15 +198,16 @@ const windowLabel = (w: FixedWindow, way: FrameWay) => (WINDOW_WORDS[w].span ? `
 /**
  * The windows a tile's dropdown offers, in two groups and what stands alone: the calendar's so far (Today, This week,
  * This month, This year) and the spans ending today (Last 7 d, Last 30 d, Last 12 mo), each group's first a choice with
- * the rest under it, opened by its arrow; then All time. The calendar's come with the spans they match, never for a tile
- * that looks ahead (This week ahead is no stretch Coming up counts).
+ * the rest under it, opened by its arrow; then All time. The calendar's come with the spans they match, or all three for
+ * a tile that looks ahead, each then what's left of it from today.
  */
 const SO_FAR: readonly FixedWindow[] = ["today", "week", "month", "year"];
 const LAST: readonly FixedWindow[] = ["days7", "days30", "months12"];
 const CALENDAR_FOR: Partial<Record<StatWindow, CalendarWindow>> = { days7: "week", days30: "month", months12: "year" };
 function windowsOf(entry: TileEntry): FixedWindow[] {
   const own = entry.windows ?? [];
-  if (entry.ahead) return [...own];
+  // A tile that looks ahead has the rest of each (`Stats.calendarAhead`), whatever spans it has, as its Today is the rest of today.
+  if (entry.ahead) return [...own, ...CALENDAR_WINDOWS];
   return [...own, ...own.flatMap((w) => CALENDAR_FOR[w] ?? [])];
 }
 function windowOptions(entry: TileEntry, way: FrameWay): { id: FixedWindow; label: string; under?: FixedWindow }[] {
@@ -851,15 +854,21 @@ export const WIDGETS: readonly TileEntry[] = [
     make({ stats, ctx, win, next, onAt }) {
       const { ahead } = stats;
       const dayStart = ctx.settings.dayStartHour;
-      // Custom…: the next N days, weeks, months or years from today, a day a column up to 62 days, else a month.
-      if (next) {
-        const values = next.series.map((b) => b.n);
-        const starts = next.series.map((b) => b.start);
-        const byDay = next.unit === "day";
+      // Custom… (the next N days, weeks, months or years from today) or what's left of this week, month or year: a day a
+      // column up to 62 days, else a month.
+      const calendar = CALENDAR_WINDOWS.find((w) => w === win?.window);
+      const rest = calendar ? stats.calendarAhead[CALENDAR_WINDOWS.indexOf(calendar)] : undefined;
+      // A server from before sends no rest of the week, month or year.
+      if (calendar && !next && !rest) return { empty: "Couldn't load these days." };
+      const over = next ? { series: next, within: `in the next ${frameWords(next.frame)}` } : calendar && rest ? { series: rest, within: WINDOW_WORDS[calendar].within } : null;
+      if (over) {
+        const values = over.series.series.map((b) => b.n);
+        const starts = over.series.series.map((b) => b.start);
+        const byDay = over.series.unit === "day";
         const labels = starts.map((d) => (byDay ? dayLabel(d, starts.length, ctx.settings.weekEndsOn) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : ""));
         const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
         const total = sum(values);
-        if (total === 0) return { empty: `0 reviews coming up in the next ${frameWords(next.frame)}.` };
+        if (total === 0) return { empty: `0 reviews coming up ${over.within}.` };
         return {
           figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
           chart: <Columns values={values} labels={labels} words={said} now={0} onAt={onAt} />,

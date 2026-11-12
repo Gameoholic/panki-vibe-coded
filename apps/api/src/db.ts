@@ -16,6 +16,7 @@ import {
   type NewAiAction,
   type PankiActionId,
   BURNED_PLACE,
+  CALENDAR_WINDOWS,
   CALLED_CARDS_MAX,
   CARD_TIME_MAX_MS,
   CaptureFacts,
@@ -124,7 +125,7 @@ import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 import { foldUndone } from "./undone";
 import { clipReader } from "./clips";
 import { dayTalliesOf, streakStatesOf, streaksStamped } from "./streaks";
-import { aheadOf, frameSpan, tilesOf, type TileCard, type TileShowing } from "./tiles";
+import { aheadOf, aheadOver, frameSpan, restOf, tilesOf, type TileCard, type TileShowing } from "./tiles";
 import { addDays, checkTimeZone, dayBeginsAt, dayOf, dayReader, dayStartAt, daysBetween, hourReader, type Day } from "./time";
 
 export type Db = ReturnType<typeof openDb>;
@@ -3299,8 +3300,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         }
       };
       const ladders = new Map<string, { type: SrsType; now: Counts; then: Counts[] }>();
-      // Each day from today on: the next 30, or as far as a frame ahead runs.
-      const coming = Array.from({ length: Math.max(30, aheadSpan ? daysBetween(aheadSpan.from, aheadSpan.to) + 1 : 0) }, () => 0);
+      // What's left of this week, this month and this year (`calendarAhead`).
+      const rests = CALENDAR_WINDOWS.map((w) => restOf(w, todayKey, weekStart));
+      // Each day from today on: the next 30, or as far as a frame ahead or the rest of the year runs.
+      const coming = Array.from({ length: Math.max(30, ...[...rests, ...(aheadSpan ? [aheadSpan] : [])].map((s) => daysBetween(s.from, s.to) + 1)) }, () => 0);
       const comingHours = Array.from({ length: 24 }, () => 0);
       const nowHour = hour(now);
       let laterToday = 0;
@@ -3496,6 +3499,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         calendar,
         custom,
         customAhead: frame && aheadSpan ? aheadOf(frame.frame, aheadSpan, coming) : null,
+        calendarAhead: rests.map((s) => aheadOver(s, coming)),
         activity,
         ahead: { hours: comingHours, nowHour, laterToday, days: coming.slice(0, 30) },
         burned30: Math.max(0, burnedNow - burnedThen),

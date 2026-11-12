@@ -197,6 +197,11 @@ export type TrendUnit = z.infer<typeof TrendUnit>;
  */
 const Bucket = z.object({ start: Day, n: Count });
 const Share = z.object({ right: Count, of: Count });
+/**
+ * Reviews coming due over days from today on (`Stats.customAhead`, `Stats.calendarAhead`): its first and last day, a day
+ * at a time up to 62 days and a calendar month at a time past that, the first month starting on its first day.
+ */
+const AheadSeries = z.object({ from: Day, to: Day, unit: z.enum(["day", "month"]), series: z.array(Bucket) });
 /** A count for each hour of the day in the day's order: the first is the hour the day turns over at (Settings). */
 const Hours = z.array(Count).length(24);
 /** Each weekday, Sunday first: the sum over the window, and how many of that weekday the window holds, for an average. */
@@ -409,10 +414,13 @@ export const Stats = z.object({
    * `ahead.days` counts them, a day at a time up to 62 days and a calendar month at a time past that (the first month
    * starting today); null when none was asked for.
    */
-  customAhead: z
-    .object({ frame: StatFrame, from: Day, to: Day, unit: z.enum(["day", "month"]), series: z.array(Bucket) })
-    .nullable()
-    .default(null),
+  customAhead: AheadSeries.extend({ frame: StatFrame }).nullable().default(null),
+  /**
+   * What's left of this week, this month and this year, in `CALENDAR_WINDOWS`' order (Coming up's This week, This month,
+   * This year, as its Today is the rest of today): reviews coming due from today to the last day of the week (the
+   * account's, `weekEndsOn`), the month or the year, counted as `customAhead` is; none from an older server.
+   */
+  calendarAhead: z.array(AheadSeries).max(CALENDAR_WINDOWS.length).default([]),
   /**
    * Every day with a review, time studying or watching, oldest first, for the days studied: answers, ms studying (in
    * scope), ms watched (the account's).

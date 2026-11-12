@@ -1,4 +1,4 @@
-import { CALENDAR_WINDOWS, STAT_WINDOWS, weekdayOf, type FixedWindow, type FrameWay, type SeriesUnit, type StatFrame, type Stats, type TrendUnit, type WindowId, type WindowStats } from "@panki/contracts";
+import { CALENDAR_WINDOWS, STAT_WINDOWS, weekdayOf, type CalendarWindow, type FixedWindow, type FrameWay, type SeriesUnit, type StatFrame, type Stats, type TrendUnit, type WindowId, type WindowStats } from "@panki/contracts";
 import { addDays, addMonths, daysBetween, monthOf, shiftMonths, type Day } from "./time";
 
 /**
@@ -495,16 +495,29 @@ export function frameSpan(way: FrameWay, frame: StatFrame, today: Day): Span {
   return { from: today, to: days !== null ? addDays(today, days - 1) : addDays(shiftMonths(today, months), -1) };
 }
 
+/** A frame asked for ahead (Coming up's Custom…) as `aheadOver` counts it, with the frame it was asked as. */
+export function aheadOf(frame: StatFrame, span: Span, coming: readonly number[]): NonNullable<Stats["customAhead"]> {
+  return { frame, ...aheadOver(span, coming) };
+}
+
 /**
- * A frame asked for ahead (Coming up's Custom…): the reviews coming due each day of it (`coming`, a count a day from
+ * What's left of this week (the account's, from its first day `weekStart`), this month or this year: today to its
+ * last day (Coming up's This week, This month, This year).
+ */
+export function restOf(window: CalendarWindow, today: Day, weekStart: Day): Span {
+  const to = window === "week" ? addDays(weekStart, 6) : window === "month" ? addDays(addMonths(today, 1), -1) : `${today.slice(0, 4)}-12-31`;
+  return { from: today, to };
+}
+
+/**
+ * Days from today on (`span`, starting today): the reviews coming due each day of it (`coming`, a count a day from
  * today), a day at a time up to 62 days and a calendar month at a time past that, the first month starting today.
  */
-export function aheadOf(frame: StatFrame, span: Span, coming: readonly number[]): NonNullable<Stats["customAhead"]> {
+export function aheadOver(span: Span, coming: readonly number[]): Stats["calendarAhead"][number] {
   const n = daysBetween(span.from, span.to) + 1;
   const unit = n <= 62 ? "day" : "month";
   const buckets = unit === "day" ? eachDay(span) : eachMonth(span);
   return {
-    frame,
     from: span.from,
     to: span.to,
     unit,
