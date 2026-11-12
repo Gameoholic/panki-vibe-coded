@@ -2457,18 +2457,17 @@ function App() {
   /**
    * The card is in, so playing the video while the drawer still says Added never goes back into the clip: the video
    * is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
-   * with it; the drawer stays only to say Added, then closes as it always did. Never back: it goes on from the latest of
-   * where it stands, where it stood before the clip was played and the clip's end. Whether it then plays is the options
-   * page's After adding a card (`afterAdd`): as it was before the drawer held it (a video started by hand since is left
-   * be), paused, or playing.
+   * with it; the drawer stays only to say Added, then closes as it always did. It goes on from the clip's last moment,
+   * as the card has it, whatever the video did while the drawer held it (where it stood before the clip was first
+   * played is let go: the clip's ends pulled in, or another sentence taken, make it the wrong place). Whether it then
+   * plays is the options page's After adding a card (`afterAdd`): as it was before the drawer held it (a video started
+   * by hand since is left be), paused, or playing.
    */
   const letGo = useCallback(() => {
     pauseAfter = null;
-    const stood = replay.leave();
-    if (video?.paused) {
-      const after = Math.max(video.currentTime, stood ?? 0, ends.current.clip?.end ?? 0);
-      if (after - video.currentTime > 0.05) video.currentTime = after;
-    }
+    replay.leave();
+    const end = ends.current.clip?.end ?? null;
+    if (video?.paused && end !== null && Math.abs(video.currentTime - end) > 0.05) video.currentTime = end;
     const then = modules.get().afterAdd;
     if (video && then === "pause") video.pause();
     else if (video?.paused && (then === "play" || wasPlaying)) void video.play().catch(() => undefined);
