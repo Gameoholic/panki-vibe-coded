@@ -2718,58 +2718,14 @@
   font-variant-numeric: tabular-nums;
   margin-bottom: 4px;
 }
-.trim-overview .trim-heard-row {
-  margin: 2px 0 6px;
-  color: var(--muted);
-}
 .trim-heard-name {
   color: var(--muted);
 }
-.trim-overview-rail {
-  position: relative;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--surface-2);
-}
-.trim-overview-clip {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: 3px;
-  background: var(--accent);
-}
-.trim-overview-view {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  border: 1.5px solid var(--fg);
-  border-radius: 3px;
-  opacity: 0.5;
-  pointer-events: none;
-}
-/* The trial switch between the two (`HeardLook`), beside the Clip's name until one is picked. */
-.trim-heard-look {
-  display: inline-flex;
-  gap: 2px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-.trim-heard-look button {
-  font: inherit;
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.trim-heard-look button[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.capture-stamp .is-out {
+/* An end Accept would move: its time struck red, the new one in green after it (Panel's `stampAt`). The time is a
+   button, which a strike on its wrapper doesn't reach, so it's set on what's inside. */
+.capture-stamp-was,
+.capture-stamp-was * {
+  color: var(--danger);
   text-decoration: line-through;
   text-decoration-color: var(--danger);
 }

@@ -138,7 +138,7 @@ import { ClipPlayer } from "./ClipPlayer";
 import { gapsOf, type PieceLimits, type VideoMore } from "./Explain";
 import { glossaryText } from "./Glossary";
 import { Stamp } from "./Stamp";
-import { Trim, type ClipEnd, type HeardLook, type MoveBy, type Stretch, type Tick } from "./Trim";
+import { Trim, type ClipEnd, type MoveBy, type Stretch, type Tick } from "./Trim";
 
 /** What the panel says when something's wrong. One home. */
 const MESSAGES = {
@@ -293,11 +293,6 @@ const NO_TOUCH: Touch = {
 };
 /** Two stretches of the video as one, from the first's start to the last's end; either missing, the other. */
 const spanJoined = (a: Stretch | null, b: Stretch | null): Stretch | null => (a && b ? { from: Math.min(a.from, b.from), to: Math.max(a.to, b.to) } : (a ?? b));
-/**
- * How the Clip's bar shows what Panki AI heard (`HeardLook`), on trial: the switch beside the Clip's name sets it for
- * every drawer after, until the page goes. Picked for good, this and the switch go.
- */
-let heardLookNow: HeardLook = "edges";
 /** A proposal a commit made, kept with the commit: its key, the colour it was drawn in, and how it was decided, once it was. */
 type Change = { key: TouchUpKey; tone: Tone; decided?: "accepted" | "dismissed" };
 /** The Conversation with a key's proposal decided, on the latest commit that proposed for it. */
@@ -567,8 +562,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   /** Panki AI as the worker keeps it: unknown until it answers; null signed out; or why it couldn't be told. */
   const [ai, setAi] = useState<{ known: boolean; ai: AiShown | null; failure: string | null }>({ known: false, ai: null, failure: null });
   const [touch, setTouch] = useState<Touch>(NO_TOUCH);
-  // On trial (`heardLookNow`): how the Clip's bar shows what Panki AI heard.
-  const [heardLook, setHeardLook] = useState<HeardLook>(heardLookNow);
   /**
    * The actions ticked on the composer for its next send, by id: null while they're the account's defaults, ticked as a
    * card's conversation opens (read once Panki AI is known); none after each send.
@@ -1889,31 +1882,10 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return (
       <div className="field capture-clip">
         {/* Whether it's kept with its picture or as sound alone is the mapping's to say, not a switch here. */}
-        <span className="field-label">
-          {name}
-          {heard ? (
-            // On trial: the two ways of showing what Panki AI heard, until one is picked.
-            <span className="trim-heard-look" role="group" aria-label="How what Panki AI heard is shown">
-              {(["edges", "overview"] as const).map((look) => (
-                <button
-                  key={look}
-                  type="button"
-                  aria-pressed={heardLook === look}
-                  onClick={() => {
-                    heardLookNow = look;
-                    setHeardLook(look);
-                  }}
-                >
-                  {look === "edges" ? "E · Edges" : "G · Overview"}
-                </button>
-              ))}
-            </span>
-          ) : null}
-        </span>
+        <span className="field-label">{name}</span>
         <Trim
           proposed={proposed}
           heard={heard}
-          heardLook={heardLook}
           video={offer.video}
           start={offer.start}
           end={offer.end}
