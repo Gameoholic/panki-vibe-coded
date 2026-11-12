@@ -144,6 +144,9 @@ export const AiTemplateUpdate = AiTemplate.pick({ name: true, prompt: true, foll
 export type AiTemplateUpdate = z.infer<typeof AiTemplateUpdate>;
 export const AiTemplateResponse = z.object({ template: AiTemplate });
 
+/** The Sentence's tag as the prompts kept from before had it, word for word, so they're still told apart from an edited one: the piece is the Line now. */
+const FORMER_SENTENCE_TAG = "<sentence>{Sentence}</sentence>";
+
 /** Explain's prompt, around how a follow-up answers: what it said until AI step 5, and what it says now (`explainPromptWith`). */
 const EXPLAIN_FOLLOW_UP_BEFORE = `A follow-up question is answered in one part:
 - answer: the answer to it, short. Your verdicts on the meanings stand as you gave them first.`;
@@ -176,7 +179,7 @@ ${taggedOf("dictForm")}
 ${taggedOf("dictReading")}
 ${taggedOf("word")}
 ${taggedOf("dictMeaning")}
-${taggedOf("sentence")}
+${FORMER_SENTENCE_TAG}
 ${taggedOf("surrounding")}
 ${taggedOf("source")}
 ${taggedOf("description")}
@@ -282,7 +285,7 @@ ${taggedOf("dictReading")}
 ${taggedOf("dictPitch")}
 ${taggedOf("word")}
 ${taggedOf("dictMeaning")}
-${taggedOf("sentence")}
+${FORMER_SENTENCE_TAG}
 ${taggedOf("surrounding")}
 ${taggedOf("source")}
 ${taggedOf("description")}
@@ -384,7 +387,7 @@ What each field holds, proposed in "proposed" unless it says otherwise:
 - sentence: the example of the word on the flashcard, read without the video: the subtitle lines the card's clip plays. It must stand on its own: enough to tell what the word does and what it answers to, and nothing that isn't about it. Judge it meh in either case and propose it fixed:
   - Too little: it leans on what was said just before or after it and makes no sense alone (it opens on a connective like にしても, でも, だから, それで; it points back with これ, それ, あれ, そう; it's a reply, an answer to a question, or a thought finished in a later line), or a line before or after it is what makes the word's meaning here clear (what's being answered, what it points at, what the word is said about). Propose it with the lines it needs, before it or after it: use your judgement on how many, as few as make it stand alone and make the word clear, and as many as that takes, whether that's one line or several.
   - Too much: a whole line in it that isn't about the word (another speaker's words, a filler or an opener, the start of something else). Propose it without that line.
-  Proposed as "first" and "last", the numbers of its first and last line, from any subtitles you were given; Panki copies those lines as they are. In <card> the Sentence says which lines it is: "(lines 18–19)" when it's those lines whole, however its line breaks fall, and "(part of lines 18–19)" when it's part of them, which is the user's choice: never propose lines just to make it whole lines, and never the lines it already is. A sentence that stands on its own and holds nothing extra is good with nothing proposed: 0 and 0.
+  Proposed as "first" and "last", the numbers of its first and last line, from any subtitles you were given; Panki copies those lines as they are. In <card> the Line says which lines it is: "(lines 18–19)" when it's those lines whole, however its line breaks fall, and "(part of lines 18–19)" when it's part of them, which is the user's choice: never propose lines just to make it whole lines, and never the lines it already is. A sentence that stands on its own and holds nothing extra is good with nothing proposed: 0 and 0.
 - explanation: what the word means in this sentence where the Meaning alone doesn't make it clear, in {Language}. For a field marked (empty), "proposed" "" when nothing is needed, with "why" saying so.
 - examples: six lines: three made-up sentences using the word, each after a line in {Language} that sets its scene, each sentence in {Learning language}.
 

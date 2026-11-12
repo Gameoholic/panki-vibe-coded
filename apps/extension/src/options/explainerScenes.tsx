@@ -469,7 +469,7 @@ function PanelScene({ store }: { store: Stored }) {
                   </div>
                   <TextField id={`${id}-word`} label="Word" lang="ja" value={IN_DECKS.words} onChange={nothing} />
                   <div className="capture-sentence">
-                    <TextField id={`${id}-sentence`} label="Sentence" lang="ja" multiline value={SENTENCE} mark={PICKED} onChange={nothing} />
+                    <TextField id={`${id}-sentence`} label="Line" lang="ja" multiline value={SENTENCE} mark={PICKED} onChange={nothing} />
                   </div>
                 </div>
             </div>

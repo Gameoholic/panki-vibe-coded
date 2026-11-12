@@ -436,7 +436,7 @@ function TouchUpScene({ ai, showCostOver }: SceneProps) {
   const hoist = useHoist(SCENE_FIELDS, answered ? (accepted ? ["explanation"] : ["sentence", "explanation"]) : []);
   /** The run as the head's conversation has it: its press, then what it changed, a chip a field. */
   const changed: ChangeChip[] = [
-    { id: "sentence", name: "Sentence", tone: "meh", state: accepted ? "accepted" : "live" },
+    { id: "sentence", name: "Line", tone: "meh", state: accepted ? "accepted" : "live" },
     { id: "explanation", name: "Explanation", tone: "accent", state: "live" },
   ];
   const conversation = answered ? startConversation({ id: 1, run: template.name, field: null, question: "", actions: [], reply: "", said: [], changed }) : NO_CONVERSATION;
@@ -464,7 +464,7 @@ function TouchUpScene({ ai, showCostOver }: SceneProps) {
     sentence: touched(sentenceShown, (labelEnd) => (
       <TextField
         id={`${id}-sentence`}
-        label="Sentence"
+        label="Line"
         labelEnd={labelEnd}
         lang="ja"
         multiline

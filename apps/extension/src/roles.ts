@@ -20,8 +20,6 @@ export const ROLE_IDS = [
   "dictPitch",
   "sentence",
   "clip",
-  "clipAudio",
-  "wordVideo",
   "wordAudio",
   "forvoAudio",
   "source",
@@ -102,11 +100,10 @@ export const ROLES: Record<RoleId, Role> = {
   dictFrequency: fromDictionary("frequency"),
   dictPitch: fromDictionary("pitch"),
   sentence: { name: PIECE_NAMES.sentence, from: "text", takes: holdsSentence },
-  // The four things recorded off the video: either stretch, either way. (`clip` was the only one, and is the id kept
-  // maps already hold: the sentence with its picture.)
-  clip: { name: "Sentence video", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
-  clipAudio: { name: "Sentence audio", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: true } },
-  wordVideo: { name: "Word video", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: false } },
+  // What's recorded off the video: the line with its picture, the clip the drawer plays and moves (`clip`), and the
+  // word alone as a sound. The line as a sound alone and the word with its picture were pieces once; a map naming them
+  // lets them go.
+  clip: { name: "Clip", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
   // Named for where it's from, beside Forvo's.
   wordAudio: { name: "Word audio (YouTube)", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: true } },
   // The word said by someone on Forvo, beside the word cut from the video: both are kept to choose from.
@@ -131,7 +128,7 @@ const KNOWN: ReadonlySet<string> = new Set(ROLE_IDS);
 /**
  * Which field of a deck's card type takes which piece: role → field id. A piece left out goes nowhere. A map kept
  * from before may name a piece that's no longer one (the reading and the meaning were, once: they're typed now, like
- * any field nothing fills); that's let go and the rest of the map stands.
+ * any field nothing fills; so were the line as a sound and the word as a video); that's let go and the rest of the map stands.
  */
 export const FieldMap = z.preprocess(
   (raw) => (typeof raw === "object" && raw !== null ? Object.fromEntries(Object.entries(raw).filter(([role]) => KNOWN.has(role))) : raw),

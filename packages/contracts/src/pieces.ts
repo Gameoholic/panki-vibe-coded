@@ -78,7 +78,9 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   dictWordType: DATA_KIND_NAMES.wordType,
   dictFrequency: DATA_KIND_NAMES.frequency,
   dictPitch: DATA_KIND_NAMES.pitch,
-  sentence: "Sentence",
+  // The words the word was met in, called what the field kind that holds them is (`FieldKind` line). Once "Sentence",
+  // still read (`FORMER_NAMES`).
+  sentence: "Line",
   source: "Video metadata",
   surrounding: "Surrounding video subtitles",
   description: "Video description",
@@ -116,6 +118,11 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   // Panki before the prompt is filled, never a value of its own.
   firstMessage: "First message",
 };
+/**
+ * A piece's name from before it was renamed, still read as that piece, so a prompt saved with it fills as it did
+ * ("{Sentence}"). Never written: Panki's own prompts and what's offered say the name the piece has now.
+ */
+export const FORMER_NAMES: Readonly<Record<string, PromptPieceId>> = { Sentence: "sentence" };
 export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   word: "text",
   dictForm: "dictionary",

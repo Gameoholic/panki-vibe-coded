@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ACTION_SECONDS_MAX, DEFAULT_ACTION_SECONDS, EXPLAIN_PARTS, ExplainPart } from "./accountActions";
 import { AiRanOn, PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
 import { Judgement } from "./judgement";
-import { PIECE_NAMES, PROMPT_PIECE_IDS, PromptPieceId } from "./pieces";
+import { FORMER_NAMES, PIECE_NAMES, PROMPT_PIECE_IDS, PromptPieceId } from "./pieces";
 import { KNOB_BREACHES, expectedGot, knobsBroken } from "./unread";
 
 /**
@@ -142,7 +142,7 @@ export type PromptPieces = z.infer<typeof PromptPieces>;
 
 /** A variable in a template: a name in braces, on one line. */
 const VARIABLE = /\{([^{}\n]+)\}/g;
-const PIECE_BY_NAME = new Map<string, PromptPieceId>(PROMPT_PIECE_IDS.map((id) => [PIECE_NAMES[id], id]));
+const PIECE_BY_NAME = new Map<string, PromptPieceId>([...Object.entries(FORMER_NAMES), ...PROMPT_PIECE_IDS.map((id) => [PIECE_NAMES[id], id] as const)]);
 /** The piece a variable's name is; null for a name Panki doesn't know, which is sent as typed. */
 export const pieceNamed = (name: string): PromptPieceId | null => PIECE_BY_NAME.get(name) ?? null;
 /** Every variable in a template, with where it stands and the piece it is (null when it's no piece's name). */

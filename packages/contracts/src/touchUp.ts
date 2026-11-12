@@ -489,8 +489,8 @@ export function answerShapesOf(place: AiPlaceId): AnswerShape[] {
     },
     { title: "A field that holds a value", parts: partsOf(FieldWire.shape) },
     { title: "A field sent empty", parts: partsOf(EmptyFieldWire.shape) },
-    { title: "The Sentence", parts: partsOf(SentenceWire.shape) },
-    { title: "The Sentence, sent empty", parts: partsOf(EmptySentenceWire.shape) },
+    { title: "The Line", parts: partsOf(SentenceWire.shape) },
+    { title: "The Line, sent empty", parts: partsOf(EmptySentenceWire.shape) },
     { title: "The Meaning", parts: partsOf(MeaningWire.shape) },
     { title: "The Meaning, when the dictionary has none", parts: partsOf(EmptyMeaningWire.shape) },
   ];
@@ -709,8 +709,8 @@ function linesWords({ first, last, whole }: LinesHeld): string {
 /**
  * The card as the model reads it (`{Card}`): a line each field, its name, the key it's judged by in brackets, and what
  * it holds; the Meaning's ticked numbers before its words ("Meaning [meaning]: 1 · to think"), so it's judged by number
- * rather than by words the model may misread; a Sentence of the video's subtitles, which lines it is
- * ("Sentence [sentence] (lines 18–19): …"), so it's judged by number too; a value of several lines goes on under it,
+ * rather than by words the model may misread; a Line of the video's subtitles, which lines it is
+ * ("Line [sentence] (lines 18–19): …"), so it's judged by number too; a value of several lines goes on under it,
  * indented; an empty one says so, "(empty)", the field the answer judges null. One home for how it's written.
  */
 export function cardPiece(rows: readonly CardPieceRow[]): string {
