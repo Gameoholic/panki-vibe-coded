@@ -1,5 +1,5 @@
 /** @panki The Word pop-up: a word's dictionary entries, laid out as set (`Lookup`, `LookupBody`, `PopupEdit`). */
-import { Fragment, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { JudgedRow } from "@web/components/JudgedRow";
@@ -22,6 +22,35 @@ import { Glossary } from "./Glossary";
 /** How wide the popup is, at most, and how far it keeps from the window's edges; from the word it keeps nothing. */
 const WIDTH = 420;
 const EDGE = 8;
+
+/** Which side of its word the popup stands on: under it, or over it. */
+type Side = "under" | "over";
+
+/** The room under and over a word, inside the window's edges. */
+function roomAround(word: DOMRect): Record<Side, number> {
+  return { under: window.innerHeight - word.bottom - EDGE, over: word.top - EDGE };
+}
+
+/**
+ * The side for a popup this tall (its whole height, all of it shown): the side it's on while it still fits there, so
+ * it never jumps across its word as it changes; else under when it fits there, over when it fits there; and when it
+ * fits on neither, the side with more room, where it scrolls inside itself.
+ */
+function sideFor(word: DOMRect, tall: number, now: Side | null): Side {
+  const room = roomAround(word);
+  if (now && tall <= room[now]) return now;
+  if (tall <= room.under) return "under";
+  if (tall <= room.over) return "over";
+  return room.under >= room.over ? "under" : "over";
+}
+
+/**
+ * The popup's whole height, as tall as everything in it stands, however much of it is cut by its `maxHeight`: what
+ * it scrolls through, and its border.
+ */
+function wholeHeight(box: HTMLElement): number {
+  return box.scrollHeight + box.offsetHeight - box.clientHeight;
+}
 
 /** A reading with its pitch drawn over it, as the app draws one, small and quiet in the popup. */
 export function Pitch({ reading, position }: { reading: string; position: number }) {
@@ -564,7 +593,7 @@ type Props = {
 
 /**
  * The popup: every word found where the pointer is, laid out as the viewer laid it out on the options page
- * (`LookupBody`). It stands flush under the word (over it, when there's more room there), no gap between them: the
+ * (`LookupBody`). It stands flush under the word (over it, when its whole height fits only there: `sideFor`), no gap between them: the
  * pointer goes from the word straight into the popup, and whatever stands under the word (the next line's words) is
  * covered, never hovered or clicked on the way (a 6 px gap lit and clicked the next line's word, 2026-11-07). Inside
  * the window, and the word itself is lit. A press anywhere in it keeps it open; kept open, an × at its top right
@@ -575,16 +604,37 @@ export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, car
   /** What's lit on the page once another word found is pressed: that word's own stretch. The popup stays where it is. */
   const [lit, setLit] = useState<DOMRect | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  /** The side it stands on, from its measured height; none until it's first measured, before it's painted. */
+  const [side, setSide] = useState<Side | null>(null);
   const anchor = view.word;
+  const kept = view.locked;
+  // Measured before it's painted, and again whenever what's in it changes size (its words found, a meaning shown, an
+  // answer coming in). Kept open, it's being read or typed in, so it stays on its side and scrolls inside instead.
+  useLayoutEffect(() => {
+    const popup = box.current;
+    if (!anchor || !popup) return;
+    const fit = () => setSide((now) => (kept && now ? now : sideFor(anchor, wholeHeight(popup), now)));
+    fit();
+    const sizes = new ResizeObserver(fit);
+    const watch = () => {
+      sizes.disconnect();
+      for (const part of popup.children) sizes.observe(part);
+    };
+    watch();
+    const parts = new MutationObserver(watch);
+    parts.observe(popup, { childList: true });
+    return () => {
+      sizes.disconnect();
+      parts.disconnect();
+    };
+  }, [anchor, kept]);
   if (!anchor) return null;
   const asks: ExplainSource | undefined = explain?.kind === "panki" ? { kind: "panki", pointed: view.pointed, more: explain.more } : explain;
   const mark = lit ?? anchor;
   const width = Math.min(WIDTH, window.innerWidth - EDGE * 2);
   const left = Math.max(EDGE, Math.min(anchor.left, window.innerWidth - width - EDGE));
-  const below = window.innerHeight - anchor.bottom - EDGE;
-  const above = anchor.top - EDGE;
-  const under = below >= 240 || below >= above;
-  const place = under ? { top: anchor.bottom, maxHeight: below } : { bottom: window.innerHeight - anchor.top, maxHeight: above };
+  const room = roomAround(anchor);
+  const place = (side ?? "under") === "under" ? { top: anchor.bottom, maxHeight: room.under } : { bottom: window.innerHeight - anchor.top, maxHeight: room.over };
   return (
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />

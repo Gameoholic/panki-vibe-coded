@@ -63,6 +63,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-25: On hover; Words that are in your decks, highlighted.
 - 2026-11-08: Hover delay.
 - 2026-11-10: In your decks drawn from the kept words, asking nothing; no hairline under Panki AI.
+- 2026-11-12: under or over its word by its measured height, the side with more room when it fits on neither.
 - 2026-10-15: word audio from Forvo (`architecture/forvo.md`).
 
 **Transcribing** (`architecture/transcribing.md`)
