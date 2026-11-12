@@ -391,23 +391,38 @@ function videoPieces(limits: PieceLimits): VideoMore {
  * Null when its words aren't in them.
  */
 function linesHeldOf(shown: readonly CaptionLine[], sentence: string, at: number): LinesHeld | null {
+  const placed = placesOf(shown, sentence);
+  const best = placed.reduce<Placed | null>((was, each) => (was === null || Math.abs(each.start - at) < Math.abs(was.start - at) ? each : was), null);
+  return best ? { first: best.first + 1, last: best.last + 1, whole: best.whole } : null;
+}
+/** Where a sentence's words run over the lines, by the lines' places (from 0), when the first begins, and whether they're those lines whole. */
+type Placed = { first: number; last: number; start: number; whole: boolean };
+/**
+ * Every place a sentence's words run over the lines, worked out once for these lines and this sentence and kept until
+ * either changes: the search reads the whole transcript (`runsOf`), and the drawer asks on every redraw, once for each
+ * cost it shows, which on a long video made the whole page stutter. The lines are the same array until they change.
+ */
+let placedLast: { shown: readonly CaptionLine[]; sentence: string; placed: Placed[] } | null = null;
+function placesOf(shown: readonly CaptionLine[], sentence: string): Placed[] {
+  if (placedLast && placedLast.shown === shown && placedLast.sentence === sentence) return placedLast.placed;
   const { text, parts } = transcriptOf(shown);
   // The line a character of the text is in, by its place: the last that begins at or before it.
   const lineOf = (offset: number) => parts.reduce((found, part, i) => (part.at <= offset ? i : found), 0);
-  const placed = runsOf(text, sentence).flatMap((found) => {
+  const bare = bareOf(sentence).bare;
+  const placed = runsOf(text, sentence).flatMap((found): Placed[] => {
     const run = withEdges(text, sentence, found);
     const first = lineOf(run.from);
     const last = lineOf(Math.max(run.from, run.to - 1));
     const from = parts[first];
-    return from ? [{ first, last, start: from.line.start }] : [];
+    if (!from) return [];
+    const held = shown
+      .slice(first, last + 1)
+      .map((line) => line.text)
+      .join("\n");
+    return [{ first, last, start: from.line.start, whole: bareOf(held).bare === bare }];
   });
-  const best = placed.reduce<(typeof placed)[number] | null>((was, each) => (was === null || Math.abs(each.start - at) < Math.abs(was.start - at) ? each : was), null);
-  if (!best) return null;
-  const held = shown
-    .slice(best.first, best.last + 1)
-    .map((line) => line.text)
-    .join("\n");
-  return { first: best.first + 1, last: best.last + 1, whole: bareOf(held).bare === bareOf(sentence).bare };
+  placedLast = { shown, sentence, placed };
+  return placed;
 }
 
 /** Panki on YouTube's pages beyond a video's: the shelf over its home's videos, the marks on every thumbnail (`feed.tsx`). */
