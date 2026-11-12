@@ -93,10 +93,10 @@ const DESCRIPTION = ["ytd-watch-metadata #description-inline-expander #expanded"
 /**
  * A clip starts a little before its words and ends a little after: a caption is drawn a touch late and taken down a
  * touch early. A transcript's words, timed as they were said, are given the same room, short of the words either side
- * (`beginsAt`, `endsAt`).
+ * (`beginsAt`, `endsAt`). How much is the viewer's, on the options page (Room around a clip, `Modules.clipRoom`).
  */
-const LEAD = 0.35;
-const TAIL = 0.25;
+const leadNow = () => (modules.get().clipRoom ? modules.get().clipLead : 0);
+const tailNow = () => (modules.get().clipRoom ? modules.get().clipTail : 0);
 /** A clip is never shorter than this, however its ends are pulled. */
 const CLIP_MIN = 0.3;
 /** A cut paused closer than this to its end plays again from its start: there's nothing left of it to go on with. */
@@ -1269,12 +1269,12 @@ const AS_SAID: Trim = { start: null, end: null };
  * caption's, timed as it was shown, have them whole.
  */
 function beginsAt(beat: Beat, before: Beat | undefined): number {
-  const lead = Math.max(0, beat.start - LEAD);
+  const lead = Math.max(0, beat.start - leadNow());
   return beat.over !== null && before !== undefined && before.over !== null ? Math.max(lead, Math.min(beat.start, before.over)) : lead;
 }
 function endsAt(beat: Beat, after: Beat | undefined): number | null {
-  if (beat.over === null) return beat.end === null ? null : beat.end + TAIL;
-  const tail = beat.over + TAIL;
+  if (beat.over === null) return beat.end === null ? null : beat.end + tailNow();
+  const tail = beat.over + tailNow();
   return after !== undefined && after.over !== null ? Math.min(tail, Math.max(beat.over, after.start)) : tail;
 }
 
@@ -1322,7 +1322,7 @@ function lastHeld(beats: readonly Beat[], end: number): Beat | null {
 function asSaidOf(said: { parts: Parts; found: { at: number; sentence: string }; start: number; end: number | null }): Ends {
   const stop = said.found.at + said.found.sentence.length;
   const own = beatsOf(said.parts).filter((beat) => beat.to > said.found.at && beat.from < stop);
-  const whole = { start: Math.max(0, said.start - LEAD), end: said.end === null ? null : said.end + TAIL };
+  const whole = { start: Math.max(0, said.start - leadNow()), end: said.end === null ? null : said.end + tailNow() };
   const first = own[0];
   if (!first || first.over === null) return whole;
   const kept = lines.snapshot();
@@ -2191,8 +2191,10 @@ function App() {
   const heardText = useMemo(() => (clip ? transcriptOf(view.lines) : null), [clip !== null, view.lines]);
   const heard = useMemo(() => (heardText ? beatsOf(heardText.parts) : []), [heardText]);
   /** Where a pulled end stops, and the ticks on each bar: the clip's at sentences, the word's at words. */
-  const sentenceEdges = useMemo(() => (heardText ? sentenceStops(heardText.text, heard) : NO_STOPS), [heardText, heard]);
-  const wordEdges = useMemo(() => wordStops(heard), [heard]);
+  // Room around a clip changed on the options page: every stop is worked out again (the page is drawn again for any change of `modules`).
+  const clipRoom = `${leadNow()}/${tailNow()}`;
+  const sentenceEdges = useMemo(() => (heardText ? sentenceStops(heardText.text, heard) : NO_STOPS), [heardText, heard, clipRoom]);
+  const wordEdges = useMemo(() => wordStops(heard), [heard, clipRoom]);
   const clipTicks = useMemo(() => ticksOf(sentenceEdges), [sentenceEdges]);
   // A word's bar ticks where each word begins alone: its ends fall on the next word's start.
   const wordTicks = useMemo(() => ticksOf({ starts: wordEdges.starts, ends: [] }), [wordEdges]);

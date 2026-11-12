@@ -3,7 +3,7 @@ import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
-import { AfterAdd, BoundKey, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
+import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -173,6 +173,10 @@ const Stored = z.object({
   resumeBack: ResumeBack.catch(DEFAULT_MODULES.resumeBack),
   markStop: z.boolean().catch(DEFAULT_MODULES.markStop),
   afterAdd: AfterAdd.catch(DEFAULT_MODULES.afterAdd),
+  /** Room around a clip, and how much before and after (options page, Videos → Panki panel; `modules.ts` → `clipRoom`). */
+  clipRoom: z.boolean().catch(DEFAULT_MODULES.clipRoom),
+  clipLead: ClipRoom.catch(DEFAULT_MODULES.clipLead),
+  clipTail: ClipRoom.catch(DEFAULT_MODULES.clipTail),
   moduleHome: z.boolean().catch(DEFAULT_MODULES.home),
   /** The parts of YouTube's home, each its own under the master switch (`modules.ts`). */
   homePill: z.boolean().catch(DEFAULT_MODULES.homePill),
@@ -258,6 +262,9 @@ export const modulesOf = (store: Stored): Modules => ({
   resumeBack: store.resumeBack,
   markStop: store.markStop,
   afterAdd: store.afterAdd,
+  clipRoom: store.clipRoom,
+  clipLead: store.clipLead,
+  clipTail: store.clipTail,
   home: store.moduleHome,
   homePill: store.homePill,
   pill: store.pill,

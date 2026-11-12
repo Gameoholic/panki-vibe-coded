@@ -229,6 +229,10 @@ export const barReordered = (layout: BarLayout): boolean => {
  */
 export const SHELF_MAX = 5;
 
+/** A clip's lead or tail (`Modules.clipLead`, `clipTail`), in seconds, to a hundredth. */
+export const CLIP_ROOM_MAX = 2;
+export const ClipRoom = z.number().min(0).max(CLIP_ROOM_MAX);
+
 /** The key held with ← or → for a short skip (`Modules.shortSkip`): one, held alone. */
 export const SKIP_KEYS = ["shift", "ctrl", "alt"] as const;
 export const SkipKey = z.enum(SKIP_KEYS);
@@ -279,6 +283,14 @@ export const Modules = z.object({
   markStop: z.boolean(),
   /** Whether the video plays once a card from it is in. */
   afterAdd: AfterAdd,
+  /**
+   * Room around a clip: whether a clip starts `clipLead` seconds before its first word and ends `clipTail` after its
+   * last, never into the words either side (`content/youtube.tsx` → `beginsAt`, `endsAt`). The drawer's clip as said,
+   * the Clip bar's stops and ticks, and an accepted Sentence's clip all follow it. On, 0.35 s and 0.25 s, to begin with.
+   */
+  clipRoom: z.boolean(),
+  clipLead: ClipRoom,
+  clipTail: ClipRoom,
   /**
    * YouTube's home made Panki's, shaped around learning while still looking and feeling like YouTube: the master
    * switch, and each part its own under it in the options page's YouTube home add-ons panel. The header bar isn't one.
@@ -343,6 +355,9 @@ export const DEFAULT_MODULES: Modules = {
   resumeBack: 0,
   markStop: true,
   afterAdd: "before",
+  clipRoom: true,
+  clipLead: 0.35,
+  clipTail: 0.25,
   home: true,
   homePill: true,
   pill: DEFAULT_PILL,

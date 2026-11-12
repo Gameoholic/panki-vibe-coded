@@ -22,7 +22,7 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
@@ -347,6 +347,10 @@ const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   pause: "Once a card from a video is added, the video stays paused.",
   play: "Once a card from a video is added, the video plays.",
 };
+/** How a clip is made from the word clicked, and what Room around a clip adds to it: said once, under its switch. */
+const CLIP_ROOM_WHY =
+  "When you click a word, Panki finds the sentence it's in (the subtitles up to the next 。, ？ or ！) and makes the clip from when that sentence's first word is said to when its last word ends. With this on, the clip starts a little before the first word and ends a little after the last, so their first and last sounds aren't cut off. It never runs into the words before or after. The Clip bar's ticks, where its ends stop as you drag them, use the same.";
+
 /**
  * How transcribing behaves for this viewer: what's client-side is theirs, what it costs stays an admin's, in Panki's
  * Settings. Kept the moment it's changed; a video page reads it again with the transcript as it gets the focus. The
@@ -425,6 +429,46 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
         label="After adding a card"
         control={<Segmented idPrefix="after-add" label="After adding a card" options={AFTER_ADD_OPTIONS} value={store.afterAdd} disabled={off} onChange={(afterAdd) => void writeStore({ afterAdd }).then(onChanged)} />}
         why={AFTER_ADD_WHY[store.afterAdd]}
+      />
+      <Setting
+        id="clip-room"
+        label="Room around a clip"
+        control={<Toggle id="clip-room-on" says={{ on: "On", off: "Off" }} on={store.clipRoom} disabled={off} onChange={(clipRoom) => void writeStore({ clipRoom }).then(onChanged)} />}
+        why={CLIP_ROOM_WHY}
+      />
+      <Setting
+        id="clip-lead"
+        label="Before the first word"
+        control={
+          <NumberField
+            id="clip-lead-field"
+            label="Before the first word"
+            value={store.clipLead}
+            min={0}
+            max={CLIP_ROOM_MAX}
+            step={0.05}
+            suffix=" s"
+            disabled={off || !store.clipRoom}
+            onChange={(clipLead) => void writeStore({ clipLead }).then(onChanged)}
+          />
+        }
+      />
+      <Setting
+        id="clip-tail"
+        label="After the last word"
+        control={
+          <NumberField
+            id="clip-tail-field"
+            label="After the last word"
+            value={store.clipTail}
+            min={0}
+            max={CLIP_ROOM_MAX}
+            step={0.05}
+            suffix=" s"
+            disabled={off || !store.clipRoom}
+            onChange={(clipTail) => void writeStore({ clipTail }).then(onChanged)}
+          />
+        }
       />
     </section>
   );
