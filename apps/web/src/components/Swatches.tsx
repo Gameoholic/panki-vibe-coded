@@ -28,7 +28,7 @@ export function Swatches({ id, swatches, value, disabled = false, onChange }: { 
   const own = on ? null : value;
   return (
     <span ref={root} className="swatches">
-      <span className="swatch-row" role="group" aria-label="Colour">
+      <span className="swatch-row" role="group" aria-label="Color">
         {swatches.map((swatch, i) => (
           <Button
             key={`${i}-${swatch.id}`}
@@ -44,7 +44,7 @@ export function Swatches({ id, swatches, value, disabled = false, onChange }: { 
         <Button
           id={`${id}-own`}
           className={`swatch is-own ${own ? "has-colour" : ""}`.trim()}
-          aria-label="Your own colour"
+          aria-label="Your own color"
           aria-pressed={own !== null}
           aria-expanded={wheel}
           disabled={disabled}

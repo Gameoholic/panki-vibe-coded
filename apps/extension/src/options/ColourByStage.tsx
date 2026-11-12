@@ -1,11 +1,11 @@
-/** @panki Words in the decks' colour, Use stage's colour or Custom colour (`ColourByStage`). */
+/** @panki Words in the decks' colour, Use stage's color or Custom color (`ColourByStage`). */
 import { Segmented } from "@web/components/Segmented";
 import { Swatches } from "@web/components/Swatches";
 import { MARK_SWATCHES, paintOf, type MarkPaint } from "../seekLook";
 
 const WAYS = [
-  { id: "stage", label: "Use stage's colour" },
-  { id: "one", label: "Custom colour" },
+  { id: "stage", label: "Use stage's color" },
+  { id: "one", label: "Custom color" },
 ] as const;
 
 /**
@@ -17,7 +17,7 @@ const WAYS = [
 export function ColourByStage({ id, byStage, colour, disabled, onByStage, onColour }: { id: string; byStage: boolean; colour: MarkPaint; disabled: boolean; onByStage: (byStage: boolean) => void; onColour: (colour: MarkPaint) => void }) {
   return (
     <span className="colour-by-stage">
-      <Segmented idPrefix={`${id}-way`} label="Colour" options={WAYS} value={byStage ? "stage" : "one"} disabled={disabled} onChange={(way) => onByStage(way === "stage")} />
+      <Segmented idPrefix={`${id}-way`} label="Color" options={WAYS} value={byStage ? "stage" : "one"} disabled={disabled} onChange={(way) => onByStage(way === "stage")} />
       <Swatches
         id={id}
         swatches={MARK_SWATCHES}

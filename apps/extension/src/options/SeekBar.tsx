@@ -237,7 +237,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
             <Setting id={`seek-${id}-shown`} label="Visibility" control={<Toggle id={`seek-${id}-shown-on`} says={{ on: "Shown", off: "Hidden" }} on={mark.shown} disabled={off} onChange={(shown) => change(id, { shown })} />} />
             <Setting
               id={`seek-${id}-colour`}
-              label="Colour"
+              label="Color"
               control={
                 id === "known" || id === "cards" ? (
                   <ColourByStage

@@ -213,7 +213,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | lookSettings | `lookSettings.ts` | How the Word pop-up opens: its keys, its sites, the hover delay, the permissions it needs (`LookKey`, `LookWhere`, `HOVER_DELAY`, `lookAllowed`). |
 | messages | `messages.ts` | What a page's script asks the worker, each message a shape (`askLocal`, `askState`, `askDeck`, `askAdd`, `askUpload`). |
 | modules | `modules.ts` | Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). |
-| ColourByStage | `options/ColourByStage.tsx` | Words in the decks' colour, Use stage's colour or Custom colour (`ColourByStage`). |
+| ColourByStage | `options/ColourByStage.tsx` | Words in the decks' colour, Use stage's color or Custom color (`ColourByStage`). |
 | PartRows | `options/PartRows.tsx` | Parts of something laid out as rows: a grip, its name, Shown / Hidden, a part's own settings under it (`PartRows`, `LaidPart`). Never a second list of rows to lay out. |
 | PillPanel | `options/PillPanel.tsx` | The Header bar panel on the options page: Shown / Hidden, the pill previewed, its parts laid out, the streak its Streak shows (`HeaderBarPanel`). |
 | Updates | `options/Updates.tsx` | An update for the extension on the options page: whether there is one, the banner, the version panel (`useUpdate`, `UpdateBanner`, `VersionPanel`). |

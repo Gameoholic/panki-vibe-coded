@@ -550,7 +550,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
       />
       <Setting
         id="known-colour"
-        label="Colour"
+        label="Color"
         control={
           <ColourByStage
             id="known-colour"
@@ -565,7 +565,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
       {/* A word whose every card is suspended, marked apart. */}
       <Setting
         id="known-suspended-colour"
-        label="Suspended cards' colour"
+        label="Suspended cards' color"
         control={
           <Swatches
             id="known-suspended-colour"
@@ -582,7 +582,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
       {/* A word a flagged card is, marked apart again, over a suspended one's. */}
       <Setting
         id="known-flagged-colour"
-        label="Flagged cards' colour"
+        label="Flagged cards' color"
         control={
           <Swatches
             id="known-flagged-colour"

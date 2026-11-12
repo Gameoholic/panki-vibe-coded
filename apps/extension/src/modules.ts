@@ -153,7 +153,7 @@ export const BAR_CONTROLS = {
   // Hidden to begin with: Panki's own subtitles are picked in its panel.
   captions: { name: "Captions", side: "right", icon: "subtitles", shown: false, from: "youtube", find: ".ytp-subtitles-button" },
   settings: { name: "Settings", side: "right", icon: "gear", shown: true, from: "youtube", find: ".ytp-settings-button" },
-  theater: { name: "Theatre mode", side: "right", icon: "theater", shown: true, from: "youtube", find: ".ytp-size-button" },
+  theater: { name: "Theater mode", side: "right", icon: "theater", shown: true, from: "youtube", find: ".ytp-size-button" },
   fullscreen: { name: "Full screen", side: "right", icon: "expand", shown: true, from: "youtube", find: ".ytp-fullscreen-button" },
 } as const satisfies Record<BarControl, BarEntry>;
 /** Panki's own controls on the bar: each drawn by the page into a place of its own. */

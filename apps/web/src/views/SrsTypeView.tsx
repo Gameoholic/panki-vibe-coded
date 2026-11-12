@@ -45,7 +45,7 @@ function RungColour({ id, name, own, fallback, className = "", style, children, 
   const swatches: Swatch[] = open ? [fallback, ...Object.values(PALETTE).map(({ name: colourName, css }) => ({ id: hexOfCss(css), name: colourName, css }))] : [];
   return (
     <span ref={root} className="stage-colour">
-      <Button className={`stage-no ${className}`.trim()} style={style} aria-label={`Colour of ${name}`} aria-expanded={open} onClick={() => setOpen(!open)}>
+      <Button className={`stage-no ${className}`.trim()} style={style} aria-label={`Color of ${name}`} aria-expanded={open} onClick={() => setOpen(!open)}>
         {children}
       </Button>
       {open ? (

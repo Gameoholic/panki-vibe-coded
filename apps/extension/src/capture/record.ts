@@ -19,7 +19,7 @@ export class RecordTouched extends RecordError {
 /** Whoever asked for the recording called it off (the drawer's Cancel): nothing is made, and nothing is said about it. */
 export class RecordCancelled extends RecordError {
   constructor() {
-    super("The recording was cancelled.");
+    super("The recording was canceled.");
   }
 }
 
