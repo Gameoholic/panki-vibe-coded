@@ -311,16 +311,13 @@ body {
   font-weight: 600;
   opacity: 0.8;
 }
-/* Two ways folded into one door (components/Door.tsx): its place on the board is the wrapper, the ways inside it. */
-.door-rows,
-.door-stack {
+/* Two ways folded into one door, in rows (components/Door.tsx): its place on the board is the door's card holding
+   both, a hairline between, each row its icon, its name and line, how many there are, and an arrow that nudges on
+   while the row is pointed at. */
+.door-rows {
   position: relative;
   display: grid;
   min-height: 104px;
-}
-/* In rows: the door's card holds both, a hairline between, each row its icon, its name and line, how many there are,
-   and an arrow that nudges on while the row is pointed at. */
-.door-rows {
   grid-template-rows: 1fr 1fr;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -379,84 +376,6 @@ body {
   }
   .board:not(.is-arranging) .door-row:hover .door-arrow {
     transform: translateX(3px);
-  }
-}
-/* Stacked: the one behind shows its edge over the front's top; pointed at, focused or tapped, it rises out over
-   whatever stands above, springing and a little turned, its words fading in, and the front settles a touch. */
-.door-stack {
-  --rise: 74px;
-}
-.door-stack > .btn-door {
-  grid-area: 1 / 1;
-  transition: transform 0.5s cubic-bezier(0.3, 1.3, 0.45, 1), background 0.15s ease, box-shadow 0.3s ease;
-}
-.door-stack > .door-front {
-  position: relative;
-  z-index: 2;
-}
-.door-stack > .door-behind,
-.door-stack > .door-behind:active {
-  z-index: 1;
-  padding: 12px 14px;
-  background: var(--surface-2);
-  border-color: var(--line-strong);
-  box-shadow: none;
-  transform-origin: 50% 0;
-  transform: translateY(-8px) scale(0.94);
-}
-.door-behind > * {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-.door-behind-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.door-behind .door-icon {
-  width: 20px;
-  height: 20px;
-  margin-bottom: 0;
-}
-.board:not(.is-arranging) .door-stack:is(.is-open, :focus-within) {
-  z-index: 5;
-}
-.board:not(.is-arranging) .door-stack:is(.is-open, :focus-within) > .door-behind {
-  transform: translateY(calc(-1 * var(--rise))) rotate(-2deg);
-  box-shadow: var(--shadow);
-}
-.board:not(.is-arranging) .door-stack:is(.is-open, :focus-within) > .door-front {
-  transform: translateY(4px) rotate(0.6deg);
-}
-.board:not(.is-arranging) .door-stack:is(.is-open, :focus-within) > .door-behind > * {
-  opacity: 1;
-}
-.board:not(.is-arranging) .door-stack:is(.is-open, :focus-within) > .door-behind > .door-detail {
-  opacity: 0.75;
-}
-@media (hover: hover) {
-  .board:not(.is-arranging) .door-stack:hover {
-    z-index: 5;
-  }
-  /* A short wait before it rises, so a pointer passing over on its way elsewhere leaves it be. */
-  .board:not(.is-arranging) .door-stack:hover > .door-behind {
-    transform: translateY(calc(-1 * var(--rise))) rotate(-2deg);
-    box-shadow: var(--shadow);
-    transition-delay: 0.1s;
-  }
-  .board:not(.is-arranging) .door-stack:hover > .door-front {
-    transform: translateY(4px) rotate(0.6deg);
-    transition-delay: 0.1s;
-  }
-  .board:not(.is-arranging) .door-stack:hover > .door-behind > * {
-    opacity: 1;
-    transition-delay: 0.1s;
-  }
-  .board:not(.is-arranging) .door-stack:hover > .door-behind > .door-detail {
-    opacity: 0.75;
-  }
-  .board:not(.is-arranging) .door-stack > .door-behind:hover {
-    background: var(--accent-soft);
   }
 }
 /* One of a few choices. A rounded rectangle, like everything else in the app that's pressed, and not a pill, which
@@ -8098,11 +8017,11 @@ mark.sub-blur {
 .board.is-arranging .btn-door {
   opacity: 0.55;
 }
-/* A door of two ways dims whole, its ways inside it as they are, so the one behind a stack never shows through. */
-.board.is-arranging > :is(.door-rows, .door-stack):not(.is-lift, .tile-ghost) {
+/* A door of two ways dims whole, its ways inside it as they are, so it isn't dimmed twice over. */
+.board.is-arranging > .door-rows:not(.is-lift, .tile-ghost) {
   opacity: 0.55;
 }
-.board.is-arranging :is(.door-rows, .door-stack) .btn-door {
+.board.is-arranging .door-rows .btn-door {
   opacity: 1;
 }
 .tile-x {

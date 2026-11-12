@@ -33,7 +33,7 @@ type Props = {
 };
 
 /**
- * The hub: the doors (Review; Decks with Add a card behind it; Card types and SRS types in two rows) and the tiles this device was set up with, on one board, arranged by holding a tile.
+ * The hub: the doors (Review, Decks, Add a card, and Card types and SRS types in two rows) and the tiles this device was set up with, on one board, arranged by holding a tile.
  * Everything but Settings and Stats is behind a door. How today and the streaks stand is the Today tile's to say, nothing
  * over the board.
  */
@@ -109,14 +109,8 @@ export function HomeView({ decks, types, srsTypes, stats, settings, onReview, on
   // The Review door is the accent one only while there's something to do.
   const doors: DoorSpec[] = [
     { id: "door-review", shape: "one", hot: due + fresh > 0, way: { icon: "review", label: "Review", detail: reviewDetail, note: reviewNote, bind: binds.homeReview, onClick: onReview } },
-    {
-      id: "door-decks",
-      shape: "stack",
-      ways: [
-        { icon: "decks", label: "Decks", detail: decksDetail, onClick: onDecks },
-        { icon: "add", label: "Add a card", detail: addDetail, onClick: onAdd },
-      ],
-    },
+    { id: "door-decks", shape: "one", way: { icon: "decks", label: "Decks", detail: decksDetail, onClick: onDecks } },
+    { id: "door-add", shape: "one", way: { icon: "add", label: "Add a card", detail: addDetail, onClick: onAdd } },
     {
       id: "door-types",
       shape: "rows",

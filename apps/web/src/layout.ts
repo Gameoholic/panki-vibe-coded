@@ -3,11 +3,11 @@ import { ledger } from "./ledger";
 import { STREAK_TILE, WIDGETS, streakTileId, widgetOf, type WidgetId } from "./widgets";
 
 /**
- * The home's doors, in the order they stand before anything is moved. Their details are the home's. Add a card is
- * stacked behind Decks and SRS types is a row of Card types: a layout stored when they were doors of their own
- * (`door-add`, `door-srs`) drops them, the door they're folded into keeping its place.
+ * The home's doors, in the order they stand before anything is moved. Their details are the home's. SRS types is a
+ * row of the Card types door: a layout stored when it was a door of its own (`door-srs`) drops it, Card types keeping
+ * its place.
  */
-export const DOOR_IDS = ["door-review", "door-decks", "door-types"] as const;
+export const DOOR_IDS = ["door-review", "door-decks", "door-add", "door-types"] as const;
 export type DoorId = (typeof DOOR_IDS)[number];
 /** A streak's tile (`streakTileId`): one per streak, the streaks being the account's. */
 export type StreakTileId = `${typeof STREAK_TILE}${string}`;
@@ -23,7 +23,7 @@ export const isStreakTile = (x: unknown): x is StreakTileId => typeof x === "str
  * How the home is laid out on this device: the doors and the tiles in one order (a door is moved like any tile), and
  * the tiles that are put away. Kept in the browser, not on the server, because the phone and the PC are set up
  * differently on purpose. Read defensively: a missing or broken value is the default, an id the registry no longer
- * has is dropped, a door not placed yet stands at the front, and a widget the registry gained since is put away
+ * has is dropped, a door not placed yet stands after the door before it, and a widget the registry gained since is put away
  * rather than let onto the home uninvited. A streak's tile is kept as it was stored until the settings say which
  * streaks there are (`fitStreaks`). Every change is a `layout` row in the ledger.
  */
@@ -65,7 +65,14 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
     return ids;
   };
   const picked = pick<BoardItemId>(order, (x): x is BoardItemId => isTileItem(x) || isDoorId(x));
-  picked.unshift(...DOOR_IDS.filter((d) => !seen.has(d)));
+  // A door not placed yet stands right after the door before it, so one that comes back is where it was, never in
+  // front of Review. Taken in order, the door before is always placed by then.
+  DOOR_IDS.forEach((door, i) => {
+    if (seen.has(door)) return;
+    const prev = DOOR_IDS[i - 1];
+    picked.splice(prev === undefined ? 0 : picked.indexOf(prev) + 1, 0, door);
+    seen.add(door);
+  });
   const away = pick<TileItemId>(hidden, isTileItem);
   for (const w of WIDGETS) if (w.home && !seen.has(w.id)) away.push(w.id);
   return { order: picked, hidden: away };
