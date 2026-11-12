@@ -1581,11 +1581,16 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       .map((piece) => piece.field.name)
       .join(" · ");
   const offers: Record<Cut, ClipOffer | null> = { clip, word: wordClip };
-  /** The recordings this card gets: what the deck takes and the page has to give. One stretch may be recorded twice, once each way. */
-  const cuts = recorded.flatMap((piece) => {
-    const offer = offers[piece.of];
-    return offer ? [{ ...piece, offer }] : [];
-  });
+  /**
+   * The recordings this card gets: what the deck takes and the page has to give. One stretch may be recorded twice,
+   * once each way. The clip's last: a recording leaves the video where it stopped, so it's left at the clip's end.
+   */
+  const cuts = recorded
+    .flatMap((piece) => {
+      const offer = offers[piece.of];
+      return offer ? [{ ...piece, offer }] : [];
+    })
+    .sort((a, b) => (a.of === b.of ? 0 : a.of === "clip" ? 1 : -1));
 
   // The first of the card's fields takes the keys as soon as there is one, without the page being moved to it: on a video
   // the drawer stands beside something being watched. Never the conversation's message box, which stands above the

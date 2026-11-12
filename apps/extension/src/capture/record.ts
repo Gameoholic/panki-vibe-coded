@@ -2,7 +2,7 @@
 /**
  * Records a stretch of a video off the player itself: the element's own picture and sound, nothing else in the tab,
  * no screen sharing and no asking. A browser can't hand back what has already played, so the stretch is played once
- * more while it's recorded, then the video is put back where it was. Written against the platform's own interfaces
+ * more while it's recorded, and the video is left where the recording stopped. Written against the platform's own interfaces
  * (a media element's `captureStream`, `MediaRecorder`); nothing here comes from another tool's code.
  *
  * A protected video (a paid film) gives nothing this way, by the browser's own rule; the recording is then empty and
@@ -143,9 +143,10 @@ function seek(video: HTMLVideoElement, to: number): Promise<void> {
 }
 
 /**
- * Plays `stretch` once and gives back what was recorded, and how. The video is left paused where it was before; whoever
- * asked decides when it goes on. `onProgress` is told how many seconds are recorded so far, and of how many when that's
- * known. `signal` aborted while it plays calls it off (`RecordCancelled`), the video put back as after any recording.
+ * Plays `stretch` once and gives back what was recorded, and how. The video is left paused where the recording stopped,
+ * never moved back; whoever asked decides when it goes on. `onProgress` is told how many seconds are recorded so far,
+ * and of how many when that's known. `signal` aborted while it plays calls it off (`RecordCancelled`), the video left
+ * where it got to.
  */
 export async function recordStretch(video: HTMLVideoElement, stretch: Stretch, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal): Promise<Recorded> {
   if (typeof MediaRecorder !== "function") throw new RecordError("This browser can't record a player.");
@@ -170,7 +171,7 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
   });
   const stopped = new Promise<void>((resolve) => recorder.addEventListener("stop", () => resolve(), { once: true }));
 
-  const before = { time: video.currentTime, rate: video.playbackRate };
+  const before = { rate: video.playbackRate };
   let stoppedAt = stretch.from;
   let picture = pictureOf(video, stream);
   try {
@@ -229,7 +230,7 @@ async function recordFrom(video: HTMLVideoElement, stream: MediaStream, stretch:
     video.pause();
     if (recorder.state !== "inactive") recorder.stop();
     video.playbackRate = before.rate;
-    await seek(video, before.time).catch(() => undefined);
+    // Left where it stopped, never moved back: the video goes on from where the recording left it (the owner, 2026-11-12).
   }
   await stopped;
   const clip = new Blob(pieces, { type: recorder.mimeType || format || (stretch.soundOnly ? "audio/webm" : "video/webm") });

@@ -2522,7 +2522,7 @@ function App() {
    * The card is in, so playing the video while the drawer still says Added never goes back into the clip: the video
    * is let go at once, as closing the drawer would let it go, and the clip, its marks and the pick go
    * with it; the drawer stays only to say Added, then closes as it always did. It goes on from exactly where it is
-   * now, never moved (a recording puts the video back where it was before it, `record.ts`). Whether it then plays is the options page's After
+   * now, never moved (a recording leaves the video where it stopped, `record.ts`, the clip's recorded last: its end). Whether it then plays is the options page's After
    * adding a card (`afterAdd`): as it was before the drawer held it (a video started by hand since is left be), paused,
    * or playing.
    */
