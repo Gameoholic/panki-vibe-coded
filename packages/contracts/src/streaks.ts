@@ -255,6 +255,11 @@ export function goalRuleWords(kind: GoalKind, need: number): string {
   return entry.numbered ? `${entry.name} ≥ ${goalAmountWords(kind, need)}` : entry.name;
 }
 
+/** What a counted goal holds so far in its period, in its own unit: "37", "12 min", "1.5 h". Null for one without a count ("All reviews done"). */
+export function goalHaveWords(kind: GoalKind, have: number): string | null {
+  return GOAL_KINDS[kind].numbered ? goalAmountWords(kind, have) : null;
+}
+
 /** How far a counted goal is in its period: "37 / 50", "12 min / 1.5 h". One without a count is shown by its mark alone. */
 export function goalSaysWords(kind: GoalKind, have: number, need: number): string {
   return `${goalAmountWords(kind, have)} / ${goalAmountWords(kind, need)}`;

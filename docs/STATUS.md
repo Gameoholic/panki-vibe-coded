@@ -38,7 +38,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-12: a card's look before Undo and after it one look, in its time and the pace; a card's time and the review's time studying stopped while Panki is out of view (`architecture/data-model.md` → Undo, the spans).
 - 2026-11-12: This week, This month and This year on every tile with a window over the past, the dropdown grouped (Today ▸, Last 7 d ▸, All time, Custom…); a streak's Show more any stretch; on the home Show less only while arranging too (`STREAKS.md` → Round 19).
 - 2026-11-12: Coming up's Today ▸ with This week, This month and This year, each what's left of it, today to its last day (`Stats.calendarAhead`).
-- 2026-11-12: Today's streaks a line each, pressed to open their conditions; on the home a tile's settings and Show more only while arranging.
+- 2026-11-12: Today's streaks a line each, pressed to open their conditions, a counted one not met yet with how far it's got ("Cards added ≥ 100 (37)"); on the home a tile's settings and Show more only while arranging.
 - 2026-11-12: Card types and SRS types one door of two rows on the home (`components/Door.tsx`); a stored layout drops the old SRS types door.
 - 2026-11-12: a time condition said in hours from an hour up ("≥ 1.5 h"), entered in min or h, up to the day's or the week's length (`STREAKS.md` → Round 18).
 

@@ -8,6 +8,7 @@ import {
   CALENDAR_WINDOWS,
   STREAKS_MAX,
   STREAK_PERIODS,
+  goalHaveWords,
   goalRuleWords,
   goalSaysWords,
   periodCountWords,
@@ -600,7 +601,7 @@ function TodayFacts({ stats }: { stats: Stats }) {
  * Every streak as a build's checks, in the account's order: a row each, tinted whole, green with a tick once its period
  * counts and red with a cross until then, at any hour; on one line its name, that it counts or the time left, its run
  * and a chevron. Pressed, it opens to every condition in its own words ("Reviews ≥ 20", "All reviews done"), each with
- * its own tick or cross, its groups apart with "or" between them as the streak's tile has them; pressed again, it
+ * its own tick or cross, a counted one not met yet with how far it's got after it ("Cards added ≥ 100 (37)"), its groups apart with "or" between them as the streak's tile has them; pressed again, it
  * folds. Which are open is the tile's while it's on screen, nowhere kept.
  */
 function StreakChecks({ streaks }: { streaks: readonly StreakState[] }) {
@@ -640,12 +641,15 @@ function StreakChecks({ streaks }: { streaks: readonly StreakState[] }) {
                     {gi > 0 ? <li className="w-goal-or">or</li> : null}
                     {group.map((g, ci) => {
                       const met = g.have >= g.need;
+                      // Not met yet, a counted one says how far it's got: "Cards added ≥ 100 (37)".
+                      const sofar = met ? null : goalHaveWords(g.kind, g.have);
                       return (
                         <li key={ci} className={`w-check ${met ? "is-met" : "is-unmet"}`}>
                           <span className="w-check-mark" role="img" aria-label={met ? "Done" : "Not done"}>
                             <Icon name={met ? "check" : "cross"} />
                           </span>
                           {goalRuleWords(g.kind, g.need)}
+                          {sofar !== null ? <span className="w-check-sofar"> ({sofar})</span> : null}
                         </li>
                       );
                     })}

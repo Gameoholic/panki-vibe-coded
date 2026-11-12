@@ -7793,6 +7793,12 @@ mark.sub-blur {
 .w-check.is-unmet .w-check-mark {
   color: var(--danger);
 }
+/* How far a condition not met yet has got, after it: "(37)". */
+.w-check-sofar {
+  color: var(--muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 .w-today-streaks {
   display: grid;
   gap: 6px;
