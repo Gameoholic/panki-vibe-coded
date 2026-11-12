@@ -46,7 +46,7 @@ test("the run is main's first commit and its tip", () => {
 test("a head follow-up is a commit on main, changed or not", () => {
   let c = run();
   c = commit(c, null, turn(null, "why?"));
-  c = commit(c, null, turn(null, "shorter", ["sentence"]));
+  c = commit(c, null, turn(null, "shorter", ["line"]));
   assert.deepEqual(questions(c.main), ["", "why?", "shorter"]);
   assert.deepEqual(texts(c, null), ["{run}", "why?", "re: why?", "shorter", "re: shorter"]);
 });
@@ -83,7 +83,7 @@ test("when main's tip moves every other branch is reset, said once, until the ne
   let c = run();
   c = commit(c, "f2", turn("f2", "a"));
   c = commit(c, "f3", turn("f3", "b"));
-  c = commit(c, "f1", turn("f1", "c", ["sentence"]));
+  c = commit(c, "f1", turn("f1", "c", ["line"]));
   for (const field of ["f2", "f3"]) {
     const branch = branchOf(c, field);
     assert.deepEqual(branch.commits, []);
@@ -151,7 +151,7 @@ test("the head folds a merged branch's unchanged commits before the one that cha
 
 test("every commit, and every commit changed in place", () => {
   let c = run();
-  c = commit(c, null, turn(null, "h", ["sentence"]));
+  c = commit(c, null, turn(null, "h", ["line"]));
   c = commit(c, "f1", turn("f1", "b"));
   assert.deepEqual(questions(commitsOf(c)), ["", "h", "b"]);
   const marked = mapCommits(c, (each) => ({ ...each, reply: "x" }));

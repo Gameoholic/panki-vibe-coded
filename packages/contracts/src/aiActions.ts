@@ -459,11 +459,11 @@ export function sentenceLinesOf(pieces: PromptPieces, send: Pick<TouchUpSend, "w
   return [...byNumber.values()].sort((a, b) => a.n - b.n);
 }
 /**
- * The keys a card's message may answer as it's sent: the deck's, the Sentence only where there are subtitle lines to
+ * The keys a card's message may answer as it's sent: the deck's, the Line only where there are subtitle lines to
  * pick it from (`sentenceLinesOf`), since it's answered as lines and never written.
  */
 export const keysWithLines = (mapped: readonly TouchUpKey[], lines: readonly SubtitleLine[]): TouchUpKey[] =>
-  lines.length > 0 ? [...mapped] : mapped.filter((key) => key !== "sentence");
+  lines.length > 0 ? [...mapped] : mapped.filter((key) => key !== "line");
 
 /**
  * The user's words inside a tag that names them so, the one way both places send them: what a user, or an action the

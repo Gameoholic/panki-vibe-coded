@@ -77,33 +77,33 @@ test("Panki's rules hold whatever was asked: good with a proposal, meh without o
 
 const SUBTITLES = "何されてる？\n\n殴られてる。 \nこういう澤部さん。";
 const LINES = { lines: subtitleLinesOf(SUBTITLES), word: "殴られてる" };
-const SENTENCE_NOW: TouchUpNow = { values: { sentence: "殴られてる。" }, ticked: [] };
+const SENTENCE_NOW: TouchUpNow = { values: { line: "殴られてる。" }, ticked: [] };
 
 test("subtitles are numbered a line each, blank lines left out", () => {
   assert.equal(numberedSubtitles(SUBTITLES), "1\t何されてる？\n2\t殴られてる。\n3\tこういう澤部さん。");
 });
 
 test("a Sentence is the subtitle lines its numbers name, copied, in order and within the lines there are", () => {
-  const of = (first: number, last: number) => answerOfWire({ reply: "", sentence: { judgement: "meh", first, last, why: "Needs the question.", error: "" } }, LINES).answer.sentence;
+  const of = (first: number, last: number) => answerOfWire({ reply: "", line:{ judgement: "meh", first, last, why: "Needs the question.", error: "" } }, LINES).answer.line;
   assert.deepEqual(of(1, 2), { judgement: "meh", proposed: "何されてる？\n殴られてる。", why: "Needs the question." });
   assert.deepEqual(of(2, 1), of(1, 2));
   assert.deepEqual(of(2, 9), { judgement: "meh", proposed: "殴られてる。\nこういう澤部さん。", why: "Needs the question." });
   // Good copies nothing; untouched is 0 and 0 with no judgement.
-  assert.deepEqual(answerOfWire({ reply: "", sentence: { judgement: "good", first: 0, last: 0, why: "Stands alone.", error: "" } }, LINES).answer.sentence, {
+  assert.deepEqual(answerOfWire({ reply: "", line:{ judgement: "good", first: 0, last: 0, why: "Stands alone.", error: "" } }, LINES).answer.line, {
     judgement: "good",
     proposed: null,
     why: "Stands alone.",
   });
-  assert.equal(answerOfWire({ reply: "x", sentence: { judgement: "", first: 0, last: 0, why: "", error: "" } }, LINES).answer.sentence, undefined);
+  assert.equal(answerOfWire({ reply: "x", line:{ judgement: "", first: 0, last: 0, why: "", error: "" } }, LINES).answer.line, undefined);
 });
 
 test("a Sentence whose lines can't be used is set aside, that part alone, never failing the message", () => {
-  const aside = (wire: TouchUpWire["sentence"], lines = LINES) => answerOfWire({ reply: "", sentence: wire }, lines).answer.sentence;
+  const aside = (wire: TouchUpWire["line"], lines = LINES) => answerOfWire({ reply: "", line:wire }, lines).answer.line;
   assert.equal((aside({ judgement: "meh", first: 3, last: 3, why: "x", error: "" }) as { error?: string }).error, "rewrote");
   assert.equal((aside({ judgement: "meh", first: 0, last: 0, why: "x", error: "" }) as { error?: string }).error, "rewrote");
   assert.equal((aside({ judgement: "meh", first: 1, last: 2, why: "x", error: "" }, { lines: [], word: "" }) as { error?: string }).error, "rewrote");
-  const read = answerOfWire({ reply: "", sentence: { judgement: "meh", first: 3, last: 3, why: "x", error: "" } }, LINES);
-  assert.equal(touchUpProblem(read, { meanings: [], now: SENTENCE_NOW, requires: ["sentence"] }).broken, null);
+  const read = answerOfWire({ reply: "", line:{ judgement: "meh", first: 3, last: 3, why: "x", error: "" } }, LINES);
+  assert.equal(touchUpProblem(read, { meanings: [], now: SENTENCE_NOW, requires: ["line"] }).broken, null);
 });
 
 test("the Meaning untouched is no rows and nothing proposed; touched, it's held to a row per meaning", () => {

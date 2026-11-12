@@ -791,7 +791,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     return field && isTyped(field.kind) ? field : null;
   };
   // The Sentence is answered as subtitle lines (`touchUp.ts` → `SentenceWire`), so only on a video.
-  const touchKeys = TOUCH_UP_KEYS.filter((key) => keyField(key) !== null && (key !== "sentence" || capture.more !== undefined));
+  const touchKeys = TOUCH_UP_KEYS.filter((key) => keyField(key) !== null && (key !== "line" || capture.more !== undefined));
   const keyOfField = (fieldId: string): TouchUpKey | null => touchKeys.find((key) => keyField(key)?.id === fieldId) ?? null;
   const aiSettings = ai.ai?.settings ?? null;
   /**
@@ -939,7 +939,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    * off a video.
    */
   function clipToOf(answer: TouchUpAnswer, held: string): Touch["clipTo"] {
-    const part = answer.sentence;
+    const part = answer.line;
     const follow = clip?.follow;
     if (!part || !follow) return null;
     const verdict = fieldVerdictOf(part, held);
@@ -1071,7 +1071,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       conversation: firstSend ? startConversation(made) : commit(was.conversation, sent.where, made),
       asking: null,
       // A send that changes the Sentence brings its own clip; one that doesn't leaves the last proposal's.
-      clipTo: done.answer.sentence ? clipToOf(done.answer, read.now.values.sentence ?? "") : was.clipTo,
+      clipTo: done.answer.line ? clipToOf(done.answer, read.now.values.line ?? "") : was.clipTo,
     }));
     // The worker keeps Panki AI as this answer said it stands: what's said beside Send follows any change.
     readAi();
@@ -1328,7 +1328,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       if (verdict && "proposed" in verdict) {
         writeAi(field, verdict.proposed);
         // On a video the clip goes to the accepted lines, where its note said, and the Sentence is its words.
-        const to = key === "sentence" ? clipToFor(verdict.proposed) : null;
+        const to = key === "line" ? clipToFor(verdict.proposed) : null;
         if (to?.ends) clip?.follow?.moveTo(to.ends);
       }
     }
@@ -1341,8 +1341,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
   /** Where Accept on the Sentence proposal waiting now would put the clip; null with none waiting, off a video, or when its words aren't in the subtitles kept. */
   function clipProposed(): { start: number; end: number } | null {
-    if (!waiting("sentence")) return null;
-    const verdict = fieldVerdict("sentence");
+    if (!waiting("line")) return null;
+    const verdict = fieldVerdict("line");
     return verdict && "proposed" in verdict ? (clipToFor(verdict.proposed)?.ends ?? null) : null;
   }
   /** Where the clip goes for the Sentence proposed, as worked out when it landed; null off a video or for other words. */
@@ -1352,7 +1352,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    * it stays, or nothing off a video.
    */
   function clipNote(key: TouchUpKey): ReactNode {
-    const verdict = key === "sentence" ? fieldVerdict(key) : null;
+    const verdict = key === "line" ? fieldVerdict(key) : null;
     const to = verdict && "proposed" in verdict ? clipToFor(verdict.proposed) : null;
     if (!verdict || !to) return null;
     if (!to.ends) return TOUCH_UP_WORDS.clipStays;

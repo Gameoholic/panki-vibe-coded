@@ -21,7 +21,7 @@ export type ActionPlaceId = z.infer<typeof ActionPlaceId>;
  * one registry. A new key is one entry here, one line of the answer and its words in the default prompt. Here so an
  * action's knobs can name them.
  */
-export const TOUCH_UP_KEYS = ["meaning", "reading", "dictionaryForm", "pitchAccent", "sentence", "explanation", "examples"] as const;
+export const TOUCH_UP_KEYS = ["meaning", "reading", "dictionaryForm", "pitchAccent", "line", "explanation", "examples"] as const;
 export const TouchUpKey = z.enum(TOUCH_UP_KEYS);
 export type TouchUpKey = z.infer<typeof TouchUpKey>;
 
@@ -34,8 +34,11 @@ export const EXPLAIN_PARTS = ["reply", "meanings"] as const;
 export const ExplainPart = z.enum(EXPLAIN_PARTS);
 export type ExplainPart = z.infer<typeof ExplainPart>;
 
-/** What an action can require to come back: a card's field by its Touch up key, or a part of a word's answer. */
-export const ActionPart = z.union([TouchUpKey, ExplainPart]);
+/**
+ * What an action can require to come back: a card's field by its Touch up key, or a part of a word's answer. The Line's
+ * key was "sentence" until 2026-11-12: an action kept from then reads it as "line".
+ */
+export const ActionPart = z.preprocess((part) => (part === "sentence" ? "line" : part), z.union([TouchUpKey, ExplainPart]));
 export type ActionPart = z.infer<typeof ActionPart>;
 
 /**

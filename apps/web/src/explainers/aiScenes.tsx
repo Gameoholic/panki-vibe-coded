@@ -352,7 +352,7 @@ const TOUCHED: { sentence: FieldAnswer; explanation: FieldAnswer } = {
 /** The made-up card's fields, by key, in its card type's order. */
 const SCENE_FIELDS = ["word", "sentence", "explanation"] as const;
 /** The Touch up keys the scene's deck maps: its composer shows their own actions. */
-const SCENE_KEYS: readonly TouchUpKey[] = ["sentence", "explanation"];
+const SCENE_KEYS: readonly TouchUpKey[] = ["line", "explanation"];
 
 /**
  * Touch up: a card being added in the drawer beside a paused video, its conversation's composer with Touch up lit, Send

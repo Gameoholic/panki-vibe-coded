@@ -30,7 +30,8 @@ export const TOUCH_UP: Record<TouchUpKey, { role: string; name: string }> = {
   reading: { role: "dictReading", name: DATA_KIND_NAMES.reading },
   dictionaryForm: { role: "dictForm", name: DATA_KIND_NAMES.form },
   pitchAccent: { role: "dictPitch", name: DATA_KIND_NAMES.pitch },
-  sentence: { role: "sentence", name: PIECE_NAMES.sentence },
+  // The field mapping's role keeps its id, "sentence", which kept maps hold.
+  line: { role: "sentence", name: PIECE_NAMES.sentence },
   // The word in general: nuance, register, what it's confused with; never Meaning said again.
   explanation: { role: "explanation", name: "Explanation" },
   // A few made-up sentences, each after a line that sets its scene.
@@ -175,15 +176,15 @@ export const KEY_WORDS: Record<TouchUpKey, string> = {
   reading: "the dictionary form's reading: judged, changed as asked, written when it's empty, the error, or untouched",
   dictionaryForm: "the dictionary form, the same way",
   pitchAccent: "the dictionary form's pitch accent as its field writes it (くう 1), the same way",
-  sentence: "the subtitle lines the card's clip plays, the same way, but proposed as the numbers of its first and last line, which Panki copies",
+  line: "the subtitle lines the card's clip plays, the same way, but proposed as the numbers of its first and last line, which Panki copies",
   explanation: "what the word does in this sentence where the Meaning alone doesn't make it clear, the same way, or left empty with a why",
   examples: "a few made-up sentences, each after a line setting its scene, the same way",
 };
 /** The reply's words in Admin, beside the keys. */
 const REPLY_WORDS = 'the reply to the message, shown under it: what the message asked to be said; "" otherwise, unless something the message asked couldn\'t be done or was done differently';
 /** The answer on the wire: the reply, and each key in whichever shape it was asked in (`touchUpShape`). */
-export type TouchUpWire = { reply: string; meaning?: MeaningWire | EmptyMeaningWire; sentence?: SentenceWire | EmptySentenceWire } & Partial<
-  Record<Exclude<TouchUpKey, "meaning" | "sentence">, FieldWire | EmptyFieldWire>
+export type TouchUpWire = { reply: string; meaning?: MeaningWire | EmptyMeaningWire; line?: SentenceWire | EmptySentenceWire } & Partial<
+  Record<Exclude<TouchUpKey, "meaning" | "line">, FieldWire | EmptyFieldWire>
 >;
 
 /** A field the model can't judge or write from what it was given, in its judgement's place: the code and what was missing. */
@@ -216,7 +217,7 @@ export const TouchUpAnswer = z.object({
   reading: FieldAnswer.optional(),
   dictionaryForm: FieldAnswer.optional(),
   pitchAccent: FieldAnswer.optional(),
-  sentence: FieldAnswer.optional(),
+  line: FieldAnswer.optional(),
   explanation: FieldAnswer.optional(),
   examples: FieldAnswer.optional(),
 });
@@ -284,9 +285,9 @@ export function answerOfWire(wire: TouchUpWire, lines: SentenceLines | null = nu
   const meaning = wire.meaning ? meaningOfWire(wire.meaning) : null;
   if (meaning) answer.meaning = meaning;
   for (const key of FIELD_KEYS) {
-    if (key === "sentence") {
-      const part = wire.sentence ? sentenceOfWire(wire.sentence, lines) : null;
-      if (part) answer.sentence = part;
+    if (key === "line") {
+      const part = wire.line ? sentenceOfWire(wire.line, lines) : null;
+      if (part) answer.line = part;
       continue;
     }
     const wired = wire[key];
@@ -507,7 +508,7 @@ export function touchUpShape(keys: readonly TouchUpKey[], now: TouchUpNow, meani
   const shapeOf = (key: TouchUpKey) => {
     if (key === "meaning") return meaningCount > 0 ? MeaningWire : EmptyMeaningWire;
     const empty = (now.values[key] ?? "").trim() === "";
-    if (key === "sentence") return empty ? EmptySentenceWire : SentenceWire;
+    if (key === "line") return empty ? EmptySentenceWire : SentenceWire;
     return empty ? EmptyFieldWire : FieldWire;
   };
   return z.object({ reply: Reply, ...Object.fromEntries(keys.map((key) => [key, shapeOf(key)])) }) as unknown as z.ZodType<TouchUpWire>;
