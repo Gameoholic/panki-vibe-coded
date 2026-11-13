@@ -77,6 +77,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-21: video tracking, where you stopped, Continue watching, YouTube's home made Panki's.
 - 2026-10-25: Finished; the video end time; Words that are in your decks on the seek bar; Recently watched.
 - 2026-11-10: a finished video leaving Saved for later; "Ends at".
+- 2026-11-13: how saving what's watched stands, an icon in the Panki panel's head (saved, sending, waiting, lost), its words on hover or a press (`architecture/watching.md` → How saving stands).
 - 2026-11-13: the Video recap as a video is finished, in five looks on trial (A Corner, B Sessions, H Flashcards, J Sessions, K Next up) turned by a developer button on it; Videos → Video recap with Confetti on the options page (`architecture/watching.md` → The Video recap, `RECAP.md`).
 
 **Panki AI** (`architecture/ai.md`)

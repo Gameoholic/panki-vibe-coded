@@ -134,6 +134,11 @@ const ICONS = {
   eyeOff: ["M3 3l18 18", "M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.8", "M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6", "M9.9 9.9a3 3 0 0 0 4.2 4.2"],
   /** Saved for later, Panki's own, never YouTube's. */
   bookmark: ["M6 3h12v18l-6-4-6 4z"],
+  /** How saving what's watched stands, in the Panki panel's head (`ui/SavingMark.tsx`): a cloud with a tick (saved), an arrow up (sending), struck through (Panki out of reach), a ! (some given way). */
+  cloudSaved: ["M7 19h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 9.6 4.7 4.7 0 0 0 7 19z", "M9.5 14.5l2 2 3.5-3.5"],
+  cloudSending: ["M7 19h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 9.6 4.7 4.7 0 0 0 7 19z", "M12 16.5v-5", "M9.8 13.7l2.2-2.2 2.2 2.2"],
+  cloudOff: ["M7 19h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 9.6 4.7 4.7 0 0 0 7 19z", "M3.5 3.5l17 17"],
+  cloudLost: ["M7 19h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 9.6 4.7 4.7 0 0 0 7 19z", "M12 11.5v3", "M12 16.8h.01"],
   user: ["M12 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M4 21a8 8 0 0 1 16 0"],
   userAdd: ["M10 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8z", "M2 21a8 8 0 0 1 13-6.2", "M19 14v6", "M16 17h6"],
   /** Back to what it was to begin with (`undo` takes back the last thing done). */

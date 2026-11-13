@@ -29,7 +29,8 @@ import { amendLocal, loadLocal, localNow, onLocal, useLocal } from "../local";
 import type { TranscribePrefs } from "../transcribe/prefs";
 import { OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, panelWidthOf, resumeTo, switchInPill, type Modules, type PanelView, type PanelWidth, type PankiBarControl, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
-import { createWatcher } from "../watch/watcher";
+import { createWatcher, SAVING_IDLE, type Saving } from "../watch/watcher";
+import { SavingMark } from "../ui/SavingMark";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
@@ -463,10 +464,13 @@ function adPlaying() {
   return player !== null && AD.some((name) => player.classList.contains(name));
 }
 /** What's watched here, noted and sent to Panki while this browser's Video tracking is on (`watch/watcher.ts`, `watch/tracking.ts`). */
+/** How saving what's watched here stands, for the panel's head (`ui/SavingMark.tsx`). */
+const savingHere = cell<Saving>(SAVING_IDLE);
 const watcher = createWatcher({
   send: async (batch) => (await askWatch(batch)).ok,
   about: aboutVideo,
   isAd: adPlaying,
+  onSaving: savingHere.set,
 });
 
 /**
@@ -2209,6 +2213,7 @@ function App() {
   useSyncExternalStore(seen.subscribe, seen.get);
   const savedNow = useSyncExternalStore(savedHere.subscribe, savedHere.get);
   const finishNow = useSyncExternalStore(finishHere.subscribe, finishHere.get);
+  const savingNow = useSyncExternalStore(savingHere.subscribe, savingHere.get);
   /** An update for the extension: a button in the head while one is available; the head and it alone while one is needed. */
   const updateNow = useSyncExternalStore(update.subscribe, update.get);
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
@@ -3138,6 +3143,8 @@ function App() {
                 Letting the sentence finish. The video stops at its end.
               </span>
             ) : null}
+            {/* How saving what's watched here stands: an icon in its state's colour, its words in a tip. */}
+            <SavingMark saving={savingNow} />
             <div className="strip-tools">
               {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the
                   screen's corner brings it back): an icon button like the menu's, its words and the key in its tip, so the key is learnt where it's used. */}

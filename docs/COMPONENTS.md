@@ -246,6 +246,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | Rename | `ui/Rename.tsx` | A name of one's own on a row, renamed in place (`Rename`). Never a second rename in place. |
 | ResumeOffer | `ui/ResumeOffer.tsx` | Going on from where a video was stopped, offered on the picture (`ResumeOffer`). Never a second drawing of the offer. |
 | SaveControl | `ui/SaveControl.tsx` | Save for later as a control of the player's bar (`SaveControl`). |
+| SavingMark | `ui/SavingMark.tsx` | How saving what's watched stands, an icon in the Panki panel's head, its words in a tip (`SavingMark`). |
 | SeekMark | `ui/SeekMark.tsx` | Panki on the player's seek bar: how far the transcript reaches, where cards came from, the clip (`SeekMark`, `ClipMark`). Never a second mark on the bar. |
 | SpeedControl | `ui/SpeedControl.tsx` | The player's speed, changed among its own controls (`SpeedControl`). Never a second way of setting the speed on the page. |
 | Stamp | `ui/Stamp.tsx` | A moment of the video that can be typed over (`Stamp`). |

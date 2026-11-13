@@ -2642,6 +2642,66 @@
   font-weight: 500;
   opacity: 0.7;
 }
+/* How saving what's watched stands (ui/SavingMark.tsx): an icon alone in the head, its state its colour; its words in a
+   tip under it, in the same dark glass as Hide panel's. A finger's press shows the tip too, where hover never could. */
+.saving-mark {
+  position: relative;
+  display: inline-flex;
+}
+.btn.saving-mark-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--saving-tone);
+}
+@media (hover: hover) {
+  .btn.saving-mark-button:hover {
+    background: var(--surface-2);
+  }
+}
+.saving-mark-button .icon {
+  width: 17px;
+  height: 17px;
+}
+.saving-mark.is-saved {
+  --saving-tone: var(--good);
+}
+.saving-mark.is-sending {
+  --saving-tone: var(--accent);
+}
+.saving-mark.is-waiting {
+  --saving-tone: var(--risk);
+}
+.saving-mark.is-lost {
+  --saving-tone: var(--danger);
+}
+.saving-mark .tip {
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--theater) 88%, transparent);
+  color: var(--theater-ink);
+}
+.saving-tip {
+  display: grid;
+  gap: 2px;
+}
+.saving-tip > span + span {
+  font-weight: 500;
+  opacity: 0.8;
+}
+.saving-tip > .saving-tip-loss {
+  color: var(--risk);
+  opacity: 1;
+}
+@media (hover: none) {
+  .saving-mark.is-pressed .tip {
+    display: block;
+  }
+}
 .capture-tool .icon {
   width: 14px;
   height: 14px;

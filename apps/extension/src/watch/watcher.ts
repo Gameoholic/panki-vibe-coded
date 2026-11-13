@@ -22,15 +22,38 @@ type Open = { id: string; videoId: string; fromMs: number; lastMs: number; start
 export type Watcher = ReturnType<typeof createWatcher>;
 
 /**
+ * How saving what's watched here stands, for the panel's head (`ui/SavingMark.tsx`): `idle` before anything has gone
+ * (or while nothing is noted), `saved` once a batch has landed, `sending` while one is on its way, `waiting` while
+ * Panki couldn't be reached and stretches wait to go with the next send, `lost` once some gave way to newer ones
+ * (`WAITING_MAX`), for the rest of this video. Times are on the wall clock (`Date.now()`), so they can be said as "ago".
+ */
+export type Saving = {
+  state: "idle" | "saved" | "sending" | "waiting" | "lost";
+  /** Whether this page's video is being noted now: the head says how saving stands only then, or while something still waits or gave way. */
+  noting: boolean;
+  /** When the latest batch landed. */
+  savedAt: number | null;
+  /** The time watched in what's waiting, on the clock. */
+  waitingMs: number;
+  /** When a send first failed with nothing landing since. */
+  waitingSince: number | null;
+  /** The time watched in what gave way on this video, on the clock. */
+  lostMs: number;
+};
+export const SAVING_IDLE: Saving = { state: "idle", noting: false, savedAt: null, waitingMs: 0, waitingSince: null, lostMs: 0 };
+
+/**
  * `send` takes a batch to Panki and says whether it went; `about` reads the video as the page shows it (its name, its
  * channel), asked when a stretch opens; `isAd` says whether what's playing is an ad (the site plays them in the same
- * player); `clock` is a moment in ms on the browser's own clock, for how long a stretch took.
+ * player); `clock` is a moment in ms on the browser's own clock, for how long a stretch took; `onSaving` hears how
+ * saving stands each time it changes.
  */
 export function createWatcher(deps: {
   send: (batch: WatchBatch) => Promise<boolean>;
   about: (videoId: string) => Omit<WatchVideo, "videoId" | "lengthMs">;
   isAd: () => boolean;
   clock?: () => number;
+  onSaving?: (saving: Saving) => void;
 }) {
   const clock = deps.clock ?? (() => performance.now());
   let videoId: string | null = null;
@@ -44,6 +67,16 @@ export function createWatcher(deps: {
   const videos = new Map<string, WatchVideo>();
   /** The batch on its way, so a second send waits on it rather than going beside it. */
   let sending: Promise<void> | null = null;
+  let savedAt: number | null = null;
+  let waitingSince: number | null = null;
+  let lostMs = 0;
+
+  /** How saving stands, told to whoever listens. A send that fails while some already wait stays `waiting`, never `sending`, so a retry doesn't flicker. */
+  function tell() {
+    const waitingMs = waiting.reduce((sum, stretch) => sum + stretch.spentMs, 0);
+    const state: Saving["state"] = lostMs > 0 ? "lost" : waitingSince !== null && waiting.length > 0 ? "waiting" : sending ? "sending" : savedAt !== null ? "saved" : "idle";
+    deps.onSaving?.({ state, noting: on && videoId !== null, savedAt, waitingMs, waitingSince, lostMs });
+  }
 
   function close() {
     const was = open;
@@ -53,7 +86,9 @@ export function createWatcher(deps: {
     if (was.lastMs - was.fromMs < SHORTEST_MS && spentMs < SHORTEST_MS) return;
     started.add(was.videoId);
     waiting.push({ id: was.id, videoId: was.videoId, fromMs: was.fromMs, toMs: Math.max(was.fromMs, was.lastMs), spentMs: Math.max(0, spentMs), rate: was.rate });
-    if (waiting.length > WAITING_MAX) waiting.splice(0, waiting.length - WAITING_MAX);
+    if (waiting.length > WAITING_MAX) {
+      for (const gone of waiting.splice(0, waiting.length - WAITING_MAX)) lostMs += gone.spentMs;
+    }
     void flush();
   }
 
@@ -66,11 +101,17 @@ export function createWatcher(deps: {
     const batch: WatchBatch = { videos: [...ids].flatMap((id) => videos.get(id) ?? []).slice(0, 20), stretches };
     sending = (async () => {
       try {
-        if (await deps.send(batch)) waiting.splice(0, stretches.length);
+        if (await deps.send(batch)) {
+          waiting.splice(0, stretches.length);
+          savedAt = Date.now();
+          if (waiting.length === 0) waitingSince = null;
+        } else waitingSince ??= Date.now();
       } finally {
         sending = null;
+        tell();
       }
     })();
+    tell();
     return sending;
   }
 
@@ -78,8 +119,11 @@ export function createWatcher(deps: {
     /** The video on the page now, and whether the account keeps its watching. Whatever was open belonged to the last. */
     video(next: string | null, keep: boolean) {
       if (next !== videoId || !keep) close();
+      // What gave way is said for the video it happened on, not the next.
+      if (next !== videoId) lostMs = 0;
       videoId = next;
       on = keep;
+      tell();
     },
     /** Looks at the player, a few times a second. */
     tick(player: HTMLVideoElement | null) {
