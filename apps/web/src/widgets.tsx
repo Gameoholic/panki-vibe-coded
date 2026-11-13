@@ -599,7 +599,7 @@ function TodayFacts({ stats }: { stats: Stats }) {
 
 /**
  * Every streak as a build's checks, in the account's order: a row each, tinted whole, green with a tick once its period
- * counts and red with a cross until then, at any hour; on one line its name, that it counts or the time left, its run
+ * counts and red with a cross until then, at any hour; on one line its name, the time left until it counts, its run
  * and a chevron. Pressed, it opens to every condition in its own words ("Reviews ≥ 20", "All reviews done"), each with
  * its own tick or cross, a counted one not met yet with how far it's got after it ("Cards added ≥ 100 (37)"), its groups apart with "or" between them as the streak's tile has them; pressed again, it
  * folds. Which are open is the tile's while it's on screen, nowhere kept.
@@ -627,7 +627,8 @@ function StreakChecks({ streaks }: { streaks: readonly StreakState[] }) {
               <span className="w-today-streak-name" lang={langOf(name)}>
                 {name}
               </span>
-              <span className="w-today-streak-said">{s.now ? `${STREAK_PERIODS[s.per].Now} counts` : timeLeftOf(s)}</span>
+              {/* Counted, the row's green and its tick say so: only the time left is ever said, its column kept so the run and the chevron stay in line. */}
+              <span className="w-today-streak-said">{s.now ? "" : timeLeftOf(s)}</span>
               <span className="w-today-streak-run">
                 <Icon name="flame" />
                 {periodCountWords(s.per, s.current)}
