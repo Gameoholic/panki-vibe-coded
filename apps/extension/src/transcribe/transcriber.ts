@@ -54,6 +54,13 @@ export const FOLLOW = {
   slack: 10,
   /** The viewer this far outside what the run is on (before where it began, or ahead of the silent player) has jumped, not watched, and is followed. */
   jump: 3,
+  /**
+   * The viewer ahead of the silent player is followed only once it couldn't catch them up at its speed within this
+   * long; nearer, it plays on and catches up. Sending it on starts its loading over, and loading takes seconds: sent on
+   * whenever the viewer is `jump` ahead, a silent player still loading where it was sent, or catching up after loading,
+   * is sent on again every few seconds and never gets a chunk out.
+   */
+  catchUp: 10,
   /** The silent player has reached the end once it's this close to it. */
   endSlack: 0.5,
   /** Something transcribed already, lying this far ahead of the silent player, is skipped over. */
@@ -644,7 +651,8 @@ export function createTranscriber() {
         },
         {
           stray: (to, back) => note("YouTube moved the chunk player to ", clock(to), " · put back at ", clock(back)),
-          reopened: (at, seconds) => note("chunk player stuck loading at ", clock(at), ` for ${Math.round(seconds)} s · opened it again there`),
+          stuck: (at, seconds, state, again) =>
+            note("chunk player stuck loading at ", clock(at), ` for ${Math.round(seconds)} s (${state}) · `, again ? "opened it again there" : "given up"),
         },
       ),
     };
@@ -843,12 +851,13 @@ export function createTranscriber() {
         return;
       }
     }
-    // The viewer is somewhere else: ahead of the silent player, or back before where this run began. It follows, when
-    // the first moment to transcribe from there isn't where the player already is (behind the run, over what's covered,
-    // there's nothing to follow to). Judged by where they are, not by how they got there: a jump made while the player
-    // was still loading is lost when only a change between two looks counts (a refresh at 10:39 and straight to 0:00
-    // would leave the run standing by at 10:39).
-    if (t > r.at + FOLLOW.jump || t < mine.from - FOLLOW.jump) {
+    // The viewer is somewhere else: farther ahead of the silent player than it catches up (`catchUp`), or back before
+    // where this run began. It follows, when the first moment to transcribe from there isn't where the player already
+    // is (behind the run, over what's covered, there's nothing to follow to). Judged by where they are, not by how they
+    // got there: a jump made while the player was still loading is lost when only a change between two looks counts (a
+    // refresh at 10:39 and straight to 0:00 would leave the run standing by at 10:39).
+    const reach = Math.max(FOLLOW.jump, FOLLOW.catchUp * (settings.speed - 1));
+    if (t > r.at + reach || t < mine.from - FOLLOW.jump) {
       const at = startAt(t - FOLLOW.back, length);
       if (at === null) {
         over("everything from where you are is transcribed");

@@ -1,3 +1,4 @@
+import { clock } from "@web/words";
 import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pieces";
 
 /**
@@ -19,7 +20,7 @@ import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pie
 export type SilentReport = {
   /** Its player is found and wired: it can be told where to go. */
   ready: boolean;
-  /** Where it stands in the video, in seconds. */
+  /** Where it stands in the video, in seconds: where it was sent, until it's playing from there (`arriving`). */
   at: number;
   playing: boolean;
   ended: boolean;
@@ -147,9 +148,36 @@ function windowOf(frame: HTMLIFrameElement): FrameWindow | null {
 export type SilentNotes = {
   /** The site moved the player by itself, from where it was sent (`at`) to `to`, and it was put back. */
   stray(to: number, at: number): void;
-  /** The video's data stopped coming at `at` for `seconds`, and its page was opened again there. */
-  reopened(at: number, seconds: number): void;
+  /** The video's data stopped coming at `at` for `seconds`, the player then as `state` says (`stuckWords`); its page opened again there (`again`), or given up. */
+  stuck(at: number, seconds: number, state: string, again: boolean): void;
 };
+
+/** The modes the site's player names itself by in its classes, as it says it stands. */
+const SITE_MODES = ["unstarted-mode", "playing-mode", "paused-mode", "buffering-mode", "ended-mode"];
+const READY_WORDS = ["no data", "metadata only", "the current frame only", "enough to start", "enough to play"];
+const NETWORK_WORDS = ["no source yet", "not fetching", "fetching", "no source found"];
+
+/**
+ * A player stuck loading, as it stands, for the Log: what the site's player says it's doing (its classes), whether the
+ * element has a source and is fetching, what it holds, and whether where it stands is loaded. Only read, never acted on:
+ * it says which of them is what stops the loading.
+ */
+function stuckWords(video: HTMLVideoElement, player: Element | null): string {
+  const site = SITE_MODES.find((mode) => player?.classList.contains(mode))?.replace("-mode", "") ?? "no mode";
+  const t = video.currentTime;
+  let loaded = false;
+  for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= t && t < video.buffered.end(i)) loaded = true;
+  return [
+    `YouTube's player ${site}`,
+    video.currentSrc === "" ? "no source" : NETWORK_WORDS[video.networkState] ?? "network unknown",
+    READY_WORDS[video.readyState] ?? "ready unknown",
+    `${video.buffered.length} loaded ${video.buffered.length === 1 ? "stretch" : "stretches"}, ${clock(t)} ${loaded ? "in one" : "in none"}`,
+    video.paused ? "paused" : "playing",
+    video.seeking ? "seeking" : null,
+  ]
+    .filter((part) => part !== null)
+    .join(", ");
+}
 
 export function createSilentPlayer(videoId: string, speed: number, shape: ChunkShape, onPiece: (piece: CutPiece) => void, notes: SilentNotes): SilentPlayer {
   const frame = document.createElement("iframe");
@@ -214,6 +242,12 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
   let reopens = 0;
   /** Where it's wanted once its player is ready, and whether it's wanted playing. */
   let wanted: number | null = null;
+  /**
+   * Sent somewhere and not yet playing from there: its page opening, its player waiting for its metadata, its seek not
+   * landed, its data not in. Where it stands is then where it was sent, never the player's own time, which reads 0:00
+   * on a player just found and the moment before the seek while it loads.
+   */
+  let arriving = true;
   let wantPlaying = false;
   let ad = false;
   let blocked = false;
@@ -305,6 +339,7 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     if (fresh) cutter?.restart();
     suspend();
     ended = false;
+    arriving = true;
     onset = Math.max(0, at);
     sent = { at: onset, tries, played: 0, last: onset };
     video.currentTime = onset;
@@ -405,6 +440,7 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     // The pair is read afresh as the player reports its time, so a stall it never said moves the sound no further than a moment.
     found.addEventListener("timeupdate", () => {
       if (sync !== null) anchor();
+      if (arriving && !straying && !found.seeking && !found.paused && found.readyState >= found.HAVE_FUTURE_DATA) arriving = false;
       if (sent !== null && !ad && !found.seeking) {
         const step = found.currentTime - sent.last;
         sent.last = found.currentTime;
@@ -414,11 +450,17 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     });
     if (pageTimer !== null) clearTimeout(pageTimer);
     pageTimer = null;
-    if (wanted !== null) {
-      const at = wanted;
-      if (found.readyState >= 1) seekAndPlay(at, true);
-      else found.addEventListener("loadedmetadata", () => seekAndPlay(at, true), { once: true });
-    }
+    // Where it's wanted as its metadata comes in, not as it was found: the run may have sent it on meanwhile.
+    if (found.readyState >= 1) {
+      if (wanted !== null) seekAndPlay(wanted, true);
+    } else
+      found.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (wanted !== null && video === found) seekAndPlay(wanted, true);
+        },
+        { once: true },
+      );
   }
 
   /** Looks at the frame: for its player until it's found, then for ads. */
@@ -465,10 +507,12 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
   function reopen() {
     const stuck = video;
     if (!stuck) return;
-    const at = stuck.currentTime;
+    const at = arriving ? (wanted ?? stuck.currentTime) : stuck.currentTime;
     const seconds = stuckSince === null ? 0 : (performance.now() - stuckSince) / 1000;
     stuckSince = null;
+    const state = stuckWords(stuck, player);
     if (reopens >= REOPENS) {
+      notes.stuck(at, seconds, state, false);
       failed = STUCK;
       return;
     }
@@ -484,8 +528,9 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     onset = null;
     sent = null;
     ad = false;
+    arriving = true;
     wanted = at;
-    notes.reopened(at, seconds);
+    notes.stuck(at, seconds, state, true);
     show(page, at);
     if (pageTimer !== null) clearTimeout(pageTimer);
     pageTimer = setTimeout(next, PAGE_WAIT_MS);
@@ -530,7 +575,7 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     },
     report: () => ({
       ready: video !== null,
-      at: video?.currentTime ?? wanted ?? 0,
+      at: video !== null && !arriving ? video.currentTime : (wanted ?? video?.currentTime ?? 0),
       playing: video !== null && !video.paused && !video.ended && wantPlaying,
       ended,
       ad,
