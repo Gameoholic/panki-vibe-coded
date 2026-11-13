@@ -7,7 +7,8 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Claimed, type Done, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { claimDownload, holdDownload, keepPiece, listDownloads, removeDownload, startDownload } from "./download/store";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { forgetSignIn, localChange, localOf, readStore, writeStore, type Stored } from "./storage";
@@ -108,6 +109,43 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
   } catch (e) {
     console.error("Panki:", e);
     return { ok: false, message: "The dictionary couldn't be read." };
+  }
+}
+
+type DownloadAsk = Extract<Ask, { kind: "download" | "downloadClaim" | "downloadPiece" | "downloadHold" | "downloads" | "undownload" }>;
+const DOWNLOAD_KINDS = new Set<Ask["kind"]>(["download", "downloadClaim", "downloadPiece", "downloadHold", "downloads", "undownload"]);
+const isDownloadAsk = (ask: Ask): ask is DownloadAsk => DOWNLOAD_KINDS.has(ask.kind);
+
+/**
+ * Downloads (`download/store.ts`): this browser's own, so they need no sign-in and nothing goes to Panki. A video asked
+ * for is kept at the quality set now; the page running one is known by its tab, which a page's message can't make up.
+ */
+async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSender): Promise<Done | Claimed | Going | Listed> {
+  const now = Date.now();
+  try {
+    if (ask.kind === "downloads") return { ok: true, rows: await listDownloads(now) };
+    if (ask.kind === "undownload") {
+      await removeDownload(ask.videoId);
+      return { ok: true };
+    }
+    if (ask.kind === "download") {
+      await startDownload(ask.about, Number((await readStore()).downloadQuality), now);
+      return { ok: true };
+    }
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return { ok: false, message: "Only a page can run a download." };
+    if (ask.kind === "downloadClaim") return { ok: true, job: await claimDownload(tabId, now) };
+    if (ask.kind === "downloadHold") return { ok: true, going: await holdDownload(ask.videoId, tabId, ask.end, now) };
+    let bytes: Uint8Array<ArrayBuffer>;
+    try {
+      bytes = bytesOf(ask.base64);
+    } catch {
+      return { ok: false, message: "The piece didn't arrive whole." };
+    }
+    return { ok: true, going: await keepPiece(ask.videoId, tabId, ask.piece, bytes, now) };
+  } catch (e) {
+    console.error("Panki:", e);
+    return { ok: false, message: "The downloads couldn't be read." };
   }
 }
 
@@ -311,7 +349,7 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered | Claimed | Going | Listed> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -368,6 +406,7 @@ async function answer(
     return { ok: true };
   }
   if (ask.kind === "lookState" || ask.kind === "lookup" || ask.kind === "lattice") return look(ask, sender);
+  if (isDownloadAsk(ask)) return downloading(ask, sender);
   if (ask.kind === "known") return known(sender);
   if (ask.kind === "local") return { ok: true, local: localOf(await readStore()) };
   if (ask.kind === "pankiOn") {

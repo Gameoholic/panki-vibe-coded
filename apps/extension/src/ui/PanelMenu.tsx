@@ -1,11 +1,14 @@
 /** @panki The Panki panel's one menu on its head (`PanelMenu`). Never a second menu on the head. */
-import { useEffect, useRef, useState } from "react";
-import type { SubtitleStyle } from "@panki/contracts";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { sizeWords, type SubtitleStyle } from "@panki/contracts";
+import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { Segmented } from "@web/components/Segmented";
 import { SubtitleStyleFields } from "@web/components/SubtitleStyleFields";
 import { useDismiss } from "@web/hooks/useDismiss";
+import type { DownloadRow } from "../download/download";
+import { shareOf, totalWords } from "../download/words";
 import { askOpenPanki, askOptions } from "../messages";
 import { PANEL_VIEWS, PANEL_VIEW_IDS, type PanelView } from "../modules";
 import { SUBTITLE_SOURCES, SUBTITLE_SOURCE_IDS, type SubtitleSource } from "../subtitles";
@@ -20,24 +23,102 @@ type Props = {
    * showing, the only time the band on the video can be dragged.
    */
   style: { value: SubtitleStyle; onChange: (style: SubtitleStyle) => void; onStyling: (open: boolean) => void } | null;
+  /** Downloading the video on the page, and every download there is; null off a video. */
+  download: DownloadMenu | null;
+};
+
+/**
+ * The video's download in the menu (`download/runner.ts`): its row when it has one; every download, null until read;
+ * whether it can be downloaded now (its length known, no ad playing); asking for it, taking it off; and `watch`, read
+ * again every moment while the menu is open, so another page's progress shows.
+ */
+export type DownloadMenu = {
+  row: DownloadRow | null;
+  rows: readonly DownloadRow[] | null;
+  can: boolean;
+  onDownload: () => void;
+  onRemove: () => void;
+  watch: () => () => void;
 };
 
 /** Which of the menu's two pages shows: its rows, or the subtitle style's settings in their place. */
 type Page = "rows" | "style";
 
 /**
+ * The video's download as a row of the menu: Download this video; while it comes in, how far, a thin bar under it
+ * filling; once it's whole, Downloaded and its size. Pressed while it's there, it asks before it's taken off, in a
+ * small panel hanging from it. Then Downloads…, every download on the options page, how many and their room.
+ */
+function DownloadRows({ download, onList }: { download: DownloadMenu; onList: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const at = useRef<HTMLButtonElement>(null);
+  const row = download.row;
+  const share = row ? shareOf(row) : 0;
+  return (
+    <div className="strip-menu-items">
+      <p className="strip-menu-label">Download</p>
+      {row === null ? (
+        <Button variant="item" disabled={!download.can} onClick={download.onDownload}>
+          <Icon name="download" />
+          Download this video
+        </Button>
+      ) : (
+        <Button
+          ref={at}
+          variant="item"
+          className={row.state === "done" ? "download-item is-done" : "download-item"}
+          aria-expanded={asking}
+          style={{ "--p": share / 100 } as CSSProperties}
+          onClick={() => setAsking(!asking)}
+        >
+          <Icon name={row.state === "done" ? "check" : "download"} />
+          {row.state === "done" ? "Downloaded" : row.state === "going" ? "Downloading" : "Waiting"}
+          <span className="item-note">{row.state === "done" ? sizeWords(row.bytes) : `${share}%`}</span>
+          {row.state === "done" ? null : <i className="download-bar" aria-hidden="true" />}
+        </Button>
+      )}
+      {row !== null && row.state === "waiting" && row.trouble ? <p className="download-why">{row.trouble}</p> : null}
+      {row !== null && asking ? (
+        <Ask
+          idPrefix="panki-download-remove"
+          anchor={at}
+          question={row.state === "done" ? "Remove this download?" : "Stop and remove this download?"}
+          detail={row.state === "done" ? sizeWords(row.bytes) : `${share}% in, ${sizeWords(row.bytes)}`}
+          go={{ words: "Remove", busy: "Removing…" }}
+          busy={false}
+          failure={null}
+          onKeep={() => setAsking(false)}
+          onGo={() => {
+            setAsking(false);
+            download.onRemove();
+          }}
+        />
+      ) : null}
+      <Button variant="item" onClick={onList}>
+        <Icon name="folder" />
+        Downloads…
+        {download.rows && download.rows.length > 0 ? <span className="item-note">{totalWords(download.rows)}</span> : null}
+      </Button>
+    </div>
+  );
+}
+
+/**
  * The Panki panel's one menu, behind ≡ at the end of its head: every setting the head doesn't show, as rows grouped under
  * quiet labels the way the Transcription menu groups its items, each changed in its row while the menu stays open so
- * the panel is seen changing behind it. Subtitle style… takes the menu's place with the style's settings (the app's
+ * the panel is seen changing behind it (Subtitles, Panel, Download, Panki). Subtitle style… takes the menu's place with the style's settings (the app's
  * `SubtitleStyleFields`, which its own Settings draw for a card's clip), each kept the moment it's changed, and while
  * they show the band on the video can be dragged. The Transcription menu's shape (`.strip-menu`), closed by a press
  * outside or Escape; its rows under ≡ at the head's right edge, as wide as they need (`.is-panel`).
  */
-export function PanelMenu({ source, view, style }: Props) {
+export function PanelMenu({ source, view, style, download }: Props) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<Page>("rows");
   const rootRef = useRef<HTMLDivElement>(null);
   useDismiss(rootRef, open, () => setOpen(false));
+  // Open, the downloads are read again every moment: one may be coming in on another page.
+  const watch = download?.watch;
+  useEffect(() => (open && watch ? watch() : undefined), [open, watch]);
   // Closed, or the transcript no longer over the video, it's the rows again next time.
   const styling = open && page === "style" && style !== null;
   useEffect(() => {
@@ -107,6 +188,7 @@ export function PanelMenu({ source, view, style }: Props) {
               />
             </div>
           </div>
+          {download ? <DownloadRows download={download} onList={() => done(() => void askOptions("downloads"))} /> : null}
           <div className="strip-menu-items">
             <p className="strip-menu-label">Panki</p>
             {/* Panki itself, the one the profile in use is signed in to, in a tab of its own. */}

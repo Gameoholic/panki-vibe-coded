@@ -642,12 +642,15 @@ export function createTranscriber() {
       silent: createSilentPlayer(
         id,
         settings.speed,
-        shape,
-        (piece) => {
-          if (mine.wrap && piece.wav) mine.wrap.cut = true;
-          const tally = pieces;
-          const cutAt = performance.now();
-          mine.queue = mine.queue.then(() => send(mine, id, piece, tally, cutAt)).catch(() => undefined);
+        {
+          kind: "listen",
+          shape,
+          onPiece: (piece) => {
+            if (mine.wrap && piece.wav) mine.wrap.cut = true;
+            const tally = pieces;
+            const cutAt = performance.now();
+            mine.queue = mine.queue.then(() => send(mine, id, piece, tally, cutAt)).catch(() => undefined);
+          },
         },
         {
           stray: (to, back) => note("YouTube moved the chunk player to ", clock(to), " · put back at ", clock(back)),

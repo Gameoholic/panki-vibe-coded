@@ -1,4 +1,5 @@
 import { clock } from "@web/words";
+import { HEIGHT_PARAM, KEEP_PARAM } from "../download/mark";
 import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pieces";
 
 /**
@@ -14,7 +15,18 @@ import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pie
  * sound it makes is the video's own, only faster; taken at the card's rate, it's handed on as if taken at that rate
  * divided by the speed, which puts it back at the video's pace with the top of the card's range gone (3× keeps
  * exactly what the engine listens to).
+ *
+ * The same player downloads a video (`download/runner.ts`): played through unheard, its sound taken nowhere, while the
+ * doorway script in its frame copies what the site's player is handed (`content/doorway.ts`). Its frame's address then
+ * carries the run's mark, which is all that wakes that script, and the quality asked for; the frame is that quality's
+ * size, since the site's player never loads a picture much taller than it's drawn.
  */
+
+/**
+ * What a silent player is for: heard, its sound cut into chunks for the engine (`listen`); or kept, played through for
+ * the doorway script to copy, with the run's mark and the picture's height in lines (`keep`).
+ */
+export type SilentUse = { kind: "listen"; shape: ChunkShape; onPiece: (piece: CutPiece) => void } | { kind: "keep"; mark: string; height: number };
 
 /** What the silent player says of itself, asked as often as wanted. */
 export type SilentReport = {
@@ -96,7 +108,7 @@ const TOLERANCE = 0.03;
 const ONSET_TRUST = 1;
 /** How many seeks the clock's error is remembered over; the middle one is used, so one quiet moment doesn't set it. */
 const BIASES = 5;
-const FAILED = "The video couldn't be opened to transcribe it.";
+const FAILED: Record<SilentUse["kind"], string> = { listen: "The video couldn't be opened to transcribe it.", keep: "The video couldn't be opened to download it." };
 const REPLACED = "YouTube replaced the hidden player.";
 /**
  * A seek the site makes by itself, landing farther than this from where the player was sent, is put back; its own
@@ -115,10 +127,12 @@ const STUCK_SECONDS = 15;
 const REOPENS = 3;
 const STUCK = "The video wouldn't load in the background.";
 
-const urlOf = (source: SilentPage, videoId: string, at: number) =>
-  source === "embed"
-    ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}`
-    : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s`;
+const urlOf = (source: SilentPage, videoId: string, at: number, use: SilentUse) => {
+  const kept = use.kind === "keep" ? `&${KEEP_PARAM}=${encodeURIComponent(use.mark)}&${HEIGHT_PARAM}=${use.height}` : "";
+  return source === "embed"
+    ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}${kept}`
+    : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s${kept}`;
+};
 
 /**
  * A play the browser refused without a press: `NotAllowedError`, by the spec. Every other rejection (`AbortError`
@@ -127,8 +141,14 @@ const urlOf = (source: SilentPage, videoId: string, at: number) =>
  */
 const refused = (error: unknown) => typeof error === "object" && error !== null && "name" in error && error.name === "NotAllowedError";
 
-/** The frame stands off the screen, a player's size so the site lays it out, and takes no press. */
-const FRAME_STYLE = "position: fixed; left: -10000px; top: 0; width: 320px; height: 180px; opacity: 0; pointer-events: none; border: 0;";
+/**
+ * The frame stands off the screen, a player's size so the site lays it out, and takes no press: small to listen, and to
+ * keep the picture's own size in the screen's pixels, a 16:9 frame `height` of them tall.
+ */
+function frameStyle(use: SilentUse): string {
+  const [width, height] = use.kind === "keep" ? [Math.ceil((use.height * 16) / 9 / devicePixelRatio), Math.ceil(use.height / devicePixelRatio)] : [320, 180];
+  return `position: fixed; left: -10000px; top: 0; width: ${width}px; height: ${height}px; opacity: 0; pointer-events: none; border: 0;`;
+}
 
 /** Firefox's name for `preservesPitch` before it had the standard one. */
 type Pitched = HTMLVideoElement & { mozPreservesPitch?: boolean };
@@ -179,13 +199,13 @@ function stuckWords(video: HTMLVideoElement, player: Element | null): string {
     .join(", ");
 }
 
-export function createSilentPlayer(videoId: string, speed: number, shape: ChunkShape, onPiece: (piece: CutPiece) => void, notes: SilentNotes): SilentPlayer {
+export function createSilentPlayer(videoId: string, speed: number, use: SilentUse, notes: SilentNotes): SilentPlayer {
   const frame = document.createElement("iframe");
   frame.setAttribute("allow", "autoplay");
   frame.setAttribute("aria-hidden", "true");
   frame.tabIndex = -1;
   frame.title = "Panki";
-  frame.style.cssText = FRAME_STYLE;
+  frame.style.cssText = frameStyle(use);
 
   let video: HTMLVideoElement | null = null;
   let player: Element | null = null;
@@ -266,7 +286,7 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     loaded = false;
     page = source;
     pageAt = performance.now();
-    frame.src = urlOf(source, videoId, at);
+    frame.src = urlOf(source, videoId, at, use);
   };
   const stageOf = (): SilentStage => {
     if (failed !== null) return "failed";
@@ -346,27 +366,13 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     play();
   }
 
-  /** The player is there: wired once, then taken where it's wanted. */
-  function wire(found: HTMLVideoElement, win: Window & typeof globalThis) {
-    video = found;
-    const pitched: Pitched = found;
-    pitched.preservesPitch = false;
-    pitched.mozPreservesPitch = false;
-    found.playbackRate = speed;
-    found.muted = false;
-    found.volume = 1;
-    // The graph is the frame's own, as its player is. Its tap is a ScriptProcessorNode rather than an AudioWorklet
-    // because a worklet is a module fetched from an address, and on someone else's page an extension's script has
-    // none the page's own rules would allow; the deprecated node needs nothing but the graph.
-    ctx = new win.AudioContext();
-    const source = ctx.createMediaElementSource(found);
+  /** Listening: the sound taken off between the player and the gain of zero, and cut into chunks for the engine. */
+  function wireTap(source: MediaElementAudioSourceNode, mute: GainNode, listen: Extract<SilentUse, { kind: "listen" }>) {
+    if (!ctx) return;
     const tap = ctx.createScriptProcessor(TAP, 1, 1);
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
     source.connect(tap);
     tap.connect(mute);
-    mute.connect(ctx.destination);
-    cutter = createCutter(ctx.sampleRate / speed, shape, onPiece, () => performance.now());
+    cutter = createCutter(ctx.sampleRate / speed, listen.shape, listen.onPiece, () => performance.now());
     tap.onaudioprocess = (e) => {
       if (!cutter || !ctx || !video || ad || video.seeking || straying) return;
       // Waiting for the first sound after a seek: every block is looked at, whether or not the pair is there yet (the
@@ -404,6 +410,28 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
       // The graph reuses its buffer: a copy is kept.
       cutter.push(new Float32Array(samples));
     };
+  }
+
+  /** The player is there: wired once, then taken where it's wanted. */
+  function wire(found: HTMLVideoElement, win: Window & typeof globalThis) {
+    video = found;
+    const pitched: Pitched = found;
+    pitched.preservesPitch = false;
+    pitched.mozPreservesPitch = false;
+    found.playbackRate = speed;
+    found.muted = false;
+    found.volume = 1;
+    // The graph is the frame's own, as its player is. Its tap is a ScriptProcessorNode rather than an AudioWorklet
+    // because a worklet is a module fetched from an address, and on someone else's page an extension's script has
+    // none the page's own rules would allow; the deprecated node needs nothing but the graph.
+    ctx = new win.AudioContext();
+    const source = ctx.createMediaElementSource(found);
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    mute.connect(ctx.destination);
+    // Kept, it's only to be unheard: its sound goes straight to the gain of zero, and nothing is taken.
+    if (use.kind === "keep") source.connect(mute);
+    else wireTap(source, mute, use);
     found.addEventListener("playing", anchor);
     for (const type of ["pause", "waiting", "seeking", "emptied", "stalled"] as const) found.addEventListener(type, suspend);
     // A seek lands where the player says, not where it was sent (the site's player seeks again on its own after a
@@ -543,7 +571,7 @@ export function createSilentPlayer(videoId: string, speed: number, shape: ChunkS
     tried++;
     const source = SOURCES[tried];
     if (!source) {
-      failed = FAILED;
+      failed = FAILED[use.kind];
       return;
     }
     show(source, wanted ?? 0);

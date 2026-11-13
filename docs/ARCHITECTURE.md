@@ -21,6 +21,7 @@ This page is the index; the text lives in `docs/architecture/`, one file per are
 | [transcribing.md](architecture/transcribing.md) | Transcribing a video: the modes and the whole-video download, the silent player and its clock, the chunks, the follower, the source, the lines, editing by hand, the stitch |
 | [ai.md](architecture/ai.md) | Panki AI: the words, providers and the ledger, the server's call and the one reader, pieces and prompts, actions and knobs, the conversation, Explain, Touch up, value sources, Proofread |
 | [watching.md](architecture/watching.md) | Video tracking per browser, the modules, finished, where you stopped and `panki=at`, YouTube's own pages, the utilities and the player bar |
+| [downloads.md](architecture/downloads.md) | A video kept in this browser: the doorway script in YouTube's page, the hidden player kept, the pieces and their order, one page at a time, the store, the menu and the options tab |
 | [updates.md](architecture/updates.md) | The extension kept up to date without a store: fingerprint and protocol, the zip, the scripts' rules |
 | [kept.md](architecture/kept.md) | What the extension keeps of Panki's and the state header; this browser's own settings and how every page hears of a change |
 | [lore.md](architecture/lore.md) | The traps that cost real time, migrations under a running dev server, the security architecture, what deploying asks of the code, web traps |

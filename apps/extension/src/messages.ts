@@ -60,6 +60,7 @@ import {
   VideoRecap,
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
+import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, PIECE_BASE64_MAX as DOWNLOAD_PIECE_BASE64_MAX, PieceAsk } from "./download/download";
 import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
@@ -107,8 +108,8 @@ export const NO_UPDATE: UpdateState = { state: "unknown", own: null, latest: nul
 export const RecordingAsk = MediaRecording.omit({ client: true, build: true });
 export type RecordingAsk = z.infer<typeof RecordingAsk>;
 
-/** A tab of the options page a page sends the viewer to: the sign-in, a deck's field mapping, or the video's settings. */
-export const OptionsTab = z.enum(["account", "decks", "videos", "youtube"]);
+/** A tab of the options page a page sends the viewer to: the sign-in, a deck's field mapping, the video's settings, or the downloads. */
+export const OptionsTab = z.enum(["account", "decks", "videos", "youtube", "downloads"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
 /**
@@ -283,6 +284,18 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("undoFixes"), videoId: VideoId, undo: TranscriptUndo }),
   /** A line of a video's transcript split or joined by hand at a word. */
   z.object({ kind: z.literal("lineMark"), videoId: VideoId, mark: TranscriptLineMark }),
+  /** A video to download, as the page knows it (its name, channel, length and a still), kept in this browser at the quality set now. Needs no sign-in, and asks nothing of Panki. */
+  z.object({ kind: z.literal("download"), about: DownloadAbout }),
+  /** A download for the asking page to run, when one waits and no other page runs one (`download/store.ts` → `claimDownload`). */
+  z.object({ kind: z.literal("downloadClaim") }),
+  /** A piece of the download the asking page runs, to be kept after the ones before it. */
+  z.object({ kind: z.literal("downloadPiece"), videoId: VideoId, piece: PieceAsk, base64: z.string().max(DOWNLOAD_PIECE_BASE64_MAX) }),
+  /** The page running a download says how it stands: going, whole, or stopped and why. */
+  z.object({ kind: z.literal("downloadHold"), videoId: VideoId, end: HoldEnd }),
+  /** Every download in this browser, as it's listed. */
+  z.object({ kind: z.literal("downloads") }),
+  /** A download taken off, its pieces with it. */
+  z.object({ kind: z.literal("undownload"), videoId: VideoId }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -361,8 +374,17 @@ export type Glanced = z.infer<typeof Glanced>;
 /** How this extension stands against Panki's build. */
 const Updated = z.union([z.object({ ok: z.literal(true), update: UpdateState }), Failed]);
 export type Updated = z.infer<typeof Updated>;
+/** A download for the page to run, or none. */
+const Claimed = z.union([z.object({ ok: z.literal(true), job: DownloadJob.nullable() }), Failed]);
+export type Claimed = z.infer<typeof Claimed>;
+/** Whether the page running a download goes on with it. */
+const Going = z.union([z.object({ ok: z.literal(true), going: z.boolean() }), Failed]);
+export type Going = z.infer<typeof Going>;
+/** Every download, as it's listed. */
+const Listed = z.union([z.object({ ok: z.literal(true), rows: z.array(DownloadRow) }), Failed]);
+export type Listed = z.infer<typeof Listed>;
 /** The account's cards already called by some words: each its words, and its deck. */
-const Called = z.union([z.object({ ok: z.literal(true), cards: z.array(CalledCard) }), Failed]);
+const Called =z.union([z.object({ ok: z.literal(true), cards: z.array(CalledCard) }), Failed]);
 export type Called = z.infer<typeof Called>;
 const State = z.union([
   z.object({
@@ -697,6 +719,36 @@ export async function askUndoFixes(videoId: string, undo: TranscriptUndo): Promi
 /** A line split or joined by hand at a word, for everyone; the transcript as it stands then comes back. */
 export async function askLineMark(videoId: string, mark: TranscriptLineMark): Promise<Transcripted> {
   const answer = Transcripted.safeParse(await ask({ kind: "lineMark", videoId, mark }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A video to download, kept in this browser. */
+export async function askDownload(about: DownloadAbout): Promise<Done> {
+  const answer = Done.safeParse(await ask({ kind: "download", about }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A download for this page to run; none when another page runs one, or none waits. */
+export async function askDownloadClaim(): Promise<Claimed> {
+  const answer = Claimed.safeParse(await ask({ kind: "downloadClaim" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A piece of the download this page runs, kept; whether to go on. */
+export async function askDownloadPiece(videoId: string, piece: PieceAsk, base64: string): Promise<Going> {
+  const answer = Going.safeParse(await ask({ kind: "downloadPiece", videoId, piece, base64 }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** How the download this page runs stands; whether to go on. */
+export async function askDownloadHold(videoId: string, end: HoldEnd): Promise<Going> {
+  const answer = Going.safeParse(await ask({ kind: "downloadHold", videoId, end }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Every download in this browser. */
+export async function askDownloads(): Promise<Listed> {
+  const answer = Listed.safeParse(await ask({ kind: "downloads" }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A download taken off. */
+export async function askUndownload(videoId: string): Promise<Done> {
+  const answer = Done.safeParse(await ask({ kind: "undownload", videoId }));
   return answer.success ? answer.data : failed(answer.error);
 }
 /** A video left out of the count, counted again, put away, finished or not (by the viewer unless said); the video as it stands then comes back. */

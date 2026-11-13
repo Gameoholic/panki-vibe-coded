@@ -58,6 +58,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-12: Highlight words that are in your decks on the extension's Decks tab, its colours the subtitles' and every site's, the seek bar's its own; the picked word in its own Picked word color on the Panki panel's settings, filled and edged (`architecture/dictionary.md` → Colours).
 - 2026-11-12: Keep player bar visible keybind, X, the one way to keep the player bar on the video or let it fade, kept for every video; the two Keep the bar visible switches gone (`architecture/watching.md`).
 - 2026-11-12: the Clip's ends stop at sentences, exactly where the clip as said would, the ticks there, Shift for exactly where it's put; Accept's move striped on the bar, green in and red out, the times struck and new; what Panki AI heard on the bar, hatched outside it with a notch at each end, and a note under each message that opens the lines it heard; Room around a clip on the options page.
+- 2026-11-14: Downloads step 2, on its branch (`claude/downloads-51ffe0`) for local dev: Download this video in the Panki panel's menu, run in the background by one YouTube page at a time, the pieces YouTube's player is handed copied in a hidden frame at 4×; Downloading / Waiting / Downloaded, Remove; the options page's Downloads tab with Download quality (`architecture/downloads.md`).
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
 - 2026-11-05: what the extension keeps of Panki's, one registry; 2026-11-07: this browser's own settings (`architecture/kept.md`).
 
@@ -97,5 +98,6 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - Line, the sentence's field kind: `docs/SENTENCE.md`, steps 1 to 3 on main and on prod (`EXTENSION_PROTOCOL` 12); the owner backs up and switches their field by hand.
 - The Video recap: `docs/RECAP.md`, step 2 built on local dev; next, the owner picks one of the five by living with them.
+- Downloads: `docs/DOWNLOADS.md`, step 2 on its own branch and worktree, unpushed; next, the owner tries it on local dev, then step 3 (the downloaded mark).
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

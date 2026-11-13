@@ -14,7 +14,7 @@ A video is transcribed by an engine (ElevenLabs Scribe v2) called by Panki's ser
 
 ## The silent player
 
-`apps/extension/src/transcribe/silent.ts` → `createSilentPlayer`. The video is opened a second time in an `<iframe>` of the page (the embed page; the watch page when the embed shows `.ytp-error`), off screen at a player's size, `allow="autoplay"`. Same origin as the page, so its `#movie_player video` is reached directly: nothing is injected, nothing of the site's is called, only the element is used.
+`apps/extension/src/transcribe/silent.ts` → `createSilentPlayer`, its `SilentUse` `listen` here (a download plays it as `keep`, with no tap: `downloads.md`). The video is opened a second time in an `<iframe>` of the page (the embed page; the watch page when the embed shows `.ytp-error`), off screen at a player's size, `allow="autoplay"`. Same origin as the page, so its `#movie_player video` is reached directly: nothing is injected, nothing of the site's is called, only the element is used.
 
 - **Unheard, never muted**: its sound goes into a sound graph of the frame's own (`createMediaElementSource`) and through a `GainNode` at 0. A muted element gives the graph zeros.
 - **At speed**: `playbackRate` is the setting and `preservesPitch` off, so the sound is the video's own, faster. A `ScriptProcessorNode` takes it (a worklet is a module fetched from an address, and an extension's script on someone else's page has none the page allows) and hands it on as if at `sampleRate / speed`, which puts the voice back at its pace with the top of the range gone: 3× keeps exactly the 16 kHz the engine hears, 4× loses a little above 6 kHz, which is why the speeds stop at 4 (`TRANSCRIBE_SPEEDS`).

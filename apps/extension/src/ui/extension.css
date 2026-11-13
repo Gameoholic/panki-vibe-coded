@@ -4931,3 +4931,99 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A video's download in the panel's menu (ui/PanelMenu.tsx): while it comes in, a thin bar under its words filling as
+   it does (`--p`, 0 to 1), from under the words to the row's end; once whole, its tick in the accent. Why it waits, when
+   it stopped, in a quiet line under it. */
+.btn.btn-item.download-item {
+  position: relative;
+  padding-bottom: 11px;
+}
+.btn.btn-item.download-item.is-done {
+  padding-bottom: 7px;
+}
+.btn.btn-item.download-item.is-done .icon {
+  color: var(--accent);
+}
+.download-bar {
+  position: absolute;
+  left: 32px;
+  right: 10px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.download-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--p, 0) * 100%);
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.download-why {
+  padding: 0 10px 4px 32px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .download-bar::after {
+    transition: none;
+  }
+}
+
+/* The options page's Downloads tab (options/Downloads.tsx): how much room they take, a bar of each one's share and the
+   total under it; then a row each, its still, its name with how it stands under it, and Remove. */
+.download-meter {
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+.download-meter i {
+  min-width: 3px;
+  border-radius: 3px;
+}
+.download-total {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kept-row.download-row {
+  justify-content: flex-start;
+}
+.download-still {
+  flex: none;
+  width: 96px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.download-still img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.download-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.download-words .kept-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+@media (max-width: 640px) {
+  .download-still {
+    width: 64px;
+  }
+}

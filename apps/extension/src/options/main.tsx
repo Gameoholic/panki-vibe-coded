@@ -31,6 +31,7 @@ import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
 import { setVideoTracking, videoTrackingOn } from "../watch/tracking";
 import { Dictionaries, KnownWords, Looking } from "./Dictionary";
+import { DownloadsTab } from "./Downloads";
 import { SceneTitle } from "./explainerScenes";
 import { exampleTint } from "./examples";
 import { PopupLayoutPanel } from "./PopupLayout";
@@ -738,13 +739,15 @@ const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
  */
 // Videos: what Panki does on a video on any site it works on (the panel, its subtitles, the seek bar's marks, what's
 // tracked). Then the site's own tab, as each video site Panki works on will have one, for that site's own page alone.
-type Tab = "dictionary" | "decks" | "videos" | "youtube" | "account";
+type Tab = "dictionary" | "decks" | "videos" | "youtube" | "downloads" | "account";
 const TABS: readonly { id: Tab; label: string }[] = [
   // Named as its first panel; its id stays `dictionary`, the address.
   { id: "dictionary", label: "Word pop-up" },
   { id: "decks", label: "Decks" },
   { id: "videos", label: "Videos" },
   { id: "youtube", label: "YouTube" },
+  // The videos downloaded in this browser to watch without signal, asked for in the Panki panel's menu.
+  { id: "downloads", label: "Downloads" },
   // About: the profiles and the extension's version; its id stays `account` (the address, the drawer's way to the sign-in).
   { id: "account", label: "About" },
 ];
@@ -959,6 +962,9 @@ function Options() {
             <HomePanel store={store} onChanged={refresh} />
             <UtilitiesPanel store={store} onChanged={refresh} />
             <PlayerBarPanel store={store} onChanged={refresh} />
+          </div>
+          <div className="options-tab" hidden={tab !== "downloads"}>
+            <DownloadsTab store={store} onChanged={refresh} />
           </div>
           <div className="options-tab" hidden={tab !== "account"}>
             <AccountTab store={store} onChanged={refresh} />

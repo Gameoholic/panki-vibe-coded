@@ -21,6 +21,7 @@ const SCRIPTS = {
   background: "src/background.ts",
   youtube: "src/content/youtube.tsx",
   page: "src/content/page.tsx",
+  doorway: "src/content/doorway.ts",
 };
 
 const shared = {
@@ -73,8 +74,14 @@ for (const [name, entry] of Object.entries(SCRIPTS)) {
  * comes through Panki too: its server holds the key and calls Forvo. Looking words up on
  * other sites asks for those sites the same way, on the options page, and the worker then puts the page's script
  * there itself (`scripting.registerContentScripts`); nothing here names them. `unlimitedStorage` keeps the browser
- * from clearing the dictionaries, which can be hundreds of megabytes, when the disk runs low. `alarms` wakes the worker
+ * from clearing the dictionaries, which can be hundreds of megabytes, when the disk runs low, and gives the videos
+ * downloaded to watch without signal, hundreds of megabytes each, the room they need. `alarms` wakes the worker
  * every hour to ask Panki whether there's a newer build, and `downloads` fetches it as a zip when asked (`updates.ts`).
+ *
+ * On the video site a second script runs in the site's own page, in every frame, before the site's scripts
+ * (`content/doorway.ts`, the page's own world, `world: "MAIN"`: Chrome 111 and Firefox 128 and up). It does nothing
+ * unless the frame's address carries Panki's download mark, which only the hidden frame Panki opens to download a
+ * video does; there it copies what the site's player hands the browser to play.
  */
 const manifest = {
   manifest_version: 3,
@@ -86,7 +93,10 @@ const manifest = {
   options_ui: { page: "options.html", open_in_tab: true },
   permissions: ["storage", "unlimitedStorage", "contextMenus", "scripting", "activeTab", "alarms", "downloads"],
   optional_host_permissions: ["http://*/*", "https://*/*"],
-  content_scripts: [{ matches: ["https://www.youtube.com/*"], js: ["youtube.js"], run_at: "document_idle" }],
+  content_scripts: [
+    { matches: ["https://www.youtube.com/*"], js: ["youtube.js"], run_at: "document_idle" },
+    { matches: ["https://www.youtube.com/*"], js: ["doorway.js"], run_at: "document_start", all_frames: true, world: "MAIN" },
+  ],
   background: { service_worker: "background.js", scripts: ["background.js"] },
 };
 const write = (dir, extra) => writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify({ ...manifest, ...extra }, null, 2)}\n`);

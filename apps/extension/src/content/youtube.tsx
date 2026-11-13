@@ -34,7 +34,8 @@ import { SavingMark } from "../ui/SavingMark";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
-import { PanelMenu } from "../ui/PanelMenu";
+import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
+import { createDownloads, stillOf } from "../download/runner";
 import { SaveControl } from "../ui/SaveControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
@@ -262,6 +263,8 @@ const playerBar = createPlayerBar();
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
 const transcriber = createTranscriber();
 const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
+/** Videos downloaded to watch without signal: asked for in the panel's menu, run by one page of the site at a time. */
+const downloads = createDownloads();
 /** Panki AI's Proofread on this video's transcript (AI step 6): its runs, read by the menu and the rows alike. */
 const proofreader = createProofreader(transcriber, () => lines.transcriptLines(), (limits) => videoPieces(limits).pieces);
 /** Whether the transcript is over the video right now (the site's own captions give way to it). */
@@ -462,6 +465,21 @@ const feed = createFeed({
 function adPlaying() {
   const player = document.querySelector(PLAYER);
   return player !== null && AD.some((name) => player.classList.contains(name));
+}
+
+/** The video's length in ms while the player holds the video itself (not an ad, nor a live stream); null otherwise. */
+function lengthHere(): number | null {
+  if (!video || adPlaying() || !Number.isFinite(video.duration) || video.duration <= 0) return null;
+  return Math.round(video.duration * 1000);
+}
+
+/** The video on the page asked to be downloaded: its name and channel as the page shows them, its length, and a still of it as it shows now. */
+function downloadHere() {
+  const id = watching;
+  const durationMs = lengthHere();
+  if (!id || !video || durationMs === null) return;
+  const { title, channel } = aboutVideo();
+  void downloads.download({ videoId: id, title, channel: channel?.name ?? "", durationMs, still: stillOf(video) });
 }
 /** What's watched here, noted and sent to Panki while this browser's Video tracking is on (`watch/watcher.ts`, `watch/tracking.ts`). */
 /** How saving what's watched here stands, for the panel's head (`ui/SavingMark.tsx`). */
@@ -2214,6 +2232,7 @@ function App() {
   const savedNow = useSyncExternalStore(savedHere.subscribe, savedHere.get);
   const finishNow = useSyncExternalStore(finishHere.subscribe, finishHere.get);
   const savingNow = useSyncExternalStore(savingHere.subscribe, savingHere.get);
+  const downloadsNow = useSyncExternalStore(downloads.subscribe, downloads.get);
   /** An update for the extension: a button in the head while one is available; the head and it alone while one is needed. */
   const updateNow = useSyncExternalStore(update.subscribe, update.get);
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
@@ -2985,6 +3004,19 @@ function App() {
   const pickSource = setSource;
   /** The video's length in seconds, when the player says it. */
   const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
+  /** The video's download in the panel's menu, on a video's page. */
+  const here = watching;
+  const downloadMenu: DownloadMenu | null =
+    here !== null && video !== null
+      ? {
+          row: downloadsNow.rows?.find((row) => row.videoId === here) ?? null,
+          rows: downloadsNow.rows,
+          can: lengthHere() !== null,
+          onDownload: downloadHere,
+          onRemove: () => void downloads.remove(here),
+          watch: downloads.watch,
+        }
+      : null;
   /** Whether it starts by itself, changed in the menu: this viewer's own, taken at once on the page and kept by the worker. */
   function setAuto(on: boolean) {
     const trigger = on ? "auto" : "press";
@@ -3159,6 +3191,7 @@ function App() {
                 source={tx.settings ? { value: picked, onChange: pickSource } : null}
                 view={{ value: viewPicked, onChange: setPanelView }}
                 style={overVideo ? { value: tx.prefs.style, onChange: setStyle, onStyling: setStyling } : null}
+                download={downloadMenu}
               />
               {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the screen's
                   corner brings it back): a chevron at the head's very end pointing the way it folds, its words and key in a tip. */}
@@ -3319,6 +3352,8 @@ function begin() {
   // captions go by Key to hold globally.
   startKnown();
   markKnownOnPage();
+  // Downloads asked for anywhere run on whichever page of the site takes them up, this one among them.
+  downloads.start();
   void readUpdate();
   listen();
   look();

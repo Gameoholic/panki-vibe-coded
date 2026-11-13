@@ -25,12 +25,12 @@ The owner's words, not concrete: on the train to work the laptop runs on the pho
 ## The order
 
 - [x] 1. The preview of where it lives; the owner picked H Menu.
-- [ ] 2. Downloading: the script in the page, the hidden player playing through, the pieces kept, the H Menu with the Download button, progress, done, the list and undownload.
+- [x] 2. Downloading: the script in the page, the hidden player playing through, the pieces kept, the H Menu with the Download button, progress, done, the list and undownload (`architecture/downloads.md`). On local dev for the owner to try.
 - [ ] 3. The downloaded mark everywhere a video shows, and its setting.
 - [ ] 4. Playing from the saved copy: B first, as a small experiment the owner tries on local dev; A only if YouTube's player fights it.
 - [ ] Later: downloading as an automation beside transcribing (`docs/AI.md` → Rules); the yt-dlp helper if step 2 falls short (`docs/BACKLOG.md`).
 
 ## Open
 
-- **The quality kept**: YouTube's player picks a quality by its size and the connection, and the hidden player is small and off screen. Proposed: a Download quality setting (720p to begin with); how the hidden player is made to load it is step 2's first thing to find out, and said to the owner if it can't be done without calling YouTube's own code.
-- **Room on the disk**: the extension's storage asks for unlimited room; the list shows each video's size and the total.
+- **The quality kept** (found in step 2, put to the owner): a Download quality setting (720p to begin with) works as a ceiling without YouTube's code: the doorway script answers "can't play" for anything taller, and the hidden frame is the quality's size. It can't be a floor: at 4× on a slow connection YouTube's player drops lower for stretches, and those are kept as they came. Forcing it means calling YouTube's own player (`setPlaybackQualityRange`), or downloading slower; the owner's call.
+- **Room on the disk**: settled; the extension already asks for unlimited room (`unlimitedStorage`), and the list shows each video's size and the total.
