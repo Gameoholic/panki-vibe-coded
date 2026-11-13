@@ -63,6 +63,11 @@ export const VideoRecap = z.object({
   lengthMs: Count.nullable(),
   /** How many cards were added from it in this viewing; `cards` names the first `RECAP.cardsMax` in the video's order. */
   added: Count,
+  /**
+   * How many examples were given from it in this viewing to cards already there, deleted since or not: said apart from
+   * the cards added, never as cards ("6 cards · 2 examples"). None from an older server.
+   */
+  examples: Count.default(0),
   cards: z.array(RecapCard).max(RECAP.cardsMax),
   /** Its watch sessions in this viewing, oldest first. */
   sessions: z.array(WatchSession).max(RECAP.sessionsMax),

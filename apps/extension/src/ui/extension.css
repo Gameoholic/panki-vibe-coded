@@ -4413,7 +4413,10 @@
   left: 16px;
   bottom: 16px;
   width: 340px;
-  display: grid;
+  /* Never taller than the picture: the head and the facts stay, what's between them scrolls (`.recap-c-body`). */
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 12px 12px 14px 14px;
   border: 1px solid var(--line);
@@ -4425,9 +4428,20 @@
   animation: recap-rise 0.55s var(--recap-spring) both;
 }
 .recap-c-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.recap-corner > .recap-facts {
+  flex: none;
+}
+.recap-c-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
 }
 .recap-c-head b {
   flex: 1;
@@ -4523,12 +4537,19 @@
   left: 0;
   right: 0;
   top: 26px;
-  display: grid;
-  justify-items: center;
+  /* Never past the picture's foot, nor into K's row: the head and the facts stay, the words scroll (`.is-over`). */
+  max-height: calc(100% - 26px - var(--recap-haul-below, 16px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
   pointer-events: none;
 }
+.recap-haul.is-above-next {
+  --recap-haul-below: 136px;
+}
 .recap-haul-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4548,6 +4569,18 @@
   align-items: flex-start;
   gap: 8px;
   max-width: 900px;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+/* Words past their room: they scroll, with room for H's cards to lean and rise inside it. */
+.recap-haul-row.is-over {
+  align-content: flex-start;
+  padding: 8px 6px;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.recap-haul-row + .scroll-edges {
+  --scroll-surface: transparent;
 }
 .recap .btn.recap-hchip {
   align-items: flex-end;
@@ -4564,6 +4597,7 @@
   }
 }
 .recap-haul-facts {
+  flex: none;
   padding: 3px 12px;
   border-radius: 9px;
   background: color-mix(in srgb, var(--theater) 50%, transparent);

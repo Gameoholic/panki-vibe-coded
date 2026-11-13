@@ -4,6 +4,7 @@ import { daysBetween, youtubeUrl, type ContinueVideo, type Day, type RecapCard, 
 import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
+import { ScrollEdges } from "@web/components/ScrollEdges";
 import { clock, count, dayWords, hourWords, langOf, ordinalWords } from "@web/words";
 import { thumbnailAt } from "../content/feed";
 import { RECAP_LOOKS, type RecapLook } from "../watch/recapLooks";
@@ -99,8 +100,14 @@ function LookOf(props: LookProps) {
   return <HaulLook {...props} />;
 }
 
-/** "Nice! 6 cards added", or with none, "Nice! Video finished". */
-const headline = (recap: VideoRecap) => (recap.added > 0 ? `Nice! ${count(recap.added, "card", "cards")} added` : "Nice! Video finished");
+/**
+ * "Nice! 6 cards · 2 examples added": the cards added, and apart from them the examples given to cards already there,
+ * each left out at none; with neither, "Nice! Video finished".
+ */
+function headline(recap: VideoRecap): string {
+  const added = [recap.added > 0 ? count(recap.added, "card", "cards") : null, recap.examples > 0 ? count(recap.examples, "example", "examples") : null].filter((part) => part !== null);
+  return added.length > 0 ? `Nice! ${added.join(" · ")} added` : "Nice! Video finished";
+}
 /** The cards with words to show: one with no main field has nothing to be called by. */
 const shown = (faces: readonly RecapFace[]) => faces.filter((face) => face.card.words.trim() !== "");
 /** Where on the recap's foot a moment of the video stands: its mark on the seek bar just under it. */
@@ -175,13 +182,15 @@ function HeadButtons({ look, onNextLook, onClose }: Pick<Props, "look" | "onNext
 
 /**
  * The words fly up out of their marks on the seek bar to where they're laid out, one after another (each chip marked
- * `data-fly` with its card's moment, in ms); nothing moves for a viewer who asked for less motion.
+ * `data-fly` with its card's moment, in ms); nothing moves for a viewer who asked for less motion, nor when the words
+ * run past their room (`scroller`), where a box that scrolls would cut their flight off.
  */
-function useFly(root: RefObject<HTMLElement | null>, { frame, lengthMs }: LookProps, start = FLY.start) {
+function useFly(root: RefObject<HTMLElement | null>, { frame, lengthMs }: LookProps, start = FLY.start, scroller?: RefObject<HTMLElement | null>) {
   useLayoutEffect(() => {
     const el = root.current;
     const stage = el?.closest<HTMLElement>(".recap-stage");
-    if (!el || !stage || still()) return;
+    const box = scroller?.current;
+    if (!el || !stage || still() || (box && box.scrollHeight > box.clientHeight + 1)) return;
     const at = stage.getBoundingClientRect();
     const scale = stage.offsetWidth > 0 ? at.width / stage.offsetWidth : 1;
     el.querySelectorAll<HTMLElement>("[data-fly]").forEach((chip, i) => {
@@ -245,7 +254,9 @@ function CornerLook(props: LookProps) {
     onBurst({ origins: [{ x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + 10, spread: 1.7 }], delayMs: 250 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const body = useRef<HTMLDivElement>(null);
   const chips = shown(faces);
+  const sessions = look === "B" && recap.sessions.length > 0;
   return (
     <div ref={card} className="recap-corner recap-card">
       <div className="recap-c-head">
@@ -253,38 +264,62 @@ function CornerLook(props: LookProps) {
         <b>{headline(recap)}</b>
         <HeadButtons {...props} />
       </div>
-      {chips.length > 0 ? (
-        <div className="recap-chips">
-          {chips.map((face) => (
-            <Button key={face.card.cardId} className="recap-wchip" onClick={() => onGo(face.card.startMs / 1000)}>
-              <Words face={face} />
-            </Button>
-          ))}
-        </div>
+      {/* The card is never taller than the picture: past that, the words and the sessions scroll between its head and its facts. */}
+      {chips.length > 0 || sessions ? (
+        <>
+          <div ref={body} className="recap-c-body">
+            {chips.length > 0 ? (
+              <div className="recap-chips">
+                {chips.map((face) => (
+                  <Button key={face.card.cardId} className="recap-wchip" onClick={() => onGo(face.card.startMs / 1000)}>
+                    <Words face={face} />
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {sessions ? <Sessions recap={recap} lengthMs={lengthMs} /> : null}
+          </div>
+          <ScrollEdges of={body} />
+        </>
       ) : null}
-      {look === "B" && recap.sessions.length > 0 ? <Sessions recap={recap} lengthMs={lengthMs} /> : null}
       <Facts recap={recap} heard={heard} sessions={look === "A"} className="recap-facts" />
     </div>
   );
+}
+
+/**
+ * Whether a box of words runs past the room it has (the haul under its head, above K's row): then it scrolls, and its
+ * words come in where they are rather than flying up from the seek bar, which a box that scrolls would cut off. Read
+ * again as the player changes size.
+ */
+function useRunsOver(box: RefObject<HTMLElement | null>, frame: Frame): boolean {
+  const [over, setOver] = useState(false);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el) setOver(el.scrollHeight > el.clientHeight + 1);
+  }, [box, frame]);
+  return over;
 }
 
 /** H: the words over the picture's top as small flashcards, reading and meaning, leaning a little. K: the words as chips, with what's next along the picture's foot. */
 function HaulLook(props: LookProps) {
   const { recap, faces, heard, look, onGo, onBurst } = props;
   const haul = useRef<HTMLDivElement>(null);
-  useFly(haul, props);
+  const row = useRef<HTMLDivElement>(null);
+  const over = useRunsOver(row, props.frame);
+  useFly(haul, props, FLY.start, row);
   useLayoutEffect(() => {
     onBurst({ origins: fromMarks(props), delayMs: 350 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <>
-      <div ref={haul} className="recap-haul">
+      <div ref={haul} className={look === "K" ? "recap-haul is-above-next" : "recap-haul"}>
         <div className="recap-haul-head recap-glass">
           <b>{headline(recap)}</b>
           <HeadButtons {...props} />
         </div>
-        <div className="recap-haul-row">
+        <div ref={row} className={over ? "recap-haul-row is-over" : "recap-haul-row"}>
           {shown(faces).map((face, i) =>
             look === "H" ? (
               <Button key={face.card.cardId} className="recap-fchip" data-fly={face.card.startMs} onClick={() => onGo(face.card.startMs / 1000)}>
@@ -307,6 +342,7 @@ function HaulLook(props: LookProps) {
             ),
           )}
         </div>
+        {over ? <ScrollEdges of={row} /> : null}
         <Facts recap={recap} heard={heard} sessions className="recap-haul-facts recap-glass" />
       </div>
       {look === "K" ? <NextRow continuing={recap.continuing} saved={recap.saved.slice(0, K_SAVED)} /> : null}

@@ -1800,6 +1800,9 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     FROM cards c JOIN card_sources s ON s.card_id = c.id JOIN decks d ON d.id = c.deck_id
     WHERE c.created_at > ? AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
     ORDER BY s.start_ms ASC, c.created_at ASC`);
+  // The examples given from a video since a moment to cards already there, deleted since or not: each an example
+  // added, never a card. Narrowed by the address here, read exactly by `youtubeLinkOf`.
+  const selectVideoExamplesAdded = db.prepare("SELECT e.url FROM card_examples e WHERE e.created_at > ? AND e.start_ms IS NOT NULL AND instr(e.url, ?) > 0");
   const selectCardWords = db.prepare("SELECT field_id AS fieldId, value FROM card_values WHERE card_id = ?");
   const selectWatchVideoChannel = db.prepare("SELECT channel_name AS name, channel_url AS url FROM watch_videos WHERE video_id = ?");
   // How many of a channel's videos were ever finished (a finish counted as done): by its address where it's known, else its name.
@@ -3291,7 +3294,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     /**
      * A video's recap as it's finished (`recap.ts` in the contracts), all of it worked out from what's kept: this
      * viewing is everything after the video's finish before the latest (all of it, the first time), or after the latest
-     * when it isn't finished now. The cards added from it then, deleted since or not; its watch sessions and the parts of
+     * when it isn't finished now. The cards added from it then, deleted since or not, and apart from them the examples
+     * given from it to cards already there; its watch sessions and the parts of
      * it watched; how many of its channel's videos were ever finished; and the top of Continue watching and of Saved
      * for later, this video left out.
      */
@@ -3323,6 +3327,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         today: day(now),
         lengthMs: length?.lengthMs ?? null,
         added: added.length,
+        examples: (selectVideoExamplesAdded.all(since, videoId) as { url: string }[]).filter((row) => youtubeLinkOf(row.url)?.videoId === videoId).length,
         cards,
         sessions: sessionsOf(stretches, day).slice(-RECAP.sessionsMax),
         watched: watchedOf(stretches),
