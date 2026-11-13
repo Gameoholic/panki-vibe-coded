@@ -7,7 +7,7 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Done, type Heard, type Latticed, type Glanced, type Homed, type Known, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { forgetSignIn, localChange, localOf, readStore, writeStore, type Stored } from "./storage";
@@ -311,7 +311,7 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -390,6 +390,10 @@ async function answer(
     await writeStore({ playerBarKept: ask.kept });
     return { ok: true };
   }
+  if (ask.kind === "recapLook") {
+    await writeStore({ recapLook: ask.look });
+    return { ok: true };
+  }
   // Signed out is an answer here, not a failure: the pop-up greys Explain and says why.
   if (ask.kind === "aiState") return aiState(await readStore(), ask.fresh === true);
   const store = await readStore();
@@ -440,6 +444,7 @@ async function answer(
       return { ok: true };
     }
     if (ask.kind === "watchMark") return { ok: true, video: await panki.watchMark(door, ask.videoId, ask.mark, ask.source) };
+    if (ask.kind === "recap") return { ok: true, recap: await panki.recap(door, ask.videoId) };
     // Panki on YouTube's own pages: the tiles over its home's videos, and the marks on its thumbnails.
     if (ask.kind === "home") {
       const [stats, decks, settings, saved] = await Promise.all([panki.stats(door), panki.decks(door), panki.settings(door), panki.saved(door)]);

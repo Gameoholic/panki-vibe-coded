@@ -266,6 +266,34 @@ export function useKnownMoments(lines: readonly TimedLine[] | null): KnownMoment
 }
 
 /**
+ * How many words that are in the decks were said in the parts of a video watched (the Video recap): each word once,
+ * however often it's said, read off Panki's transcript the way the seek bar's marks are (`useKnownMoments`), by the
+ * words the decks' cards are called by, whatever marks them on this browser (the pop-up's In your decks has every
+ * word's cards). Null with no lines to read. It may still grow a little as lines' words come in from the dictionary.
+ */
+export function useHeardInDecks(lines: readonly TimedLine[] | null, watched: readonly { fromMs: number; toMs: number }[]): number | null {
+  const known = useKnown();
+  const version = useSyncExternalStore(subscribeLines, () => linesVersion);
+  return useMemo(() => {
+    if (!lines) return null;
+    const heard = new Set<string>();
+    for (const line of lines) {
+      if (!isJapanese(line.text)) continue;
+      for (const token of wordsOf(line.text, latticeFor(line.text))) {
+        const term = token.term;
+        if (!token.word || term === undefined || heard.has(term) || !known.cards.has(term)) continue;
+        const from = line.marks.filter((mark) => mark.at <= token.start).at(-1)?.time;
+        if (from === undefined) continue;
+        const ms = from * 1000;
+        if (watched.some((span) => ms >= span.fromMs && ms <= span.toMs)) heard.add(term);
+      }
+    }
+    return heard.size;
+    // `version` is what says more lines' words are in.
+  }, [lines, known, version, watched]);
+}
+
+/**
  * Marks the known words in a page's own text, on the browser's highlight layer, by the pages switch (Highlight
  * globally): a site's own captions are a page's text like any other, as they go by Key to hold globally (the subtitles
  * switch is Panki's own lines alone). Each line is split by the

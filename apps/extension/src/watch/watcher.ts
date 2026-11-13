@@ -42,7 +42,8 @@ export function createWatcher(deps: {
   let seenAt = 0;
   const waiting: NewWatchStretch[] = [];
   const videos = new Map<string, WatchVideo>();
-  let sending = false;
+  /** The batch on its way, so a second send waits on it rather than going beside it. */
+  let sending: Promise<void> | null = null;
 
   function close() {
     const was = open;
@@ -56,18 +57,21 @@ export function createWatcher(deps: {
     void flush();
   }
 
-  /** Sends what's waiting, one batch at a time; what didn't go waits for the next. */
-  async function flush() {
-    if (sending || waiting.length === 0) return;
-    sending = true;
+  /** Sends what's waiting, one batch at a time; what didn't go waits for the next. Done once the batch on its way has landed or failed. */
+  function flush(): Promise<void> {
+    if (sending) return sending;
+    if (waiting.length === 0) return Promise.resolve();
     const stretches = waiting.slice(0, WAITING_MAX);
     const ids = new Set(stretches.map((s) => s.videoId));
     const batch: WatchBatch = { videos: [...ids].flatMap((id) => videos.get(id) ?? []).slice(0, 20), stretches };
-    try {
-      if (await deps.send(batch)) waiting.splice(0, stretches.length);
-    } finally {
-      sending = false;
-    }
+    sending = (async () => {
+      try {
+        if (await deps.send(batch)) waiting.splice(0, stretches.length);
+      } finally {
+        sending = null;
+      }
+    })();
+    return sending;
   }
 
   return {
@@ -116,6 +120,16 @@ export function createWatcher(deps: {
     leave() {
       close();
       void flush();
+    },
+    /**
+     * What's been watched sent now, so what Panki says of the video right after holds all of it (the Video recap): the
+     * stretch open closed, the video playing on into the next at the next look, and whatever waits sent. Done once
+     * it's landed or failed; a batch already on its way is waited for first.
+     */
+    async sendNow() {
+      close();
+      await flush();
+      await flush();
     },
   };
 }

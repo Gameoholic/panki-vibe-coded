@@ -77,6 +77,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-21: video tracking, where you stopped, Continue watching, YouTube's home made Panki's.
 - 2026-10-25: Finished; the video end time; Words that are in your decks on the seek bar; Recently watched.
 - 2026-11-10: a finished video leaving Saved for later; "Ends at".
+- 2026-11-13: the Video recap as a video is finished, in five looks on trial (A Corner, B Sessions, H Flashcards, J Sessions, K Next up) turned by a developer button on it; Videos → Video recap with Confetti on the options page (`architecture/watching.md` → The Video recap, `RECAP.md`).
 
 **Panki AI** (`architecture/ai.md`)
 - 2026-11-05: the clip follows the Sentence; an AI value edited by hand stays the AI's.
@@ -93,5 +94,6 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - Line, the sentence's field kind: `docs/SENTENCE.md`, steps 1 to 3 on main and on prod (`EXTENSION_PROTOCOL` 12); the owner backs up and switches their field by hand.
+- The Video recap: `docs/RECAP.md`, step 2 built on local dev; next, the owner picks one of the five by living with them.
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

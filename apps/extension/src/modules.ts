@@ -1,6 +1,7 @@
 /** @panki Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). */
 import { z } from "zod";
 import type { IconName } from "@web/components/Icon";
+import { DEFAULT_RECAP_LOOK, RecapLook } from "./watch/recapLooks";
 
 /**
  * Which of Panki's parts are on in this browser, each switched on the options page under the panel of what it's about,
@@ -337,6 +338,14 @@ export const Modules = z.object({
   shortSkip: z.boolean(),
   shortSkipKey: SkipKey,
   shortSkipSeconds: SkipSeconds,
+  /**
+   * The Video recap: a short "well done" on the picture as a video is finished, saying what it was to the account
+   * (`ui/Recap.tsx`), once per viewing. On to begin with; its confetti on too.
+   */
+  recap: z.boolean(),
+  recapConfetti: z.boolean(),
+  /** Which look the recap is drawn in while one is picked (`watch/recapLooks.ts`), turned by the developer button on it. */
+  recapLook: RecapLook,
 });
 export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
@@ -373,6 +382,9 @@ export const DEFAULT_MODULES: Modules = {
   shortSkip: true,
   shortSkipKey: "shift",
   shortSkipSeconds: 2.5,
+  recap: true,
+  recapConfetti: true,
+  recapLook: DEFAULT_RECAP_LOOK,
 };
 
 /**

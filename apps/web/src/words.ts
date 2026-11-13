@@ -17,6 +17,12 @@ export const PER_DEVICE = "This device";
 export function count(n: number, one: string, many: string) {
   return `${n.toLocaleString("en")} ${wordFor(n, one, many)}`;
 }
+/** A place in a row as said in words: "1st", "2nd", "3rd", "11th", "22nd". */
+export function ordinalWords(n: number) {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n.toLocaleString("en")}${suffix}`;
+}
 /** The word alone for a count, with no number: "meaning" for one, "meanings" for any other. The one plural rule, `count`'s. */
 export function wordFor(n: number, one: string, many: string) {
   return n === 1 ? one : many;

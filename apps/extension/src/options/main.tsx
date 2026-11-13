@@ -607,6 +607,26 @@ function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: 
   );
 }
 
+/**
+ * The Video recap, a short well done on the picture as a video is finished (`ui/Recap.tsx`): its own switch at the
+ * panel's head, and its confetti under it, greyed while it's off. Kept the moment it's changed.
+ */
+function RecapPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  return (
+    <section className="panel" aria-labelledby="video-recap-title">
+      <h2 id="video-recap-title" className="panel-title">
+        Video recap
+      </h2>
+      <Setting id="video-recap" label="Video recap" control={<Toggle id="video-recap-on" says={{ on: "On", off: "Off" }} on={store.videoRecap} onChange={(videoRecap) => void writeStore({ videoRecap }).then(onChanged)} />} />
+      <Setting
+        id="recap-confetti"
+        label="Confetti"
+        control={<Toggle id="recap-confetti-on" says={{ on: "On", off: "Off" }} on={store.recapConfetti} disabled={!store.videoRecap} onChange={(recapConfetti) => void writeStore({ recapConfetti }).then(onChanged)} />}
+      />
+    </section>
+  );
+}
+
 // How the transcript looks over the video is set on the video page itself (the panel's menu, `ui/PanelMenu.tsx`), where it's seen.
 
 /**
@@ -926,6 +946,8 @@ function Options() {
           <div className="options-tab" hidden={tab !== "videos"}>
             {/* Data tracking first: what's recorded of the videos watched. */}
             <VideoTracking store={store} onChanged={refresh} door={door} />
+            {/* After Data tracking: it's shown as a video turns finished, which Video tracking marks. */}
+            <RecapPanel store={store} onChanged={refresh} />
             <Transcribing store={store} onChanged={refresh} />
             <CurrentWord store={store} onChanged={refresh} />
             <SeekBarPanel store={store} onChanged={refresh} />

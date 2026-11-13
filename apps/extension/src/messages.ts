@@ -57,6 +57,7 @@ import {
   Settings,
   Stats,
   VideoGlance,
+  VideoRecap,
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
@@ -64,6 +65,7 @@ import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { MarkPaint } from "./seekLook";
+import { RecapLook } from "./watch/recapLooks";
 
 /**
  * What the pieces of the extension say to each other. A page's script (the line under a player, the capture panel)
@@ -248,6 +250,10 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("fullPanel"), shown: z.boolean() }),
   /** The player bar kept visible by its key, or let fade again. */
   z.object({ kind: z.literal("barKept"), kept: z.boolean() }),
+  /** The look the Video recap is drawn in, turned by the developer button on it. */
+  z.object({ kind: z.literal("recapLook"), look: RecapLook }),
+  /** A video's recap as it's finished: its cards, its watch sessions, its channel, what's next. */
+  z.object({ kind: z.literal("recap"), videoId: VideoId }),
   /** Videos as their thumbnails are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   z.object({ kind: z.literal("glance"), videoIds: GlanceAsk.shape.videoIds }),
   /** A video saved for later with its name and channel as the page shows them (`about`), or its save taken back (null). */
@@ -346,6 +352,9 @@ export type Homed = z.infer<typeof Homed>;
 /** The videos saved for later, as they stand after a save or a save taken back. */
 const Saved = z.union([z.object({ ok: z.literal(true), videos: z.array(SavedVideo) }), Failed]);
 export type Saved = z.infer<typeof Saved>;
+/** A video's recap as it's finished. */
+const Recapped = z.union([z.object({ ok: z.literal(true), recap: VideoRecap }), Failed]);
+export type Recapped = z.infer<typeof Recapped>;
 /** Videos as their thumbnails are marked. */
 const Glanced = z.union([z.object({ ok: z.literal(true), videos: z.array(VideoGlance) }), Failed]);
 export type Glanced = z.infer<typeof Glanced>;
@@ -601,6 +610,15 @@ export async function askFullPanel(shown: boolean): Promise<void> {
 /** The player bar kept visible or let fade, kept for every video from now on. */
 export async function askBarKept(kept: boolean): Promise<void> {
   await ask({ kind: "barKept", kept });
+}
+/** The Video recap's look, turned by the developer button on it, kept for every video from now on. */
+export async function askRecapLook(look: RecapLook): Promise<void> {
+  await ask({ kind: "recapLook", look });
+}
+/** A video's recap as it's finished, worked out by Panki from what it keeps. */
+export async function askRecap(videoId: string): Promise<Recapped> {
+  const answer = Recapped.safeParse(await ask({ kind: "recap", videoId }));
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** Videos as their thumbnails are marked; none of them when it can't be asked. */
 export async function askGlance(videoIds: readonly string[]): Promise<Glanced> {

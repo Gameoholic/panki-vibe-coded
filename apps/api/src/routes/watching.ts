@@ -1,5 +1,5 @@
 import { Router, type Response } from "express";
-import { DeviceTracking, GlanceAsk, SaveVideo, VideoId, WatchBatch, WatchMark, type GlanceResponse, type SavedResponse, type TrackingDevicesResponse, type WatchedVideoResponse, type WatchHistoryResponse } from "@panki/contracts";
+import { DeviceTracking, GlanceAsk, SaveVideo, VideoId, WatchBatch, WatchMark, type GlanceResponse, type SavedResponse, type TrackingDevicesResponse, type VideoRecapResponse, type WatchedVideoResponse, type WatchHistoryResponse } from "@panki/contracts";
 import type { DbOf } from "../app";
 import type { AuthDb } from "../authDb";
 import { signedIn } from "../session";
@@ -110,6 +110,14 @@ export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: ()
     const videoId = videoOf(req.params.videoId, res);
     if (videoId === null) return;
     const answer: WatchedVideoResponse = { video: dbOf(res).watchedVideo(videoId) };
+    res.json(answer);
+  });
+
+  // A video's recap as it's finished, worked out on read from what's kept (`recap.ts` in the contracts).
+  router.get("/videos/:videoId/recap", (req, res) => {
+    const videoId = videoOf(req.params.videoId, res);
+    if (videoId === null) return;
+    const answer: VideoRecapResponse = { recap: dbOf(res).videoRecap(videoId, now()) };
     res.json(answer);
   });
 

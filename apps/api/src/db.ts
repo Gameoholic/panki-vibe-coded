@@ -45,7 +45,12 @@ import {
   Stats,
   ValueSource,
   WATCH,
+  RECAP,
   SAVED_MAX,
+  holdsWords,
+  sessionsOf,
+  watchedOf,
+  type VideoRecap,
   SavedVideo,
   type SaveVideo,
   WatchHistory,
@@ -1783,6 +1788,27 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const unsaveVideo = db.prepare("UPDATE saved_videos SET removed_at = ? WHERE video_id = ? AND removed_at IS NULL");
   const selectWatchMarks = db.prepare("SELECT video_id AS videoId, kind, at FROM watch_marks WHERE forgotten_at IS NULL ORDER BY at ASC, id ASC");
   const selectVideoWatchMarks = db.prepare("SELECT video_id AS videoId, kind, at FROM watch_marks WHERE video_id = ? AND forgotten_at IS NULL ORDER BY at ASC, id ASC");
+  // A finished video's recap (`recap.ts` in the contracts): its stretches since a moment, the oldest first.
+  const selectVideoStretchesSince = db.prepare(
+    "SELECT from_ms AS fromMs, to_ms AS toMs, spent_ms AS spentMs, at FROM watch_stretches WHERE video_id = ? AND forgotten_at IS NULL AND at > ? ORDER BY at ASC, rowid ASC",
+  );
+  // The cards added from a video since a moment, deleted since or not: a card added counts as added. Its own source
+  // alone, never an example given to a card already there, which isn't a card added. Narrowed by the address here,
+  // read exactly by `youtubeLinkOf`.
+  const selectVideoCardsAdded = db.prepare(`
+    SELECT c.id AS cardId, c.deck_id AS deckId, d.type_id AS typeId, s.url, s.start_ms AS startMs, s.end_ms AS endMs
+    FROM cards c JOIN card_sources s ON s.card_id = c.id JOIN decks d ON d.id = c.deck_id
+    WHERE c.created_at > ? AND s.start_ms IS NOT NULL AND instr(s.url, ?) > 0
+    ORDER BY s.start_ms ASC, c.created_at ASC`);
+  const selectCardWords = db.prepare("SELECT field_id AS fieldId, value FROM card_values WHERE card_id = ?");
+  const selectWatchVideoChannel = db.prepare("SELECT channel_name AS name, channel_url AS url FROM watch_videos WHERE video_id = ?");
+  // How many of a channel's videos were ever finished (a finish counted as done): by its address where it's known, else its name.
+  const countChannelFinishedByUrl = db.prepare(
+    "SELECT COUNT(DISTINCT m.video_id) AS n FROM watch_marks m JOIN watch_videos v ON v.video_id = m.video_id WHERE m.kind = 'finish' AND m.forgotten_at IS NULL AND v.channel_url = ?",
+  );
+  const countChannelFinishedByName = db.prepare(
+    "SELECT COUNT(DISTINCT m.video_id) AS n FROM watch_marks m JOIN watch_videos v ON v.video_id = m.video_id WHERE m.kind = 'finish' AND m.forgotten_at IS NULL AND v.channel_name = ?",
+  );
 
   /** A kept layout's JSON, as parts; anything that doesn't read is no layout, and the fields' sides make one. */
   function keptLayout(json: string): unknown[] {
@@ -3261,6 +3287,54 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (kind === "finish") unsaveVideo.run(now, videoId);
       });
       return api.watchedVideo(videoId);
+    },
+    /**
+     * A video's recap as it's finished (`recap.ts` in the contracts), all of it worked out from what's kept: this
+     * viewing is everything after the video's finish before the latest (all of it, the first time), or after the latest
+     * when it isn't finished now. The cards added from it then, deleted since or not; its watch sessions and the parts of
+     * it watched; how many of its channel's videos were ever finished; and the top of Continue watching and of Saved
+     * for later, this video left out.
+     */
+    videoRecap(videoId: string, now: number): VideoRecap {
+      const today = todayAt(now);
+      const day = dayReader(today.settings.dayStartHour, zoneOf(today.settings));
+      const marks = selectVideoWatchMarks.all(videoId) as WatchMarkRow[];
+      const finishes = marks.filter((m) => m.kind === "finish").map((m) => m.at);
+      const finished = marksOf(marks).get(videoId)?.finished ?? false;
+      const since = (finished ? finishes.at(-2) : finishes.at(-1)) ?? 0;
+
+      const stretches = selectVideoStretchesSince.all(videoId, since) as { fromMs: number; toMs: number; spentMs: number; at: number }[];
+      const typeOf = typesById();
+      const added = (selectVideoCardsAdded.all(since, videoId) as { cardId: string; deckId: string; typeId: string | null; url: string; startMs: number; endMs: number | null }[]).filter(
+        (row) => youtubeLinkOf(row.url)?.videoId === videoId,
+      );
+      const cards = added.slice(0, RECAP.cardsMax).map((row) => {
+        const type = typeOf(row.typeId);
+        const words = new Set((type?.fields ?? []).filter((f) => holdsWords(f.kind)).map((f) => f.id));
+        const values = Object.fromEntries((selectCardWords.all(row.cardId) as { fieldId: string; value: string }[]).filter((v) => words.has(v.fieldId)).map((v) => [v.fieldId, v.value]));
+        const main = type ? wordsFieldOf(type) : null;
+        return { cardId: row.cardId, deckId: row.deckId, startMs: row.startMs, endMs: Math.max(row.startMs, row.endMs ?? row.startMs), words: main ? (values[main.id] ?? "") : "", values };
+      });
+
+      const channel = selectWatchVideoChannel.get(videoId) as { name: string | null; url: string | null } | undefined;
+      const finishedOfChannel = channel?.url ? (countChannelFinishedByUrl.get(channel.url) as { n: number }) : channel?.name ? (countChannelFinishedByName.get(channel.name) as { n: number }) : null;
+      const length = selectWatchVideoLength.get(videoId) as { lengthMs: number } | undefined;
+      return {
+        today: day(now),
+        lengthMs: length?.lengthMs ?? null,
+        added: added.length,
+        cards,
+        sessions: sessionsOf(stretches, day).slice(-RECAP.sessionsMax),
+        watched: watchedOf(stretches),
+        channel: channel?.name && finishedOfChannel ? { name: channel.name, nth: Math.max(1, finishedOfChannel.n) } : null,
+        continuing: watchingOf(today)
+          .continuing.filter((v) => v.videoId !== videoId)
+          .slice(0, RECAP.nextMax),
+        saved: api
+          .savedVideos()
+          .filter((v) => v.videoId !== videoId)
+          .slice(0, RECAP.nextMax),
+      };
     },
     /** All that's kept, in brief: how many videos, the time spent on them, since when. Counted or not. */
     watchHistory(): WatchHistory {

@@ -83,7 +83,7 @@ const LENGTH_TEXT = /^(?:\d+:)?\d{1,2}:\d{2}$/;
 const PREVIEW = "ytd-video-preview, #video-preview";
 const PREVIEW_MEDIA = "#media-container, #player-container, ytd-player, video";
 /** A thumbnail as the site serves it, from its own picture host, in the one size always there: letterboxed 4:3, cropped to 16:9 where it's drawn. */
-const thumbnailAt = (videoId: string) => `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`;
+export const thumbnailAt = (videoId: string) => `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`;
 /** How long what's known of a video is taken as true before it's asked for again. */
 const GLANCE_FRESH_MS = 60_000;
 /** After a glance that failed (signed out, Panki unreachable), how long before trying again. */

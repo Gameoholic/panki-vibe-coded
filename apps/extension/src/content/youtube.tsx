@@ -2,7 +2,7 @@ import "../setup";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
-import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useKnown, useKnownMoments, cameFromHere } from "../capture/known";
+import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useHeardInDecks, useKnown, useKnownMoments, cameFromHere } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
@@ -13,7 +13,7 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { bareOf, defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type WatchMarkSource } from "@panki/contracts";
+import { bareOf, defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type VideoRecap, type WatchedSpan, type WatchMarkSource } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { MESSAGE_WORDS, MessageAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
@@ -23,9 +23,9 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRecapLook, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
-import { amendLocal, loadLocal, localNow, onLocal } from "../local";
+import { amendLocal, loadLocal, localNow, onLocal, useLocal } from "../local";
 import type { TranscribePrefs } from "../transcribe/prefs";
 import { OFFER_AWAY_MS, OFFER_MS, PANKI_BAR_IDS, panelWidthOf, resumeTo, switchInPill, type Modules, type PanelView, type PanelWidth, type PankiBarControl, type SkipKey } from "../modules";
 import { AD } from "../transcribe/silent";
@@ -50,6 +50,8 @@ import { Column } from "../ui/Column";
 import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffer, type Made } from "../ui/Panel";
 import { HidePanelButton, PanelButton } from "../ui/PanelButton";
 import { ResumeOffer } from "../ui/ResumeOffer";
+import { Recap, type RecapFace } from "../ui/Recap";
+import { nextRecapLook } from "../watch/recapLooks";
 import { EndTime } from "../ui/EndTime";
 import type { PieceLimits, VideoMore } from "../ui/Explain";
 import { SpeedControl } from "../ui/SpeedControl";
@@ -157,6 +159,13 @@ const OVER_VIDEO = "display: block; position: absolute; left: 0; right: 0; botto
  */
 const OVER_CORNER = "display: block; position: absolute; right: 0; bottom: 0; z-index: 41; pointer-events: none;";
 /**
+ * Where the Video recap stands: over the whole picture, above the subtitles over the video, only what it draws taking a
+ * press. It keeps clear of the player's controls at the foot (`--recap-foot`, the room they take, written as it's placed).
+ */
+const OVER_PICTURE = "display: block; position: absolute; inset: 0; z-index: 41; pointer-events: none;";
+/** The player's controls at its foot, the seek bar on top of them: the recap stands above them. */
+const PLAYER_CHROME = ".ytp-chrome-bottom";
+/**
  * Where the Panki panel's button stands while the panel is folded away in full screen: the screen's top-right corner,
  * where the site draws its playlist button, fixed inside what fills the screen (as Panki's column is), over everything
  * of the site's there, so no layer the site lays over its player in full screen covers or clips it; to the left of the
@@ -244,6 +253,9 @@ over.ground.classList.add("over-ground");
 /** The offer to go on from where the video was stopped, on the picture. */
 const resume = makePlace(siteTheme());
 resume.host.style.cssText = OVER_CORNER;
+/** The Video recap, on the picture as the video is finished (`ui/Recap.tsx`). */
+const recapPlace = makePlace(siteTheme());
+recapPlace.host.style.cssText = OVER_PICTURE;
 /** The player's control bar as the options page lays it out, Panki's own controls among it (a YouTube utility). */
 const playerBar = createPlayerBar();
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
@@ -482,6 +494,8 @@ function followFinish(player: HTMLVideoElement | null) {
   if (!now || now.videoId !== watching || !active().on || !player || player.readyState < 2 || !Number.isFinite(player.duration) || player.duration <= 0 || adPlaying()) return;
   const inEnd = inEndZone(player.currentTime * 1000, player.duration * 1000, now.withinMs);
   if (!inEnd) seenBefore = true;
+  // Taken back before its end (a word in the recap pressed, the bar dragged), the video is being watched again: the recap goes.
+  if (!inEnd && recapped.get() !== null) recapped.set(null);
   const percent = Math.min(100, Math.floor((player.currentTime / player.duration) * 100));
   if (percent !== now.percent) finishHere.set({ ...now, percent });
   const played = player.ended || (!player.paused && !player.seeking);
@@ -509,6 +523,24 @@ async function sayFinished(finished: boolean, source: WatchMarkSource) {
   finishHere.set({ ...now, finished: answer.video.finished, withinMs: answer.video.finishedWithinMs });
   // Finished, Panki takes its save for later back: the bar's Save is asked again rather than told here.
   if (answer.video.finished) void readSaved();
+  // Played into its end and so finished now, where it wasn't: this viewing's recap. Taken off by hand, it goes.
+  if (answer.video.finished && !was.finished && source === "end") void showRecap(id);
+  if (!answer.video.finished) recapped.set(null);
+}
+
+/**
+ * The Video recap of this viewing, as Panki works it out once it has every stretch watched (`watcher.sendNow`), on the
+ * picture while the video is still in its end; with the recap switched off, nothing is asked.
+ */
+type Recapping = { videoId: string; recap: VideoRecap };
+const recapped = cell<Recapping | null>(null);
+async function showRecap(id: string) {
+  if (!active().recap) return;
+  await watcher.sendNow();
+  const answer = await askRecap(id);
+  if (!answer.ok || watching !== id || !finishHere.get()?.finished) return;
+  recapped.set({ videoId: id, recap: answer.recap });
+  place();
 }
 
 /**
@@ -683,7 +715,7 @@ function amendPrefs(patch: Partial<TranscribePrefs>) {
 }
 
 /** Every part off, as the modules read with Panki switched off altogether. */
-const allOff = (now: Modules): Modules => ({ ...now, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false });
+const allOff = (now: Modules): Modules => ({ ...now, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false, recap: false });
 /**
  * Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own
  * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not. The same while an update is needed: Panki would refuse all of it, so none of it is tried.
@@ -1108,6 +1140,16 @@ function place() {
   else if (resume.host.parentElement !== offering) offering.append(resume.host);
   resume.host.dataset.theme = theme;
   resume.host.toggleAttribute("data-full", full !== null);
+  // The Video recap over the picture while it stands, clear of the player's controls at its foot.
+  const recapping = on.recap && recapped.get()?.videoId === watching ? player : null;
+  if (!recapping) recapPlace.host.remove();
+  else {
+    if (recapPlace.host.parentElement !== recapping) recapping.append(recapPlace.host);
+    const chrome = recapping.querySelector(PLAYER_CHROME)?.getBoundingClientRect();
+    const foot = chrome && chrome.height > 0 ? `${Math.max(0, Math.round(recapping.getBoundingClientRect().bottom - chrome.top))}px` : "0px";
+    if (recapPlace.host.style.getPropertyValue("--recap-foot") !== foot) recapPlace.host.style.setProperty("--recap-foot", foot);
+  }
+  recapPlace.host.dataset.theme = theme;
   // The player's control bar as laid out: a utility of the site's own, there with Panki on or off. The speed button
   // with a video; when it will end too, but not while an ad plays (its time isn't the video's). Watching, Save for
   // later and Subtitles are Panki's own, there only while it's on, the first two once Panki has said how this video
@@ -1166,6 +1208,7 @@ function look() {
     void readCarded();
     seen.set(null);
     finishHere.set(null);
+    recapped.set(null);
     seenBefore = false;
     finishRetryAt = 0;
     offered.set(null);
@@ -2090,6 +2133,52 @@ function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "onReac
   const hover = useSyncExternalStore(onBar.subscribe, onBar.get);
   return <SeekMark {...props} hover={hover} onReach={reachPx.set} onPeek={peekPin} />;
 }
+
+/**
+ * The Video recap while one stands for the video on the page (`ui/Recap.tsx`): each card's reading and meaning from the
+ * fields this browser's mapping for its deck fills with the dictionary's (nothing when it maps none), the words in the
+ * decks heard from Panki's subtitles in the parts watched, in the look and with the confetti as this browser has them.
+ */
+function RecapHere() {
+  const now = useSyncExternalStore(recapped.subscribe, recapped.get);
+  const local = useLocal();
+  const tx = useSyncExternalStore(transcriber.subscribe, transcriber.state);
+  const recap = now !== null && now.videoId === watching && local.modules.recap ? now.recap : null;
+  const spoken = useMemo(() => (recap && tx.transcript ? linesOf(tx.transcript.words) : null), [recap, tx.transcript]);
+  const heard = useHeardInDecks(spoken, recap?.watched ?? NO_SPANS);
+  if (!recap) return null;
+  const faces = recap.cards.map((card): RecapFace => {
+    const map = local.drawer.maps[card.deckId] ?? {};
+    const valueOf = (fieldId: string | undefined) => (fieldId ? (card.values[fieldId] ?? "").trim() : "");
+    return { card, reading: valueOf(map.dictReading), meaning: valueOf(map.dictMeaning).split("\n")[0]?.trim() ?? "" };
+  });
+  const length = recap.lengthMs ?? (video && Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : 0);
+  const go = (seconds: number) => {
+    if (!video) return;
+    video.currentTime = seconds;
+    void video.play();
+  };
+  const nextLook = () => {
+    const look = nextRecapLook(local.modules.recapLook);
+    modules.amend({ recapLook: look });
+    void askRecapLook(look);
+  };
+  return (
+    <Recap
+      recap={recap}
+      faces={faces}
+      heard={heard}
+      lengthMs={length}
+      look={local.modules.recapLook}
+      confetti={local.modules.recapConfetti}
+      added={paintCss(local.prefs.added)}
+      onGo={go}
+      onClose={() => recapped.set(null)}
+      onNextLook={nextLook}
+    />
+  );
+}
+const NO_SPANS: readonly WatchedSpan[] = [];
 
 function App() {
   /** What the line reads right now (the transcript, or the site's captions), and how transcribing stands. */
@@ -3178,6 +3267,8 @@ function App() {
       {createPortal(offer !== null ? <ResumeOffer at={offer.at} jumped={offer.jumped} away={offerGoing} onTake={takeOffer} onClose={dismissOffer} /> : null, resume.ground)}
       {/* The panel folded away in full screen: its button in the video's top-right corner, as the site's playlist button stands there, brings it back. */}
       {createPortal(foldedHere ? <PanelButton onOpen={togglePanel} /> : null, corner.ground)}
+      {/* The Video recap on the picture as the video is finished: what this viewing was, a well done. */}
+      {createPortal(<RecapHere />, recapPlace.ground)}
       {/* Panki's own controls on the player's bar, each in its place there (`playerBar.ts` puts them where the layout says): a YouTube utility, drawn for whichever player the page has. */}
       {PANKI_BAR_IDS.map((id) => createPortal(barDrawn[id], playerBar.places[id].ground, id))}
       {/* The drawer is drawn into its own place on the page; it's one screen with the line, so they share what's picked. */}

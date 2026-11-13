@@ -25,6 +25,7 @@ export * from "./pitch";
 export * from "./judgement";
 export * from "./prompt";
 export * from "./proofread";
+export * from "./recap";
 export * from "./reviewSettings";
 export * from "./space";
 export * from "./srs";
