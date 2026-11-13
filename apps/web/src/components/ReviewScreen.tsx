@@ -9,6 +9,7 @@ import { FLAG_WORDS, HOLD_KINDS, NEW_WORDS, againWords, answerClass, backWords, 
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import { KeyCap } from "./KeyCap";
+import { RightShare } from "./RightShare";
 import { ShowButton } from "./ShowButton";
 import { TimeLeft } from "./TimeLeft";
 import { TimeStudying } from "./TimeStudying";
@@ -76,14 +77,24 @@ const KIND_WORDS: Record<Kind, (n: number) => string> = {
 /**
  * What's left of a review, by kind, each count with its word ("2 + 0 + 9" says nothing), in the order they come, the
  * kind of the card on screen underlined; with a limit on how many are in play, how many that is and how many wait;
- * about how long it all takes (`TimeLeft`), where it's known and Time left is Shown; and how long the session has gone
- * on (`TimeStudying`), where Time studying is Shown. Each is left out by its caller passing null.
+ * about how long it all takes (`TimeLeft`), where it's known and Time left is Shown; how long the session has gone
+ * on (`TimeStudying`), where Time studying is Shown; and the share of its answers right (`RightShare`), where Right
+ * answers is Shown. Each is left out by its caller passing null.
  * With no deck (`counts` null) the line holds its room with nothing in it.
  */
 export function ReviewCounts({
   counts,
 }: {
-  counts: { settings: ReviewSettings; togo: Record<Kind, number>; now: Kind | null; line: Line; leftMs?: number | null; studyingFrom?: number | null; studyingSince?: Moment } | null;
+  counts: {
+    settings: ReviewSettings;
+    togo: Record<Kind, number>;
+    now: Kind | null;
+    line: Line;
+    leftMs?: number | null;
+    studyingFrom?: number | null;
+    studyingSince?: Moment;
+    right?: { right: number; of: number } | null;
+  } | null;
 }) {
   if (counts === null) {
     // A count's own room, with nothing in it: the line stands as tall as it does with its counts.
@@ -95,7 +106,7 @@ export function ReviewCounts({
       </span>
     );
   }
-  const { settings, togo, now, line, leftMs = null, studyingFrom = null, studyingSince } = counts;
+  const { settings, togo, now, line, leftMs = null, studyingFrom = null, studyingSince, right = null } = counts;
   return (
     <>
       <span className="review-counts" role="status">
@@ -108,6 +119,8 @@ export function ReviewCounts({
       {line.waiting.length > 0 ? <span>{`${line.active.length} in play · ${line.waiting.length} waiting`}</span> : null}
       {leftMs !== null ? <TimeLeft ms={leftMs} /> : null}
       {studyingFrom !== null ? <TimeStudying from={studyingFrom} since={studyingSince} /> : null}
+      {/* Last, so its coming in with the first answer moves nothing before it. */}
+      {right !== null ? <RightShare right={right.right} of={right.of} /> : null}
     </>
   );
 }
@@ -203,6 +216,8 @@ type Props = {
   stage: Stage;
   /** The counts' line (`ReviewCounts`). */
   counts: ReactNode;
+  /** The bar across the top of the window (`ReviewProgress`), where Progress bar is Shown; a card type's Layout tab has none. */
+  progress?: ReactNode;
   busy: boolean;
   binds: KeyBinds;
   /** Step back: the card's back to its front. */
@@ -232,7 +247,7 @@ type Props = {
 };
 
 /** The review's screen around its card: one drawing, the review's and the Layout tab's. */
-export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, flag, card, staging, failure, buttons, ask = null, chartView = null, children }: Props) {
+export function ReviewScreen({ place, stage, counts, progress = null, busy, binds, onStepBack, canStepBack, onUndo, canUndo, chart, flag, card, staging, failure, buttons, ask = null, chartView = null, children }: Props) {
   // The clip that takes the screen's room while it's filled, marked for the stage's styles: of the fields the layout
   // names, the first whose part holds a clip in the Player look there to see (not a sound, not under a spoiler).
   useLayoutEffect(() => {
@@ -281,6 +296,8 @@ export function ReviewScreen({ place, stage, counts, busy, binds, onStepBack, ca
   );
   return (
     <section ref={place} className={`review ${look}`.trim()}>
+      {/* Inside the review's own element, so it's still there while the review fills the screen. */}
+      {progress}
       <div className="review-top">
         {counts}
         {!full ? <span className="review-tools">{tools}</span> : null}

@@ -3112,6 +3112,33 @@ canvas.media-frame {
     color: var(--fg);
   }
 }
+/* The share of the review's answers right (`RightShare`): words on the counts' line, as quiet as the times. */
+.review-right {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* How far through its cards the review is (`ReviewProgress`): a thin bar across the very top of the window, over the
+   app's own bar and the full screen's clip alike, its track faint and its fill the accent, easing to each new share. */
+.review-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 30;
+  height: 3px;
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.review-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left center;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .review-progress-fill {
+    transition: none;
+  }
+}
 /* The time a Start's review takes, after its words (`TimeLeft` → `timeWords`). */
 .start-time {
   font-weight: 600;

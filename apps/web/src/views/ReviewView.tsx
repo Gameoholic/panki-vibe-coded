@@ -11,7 +11,9 @@ import { KeyCap, holdFor } from "../components/KeyCap";
 import { NumberField } from "../components/NumberField";
 import { PlacePill } from "../components/PlacePill";
 import { ReviewCard } from "../components/ReviewCard";
+import { ReviewProgress } from "../components/ReviewProgress";
 import { ReviewButtons, ReviewCounts, ReviewScreen, answerLead, stepFor } from "../components/ReviewScreen";
+import { rightOf } from "../components/RightShare";
 import { timeWords } from "../components/TimeLeft";
 import { TodayBar, todayWords } from "../components/TodayBar";
 import { useBlur } from "../hooks/useBlur";
@@ -19,7 +21,7 @@ import { keepDouble, useHold } from "../hooks/useHold";
 import { useScreenStage } from "../hooks/useScreenStage";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
-import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, leftOf, nextFresh, startLine, togoOf, type Line } from "../reviewLine";
+import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, leftOf, nextFresh, progressOf, startLine, togoOf, type Line } from "../reviewLine";
 import { shuffle } from "../shuffle";
 import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
@@ -927,9 +929,11 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
             leftMs: review.timeLeft ? timeOf([...line.active, ...line.waiting]) : null,
             studyingFrom: review.timeStudying ? (studying?.from ?? null) : null,
             studyingSince: studying?.since,
+            right: review.rightShare ? rightOf(counts, srsType.answers) : null,
           }}
         />
       }
+      progress={review.progressBar ? <ReviewProgress {...progressOf(line)} /> : null}
       busy={busy}
       binds={binds}
       onStepBack={stepBack}

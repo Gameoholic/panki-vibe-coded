@@ -138,6 +138,16 @@ export function ReviewsPanel({ current, patch }: { current: ReviewSettings; patc
         control={<Toggle id="setting-time-studying" says={{ on: "Shown", off: "Hidden" }} on={current.timeStudying} onChange={(timeStudying) => patch({ timeStudying })} />}
         explain={{ name: "Time elapsed", scene: <TimeStudyingScene /> }}
       />
+      <Setting
+        id="rightShare"
+        label="Right answers"
+        control={<Toggle id="setting-right-share" says={{ on: "Shown", off: "Hidden" }} on={current.rightShare} onChange={(rightShare) => patch({ rightShare })} />}
+      />
+      <Setting
+        id="progressBar"
+        label="Progress bar"
+        control={<Toggle id="setting-progress-bar" says={{ on: "Shown", off: "Hidden" }} on={current.progressBar} onChange={(progressBar) => patch({ progressBar })} />}
+      />
     </section>
   );
 }

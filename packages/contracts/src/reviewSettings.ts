@@ -43,10 +43,27 @@ export const ReviewSettings = z.object({
   timeLeft: z.boolean(),
   /** **Time studying**: whether a review's counts end in how long its session has gone on, ticking (`TimeStudying`). */
   timeStudying: z.boolean(),
+  /** **Progress bar**: whether a thin bar across the top of a review fills as its cards are done (`ReviewProgress`). */
+  progressBar: z.boolean(),
+  /** **Right answers**: whether a review's counts say the share of its answers so far that were right (`RightShare`). */
+  rightShare: z.boolean(),
 });
 export type ReviewSettings = z.infer<typeof ReviewSettings>;
 export type ExampleShown = ReviewSettings["exampleShown"];
-export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = { todayFirst: true, newPlace: "last", newOrder: "added", reviewOrder: "random", againPlace: "end", pool: null, exampleShown: "rotate", blurFront: true, timeLeft: true, timeStudying: true };
+export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = {
+  todayFirst: true,
+  newPlace: "last",
+  newOrder: "added",
+  reviewOrder: "random",
+  againPlace: "end",
+  pool: null,
+  exampleShown: "rotate",
+  blurFront: true,
+  timeLeft: true,
+  timeStudying: true,
+  progressBar: true,
+  rightShare: false,
+};
 /** The keys of how every review runs, the ones a deck kept before they were the account's. */
 export const REVIEW_SETTING_KEYS = Object.keys(ReviewSettings.shape) as (keyof ReviewSettings)[];
 

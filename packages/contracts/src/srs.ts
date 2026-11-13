@@ -43,6 +43,15 @@ export function mainAnswers<A extends { aside?: boolean | undefined }>(answers: 
   const main = answers.filter((a) => !a.aside);
   return main.length > 0 ? main : answers;
 }
+/**
+ * Whether an answer is a miss, as Right and Toughest cards judge it: 1 for the first of the main answers when there's
+ * more than one, 0 for any other main one, null for one set apart (it's neither right nor wrong).
+ */
+export function missOf(answers: readonly SrsAnswer[], answerId: string): 0 | 1 | null {
+  const main = mainAnswers(answers);
+  if (!main.some((a) => a.id === answerId)) return null;
+  return main.length > 1 && main[0]?.id === answerId ? 1 : 0;
+}
 
 /**
  * What an answer does to a card: move up or down the ladder (relative to where it is),

@@ -61,8 +61,8 @@ import {
   isNew,
   layoutOf,
   legacySourceOf,
-  mainAnswers,
   makeStarter,
+  missOf,
   newColourOf,
   placeColour,
   resolve,
@@ -1979,12 +1979,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       extras.sessionId, extras.thinkMs, extras.decideMs, extras.miss, extras.exampleId, extras.givenId,
     );
   }
-  /** Whether an answer counts as a miss, frozen as the type's answers stand now: the first of the main ones, when there is more than one; nothing for one set apart. */
-  function missOf(type: SrsType, answerId: string): number | null {
-    const main = mainAnswers(type.answers);
-    if (!main.some((a) => a.id === answerId)) return null;
-    return main.length > 1 && main[0]?.id === answerId ? 1 : 0;
-  }
   function reviewSessionFrom(row: ReviewSessionRow): ReviewSession {
     return ReviewSession.parse(row);
   }
@@ -3030,7 +3024,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           sessionId: answer.sessionId ?? null,
           thinkMs: answer.thinkMs ?? null,
           decideMs: answer.decideMs ?? null,
-          miss: missOf(type, answer.answerId),
+          // Frozen as the type's answers stand now.
+          miss: missOf(type.answers, answer.answerId),
           exampleId: answer.exampleId ?? null,
         };
         const outcome = resolve(type, place, answer.answerId);

@@ -1,4 +1,4 @@
-/** @panki A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `KINDS`). */
+/** @panki A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card, how far through it is (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). */
 import { againPlaceOf, isNew, resolve, type Card, type CardLeft, type Deck, type Outcome, type ReviewSettings, type SrsType } from "@panki/contracts";
 import { shuffle } from "./shuffle";
 
@@ -112,12 +112,13 @@ export function buildQueue(cards: readonly Card[], deck: Deck, review: ReviewSet
 
 /**
  * The line of a review: the cards in play, the first of them on screen, and the ones waiting to join. With no limit
- * on how many are in play, every card is in play from the start.
+ * on how many are in play, every card is in play from the start. `done` is the cards that have left it, done for now:
+ * with the rest, how far through the review is (`progressOf`).
  */
-export type Line = { active: string[]; waiting: string[] };
+export type Line = { active: string[]; waiting: string[]; done: string[] };
 export function startLine(queue: string[], pool: number | null): Line {
   const size = pool ?? queue.length;
-  return { active: queue.slice(0, size), waiting: queue.slice(size) };
+  return { active: queue.slice(0, size), waiting: queue.slice(size), done: [] };
 }
 /**
  * The line after the card on screen is answered. One asked again right away goes back in where the account's settings
@@ -126,10 +127,20 @@ export function startLine(queue: string[], pool: number | null): Line {
  */
 export function advance(line: Line, cardId: string, comesBack: boolean, againPlace: ReviewSettings["againPlace"]): Line {
   const active = line.active.slice(1);
-  if (!comesBack) return { active: [...active, ...line.waiting.slice(0, 1)], waiting: line.waiting.slice(1) };
+  if (!comesBack) {
+    const done = line.done.includes(cardId) ? line.done : [...line.done, cardId];
+    return { active: [...active, ...line.waiting.slice(0, 1)], waiting: line.waiting.slice(1), done };
+  }
   const spot = active.length === 0 ? 0 : againPlace === "end" ? active.length : 1 + Math.floor(Math.random() * active.length);
   active.splice(spot, 0, cardId);
-  return { active, waiting: line.waiting };
+  return { active, waiting: line.waiting, done: line.done };
+}
+/**
+ * How far through its cards a review is: the cards done for now, of every card it has had. A card asked again is still
+ * to do, however many times it's missed, so the bar never goes back on a miss, and a card that joins adds to the whole.
+ */
+export function progressOf(line: Line): { done: number; of: number } {
+  return { done: line.done.length, of: line.done.length + line.active.length + line.waiting.length };
 }
 /**
  * The next new card for today, when a new one put aside leaves its place (as the deck's own count gives it to the
@@ -143,6 +154,6 @@ export function nextFresh(cards: Iterable<Card>, line: Line, leaving: string, ne
 }
 /** A card joining the line: in play at the end when there's room, else the last to wait its turn. */
 export function joinLine(line: Line, cardId: string, pool: number | null): Line {
-  if (pool === null || line.active.length < pool) return { active: [...line.active, cardId], waiting: line.waiting };
-  return { active: line.active, waiting: [...line.waiting, cardId] };
+  if (pool === null || line.active.length < pool) return { ...line, active: [...line.active, cardId] };
+  return { ...line, waiting: [...line.waiting, cardId] };
 }

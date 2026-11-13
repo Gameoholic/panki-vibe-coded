@@ -81,7 +81,7 @@ function ReviewPage({ page, shown }: { page: RefObject<HTMLDivElement | null>; s
     <div ref={page} className="ex-panki">
       <section className="review">
         <div className="review-top">
-          <ReviewCounts counts={{ settings: DEFAULT_REVIEW_SETTINGS, togo: shown.togo, now: "new", line: { active: [], waiting: [] } }} />
+          <ReviewCounts counts={{ settings: DEFAULT_REVIEW_SETTINGS, togo: shown.togo, now: "new", line: { active: [], waiting: [], done: [] } }} />
           {shown.leftMs !== null ? <TimeLeft ms={shown.leftMs} pointed={shown.pointed ?? false} /> : null}
           {shown.studyingFrom !== null ? <TimeStudying from={shown.studyingFrom} /> : null}
         </div>

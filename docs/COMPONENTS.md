@@ -61,7 +61,9 @@ Paths from `apps/web/src/`.
 | PromptContext | `components/PromptContext.tsx` | What a prompt can use, a row a variable, pressed to go in at the caret (`PromptContext`, `CopyButton`, `PieceLimits`). Never a second list of the variables. |
 | PromptField | `components/PromptField.tsx` | A prompt template typed, its variables lit (`PromptField`, `PromptFieldHandle`). |
 | ReviewCard | `components/ReviewCard.tsx` | A card as a review shows it, front and back, laid out by its type, its front blurred as the type marks it (`ReviewCard`). Never a second drawing of a card's two sides. |
+| ReviewProgress | `components/ReviewProgress.tsx` | How far through a review its cards are, a thin bar across the top of the window (`ReviewProgress`). Never a second bar of it. |
 | ReviewScreen | `components/ReviewScreen.tsx` | The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. |
+| RightShare | `components/RightShare.tsx` | The share of a review's answers so far that were right, beside its counts (`RightShare`, `rightOf`). |
 | ScrollEdges | `components/ScrollEdges.tsx` | A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. |
 | Segmented | `components/Segmented.tsx` | A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). |
 | Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, an `explain` scene, the `perDevice` tag (`Setting`). |
@@ -125,7 +127,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
 | playback | `playback.ts` | How loud and how fast each player plays, its own for each field it plays, and whether clips' subtitles show (`usePlaying`, `setVolume`, `setSpeed`, `SPEEDS`, `useSubtitlesShown`). |
-| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `KINDS`). |
+| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card, how far through it is (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). |
 | romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | routes | `routes.ts` | Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). |
 | shuffle | `shuffle.ts` | A list shuffled, on a copy (`shuffle`). |
