@@ -127,7 +127,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
 | playback | `playback.ts` | How loud and how fast each player plays, its own for each field it plays, and whether clips' subtitles show (`usePlaying`, `setVolume`, `setSpeed`, `SPEEDS`, `useSubtitlesShown`). |
-| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card, how far through it is (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). |
+| reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line moving on, what's left, how far through (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). |
 | romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | routes | `routes.ts` | Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). |
 | shuffle | `shuffle.ts` | A list shuffled, on a copy (`shuffle`). |

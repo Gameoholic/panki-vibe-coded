@@ -1,4 +1,4 @@
-/** @panki A review's line of cards: today's queue, the line as it moves on, what's left by kind and of each card, how far through it is (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). */
+/** @panki A review's line of cards: today's queue, the line moving on, what's left, how far through (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). */
 import { againPlaceOf, isNew, resolve, type Card, type CardLeft, type Deck, type Outcome, type ReviewSettings, type SrsType } from "@panki/contracts";
 import { shuffle } from "./shuffle";
 
