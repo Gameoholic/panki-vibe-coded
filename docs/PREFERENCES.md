@@ -32,7 +32,7 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 - Never re-ask what a rule, a doc or an earlier answer decides.
 - Just fix obvious things in what you're touching, and say so.
 - Before changing the owner's own content or doing anything destructive, describe exactly what will change and wait for a yes.
-- If the code can't explain a bug, ask one short question (which browser, what zoom, what was clicked) instead of hunting. The owner's desktop browser is Firefox.
+- If the code can't explain a bug, ask one short question (which browser, what zoom, what was clicked) instead of hunting. The owner watches and studies in both Firefox and Chrome, and every feature, the extension's included, supports both, on Windows and Mac.
 
 ## Reporting
 

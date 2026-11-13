@@ -1,6 +1,6 @@
 # Panki
 
-A flashcard app for Japanese vocabulary, for the owner alone, on a Windows PC and an Android phone's browser, served from a small VPS. Built as if it were a large-team SaaS: clean, reused, careful, secure. Code quality and doing things properly are the point, not just "does it work".
+A flashcard app for Japanese vocabulary, for the owner alone, in Firefox and Chrome on Windows and Mac and an Android phone's browser, served from a small VPS. Built as if it were a large-team SaaS: clean, reused, careful, secure. Code quality and doing things properly are the point, not just "does it work".
 
 This file is the index; the content lives in `docs/`. Read the docs before touching anything, and keep them current.
 
@@ -22,7 +22,7 @@ This file is the index; the content lives in `docs/`. Read the docs before touch
 | [docs/RUNNING.md](docs/RUNNING.md) | Run, build, deploy, load the extension; the commands; where the data lives | When running or deploying |
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Why it exists, who it's for, how it must feel, the features | On a product call |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | What the owner wants next; nothing there is approved | When picking what's next |
-| [docs/AI.md](docs/AI.md), [docs/DOCS.md](docs/DOCS.md), [docs/STREAKS.md](docs/STREAKS.md), [docs/BLUR.md](docs/BLUR.md), [docs/SENTENCE.md](docs/SENTENCE.md), [docs/RECAP.md](docs/RECAP.md) | Epic plans: why, settled, the order, open | During the epic |
+| [docs/AI.md](docs/AI.md), [docs/DOCS.md](docs/DOCS.md), [docs/STREAKS.md](docs/STREAKS.md), [docs/BLUR.md](docs/BLUR.md), [docs/SENTENCE.md](docs/SENTENCE.md), [docs/RECAP.md](docs/RECAP.md), [docs/DOWNLOADS.md](docs/DOWNLOADS.md) | Epic plans: why, settled, the order, open | During the epic |
 | [README.md](README.md) | The VPS pull-and-restart block, the owner's alone | Never written to |
 
 ## Never open a browser

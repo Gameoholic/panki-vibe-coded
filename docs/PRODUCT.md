@@ -4,7 +4,7 @@
 
 ## What this is
 
-Panki is the owner's replacement for Anki, for Japanese vocabulary (kanji stays on WaniKani). It runs in the browser on their Windows PC and their Android phone, from a small VPS, with a browser extension on the PC that mines cards from YouTube and any page.
+Panki is the owner's replacement for Anki, for Japanese vocabulary (kanji stays on WaniKani). It runs in the browser, Firefox and Chrome on Windows and Mac and their Android phone, from a small VPS, with a browser extension on the computer, in both browsers, that mines cards from YouTube and any page.
 
 **The one goal: the seconds between seeing a word and having it in a deck.** Sentence mining never happened because adding a card took a minute. A feature that doesn't shorten capture or make reviews worth coming back to doesn't belong.
 
