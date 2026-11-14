@@ -17,7 +17,7 @@ import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pie
  * divided by the speed, which puts it back at the video's pace with the top of the card's range gone (3× keeps
  * exactly what the engine listens to).
  *
- * The same player downloads a video (`download/runner.ts`): played through muted, with no graph, while the
+ * The same player downloads a video (`download/runner.ts`) on the watch page: played through unheard, its sound taken nowhere, while the
  * doorway script in its frame copies what the site's player is handed (`content/doorway.ts`). Its frame's address then
  * carries the run's mark, which is all that wakes that script; the frame is the quality asked for's size, which is what
  * keeps the quality to it: the site's player, picking for itself, never loads a picture much taller than it's drawn.
@@ -90,6 +90,12 @@ export type SilentPlayer = {
 /** The site's two pages for a video: the embed page first, light and made to be framed; the watch page when the embed says the video can't be. */
 const SOURCES = ["embed", "watch"] as const;
 export type SilentPage = (typeof SOURCES)[number];
+/**
+ * The pages each use tries, in order. Listening, the embed page first. Kept, the watch page alone: in a frame off the
+ * screen the embed page refuses ordinary videos without a word (`REFUSE_SECONDS`), and each refusal costs a download
+ * its first seconds.
+ */
+const PAGES: Record<SilentUse["kind"], readonly SilentPage[]> = { listen: SOURCES, keep: ["watch"] };
 const PLAYER = "#movie_player";
 const ERROR = ".ytp-error";
 /** The site's own big play button over a player that hasn't started. */
@@ -99,6 +105,12 @@ const PLAY_BUTTON = ".ytp-large-play-button";
  * started by its own play button, pressed once, as someone would. Seconds.
  */
 const NUDGE_SECONDS = 4;
+/**
+ * A player that still has no video this long after it was found is taken as refused, as its error card would say: in a
+ * frame off the screen the embed page refuses some videos without ever showing its card. Its next page is tried.
+ * Seconds; under `STUCK_SECONDS`, so a refusal isn't taken for a stall and opened again in a loop.
+ */
+const REFUSE_SECONDS = 10;
 /** The classes the site's player carries while an ad plays in it; the video page's watcher leaves ads out of the time watched too. */
 export const AD = ["ad-showing", "ad-interrupting"];
 /** How often the frame is looked at for its player, and then for ads. */
@@ -144,8 +156,7 @@ const REOPENS = 3;
 const STUCK = "The video wouldn't load in the background.";
 
 const urlOf = (source: SilentPage, videoId: string, at: number, use: SilentUse) => {
-  // Kept, opened muted: the browser starts a muted video by itself (`wire`).
-  const kept = use.kind === "keep" ? `&mute=1&${KEEP_PARAM}=${encodeURIComponent(use.mark)}` : "";
+  const kept = use.kind === "keep" ? `&${KEEP_PARAM}=${encodeURIComponent(use.mark)}` : "";
   return source === "embed"
     ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}${kept}`
     : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s${kept}`;
@@ -297,7 +308,8 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     loaded = true;
   });
   /** The page last asked for, and when, by `performance.now()`. */
-  let page: SilentPage = SOURCES[0];
+  const pages = PAGES[use.kind];
+  let page: SilentPage = pages[0] ?? "watch";
   let pageAt = performance.now();
   const show = (source: SilentPage, at: number) => {
     loaded = false;
@@ -359,8 +371,8 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
         if (gone || video !== v) return;
         played = "play started";
         blocked = false;
-        // Kept, there's no graph: nothing more to start.
-        if (!c) return;
+        // Kept, the graph is only there to be unheard: one the browser leaves suspended is unheard too, and blocks nothing.
+        if (!c || use.kind === "keep") return;
         void c.resume();
         // A graph the browser won't start without a press stays suspended and says nothing; it's asked after a moment.
         setTimeout(() => {
@@ -455,22 +467,20 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     pitched.preservesPitch = false;
     pitched.mozPreservesPitch = false;
     found.playbackRate = speed;
-    // Kept, it's opened muted (`mute=1`) and left so: the browser starts a muted video by itself, where one with sound
-    // in a frame nobody pressed stays on its thumbnail and never takes the video up; unmuted without a press, the
-    // browser would pause it again. Its sound isn't wanted, so there's no graph either.
-    if (use.kind === "listen") {
-      found.muted = false;
-      found.volume = 1;
-      // The graph is the frame's own, as its player is. Its tap is a ScriptProcessorNode rather than an AudioWorklet
-      // because a worklet is a module fetched from an address, and on someone else's page an extension's script has
-      // none the page's own rules would allow; the deprecated node needs nothing but the graph.
-      ctx = new win.AudioContext();
-      const source = ctx.createMediaElementSource(found);
-      const mute = ctx.createGain();
-      mute.gain.value = 0;
-      mute.connect(ctx.destination);
-      wireTap(source, mute, use);
-    }
+    found.muted = false;
+    found.volume = 1;
+    // The graph is the frame's own, as its player is. Its tap is a ScriptProcessorNode rather than an AudioWorklet
+    // because a worklet is a module fetched from an address, and on someone else's page an extension's script has
+    // none the page's own rules would allow; the deprecated node needs nothing but the graph.
+    ctx = new win.AudioContext();
+    const source = ctx.createMediaElementSource(found);
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    mute.connect(ctx.destination);
+    // Kept, it's only to be unheard (the watch page can't be opened muted, and muting the site's player would be kept
+    // by the site for the viewer's own videos): its sound goes straight to the gain of zero, and nothing is taken.
+    if (use.kind === "keep") source.connect(mute);
+    else wireTap(source, mute, use);
     found.addEventListener("playing", anchor);
     for (const type of ["pause", "waiting", "seeking", "emptied", "stalled"] as const) found.addEventListener(type, suspend);
     // A seek lands where the player says, not where it was sent (the site's player seeks again on its own after a
@@ -540,9 +550,15 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     // The page refused the video (its error card, with its code): the next page is tried. Looked for whether or not the
     // player has been found, as long as it holds no video: a page that refuses still has a player with an empty video
     // element in it, found first, and looked for only before that the refusal was never seen.
+    // (A `<noscript>`'s words are never matched: while scripts run its insides are text, not elements.)
     const error = doc.querySelector(ERROR);
     if (error !== null && error.getClientRects().length > 0 && (video === null || video.currentSrc === "")) {
       refusedBy(error);
+      return;
+    }
+    // No card, and still no video long after the player was found: refused all the same.
+    if (video !== null && video.currentSrc === "" && performance.now() - wiredAt > REFUSE_SECONDS * 1000) {
+      refusedBy(null);
       return;
     }
     if (!video) {
@@ -625,12 +641,13 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
   }
 
   /**
-   * The page shows the site's error card for the video: said with its code as the card gives it ("152 - 4"), for
-   * `starting`, and the next page tried (the watch page after the embed page).
+   * The page refused the video: by its error card, said with its code as the card gives it ("152 - 4"), or by giving
+   * no video at all (`REFUSE_SECONDS`, `error` null); said for `starting`, and the next page tried.
    */
-  function refusedBy(error: Element) {
-    const code = /(\d{3})(?:\s*-\s*(\d+))?/.exec(error.textContent ?? "");
-    refusal = `the ${page} page refused it${code ? ` (error ${code[1]}${code[2] ? `-${code[2]}` : ""})` : ""}`;
+  function refusedBy(error: Element | null) {
+    const code = error === null ? null : /(\d{3})(?:\s*-\s*(\d+))?/.exec(error.textContent ?? "");
+    const why = error === null ? ` (no video in ${REFUSE_SECONDS} s)` : code ? ` (error ${code[1]}${code[2] ? `-${code[2]}` : ""})` : "";
+    refusal = `the ${page} page refused it${why}`;
     unwire();
     next();
   }
@@ -640,7 +657,7 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     if (pageTimer !== null) clearTimeout(pageTimer);
     pageTimer = null;
     tried++;
-    const source = SOURCES[tried];
+    const source = pages[tried];
     if (!source) {
       failed = FAILED[use.kind];
       return;
@@ -650,7 +667,7 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
   }
 
   function open(at: number) {
-    show(SOURCES[0], at);
+    show(page, at);
     document.documentElement.append(frame);
     pageTimer = setTimeout(next, PAGE_WAIT_MS);
     looker = setInterval(look, LOOK_MS);
