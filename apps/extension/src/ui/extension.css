@@ -4964,8 +4964,13 @@
   background: var(--accent);
   transition: width 0.4s ease;
 }
+/* The menu is as wide as its rows need (`.strip-menu.is-panel`, max-content): a reason this long would make it wider
+   than the panel and run it off the panel's left edge, so it wraps to the width the rows set, taking none of its own. */
 .download-why {
+  width: 0;
+  min-width: 100%;
   padding: 0 10px 4px 32px;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 12px;
 }

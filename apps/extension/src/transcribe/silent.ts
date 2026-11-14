@@ -7,7 +7,8 @@ import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pie
  * the viewer faster than life, its sound taken as it plays and cut into pieces for the engine. The frame is the
  * site's own page for the video (its embed page, or the watch page when the video can't be embedded), so it's the
  * same origin as the page we're on: its player is reached straight from here, nothing is injected into it and
- * nothing of the site's scripts is called. Only its `<video>` is used: told where to go, how fast, and listened to.
+ * nothing of the site's scripts is called. Only its `<video>` is used: told where to go, how fast, and listened to;
+ * and, should the player never take the video up, its own play button pressed once.
  *
  * How it's silent: the player's sound is routed into a sound graph of its own and from there through a gain of zero,
  * so none of it reaches the speakers; the player itself is never muted, since a muted player gives the graph nothing.
@@ -83,6 +84,13 @@ const SOURCES = ["embed", "watch"] as const;
 export type SilentPage = (typeof SOURCES)[number];
 const PLAYER = "#movie_player";
 const ERROR = ".ytp-error";
+/** The site's own big play button over a player that hasn't started. */
+const PLAY_BUTTON = ".ytp-large-play-button";
+/**
+ * A player told to play that still has no video at all after this long (its page didn't start it by itself) is
+ * started by its own play button, pressed once, as someone would. Seconds.
+ */
+const NUDGE_SECONDS = 4;
 /** The classes the site's player carries while an ad plays in it; the video page's watcher leaves ads out of the time watched too. */
 export const AD = ["ad-showing", "ad-interrupting"];
 /** How often the frame is looked at for its player, and then for ads. */
@@ -412,9 +420,15 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     };
   }
 
+  /** When the player last wired was found, by `performance.now()`, and whether its play button has been pressed since (`NUDGE_SECONDS`). */
+  let wiredAt = 0;
+  let nudged = false;
+
   /** The player is there: wired once, then taken where it's wanted. */
   function wire(found: HTMLVideoElement, win: Window & typeof globalThis) {
     video = found;
+    wiredAt = performance.now();
+    nudged = false;
     const pitched: Pitched = found;
     pitched.preservesPitch = false;
     pitched.mozPreservesPitch = false;
@@ -518,6 +532,12 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
       current.pause();
       if (failed === null) failed = REPLACED;
       return;
+    }
+    // Told to play and still no video at all: its page didn't start it by itself, so its own button is pressed, once.
+    if (wantPlaying && !nudged && video.currentSrc === "" && performance.now() - wiredAt > NUDGE_SECONDS * 1000) {
+      nudged = true;
+      const button = found?.querySelector(PLAY_BUTTON);
+      if (button instanceof win.HTMLElement) button.click();
     }
     const inAd = player !== null && AD.some((name) => player?.classList.contains(name));
     if (inAd !== ad) {

@@ -90,6 +90,14 @@ type Run = {
   gaps: Map<number, number>;
 };
 
+/**
+ * Whether the page has been pressed since it loaded. Until then the browser won't let a frame of it start a video with
+ * sound, and the site's player in the hidden frame never asks for the video at all ("no source"): a download is only
+ * taken up once it has (the press on Download is one). A transcribing run waits for the viewer's video to play, which
+ * comes to the same. A browser that can't say counts as pressed.
+ */
+const pressedHere = (): boolean => (navigator as Navigator & { userActivation?: UserActivation }).userActivation?.hasBeenActive ?? true;
+
 /** A step of a download said in the page's console, as the transcriber's Log prints its own. */
 const say = (words: string) => console.info(`[Panki] download: ${words}`);
 
@@ -286,13 +294,14 @@ export function createDownloads(): Downloads {
   function look() {
     const mine = run;
     if (!mine) {
-      if (Date.now() >= claimAt) void claim();
+      if (Date.now() >= claimAt && pressedHere()) void claim();
       return;
     }
     const report = mine.player.report();
     if (report.failed !== null || report.blocked) {
       // Given up loading, the reason says how the site's player stood, so the row tells which step stopped it.
-      const trouble = report.failed === null ? BLOCKED : mine.stuck === null ? report.failed : `${report.failed} ${mine.stuck}.`;
+      const how = [mine.stuck, `the ${report.page} page`, mine.heard.awake ? "the copy script awake" : "the copy script not started"].filter((part) => part !== null).join(", ");
+      const trouble = report.failed === null ? BLOCKED : `${report.failed} ${how}.`;
       void end(mine, { kind: "stopped", trouble });
       return;
     }
