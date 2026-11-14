@@ -36,6 +36,8 @@ export type DownloadMenu = {
   row: DownloadRow | null;
   /** While it runs on this page and has kept nothing yet, where it got to. */
   where: string | null;
+  /** Downloaded, what playing it from the copy did last on this page (`download/playback.ts`); null before it has done anything. */
+  playing: string | null;
   rows: readonly DownloadRow[] | null;
   can: boolean;
   onDownload: () => void;
@@ -73,7 +75,7 @@ function DownloadRows({ download, onList }: { download: DownloadMenu; onList: ()
           style={{ "--p": share / 100 } as CSSProperties}
           onClick={() => setAsking(!asking)}
         >
-          <Icon name={row.state === "done" ? "check" : "download"} />
+          <Icon name={row.state === "done" ? "downloaded" : "download"} />
           {row.state === "done" ? "Downloaded" : row.state === "going" ? "Downloading" : "Waiting"}
           <span className="item-note">{row.state === "done" ? sizeWords(row.bytes) : `${share}%`}</span>
           {row.state === "done" ? null : <i className="download-bar" aria-hidden="true" />}
@@ -81,6 +83,7 @@ function DownloadRows({ download, onList }: { download: DownloadMenu; onList: ()
       )}
       {row !== null && row.state === "waiting" && row.trouble ? <p className="download-why">{row.trouble}</p> : null}
       {row !== null && row.state === "going" && download.where ? <p className="download-why">{download.where}</p> : null}
+      {row !== null && row.state === "done" && download.playing ? <p className="download-why">{download.playing}</p> : null}
       {row !== null && asking ? (
         <Ask
           idPrefix="panki-download-remove"

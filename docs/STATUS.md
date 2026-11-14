@@ -60,6 +60,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-12: the Clip's ends stop at sentences, exactly where the clip as said would, the ticks there, Shift for exactly where it's put; Accept's move striped on the bar, green in and red out, the times struck and new; what Panki AI heard on the bar, hatched outside it with a notch at each end, and a note under each message that opens the lines it heard; Room around a clip on the options page.
 - 2026-11-14: Downloads step 2, on its branch (`claude/downloads-51ffe0`) for local dev: Download this video in the Panki panel's menu, run in the background by one YouTube page at a time, the pieces YouTube's player is handed copied in a hidden frame at 4×; Downloading / Waiting / Downloaded, Remove; the options page's Downloads tab with Download quality (`architecture/downloads.md`).
 - 2026-11-14: Downloads step 3, on the same branch: the downloaded mark on a downloaded video's every thumbnail, Panki's home shelves, the recap's Next up and the player bar (Downloaded), live on every page; Downloaded mark Shown / Hidden on the Downloads tab (`architecture/downloads.md` → On screen); Download speed, 1× to 16×, 4× to begin with, beside Download quality.
+- 2026-11-14: Downloads step 4, on the same branch, B on trial: a downloaded video's copy put into YouTube's own player where it runs short with no signal, what it did said under Downloaded in the panel's menu and in the console (`architecture/downloads.md` → Playing from the copy).
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
 - 2026-11-05: what the extension keeps of Panki's, one registry; 2026-11-07: this browser's own settings (`architecture/kept.md`).
 
@@ -99,6 +100,6 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - Line, the sentence's field kind: `docs/SENTENCE.md`, steps 1 to 3 on main and on prod (`EXTENSION_PROTOCOL` 12); the owner backs up and switches their field by hand.
 - The Video recap: `docs/RECAP.md`, step 2 built on local dev; next, the owner picks one of the five by living with them.
-- Downloads: `docs/DOWNLOADS.md`, steps 2 and 3 on its own branch and worktree, unpushed; next, step 4 (playing from the downloaded copy), the owner trying each on local dev.
+- Downloads: `docs/DOWNLOADS.md`, steps 2 to 4 on its own branch and worktree, unpushed; next, the owner tries playing from the copy (B) on local dev, and keeps it or asks for A.
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

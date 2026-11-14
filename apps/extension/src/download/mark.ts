@@ -10,3 +10,7 @@ export const KEEP_PARAM = "pankiKeep";
 export const PIECE_WORD = "panki-piece";
 /** What the doorway script says of itself as it goes: awake in the frame, a stream made. */
 export const NOTE_WORD = "panki-doorway";
+/** What Panki asks the doorway script on a video's own page, to play it from its copy: the streams, or pieces put in. */
+export const FEED_WORD = "panki-feed";
+/** What the doorway script answers it. */
+export const FED_WORD = "panki-fed";

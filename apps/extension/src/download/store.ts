@@ -1,4 +1,4 @@
-/** @panki The videos downloaded in this browser, kept and listed (`startDownload`, `claimDownload`, `keepPiece`, `holdDownload`, `listDownloads`, `removeDownload`). Never a second store of them. */
+/** @panki The videos downloaded in this browser, kept and listed (`startDownload`, `claimDownload`, `keepPiece`, `holdDownload`, `listDownloads`, `pieceFacts`, `pieceBytes`, `removeDownload`). Never a second store of them. */
 import { DownloadVideo, KeptPiece, TROUBLE_MAX, coveredMsOf, coveredOf, retryAfterMs, stateOf, trackStretchesOf, type DownloadAbout, type DownloadJob, type DownloadRow, type HoldEnd, type PieceAsk } from "./download";
 
 /**
@@ -178,6 +178,25 @@ export async function listDownloads(now: number): Promise<DownloadRow[]> {
     }),
   );
   return rows.sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/**
+ * A downloaded video's pieces, all but their bytes, in the order they came in: what playing from the copy feeds by. None
+ * for a video that isn't downloaded whole: a copy still coming in is never played from.
+ */
+export async function pieceFacts(videoId: string): Promise<KeptPiece[]> {
+  const db = await open();
+  const tx = db.transaction(["videos", "pieces"]);
+  const video = videoOf(await request(tx.objectStore("videos").get(videoId)));
+  if (!video || video.doneAt === null) return [];
+  return piecesRead(await request(tx.objectStore("pieces").getAll(piecesOf(videoId))));
+}
+
+/** One piece's bytes; null when it isn't kept. */
+export async function pieceBytes(videoId: string, seq: number): Promise<Uint8Array | null> {
+  const db = await open();
+  const kept: unknown = await request(db.transaction("bytes").objectStore("bytes").get([videoId, seq]));
+  return kept instanceof Blob ? new Uint8Array(await kept.arrayBuffer()) : null;
 }
 
 /** A download taken off, its pieces with it, so the room they took is free again. A page running it stops at its next word. */

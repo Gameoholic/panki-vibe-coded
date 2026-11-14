@@ -1,7 +1,7 @@
 /** @panki A download's numbers, qualities, speeds and shapes, and how much is in (`DOWNLOAD`, `DOWNLOAD_QUALITIES`, `DOWNLOAD_SPEEDS`, `DoorwayPiece`, `KeptPiece`, `DownloadRow`, `coveredOf`, `firstGap`). */
 import { z } from "zod";
 import { VideoId } from "@panki/contracts";
-import { NOTE_WORD, PIECE_WORD } from "./mark";
+import { FED_WORD, FEED_WORD, NOTE_WORD, PIECE_WORD } from "./mark";
 
 /**
  * A video downloaded is the pieces YouTube's own player hands the browser to play, copied as they go by
@@ -109,21 +109,42 @@ export type DoorwayPiece = z.infer<typeof DoorwayPiece>;
 export const DoorwayNote = z.object({ kind: z.literal(NOTE_WORD), mark: z.string().max(64), note: z.enum(["awake", "stream"]), type: z.string().max(200).nullable() });
 export type DoorwayNote = z.infer<typeof DoorwayNote>;
 
+/**
+ * Playing a downloaded video from its copy (`download/playback.ts` asking, `content/doorway.ts` in the page's own frame
+ * answering), each message a JSON string, which crosses between the site's world and Panki's in both browsers: the
+ * streams the site's player has, or a run of kept pieces put into one of them, its start piece first.
+ */
+export type FeedPiece = { base64: string; offset: number; window: [number, number | null] };
+export type FeedAsk =
+  | { kind: typeof FEED_WORD; id: number; ask: "streams" }
+  | { kind: typeof FEED_WORD; id: number; ask: "append"; stream: number; track: "video" | "audio"; type: string; init: string; pieces: FeedPiece[] };
+/**
+ * One stream of the site's player as the doorway script sees it: its source counted as the page makes them, the kind
+ * of file the player plays in it now, the source's length in seconds (null unknown), whether the source is open, whether
+ * the player has put its own start piece in, what it holds, and how long since the player last put anything in, ms.
+ */
+export const FeedStream = z.object({
+  stream: z.number().int().nonnegative(),
+  track: z.enum(["video", "audio"]),
+  type: z.string().max(200),
+  duration: z.number().nonnegative().nullable(),
+  open: z.boolean(),
+  started: z.boolean(),
+  buffered: z.array(Range).max(RANGES_MAX),
+  quietMs: z.number().nonnegative(),
+});
+export type FeedStream = z.infer<typeof FeedStream>;
+/** The doorway script's answer: the streams as they stand after it, and what went wrong putting pieces in, if anything. */
+export const FeedAnswer = z.object({ kind: z.literal(FED_WORD), id: z.number().int(), streams: z.array(FeedStream).max(32), trouble: z.string().max(TROUBLE_MAX).nullable() });
+export type FeedAnswer = z.infer<typeof FeedAnswer>;
+
 /** The two streams a video is played from. */
 export const Track = z.enum(["video", "audio"]);
 export type Track = z.infer<typeof Track>;
 /** Which stream a kind of file plays, by its MIME type; null for anything else. */
 export const trackOf = (type: string): Track | null => (type.startsWith("video/") ? "video" : type.startsWith("audio/") ? "audio" : null);
 
-/**
- * A stream's start piece, by its first bytes: a WebM's EBML header, or an MP4's `ftyp` box. The rest of a stream's
- * pieces are its frames, which can't be played without the start piece before them.
- */
-export function startPiece(bytes: Uint8Array): boolean {
-  const webm = bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
-  const mp4 = bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
-  return webm || mp4;
-}
+export { startPiece } from "./bytes";
 
 const Ms = z.number().int();
 /**

@@ -60,7 +60,7 @@ import {
   VideoRecap,
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
-import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, PIECE_BASE64_MAX as DOWNLOAD_PIECE_BASE64_MAX, PieceAsk } from "./download/download";
+import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, KeptPiece, PIECE_BASE64_MAX as DOWNLOAD_PIECE_BASE64_MAX, PieceAsk } from "./download/download";
 import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
@@ -300,6 +300,10 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("downloads") }),
   /** A download taken off, its pieces with it. */
   z.object({ kind: z.literal("undownload"), videoId: VideoId }),
+  /** A downloaded video's pieces, all but their bytes, in the order they came in: what playing from the copy feeds by (`download/playback.ts`). */
+  z.object({ kind: z.literal("downloadFacts"), videoId: VideoId }),
+  /** One piece's bytes, as text. */
+  z.object({ kind: z.literal("downloadBytes"), videoId: VideoId, seq: z.number().int().nonnegative() }),
 ]);
 export type Ask = z.infer<typeof Ask>;
 
@@ -387,6 +391,12 @@ export type Going = z.infer<typeof Going>;
 /** Every download, as it's listed. */
 const Listed = z.union([z.object({ ok: z.literal(true), rows: z.array(DownloadRow) }), Failed]);
 export type Listed = z.infer<typeof Listed>;
+/** A downloaded video's pieces, all but their bytes; none for a video not downloaded whole. */
+const Facts = z.union([z.object({ ok: z.literal(true), pieces: z.array(KeptPiece) }), Failed]);
+export type Facts = z.infer<typeof Facts>;
+/** One piece's bytes, as text. */
+const Bytes = z.union([z.object({ ok: z.literal(true), base64: z.string().max(DOWNLOAD_PIECE_BASE64_MAX) }), Failed]);
+export type Bytes = z.infer<typeof Bytes>;
 /** The account's cards already called by some words: each its words, and its deck. */
 const Called =z.union([z.object({ ok: z.literal(true), cards: z.array(CalledCard) }), Failed]);
 export type Called = z.infer<typeof Called>;
@@ -753,6 +763,16 @@ export async function askDownloads(): Promise<Listed> {
 /** A download taken off. */
 export async function askUndownload(videoId: string): Promise<Done> {
   const answer = Done.safeParse(await ask({ kind: "undownload", videoId }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A downloaded video's pieces, all but their bytes. */
+export async function askDownloadFacts(videoId: string): Promise<Facts> {
+  const answer = Facts.safeParse(await ask({ kind: "downloadFacts", videoId }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** One piece's bytes, as text. */
+export async function askDownloadBytes(videoId: string, seq: number): Promise<Bytes> {
+  const answer = Bytes.safeParse(await ask({ kind: "downloadBytes", videoId, seq }));
   return answer.success ? answer.data : failed(answer.error);
 }
 /** A video left out of the count, counted again, put away, finished or not (by the viewer unless said); the video as it stands then comes back. */

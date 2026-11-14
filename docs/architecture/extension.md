@@ -9,7 +9,7 @@
 | `src/background.ts` | `background.js` | The worker: holds the sign-in, the only thing that calls Panki (`panki.ts`), answers the pages' scripts by message, hears the menu and the toolbar button |
 | `src/content/youtube.tsx` | `youtube.js` | On `https://www.youtube.com/*` by itself (top frame only): the Panki panel, the drawer, the clip, the transcript, the seek bar's marks, the player bar, YouTube's own pages |
 | `src/content/page.tsx` | `page.js` | Put in a tab when asked (the menu, the button) to capture a selection; registered by the worker on the sites the owner allows for the Word pop-up |
-| `src/content/doorway.ts` | `doorway.js` | In the site's own page, every frame of `https://www.youtube.com/*`, before its scripts (`world: "MAIN"`); does nothing unless the frame is Panki's hidden download frame (`downloads.md`) |
+| `src/content/doorway.ts` | `doorway.js` | In the site's own page, every frame of `https://www.youtube.com/*`, before its scripts (`world: "MAIN"`); copies in Panki's hidden download frame, and in the page's own frame puts a downloaded video's copy into the site's player when it runs short (`downloads.md`); nothing in any other frame |
 | `src/options/main.tsx` | `options.html` | The extension's own page |
 
 ## What it may do, and who holds what

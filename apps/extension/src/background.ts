@@ -7,8 +7,9 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Claimed, type Done, type DownloadsChanged, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
-import { claimDownload, holdDownload, keepPiece, listDownloads, removeDownload, startDownload } from "./download/store";
+import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Bytes, type Claimed, type Done, type DownloadsChanged, type Facts, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { base64Of as textOfBytes, bytesOf } from "./download/bytes";
+import { claimDownload, holdDownload, keepPiece, listDownloads, pieceBytes, pieceFacts, removeDownload, startDownload } from "./download/store";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { forgetSignIn, localChange, localOf, readStore, writeStore, type Stored } from "./storage";
@@ -70,14 +71,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 chrome.action.onClicked.addListener((tab) => void captureIn(tab));
 
-/** A clip as it came through a message, back into bytes. */
-function bytesOf(base64: string): Uint8Array<ArrayBuffer> {
-  const text = atob(base64);
-  const bytes = new Uint8Array(text.length);
-  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);
-  return bytes;
-}
-
 /** A file as text, for a message. (A worker has no FileReader.) */
 async function base64Of(file: Blob): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -112,18 +105,23 @@ async function look(ask: Extract<Ask, { kind: "lookState" | "lookup" | "lattice"
   }
 }
 
-type DownloadAsk = Extract<Ask, { kind: "download" | "downloadClaim" | "downloadPiece" | "downloadHold" | "downloads" | "undownload" }>;
-const DOWNLOAD_KINDS = new Set<Ask["kind"]>(["download", "downloadClaim", "downloadPiece", "downloadHold", "downloads", "undownload"]);
+type DownloadAsk = Extract<Ask, { kind: "download" | "downloadClaim" | "downloadPiece" | "downloadHold" | "downloads" | "undownload" | "downloadFacts" | "downloadBytes" }>;
+const DOWNLOAD_KINDS = new Set<Ask["kind"]>(["download", "downloadClaim", "downloadPiece", "downloadHold", "downloads", "undownload", "downloadFacts", "downloadBytes"]);
 const isDownloadAsk = (ask: Ask): ask is DownloadAsk => DOWNLOAD_KINDS.has(ask.kind);
 
 /**
  * Downloads (`download/store.ts`): this browser's own, so they need no sign-in and nothing goes to Panki. A video asked
  * for is kept at the quality set now; the page running one is known by its tab, which a page's message can't make up.
  */
-async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSender): Promise<Done | Claimed | Going | Listed> {
+async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSender): Promise<Done | Claimed | Going | Listed | Facts | Bytes> {
   const now = Date.now();
   try {
     if (ask.kind === "downloads") return { ok: true, rows: await listDownloads(now) };
+    if (ask.kind === "downloadFacts") return { ok: true, pieces: await pieceFacts(ask.videoId) };
+    if (ask.kind === "downloadBytes") {
+      const bytes = await pieceBytes(ask.videoId, ask.seq);
+      return bytes === null ? { ok: false, message: "That piece of the download is gone." } : { ok: true, base64: textOfBytes(bytes) };
+    }
     if (ask.kind === "undownload") {
       await removeDownload(ask.videoId);
       void tellChanged();

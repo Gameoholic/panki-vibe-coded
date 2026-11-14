@@ -35,6 +35,7 @@ import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
+import { createPlayback } from "../download/playback";
 import { createDownloads, stillOf } from "../download/runner";
 import { DownloadedControl } from "../ui/DownloadedMark";
 import { SaveControl } from "../ui/SaveControl";
@@ -474,6 +475,17 @@ function lengthHere(): number | null {
   if (!video || adPlaying() || !Number.isFinite(video.duration) || video.duration <= 0) return null;
   return Math.round(video.duration * 1000);
 }
+
+/**
+ * A downloaded video played from its copy where YouTube's player runs short (`download/playback.ts`): the video on the
+ * page while it's downloaded whole, whatever its mark says, and while Panki is on.
+ */
+const playback = createPlayback({
+  downloaded: () => (watching !== null && modules.get().on && downloads.get().done.has(watching) ? watching : null),
+  video: () => video,
+  adPlaying,
+  lengthMs: lengthHere,
+});
 
 /** The video on the page asked to be downloaded: its name and channel as the page shows them, its length, and a still of it as it shows now. */
 function downloadHere() {
@@ -2240,6 +2252,7 @@ function App() {
   const finishNow = useSyncExternalStore(finishHere.subscribe, finishHere.get);
   const savingNow = useSyncExternalStore(savingHere.subscribe, savingHere.get);
   const downloadsNow = useSyncExternalStore(downloads.subscribe, downloads.get);
+  const playingNow = useSyncExternalStore(playback.subscribe, playback.get);
   /** An update for the extension: a button in the head while one is available; the head and it alone while one is needed. */
   const updateNow = useSyncExternalStore(update.subscribe, update.get);
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
@@ -3018,6 +3031,7 @@ function App() {
       ? {
           row: downloadsNow.rows?.find((row) => row.videoId === here) ?? null,
           where: downloadsNow.where?.videoId === here ? downloadsNow.where.words : null,
+          playing: playingNow?.videoId === here ? playingNow.words : null,
           rows: downloadsNow.rows,
           can: lengthHere() !== null,
           onDownload: downloadHere,
@@ -3364,6 +3378,7 @@ function begin() {
   markKnownOnPage();
   // Downloads asked for anywhere run on whichever page of the site takes them up, this one among them.
   downloads.start();
+  playback.start();
   void readUpdate();
   listen();
   look();
