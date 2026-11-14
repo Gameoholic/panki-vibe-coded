@@ -20,7 +20,7 @@ The owner's words, not concrete: on the train to work the laptop runs on the pho
 - **The fallback** (the owner): a helper program running yt-dlp, in `docs/BACKLOG.md`, if the extension alone is bad or doesn't work.
 - **How a downloaded video plays: B** (the owner picked, Claude's recommendation): the kept pieces go back through the same doorway into YouTube's own player, which finds the video already loaded and plays on as if the signal never dropped; YouTube's controls, seek bar and full screen stay YouTube's, and the subtitles, the panel, watch time and the seek bar marks keep working untouched on the same video. Its risk: YouTube's player may throw away what's added or show an error when its own requests fail, which only trying shows. **A is the fallback**: Panki's own player laid over YouTube's, its own controls, everything of Panki's taught to follow a second player.
 - **On a branch of its own** (the owner): built in its own worktree, tried on local dev step by step, never pushed until the owner says.
-- **Proposals of Claude's, as defaults**: the hidden player's download speed is one tunable number, 4× to begin with (what the transcriber already plays at), faster tried once it works; a download started mid-ride shares the hotspot with the video being watched, and that's accepted.
+- **Proposals of Claude's, as defaults**: the hidden player's download speed is a setting, Download speed (1× to 16×, the owner asked), 4× to begin with (what the transcriber already plays at); a download started mid-ride shares the hotspot with the video being watched, and that's accepted.
 
 ## The order
 

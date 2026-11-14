@@ -1,7 +1,7 @@
 /** @panki What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). */
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
-import { DEFAULT_DOWNLOAD_QUALITY, DownloadQuality } from "./download/download";
+import { DEFAULT_DOWNLOAD_QUALITY, DEFAULT_DOWNLOAD_SPEED, DownloadQuality, DownloadSpeed } from "./download/download";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
@@ -226,6 +226,8 @@ const Stored = z.object({
   videoTracking: z.boolean().nullable().catch(null),
   /** The quality a video is downloaded at, by its picture's height (options page, Downloads; `download/download.ts`): kept with each download as it's asked for. */
   downloadQuality: DownloadQuality.catch(DEFAULT_DOWNLOAD_QUALITY),
+  /** How fast a video is played through to download it (options page, Downloads; `download/download.ts`): read as each download is taken up. */
+  downloadSpeed: DownloadSpeed.catch(DEFAULT_DOWNLOAD_SPEED),
   /** The downloaded mark on a downloaded video wherever it shows (options page, Downloads; `modules.ts` → `downloadMark`). */
   downloadMark: z.boolean().catch(DEFAULT_MODULES.downloadMark),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */

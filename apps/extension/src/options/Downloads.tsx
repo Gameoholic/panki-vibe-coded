@@ -9,7 +9,7 @@ import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Skeleton } from "@web/components/Skeleton";
 import { Toggle } from "@web/components/Toggle";
-import { DOWNLOAD_QUALITIES, type DownloadRow } from "../download/download";
+import { DOWNLOAD_QUALITIES, DOWNLOAD_SPEEDS, type DownloadRow } from "../download/download";
 import { listDownloads } from "../download/store";
 import { downloadWords, shareOf, totalWords } from "../download/words";
 import { askUndownload } from "../messages";
@@ -116,7 +116,7 @@ export function DownloadsTab({ store, onChanged }: { store: Stored; onChanged: (
       </section>
       <section className="panel" aria-labelledby="download-quality-title">
         <h2 id="download-quality-title" className="panel-title">
-          Quality
+          Quality and speed
         </h2>
         <Setting
           id="download-quality"
@@ -124,6 +124,13 @@ export function DownloadsTab({ store, onChanged }: { store: Stored; onChanged: (
           // Said, since no one could guess it: the quality is the most asked for, never promised.
           why="The most a video is downloaded at. On a slow connection YouTube sends less, and that's what's kept."
           control={<Segmented idPrefix="download-quality" label="Download quality" options={DOWNLOAD_QUALITIES} value={store.downloadQuality} onChange={(downloadQuality) => void writeStore({ downloadQuality }).then(onChanged)} />}
+        />
+        <Setting
+          id="download-speed"
+          label="Download speed"
+          // Said, since no one could guess it: faster isn't free, it trades away quality on a slow connection.
+          why="Faster needs a faster connection. Past what the connection gives, YouTube sends a lower quality, and that's what's kept."
+          control={<Segmented idPrefix="download-speed" label="Download speed" options={DOWNLOAD_SPEEDS} value={store.downloadSpeed} onChange={(downloadSpeed) => void writeStore({ downloadSpeed }).then(onChanged)} />}
         />
       </section>
       <section className="panel" aria-labelledby="download-mark-title">

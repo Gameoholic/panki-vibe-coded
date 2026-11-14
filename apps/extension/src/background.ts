@@ -136,7 +136,7 @@ async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSende
     }
     const tabId = sender.tab?.id;
     if (tabId === undefined) return { ok: false, message: "Only a page can run a download." };
-    if (ask.kind === "downloadClaim") return { ok: true, job: await claimDownload(tabId, now) };
+    if (ask.kind === "downloadClaim") return { ok: true, job: await claimDownload(tabId, Number((await readStore()).downloadSpeed), now) };
     if (ask.kind === "downloadHold") {
       const going = await holdDownload(ask.videoId, tabId, ask.end, now);
       // Whole: every page's marks follow at once.

@@ -88,8 +88,9 @@ export async function startDownload(about: DownloadAbout, quality: number, now: 
  * A download for a page to run (`tabId`, the page's tab), or none: one at a time in this browser, so while another page
  * holds one (it said so within `DOWNLOAD.holdMs`) there's none, unless it's this page's own (a page opened again takes
  * up where it left off). Otherwise the one asked for first that isn't waiting to be tried again, now held by this page.
+ * It runs at `speed`, the Download speed set as it's taken up.
  */
-export async function claimDownload(tabId: number, now: number): Promise<DownloadJob | null> {
+export async function claimDownload(tabId: number, speed: number, now: number): Promise<DownloadJob | null> {
   const db = await open();
   const tx = db.transaction(["videos", "pieces"], "readwrite");
   const videos = tx.objectStore("videos");
@@ -108,7 +109,7 @@ export async function claimDownload(tabId: number, now: number): Promise<Downloa
   videos.put({ ...job, heldBy: tabId, heldAt: now } satisfies DownloadVideo);
   const pieces = piecesRead(await request(tx.objectStore("pieces").getAll(piecesOf(job.videoId))));
   await finished(tx);
-  return { videoId: job.videoId, durationMs: job.durationMs, quality: job.quality, covered: trackStretchesOf(pieces) };
+  return { videoId: job.videoId, durationMs: job.durationMs, quality: job.quality, speed, covered: trackStretchesOf(pieces) };
 }
 
 /**

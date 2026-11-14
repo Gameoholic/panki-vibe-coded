@@ -184,7 +184,7 @@ export function createDownloads(): Downloads {
     const before = coveredOf(job.covered);
     const gap = firstGap(before, job.durationMs);
     const mark = uuid();
-    const player = createSilentPlayer(job.videoId, DOWNLOAD.speed, { kind: "keep", mark, height: job.quality }, {
+    const player = createSilentPlayer(job.videoId, job.speed, { kind: "keep", mark, height: job.quality }, {
       stray: (to, back) => say(`YouTube moved the hidden player to ${clock(to)}, put back at ${clock(back)}`),
       stuck: (at, seconds, state, again) => {
         mine.stuck = state;

@@ -1,4 +1,4 @@
-/** @panki A download's numbers, qualities and shapes, and how much is in (`DOWNLOAD`, `DOWNLOAD_QUALITIES`, `DoorwayPiece`, `KeptPiece`, `DownloadRow`, `coveredOf`, `firstGap`). */
+/** @panki A download's numbers, qualities, speeds and shapes, and how much is in (`DOWNLOAD`, `DOWNLOAD_QUALITIES`, `DOWNLOAD_SPEEDS`, `DoorwayPiece`, `KeptPiece`, `DownloadRow`, `coveredOf`, `firstGap`). */
 import { z } from "zod";
 import { VideoId } from "@panki/contracts";
 import { NOTE_WORD, PIECE_WORD } from "./mark";
@@ -13,8 +13,6 @@ import { NOTE_WORD, PIECE_WORD } from "./mark";
 
 /** Every number downloading is tuned by, in one place. */
 export const DOWNLOAD = {
-  /** How fast the hidden player plays the video through: four times, what the transcriber plays at. */
-  speed: 4,
   /** How often the page looks at the download it runs, ms. */
   lookMs: 1000,
   /** How often a page with no download running asks whether there's one waiting, ms. */
@@ -61,6 +59,24 @@ export const DOWNLOAD_QUALITIES = [
 export const DownloadQuality = z.enum(["360", "480", "720", "1080"]);
 export type DownloadQuality = z.infer<typeof DownloadQuality>;
 export const DEFAULT_DOWNLOAD_QUALITY: DownloadQuality = "720";
+
+/**
+ * How fast the hidden player plays a video through to download it (Download speed), 4× to begin with, what the
+ * transcriber plays at; up to 16×, the most either browser plays a video at. Nothing of a download hangs on hearing it
+ * (its sound goes into a gain of zero and nothing is taken), so Firefox muting a video past 4× changes nothing; the
+ * site's player still fetches the sound to keep its buffer, and that's what's copied.
+ */
+export const DOWNLOAD_SPEEDS = [
+  { id: "1", label: "1×" },
+  { id: "2", label: "2×" },
+  { id: "4", label: "4×" },
+  { id: "8", label: "8×" },
+  { id: "16", label: "16×" },
+] as const;
+export const DownloadSpeed = z.enum(["1", "2", "4", "8", "16"]);
+export type DownloadSpeed = z.infer<typeof DownloadSpeed>;
+export const DEFAULT_DOWNLOAD_SPEED: DownloadSpeed = "4";
+const SPEED_MAX = 16;
 
 /** A stretch of a stream's buffer, in seconds, as the browser says it. */
 const Range = z.tuple([z.number(), z.number()]);
@@ -183,8 +199,8 @@ export const StretchShape = z.object({ fromMs: Ms.nonnegative(), toMs: Ms.nonneg
 /** A stretch one stream covers. */
 const TrackStretch = StretchShape.extend({ track: Track });
 export type TrackStretch = z.infer<typeof TrackStretch>;
-/** A download handed to a page to run: the video, how long it is, at what quality, and what each stream holds already. */
-export const DownloadJob = z.object({ videoId: VideoId, durationMs: Ms.positive(), quality: Ms.positive(), covered: z.array(TrackStretch) });
+/** A download handed to a page to run: the video, how long it is, at what quality and speed, and what each stream holds already. */
+export const DownloadJob = z.object({ videoId: VideoId, durationMs: Ms.positive(), quality: Ms.positive(), speed: z.number().min(1).max(SPEED_MAX), covered: z.array(TrackStretch) });
 export type DownloadJob = z.infer<typeof DownloadJob>;
 
 /** Stretches in order, those that touch or come within `DOWNLOAD.mergeGapMs` of each other made one. */
