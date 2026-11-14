@@ -5,6 +5,7 @@ import { createSilentPlayer, type SilentPlayer, type SilentReport } from "../tra
 import { uuid } from "../uuid";
 import {
   DOWNLOAD,
+  TROUBLE_MAX,
   DoorwayNote,
   DoorwayPiece,
   coveredMsOf,
@@ -283,7 +284,7 @@ export function createDownloads(): Downloads {
     if (!report.ready) return report.stage === "opening" ? "Opening the video in the background." : "Looking for YouTube's player in the background.";
     if (!mine.heard.awake) return "The copy script didn't start in the hidden player.";
     if (report.ad) return "An ad is playing in the background.";
-    if (!report.playing) return "Waiting for YouTube's player to start.";
+    if (!report.playing) return `Waiting for YouTube's player to start: ${report.starting}, the copy script awake.`;
     if (mine.heard.streams === 0) return "YouTube's player made no stream to copy.";
     if (mine.heard.copied === 0) return "YouTube's player handed nothing over yet.";
     if (mine.heard.copied === mine.heard.other) return `Every piece so far was another stream's (${mine.heard.other}).`;
@@ -300,9 +301,9 @@ export function createDownloads(): Downloads {
     const report = mine.player.report();
     if (report.failed !== null || report.blocked) {
       // Given up loading, the reason says how the site's player stood, so the row tells which step stopped it.
-      const how = [mine.stuck, `the ${report.page} page`, mine.heard.awake ? "the copy script awake" : "the copy script not started"].filter((part) => part !== null).join(", ");
-      const trouble = report.failed === null ? BLOCKED : `${report.failed} ${how}.`;
-      void end(mine, { kind: "stopped", trouble });
+      const how = [report.starting, mine.heard.awake ? "the copy script awake" : "the copy script not started", mine.stuck].filter((part) => part !== null).join(", ");
+      const trouble = `${report.failed ?? BLOCKED} ${how}.`;
+      void end(mine, { kind: "stopped", trouble: trouble.slice(0, TROUBLE_MAX) });
       return;
     }
     const where = whereOf(mine, report);
@@ -330,7 +331,7 @@ export function createDownloads(): Downloads {
     }
     if (mine.kept === 0 && report.at - mine.from > DOWNLOAD.nothingSeconds) {
       // Stopped with where it got to, which the row then shows as why it waits.
-      void end(mine, { kind: "stopped", trouble: mine.where ?? NOTHING });
+      void end(mine, { kind: "stopped", trouble: (mine.where ?? NOTHING).slice(0, TROUBLE_MAX) });
       return;
     }
     const past = coveredUntil(mine.before, ms(report.at));

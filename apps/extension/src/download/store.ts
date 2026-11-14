@@ -1,5 +1,5 @@
 /** @panki The videos downloaded in this browser, kept and listed (`startDownload`, `claimDownload`, `keepPiece`, `holdDownload`, `listDownloads`, `removeDownload`). Never a second store of them. */
-import { DownloadVideo, KeptPiece, coveredMsOf, coveredOf, retryAfterMs, stateOf, trackStretchesOf, type DownloadAbout, type DownloadJob, type DownloadRow, type HoldEnd, type PieceAsk } from "./download";
+import { DownloadVideo, KeptPiece, TROUBLE_MAX, coveredMsOf, coveredOf, retryAfterMs, stateOf, trackStretchesOf, type DownloadAbout, type DownloadJob, type DownloadRow, type HoldEnd, type PieceAsk } from "./download";
 
 /**
  * Where downloaded videos are kept: the browser's own database, in the extension's own corner of this browser (the
@@ -153,7 +153,7 @@ export async function holdDownload(videoId: string, tabId: number, end: HoldEnd,
   }
   if (end.kind === "going") videos.put({ ...video, heldBy: tabId, heldAt: now } satisfies DownloadVideo);
   else if (end.kind === "done") videos.put({ ...video, doneAt: now, heldBy: null, heldAt: null, trouble: null, troubleAt: null, tries: 0 } satisfies DownloadVideo);
-  else videos.put({ ...video, heldBy: null, heldAt: null, trouble: end.trouble.slice(0, 300), troubleAt: now, tries: video.tries + 1 } satisfies DownloadVideo);
+  else videos.put({ ...video, heldBy: null, heldAt: null, trouble: end.trouble.slice(0, TROUBLE_MAX), troubleAt: now, tries: video.tries + 1 } satisfies DownloadVideo);
   await finished(tx);
   return end.kind === "going";
 }

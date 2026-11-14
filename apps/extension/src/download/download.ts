@@ -48,6 +48,8 @@ export const PIECE_BASE64_MAX = Math.ceil((DOWNLOAD.pieceMaxBytes * 4) / 3) + 4;
 const RANGES_MAX = 64;
 /** The still as text: a JPEG of a few dozen kilobytes. */
 const STILL_MAX = 400_000;
+/** The most a download's reason for stopping says: room for each step of starting the hidden player. */
+export const TROUBLE_MAX = 600;
 
 /** The qualities a video can be downloaded at, by the height of its picture; 720p to begin with. */
 export const DOWNLOAD_QUALITIES = [
@@ -152,7 +154,7 @@ export const DownloadVideo = DownloadAbout.extend({
   doneAt: z.number().nullable(),
   heldBy: z.number().int().nullable(),
   heldAt: z.number().nullable(),
-  trouble: z.string().max(300).nullable(),
+  trouble: z.string().max(TROUBLE_MAX).nullable(),
   troubleAt: z.number().nullable(),
   tries: Ms.nonnegative(),
 });
@@ -171,7 +173,7 @@ export const DownloadRow = DownloadVideo.omit({ heldBy: true, heldAt: true, trou
 export type DownloadRow = z.infer<typeof DownloadRow>;
 
 /** How the page running a download says it stands: still going, whole, or stopped and why. */
-export const HoldEnd = z.discriminatedUnion("kind", [z.object({ kind: z.literal("going") }), z.object({ kind: z.literal("done") }), z.object({ kind: z.literal("stopped"), trouble: z.string().max(300) })]);
+export const HoldEnd = z.discriminatedUnion("kind", [z.object({ kind: z.literal("going") }), z.object({ kind: z.literal("done") }), z.object({ kind: z.literal("stopped"), trouble: z.string().max(TROUBLE_MAX) })]);
 export type HoldEnd = z.infer<typeof HoldEnd>;
 
 /** A stretch of the video, ms. */

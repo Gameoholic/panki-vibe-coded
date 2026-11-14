@@ -58,6 +58,12 @@ export type SilentReport = {
   pending: boolean;
   /** Asked to close what it's recording at the next pause (`closeAtPause`), it has. */
   closed: boolean;
+  /**
+   * How starting it went, step by step, in words, for a player that never plays to say which step it's stuck on: its
+   * page loaded or not, its player found, a video in it or none, play asked of the browser and what the browser said,
+   * its own play button pressed or not found.
+   */
+  starting: string;
 };
 
 /**
@@ -344,9 +350,11 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     const v = video;
     const c = ctx;
     if (!v || !c) return;
+    played = "play asked, no answer yet";
     v.play().then(
       () => {
         if (gone || video !== v) return;
+        played = "play started";
         blocked = false;
         void c.resume();
         // A graph the browser won't start without a press stays suspended and says nothing; it's asked after a moment.
@@ -355,7 +363,9 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
         }, SOUND_WAIT_MS);
       },
       (error: unknown) => {
-        if (!gone && video === v && refused(error)) blocked = true;
+        if (gone || video !== v) return;
+        played = `play refused (${typeof error === "object" && error !== null && "name" in error ? String(error.name) : "no reason"})`;
+        if (refused(error)) blocked = true;
       },
     );
   }
@@ -423,12 +433,17 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
   /** When the player last wired was found, by `performance.now()`, and whether its play button has been pressed since (`NUDGE_SECONDS`). */
   let wiredAt = 0;
   let nudged = false;
+  /** How play last went (`play`), and what pressing the play button came to, in words for `starting`. */
+  let played = "play never asked";
+  let pressed = "play button not pressed";
 
   /** The player is there: wired once, then taken where it's wanted. */
   function wire(found: HTMLVideoElement, win: Window & typeof globalThis) {
     video = found;
     wiredAt = performance.now();
     nudged = false;
+    played = "play never asked";
+    pressed = "play button not pressed";
     const pitched: Pitched = found;
     pitched.preservesPitch = false;
     pitched.mozPreservesPitch = false;
@@ -533,11 +548,16 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
       if (failed === null) failed = REPLACED;
       return;
     }
-    // Told to play and still no video at all: its page didn't start it by itself, so its own button is pressed, once.
+    // Told to play and still no video at all: its page didn't start it by itself, so its own button is pressed, once,
+    // and the browser asked to play it, whose answer says whether it refuses (`starting`).
     if (wantPlaying && !nudged && video.currentSrc === "" && performance.now() - wiredAt > NUDGE_SECONDS * 1000) {
       nudged = true;
       const button = found?.querySelector(PLAY_BUTTON);
-      if (button instanceof win.HTMLElement) button.click();
+      if (button instanceof win.HTMLElement) {
+        button.click();
+        pressed = "play button pressed";
+      } else pressed = "play button not found";
+      play();
     }
     const inAd = player !== null && AD.some((name) => player?.classList.contains(name));
     if (inAd !== ad) {
@@ -637,6 +657,11 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
       chunk: cutter?.length() ?? null,
       pending: cutter?.pending() ?? false,
       closed: cutter?.closed() ?? false,
+      starting: [
+        `the ${page} page ${loaded ? "loaded" : "not loaded"}`,
+        video === null ? "no player found" : video.currentSrc === "" ? "no video in the player" : "a video in the player",
+        ...(video === null ? [] : [played, pressed]),
+      ].join(", "),
     }),
     closeAtPause() {
       cutter?.closeAtPause();
