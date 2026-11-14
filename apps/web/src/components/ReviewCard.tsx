@@ -248,6 +248,8 @@ type Props = {
   restarts?: readonly (readonly Heard[])[];
   /** The key that fills the screen with a clip or leaves it (`keys.ts` → `fullScreen`), given where `shortcuts` are; none by default. */
   screenKey?: Shortcut | null;
+  /** The key that shows a clip's subtitles or hides them (`keys.ts` → `subtitles`), given where `shortcuts` are; none by default. */
+  subsKey?: Shortcut | null;
   /**
    * Whether the card takes the focus and turns at Enter and Space as a button does; off where the page's own keys turn
    * it (the review, where Space does what Keybinds set it to). On by default.
@@ -330,6 +332,7 @@ export function ReviewCard({
   shortcuts = [],
   restarts = [],
   screenKey = null,
+  subsKey = null,
   hint = true,
   keys = true,
   examplePager = null,
@@ -704,6 +707,7 @@ export function ReviewCard({
             shortcut={live ? (keyOf.get(field.id) ?? null) : null}
             {...(live && restartOf.has(field.id) ? { restart: restartOf.get(field.id) } : {})}
             screenKey={live ? screenKey : null}
+            subsKey={live ? subsKey : null}
           />
         );
       }

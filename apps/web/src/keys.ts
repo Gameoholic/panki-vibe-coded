@@ -57,6 +57,8 @@ export type KeyBinds = {
   restart: readonly Bind[];
   /** Fills the screen with a card's clip, or leaves it (F to begin with). */
   fullScreen: Bind;
+  /** Shows a clip's subtitles or hides them, as the subtitles button on its bar does (C to begin with). */
+  subtitles: Bind;
   /** Takes the review's last answer back, as its Undo button does (no key until one is set). */
   undo: Bind;
   /** Flags the card on screen, or takes its flag off, as the review's Flag does, on its front and its back (no key until one is set). */
@@ -85,7 +87,7 @@ export const pressKind = (key: Key): "press" | "double" | "hold" => (key.holdMs 
  * clips; everything else has no key until given one. Space and the answers held half a second, an answer that asks
  * for confirmation a second more (1.5 s in all), a sound or a clip at a press. Full screen is F,
  * at a press. Only the first sound or clip is played again from its start by default, with 1 held half a second. A
- * card's examples are ← and →, at a press. Blur is Shift, at a press.
+ * card's examples are ← and →, at a press. Blur is Shift, at a press. Subtitles is C, at a press, as on YouTube.
  */
 const ANSWER_START = ["1", "2", "3", "4", "5", "6"];
 const MEDIA_START = ["a", "s"];
@@ -100,6 +102,7 @@ export const DEFAULT_KEYS: KeyBinds = {
   media: Array.from({ length: SLOTS }, (_, i) => one(MEDIA_START[i] ?? null, 0)),
   restart: Array.from({ length: SLOTS }, (_, i) => (i === 0 ? one(RESTART_START.key, RESTART_START.holdMs) : one(null, 0))),
   fullScreen: one("f", 0),
+  subtitles: one("c", 0),
   undo: one(null, 0),
   flag: one(null, 0),
   // ← and → step through a card's examples, at a press.
@@ -156,7 +159,7 @@ export const pressedIn = (e: KeyboardEvent, bind: Bind): Key | null => (e.metaKe
 
 /** Every review key but the home's and today's Start: what's on the review's own screen (`screenOf`). */
 function reviewBinds(binds: KeyBinds): Bind[] {
-  return [binds.reveal, binds.blur, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.undo, binds.flag, binds.examplePrev, binds.exampleNext];
+  return [binds.reveal, binds.blur, binds.hide, ...binds.answers, ...binds.media, ...binds.restart, binds.fullScreen, binds.subtitles, binds.undo, binds.flag, binds.examplePrev, binds.exampleNext];
 }
 /** The keys held on the review, each with how long: every review key that's a hold. */
 function heldOnReview(binds: KeyBinds): Key[] {
@@ -301,9 +304,12 @@ function read(): KeyBinds {
     };
     const examplePrev = exampleOf("examplePrev");
     const exampleNext = exampleOf("exampleNext");
+    // Kept before there was a subtitles key: it starts on C, unless C already does something else on the review here.
+    const subtitles =
+      "subtitles" in raw ? bindOf(raw.subtitles, DEFAULT_KEYS.subtitles, undefined) : takenBy([...rest, examplePrev, exampleNext], DEFAULT_KEYS.subtitles) ? one(null, 0) : DEFAULT_KEYS.subtitles;
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    return { reveal, blur, hide, answers, media, restart, fullScreen, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    return { reveal, blur, hide, answers, media, restart, fullScreen, subtitles, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -360,12 +366,12 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, blur: next.blur, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, blur: next.blur, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, subtitles: next.subtitles, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the back, blurring the front or unblurring it, stepping back, full screen's, Undo's, Flag's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
-export type Slot = { kind: "reveal" | "blur" | "hide" | "fullScreen" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
-const NAMED = ["reveal", "blur", "hide", "fullScreen", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview"] as const;
+/** Where a key is bound: showing the back, blurring the front or unblurring it, stepping back, full screen's, subtitles', Undo's, Flag's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "blur" | "hide" | "fullScreen" | "subtitles" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
+const NAMED = ["reveal", "blur", "hide", "fullScreen", "subtitles", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview"] as const;
 /**
  * Show back of card and Step back never take each other's key: a key that's both is heard by precedence, Show back of
  * card's on the front, Step back's on the back.

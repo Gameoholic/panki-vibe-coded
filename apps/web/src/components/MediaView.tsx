@@ -50,6 +50,8 @@ type Props = {
   restart?: readonly Heard[];
   /** The key that fills the screen with a clip in Panki's own player, or leaves it (`useScreenKey`), drawn beside its button (a review's); none by default. */
   screenKey?: Shortcut | null;
+  /** The key that shows a clip's subtitles or hides them (`useSubsKey`), drawn beside its button (a review's); none by default. */
+  subsKey?: Shortcut | null;
 };
 /** No restart keys: one list for every player without any, so its listeners stand. */
 const NO_RESTART: readonly Heard[] = [];
@@ -60,7 +62,7 @@ const NO_RESTART: readonly Heard[] = [];
  * its kind's colour. Every look plays through one hook (`usePlayback`). Never the browser's own controls, and nothing
  * plays until it's pressed or cued.
  */
-export function MediaView({ kind, src, label, player, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null, restart = NO_RESTART, screenKey = null }: Props) {
+export function MediaView({ kind, src, label, player, size = "card", look = "player", named, cue = false, onCueEnd, waveOf, over = null, shortcut = null, restart = NO_RESTART, screenKey = null, subsKey = null }: Props) {
   if (kind === "image") return <img className={`media-frame ${size === "row" ? "media-thumb" : ""}`.trim()} src={src} alt={label} loading="lazy" draggable={false} />;
   const shown = size === "row" ? "button" : look;
   const common = { kind, src, label, player, cue, onCueEnd, shortcut, restart };
@@ -78,7 +80,7 @@ export function MediaView({ kind, src, label, player, size = "card", look = "pla
     case "speaker":
       return <SpeakerLook {...common} named={named ?? false} />;
     default:
-      return <PlayerLook {...common} named={named ?? false} over={over} screenKey={screenKey} />;
+      return <PlayerLook {...common} named={named ?? false} over={over} screenKey={screenKey} subsKey={subsKey} />;
   }
 }
 
@@ -103,8 +105,8 @@ type BarProps = {
   shortcut?: Shortcut | null;
   /** The keys that play it again from its start, drawn with it (`MediaKey`); none by default. */
   restart?: readonly Heard[];
-  /** A clip's subtitles shown or hidden (`playback.ts`), beside how fast: only where the clip has some. */
-  subtitles?: { shown: boolean; onToggle: () => void } | null;
+  /** A clip's subtitles shown or hidden (`playback.ts`), beside how fast: only where the clip has some, with the key that does it in a review. */
+  subtitles?: { shown: boolean; onToggle: () => void; shortcut?: Shortcut | null } | null;
 };
 
 /**
@@ -136,9 +138,12 @@ export function MediaBar({ playing, at, length, label, onToggle, tag = null, scr
       )}
       <span className="media-time">{length === null ? clock(at) : `${clock(at)} / ${clock(length)}`}</span>
       {subtitles ? (
-        <Button className="btn-icon media-subs" aria-label="Subtitles" aria-pressed={subtitles.shown} onClick={subtitles.onToggle}>
-          <Icon name="subtitles" />
-        </Button>
+        <>
+          <MediaKey shortcut={subtitles.shortcut ?? null} className="media-subs-key" />
+          <Button className="btn-icon media-subs" aria-label="Subtitles" aria-pressed={subtitles.shown} aria-keyshortcuts={subtitles.shortcut?.key} onClick={subtitles.onToggle}>
+            <Icon name="subtitles" />
+          </Button>
+        </>
       ) : null}
       {speed ?<SpeedControl {...speed} label={label} /> : null}
       {sound ? <SoundControl {...sound} label={label} /> : null}
@@ -279,16 +284,18 @@ function fullOf(el: HTMLElement): Element | null {
 
 /** Carried by a clip's player while the full screen key is its to answer. */
 const SCREEN_KEYED = "data-screen-key";
+/** Carried by a clip's player while the subtitles key is its to answer. */
+const SUBS_KEYED = "data-subs-key";
 
 /**
- * Of the clips that answer the full screen key, the one it's for: the one filling the screen leaves it; else the one
- * playing fills it, else the first on the card. (In a review every clip fills the review's stage, so whichever acts,
- * the stage turns.)
+ * Of the clips that answer a key (`marked`, the full screen's or the subtitles'), the one it's for: the one filling the
+ * screen; else the one playing, else the first on the card. (In a review every clip fills the review's stage, so
+ * whichever acts, the stage turns; subtitles are shown or hidden for every clip at once, so one acting is enough.)
  */
-function screenTarget(own: HTMLElement): HTMLElement | null {
+function keyTarget(own: HTMLElement, marked: string): HTMLElement | null {
   const root = own.getRootNode();
   if (!(root instanceof Document || root instanceof ShadowRoot)) return null;
-  const all = [...root.querySelectorAll<HTMLElement>(`[${SCREEN_KEYED}]`)];
+  const all = [...root.querySelectorAll<HTMLElement>(`[${marked}]`)];
   const full = root.fullscreenElement;
   const playing = (el: HTMLElement) => {
     const video = el.querySelector("video");
@@ -300,14 +307,27 @@ function screenTarget(own: HTMLElement): HTMLElement | null {
 /**
  * The full screen key (`keys.ts` → `fullScreen`), pressed anywhere on the page or held as long as it's set to be (its
  * keycap beside the full screen button fills as it's held): every clip hears it, and only the one it's for acts
- * (`screenTarget`).
+ * (`keyTarget`).
  */
 function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut | null, toggle: () => void) {
   useHeardKeys(
     [screenKey, ...(screenKey?.also ?? [])],
     () => frame.current?.querySelector<HTMLElement>(".media-screen-key") ?? null,
     toggle,
-    () => frame.current !== null && screenTarget(frame.current) === frame.current,
+    () => frame.current !== null && keyTarget(frame.current, SCREEN_KEYED) === frame.current,
+  );
+}
+
+/**
+ * The subtitles key (`keys.ts` → `subtitles`), heard as the full screen key is: every clip with subtitles hears it,
+ * and one acts (`keyTarget`), since they're shown or hidden for every clip at once.
+ */
+function useSubsKey(frame: RefObject<HTMLElement | null>, subsKey: Shortcut | null, toggle: () => void) {
+  useHeardKeys(
+    [subsKey, ...(subsKey?.also ?? [])],
+    () => frame.current?.querySelector<HTMLElement>(".media-subs-key") ?? null,
+    toggle,
+    () => frame.current !== null && keyTarget(frame.current, SUBS_KEYED) === frame.current,
   );
 }
 
@@ -316,7 +336,7 @@ function useScreenKey(frame: RefObject<HTMLElement | null>, screenKey: Shortcut 
  * bar's end;
  * the picture and the bar fill it together, so the controls stay Panki's.
  */
-function PlayerLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, restart, over, screenKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null }) {
+function PlayerLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, restart, over, screenKey, subsKey }: LookProps & { over: ReactNode; screenKey: Shortcut | null; subsKey: Shortcut | null }) {
   const play = usePlayback(player, cue, onCueEnd, shortcut, restart);
   const frame = useRef<HTMLDivElement>(null);
   // Inside a review, the screen is the review's to fill (`useScreenStage`): the clip takes it with its card beside it,
@@ -345,8 +365,12 @@ function PlayerLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, 
   const fillKey = canFill ? screenKey : null;
   useScreenKey(frame, fillKey, toggleFull);
   const subtitlesShown = useSubtitlesShown();
+  const toggleSubs = () => setSubtitlesShown(!subtitlesShown);
+  // Only a clip with subtitles to show hears the key.
+  const subsHeard = over ? subsKey : null;
+  useSubsKey(frame, subsHeard, toggleSubs);
   return (
-    <div ref={frame} className={`media media-player media-${kind}`} onClick={ownPress} {...(fillKey ? { [SCREEN_KEYED]: "" } : {})}>
+    <div ref={frame} className={`media media-player media-${kind}`} onClick={ownPress} {...(fillKey ? { [SCREEN_KEYED]: "" } : {})} {...(subsHeard ? { [SUBS_KEYED]: "" } : {})}>
       {kind === "video" ? (
         // The picture and what's laid over it (its subtitles) in one box, so they fill the screen together.
         <div className="media-picture">
@@ -374,7 +398,7 @@ function PlayerLook({ kind, src, label, player, named, cue, onCueEnd, shortcut, 
           speed={{ speed: play.speed, onSpeed: play.setSpeed }}
           shortcut={shortcut}
           restart={restart}
-          subtitles={over ? { shown: subtitlesShown, onToggle: () => setSubtitlesShown(!subtitlesShown) } : null}
+          subtitles={over ? { shown: subtitlesShown, onToggle: toggleSubs, shortcut: subsHeard } : null}
         />
       )}
     </div>

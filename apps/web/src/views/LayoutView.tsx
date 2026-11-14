@@ -670,6 +670,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           shortcuts={binds.media.map((bind) => shortcutOf(bind, binds))}
           restarts={binds.restart.map((bind) => restartOf(bind, binds))}
           screenKey={shortcutOf(binds.fullScreen, binds)}
+          subsKey={shortcutOf(binds.subtitles, binds)}
           hint={false}
           keys={false}
           edit={{

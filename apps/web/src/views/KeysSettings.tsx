@@ -198,6 +198,7 @@ export function KeysPanels() {
           <KeyRow key={`restart-${index}`} id={`restart-${index + 1}`} label={`Restart sound or clip ${index + 1}`} bind={bind} slot={{ kind: "restart", index }} binds={binds} disabled={off} />
         ))}
         <KeyRow id="full-screen" label="Full screen" bind={binds.fullScreen} slot={{ kind: "fullScreen" }} binds={binds} disabled={off} />
+        <KeyRow id="subtitles" label="Subtitles" bind={binds.subtitles} slot={{ kind: "subtitles" }} binds={binds} disabled={off} />
       </section>
       {/* Every key set here goes at once, so it asks first, hanging from the button. */}
       {changed ? (

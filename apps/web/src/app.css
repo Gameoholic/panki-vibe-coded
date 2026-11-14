@@ -4174,8 +4174,9 @@ mark.sub-blur {
   flex: none;
   color: var(--muted);
 }
-/* The full screen key, before its button: held, it fills alone, never with the play key's hold set on the player. */
-.media-key.media-screen-key {
+/* The full screen key and the subtitles key, each before its button: held, each fills alone, never with the play key's hold set on the player. */
+.media-key.media-screen-key,
+.media-key.media-subs-key {
   --hold: 0;
 }
 /* A restart key on a key of its own: its cap carries the again sign before the key, small, on one line. */
