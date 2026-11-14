@@ -133,7 +133,7 @@ export const DEFAULT_PILL: PillLayout = pillLayoutOf([{ id: "watched", shown: tr
  */
 export type BarSide = "left" | "right";
 type BarEntry = { name: string; side: BarSide; icon: IconName; shown: boolean } & ({ from: "youtube"; find: string } | { from: "panki" });
-export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "watching", "speed", "save", "autoplay", "pankiSubtitles", "captions", "settings", "theater", "fullscreen"] as const;
+export const BAR_CONTROL_IDS = ["play", "volume", "time", "endTime", "watching", "speed", "save", "downloaded", "autoplay", "pankiSubtitles", "captions", "settings", "theater", "fullscreen"] as const;
 export const BarControl = z.enum(BAR_CONTROL_IDS);
 export type BarControl = z.infer<typeof BarControl>;
 export const BAR_CONTROLS = {
@@ -145,6 +145,8 @@ export const BAR_CONTROLS = {
   watching: { name: "Watching", side: "left", icon: "clock", shown: true, from: "panki" },
   speed: { name: "Speed button", side: "right", icon: "speed", shown: true, from: "panki" },
   save: { name: "Save for later", side: "right", icon: "bookmark", shown: true, from: "panki" },
+  // The downloaded mark: there only on a video downloaded whole, and while the Downloaded mark is shown (`Modules.downloadMark`).
+  downloaded: { name: "Downloaded", side: "right", icon: "downloaded", shown: true, from: "panki" },
   // The autoplay switch is a button of the site's holding its own toggle: found by what it holds.
   autoplay: { name: "Autoplay", side: "right", icon: "autoplay", shown: true, from: "youtube", find: ".ytp-button:has(.ytp-autonav-toggle-button)" },
   // The subtitles off, or back to the pick last shown (`ui/SubtitlesControl.tsx`): Panki's own, there only while Panki and its
@@ -346,6 +348,12 @@ export const Modules = z.object({
   recapConfetti: z.boolean(),
   /** Which look the recap is drawn in while one is picked (`watch/recapLooks.ts`), turned by the developer button on it. */
   recapLook: RecapLook,
+  /**
+   * The downloaded mark (`ui/DownloadedMark.tsx`): a video downloaded whole in this browser wears it wherever it shows,
+   * every thumbnail of the site's, Panki's shelves, the recap's and the player bar (where it's also a row of the bar's
+   * own, `BAR_CONTROLS.downloaded`). Shown to begin with.
+   */
+  downloadMark: z.boolean(),
 });
 export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
@@ -385,6 +393,7 @@ export const DEFAULT_MODULES: Modules = {
   recap: true,
   recapConfetti: true,
   recapLook: DEFAULT_RECAP_LOOK,
+  downloadMark: true,
 };
 
 /**

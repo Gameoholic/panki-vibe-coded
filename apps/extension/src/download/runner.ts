@@ -1,5 +1,5 @@
 /** @panki Downloads on a YouTube page: asked for, run in the background by one page at a time, and how they stand (`createDownloads`, `stillOf`). */
-import { askDownload, askDownloadClaim, askDownloadHold, askDownloadPiece, askDownloads, askUndownload } from "../messages";
+import { DownloadsChanged, askDownload, askDownloadClaim, askDownloadHold, askDownloadPiece, askDownloads, askUndownload } from "../messages";
 import { clock } from "@web/words";
 import { createSilentPlayer, type SilentPlayer, type SilentReport } from "../transcribe/silent";
 import { uuid } from "../uuid";
@@ -38,7 +38,13 @@ import {
  * How the downloads stand, as a page shows them: every one, the one this page runs as it goes, null until first read;
  * and while the one running here has kept nothing, where it got to (`whereOf`).
  */
-export type DownloadsNow = { rows: readonly DownloadRow[] | null; where: { videoId: string; words: string } | null };
+export type DownloadsNow = {
+  rows: readonly DownloadRow[] | null;
+  where: { videoId: string; words: string } | null;
+  /** The videos downloaded whole, which wear the downloaded mark (`ui/DownloadedMark.tsx`); none until first read. */
+  done: ReadonlySet<string>;
+};
+const NONE_DONE: ReadonlySet<string> = new Set();
 
 export type Downloads = {
   /** The worker asked for downloads to run from now on. */
@@ -123,7 +129,7 @@ export function stillOf(video: HTMLVideoElement): string | null {
 }
 
 export function createDownloads(): Downloads {
-  let now: DownloadsNow = { rows: null, where: null };
+  let now: DownloadsNow = { rows: null, where: null, done: NONE_DONE };
   const followers = new Set<() => void>();
   let run: Run | null = null;
   let claiming = false;
@@ -133,13 +139,21 @@ export function createDownloads(): Downloads {
   const publish = () => {
     for (const follower of followers) follower();
   };
+  /** The videos downloaded whole, the same set again while that's unchanged, so what follows it draws again only when it changes. */
+  const doneOf = (rows: readonly DownloadRow[] | null): ReadonlySet<string> => {
+    const ids = (rows ?? []).filter((row) => row.state === "done").map((row) => row.videoId);
+    const was = now.done;
+    return ids.length === was.size && ids.every((id) => was.has(id)) ? was : new Set(ids);
+  };
   /** The rows, the one running here as it stands this moment, and where it got to while it has kept nothing. */
   const shown = (rows: readonly DownloadRow[] | null): DownloadsNow => {
     const mine = run;
-    if (!rows || !mine) return { rows, where: null };
+    const done = doneOf(rows);
+    if (!rows || !mine) return { rows, where: null, done };
     return {
       rows: rows.map((row) => (row.videoId === mine.job.videoId ? { ...row, state: "going", coveredMs: coveredMsOf(coveredOf(mine.stretches), mine.job.durationMs) } : row)),
       where: mine.where === null ? null : { videoId: mine.job.videoId, words: mine.where },
+      done,
     };
   };
   let listed: readonly DownloadRow[] | null = null;
@@ -371,6 +385,10 @@ export function createDownloads(): Downloads {
         }
         const note = DoorwayNote.safeParse(e.data);
         if (note.success && note.data.mark === mine.mark) hear(mine, note.data);
+      });
+      // A download asked for, whole or removed on any page or the options page: read again, so its mark follows at once.
+      chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+        if (sender.id === chrome.runtime.id && DownloadsChanged.safeParse(message).success) void refresh();
       });
       setInterval(look, DOWNLOAD.lookMs);
       void refresh();

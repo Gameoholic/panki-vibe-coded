@@ -19,11 +19,12 @@ import {
 import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
-import { Icon } from "@web/components/Icon";
+import { Icon, iconPaths } from "@web/components/Icon";
 import { agoWords, clock, daysOf, langOf, leftWords, sinceWords, type DayReader } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
+import { DOWNLOADED_WORDS, DownloadedMark } from "../ui/DownloadedMark";
 import { PankiPill, pillNumbersOf } from "../ui/PankiPill";
 import { mount } from "../ui/mount";
 import { tokensOn } from "../ui/styles";
@@ -46,7 +47,8 @@ import { tokensOn } from "../ui/styles";
  * - **Continue watching**, a shelf of the site's own kind of cards: the videos left part-way, each opening where it was
  *   stopped, with how much is left over its picture and Panki's bar along its foot.
  * - **Shorts** can be kept off every page (a YouTube utility).
- * - **On every thumbnail**, wherever the site shows a video: a saved video's tick.
+ * - **On every thumbnail**, wherever the site shows a video: a saved video's tick, and a downloaded one's mark (as
+ *   Panki's own shelves wear it, `ui/DownloadedMark.tsx`).
  *
  * The site's names relied on are together here; when the site changes them, this is where to look.
  */
@@ -149,7 +151,15 @@ function usePerRow(row: HTMLElement | null): number {
  * `raw` what each switch says itself (the pill and its switch stay with Panki off, to turn it back on), `onPower` turns
  * Panki on or off, `theme` how the site is drawn now.
  */
-export function createFeed(deps: { modules: () => Modules; raw: () => Modules; onPower: (on: boolean) => void; theme: () => "light" | "dark"; update: () => "available" | "needed" | null }) {
+export function createFeed(deps: {
+  modules: () => Modules;
+  raw: () => Modules;
+  onPower: (on: boolean) => void;
+  theme: () => "light" | "dark";
+  update: () => "available" | "needed" | null;
+  /** The videos downloaded whole in this browser, followed as they change: they wear the downloaded mark. */
+  downloaded: { get: () => ReadonlySet<string>; subscribe: (follower: () => void) => () => void };
+}) {
   const top = mount(deps.theme());
   // Its left edge and width are set to the grid's as the page stands (`alignTop`): never centred in what holds it.
   top.host.style.cssText = "display: block; box-sizing: border-box; align-self: flex-start; max-width: none; margin: 4px 0 20px;";
@@ -226,6 +236,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         <a className="yc-link" href={href}>
           <span className="yc-thumb">
             <img src={thumbnailAt(videoId)} alt="" loading="lazy" />
+            <Downloaded videoId={videoId} />
             {progress ? (
               <>
                 <span className="yc-time">{progress.left}</span>
@@ -251,6 +262,12 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         {remove ? <RemoveVideo videoId={videoId} shelf={remove.shelf} onRemove={remove.onRemove} /> : null}
       </div>
     );
+  }
+
+  /** The downloaded mark on a picture of Panki's own, while the video is downloaded whole and the mark is shown. */
+  function Downloaded({ videoId }: { videoId: string }) {
+    const done = useSyncExternalStore(deps.downloaded.subscribe, deps.downloaded.get);
+    return deps.modules().downloadMark && done.has(videoId) ? <DownloadedMark /> : null;
   }
 
   /**
@@ -360,6 +377,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
           <div className="yc yh-lead-pic-wrap">
             <a className="yh-lead-pic" href={resumeAt(first)} aria-label={`Resume ${first.title || "the video"}`}>
               <img src={thumbnailAt(first.videoId)} alt="" />
+              <Downloaded videoId={first.videoId} />
               <span className="yc-bar">
                 <i style={{ width: `${(lead.share * 100).toFixed(1)}%` }} />
               </span>
@@ -681,7 +699,7 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   function redrawMarks(videoId: string) {
     const on = deps.modules();
     for (const link of document.querySelectorAll(THUMB_LINKS)) {
-      if (link instanceof HTMLAnchorElement && youtubeLinkOf(link.href)?.videoId === videoId) draw(link, glances.get(videoId)?.glance ?? null, on);
+      if (link instanceof HTMLAnchorElement && youtubeLinkOf(link.href)?.videoId === videoId) draw(link, videoId, on);
     }
   }
 
@@ -702,15 +720,18 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
   }
 
   /**
-   * What a thumbnail's mark says, as a key: a saved video's tick at its top right while saving is switched on, nothing
-   * otherwise.
+   * What a thumbnail's marks say, as a key: a saved video's tick at its top right while saving is switched on, and the
+   * downloaded mark at its bottom left on a video downloaded whole while that mark is shown; empty for neither.
    */
-  function sayOf(g: VideoGlance | null, on: Modules): string {
-    return g !== null && on.thumbSave && g.saved ? "saved" : "";
+  function sayOf(videoId: string, on: Modules): string {
+    const g = glances.get(videoId)?.glance ?? null;
+    const saved = g !== null && on.thumbSave && g.saved;
+    const downloaded = on.downloadMark && deps.downloaded.get().has(videoId);
+    return [saved ? "saved" : "", downloaded ? "downloaded" : ""].filter((part) => part !== "").join(" ");
   }
 
-  function draw(link: HTMLAnchorElement, g: VideoGlance | null, on: Modules) {
-    const said = sayOf(g, on);
+  function draw(link: HTMLAnchorElement, videoId: string, on: Modules) {
+    const said = sayOf(videoId, on);
     let mark = marks.get(link);
     if (said === "") {
       if (mark) {
@@ -738,7 +759,10 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
     if (mark.drawn === said) return;
     mark.drawn = said;
     // Saved: a tick at the top right, seen without pointing at it. Saving itself is the floating button (`SaveFloat`).
-    mark.root.innerHTML = `<style>${THUMB_CSS}</style><span class="saved">${TICK_ICON}</span>`;
+    // Downloaded: the downloaded mark at the bottom left, as Panki's own pictures wear it (`ui/DownloadedMark.tsx`).
+    const saved = said.includes("saved") ? `<span class="saved">${TICK_ICON}</span>` : "";
+    const downloaded = said.includes("downloaded") ? `<span class="downloaded" role="img" aria-label="${DOWNLOADED_WORDS}">${DOWNLOADED_ICON}</span>` : "";
+    mark.root.innerHTML = `<style>${THUMB_CSS}</style>${saved}${downloaded}`;
   }
 
   /**
@@ -907,8 +931,8 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
       sift(on);
 
-      // A saved video's tick on every thumbnail on the page.
-      if (!on.thumbSave) {
+      // A saved video's tick and a downloaded one's mark on every thumbnail on the page.
+      if (!on.thumbSave && !on.downloadMark) {
         clearMarks();
         return;
       }
@@ -917,9 +941,10 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
         if (!(link instanceof HTMLAnchorElement)) continue;
         const videoId = youtubeLinkOf(link.href)?.videoId;
         if (!videoId) continue;
+        // Whether it's saved is Panki's to say; whether it's downloaded, this browser's own, known already.
         const kept = glances.get(videoId);
-        if (!kept || now - kept.at > GLANCE_FRESH_MS) waiting.add(videoId);
-        draw(link, kept?.glance ?? null, on);
+        if (on.thumbSave && (!kept || now - kept.at > GLANCE_FRESH_MS)) waiting.add(videoId);
+        draw(link, videoId, on);
       }
       void glance();
     },
@@ -940,8 +965,16 @@ export function createFeed(deps: { modules: () => Modules; raw: () => Modules; o
 
 /** A saved video's tick. Drawn as the app's icons are, on a 24-unit grid. */
 const TICK_ICON = `<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+/** The downloaded mark's icon, the app's own (`Icon`'s `downloaded`), as text for a thumbnail's shadow root. */
+const DOWNLOADED_ICON = `<svg viewBox="0 0 24 24">${iconPaths("downloaded")
+  .map((d) => `<path d="${d}"/>`)
+  .join("")}</svg>`;
 
-/** A thumbnail's mark, in its own shadow root: a saved video's tick. The tokens come from the host (`tokensOn`). */
+/**
+ * A thumbnail's marks, in their own shadow root: a saved video's tick, a downloaded one's mark. The tokens come from the
+ * host (`tokensOn`); the downloaded mark is `.downloaded-mark`'s look in `extension.css`, said again here, where that
+ * stylesheet doesn't reach.
+ */
 const THUMB_CSS = `
 :host { all: initial; }
 svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
@@ -952,4 +985,11 @@ svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: 
   background: var(--accent); color: var(--accent-ink);
 }
 .saved svg { width: 14px; height: 14px; stroke-width: 2.6; }
+/* Downloaded: quiet, on the player's dark glass at the bottom left, clear of the site's progress bar along the foot. */
+.downloaded {
+  position: absolute; left: 6px; bottom: 8px;
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px;
+  background: color-mix(in srgb, var(--theater) 72%, transparent); color: var(--theater-ink);
+}
+.downloaded svg { width: 15px; height: 15px; stroke-width: 2; }
 `;

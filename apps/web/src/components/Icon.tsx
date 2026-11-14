@@ -157,9 +157,14 @@ const ICONS = {
   download: ["M12 3v11", "M8 10l4 4 4-4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"],
   lead: ["M3 12h11", "M10 8l4 4-4 4", "M19 6v12"],
   hybrid: ["M12 3v11", "M8 10l4 4 4-4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2", "M16 2l2 2-2 2", "M19.5 2l2 2-2 2"],
+  /** A video kept in this browser to watch without signal: a tick over the download's tray, the mark wherever the video shows. */
+  downloaded: ["M7.5 9.5l3 3 6-6.5", "M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
 } as const;
 
 export type IconName = keyof typeof ICONS;
+
+/** An icon's strokes, for a mark drawn as text where React doesn't draw (a thumbnail's mark on someone else's page). */
+export const iconPaths = (name: IconName): readonly string[] => ICONS[name];
 
 type Props = {
   name: IconName;

@@ -234,6 +234,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | Burst | `ui/Burst.tsx` | The Add button's burst as a card lands: a ring rippling out and dots flying off (`Burst`). Never a second celebration. |
 | ClipPlayer | `ui/ClipPlayer.tsx` | A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). |
 | Column | `ui/Column.tsx` | The column the panel and the drawer stand in beside the video and in full screen, its left edge dragged for its width (`Column`). Never a second column. |
+| DownloadedMark | `ui/DownloadedMark.tsx` | The downloaded mark, on a video's picture wherever Panki draws one and on the player bar (`DownloadedMark`, `DownloadedControl`, `DOWNLOADED_WORDS`). Never a second drawing of it. |
 | EndTime | `ui/EndTime.tsx` | When the video will end, among the player's own controls (`EndTime`). |
 | Explain | `ui/Explain.tsx` | Explain, Panki AI on the word in the pop-up, and why each empty piece is empty (`Explain`, `ExplainSource`, `MorePieces`, `gapsOf`). |
 | Glossary | `ui/Glossary.tsx` | What a dictionary says a word means, drawn and as text (`Glossary`, `glossaryText`). Never a dictionary's markup drawn as it is. |

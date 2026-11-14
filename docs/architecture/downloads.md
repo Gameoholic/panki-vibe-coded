@@ -1,6 +1,6 @@
 # Downloads: a video kept in this browser to watch without signal
 
-> **Scope of this file.** Downloading a video: the doorway script, the hidden player kept, what's kept and how it's ordered, one page at a time, the store, the menu and the options tab. The plan and what's next: `docs/DOWNLOADS.md`.
+> **Scope of this file.** Downloading a video: the doorway script, the hidden player kept, what's kept and how it's ordered, one page at a time, the store, the menu, the options tab and the downloaded mark. The plan and what's next: `docs/DOWNLOADS.md`.
 
 A video is downloaded by copying what YouTube's own player hands the browser to play, while the video plays through fast in a hidden frame. Nothing is fetched by Panki and nothing of YouTube's is called or changed: the copy is the pieces themselves, untouched, in the quality YouTube sent.
 
@@ -13,6 +13,7 @@ A video is downloaded by copying what YouTube's own player hands the browser to 
 | `download/store.ts` | The extension's own IndexedDB `panki-downloads`, the worker's and the options page's alone |
 | `download/words.ts` | A download in words, the same in the menu and on the options page |
 | `ui/PanelMenu.tsx` → `DownloadRows`, `options/Downloads.tsx` | The H Menu's Download group; the options page's Downloads tab |
+| `ui/DownloadedMark.tsx` | The downloaded mark on a picture and on the player bar |
 
 ## The doorway script
 
@@ -37,12 +38,13 @@ A video is downloaded by copying what YouTube's own player hands the browser to 
 
 ## The store
 
-`panki-downloads` (`videos`, `pieces`, `bytes`), in the extension's own origin, room unlimited (`unlimitedStorage`). The worker writes (`downloadPiece` arrives as base64, decoded there, `DOWNLOAD.pieceMaxBytes` the most one may be); the options page reads and removes directly, as it does the dictionaries. How a download stands (`stateOf`: done, going while held, waiting), how much is in and its size are worked out from the pieces on every read, never kept. Remove deletes the video's three stores' rows by key range: these are a copy of YouTube's, not the owner's data. Nothing goes to Panki.
+`panki-downloads` (`videos`, `pieces`, `bytes`), in the extension's own origin, room unlimited (`unlimitedStorage`). The worker writes (`downloadPiece` arrives as base64, decoded there, `DOWNLOAD.pieceMaxBytes` the most one may be), removals from the options page included, so it can tell every page; the options page reads directly, as it does the dictionaries. How a download stands (`stateOf`: done, going while held, waiting), how much is in and its size are worked out from the pieces on every read, never kept. Remove deletes the video's three stores' rows by key range: these are a copy of YouTube's, not the owner's data. Nothing goes to Panki.
 
 ## On screen
 
 - **The menu** (H Menu): Download, between Panel and Panki. Download this video (greyed in an ad or before the length is known); Downloading / Waiting with the share and a thin bar (`--p`), the reason under Waiting; Downloaded with its size. Pressed while there, `Ask` hangs from it: Remove. Downloads… opens the options page's Downloads tab, with how many and their room. The menu reads the list again every `WATCH_MS` while open (another page's progress); the page running a download overlays its own progress live.
-- **The options tab**, all this device's (`PerDevice` at its head): Downloads (a bar of each one's share of the room, the total, a row each with its still, name, channel and state, Remove asking first) and Quality (Download quality, a `Segmented` of `DOWNLOAD_QUALITIES`, kept as `downloadQuality`, copied onto each download as it's asked for). The still is a frame of the page's own video as Download is pressed, a small JPEG kept with the download: no thumbnail is fetched.
+- **The options tab**, all this device's (`PerDevice` at its head): Downloads (a bar of each one's share of the room, the total, a row each with its still, name, channel and state, Remove asking first, sent through the worker so every page hears of it), Quality (Download quality, a `Segmented` of `DOWNLOAD_QUALITIES`, kept as `downloadQuality`, copied onto each download as it's asked for) and Mark (Downloaded mark, a `Toggle` Shown / Hidden, kept as `downloadMark`, `Modules.downloadMark`). The still is a frame of the page's own video as Download is pressed, a small JPEG kept with the download: no thumbnail is fetched.
+- **The downloaded mark** (`ui/DownloadedMark.tsx`, the `downloaded` icon): only on a video downloaded whole (`DownloadsNow.done`, from `stateOf`'s done), on the player's dark glass at a picture's bottom left, clear of a progress bar. Its consumers: every thumbnail of the site's (`feed.tsx` → `sayOf`, drawn as text in the thumbnail's shadow root with the icon's own strokes, `iconPaths`, beside the saved tick), Continue watching's lead and cards, Saved for later and Recently watched (`feed.tsx` → `Downloaded`), the recap's K Next up (`Recap` → `downloaded`), and the player bar (`DownloadedControl`, `BAR_CONTROLS.downloaded`, after Save for later; shown only on a downloaded video, out of an ad). The setting hides it everywhere, and with Panki off it's off (`allOff`); on the bar it's also a row of the bar's own, shown or hidden and moved as every control is. Left without it: the drawer's YouTube field (the card's own facts about the video on screen, which wears the mark on its bar) and Panki's own site (its tiles can't see this browser's downloads). **Live**: the worker tells every page (`DownloadsChanged`, `background.ts` → `tellEveryPage`) whenever a download is asked for, finishes or is removed, and each page's runner reads the list again; the bar is looked at every second, the rest follow the runner's `subscribe`.
 
 **The watch page plays as the account**: the frame shares the browser's sign-in with YouTube, so YouTube can count the hidden play as the account's (its own watch history, and its own resume point, the red bar on its thumbnails, moved to where the hidden player stops), as the embed page can too; neither is called or prevented here, and which YouTube really does for a frame off the screen is unproven. Panki's own watching (`watching.md`) reads the viewer's player alone and isn't touched.
 

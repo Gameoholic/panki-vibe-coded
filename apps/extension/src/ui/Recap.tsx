@@ -7,6 +7,7 @@ import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { clock, count, dayWords, hourWords, langOf, ordinalWords } from "@web/words";
 import { thumbnailAt } from "../content/feed";
+import { DownloadedMark } from "./DownloadedMark";
 import { RECAP_LOOKS, type RecapLook } from "../watch/recapLooks";
 
 /**
@@ -53,6 +54,8 @@ type Props = {
   onClose: () => void;
   /** The developer button: the next look. */
   onNextLook: () => void;
+  /** The videos that wear the downloaded mark where K shows them: those downloaded whole, none while the mark is hidden. */
+  downloaded: ReadonlySet<string>;
 };
 
 /** The recap's room, in its own px (the player's over the scale), and the scale. */
@@ -345,7 +348,7 @@ function HaulLook(props: LookProps) {
         {over ? <ScrollEdges of={row} /> : null}
         <Facts recap={recap} heard={heard} sessions className="recap-haul-facts recap-glass" />
       </div>
-      {look === "K" ? <NextRow continuing={recap.continuing} saved={recap.saved.slice(0, K_SAVED)} /> : null}
+      {look === "K" ? <NextRow continuing={recap.continuing} saved={recap.saved.slice(0, K_SAVED)} downloaded={props.downloaded} /> : null}
     </>
   );
 }
@@ -392,7 +395,7 @@ function SheetLook(props: LookProps) {
 }
 
 /** K's foot: the top of Continue watching and of Saved for later, each a link to it; a shelf with nothing in it left out. */
-function NextRow({ continuing, saved }: { continuing: readonly ContinueVideo[]; saved: readonly SavedVideo[] }) {
+function NextRow({ continuing, saved, downloaded }: { continuing: readonly ContinueVideo[]; saved: readonly SavedVideo[]; downloaded: ReadonlySet<string> }) {
   if (continuing.length === 0 && saved.length === 0) return null;
   return (
     <div className="recap-nxrow">
@@ -401,7 +404,7 @@ function NextRow({ continuing, saved }: { continuing: readonly ContinueVideo[]; 
           <span className="recap-nx-title">Continue watching</span>
           <div className="recap-nx-pair">
             {continuing.map((v) => (
-              <NextVideo key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} lengthMs={v.lengthMs} progress={v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : null} />
+              <NextVideo key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} lengthMs={v.lengthMs} progress={v.lengthMs > 0 ? v.stoppedAtMs / v.lengthMs : null} downloaded={downloaded.has(v.videoId)} />
             ))}
           </div>
         </div>
@@ -411,7 +414,7 @@ function NextRow({ continuing, saved }: { continuing: readonly ContinueVideo[]; 
           <span className="recap-nx-title">Saved for later</span>
           <div className="recap-nx-pair">
             {saved.map((v) => (
-              <NextVideo key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} lengthMs={v.lengthMs ?? 0} progress={null} />
+              <NextVideo key={v.videoId} videoId={v.videoId} title={v.title} channel={v.channel} lengthMs={v.lengthMs ?? 0} progress={null} downloaded={downloaded.has(v.videoId)} />
             ))}
           </div>
         </div>
@@ -420,11 +423,12 @@ function NextRow({ continuing, saved }: { continuing: readonly ContinueVideo[]; 
   );
 }
 
-function NextVideo({ videoId, title, channel, lengthMs, progress }: { videoId: string; title: string; channel: string; lengthMs: number; progress: number | null }) {
+function NextVideo({ videoId, title, channel, lengthMs, progress, downloaded }: { videoId: string; title: string; channel: string; lengthMs: number; progress: number | null; downloaded: boolean }) {
   return (
     <a className="recap-nx" href={youtubeUrl({ videoId, seconds: null })}>
       <span className="recap-nx-th">
         <img src={thumbnailAt(videoId)} alt="" />
+        {downloaded ? <DownloadedMark /> : null}
         {lengthMs > 0 ? <span className="recap-nx-len">{clock(lengthMs / 1000)}</span> : null}
         {progress !== null ? (
           <span className="recap-nx-pb">

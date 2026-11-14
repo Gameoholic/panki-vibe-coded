@@ -26,7 +26,7 @@ The owner's words, not concrete: on the train to work the laptop runs on the pho
 
 - [x] 1. The preview of where it lives; the owner picked H Menu.
 - [x] 2. Downloading: the script in the page, the hidden player playing through, the pieces kept, the H Menu with the Download button, progress, done, the list and undownload (`architecture/downloads.md`). On local dev for the owner to try.
-- [ ] 3. The downloaded mark everywhere a video shows, and its setting.
+- [x] 3. The downloaded mark everywhere a video shows, and its setting (`architecture/downloads.md` → On screen). Not on Panki's own site (its home's Continue watching and Saved tiles): the site can't see what this browser downloaded.
 - [ ] 4. Playing from the saved copy: B first, as a small experiment the owner tries on local dev; A only if YouTube's player fights it.
 - [ ] Later: downloading as an automation beside transcribing (`docs/AI.md` → Rules); the yt-dlp helper if step 2 falls short (`docs/BACKLOG.md`).
 

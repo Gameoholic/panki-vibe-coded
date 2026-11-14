@@ -8,9 +8,11 @@ import { PerDevice } from "@web/components/PerDevice";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Skeleton } from "@web/components/Skeleton";
+import { Toggle } from "@web/components/Toggle";
 import { DOWNLOAD_QUALITIES, type DownloadRow } from "../download/download";
-import { listDownloads, removeDownload } from "../download/store";
+import { listDownloads } from "../download/store";
 import { downloadWords, shareOf, totalWords } from "../download/words";
+import { askUndownload } from "../messages";
 import { writeStore, type Stored } from "../storage";
 
 /** How often the list is read again while the page is in view: a download coming in on a YouTube page moves on. */
@@ -64,7 +66,8 @@ function DownloadListRow({ row, onRemoved }: { row: DownloadRow; onRemoved: () =
           onKeep={() => setAsking(false)}
           onGo={() => {
             setBusy(true);
-            void removeDownload(row.videoId).finally(() => {
+            // Through the worker, which tells every page, so the video's mark goes everywhere at once.
+            void askUndownload(row.videoId).finally(() => {
               setBusy(false);
               setAsking(false);
               onRemoved();
@@ -78,8 +81,8 @@ function DownloadListRow({ row, onRemoved }: { row: DownloadRow; onRemoved: () =
 
 /**
  * The Downloads tab, all of it this browser's: every download, the one asked for last first, with how much room they
- * take together, drawn as a bar of each one's share; and the quality a video is downloaded at, kept with each as it's
- * asked for.
+ * take together, drawn as a bar of each one's share; the quality a video is downloaded at, kept with each as it's
+ * asked for; and whether a downloaded video wears its mark wherever it shows.
  */
 export function DownloadsTab({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const { rows, read } = useDownloads();
@@ -121,6 +124,16 @@ export function DownloadsTab({ store, onChanged }: { store: Stored; onChanged: (
           // Said, since no one could guess it: the quality is the most asked for, never promised.
           why="The most a video is downloaded at. On a slow connection YouTube sends less, and that's what's kept."
           control={<Segmented idPrefix="download-quality" label="Download quality" options={DOWNLOAD_QUALITIES} value={store.downloadQuality} onChange={(downloadQuality) => void writeStore({ downloadQuality }).then(onChanged)} />}
+        />
+      </section>
+      <section className="panel" aria-labelledby="download-mark-title">
+        <h2 id="download-mark-title" className="panel-title">
+          Mark
+        </h2>
+        <Setting
+          id="download-mark"
+          label="Downloaded mark"
+          control={<Toggle id="download-mark-on" says={{ on: "Shown", off: "Hidden" }} on={store.downloadMark} onChange={(downloadMark) => void writeStore({ downloadMark }).then(onChanged)} />}
         />
       </section>
     </>

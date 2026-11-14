@@ -1574,10 +1574,48 @@
   display: inline-flex;
   height: 100%;
 }
-.yt-watching-wrap .tip {
+.yt-watching-wrap .tip,
+.yt-bar-mark .tip {
   background: color-mix(in srgb, var(--theater) 82%, transparent);
   color: var(--theater-ink);
   white-space: nowrap;
+}
+/* The downloaded mark among the player's own controls (ui/DownloadedMark.tsx): an icon of their kind and size, nothing
+   to press, so no disc comes up under it; a shade quieter than the controls that do something. */
+.yt-bar-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 40px;
+  color: var(--theater-ink);
+  opacity: 0.85;
+}
+.yt-bar-mark .icon {
+  width: 22px;
+  height: 22px;
+}
+/* The downloaded mark on a video's picture (ui/DownloadedMark.tsx), the same corner on every one: its bottom left, clear
+   of a progress bar along its foot, on the player's dark glass as a length is. content/feed.tsx draws the site's
+   thumbnails' in the same look. */
+.downloaded-mark {
+  position: absolute;
+  left: 6px;
+  bottom: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theater) 72%, transparent);
+  color: var(--theater-ink);
+  pointer-events: none;
+}
+.downloaded-mark .icon {
+  width: 15px;
+  height: 15px;
 }
 /* Beside the name over the line: something going on by itself that would look like a fault if nothing said so. */
 .strip-live {
@@ -4858,6 +4896,18 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+/* The downloaded mark on K's small pictures: as small as the length beside it, in the same inset. */
+.recap-nx-th .downloaded-mark {
+  left: 3px;
+  bottom: 5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+.recap-nx-th .downloaded-mark .icon {
+  width: 11px;
+  height: 11px;
 }
 .recap-nx-len {
   position: absolute;

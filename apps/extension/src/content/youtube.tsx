@@ -36,6 +36,7 @@ import { createPlayerBar } from "./playerBar";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
 import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
 import { createDownloads, stillOf } from "../download/runner";
+import { DownloadedControl } from "../ui/DownloadedMark";
 import { SaveControl } from "../ui/SaveControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
@@ -460,6 +461,7 @@ const feed = createFeed({
     const { state } = update.get();
     return state === "available" || state === "needed" ? state : null;
   },
+  downloaded: { get: () => downloads.get().done, subscribe: (follower) => downloads.subscribe(follower) },
 });
 /** Whether what the player plays right now is an ad (the site plays them in the same player). */
 function adPlaying() {
@@ -737,7 +739,7 @@ function amendPrefs(patch: Partial<TranscribePrefs>) {
 }
 
 /** Every part off, as the modules read with Panki switched off altogether. */
-const allOff = (now: Modules): Modules => ({ ...now, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false, recap: false });
+const allOff = (now: Modules): Modules => ({ ...now, on: false, panel: false, lookup: false, seek: false, markStop: false, home: false, homePill: false, homeShelf: false, homeSaved: false, homeRecent: false, thumbSave: false, recap: false, downloadMark: false });
 /**
  * Which parts are on right now: with Panki switched off in the strip's head, every one reads as off, whatever its own
  * switch says; but the YouTube utilities (Hide Shorts), which are the site's own comfort, Panki or not. The same while an update is needed: Panki would refuse all of it, so none of it is tried.
@@ -1184,6 +1186,8 @@ function place() {
     endTime: video !== null && !ad,
     watching: on.on && video !== null && !ad && finish !== null && finish.videoId === watching && (finish.finished || finish.percent !== null),
     save: on.on && video !== null && saved !== null && saved.videoId === watching,
+    // The downloaded mark: on a video downloaded whole, while the mark is shown.
+    downloaded: on.downloadMark && video !== null && !ad && watching !== null && downloads.get().done.has(watching),
     // The subtitles are the panel's: nothing to turn off or on without it.
     pankiSubtitles: on.on && on.panel && video !== null,
   };
@@ -2168,6 +2172,7 @@ function RecapHere() {
   const recap = now !== null && now.videoId === watching && local.modules.recap ? now.recap : null;
   const spoken = useMemo(() => (recap && tx.transcript ? linesOf(tx.transcript.words) : null), [recap, tx.transcript]);
   const heard = useHeardInDecks(spoken, recap?.watched ?? NO_SPANS);
+  const done = useSyncExternalStore(downloads.subscribe, () => downloads.get().done);
   if (!recap) return null;
   const faces = recap.cards.map((card): RecapFace => {
     const map = local.drawer.maps[card.deckId] ?? {};
@@ -2197,10 +2202,12 @@ function RecapHere() {
       onGo={go}
       onClose={() => recapped.set(null)}
       onNextLook={nextLook}
+      downloaded={local.modules.downloadMark ? done : NONE_DOWNLOADED}
     />
   );
 }
 const NO_SPANS: readonly WatchedSpan[] = [];
+const NONE_DOWNLOADED: ReadonlySet<string> = new Set();
 
 function App() {
   /** What the line reads right now (the transcript, or the site's captions), and how transcribing stands. */
@@ -3109,6 +3116,8 @@ function App() {
     watching: finishNow && finishNow.videoId === videoId() ? <WatchingControl finished={finishNow.finished} percent={finishNow.percent} onToggle={() => void sayFinished(!finishNow.finished, "viewer")} /> : null,
     // This video saved for later, or not: the same save as a thumbnail's button, shown on YouTube's home.
     save: savedNow && savedNow.videoId === videoId() ? <SaveControl saved={savedNow.saved} onToggle={() => void toggleSaved()} /> : null,
+    // Downloaded whole in this browser; whether it's there at all is `barShows`'.
+    downloaded: <DownloadedControl />,
     // The subtitles off, or back to the pick last shown: the same flip as the subtitles key's.
     pankiSubtitles: <SubtitlesControl on={comesBackTo(picked)} onToggle={toggleSubtitles} />,
   };

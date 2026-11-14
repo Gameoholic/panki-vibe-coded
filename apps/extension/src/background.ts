@@ -7,7 +7,7 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Claimed, type Done, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Claimed, type Done, type DownloadsChanged, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { claimDownload, holdDownload, keepPiece, listDownloads, removeDownload, startDownload } from "./download/store";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
@@ -126,16 +126,23 @@ async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSende
     if (ask.kind === "downloads") return { ok: true, rows: await listDownloads(now) };
     if (ask.kind === "undownload") {
       await removeDownload(ask.videoId);
+      void tellChanged();
       return { ok: true };
     }
     if (ask.kind === "download") {
       await startDownload(ask.about, Number((await readStore()).downloadQuality), now);
+      void tellChanged();
       return { ok: true };
     }
     const tabId = sender.tab?.id;
     if (tabId === undefined) return { ok: false, message: "Only a page can run a download." };
     if (ask.kind === "downloadClaim") return { ok: true, job: await claimDownload(tabId, now) };
-    if (ask.kind === "downloadHold") return { ok: true, going: await holdDownload(ask.videoId, tabId, ask.end, now) };
+    if (ask.kind === "downloadHold") {
+      const going = await holdDownload(ask.videoId, tabId, ask.end, now);
+      // Whole: every page's marks follow at once.
+      if (ask.end.kind === "done") void tellChanged();
+      return { ok: true, going };
+    }
     let bytes: Uint8Array<ArrayBuffer>;
     try {
       bytes = bytesOf(ask.base64);
@@ -148,6 +155,8 @@ async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSende
     return { ok: false, message: "The downloads couldn't be read." };
   }
 }
+/** Every page told the downloads changed, so a downloaded mark comes and goes everywhere at once. */
+const tellChanged = () => tellEveryPage({ kind: "downloadsChanged" }).catch((e: unknown) => console.error("Panki:", e));
 
 /** Whether a page is one of Panki's own: at the address of the sign-in in use or of any profile kept to switch to. */
 function onPanki(url: string | undefined, store: Stored): boolean {
@@ -283,6 +292,10 @@ async function tellPages(changes: Record<string, chrome.storage.StorageChange>):
   const { next, was } = await localChange(changes);
   if (JSON.stringify(next) === JSON.stringify(was)) return;
   const told: LocalChanged = { kind: "local", local: next };
+  await tellEveryPage(told);
+}
+/** Something said to every page with Panki's script on it. */
+async function tellEveryPage(told: LocalChanged | DownloadsChanged): Promise<void> {
   const tabs = await chrome.tabs.query({});
   await Promise.all(
     tabs.map(async (tab) => {

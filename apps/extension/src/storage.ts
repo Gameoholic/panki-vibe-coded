@@ -226,6 +226,8 @@ const Stored = z.object({
   videoTracking: z.boolean().nullable().catch(null),
   /** The quality a video is downloaded at, by its picture's height (options page, Downloads; `download/download.ts`): kept with each download as it's asked for. */
   downloadQuality: DownloadQuality.catch(DEFAULT_DOWNLOAD_QUALITY),
+  /** The downloaded mark on a downloaded video wherever it shows (options page, Downloads; `modules.ts` → `downloadMark`). */
+  downloadMark: z.boolean().catch(DEFAULT_MODULES.downloadMark),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
   reopenOptions: z.boolean().catch(false),
   // A browser that kept `meaningPick` (which meanings a card got) keeps it unread: the ones ticked in the drawer are
@@ -292,6 +294,7 @@ export const modulesOf = (store: Stored): Modules => ({
   recap: store.videoRecap,
   recapConfetti: store.recapConfetti,
   recapLook: store.recapLook,
+  downloadMark: store.downloadMark,
 });
 
 /**

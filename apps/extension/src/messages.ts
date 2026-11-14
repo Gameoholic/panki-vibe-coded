@@ -154,6 +154,10 @@ export type Local = z.infer<typeof Local>;
 export const LocalChanged = z.object({ kind: z.literal("local"), local: Local });
 export type LocalChanged = z.infer<typeof LocalChanged>;
 
+/** The worker telling every page the downloads changed (one asked for, one done, one removed): each reads them again (`download/runner.ts`). */
+export const DownloadsChanged = z.object({ kind: z.literal("downloadsChanged") });
+export type DownloadsChanged = z.infer<typeof DownloadsChanged>;
+
 export const Ask = z.discriminatedUnion("kind", [
   /** What the panel needs of Panki to open: the decks, their card types and SRS types (to show the card as a review will). What fills each deck's fields and the deck it opens on are this browser's (`Local`). */
   z.object({ kind: z.literal("state") }),

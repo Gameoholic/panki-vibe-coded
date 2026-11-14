@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@web/components/Icon";
 import { clock, hourWords } from "@web/words";
 import { BAR_CONTROLS, DEFAULT_BAR, barSide, type BarControl, type BarLayout } from "../modules";
+import { DownloadedControl } from "../ui/DownloadedMark";
 import { SaveControl } from "../ui/SaveControl";
 import { SpeedControl } from "../ui/SpeedControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
@@ -57,6 +58,8 @@ export function BarControls({ layout, video, classOf }: { layout: BarLayout; vid
     watching: <WatchingControl finished={finished} percent={Math.floor((BAR_PLAYED / BAR_LENGTH) * 100)} onToggle={() => setFinished((was) => !was)} />,
     speed: <SpeedControl video={video} />,
     save: <SaveControl saved={saved} onToggle={() => setSaved((was) => !was)} />,
+    // The made-up video is downloaded, so the mark shows where it stands.
+    downloaded: <DownloadedControl />,
     pankiSubtitles: <SubtitlesControl on={subtitles} onToggle={() => setSubtitles((was) => !was)} />,
     autoplay: (
       <span className="ytb-icon">

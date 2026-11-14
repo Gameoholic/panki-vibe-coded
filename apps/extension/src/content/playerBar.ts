@@ -60,7 +60,7 @@ function barPlace(): Place {
 
 export function createPlayerBar() {
   /** Each of Panki's controls' place (the type holds it to one per control of `BAR_CONTROLS` that's Panki's). */
-  const places: Record<PankiBarControl, Place> = { endTime: barPlace(), watching: barPlace(), speed: barPlace(), save: barPlace(), pankiSubtitles: barPlace() };
+  const places: Record<PankiBarControl, Place> = { endTime: barPlace(), watching: barPlace(), speed: barPlace(), save: barPlace(), downloaded: barPlace(), pankiSubtitles: barPlace() };
   let style: HTMLStyleElement | null = null;
   /** The site's own order of each box Panki has moved controls in, to put back. */
   const before = new Map<Element, Element[]>();
