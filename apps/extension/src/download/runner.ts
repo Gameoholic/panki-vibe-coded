@@ -284,7 +284,8 @@ export function createDownloads(): Downloads {
     if (!report.ready) return report.stage === "opening" ? "Opening the video in the background." : "Looking for YouTube's player in the background.";
     if (!mine.heard.awake) return "The copy script didn't start in the hidden player.";
     if (report.ad) return "An ad is playing in the background.";
-    if (!report.playing) return `Waiting for YouTube's player to start: ${report.starting}, the copy script awake.`;
+    // Asked to play with no video in it, the player reads as playing: it hasn't started until it has a video.
+    if (!report.playing || !report.hasVideo) return `Waiting for YouTube's player to start: ${report.starting}, the copy script awake.`;
     if (mine.heard.streams === 0) return "YouTube's player made no stream to copy.";
     if (mine.heard.copied === 0) return "YouTube's player handed nothing over yet.";
     if (mine.heard.copied === mine.heard.other) return `Every piece so far was another stream's (${mine.heard.other}).`;
@@ -324,7 +325,7 @@ export function createDownloads(): Downloads {
       void finish(mine);
       return;
     }
-    if (!report.ready || report.ad || !report.playing) {
+    if (!report.ready || report.ad || !report.playing || !report.hasVideo) {
       // At the end with a part missing, once every piece on its way is kept: it may be one of them.
       if (report.ended && mine.sending === 0) goBack(mine, gap);
       return;

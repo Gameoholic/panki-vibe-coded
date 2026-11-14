@@ -17,7 +17,7 @@ import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pie
  * divided by the speed, which puts it back at the video's pace with the top of the card's range gone (3× keeps
  * exactly what the engine listens to).
  *
- * The same player downloads a video (`download/runner.ts`): played through unheard, its sound taken nowhere, while the
+ * The same player downloads a video (`download/runner.ts`): played through muted, with no graph, while the
  * doorway script in its frame copies what the site's player is handed (`content/doorway.ts`). Its frame's address then
  * carries the run's mark, which is all that wakes that script; the frame is the quality asked for's size, which is what
  * keeps the quality to it: the site's player, picking for itself, never loads a picture much taller than it's drawn.
@@ -64,6 +64,8 @@ export type SilentReport = {
    * its own play button pressed or not found.
    */
   starting: string;
+  /** The site's player has a video in it: told to play with none, the element reads as playing while nothing plays. */
+  hasVideo: boolean;
 };
 
 /**
@@ -142,7 +144,8 @@ const REOPENS = 3;
 const STUCK = "The video wouldn't load in the background.";
 
 const urlOf = (source: SilentPage, videoId: string, at: number, use: SilentUse) => {
-  const kept = use.kind === "keep" ? `&${KEEP_PARAM}=${encodeURIComponent(use.mark)}` : "";
+  // Kept, opened muted: the browser starts a muted video by itself (`wire`).
+  const kept = use.kind === "keep" ? `&mute=1&${KEEP_PARAM}=${encodeURIComponent(use.mark)}` : "";
   return source === "embed"
     ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}${kept}`
     : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s${kept}`;
@@ -349,13 +352,15 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
   function play() {
     const v = video;
     const c = ctx;
-    if (!v || !c) return;
+    if (!v) return;
     played = "play asked, no answer yet";
     v.play().then(
       () => {
         if (gone || video !== v) return;
         played = "play started";
         blocked = false;
+        // Kept, there's no graph: nothing more to start.
+        if (!c) return;
         void c.resume();
         // A graph the browser won't start without a press stays suspended and says nothing; it's asked after a moment.
         setTimeout(() => {
@@ -448,19 +453,22 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     pitched.preservesPitch = false;
     pitched.mozPreservesPitch = false;
     found.playbackRate = speed;
-    found.muted = false;
-    found.volume = 1;
-    // The graph is the frame's own, as its player is. Its tap is a ScriptProcessorNode rather than an AudioWorklet
-    // because a worklet is a module fetched from an address, and on someone else's page an extension's script has
-    // none the page's own rules would allow; the deprecated node needs nothing but the graph.
-    ctx = new win.AudioContext();
-    const source = ctx.createMediaElementSource(found);
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    mute.connect(ctx.destination);
-    // Kept, it's only to be unheard: its sound goes straight to the gain of zero, and nothing is taken.
-    if (use.kind === "keep") source.connect(mute);
-    else wireTap(source, mute, use);
+    // Kept, it's opened muted (`mute=1`) and left so: the browser starts a muted video by itself, where one with sound
+    // in a frame nobody pressed stays on its thumbnail and never takes the video up; unmuted without a press, the
+    // browser would pause it again. Its sound isn't wanted, so there's no graph either.
+    if (use.kind === "listen") {
+      found.muted = false;
+      found.volume = 1;
+      // The graph is the frame's own, as its player is. Its tap is a ScriptProcessorNode rather than an AudioWorklet
+      // because a worklet is a module fetched from an address, and on someone else's page an extension's script has
+      // none the page's own rules would allow; the deprecated node needs nothing but the graph.
+      ctx = new win.AudioContext();
+      const source = ctx.createMediaElementSource(found);
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      mute.connect(ctx.destination);
+      wireTap(source, mute, use);
+    }
     found.addEventListener("playing", anchor);
     for (const type of ["pause", "waiting", "seeking", "emptied", "stalled"] as const) found.addEventListener(type, suspend);
     // A seek lands where the player says, not where it was sent (the site's player seeks again on its own after a
@@ -662,6 +670,7 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
         video === null ? "no player found" : video.currentSrc === "" ? "no video in the player" : "a video in the player",
         ...(video === null ? [] : [played, pressed]),
       ].join(", "),
+      hasVideo: video !== null && video.currentSrc !== "",
     }),
     closeAtPause() {
       cutter?.closeAtPause();

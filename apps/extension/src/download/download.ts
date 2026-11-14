@@ -220,12 +220,14 @@ export function trackStretchesOf(pieces: readonly { track: Track; fromMs: number
   return [...byTrack.entries()].flatMap(([track, stretches]) => merged(stretches).map((s) => ({ track, ...s })));
 }
 
-/** What of the video can be played from what's kept: where every stream it has pieces of covers. */
+/**
+ * What of the video can be played from what's kept: where the picture and the sound both cover. A stream with nothing
+ * kept covers nothing, so a download is never whole without its sound (a muted player that fetched none, say).
+ */
 export function coveredOf(pieces: readonly { track: Track; fromMs: number | null; toMs: number | null }[]): Stretch[] {
   const byTrack = new Map<Track, Stretch[]>();
   for (const s of trackStretchesOf(pieces)) byTrack.set(s.track, [...(byTrack.get(s.track) ?? []), { fromMs: s.fromMs, toMs: s.toMs }]);
-  const [first, ...rest] = [...byTrack.values()];
-  return first ? rest.reduce(both, first) : [];
+  return both(byTrack.get("video") ?? [], byTrack.get("audio") ?? []);
 }
 
 /** How much of the video the stretches cover, ms, never past its end. */
