@@ -3010,6 +3010,7 @@ function App() {
     here !== null && video !== null
       ? {
           row: downloadsNow.rows?.find((row) => row.videoId === here) ?? null,
+          where: downloadsNow.where?.videoId === here ? downloadsNow.where.words : null,
           rows: downloadsNow.rows,
           can: lengthHere() !== null,
           onDownload: downloadHere,

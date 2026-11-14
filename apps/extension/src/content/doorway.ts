@@ -1,5 +1,5 @@
-import type { DoorwayPiece } from "../download/download";
-import { HEIGHT_PARAM, KEEP_PARAM, PIECE_WORD } from "../download/mark";
+import type { DoorwayNote, DoorwayPiece } from "../download/download";
+import { HEIGHT_PARAM, KEEP_PARAM, NOTE_WORD, PIECE_WORD } from "../download/mark";
 
 /**
  * The one script of Panki's that runs in YouTube's own page, in every frame of the site, before the site's own scripts:
@@ -13,6 +13,9 @@ import { HEIGHT_PARAM, KEEP_PARAM, PIECE_WORD } from "../download/mark";
  *   before and after the piece), once the browser has taken the piece in.
  * - Asked whether it can play a kind of video taller than the quality asked for, it says no, so the site's player picks
  *   among the rest.
+ *
+ * It also says, to the same page, that it woke in the frame and each time the player makes a stream, so a download
+ * that copies nothing can say where it stopped.
  *
  * It imports nothing but words and a type, so nothing else of Panki's is carried into the site's page.
  */
@@ -70,6 +73,12 @@ function tooTall(type: string, most: number): boolean {
 
 function keep(mark: string, height: number | null) {
   const origin = location.origin;
+  /** Said to the page that opened the frame, so a run that copies nothing can say where it stopped. */
+  const say = (note: DoorwayNote["note"], type: string | null = null) => {
+    const said: DoorwayNote = { kind: NOTE_WORD, mark, note, type };
+    window.parent.postMessage(said, origin);
+  };
+  say("awake");
   /** Each source the page makes, counted in the order it's first given a stream. */
   const sources = new WeakMap<MediaSource, number>();
   let made = 0;
@@ -98,6 +107,7 @@ function keep(mark: string, height: number | null) {
       sources.set(this, stream);
     }
     streams.set(buffer, { source: this, stream, type });
+    say("stream", type);
     return buffer;
   };
 

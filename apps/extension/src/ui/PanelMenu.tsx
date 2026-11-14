@@ -34,6 +34,8 @@ type Props = {
  */
 export type DownloadMenu = {
   row: DownloadRow | null;
+  /** While it runs on this page and has kept nothing yet, where it got to. */
+  where: string | null;
   rows: readonly DownloadRow[] | null;
   can: boolean;
   onDownload: () => void;
@@ -78,6 +80,7 @@ function DownloadRows({ download, onList }: { download: DownloadMenu; onList: ()
         </Button>
       )}
       {row !== null && row.state === "waiting" && row.trouble ? <p className="download-why">{row.trouble}</p> : null}
+      {row !== null && row.state === "going" && download.where ? <p className="download-why">{download.where}</p> : null}
       {row !== null && asking ? (
         <Ask
           idPrefix="panki-download-remove"

@@ -10,3 +10,5 @@ export const KEEP_PARAM = "pankiKeep";
 export const HEIGHT_PARAM = "pankiHeight";
 /** What a piece sent back from the frame says it is. */
 export const PIECE_WORD = "panki-piece";
+/** What the doorway script says of itself as it goes: awake in the frame, a stream made. */
+export const NOTE_WORD = "panki-doorway";

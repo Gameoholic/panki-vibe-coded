@@ -1,9 +1,11 @@
 /** @panki Downloads on a YouTube page: asked for, run in the background by one page at a time, and how they stand (`createDownloads`, `stillOf`). */
 import { askDownload, askDownloadClaim, askDownloadHold, askDownloadPiece, askDownloads, askUndownload } from "../messages";
-import { createSilentPlayer, type SilentPlayer } from "../transcribe/silent";
+import { clock } from "@web/words";
+import { createSilentPlayer, type SilentPlayer, type SilentReport } from "../transcribe/silent";
 import { uuid } from "../uuid";
 import {
   DOWNLOAD,
+  DoorwayNote,
   DoorwayPiece,
   coveredMsOf,
   coveredOf,
@@ -31,8 +33,11 @@ import {
  * video; it goes back for what's missing when the player reaches the end, and past what an earlier run kept.
  */
 
-/** How the downloads stand, as a page shows them: every one, the one this page runs as it goes; null until first read. */
-export type DownloadsNow = { rows: readonly DownloadRow[] | null };
+/**
+ * How the downloads stand, as a page shows them: every one, the one this page runs as it goes, null until first read;
+ * and while the one running here has kept nothing, where it got to (`whereOf`).
+ */
+export type DownloadsNow = { rows: readonly DownloadRow[] | null; where: { videoId: string; words: string } | null };
 
 export type Downloads = {
   /** The worker asked for downloads to run from now on. */
@@ -68,8 +73,10 @@ type Run = {
   /** Pieces sent on one after another, in the order they came, and how many are on their way. */
   queue: Promise<void>;
   sending: number;
-  /** Pieces of a stream whose length isn't known yet, by the stream. */
-  held: Map<number, DoorwayPiece[]>;
+  /** What's been heard from the frame: the doorway script awake, streams made, pieces copied, and those left out as another stream's (an ad's). */
+  heard: { awake: boolean; streams: number; copied: number; other: number };
+  /** Where a run that has kept nothing stands, in words (`whereOf`); null once pieces are kept. */
+  where: string | null;
   /** The last start piece each stream had kept, as text: the player hands it again at every seek. */
   starts: Map<Track, string>;
   /** How many pieces were kept, and where the run started in the video, seconds. */
@@ -80,6 +87,9 @@ type Run = {
   /** How often each missing part was gone back for. */
   gaps: Map<number, number>;
 };
+
+/** A step of a download said in the page's console, as the transcriber's Log prints its own. */
+const say = (words: string) => console.info(`[Panki] download: ${words}`);
 
 /** The first bytes of a piece sent as text: enough to tell a start piece. */
 const headOf = (base64: string): Uint8Array => Uint8Array.from(atob(base64.slice(0, 16)), (c) => c.charCodeAt(0));
@@ -102,7 +112,7 @@ export function stillOf(video: HTMLVideoElement): string | null {
 }
 
 export function createDownloads(): Downloads {
-  let now: DownloadsNow = { rows: null };
+  let now: DownloadsNow = { rows: null, where: null };
   const followers = new Set<() => void>();
   let run: Run | null = null;
   let claiming = false;
@@ -112,11 +122,14 @@ export function createDownloads(): Downloads {
   const publish = () => {
     for (const follower of followers) follower();
   };
-  /** The rows, the one running here as it stands this moment. */
+  /** The rows, the one running here as it stands this moment, and where it got to while it has kept nothing. */
   const shown = (rows: readonly DownloadRow[] | null): DownloadsNow => {
     const mine = run;
-    if (!rows || !mine) return { rows };
-    return { rows: rows.map((row) => (row.videoId === mine.job.videoId ? { ...row, state: "going", coveredMs: coveredMsOf(coveredOf(mine.stretches), mine.job.durationMs) } : row)) };
+    if (!rows || !mine) return { rows, where: null };
+    return {
+      rows: rows.map((row) => (row.videoId === mine.job.videoId ? { ...row, state: "going", coveredMs: coveredMsOf(coveredOf(mine.stretches), mine.job.durationMs) } : row)),
+      where: mine.where === null ? null : { videoId: mine.job.videoId, words: mine.where },
+    };
   };
   let listed: readonly DownloadRow[] | null = null;
   const redraw = () => {
@@ -147,11 +160,10 @@ export function createDownloads(): Downloads {
     const gap = firstGap(before, job.durationMs);
     const mark = uuid();
     const player = createSilentPlayer(job.videoId, DOWNLOAD.speed, { kind: "keep", mark, height: job.quality }, {
-      // Where the site moved it and where it got stuck matter only to the run, which reads the player's report.
-      stray: () => undefined,
-      stuck: () => undefined,
+      stray: (to, back) => say(`YouTube moved the hidden player to ${clock(to)}, put back at ${clock(back)}`),
+      stuck: (at, seconds, state, again) => say(`hidden player stuck loading at ${clock(at)} for ${Math.round(seconds)} s (${state}), ${again ? "opened it again there" : "given up"}`),
     });
-    const mine: Run = { job, mark, player, before, stretches: [...job.covered], queue: Promise.resolve(), sending: 0, held: new Map(), starts: new Map(), kept: 0, from: (gap ?? 0) / 1000, toldAt: Date.now(), gaps: new Map() };
+    const mine: Run = { job, mark, player, before, stretches: [...job.covered], queue: Promise.resolve(), sending: 0, heard: { awake: false, streams: 0, copied: 0, other: 0 }, where: null, starts: new Map(), kept: 0, from: (gap ?? 0) / 1000, toldAt: Date.now(), gaps: new Map() };
     run = mine;
     if (gap === null) {
       void finish(mine);
@@ -226,19 +238,43 @@ export function createDownloads(): Downloads {
   }
 
   /**
-   * A piece the doorway script sent back. Only a stream as long as the video is the video's (an ad plays in a stream of
-   * its own): a stream whose length isn't known yet has its pieces held until it is.
+   * A piece the doorway script sent back. An ad plays in a stream of its own: a piece is left out when its stream's
+   * length is known and isn't the video's, or, the length not known (the site may never set it, and then the browser
+   * says none, or an endless one), when the hidden player is showing an ad.
    */
   function take(mine: Run, piece: DoorwayPiece) {
-    if (piece.duration === null) {
-      const held = [...(mine.held.get(piece.stream) ?? []), piece].slice(-DOWNLOAD.heldMax);
-      mine.held.set(piece.stream, held);
+    mine.heard.copied++;
+    const other = piece.duration !== null ? Math.abs(ms(piece.duration) - mine.job.durationMs) > DOWNLOAD.durationSlackMs : mine.player.report().ad;
+    if (other) {
+      mine.heard.other++;
       return;
     }
-    const waiting = mine.held.get(piece.stream) ?? [];
-    mine.held.delete(piece.stream);
-    if (Math.abs(ms(piece.duration) - mine.job.durationMs) > DOWNLOAD.durationSlackMs) return;
-    for (const each of [...waiting, piece]) send(mine, each);
+    send(mine, piece);
+  }
+
+  /** What the doorway script says of itself. */
+  function hear(mine: Run, note: DoorwayNote) {
+    if (note.note === "awake") mine.heard.awake = true;
+    else {
+      mine.heard.streams++;
+      say(`YouTube's player made a stream: ${note.type ?? "of no kind"}`);
+    }
+  }
+
+  /**
+   * Where a run that has kept nothing stands, step by step along the way a piece comes: the hidden player opening, the
+   * doorway script awake in it, an ad, a stream made, a piece handed over, a piece kept. Null once pieces are kept.
+   */
+  function whereOf(mine: Run, report: SilentReport): string | null {
+    if (mine.kept > 0) return null;
+    if (!report.ready) return report.stage === "opening" ? "Opening the video in the background." : "Looking for YouTube's player in the background.";
+    if (!mine.heard.awake) return "The copy script didn't start in the hidden player.";
+    if (report.ad) return "An ad is playing in the background.";
+    if (!report.playing) return "Waiting for YouTube's player to start.";
+    if (mine.heard.streams === 0) return "YouTube's player made no stream to copy.";
+    if (mine.heard.copied === 0) return "YouTube's player handed nothing over yet.";
+    if (mine.heard.copied === mine.heard.other) return `Every piece so far was another stream's (${mine.heard.other}).`;
+    return "Pieces copied, being kept.";
   }
 
   /** The run looked at: whole, stopped, going back for what's missing, past what's kept, or still saying it runs. */
@@ -252,6 +288,12 @@ export function createDownloads(): Downloads {
     if (report.failed !== null || report.blocked) {
       void end(mine, { kind: "stopped", trouble: report.failed ?? BLOCKED });
       return;
+    }
+    const where = whereOf(mine, report);
+    if (where !== mine.where) {
+      mine.where = where;
+      if (where !== null) say(where);
+      redraw();
     }
     if (Date.now() - mine.toldAt >= DOWNLOAD.holdEveryMs) {
       mine.toldAt = Date.now();
@@ -271,7 +313,8 @@ export function createDownloads(): Downloads {
       return;
     }
     if (mine.kept === 0 && report.at - mine.from > DOWNLOAD.nothingSeconds) {
-      void end(mine, { kind: "stopped", trouble: NOTHING });
+      // Stopped with where it got to, which the row then shows as why it waits.
+      void end(mine, { kind: "stopped", trouble: mine.where ?? NOTHING });
       return;
     }
     const past = coveredUntil(mine.before, ms(report.at));
@@ -303,8 +346,13 @@ export function createDownloads(): Downloads {
       window.addEventListener("message", (e: MessageEvent<unknown>) => {
         const mine = run;
         if (!mine || e.origin !== location.origin) return;
-        const read = DoorwayPiece.safeParse(e.data);
-        if (read.success && read.data.mark === mine.mark) take(mine, read.data);
+        const piece = DoorwayPiece.safeParse(e.data);
+        if (piece.success) {
+          if (piece.data.mark === mine.mark) take(mine, piece.data);
+          return;
+        }
+        const note = DoorwayNote.safeParse(e.data);
+        if (note.success && note.data.mark === mine.mark) hear(mine, note.data);
       });
       setInterval(look, DOWNLOAD.lookMs);
       void refresh();

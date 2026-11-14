@@ -1,7 +1,7 @@
 /** @panki A download's numbers, qualities and shapes, and how much is in (`DOWNLOAD`, `DOWNLOAD_QUALITIES`, `DoorwayPiece`, `KeptPiece`, `DownloadRow`, `coveredOf`, `firstGap`). */
 import { z } from "zod";
 import { VideoId } from "@panki/contracts";
-import { PIECE_WORD } from "./mark";
+import { NOTE_WORD, PIECE_WORD } from "./mark";
 
 /**
  * A video downloaded is the pieces YouTube's own player hands the browser to play, copied as they go by
@@ -27,7 +27,7 @@ export const DOWNLOAD = {
   mergeGapMs: 250,
   /** The end of a video short of this, uncovered, still counts as the whole of it: the picture and the sound end a little apart, ms. */
   endSlackMs: 1500,
-  /** A stream as long as this or more off the video's length is another one (an ad's), and nothing of it is kept, ms. */
+  /** A stream whose length is known and this or more off the video's is another one (an ad's), and nothing of it is kept, ms. */
   durationSlackMs: 3000,
   /** Reaching a stretch kept on an earlier run, longer than this, the hidden player goes on past it, ms. */
   skipMs: 5000,
@@ -35,8 +35,6 @@ export const DOWNLOAD = {
   nothingSeconds: 30,
   /** How long a download that stopped waits before it's tried again, ms, longer each time in a row, the last for every try after. */
   retryMs: [30_000, 60_000, 120_000, 300_000, 600_000],
-  /** Pieces held while their stream's length isn't known yet, before the oldest gives way. */
-  heldMax: 16,
   /** The largest one piece may be: the player hands over a few megabytes at most. */
   pieceMaxBytes: 32 * 1024 * 1024,
   /** The picture kept to show a download by, taken off the video as Download is pressed: its width in pixels, and its JPEG quality. */
@@ -85,6 +83,13 @@ export const DoorwayPiece = z.object({
   base64: z.string().max(PIECE_BASE64_MAX),
 });
 export type DoorwayPiece = z.infer<typeof DoorwayPiece>;
+
+/**
+ * What the doorway script says of itself, so a run that copies nothing can say where it stopped: it woke in the frame
+ * (`awake`), or the site's player made a stream (`stream`, with its kind of file).
+ */
+export const DoorwayNote = z.object({ kind: z.literal(NOTE_WORD), mark: z.string().max(64), note: z.enum(["awake", "stream"]), type: z.string().max(200).nullable() });
+export type DoorwayNote = z.infer<typeof DoorwayNote>;
 
 /** The two streams a video is played from. */
 export const Track = z.enum(["video", "audio"]);
