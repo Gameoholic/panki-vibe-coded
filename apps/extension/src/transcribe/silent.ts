@@ -441,6 +441,8 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
   /** How play last went (`play`), and what pressing the play button came to, in words for `starting`. */
   let played = "play never asked";
   let pressed = "play button not pressed";
+  /** Which page refused the video last, and its error code (`refusedBy`); null while none has. */
+  let refusal: string | null = null;
 
   /** The player is there: wired once, then taken where it's wanted. */
   function wire(found: HTMLVideoElement, win: Window & typeof globalThis) {
@@ -535,11 +537,15 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     const win = windowOf(frame);
     if (!doc || !win) return;
     const found = doc.querySelector(PLAYER);
+    // The page refused the video (its error card, with its code): the next page is tried. Looked for whether or not the
+    // player has been found, as long as it holds no video: a page that refuses still has a player with an empty video
+    // element in it, found first, and looked for only before that the refusal was never seen.
+    const error = doc.querySelector(ERROR);
+    if (error !== null && error.getClientRects().length > 0 && (video === null || video.currentSrc === "")) {
+      refusedBy(error);
+      return;
+    }
     if (!video) {
-      if (doc.querySelector(ERROR)) {
-        next();
-        return;
-      }
       const v = found?.querySelector("video");
       if (found && v instanceof win.HTMLVideoElement) {
         player = found;
@@ -593,9 +599,19 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
       return;
     }
     reopens++;
+    unwire();
+    wanted = at;
+    notes.stuck(at, seconds, state, true);
+    show(page, at);
+    if (pageTimer !== null) clearTimeout(pageTimer);
+    pageTimer = setTimeout(next, PAGE_WAIT_MS);
+  }
+
+  /** The player wired let go, its page about to be opened again or another tried: wired afresh once one is there (`look`). */
+  function unwire() {
     cutter?.flush();
     suspend();
-    stuck.pause();
+    video?.pause();
     void ctx?.close().catch(() => undefined);
     video = null;
     player = null;
@@ -605,11 +621,18 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
     sent = null;
     ad = false;
     arriving = true;
-    wanted = at;
-    notes.stuck(at, seconds, state, true);
-    show(page, at);
-    if (pageTimer !== null) clearTimeout(pageTimer);
-    pageTimer = setTimeout(next, PAGE_WAIT_MS);
+    stuckSince = null;
+  }
+
+  /**
+   * The page shows the site's error card for the video: said with its code as the card gives it ("152 - 4"), for
+   * `starting`, and the next page tried (the watch page after the embed page).
+   */
+  function refusedBy(error: Element) {
+    const code = /(\d{3})(?:\s*-\s*(\d+))?/.exec(error.textContent ?? "");
+    refusal = `the ${page} page refused it${code ? ` (error ${code[1]}${code[2] ? `-${code[2]}` : ""})` : ""}`;
+    unwire();
+    next();
   }
 
   /** The next of the site's pages for the video, or the end of the road. */
@@ -666,6 +689,7 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
       pending: cutter?.pending() ?? false,
       closed: cutter?.closed() ?? false,
       starting: [
+        ...(refusal === null ? [] : [refusal]),
         `the ${page} page ${loaded ? "loaded" : "not loaded"}`,
         video === null ? "no player found" : video.currentSrc === "" ? "no video in the player" : "a video in the player",
         ...(video === null ? [] : [played, pressed]),

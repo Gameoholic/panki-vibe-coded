@@ -281,7 +281,7 @@ export function createDownloads(): Downloads {
    */
   function whereOf(mine: Run, report: SilentReport): string | null {
     if (mine.kept > 0) return null;
-    if (!report.ready) return report.stage === "opening" ? "Opening the video in the background." : "Looking for YouTube's player in the background.";
+    if (!report.ready) return `${report.stage === "opening" ? "Opening the video in the background" : "Looking for YouTube's player in the background"}: ${report.starting}.`;
     if (!mine.heard.awake) return "The copy script didn't start in the hidden player.";
     if (report.ad) return "An ad is playing in the background.";
     // Asked to play with no video in it, the player reads as playing: it hasn't started until it has a video.
