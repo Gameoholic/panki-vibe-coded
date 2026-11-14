@@ -1,18 +1,16 @@
 import type { DoorwayNote, DoorwayPiece } from "../download/download";
-import { HEIGHT_PARAM, KEEP_PARAM, NOTE_WORD, PIECE_WORD } from "../download/mark";
+import { KEEP_PARAM, NOTE_WORD, PIECE_WORD } from "../download/mark";
 
 /**
  * The one script of Panki's that runs in YouTube's own page, in every frame of the site, before the site's own scripts:
  * and it does nothing at all unless the frame's address carries Panki's download mark, which only the hidden frame
  * Panki opens to download a video does (`transcribe/silent.ts`, `download/runner.ts`). There it stands at the media
- * doorway, the browser's one standard way for a page to play streamed video (Media Source Extensions), and does two
- * things, nothing of the site's changed and none of its code called:
- *
- * - Every piece the site's player appends to a stream is passed on to the browser untouched, and a copy of it is sent to
- *   the page that opened the frame, with what the stream says of itself (its kind of file, its length, what it holds
- *   before and after the piece), once the browser has taken the piece in.
- * - Asked whether it can play a kind of video taller than the quality asked for, it says no, so the site's player picks
- *   among the rest.
+ * doorway, the browser's one standard way for a page to play streamed video (Media Source Extensions), and copies:
+ * every piece the site's player appends to a stream is passed on to the browser untouched, and a copy of it is sent to
+ * the page that opened the frame, with what the stream says of itself (its kind of file, its length, what it holds
+ * before and after the piece), once the browser has taken the piece in. Nothing of the site's is changed, none of its
+ * code called, and nothing the player asks of the browser is answered otherwise: told it can't play a kind of video,
+ * the player can decide it can play none and load nothing.
  *
  * It also says, to the same page, that it woke in the frame and each time the player makes a stream, so a download
  * that copies nothing can say where it stopped.
@@ -20,10 +18,8 @@ import { HEIGHT_PARAM, KEEP_PARAM, NOTE_WORD, PIECE_WORD } from "../download/mar
  * It imports nothing but words and a type, so nothing else of Panki's is carried into the site's page.
  */
 
-const params = new URL(location.href).searchParams;
-const mark = params.get(KEEP_PARAM);
-const height = Number(params.get(HEIGHT_PARAM));
-if (mark !== null && /^[0-9a-f-]{8,64}$/i.test(mark) && window.parent !== window) keep(mark, Number.isFinite(height) && height > 0 ? height : null);
+const mark = new URL(location.href).searchParams.get(KEEP_PARAM);
+if (mark !== null && /^[0-9a-f-]{8,64}$/i.test(mark) && window.parent !== window) keep(mark);
 
 /** A number the browser may give as NaN or Infinity, as a number or nothing. */
 const finite = (n: number): number | null => (Number.isFinite(n) ? n : null);
@@ -54,24 +50,7 @@ function base64Of(bytes: Uint8Array): string {
   return btoa(text);
 }
 
-/**
- * Whether a kind of video is taller than `most` lines: its picture's shorter side, as the asker gives its size in the
- * type's own parameters (`video/webm; codecs="vp9"; width=1920; height=1080`). Sound, and video with no size given, never are.
- */
-function tooTall(type: string, most: number): boolean {
-  if (!/^\s*video\//i.test(type)) return false;
-  const side = (name: string) => {
-    const found = new RegExp(`;\\s*${name}\\s*=\\s*"?(\\d+)`, "i").exec(type)?.[1];
-    return found === undefined ? null : Number(found);
-  };
-  const width = side("width");
-  const tall = side("height");
-  if (width !== null && tall !== null) return Math.min(width, tall) > most;
-  if (tall !== null) return tall > most;
-  return width !== null && width > Math.ceil((most * 16) / 9);
-}
-
-function keep(mark: string, height: number | null) {
+function keep(mark: string) {
   const origin = location.origin;
   /** Said to the page that opened the frame, so a run that copies nothing can say where it stopped. */
   const say = (note: DoorwayNote["note"], type: string | null = null) => {
@@ -84,19 +63,6 @@ function keep(mark: string, height: number | null) {
   let made = 0;
   /** Each stream's source and its kind of file, as the player named it. */
   const streams = new WeakMap<SourceBuffer, { source: MediaSource; stream: number; type: string }>();
-
-  if (height !== null) {
-    const supported = MediaSource.isTypeSupported.bind(MediaSource);
-    MediaSource.isTypeSupported = (type: string) => !tooTall(type, height) && supported(type);
-    if ("MediaCapabilities" in window) {
-      const decodingInfo = MediaCapabilities.prototype.decodingInfo;
-      MediaCapabilities.prototype.decodingInfo = function (this: MediaCapabilities, config: MediaDecodingConfiguration) {
-        const video = config.video;
-        if (video && tooTall(`video/x; width=${video.width}; height=${video.height}`, height)) return Promise.resolve({ supported: false, smooth: false, powerEfficient: false, configuration: config, keySystemAccess: null });
-        return decodingInfo.call(this, config);
-      };
-    }
-  }
 
   const add = MediaSource.prototype.addSourceBuffer;
   MediaSource.prototype.addSourceBuffer = function (this: MediaSource, type: string) {

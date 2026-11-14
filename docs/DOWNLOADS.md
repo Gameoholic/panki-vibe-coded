@@ -32,5 +32,5 @@ The owner's words, not concrete: on the train to work the laptop runs on the pho
 
 ## Open
 
-- **The quality kept** (found in step 2, put to the owner): a Download quality setting (720p to begin with) works as a ceiling without YouTube's code: the doorway script answers "can't play" for anything taller, and the hidden frame is the quality's size. It can't be a floor: at 4× on a slow connection YouTube's player drops lower for stretches, and those are kept as they came. Forcing it means calling YouTube's own player (`setPlaybackQualityRange`), or downloading slower; the owner's call.
+- **The quality kept** (found in step 2, put to the owner): a Download quality setting (720p to begin with) works as a ceiling without YouTube's code: the hidden frame is the quality's size, and YouTube's player picking for itself loads no taller (answering "can't play" for taller video was tried and stopped the player loading anything). It can't be a floor: at 4× on a slow connection YouTube's player drops lower for stretches, and those are kept as they came. Forcing it means calling YouTube's own player (`setPlaybackQualityRange`), or downloading slower; the owner's call.
 - **Room on the disk**: settled; the extension already asks for unlimited room (`unlimitedStorage`), and the list shows each video's size and the total.

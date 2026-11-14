@@ -1,5 +1,5 @@
 import { clock } from "@web/words";
-import { HEIGHT_PARAM, KEEP_PARAM } from "../download/mark";
+import { KEEP_PARAM } from "../download/mark";
 import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pieces";
 
 /**
@@ -18,8 +18,8 @@ import { createCutter, type ChunkShape, type CutPiece, type Cutter } from "./pie
  *
  * The same player downloads a video (`download/runner.ts`): played through unheard, its sound taken nowhere, while the
  * doorway script in its frame copies what the site's player is handed (`content/doorway.ts`). Its frame's address then
- * carries the run's mark, which is all that wakes that script, and the quality asked for; the frame is that quality's
- * size, since the site's player never loads a picture much taller than it's drawn.
+ * carries the run's mark, which is all that wakes that script; the frame is the quality asked for's size, which is what
+ * keeps the quality to it: the site's player, picking for itself, never loads a picture much taller than it's drawn.
  */
 
 /**
@@ -128,7 +128,7 @@ const REOPENS = 3;
 const STUCK = "The video wouldn't load in the background.";
 
 const urlOf = (source: SilentPage, videoId: string, at: number, use: SilentUse) => {
-  const kept = use.kind === "keep" ? `&${KEEP_PARAM}=${encodeURIComponent(use.mark)}&${HEIGHT_PARAM}=${use.height}` : "";
+  const kept = use.kind === "keep" ? `&${KEEP_PARAM}=${encodeURIComponent(use.mark)}` : "";
   return source === "embed"
     ? `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&controls=0&playsinline=1&rel=0&start=${Math.max(0, Math.floor(at))}${kept}`
     : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${Math.max(0, Math.floor(at))}s${kept}`;

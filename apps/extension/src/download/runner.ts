@@ -77,6 +77,8 @@ type Run = {
   heard: { awake: boolean; streams: number; copied: number; other: number };
   /** Where a run that has kept nothing stands, in words (`whereOf`); null once pieces are kept. */
   where: string | null;
+  /** How the site's player stood the last time the hidden player got stuck loading (`silent.ts` → `stuckWords`). */
+  stuck: string | null;
   /** The last start piece each stream had kept, as text: the player hands it again at every seek. */
   starts: Map<Track, string>;
   /** How many pieces were kept, and where the run started in the video, seconds. */
@@ -161,9 +163,12 @@ export function createDownloads(): Downloads {
     const mark = uuid();
     const player = createSilentPlayer(job.videoId, DOWNLOAD.speed, { kind: "keep", mark, height: job.quality }, {
       stray: (to, back) => say(`YouTube moved the hidden player to ${clock(to)}, put back at ${clock(back)}`),
-      stuck: (at, seconds, state, again) => say(`hidden player stuck loading at ${clock(at)} for ${Math.round(seconds)} s (${state}), ${again ? "opened it again there" : "given up"}`),
+      stuck: (at, seconds, state, again) => {
+        mine.stuck = state;
+        say(`hidden player stuck loading at ${clock(at)} for ${Math.round(seconds)} s (${state}), ${again ? "opened it again there" : "given up"}`);
+      },
     });
-    const mine: Run = { job, mark, player, before, stretches: [...job.covered], queue: Promise.resolve(), sending: 0, heard: { awake: false, streams: 0, copied: 0, other: 0 }, where: null, starts: new Map(), kept: 0, from: (gap ?? 0) / 1000, toldAt: Date.now(), gaps: new Map() };
+    const mine: Run = { job, mark, player, before, stretches: [...job.covered], queue: Promise.resolve(), sending: 0, heard: { awake: false, streams: 0, copied: 0, other: 0 }, where: null, stuck: null, starts: new Map(), kept: 0, from: (gap ?? 0) / 1000, toldAt: Date.now(), gaps: new Map() };
     run = mine;
     if (gap === null) {
       void finish(mine);
@@ -286,7 +291,9 @@ export function createDownloads(): Downloads {
     }
     const report = mine.player.report();
     if (report.failed !== null || report.blocked) {
-      void end(mine, { kind: "stopped", trouble: report.failed ?? BLOCKED });
+      // Given up loading, the reason says how the site's player stood, so the row tells which step stopped it.
+      const trouble = report.failed === null ? BLOCKED : mine.stuck === null ? report.failed : `${report.failed} ${mine.stuck}.`;
+      void end(mine, { kind: "stopped", trouble });
       return;
     }
     const where = whereOf(mine, report);
