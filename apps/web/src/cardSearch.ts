@@ -1,5 +1,5 @@
 /** @panki Searching a deck's cards by anything on them, whole, in part or letters in order, romaji as its kana (`searchCards`). */
-import { holdsFile, metaOf, type Card, type CardType, type SrsType } from "@panki/contracts";
+import { examplesText, holdsExamples, holdsFile, metaOf, type Card, type CardType, type SrsType } from "@panki/contracts";
 import { kanaOf, looksLikeRomaji } from "./romaji";
 import { FLAG_WORDS, HOLD_KINDS, placeName } from "./srsKinds";
 
@@ -62,6 +62,8 @@ function textsOf(card: Card, type: CardType, srsType: SrsType | undefined): stri
       if (value === "" || holdsFile(field.kind)) continue;
       const meta = metaOf(field.kind, value);
       if (meta) texts.push(...[meta.title, meta.channel?.name ?? ""].filter((t) => t !== ""));
+      // Example sentences by their words, every line of every row, never the JSON they're kept as.
+      else if (holdsExamples(field.kind)) texts.push(examplesText(value));
       else texts.push(value);
     }
   };

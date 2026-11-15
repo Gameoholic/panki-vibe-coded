@@ -32,6 +32,7 @@ import {
   DEFAULT_ACTION_SECONDS,
   actionNamesOf,
   isTyped,
+  holdsExamples,
   keysFor,
   litNow,
   mapCommits,
@@ -94,6 +95,7 @@ import type { VideoPictures } from "@web/components/LinkView";
 import { MediaView } from "@web/components/MediaView";
 import { ReviewCard, type StandIn } from "@web/components/ReviewCard";
 import { TextField } from "@web/components/TextField";
+import { ExampleRows } from "@web/components/ExampleRows";
 import {
   ClipMove,
   Mark,
@@ -1401,7 +1403,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     // A proposal decided leaves its field as it is: once accepted the field holds it, which would read as Nothing to change.
     if (key === "meaning" || touch.decided[key]) return null;
     const verdict = fieldVerdict(key);
-    return verdict ? fieldShown(verdict, heldNow(key), ways) : null;
+    return verdict ? fieldShown(verdict, heldNow(key), ways, key) : null;
   }
   /**
    * A field and what Touch up says about it as one shape, so a proposal is plainly its field's,
@@ -2148,6 +2150,32 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       if (role === "forvoAudio") return voiceBlock(field);
       // Every field that's typed has its box: words, a paragraph, a pitch accent (filled by the dictionary or typed, "たべる 2").
       if (!isTyped(field.kind)) return null;
+      // Example sentences are their rows, each line typed in where it stands; only Touch up or the viewer fills them.
+      if (holdsExamples(field.kind)) {
+        return (
+          <>
+            {tied(field, (labelEnd) =>
+              reworked(
+                field.id,
+                <ExampleRows
+                  id={`panki-field-${field.id}`}
+                  label={field.required ? field.name : `${field.name} · optional`}
+                  labelEnd={labelEnd}
+                  lead={marksOf(field)}
+                  readOnly={still}
+                  value={typed[field.id] ?? ""}
+                  onChange={(text) => {
+                    setTyped((t) => ({ ...t, [field.id]: text }));
+                    if (errors[field.id]) setErrors((e) => ({ ...e, [field.id]: "" }));
+                  }}
+                  error={errors[field.id] || undefined}
+                />,
+              ),
+            )}
+            {unmarkOffer(field)}
+          </>
+        );
+      }
       const isWord = role === "word";
       const fromDict = isDictRole(role) ? role : null;
       const value = isWord ? word : fromDict ? dictValue(fromDict) : (typed[field.id] ?? "");

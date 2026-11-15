@@ -725,6 +725,137 @@ textarea.field-input {
 .has-lead .field-input {
   padding-left: 34px;
 }
+/* A field of Example sentences (components/ExampleRows.tsx): one box, as a text field's, a row per example parted by
+   hairlines, each row its Situation, Sentence and Translation, and Add example at the box's foot. Every line rests as
+   plain words and shows it's typed in by its tint under the pointer and the ring as it's focused; the row's grip and
+   trash rest faint, full on the row pointed at or focused, and always on a touch screen. */
+.field-input.examples-box {
+  display: grid;
+  padding: 2px 6px 4px;
+}
+.has-lead .field-input.examples-box {
+  padding-left: 30px;
+}
+.examples-box.is-disabled {
+  opacity: 0.55;
+}
+.examples-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 0;
+  transition: transform 0.15s ease; /* the others slide out of the held row's way */
+}
+.examples-row + .examples-row {
+  border-top: 1px solid var(--line);
+}
+.examples-box.is-reordering {
+  user-select: none;
+}
+.examples-row.is-dragging {
+  position: relative;
+  z-index: 1;
+  transition: none;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.examples-row.is-dragging .field-grip {
+  cursor: grabbing;
+}
+.examples-lines {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.examples-input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+}
+.examples-input::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+.examples-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+.field-invalid .examples-input:focus-visible {
+  outline-color: var(--danger);
+}
+@media (hover: hover) {
+  .examples-box:not(.is-readonly, .is-disabled) .examples-input:hover {
+    background: var(--surface-2);
+  }
+}
+.examples-input.examples-situation {
+  font-size: 13px;
+  color: var(--muted);
+}
+.examples-input.examples-sentence {
+  font-size: 16px;
+}
+.examples-input.examples-translation {
+  font-size: 14px;
+  color: var(--muted);
+}
+/* What Panki AI wrote is in its ink, every line of it: the field's one mark. */
+.field.has-lead:has(.field-ai) .examples-input {
+  color: var(--ai-ink);
+}
+.examples-tools {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+}
+.examples-row:focus-within .examples-tools {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .examples-row:hover .examples-tools {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .examples-tools {
+    opacity: 1;
+  }
+}
+.examples-tools .btn-icon {
+  padding: 5px;
+  border-color: transparent;
+}
+@media (hover: hover) {
+  .examples-tools .btn-icon.examples-remove:hover:not(:disabled) {
+    color: var(--danger);
+  }
+}
+.btn.examples-add {
+  justify-self: start;
+  gap: 6px;
+  margin: 2px 0 2px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .btn.examples-add:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--fg);
+  }
+}
 /* A prompt template (components/PromptField.tsx): its text drawn under the box with every variable lit, the box's own
    text see-through over it and its caret showing. The two must break their lines at the same letters, so they share
    every measure that moves a letter (type, line height, padding, border, wrapping), and a lit variable is never bolder
@@ -3214,6 +3345,46 @@ mark.review-mark {
   border-radius: 4px;
   color: inherit;
   background: var(--accent-soft);
+}
+/* A field of Example sentences on the card (ReviewCard.tsx → `examplesDrawn`): a list, centred as the card is, a row
+   each: its Situation small and quiet, its Sentence in the part's own size and colour, its Translation quiet under it,
+   covered as a reading is while the part's Translations say Spoiler. In the AI's ink, every line, when it wrote them. */
+.review-examples {
+  display: grid;
+  gap: 14px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+.review-example {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.review-example-situation,
+.review-example-translation {
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.review-example-situation {
+  font-size: 12.5px;
+}
+.review-example-translation {
+  font-size: 14px;
+}
+.review-words.is-ai .review-example-situation {
+  color: inherit;
+}
+.review-ruby-covered.review-example-covered {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+.review-example-covered > .btn.btn-spoiler.review-ruby-spoiler {
+  inset: 0;
 }
 /* What Panki AI wrote: its words in the AI's ink wherever a value is shown, whatever the part's
    own colour; the spark out of the text, once: in the review card's free top corner, at a card row's top right, inside
@@ -8188,6 +8359,11 @@ mark.sub-blur {
   .media-level {
     display: none;
   }
+  /* Every line of an example typed at 16px, as every field on a phone is, so focusing it never zooms the page. */
+  .examples-input.examples-situation,
+  .examples-input.examples-translation {
+    font-size: 16px;
+  }
   /* The sign-in screen keeps the brand, whatever address it sits on. */
   .app.is-bare .brand {
     display: flex;
@@ -9143,6 +9319,33 @@ mark.sub-blur {
   display: block;
   width: fit-content;
   margin-top: 4px;
+}
+/* Example sentences proposed, row by row (TouchUp.tsx → `ExamplesDiff`): each row a block of its three lines, kept
+   plain, coming in green or going struck as a word does, its Situation and Translation quieter than its Sentence. */
+.touch-up-examples {
+  display: grid;
+  gap: 6px;
+  white-space: normal;
+}
+.touch-up-example {
+  display: block;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.touch-up-example > span {
+  display: block;
+}
+.touch-up-example-situation {
+  font-size: 13px;
+}
+.touch-up-example-translation {
+  font-size: 14px;
+}
+.touch-up-example:not(.touch-up-d) :is(.touch-up-example-situation, .touch-up-example-translation) {
+  color: var(--muted);
+}
+.touch-up-example.touch-up-d :is(.touch-up-example-situation, .touch-up-example-translation) {
+  opacity: 0.8;
 }
 @media (prefers-reduced-motion: reduce) {
   .touch-up-foot {

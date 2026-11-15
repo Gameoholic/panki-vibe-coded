@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TOUCH_UP_KEYS, TouchUpKey } from "./accountActions";
 import { AiRanOn, PankiAiStatus, type AiPlaceId } from "./ai";
 import { DATA_KIND_NAMES } from "./dictionaryRows";
+import { ExampleRow, examplesOf, examplesText, examplesValue } from "./examples";
 import { PIECE_NAMES } from "./pieces";
 import { Judgement, JUDGEMENTS } from "./judgement";
 import { AI_TEXT_MAX, ExplainShape, meaningsWhole } from "./prompt";
@@ -34,7 +35,7 @@ export const TOUCH_UP: Record<TouchUpKey, { role: string; name: string }> = {
   line: { role: "sentence", name: PIECE_NAMES.sentence },
   // The word in general: nuance, register, what it's confused with; never Meaning said again.
   explanation: { role: "explanation", name: "Explanation" },
-  // A few made-up sentences, each after a line that sets its scene.
+  // Made-up sentences, each a row with the situation it's said in and its translation (`examples.ts`).
   examples: { role: "examples", name: "Example sentences" },
 };
 
@@ -144,6 +145,33 @@ export const numberedSubtitles = (text: string): string =>
     .join("\n");
 /** What a Sentence's line numbers are read against: the lines of the subtitles the conversation holds, and the word as met, which the lines picked must hold. */
 export type SentenceLines = { lines: readonly SubtitleLine[]; word: string };
+/** One example on the wire: every part always there. */
+const ExampleWire = z.object({
+  situation: ExampleRow.shape.situation.describe("the situation it's said in, a few words in the user's language"),
+  sentence: ExampleRow.shape.sentence.describe("the sentence, in the language learned, using the word"),
+  translation: ExampleRow.shape.translation.describe("the sentence's translation into the user's language"),
+});
+/** The examples proposed, as rows: [] for none. */
+const ExampleRowsWire = z.array(ExampleWire).max(20);
+/**
+ * Example sentences on the wire, when the field holds some: judged like any field, but what it proposes is rows, never
+ * text, so Panki keeps each part apart (`examplesOfWire`).
+ */
+export const ExamplesWire = z.object({
+  judgement: WireJudgement.describe('good, meh or bad when it judged the examples; "" when it left them untouched, or changed them as asked without judging them'),
+  rows: ExampleRowsWire.describe("every example the field should hold, in order, with meh, bad or a change asked for; [] with good, and when untouched"),
+  why: Why.describe('a sentence whenever the examples are answered, shown under them; "" when untouched'),
+  error: ErrorCode.describe('"" when it answered or left them; no_context when it can\'t'),
+});
+export type ExamplesWire = z.infer<typeof ExamplesWire>;
+/** Example sentences on the wire when Panki sent the field empty: the rows it should hold, with no judgement. */
+export const EmptyExamplesWire = z.object({
+  rows: ExampleRowsWire.describe("the examples the field should hold, in order; [] when untouched"),
+  why: Why.describe('a sentence whenever it writes them; "" when untouched'),
+  error: ErrorCode.describe('"" when it wrote them or left them; no_context when it can\'t'),
+});
+export type EmptyExamplesWire = z.infer<typeof EmptyExamplesWire>;
+
 /** The reply on the wire: the model's words to the message, "" for none (a send that asks nothing but fields). */
 const Reply = z.string().max(AI_TEXT_MAX);
 
@@ -178,14 +206,17 @@ export const KEY_WORDS: Record<TouchUpKey, string> = {
   pitchAccent: "the dictionary form's pitch accent as its field writes it (くう 1), the same way",
   line: "the subtitle lines the card's clip plays, the same way, but proposed as the numbers of its first and last line, which Panki copies",
   explanation: "what the word does in this sentence where the Meaning alone doesn't make it clear, the same way, or left empty with a why",
-  examples: "a few made-up sentences, each after a line setting its scene, the same way",
+  examples: "made-up sentences using the word, the same way, but proposed as rows, each its situation, its sentence and its translation, which Panki keeps apart",
 };
 /** The reply's words in Admin, beside the keys. */
 const REPLY_WORDS = 'the reply to the message, shown under it: what the message asked to be said; "" otherwise, unless something the message asked couldn\'t be done or was done differently';
 /** The answer on the wire: the reply, and each key in whichever shape it was asked in (`touchUpShape`). */
-export type TouchUpWire = { reply: string; meaning?: MeaningWire | EmptyMeaningWire; line?: SentenceWire | EmptySentenceWire } & Partial<
-  Record<Exclude<TouchUpKey, "meaning" | "line">, FieldWire | EmptyFieldWire>
->;
+export type TouchUpWire = {
+  reply: string;
+  meaning?: MeaningWire | EmptyMeaningWire;
+  line?: SentenceWire | EmptySentenceWire;
+  examples?: ExamplesWire | EmptyExamplesWire;
+} & Partial<Record<Exclude<TouchUpKey, "meaning" | "line" | "examples">, FieldWire | EmptyFieldWire>>;
 
 /** A field the model can't judge or write from what it was given, in its judgement's place: the code and what was missing. */
 export const TouchUpError = z.object({ error: TouchUpErrorId, why: Why });
@@ -267,6 +298,19 @@ function sentenceOfWire(wire: SentenceWire | EmptySentenceWire, at: SentenceLine
   if (word !== "" && runsOf(text, word).length === 0) return linesUnusable(`lines holding ${word}`, `lines ${first} to ${last}, without it`);
   return { judgement, proposed: text, why: wire.why };
 }
+/**
+ * Example sentences from the wire, as a text field reads (`fieldOfWire`), what's proposed the rows' value as the field
+ * keeps it (`examplesValue`, rows with nothing in them dropped): no judgement and no rows is untouched, but for a field
+ * sent empty answered with a why alone, which stays empty.
+ */
+function examplesOfWire(wire: ExamplesWire | EmptyExamplesWire): FieldAnswer | null {
+  if (wire.error !== NONE) return { error: wire.error, why: wire.why };
+  const sentEmpty = !("judgement" in wire);
+  const judgement = !sentEmpty && wire.judgement !== NONE ? wire.judgement : null;
+  const proposed = examplesValue(wire.rows);
+  if (judgement === null && proposed === "" && !(sentEmpty && wire.why.trim() !== "")) return null;
+  return { judgement, proposed: orNull(proposed), why: wire.why };
+}
 /** The Meaning from the wire, the same way: no rows and nothing proposed is untouched; one asked without rows (no meanings to judge) has none. */
 function meaningOfWire(wire: MeaningWire | EmptyMeaningWire): MeaningAnswer | null {
   if (wire.error !== NONE) return { error: wire.error, why: wire.why };
@@ -288,6 +332,11 @@ export function answerOfWire(wire: TouchUpWire, lines: SentenceLines | null = nu
     if (key === "line") {
       const part = wire.line ? sentenceOfWire(wire.line, lines) : null;
       if (part) answer.line = part;
+      continue;
+    }
+    if (key === "examples") {
+      const part = wire.examples ? examplesOfWire(wire.examples) : null;
+      if (part) answer.examples = part;
       continue;
     }
     const wired = wire[key];
@@ -492,6 +541,8 @@ export function answerShapesOf(place: AiPlaceId): AnswerShape[] {
     { title: "A field sent empty", parts: partsOf(EmptyFieldWire.shape) },
     { title: "The Line", parts: partsOf(SentenceWire.shape) },
     { title: "The Line, sent empty", parts: partsOf(EmptySentenceWire.shape) },
+    { title: "Example sentences", parts: partsOf(ExamplesWire.shape) },
+    { title: "Example sentences, sent empty", parts: partsOf(EmptyExamplesWire.shape) },
     { title: "The Meaning", parts: partsOf(MeaningWire.shape) },
     { title: "The Meaning, when the dictionary has none", parts: partsOf(EmptyMeaningWire.shape) },
   ];
@@ -502,11 +553,13 @@ export function answerShapesOf(place: AiPlaceId): AnswerShape[] {
  * field the send may answer (`keys`), each required on the wire though it may come back untouched, a field sent empty with
  * no judgement (`EmptyFieldWire`) and one holding a value with one (`FieldWire`), the Meaning with rows when there are
  * meanings to judge (`MeaningWire`) and without when there are none (`EmptyMeaningWire`), the Sentence as line
- * numbers (`SentenceWire`, `EmptySentenceWire`). Read with `answerOfWire`.
+ * numbers (`SentenceWire`, `EmptySentenceWire`), Example sentences as rows (`ExamplesWire`, `EmptyExamplesWire`). Read
+ * with `answerOfWire`.
  */
 export function touchUpShape(keys: readonly TouchUpKey[], now: TouchUpNow, meaningCount: number): z.ZodType<TouchUpWire> {
   const shapeOf = (key: TouchUpKey) => {
     if (key === "meaning") return meaningCount > 0 ? MeaningWire : EmptyMeaningWire;
+    if (key === "examples") return examplesOf(now.values.examples ?? "").length === 0 ? EmptyExamplesWire : ExamplesWire;
     const empty = (now.values[key] ?? "").trim() === "";
     if (key === "line") return empty ? EmptySentenceWire : SentenceWire;
     return empty ? EmptyFieldWire : FieldWire;
@@ -539,11 +592,11 @@ function fieldProblem(key: FieldKey, part: FieldAnswer, held: string): string | 
   if (part.judgement === "good" && part.proposed !== null) return expectedGot(`proposed "" at ${key}, judged good`, "a value");
   // A field sent empty may stay empty, said with a why alone (`fieldOfWire`).
   if (part.judgement !== "good" && proposed === "" && held.trim() !== "") return expectedGot(part.judgement === null ? `a proposed value at ${key}, a change asked for` : `a proposed value at ${key}, judged ${part.judgement}`, '""');
-  // Example sentences come as pairs, a line setting the scene before each sentence, never a bare list of sentences: a
-  // proposal of an odd count, or fewer than two, is refused.
+  // Example sentences come as rows, each with its sentence, and fit in the field.
   if (key === "examples" && proposed !== "") {
-    const lines = proposed.split("\n").filter((line) => line.trim() !== "").length;
-    if (lines < 2 || lines % 2 !== 0) return expectedGot("an even number of lines at examples, a scene line before each sentence", `${lines}`);
+    const bare = examplesOf(proposed).findIndex((row) => row.sentence.trim() === "");
+    if (bare >= 0) return expectedGot("a sentence in every row at examples", `row ${bare + 1} without one`);
+    if (proposed.length > VALUE_MAX) return expectedGot(`examples within ${VALUE_MAX} characters`, `${proposed.length}`);
   }
   return null;
 }
@@ -711,14 +764,15 @@ function linesWords({ first, last, whole }: LinesHeld): string {
  * The card as the model reads it (`{Card}`): a line each field, its name, the key it's judged by in brackets, and what
  * it holds; the Meaning's ticked numbers before its words ("Meaning [meaning]: 1 · to think"), so it's judged by number
  * rather than by words the model may misread; a Line of the video's subtitles, which lines it is
- * ("Line [sentence] (lines 18–19): …"), so it's judged by number too; a value of several lines goes on under it,
- * indented; an empty one says so, "(empty)", the field the answer judges null. One home for how it's written.
+ * ("Line [sentence] (lines 18–19): …"), so it's judged by number too; Example sentences a row a line, situation,
+ * sentence and translation apart by " | " (`examplesText`); a value of several lines goes on under it, indented; an
+ * empty one says so, "(empty)", the field the answer judges null. One home for how it's written.
  */
 export function cardPiece(rows: readonly CardPieceRow[]): string {
   return rows
     .map(({ name, key, value, ticked = [], lines: held = null }) => {
       const head = `${name}${key ? ` [${key}]` : ""}${held ? ` ${linesWords(held)}` : ""}:${ticked.length > 0 ? ` ${ticked.join(", ")} ·` : ""}`;
-      const text = value.trim();
+      const text = (key === "examples" ? examplesText(value) : value).trim();
       if (text === "") return `${head} (empty)`;
       const lines = text.split("\n");
       return lines.length === 1 ? `${head} ${text}` : [head, ...lines.map((line) => `  ${line}`)].join("\n");

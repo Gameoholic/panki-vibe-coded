@@ -105,6 +105,12 @@ export const LayoutPart = z.object({
    * card's order (`cardLayout.ts` → `stagedOf`). Not picked to begin with.
    */
   staged: z.boolean().default(false),
+  /**
+   * What an Example sentences part does with each row's translation (its "Translations"): shows it, covers it as a
+   * spoiler (shown while the pointer rests on it, opened by a press, as a reading is), or leaves it off. A spoiler to
+   * begin with, so the sentence is read before it's translated.
+   */
+  translations: FaceShow.default("spoiler"),
 });
 export type LayoutPart = z.infer<typeof LayoutPart>;
 

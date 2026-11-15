@@ -430,8 +430,8 @@ function TouchUpScene({ ai, showCostOver }: SceneProps) {
   };
   const answered = calls.length > 0 && !thinking;
   const ways = (waiting: boolean, onAccept: () => void) => ({ waiting, onAccept, onDismiss: nothing });
-  const sentenceShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.sentence, HEARD), HEARD, ways(!accepted, () => setAccepted(true))) : null;
-  const explanationShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.explanation, ""), "", ways(true, nothing)) : null;
+  const sentenceShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.sentence, HEARD), HEARD, ways(!accepted, () => setAccepted(true)), "line") : null;
+  const explanationShown = answered ? fieldShown(fieldVerdictOf(TOUCHED.explanation, ""), "", ways(true, nothing), "explanation") : null;
   /** The fields as the drawer orders them: those whose proposal waits at the top, sliding back once decided. */
   const hoist = useHoist(SCENE_FIELDS, answered ? (accepted ? ["explanation"] : ["sentence", "explanation"]) : []);
   /** The run as the head's conversation has it: its press, then what it changed, a chip a field. */

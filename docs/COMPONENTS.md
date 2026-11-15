@@ -33,6 +33,7 @@ Paths from `apps/web/src/`.
 | Door | `components/Door.tsx` | A home door (`Door`, `DoorSpec`, `DoorWay`): one way in, or two in rows (`rows`), each with how many there are. The board draws them. |
 | Dropdown | `components/Dropdown.tsx` | One value from a list too long for a row of chips, or picked inside a sentence (`Dropdown`). Never a native `<select>`. |
 | ExampleArrows | `components/ExampleArrows.tsx` | The arrows that switch a card's examples (`ExampleArrows`). Never a second drawing of the arrows. |
+| ExampleRows | `components/ExampleRows.tsx` | A field of Example sentences typed in where it stands: its rows of Situation, Sentence and Translation, dragged, deleted and added (`ExampleRows`). Never a second editor of examples. |
 | Explainer | `components/Explainer.tsx` | What a panel's feature is, shown as a scene that plays (`Explainer`, `ExplainedTitle`, `Stage`, `CANVAS`). Never a second explainer. |
 | FlagTag | `components/FlagTag.tsx` | Saying a card is flagged, wherever it's named (`FlagTag`). Never a second drawing of a flag. |
 | FloatPanel | `components/FloatPanel.tsx` | A panel laid over the screen, moved anywhere and kept where it was put (`FloatPanel`). Never a second floating panel. |
@@ -79,7 +80,7 @@ Paths from `apps/web/src/`.
 | Tip | `components/Tip.tsx` | The one hint bubble, on hover or focus, above its point or below it (`Tip`). Never a `title` attribute, never a hover bubble drawn by hand. |
 | TodayBar | `components/TodayBar.tsx` | Today's cards folded to their counts (`TodayBar`, `todayWords`). |
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
-| TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field (`TouchUpAll`, `Tied`, `fieldShown`, `proposes`, `UnmarkAi`). Never a second proposal. |
+| TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field, examples row by row (`TouchUpAll`, `Tied`, `fieldShown`, `ExamplesDiff`, `proposes`, `UnmarkAi`). Never a second proposal. |
 | aiScenes | `explainers/aiScenes.tsx` | What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). |
 | examples | `explainers/examples.ts` | The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. |
 | reviewScenes | `explainers/reviewScenes.tsx` | What Settings → General → Reviews' explainers play, on Panki's own review: Start cards blurred, Time left, Time studying (`BlurScene`, `TimeLeftScene`, `TimeStudyingScene`). |
@@ -162,6 +163,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | dictionary | `dictionary.ts` | A dictionary file as both ends read it out of its zip, and one kept on Panki (`openDictionary`, `DictionaryIndex`, `providesOf`, `ServerDictionary`). |
 | dictionaryRows | `dictionaryRows.ts` | A dictionary's rows, read the same by both ends, and the kinds of data it provides (`termRowOf`, `metaRowOf`, `tagRowOf`, `Provides`, `DATA_KIND_NAMES`). |
 | diff | `diff.ts` | What a proposal changed in a text, as runs kept, dropped and added (`textDiff`, `DiffRun`). Never a second diff of text. |
+| examples | `examples.ts` | Example sentences as a field's value, its rows read and written in one place (`ExampleRow`, `examplesOf`, `examplesValue`, `examplesText`, `examplesSentences`). |
 | extension | `extension.ts` | The extension kept up to date without a store: the protocol, its header, the build's fingerprint (`EXTENSION_PROTOCOL`, `EXTENSION_HEADER`, `ExtensionBuild`). |
 | forvo | `forvo.ts` | Forvo's own, as shapes: a recording told and kept, Forvo's answers (`ForvoVoice`, `ForvoTake`, `ForvoList`). Calling Forvo is the API's alone. |
 | history | `history.ts` | What happened, as kept: review sessions, the events ledger, days and videos for the stats (`ReviewSession`, `NewEvent`, `EVENT_KINDS`, `Day`, `ContinueVideo`). |

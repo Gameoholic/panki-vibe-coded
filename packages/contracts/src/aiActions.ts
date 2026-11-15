@@ -85,7 +85,7 @@ export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
     {
       place: "card",
       name: "Touch up",
-      words: `Touch up the card. Leave the Explanation empty when the Meaning and the sentence already show it all, and keep it to a few words otherwise. Example sentences are short, everyday, and nothing to do with the video. ${QUIET_REPLY}`,
+      words: `Touch up the card. Leave the Explanation empty when the Meaning and the sentence already show it all, and keep it to a few words otherwise. Three example sentences, each short, everyday, and nothing to do with the video. ${QUIET_REPLY}`,
       requires: TOUCH_UP_KEYS,
     },
     "touchUp",

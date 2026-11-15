@@ -93,7 +93,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 
 ## Under way
 
-- Panki AI: `docs/AI.md`, on main. Next: Example sentences as a field kind.
+- Panki AI: `docs/AI.md`, on main. Example sentences as a field kind (Touch up, steered, step 3) built on local dev, uncommitted, not yet seen: the kind (one per type, mapped to Touch up's examples by itself), rows of Situation, sentence and translation typed in where they stand (`ExampleRows`), Touch up answering rows (`ExamplesWire`) and its proposal row by row (`ExamplesDiff`), the review card's list with each translation a spoiler (the part's Translations: Show / Spoiler / Hide), the card list's sentences, search; `EXTENSION_PROTOCOL` 14. Next, the owner makes the new field and tries it.
 - The docs: `docs/DOCS.md`.
 - Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 18 (time conditions in hours; Round 17: Week ends on; Round 16: Cards added, `EXTENSION_PROTOCOL` 11; Round 15: no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.

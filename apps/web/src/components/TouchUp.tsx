@@ -1,14 +1,18 @@
-/** @panki Touch up as it's drawn: its head, a proposal under a field (`TouchUpAll`, `Tied`, `fieldShown`, `proposes`, `UnmarkAi`). Never a second proposal. */
+/** @panki Touch up as it's drawn: its head, a proposal under a field, examples row by row (`TouchUpAll`, `Tied`, `fieldShown`, `ExamplesDiff`, `proposes`, `UnmarkAi`). Never a second proposal. */
 import { Fragment, useState, type ReactNode } from "react";
 import {
   TOUCH_UP,
   TOUCH_UP_ERRORS,
   TOUCH_UP_KEYS,
+  examplesOf,
+  examplesText,
   fieldVerdictOf,
   isError,
   meaningVerdictOf,
   textDiff,
   type AiVerdict,
+  type ExampleRow,
+  type FieldKey,
   type FieldVerdict,
   type Judgement,
   type MeaningAnswer,
@@ -116,13 +120,14 @@ export function TouchUpAll({ pending, onAcceptAll, onDismissAll }: { pending: nu
  * the accent for one of Panki AI's own offered with no judgement), what comes in green (`in`).
  */
 export function Mark({ out, children, block }: { out?: Exclude<Tone, "good">; children: string; block?: boolean }) {
-  const look = out === "accent" ? "is-accent" : `ai-judgement is-${out ?? "good"}`;
   return (
-    <span className={`touch-up-d ${look} ai-judgement-lit${out ? " is-out" : " is-in"}${block ? " is-block" : ""}`} lang={langOf(children)}>
+    <span className={`${markLook(out)}${block ? " is-block" : ""}`} lang={langOf(children)}>
       {children}
     </span>
   );
 }
+/** A stretch of the diff's look: struck in `out`'s colour, or green coming in. A word's (`Mark`) and an example's (`ExamplesDiff`) alike. */
+const markLook = (out?: Exclude<Tone, "good">) => `touch-up-d ${out === "accent" ? "is-accent" : `ai-judgement is-${out ?? "good"}`} ai-judgement-lit${out ? " is-out" : " is-in"}`;
 
 /**
  * What Touch up has to say of a field: the colour the two are drawn in, the field's box as the diff while a proposal
@@ -317,20 +322,72 @@ function TextDiff({ held, proposed, out }: { held: string; proposed: string; out
   );
 }
 
+/** Example sentences' rows as a proposal holds them against the field: by their sentence, spaces aside. */
+const sentenceOf = (row: ExampleRow) => row.sentence.trim().replace(/\s+/g, " ");
+
+/** One example in a proposal, its Situation, Sentence and Translation a block, in the diff's look (`markLook`) or plain. */
+function ExampleBlock({ row, look }: { row: ExampleRow; look: string }) {
+  return (
+    <div className={`touch-up-example ${look}`.trim()}>
+      {row.situation.trim() ? <span className="touch-up-example-situation">{row.situation}</span> : null}
+      {row.sentence.trim() ? (
+        <span className="touch-up-example-sentence" lang={langOf(row.sentence)}>
+          {row.sentence}
+        </span>
+      ) : null}
+      {row.translation.trim() ? <span className="touch-up-example-translation">{row.translation}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * A proposal for a field of Example sentences, row by row against what the field holds now, both read as rows
+ * (`examplesOf`, which reads words from before the field held rows too): a row whose sentence is held and proposed
+ * alike stands plain, as proposed; a proposed row not held comes in green; a held row not proposed goes struck in the
+ * proposal's colour (`out`), where it stood among the rows kept. Each row a block of its three lines.
+ */
+export function ExamplesDiff({ held, proposed, out }: { held: string; proposed: string; out: Exclude<Tone, "good"> }) {
+  const was = examplesOf(held);
+  const blocks: ReactNode[] = [];
+  let at = 0;
+  const gone = (to: number) => {
+    was.slice(at, to).forEach((row, i) => blocks.push(<ExampleBlock key={`out${at + i}`} row={row} look={markLook(out)} />));
+    at = Math.max(at, to);
+  };
+  examplesOf(proposed).forEach((row, i) => {
+    const kept = was.findIndex((other, k) => k >= at && sentenceOf(other) === sentenceOf(row));
+    if (kept < 0) {
+      blocks.push(<ExampleBlock key={`in${i}`} row={row} look={markLook()} />);
+      return;
+    }
+    gone(kept);
+    blocks.push(<ExampleBlock key={`keep${i}`} row={row} look="" />);
+    at = kept + 1;
+  });
+  gone(was.length);
+  return <div className="touch-up-examples">{blocks}</div>;
+}
+
+/** A proposal's diff against what its field holds: row by row for Example sentences (`ExamplesDiff`), as words for every other key (`TextDiff`). */
+function ProposalDiff({ fieldKey, held, proposed, out }: { fieldKey: FieldKey; held: string; proposed: string; out: Exclude<Tone, "good"> }) {
+  return fieldKey === "examples" ? <ExamplesDiff held={held} proposed={proposed} out={out} /> : <TextDiff held={held} proposed={proposed} out={out} />;
+}
+
 /**
  * A text field as Panki draws its answer: good, the green "Nothing to change" tag; the error, red; meh or bad, the
- * proposal as a diff of the value it holds (`TextDiff`), what goes struck in orange or red, titled Could be better or
- * Incorrect; written, a proposal with no judgement (a value for an empty field, or a follow-up's change, which carries
- * none), under Panki AI proposes in the accent, as a diff of the value it holds where it holds one, what goes struck in
- * the accent, and all green where it was empty. `held` is what the field holds now, as it's drawn (the drawer's live value).
+ * proposal as a diff of the value it holds (`TextDiff`; Example sentences row by row, `ExamplesDiff`), what goes struck
+ * in orange or red, titled Could be better or Incorrect; written, a proposal with no judgement (a value for an empty
+ * field, or a follow-up's change, which carries none), under Panki AI proposes in the accent, as a diff of the value it
+ * holds where it holds one, what goes struck in the accent, and all green where it was empty. `held` is what the field
+ * holds now, as it's drawn (the drawer's live value); `key` the answer's key it's for, which says how its value reads.
  */
-export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways): Shown | null {
+export function fieldShown(verdict: FieldVerdict, held: string, ways: Ways, key: FieldKey): Shown | null {
   if (verdict.kind === "error") return errorShown(verdict);
   if (verdict.kind === "good") return nothingShown(verdict.why);
   if (!ways.waiting) return null;
   const proposal = (tone: Exclude<Tone, "good">, title: string): Shown => ({
     tone,
-    diff: <TextDiff held={held} proposed={verdict.proposed} out={tone} />,
+    diff: <ProposalDiff fieldKey={key} held={held} proposed={verdict.proposed} out={tone} />,
     note: <Proposal title={title} why={verdict.why} also={ways.also} onAccept={ways.onAccept} onDismiss={ways.onDismiss} />,
     quiet: null,
   });
@@ -523,6 +580,8 @@ export function touchUpVerdicts(answer: TouchUpAnswer, now: TouchUpNow, meanings
     const part = answer[key];
     if (!part) return [];
     const verdict = fieldVerdictOf(part, now.values[key] ?? "");
-    return [{ name: TOUCH_UP[key].name, tag: fieldTag(verdict), value: "proposed" in verdict ? verdict.proposed : "", reason: verdict.why }];
+    // Example sentences as their words, a row a line, never the JSON they're kept as.
+    const proposed = "proposed" in verdict ? (key === "examples" ? examplesText(verdict.proposed) : verdict.proposed) : "";
+    return [{ name: TOUCH_UP[key].name, tag: fieldTag(verdict), value: proposed, reason: verdict.why }];
   });
 }

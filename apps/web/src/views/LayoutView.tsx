@@ -8,6 +8,7 @@ import {
   columnOrder,
   examplesAt,
   examplesToColumn,
+  holdsExamples,
   holdsLink,
   holdsProse,
   holdsWords,
@@ -356,6 +357,8 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
     const overable = type.fields.filter((f) => f.id !== id && f.kind === "text");
     // Words (a line, a paragraph or a Line) can have another field's words lit in them.
     const wordy = (f: CardField) => holdsProse(f.kind);
+    // Example sentences: a list of rows, each sentence lit as words are, each translation shown, covered or left off.
+    const sentences = holdsExamples(field.kind);
     const others = type.fields.filter((f) => f.id !== id && wordy(f)).map((f) => ({ id: f.id, label: f.name }));
     const pictured = media && (part.look === "player" || part.look === "plain");
     /** Written above another field's words: its size, field name and position are the word's to say, and off. */
@@ -380,6 +383,14 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
           label="On the back"
           control={<Segmented idPrefix="part-back" label="On the back" options={SHOW_OPTIONS} value={part.back} onChange={(back) => update(id, { back })} />}
         />
+        {/* What each example's translation does, beside what the sides do with the whole. */}
+        {sentences ? (
+          <Setting
+            id="part-translations"
+            label="Translations"
+            control={<Segmented idPrefix="part-translations" label="Translations" options={SHOW_OPTIONS} value={part.translations} onChange={(translations) => update(id, { translations })} />}
+          />
+        ) : null}
         {/* What the blurred front does with it: the type's own, live while the account's Start cards blurred is off too. */}
         <Setting
           id="part-blur"
@@ -401,7 +412,7 @@ export function LayoutView({ type, decks, srsTypes, onSave, onStatus, onGuard, s
         {words || media || holdsLink(field.kind) ? (
           <Setting id="part-label" label="Field name" control={<Toggle id="part-label-on" says={{ on: "Shown", off: "Hidden" }} on={part.label} disabled={above} onChange={(label) => update(id, { label })} />} />
         ) : null}
-        {wordy(field) ? highlight : null}
+        {wordy(field) || sentences ? highlight : null}
         {/* What's said in the clip, as it was heard on the video when it was recorded, following it as it plays. */}
         {pictured ? (
           <Setting id="part-subtitles" label="Subtitles" control={<Toggle id="part-subtitles-on" says={{ on: "Shown", off: "Hidden" }} on={part.subtitles} onChange={(subtitles) => update(id, { subtitles })} />} />

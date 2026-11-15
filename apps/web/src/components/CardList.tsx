@@ -1,6 +1,6 @@
 /** @panki Cards as rows (`CardList`). */
 import { useId, useRef, useState, type ReactNode } from "react";
-import { MediaId, byAi, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
+import { MediaId, byAi, examplesSentences, holdsExamples, holdsFile, holdsPitch, holdsWords, metaOf, pitchesOf, type CalledCard, type Card, type CardField, type CardType, type SrsType } from "@panki/contracts";
 import { api } from "../api";
 import { AiSpark } from "./AiWaiting";
 import { fileKindOf, kindClass } from "../fieldKinds";
@@ -76,10 +76,13 @@ function cell(card: Card, field: CardField, className: string) {
       </span>
     );
   }
+  // Example sentences as their sentences alone, one after another.
+  const words = holdsExamples(field.kind) ? examplesSentences(value).join(" / ") : value;
+  if (!words) return null;
   // What Panki AI wrote is in the AI's ink; the row carries its spark once, at its top right (`aiOn`).
   return (
-    <span key={field.id} className={`${className} ${kindClass(field.kind)} ${byAi(card.sources, field.id) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()} lang={langOf(value)}>
-      {value}
+    <span key={field.id} className={`${className} ${kindClass(field.kind)} ${byAi(card.sources, field.id) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()} lang={langOf(words)}>
+      {words}
     </span>
   );
 }

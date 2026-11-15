@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NewCardType, holdsLine, holdsWords, wordsFieldOf, type CardField, type CardType, type NewCardType as NewCardTypeShape } from "@panki/contracts";
+import { NewCardType, holdsExamples, holdsLine, holdsWords, wordsFieldOf, type CardField, type CardType, type FieldKind, type NewCardType as NewCardTypeShape } from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -21,6 +21,9 @@ const MESSAGES = {
   field: "Give the field a name.",
   fieldLong: "Keep it under 60 characters.",
 };
+
+/** The kinds a type has one field of at most (`NewCardType`): another field's kind greys it in each field's Kind. */
+const ONE_PER_TYPE: readonly ((kind: FieldKind) => boolean)[] = [holdsLine, holdsExamples];
 
 /** The Main field's choice of none, beside the fields' ids. */
 const NO_MAIN = "none";
@@ -299,8 +302,10 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                   <Dropdown
                     id={`field-kind-${field.id}`}
                     label="Kind"
-                    // A type has one Line at most: while another field is it, it's offered greyed.
-                    options={FIELD_KIND_OPTIONS.map((option) => (holdsLine(option.id) && fields.some((other) => other.id !== field.id && holdsLine(other.kind)) ? { ...option, disabled: true } : option))}
+                    // A type has one Line and one Example sentences at most: while another field is one, it's offered greyed.
+                    options={FIELD_KIND_OPTIONS.map((option) =>
+                      ONE_PER_TYPE.some((one) => one(option.id) && fields.some((other) => other.id !== field.id && one(other.kind))) ? { ...option, disabled: true } : option,
+                    )}
                     value={field.kind}
                     onChange={(kind) => edit(field.id, { kind })}
                   />

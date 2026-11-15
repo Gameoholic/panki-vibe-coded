@@ -371,7 +371,7 @@ Each message says what it asks: the user's own words in <user_message> (follow t
 
 Every message is answered in the same shape, every part always there:
 - "reply": your reply to the message, in {Language}; "" when there's nothing to say beyond the fields.
-- One entry for each key marked in <card>. A key the message doesn't ask about is left untouched: "" in every part (0 for a number, [] for "meanings"). A proposal already standing on the card (an earlier answer's, not yet accepted) is never sent again unless the message asks about that field again.
+- One entry for each key marked in <card>. A key the message doesn't ask about is left untouched: "" in every part (0 for a number, [] for "meanings" and "rows"). A proposal already standing on the card (an earlier answer's, not yet accepted) is never sent again unless the message asks about that field again.
 
 Every key but meaning, when it's answered:
 - A field that holds a value, judged, has a "judgement": good (right as it is: nothing proposed), meh (it could be better: propose the better value) or bad (it's wrong: propose the correction).
@@ -389,7 +389,7 @@ What each field holds, proposed in "proposed" unless it says otherwise:
   - Too much: a whole line in it that isn't about the word (another speaker's words, a filler or an opener, the start of something else). Propose it without that line.
   Proposed as "first" and "last", the numbers of its first and last line, from any subtitles you were given; Panki copies those lines as they are. In <card> the Line says which lines it is: "(lines 18–19)" when it's those lines whole, however its line breaks fall, and "(part of lines 18–19)" when it's part of them, which is the user's choice: never propose lines just to make it whole lines, and never the lines it already is. A sentence that stands on its own and holds nothing extra is good with nothing proposed: 0 and 0.
 - explanation: what the word means in this sentence where the Meaning alone doesn't make it clear, in {Language}. For a field marked (empty), "proposed" "" when nothing is needed, with "why" saying so.
-- examples: six lines: three made-up sentences using the word, each after a line in {Language} that sets its scene, each sentence in {Learning language}.
+- examples: made-up sentences using the word, proposed as "rows" rather than "proposed": every example the field should hold, in order, each row its "situation" (where or when it's said, a few words in {Language}), its "sentence" (in {Learning language}) and its "translation" (the sentence in {Language}). In <card> each example is a line of its own: its situation, its sentence and its translation, apart by " | ".
 
 meaning, when it's answered, has "meanings", "proposed", "why" and "error" (when <meaning> is empty, there are no rows: "proposed", "why" and "error" alone):
 - "meanings": one row for every entry in <meaning>, ticked or not, each index once, in its order: "meaning" its index, "judgement" good (it fits this sentence), meh (near, but not quite) or bad (it doesn't fit here), and "why". Judge each against how the word is used in this sentence, whatever is ticked.

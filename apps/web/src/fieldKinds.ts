@@ -12,6 +12,8 @@ export const FIELD_KINDS: Record<FieldKind, { name: string; multiline: boolean }
   long: { name: "Paragraph", multiline: true },
   // The sentence the word was met in: on a card from a video the clip's words, read-only (`lineLocked`). One per type.
   line: { name: "Line", multiline: true },
+  // Rows of a situation, a sentence and its translation, edited row by row (`ExampleRows`), drawn as a list on the card. One per type.
+  examples: { name: "Example sentences", multiline: false },
   media: { name: "Media", multiline: false },
   image: { name: "Image", multiline: false },
   // Holds the video's link, title and channel as one value (`youtubeMetaValue`); an older value is the link alone.

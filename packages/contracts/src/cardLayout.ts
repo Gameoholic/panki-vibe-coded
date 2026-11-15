@@ -23,7 +23,7 @@ import {
   type SparkMark,
   type StageTag,
 } from "./layout";
-import { holdsProse, holdsWords, type CardField } from "./type";
+import { holdsExamples, holdsProse, holdsWords, type CardField } from "./type";
 
 /** One part as it was kept: anything missing or broken in it reads as the field's default, so an old layout still reads. */
 const KeptPart = z.object({
@@ -46,6 +46,7 @@ const KeptPart = z.object({
   blur: BlurShow.optional().catch(undefined),
   blurSubtitles: BlurSubtitles.optional().catch(undefined),
   staged: z.boolean().optional().catch(undefined),
+  translations: FaceShow.optional().catch(undefined),
 });
 
 type FieldLike = Pick<CardField, "id" | "kind" | "side">;
@@ -77,6 +78,7 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
     blur: "show",
     blurSubtitles: "show",
     staged: false,
+    translations: "spoiler",
   });
   return [...front.map((f) => part(f, true)), ...back.map((f) => part(f, false))];
 }
@@ -86,8 +88,8 @@ export function defaultLayout(fields: readonly FieldLike[]): LayoutPart[] {
  * field's default where something's missing; then every field the layout doesn't name yet (one added since), as its
  * default would have it. Something always shows on the front: when nothing does, the first part does. A part written
  * over another as its reading names another field the type still has, of words of one line as the part itself is, or
- * it's over none. A part's highlight names another field of words too, lit in this part's words, or in a clip's
- * subtitles; a clip's subtitles are on only for a Media field.
+ * it's over none. A part's highlight names another field of words too, lit in this part's words, in a clip's
+ * subtitles or in each example's sentence; a clip's subtitles are on only for a Media field.
  *
  * A layout kept before a part could say which column it stands in (no part says) has its clip in the side column, as
  * the review drew it then: the first part that shows a video in a picture (the Player or Plain look) of a field that
@@ -104,7 +106,11 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
     const kind = kindOf.get(fieldId);
     return kind !== undefined && holdsProse(kind);
   };
-  const markFits = (fieldId: string, other: string) => other !== fieldId && wordy(other) && (wordy(fieldId) || kindOf.get(fieldId) === "media");
+  // Lit in: words, a clip's subtitles, or each example's sentence.
+  const markFits = (fieldId: string, other: string) => {
+    const kind = kindOf.get(fieldId);
+    return other !== fieldId && wordy(other) && (wordy(fieldId) || kind === "media" || (kind !== undefined && holdsExamples(kind)));
+  };
   const placed = new Set<string>();
   const parts: LayoutPart[] = [];
   let saysColumns = false;
@@ -138,6 +144,7 @@ export function layoutOf(fields: readonly FieldLike[], kept: readonly unknown[] 
       ...(own.blurSubtitles !== undefined ? { blurSubtitles: own.blurSubtitles } : {}),
       // Only a sound or a clip fills the screen, and only the first picked to.
       staged: own.staged === true && kindOf.get(base.fieldId) === "media" && !parts.some((p) => p.staged),
+      ...(own.translations !== undefined ? { translations: own.translations } : {}),
     });
   }
   for (const part of defaults) if (!placed.has(part.fieldId)) parts.push(part);

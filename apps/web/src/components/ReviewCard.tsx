@@ -12,7 +12,9 @@ import {
   columnOrder,
   examplesAt,
   examplesIndex,
+  examplesOf,
   examplesOn,
+  holdsExamples,
   holdsFile,
   holdsLink,
   holdsPitch,
@@ -29,6 +31,7 @@ import {
   type CardType,
   type Column,
   type CornerMarkId,
+  type ExampleRow,
   type ExamplesPlace,
   type FlagMark,
   type LayoutPart,
@@ -488,25 +491,63 @@ export function ReviewCard({
     // Its words in one box, the same size covered or not, so nothing moves when a spoiler opens.
     // A reading Panki AI wrote is in the AI's ink, as any of its words are.
     const said = <span className={`review-ruby-text ${text && byAi(sources, reading.field.id) ? "is-ai" : ""}`.trim()}>{text || reading.field.name}</span>;
-    if (covered(reading.part)) {
-      // The words keep their place, unseen, and the cover is laid exactly over them: a button can't sit in a line as
-      // words do, so as the words' own box it made the card taller, and the card jumped as it opened.
-      return (
-        <span className="review-ruby-covered">
-          {said}
-          <Button
-            variant="spoiler"
-            className="review-ruby-spoiler"
-            aria-label={`${reading.field.name}, covered: press to see it`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpened((was) => new Set(was).add(reading.field.id));
-            }}
-          />
-        </span>
-      );
-    }
-    return said;
+    return covered(reading.part) ? coverOver(said, reading.field.id, reading.field.name) : said;
+  }
+  /**
+   * Words in a line covered as a spoiler until pressed (`opened` by `key`), shown while the pointer rests on them: a
+   * reading, an example's translation. The words keep their place, unseen, and the cover is laid exactly over them: a
+   * button can't sit in a line as words do, so as the words' own box it made the card taller, and the card jumped as it
+   * opened.
+   */
+  function coverOver(said: ReactNode, key: string, name: string, className = ""): ReactNode {
+    return (
+      <span className={`review-ruby-covered ${className}`.trim()}>
+        {said}
+        <Button
+          variant="spoiler"
+          className="review-ruby-spoiler"
+          aria-label={`${name}, covered: press to see it`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpened((was) => new Set(was).add(key));
+          }}
+        />
+      </span>
+    );
+  }
+  /**
+   * A field of Example sentences as a list, a row each: its Situation, its Sentence in the part's own size and colour
+   * with the part's Highlight lit in it, and its Translation as the part's Translations say (shown, covered as a reading
+   * is, each row's opened by its own press, or left off). Each line in the AI's ink with the rest of the field's words.
+   */
+  function examplesDrawn(part: LayoutPart, field: CardField, rows: readonly ExampleRow[]): ReactNode {
+    const ai = byAi(sources, field.id);
+    const list = (
+      <ol className="review-examples">
+        {rows.map((row, i) => {
+          const translation = row.translation.trim();
+          const said = <span className={`review-ruby-text review-example-translation ${ai ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}>{translation}</span>;
+          const key = `${field.id}#${i}`;
+          return (
+            <li key={i} className="review-example">
+              {row.situation.trim() ? <span className="review-example-situation">{row.situation}</span> : null}
+              {row.sentence.trim() ? (
+                <span className="review-example-sentence" lang={langOf(row.sentence)}>
+                  {marked(row.sentence, part)}
+                </span>
+              ) : null}
+              {translation === "" || part.translations === "hide" ? null : part.translations === "spoiler" && !opened.has(key) ? (
+                coverOver(said, key, `${field.name} ${i + 1}, translation`, "review-example-covered")
+              ) : (
+                said
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    );
+    // No language for the whole: each sentence says its own, and the rest is in the account's.
+    return words(part, field, list, false, "");
   }
   /** The words a part's "Highlight" lights: what that field holds on this card; nothing when it's set to none. */
   const litOf = (part: LayoutPart) => (part.mark ? (values[part.mark] ?? "").trim() : "");
@@ -726,6 +767,11 @@ export function ReviewCard({
           ) : (
             view
           );
+        }
+        if (holdsExamples(field.kind)) {
+          const rows = examplesOf(value);
+          if (rows.length > 0) return examplesDrawn(part, field, rows);
+          return edit ? blank(part, field) : null;
         }
         // A pitch accent drawn over its reading, in the part's size and colour; as it was typed when it doesn't read as one.
         if (holdsPitch(field.kind) && pitchesOf(value).length > 0) return words(part, field, <PitchAccents value={value} />, false, value);

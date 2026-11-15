@@ -12,6 +12,7 @@ import {
   cardProblems,
   comparedOf,
   exampleFieldsOf,
+  holdsExamples,
   holdsFile,
   holdsWords,
   lineLocked,
@@ -37,6 +38,7 @@ import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "./Alrea
 import { Ask } from "./Ask";
 import { Button } from "./Button";
 import { ClipSubtitles } from "./ClipSubtitles";
+import { ExampleRows } from "./ExampleRows";
 import { Form } from "./Form";
 import { Icon } from "./Icon";
 import { MediaField } from "./MediaField";
@@ -459,21 +461,34 @@ export function CardForm(props: Props) {
             const wordAt = locked && calledBy ? value.indexOf(calledBy) : -1;
             shown = (
               <>
-                <TextField
-                  id={inputId(field.id)}
-                  data-field={field.name}
-                  label={label}
-                  lead={fieldMarks(ai !== null)}
-                  multiline={FIELD_KINDS[field.kind].multiline}
-                  lang={langOf(value)}
-                  autoComplete="off"
-                  autoFocus={autoFocus && field.id === first?.id && !locked}
-                  value={value}
-                  readOnly={locked}
-                  {...(locked ? { mark: wordAt >= 0 ? { from: wordAt, to: wordAt + calledBy.length } : null } : {})}
-                  onChange={(text) => edit(field.id, text)}
-                  error={errors[field.id] || undefined}
-                />
+                {holdsExamples(field.kind) ? (
+                  <ExampleRows
+                    id={inputId(field.id)}
+                    data-field={field.name}
+                    label={label}
+                    lead={fieldMarks(ai !== null)}
+                    autoFocus={autoFocus && field.id === first?.id}
+                    value={value}
+                    onChange={(rows) => edit(field.id, rows)}
+                    error={errors[field.id] || undefined}
+                  />
+                ) : (
+                  <TextField
+                    id={inputId(field.id)}
+                    data-field={field.name}
+                    label={label}
+                    lead={fieldMarks(ai !== null)}
+                    multiline={FIELD_KINDS[field.kind].multiline}
+                    lang={langOf(value)}
+                    autoComplete="off"
+                    autoFocus={autoFocus && field.id === first?.id && !locked}
+                    value={value}
+                    readOnly={locked}
+                    {...(locked ? { mark: wordAt >= 0 ? { from: wordAt, to: wordAt + calledBy.length } : null } : {})}
+                    onChange={(text) => edit(field.id, text)}
+                    error={errors[field.id] || undefined}
+                  />
+                )}
                 {ai?.edited === true ? <UnmarkAi disabled={busy} onUnmark={() => setMarked((m) => ({ ...m, [field.id]: true }))} /> : null}
                 {field.id === lead?.id ? (
                   <AlreadyIn

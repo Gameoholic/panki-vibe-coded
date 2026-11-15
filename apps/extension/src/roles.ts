@@ -1,6 +1,6 @@
 /** @panki What the extension can fill a field with by itself, and which field takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `valuesFor`). Never a guess. */
 import { z } from "zod";
-import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsLine, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
+import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsExamples, holdsLine, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
 import { DATA_KINDS } from "./dataKinds";
 
 /**
@@ -111,10 +111,11 @@ export const ROLES: Record<RoleId, Role> = {
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
   // (the video's name, the channel's name and address) is kept beside the card as its `source`, all one piece.
   source: { name: PIECE_NAMES.source, from: "video", takes: (field) => holdsLink(field.kind) },
-  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself: the word in general, and a few made-up sentences with their scenes. Two fields, not one, so the layout
+  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself: the word in general, and made-up sentences as rows of a situation, a sentence and its translation. Two fields, not one, so the layout
   // places each on its own. Nothing fills them as the drawer opens; their names are Touch up's (`TOUCH_UP`).
   explanation: { name: TOUCH_UP.explanation.name, from: "ai", takes: holdsText },
-  examples: { name: TOUCH_UP.examples.name, from: "ai", takes: holdsText },
+  // Rows of examples go only where rows are kept, and nothing else goes there but what's typed.
+  examples: { name: TOUCH_UP.examples.name, from: "ai", takes: (field) => holdsExamples(field.kind) },
 };
 
 /** The role a Touch up key's proposal goes to (`TOUCH_UP`, by the same id). */
@@ -146,6 +147,9 @@ export function cleanMap(map: FieldMap, type: CardType): FieldMap {
   // A type's Line is the sentence by itself, whatever the map says: no other piece goes there (`holdsText`).
   const line = type.fields.find((f) => holdsLine(f.kind));
   if (line) clean.sentence = line.id;
+  // A type's Example sentences field is Touch up's examples by itself, the same way: it's the one field rows go in.
+  const examples = type.fields.find((f) => holdsExamples(f.kind));
+  if (examples) clean.examples = examples.id;
   return clean;
 }
 

@@ -13,6 +13,7 @@ export * from "./deck";
 export * from "./diff";
 export * from "./dictionary";
 export * from "./dictionaryRows";
+export * from "./examples";
 export * from "./extension";
 export * from "./forvo";
 export * from "./history";

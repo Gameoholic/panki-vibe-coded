@@ -31,7 +31,9 @@ import { z } from "zod";
 // 11: a streak's condition can be Cards added (`GoalKind` `added`), which 10 refuses in a streak's state.
 // 12: a field can be a Line (`FieldKind` `line`), which 11 refuses in the card types it reads.
 // 13: Touch up's key for the Line is `line`, not `sentence` (`TOUCH_UP_KEYS`), in what a card's message sends and its answer.
-export const EXTENSION_PROTOCOL = 13;
+// 14: a field can be Example sentences (`FieldKind` `examples`), which 13 refuses in the card types it reads, and Touch
+// up answers it as rows (`ExamplesWire`), its value their JSON (`examples.ts`).
+export const EXTENSION_PROTOCOL = 14;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";
