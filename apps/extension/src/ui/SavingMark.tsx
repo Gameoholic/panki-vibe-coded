@@ -14,6 +14,7 @@ type Shown = Exclude<Saving["state"], "idle">;
 /** Each state as the head draws it: its icon, and its tone (`.saving-mark.is-*`). */
 const LOOKS: Record<Shown, { icon: IconName; tone: string }> = {
   saved: { icon: "cloudSaved", tone: "is-saved" },
+  unsaved: { icon: "cloudSending", tone: "is-sending" },
   sending: { icon: "cloudSending", tone: "is-sending" },
   waiting: { icon: "cloudOff", tone: "is-waiting" },
   lost: { icon: "cloudLost", tone: "is-lost" },
@@ -21,8 +22,10 @@ const LOOKS: Record<Shown, { icon: IconName; tone: string }> = {
 
 /** A length of watching in words: seconds under a minute ("45 s"), the app's minutes and hours after ("2 min"). */
 const spanWords = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : durationWords(ms / 1000));
+/** How long a save reads as "just now" before its seconds start counting. */
+const JUST_NOW_MS = 3_000;
 /** "Saved 12 s ago", "Saved just now". */
-const savedWords = (at: number, now: number) => (now - at < 5_000 ? "Saved just now" : `Saved ${spanWords(now - at)} ago`);
+const savedWords = (at: number, now: number) => (now - at < JUST_NOW_MS ? "Saved just now" : `Saved ${spanWords(now - at)} ago`);
 
 /** What the tip says, a line each: what the icon means now, then what's waiting or gone and since when. */
 function wordsOf(saving: Saving, state: Shown, now: number): { lines: string[]; loss: string | null } {
@@ -34,18 +37,21 @@ function wordsOf(saving: Saving, state: Shown, now: number): { lines: string[]; 
     return { lines: ["Video tracking · Can't reach Panki", `${spanWords(saving.waitingMs)} watched waiting${since}`], loss: "Closing this tab loses it" };
   }
   if (state === "sending") return { lines: ["Video tracking · Sending…"], loss: null };
+  if (state === "unsaved") return { lines: ["Video tracking · Not saved yet", ...(saving.savedAt === null ? [] : [savedWords(saving.savedAt, now)])], loss: null };
   return { lines: [`Video tracking · ${saving.savedAt === null ? "Saved" : savedWords(saving.savedAt, now)}`], loss: null };
 }
 
 /**
- * How saving what's watched here stands, among the Panki panel's head: only an icon in its state's colour (a cloud
- * ticked in the good colour, an arrow up in the accent, struck through in `--risk` while Panki can't be reached, a !
- * in `--danger` once some gave way), never words in the head. Its words (how long ago, how much waits and since when,
- * what was lost) are the app's `Tip` under it while a mouse rests on it or it has the keyboard's focus, and the same
- * tip on a press with a finger, closed by a press outside or Esc. Shown while the video is noted, or while something
- * still waits or gave way (`watch/watcher.ts` → `Saving`).
+ * How saving what's watched here stands, among the Panki panel's head: only an icon, never words in the head, in one
+ * of three colours: green while Panki holds everything watched (a cloud ticked), yellow while something watched isn't
+ * with it yet, the stretch playing included, so leaving now would lose it (an arrow up), red once a send failed (struck
+ * through while it waits, a ! once some gave way). Its words (how long ago, how
+ * much waits and since when, what was lost) are the app's `Tip` under it while a mouse rests on it or it has the
+ * keyboard's focus, and the same tip on a press with a finger, closed by a press outside or Esc. A press sends what's
+ * watched now (`onSendNow`): the stretch playing closed and everything waiting sent. Shown while the video is noted, or
+ * while something still waits or gave way (`watch/watcher.ts` → `Saving`).
  */
-export function SavingMark({ saving }: { saving: Saving }) {
+export function SavingMark({ saving, onSendNow }: { saving: Saving; onSendNow: () => void }) {
   const [over, setOver] = useState<{ x: number; y: number } | null>(null);
   const [pressed, setPressed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -100,6 +106,7 @@ export function SavingMark({ saving }: { saving: Saving }) {
         }}
         onBlur={() => setOver(null)}
         onClick={() => {
+          onSendNow();
           // A mouse has the tip already; a finger, which has no hover, opens and closes it with a press.
           if (fingered.current) setPressed(!pressed);
         }}

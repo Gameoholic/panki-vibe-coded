@@ -2709,12 +2709,11 @@
 .saving-mark.is-saved {
   --saving-tone: var(--good);
 }
+/* Three colours and no more: green, all of it with Panki; yellow, some on its way; red, a send failed. */
 .saving-mark.is-sending {
-  --saving-tone: var(--accent);
+  --saving-tone: var(--flag);
 }
-.saving-mark.is-waiting {
-  --saving-tone: var(--risk);
-}
+.saving-mark.is-waiting,
 .saving-mark.is-lost {
   --saving-tone: var(--danger);
 }

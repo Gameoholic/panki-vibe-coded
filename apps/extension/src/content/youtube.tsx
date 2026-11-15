@@ -3200,7 +3200,7 @@ function App() {
               </span>
             ) : null}
             {/* How saving what's watched here stands: an icon in its state's colour, its words in a tip. */}
-            <SavingMark saving={savingNow} />
+            <SavingMark saving={savingNow} onSendNow={() => void watcher.sendNow()} />
             <div className="strip-tools">
               {/* In full screen, the panel folded away from its own head, as its key folds it (the button in the
                   screen's corner brings it back): an icon button like the menu's, its words and the key in its tip, so the key is learnt where it's used. */}

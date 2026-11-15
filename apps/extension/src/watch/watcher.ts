@@ -16,6 +16,8 @@ const JUMP_MS = 1500;
 const SHORTEST_MS = 500;
 /** The most stretches waiting to go while Panki can't be reached; the oldest give way. */
 const WAITING_MAX = 100;
+/** How long after a failed send what's waiting is tried again by itself, so it goes even while the video stands still. */
+const RETRY_MS = 15_000;
 
 type Open = { id: string; videoId: string; fromMs: number; lastMs: number; startedAt: number; rate: number };
 
@@ -23,12 +25,14 @@ export type Watcher = ReturnType<typeof createWatcher>;
 
 /**
  * How saving what's watched here stands, for the panel's head (`ui/SavingMark.tsx`): `idle` before anything has gone
- * (or while nothing is noted), `saved` once a batch has landed, `sending` while one is on its way, `waiting` while
- * Panki couldn't be reached and stretches wait to go with the next send, `lost` once some gave way to newer ones
- * (`WAITING_MAX`), for the rest of this video. Times are on the wall clock (`Date.now()`), so they can be said as "ago".
+ * (or while nothing is noted), `saved` once a batch has landed and nothing watched since is unsent, `unsaved` while
+ * something watched isn't with Panki yet (the stretch playing, or one closed and not yet sent: leaving now would lose
+ * it), `sending` while a batch is on its way, `waiting` while Panki couldn't be reached and stretches wait to go with
+ * the next send, `lost` once some gave way to newer ones (`WAITING_MAX`), for the rest of this video. Times are on the
+ * wall clock (`Date.now()`), so they can be said as "ago".
  */
 export type Saving = {
-  state: "idle" | "saved" | "sending" | "waiting" | "lost";
+  state: "idle" | "saved" | "unsaved" | "sending" | "waiting" | "lost";
   /** Whether this page's video is being noted now: the head says how saving stands only then, or while something still waits or gave way. */
   noting: boolean;
   /** When the latest batch landed. */
@@ -74,7 +78,18 @@ export function createWatcher(deps: {
   /** How saving stands, told to whoever listens. A send that fails while some already wait stays `waiting`, never `sending`, so a retry doesn't flicker. */
   function tell() {
     const waitingMs = waiting.reduce((sum, stretch) => sum + stretch.spentMs, 0);
-    const state: Saving["state"] = lostMs > 0 ? "lost" : waitingSince !== null && waiting.length > 0 ? "waiting" : sending ? "sending" : savedAt !== null ? "saved" : "idle";
+    const state: Saving["state"] =
+      lostMs > 0
+        ? "lost"
+        : waitingSince !== null && waiting.length > 0
+          ? "waiting"
+          : sending
+            ? "sending"
+            : open !== null || waiting.length > 0
+              ? "unsaved"
+              : savedAt !== null
+                ? "saved"
+                : "idle";
     deps.onSaving?.({ state, noting: on && videoId !== null, savedAt, waitingMs, waitingSince, lostMs });
   }
 
@@ -83,7 +98,11 @@ export function createWatcher(deps: {
     open = null;
     if (!was) return;
     const spentMs = Math.round(seenAt - was.startedAt);
-    if (was.lastMs - was.fromMs < SHORTEST_MS && spentMs < SHORTEST_MS) return;
+    if (was.lastMs - was.fromMs < SHORTEST_MS && spentMs < SHORTEST_MS) {
+      // A flicker, not watching: nothing to send, and nothing unsent any more.
+      tell();
+      return;
+    }
     started.add(was.videoId);
     waiting.push({ id: was.id, videoId: was.videoId, fromMs: was.fromMs, toMs: Math.max(was.fromMs, was.lastMs), spentMs: Math.max(0, spentMs), rate: was.rate });
     if (waiting.length > WAITING_MAX) {
@@ -92,16 +111,29 @@ export function createWatcher(deps: {
     void flush();
   }
 
-  /** Sends what's waiting, one batch at a time; what didn't go waits for the next. Done once the batch on its way has landed or failed. */
+  /** The try again after a failed send, while one is set. */
+  let retry: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Sends what's waiting, one batch at a time. A batch that lands takes the next straight after it, what closed while
+   * it was on its way; one that fails leaves everything waiting, tried again `RETRY_MS` later, or sooner with the next
+   * stretch that closes. Done once the batch on its way has landed or failed.
+   */
   function flush(): Promise<void> {
     if (sending) return sending;
+    if (retry !== null) {
+      clearTimeout(retry);
+      retry = null;
+    }
     if (waiting.length === 0) return Promise.resolve();
     const stretches = waiting.slice(0, WAITING_MAX);
     const ids = new Set(stretches.map((s) => s.videoId));
     const batch: WatchBatch = { videos: [...ids].flatMap((id) => videos.get(id) ?? []).slice(0, 20), stretches };
+    let landed = false;
     sending = (async () => {
       try {
-        if (await deps.send(batch)) {
+        landed = await deps.send(batch);
+        if (landed) {
           waiting.splice(0, stretches.length);
           savedAt = Date.now();
           if (waiting.length === 0) waitingSince = null;
@@ -109,6 +141,10 @@ export function createWatcher(deps: {
       } finally {
         sending = null;
         tell();
+        if (waiting.length > 0) {
+          if (landed) void flush();
+          else retry = setTimeout(() => void flush(), RETRY_MS);
+        }
       }
     })();
     tell();
@@ -159,6 +195,8 @@ export function createWatcher(deps: {
       if (known) videos.set(videoId, { ...known, ...deps.about(videoId) });
       open = { id: uuid(), videoId, fromMs: at, lastMs: at, startedAt: now, rate };
       seenAt = now;
+      // Something watched isn't with Panki from this moment: the head says so.
+      tell();
     },
     /** The page is being left or hidden: what's open is closed and sent. */
     leave() {
