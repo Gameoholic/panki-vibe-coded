@@ -323,6 +323,14 @@ function settled(conversation: Conversation<Change>, key: TouchUpKey, how: "acce
     each.id === latest.id ? { ...each, changed: each.changed.map((change) => (change.key === key && !change.decided ? { ...change, decided: how } : change)) } : each,
   );
 }
+/** The commit that last spoke to a key's proposal: one that made it (in `changed`) or took it back (`withdrew`); none, never proposed for. */
+const lastSaidOn = (conversation: Conversation<Change>, key: TouchUpKey): Commit<Change> | undefined =>
+  commitsOf(conversation)
+    .filter((each) => each.changed.some((change) => change.key === key) || (each.withdrew ?? []).includes(key))
+    .at(-1);
+/** Whether a key's proposal stands: made by the commit that last spoke to it, and not decided since. */
+const standing = (conversation: Conversation<Change>, key: TouchUpKey): boolean =>
+  lastSaidOn(conversation, key)?.changed.some((change) => change.key === key && !change.decided) ?? false;
 /** Where the composer sends from, under the conversation, beside the fields' own follow-ups (by their ids). */
 const BAR = "bar";
 /** Where a follow-up is asked from a field's note. */
@@ -1100,13 +1108,23 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       },
       decided: without(was.decided),
       hidden: without(was.hidden),
-      conversation: firstSend ? startConversation(made) : commit(was.conversation, sent.where, made),
+      conversation: firstSend ? startConversation(made) : commit(was.conversation, sent.where, withdrawing(was.conversation, made, changed)),
       asking: null,
       // A send that changes the Sentence brings its own clip; one that doesn't leaves the last proposal's.
       clipTo: done.answer.line ? clipToOf(done.answer, read.now.values.line ?? "") : was.clipTo,
     }));
     // The worker keeps Panki AI as this answer said it stands: what's said beside Send follows any change.
     readAi();
+  }
+
+  /**
+   * A reply's commit with the proposals it took back (`Commit.withdrew`): each key it answered again with nothing
+   * proposed whose proposal stood until then. One it proposed for anew is a change, and one that failed is Failed's.
+   */
+  function withdrawing(conversation: Conversation<Change>, made: Commit<Change>, answered: readonly TouchUpKey[]): Commit<Change> {
+    const failed = new Set((made.aside ?? []).map((each) => each.part));
+    const withdrew = answered.filter((key) => !made.changed.some((change) => change.key === key) && !failed.has(key) && standing(conversation, key));
+    return withdrew.length > 0 ? { ...made, withdrew } : made;
   }
 
   /** A send pressed (Send, a field's Ask, Try again): at once, or asking first over the account's Ask before a run over, where its answer would go. `then` once it goes. */
@@ -1162,15 +1180,15 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   }
 
   /**
-   * How a commit's proposal for a key stands, on its chip: decided as it was, or, on the latest commit that proposed for
-   * it, waiting while it waits; anything else was replaced (proposed for again, or the field changed under it).
+   * How a commit's proposal for a key stands, on its chip: decided as it was; on the commit that last spoke to it,
+   * waiting while it waits; withdrawn when a later message took it back (`by`, that message, where a press goes); anything
+   * else was replaced (proposed for again, or the field changed under it).
    */
-  function chipState(made: Commit<Change>, change: Change): ChipState {
-    if (change.decided) return change.decided;
-    const latest = commitsOf(touch.conversation)
-      .filter((each) => each.changed.some((other) => other.key === change.key))
-      .at(-1);
-    return latest?.id === made.id && waiting(change.key) ? "live" : "replaced";
+  function chipState(made: Commit<Change>, change: Change): { state: ChipState; by?: number } {
+    if (change.decided) return { state: change.decided };
+    const last = lastSaidOn(touch.conversation, change.key);
+    if (last?.id === made.id) return { state: waiting(change.key) ? "live" : "replaced" };
+    return last && (last.withdrew ?? []).includes(change.key) ? { state: "withdrawn", by: last.id } : { state: "replaced" };
   }
   /**
    * Touch up's part of its conversation (`AiConversation`, every action's drawing): what a commit changed, a chip a
@@ -1186,10 +1204,19 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       return made.changed
         .flatMap((change) => {
           const field = failed.has(change.key) ? null : keyField(change.key);
-          return field ? [{ id: field.id, name: field.name, tone: change.tone, state: chipState(made, change) }] : [];
+          return field ? [{ id: field.id, name: field.name, tone: change.tone, ...chipState(made, change) }] : [];
         })
         .sort((a, b) => fieldPlace(a.id) - fieldPlace(b.id));
     },
+    // What it took back, a chip a field, pressed going to the field.
+    withdrew: (made) =>
+      (made.withdrew ?? [])
+        .flatMap((part) => {
+          const key = TOUCH_UP_KEYS.find((each) => each === part);
+          const field = key ? keyField(key) : null;
+          return field ? [{ id: field.id, name: field.name }] : [];
+        })
+        .sort((a, b) => fieldPlace(a.id) - fieldPlace(b.id)),
     // A part that came back with nothing to accept (couldn't decide, lines it couldn't use): a line of its own under
     // Changed, so it never reads as nothing changed and never hides under the field alone.
     failed: (made) =>

@@ -99,6 +99,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-16: the conversation's look, B Quiet, in the Card drawer, the Word pop-up and Settings → Panki AI's explainers: each message a soft bubble at the right, each reply plain text beside a small spark, one rounded composer, Send round in Panki's blue with an arrow.
 - 2026-11-16: the composer typed in while Panki AI answers, the actions ticked too, Send waiting for the answer, what's typed meanwhile kept as it lands.
 - 2026-11-16: Stop in Send's place while a message is on its way, in the drawer and the pop-up: the message cut, and the provider's call with it, its turn "Stopped" with Try again, the head's status Stopped; never an automation's.
+- 2026-11-16: a follow-up that takes a proposal back is a change: its branch merges into the head's conversation, "Withdrew: Meaning" under it, and the earlier chip it greyed says "Withdrawn by your follow-up" and goes to it.
 
 ## Under way
 

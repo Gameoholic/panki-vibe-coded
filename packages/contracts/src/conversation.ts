@@ -1,4 +1,4 @@
-/** @panki A place's Conversation, main and a branch per field, as commits (`Conversation`, `Commit`, `branchOf`, `mainRuns`, `historyOf`). Never a second record of one. */
+/** @panki A place's Conversation, main and a branch per field, as commits (`Conversation`, `Commit`, `branchOf`, `mainRuns`, `historyOf`, `changesAny`). Never a second record of one. */
 import type { ExplainMessage } from "./prompt";
 
 /**
@@ -13,7 +13,10 @@ import type { ExplainMessage } from "./prompt";
  * - **A field has a branch**, cut from main's **tip** (its latest commit) the first time a follow-up is asked under that
  *   field. Its commits live only on the branch: drawn under the field, sent to the model with main's history before
  *   them (`historyOf`), never part of main's string.
- * - **A branch commit whose reply changes any field merges the branch into main** (`merge`): all of the branch's
+ * - **A branch commit whose reply changes any field merges the branch into main** (`merge`): a change is any that
+ *   leaves the card's standing proposals other than they were (`changesAny`), a proposal made or one withdrawn (the
+ *   field answered again with nothing proposed); a reply that leaves every one as it was "changed nothing", and
+ *   questions and discussion stay on the branch. All of the branch's
  *   commits land on main in order (a fast-forward), so main's string holds the question the reply answered and what
  *   the earlier questions on that branch established. Main's tip is then that reply. In the head the branch's commits
  *   that changed nothing are folded under one quiet line (`mainRuns`), the changing one shown with its field and what it
@@ -54,7 +57,16 @@ export type Commit<C> = {
    * Touch up sets it.
    */
   aside?: readonly { part: string; error: string }[];
+  /**
+   * The parts whose standing proposal its reply took back: answered again with nothing proposed, so the field is left
+   * with none from it (a part proposed anew is in `changed`, never here). A change all the same (`changesAny`). Only
+   * Touch up sets it.
+   */
+  withdrew?: readonly string[];
 };
+
+/** Whether a commit left the card's standing proposals other than they were: one made, or one withdrawn. */
+export const changesAny = <C>(each: Commit<C>): boolean => each.changed.length > 0 || (each.withdrew?.length ?? 0) > 0;
 
 /** A field's branch: the commit of main it stands on, its own commits, and whether it was reset since a question was last asked there. */
 export type Branch<C> = {
@@ -127,14 +139,14 @@ function tipMoved<C>(conversation: Conversation<C>, except: string | null): Conv
 
 /**
  * A reply in, as a commit where its question was asked: on main (null) it moves the tip; on a field's branch it's the
- * branch's, cut first if the field had none, its reset note gone, and if it changed any field it merges the branch, which
+ * branch's, cut first if the field had none, its reset note gone, and if it changed any field (`changesAny`) it merges the branch, which
  * moves the tip. Whenever the tip moves every other branch is reset.
  */
 export function commit<C>(conversation: Conversation<C>, where: string | null, next: Commit<C>): Conversation<C> {
   if (where === null) return tipMoved({ ...conversation, main: [...conversation.main, next] }, null);
   const branch = branchOf(conversation, where);
   const grown = withBranch(conversation, where, { base: branch.base, commits: [...branch.commits, next], reset: false });
-  return next.changed.length > 0 ? tipMoved(merge(grown, where), where) : grown;
+  return changesAny(next) ? tipMoved(merge(grown, where), where) : grown;
 }
 
 /**
@@ -151,7 +163,7 @@ export function mainRuns<C>(conversation: Conversation<C>): { commit: Commit<C>;
   for (const each of conversation.main) {
     const fromBranch = each.run === null && each.field !== null;
     if (waiting.length > 0 && !(fromBranch && waiting[0]?.field === each.field)) flush();
-    if (fromBranch && each.changed.length === 0) {
+    if (fromBranch && !changesAny(each)) {
       waiting.push(each);
       continue;
     }

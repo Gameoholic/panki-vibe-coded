@@ -9247,7 +9247,7 @@ mark.sub-blur {
   }
 }
 /* What a reply changed (AiConversation.tsx → `Changed`): "Changed:" in the muted words, then a chip each, a dot in its
-   colour while it stands, a tick once accepted, a hollow dot once dismissed or replaced. */
+   colour while it stands, a tick once accepted, a hollow dot once dismissed, replaced or withdrawn. */
 .ai-changed {
   display: flex;
   flex-wrap: wrap;
@@ -9300,12 +9300,23 @@ mark.sub-blur {
 .btn.ai-chip.is-accepted > .icon {
   color: var(--good);
 }
-.btn.ai-chip:is(.is-accepted, .is-dismissed, .is-replaced) {
+.btn.ai-chip:is(.is-accepted, .is-dismissed, .is-replaced, .is-withdrawn) {
   color: var(--muted);
 }
-.btn.ai-chip:is(.is-dismissed, .is-replaced) .ai-chip-dot {
+.btn.ai-chip:is(.is-dismissed, .is-replaced, .is-withdrawn, .is-withdrew) .ai-chip-dot {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+/* What a reply took back (`Withdrew`): its own line under Changed, in the muted words, each chip muted with a hollow
+   dot; no verdict's colour, so its hover is the strong line's. */
+.btn.ai-chip.is-withdrew {
+  --judgement: var(--line-strong);
+  color: var(--muted);
+}
+/* An earlier reply's chip withdrawn since: its Tip hangs from it. */
+.ai-chip-hold {
+  position: relative;
+  display: inline-flex;
 }
 /* A merged branch's questions that changed nothing, in the head (AiConversation.tsx → `FoldedTurns`): one quiet line in
    the muted words with the chevron, pressed to open them where they stand. */
@@ -9379,12 +9390,13 @@ mark.sub-blur {
 .capture-field.is-lit::after {
   animation: capture-field-lit 1.5s ease-out;
 }
-/* The pop-up's meanings lit the same way when the word's "Meanings" chip goes to them (`useHoist.ts` → `goTo`): only
-   while lit, so nothing of theirs is drawn otherwise. */
-:is(.look-dict, .look-proposed, .look-fold).is-lit {
+/* The pop-up's meanings lit the same way when the word's "Meanings" chip goes to them (`useHoist.ts` → `goTo`), and a
+   conversation's message when a withdrawn chip goes to the one that took it back: only while lit, so nothing of theirs
+   is drawn otherwise. */
+:is(.look-dict, .look-proposed, .look-fold, .ai-explain-turn).is-lit {
   position: relative;
 }
-:is(.look-dict, .look-proposed, .look-fold).is-lit::after {
+:is(.look-dict, .look-proposed, .look-fold, .ai-explain-turn).is-lit::after {
   content: "";
   position: absolute;
   inset: -4px;
@@ -9405,7 +9417,7 @@ mark.sub-blur {
 }
 @media (prefers-reduced-motion: reduce) {
   .capture-field.is-lit::after,
-  :is(.look-dict, .look-proposed, .look-fold).is-lit::after {
+  :is(.look-dict, .look-proposed, .look-fold, .ai-explain-turn).is-lit::after {
     animation: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
   }

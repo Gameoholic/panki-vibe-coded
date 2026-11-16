@@ -29,6 +29,26 @@ function run(): Conversation<C> {
 const texts = (conversation: Conversation<C>, where: string | null) => historyOf(conversation, where).map((each) => each.text);
 const questions = (commits: readonly Commit<C>[]) => commits.map((each) => each.question);
 
+test("a branch reply that withdraws a standing proposal merges as a change does", () => {
+  let c = run();
+  c = commit(c, "meaning", turn("meaning", "is it formal?"));
+  assert.equal(c.main.length, 1);
+  c = commit(c, "meaning", { ...turn("meaning", "the ticked one fits, no?"), withdrew: ["meaning"] });
+  assert.deepEqual(questions(c.main), ["", "is it formal?", "the ticked one fits, no?"]);
+  assert.deepEqual(branchOf(c, "meaning").commits, []);
+  // In the head, the question that changed nothing is folded under the one that withdrew.
+  const last = mainRuns(c).at(-1);
+  assert.equal(last?.commit.question, "the ticked one fits, no?");
+  assert.deepEqual(questions(last?.folded ?? []), ["is it formal?"]);
+});
+
+test("a branch reply that leaves every proposal as it was stays on its branch", () => {
+  let c = run();
+  c = commit(c, "meaning", { ...turn("meaning", "why?"), withdrew: [] });
+  assert.equal(c.main.length, 1);
+  assert.deepEqual(questions(branchOf(c, "meaning").commits), ["why?"]);
+});
+
 test("no conversation has no tip and nothing to send", () => {
   assert.equal(tip(NO_CONVERSATION), null);
   assert.deepEqual(historyOf(NO_CONVERSATION, null), []);

@@ -1,6 +1,7 @@
 /** @panki Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`). Never a second drawing of a conversation. */
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode, type Ref } from "react";
 import { branchOf, mainRuns, type AiCall, type Commit, type Conversation } from "@panki/contracts";
+import { goTo } from "../hooks/useHoist";
 import { wordFor } from "../words";
 import { AnswerText, Composer, FieldMessage, MessageAsk, type Asked, type ComposerProps, type FieldMessageProps } from "./AiRun";
 import { AiStatus } from "./AiStatus";
@@ -9,6 +10,7 @@ import { Button } from "./Button";
 import { Fold } from "./Fold";
 import { Icon } from "./Icon";
 import { ScrollEdges } from "./ScrollEdges";
+import { Tip } from "./Tip";
 
 /**
  * Every Panki AI place's conversation drawn as one (`@panki/contracts` → `conversation.ts`, the one model): the head
@@ -37,6 +39,10 @@ export const CONVERSATION_WORDS = {
   changedNothing: "Changed nothing",
   /** Before the chips of what a reply was asked for and couldn't give (`Failed`), on a line of their own under Changed. */
   failed: "Failed:",
+  /** Before the chips of the proposals a reply took back (`Withdrew`), on a line of their own under Changed. */
+  withdrew: "Withdrew:",
+  /** An earlier reply's chip, greyed since a later message took its proposal back: what pointing at it says. */
+  withdrawnBy: "Withdrawn by your follow-up",
   /** The line a merged branch's questions that changed nothing are folded under, in the head. */
   foldedNothing: (n: number) => `${n} ${wordFor(n, "message", "messages")} · Changed nothing`,
   /** The line a field's branch folds under. */
@@ -53,11 +59,17 @@ export const TONE_CLASS: Record<Tone, string> = { good: "ai-judgement is-good", 
 
 /**
  * How what a reply changed stands now, on its chip: still standing (a proposal waiting, the meanings lit as it judged
- * them), accepted, dismissed, or replaced (a later reply changed it again, or it was changed under it).
+ * them), accepted, dismissed, replaced (a later reply changed it again, or it was changed under it), or withdrawn (a
+ * later message took it back, `Commit.withdrew`).
  */
-export type ChipState = "live" | "accepted" | "dismissed" | "replaced";
-/** Something a reply changed, as its chip draws it: where a press goes (`id`, handed to `onGo`), its name, its colour, how it stands. */
-export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipState };
+export type ChipState = "live" | "accepted" | "dismissed" | "replaced" | "withdrawn";
+/**
+ * Something a reply changed, as its chip draws it: where a press goes (`id`, handed to `onGo`), its name, its colour, how
+ * it stands; withdrawn, `by` is the message that took it back, where a press goes instead.
+ */
+export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipState; by?: number };
+/** A proposal a reply took back, as its chip draws it: where a press goes (`id`, the field) and its name. */
+export type WithdrewChip = { id: string; name: string };
 /** Something a reply couldn't give, as its chip draws it: where a press goes (`id`), its name, and why, in Panki's words. */
 export type FailedChip = { id: string; name: string; why: string };
 
@@ -112,6 +124,8 @@ export type ConversationOf<C> = {
    * each: its own line under Changed, in red. None, no line.
    */
   failed?: (commit: Commit<C>) => readonly FailedChip[];
+  /** The proposals a commit took back (`Commit.withdrew`), a chip each: its own line under Changed, muted. None, no line. */
+  withdrew?: (commit: Commit<C>) => readonly WithdrewChip[];
   /** Panki's own words under a reply, never the AI's (Explain's "Cut short at the answer limit."). */
   notes?: (commit: Commit<C>) => ReactNode;
   /** A field's name, by its id: a merged branch's mark in the head. Only a place whose messages have branches gives it. */
@@ -151,6 +165,7 @@ type Drawn = {
   failure: Failure | null;
   chips: readonly ChangeChip[] | null;
   failed: readonly FailedChip[];
+  withdrew: readonly WithdrewChip[];
   /** In the head, the commits of its branch that changed nothing and were merged with it. */
   folded: readonly Drawn[];
 };
@@ -168,13 +183,71 @@ function drawnOf<C>(made: Commit<C>, of: ConversationOf<C>, marked: boolean): Dr
     failure: null,
     chips: of.chips(made),
     failed: of.failed?.(made) ?? [],
+    withdrew: of.withdrew?.(made) ?? [],
     folded: [],
   };
 }
-const askingDrawn = (asking: Asking): Drawn => ({ ...asking, about: null, reply: null, notes: null, chips: null, failed: [], folded: [] });
+const askingDrawn = (asking: Asking): Drawn => ({ ...asking, about: null, reply: null, notes: null, chips: null, failed: [], withdrew: [], folded: [] });
 
 /** A chip's state in words, for a screen reader: the dot or the tick says it to the eye. */
-const CHIP_STATE_WORDS: Record<ChipState, string> = { live: "waiting", accepted: "accepted", dismissed: "dismissed", replaced: "replaced" };
+const CHIP_STATE_WORDS: Record<ChipState, string> = { live: "waiting", accepted: "accepted", dismissed: "dismissed", replaced: "replaced", withdrawn: "withdrawn" };
+
+/** The message a withdrawn chip names (`ChangeChip.by`), found in the conversation the chip stands in, brought into view and lit. */
+function goToTurn(from: HTMLElement, id: number) {
+  // The head's block first; a chip drawn under a field looks through the page it's in (the extension's shadow root).
+  const turn = from.closest(".ai-explain")?.querySelector(`[data-turn="${id}"]`) ?? (from.getRootNode() as Document | ShadowRoot).querySelector(`[data-turn="${id}"]`);
+  if (turn instanceof HTMLElement) goTo(turn);
+}
+
+/**
+ * An earlier reply's chip whose proposal a later message took back: hollow, muted, "Withdrawn by your follow-up" while a
+ * mouse is on it or it has the focus; pressed, it goes to that message.
+ */
+function WithdrawnChip({ chip, by }: { chip: ChangeChip; by: number }) {
+  /** Where the Tip stands, over the chip's middle, while it's pointed at or focused; null otherwise. */
+  const [over, setOver] = useState<number | null>(null);
+  const show = (e: { currentTarget: HTMLElement }) => setOver(e.currentTarget.offsetWidth / 2);
+  return (
+    <span className="ai-chip-hold">
+      <Button
+        variant="chip"
+        className={`ai-chip ${TONE_CLASS[chip.tone]} is-withdrawn`}
+        aria-label={`${chip.name}, ${CONVERSATION_WORDS.withdrawnBy}`}
+        onMouseEnter={show}
+        onMouseLeave={() => setOver(null)}
+        onFocus={show}
+        onBlur={() => setOver(null)}
+        onClick={(e) => goToTurn(e.currentTarget, by)}
+      >
+        <span className="ai-chip-dot" aria-hidden="true" />
+        {chip.name}
+      </Button>
+      {over !== null ? (
+        <Tip x={over} y={0}>
+          {CONVERSATION_WORDS.withdrawnBy}
+        </Tip>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * The proposals a reply took back, on their own line under what it changed: "Withdrew:" in the muted words and a chip
+ * each, the dot hollow and muted; pressed, it goes to the field.
+ */
+function Withdrew({ chips, onGo }: { chips: readonly WithdrewChip[]; onGo: (target: string) => void }) {
+  return (
+    <div className="ai-changed is-withdrew">
+      {CONVERSATION_WORDS.withdrew}
+      {chips.map((chip) => (
+        <Button key={chip.id} variant="chip" className="ai-chip is-withdrew" aria-label={`${chip.name}, withdrawn`} onClick={() => onGo(chip.id)}>
+          <span className="ai-chip-dot" aria-hidden="true" />
+          {chip.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * What a reply changed, under it: "Changed:" and a chip each, the dot in its colour while it stands, a tick once
@@ -186,12 +259,16 @@ function Changed({ chips, onGo }: { chips: readonly ChangeChip[]; onGo: (target:
   return (
     <div className="ai-changed">
       {CONVERSATION_WORDS.changed}
-      {chips.map((chip) => (
-        <Button key={chip.id} variant="chip" className={`ai-chip ${TONE_CLASS[chip.tone]} is-${chip.state}`} aria-label={`${chip.name}, ${CHIP_STATE_WORDS[chip.state]}`} onClick={() => onGo(chip.id)}>
-          {chip.state === "accepted" ? <Icon name="check" /> : <span className="ai-chip-dot" aria-hidden="true" />}
-          {chip.name}
-        </Button>
-      ))}
+      {chips.map((chip) =>
+        chip.state === "withdrawn" && chip.by !== undefined ? (
+          <WithdrawnChip key={chip.id} chip={chip} by={chip.by} />
+        ) : (
+          <Button key={chip.id} variant="chip" className={`ai-chip ${TONE_CLASS[chip.tone]} is-${chip.state}`} aria-label={`${chip.name}, ${CHIP_STATE_WORDS[chip.state]}`} onClick={() => onGo(chip.id)}>
+            {chip.state === "accepted" ? <Icon name="check" /> : <span className="ai-chip-dot" aria-hidden="true" />}
+            {chip.name}
+          </Button>
+        ),
+      )}
     </div>
   );
 }
@@ -233,7 +310,7 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
   const press = pressOf(turn);
   const waiting = turn.reply === null && turn.failure === null;
   return (
-    <div className="ai-explain-turn">
+    <div className="ai-explain-turn" data-turn={turn.id}>
       {about && turn.run === null ? (
         <Button className="ai-about" onClick={() => onGo(about.id)}>
           <Icon name="forward" />
@@ -261,7 +338,9 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
           ) : (
             <AnswerText text={turn.reply ?? ""}>
               {turn.notes}
-              {turn.chips !== null ? <Changed chips={turn.chips} onGo={onGo} /> : null}
+              {/* "Changed nothing" only while it took nothing back either. */}
+              {turn.chips !== null && !(turn.chips.length === 0 && turn.withdrew.length > 0) ? <Changed chips={turn.chips} onGo={onGo} /> : null}
+              {turn.withdrew.length > 0 ? <Withdrew chips={turn.withdrew} onGo={onGo} /> : null}
               {turn.failed.length > 0 ? <Failed chips={turn.failed} onGo={onGo} /> : null}
             </AnswerText>
           )}
