@@ -3416,6 +3416,11 @@ function typedElsewhere(e: KeyboardEvent): boolean {
 }
 
 /**
+ * Where the last short skip by a line put the video, and on which video (its source, as the site keeps one player for
+ * every video): `lineSkipTo`'s `landed`. Any other short skip forgets it.
+ */
+let lineLanded: { src: string; at: number } | null = null;
+/**
  * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on, in place of the site's 5 s, by the
  * seconds set or by a line of the subtitles the panel shows (`lineSkipTo`), by the seconds where there's no line to go
  * to; held down it goes on skipping, kept from the site. There with Panki on or off; never while typing, in Panki's own
@@ -3429,7 +3434,9 @@ function shortSkip(e: KeyboardEvent): boolean {
   e.stopImmediatePropagation();
   const back = e.key === "ArrowLeft";
   const end = Number.isFinite(video.duration) ? video.duration : Infinity;
-  const byLine = on.shortSkip === "line" ? lineSkipTo(lines.snapshot(), video.currentTime, back) : null;
+  const landed = lineLanded !== null && lineLanded.src === video.currentSrc ? lineLanded.at : null;
+  const byLine = on.shortSkip === "line" ? lineSkipTo(lines.snapshot(), video.currentTime, back, landed) : null;
+  lineLanded = byLine === null ? null : { src: video.currentSrc, at: byLine };
   video.currentTime = Math.max(0, Math.min(end, byLine ?? video.currentTime + (back ? -1 : 1) * on.shortSkipSeconds));
   return true;
 }
