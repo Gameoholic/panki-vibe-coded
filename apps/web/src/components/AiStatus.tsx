@@ -147,16 +147,19 @@ function pretty(text: string): string {
     return text;
   }
 }
-/** A message as it went or came, in a box of its own height that scrolls inside itself. */
+/**
+ * A message as it went or came, in a box of its own height that scrolls inside itself, in its own holder: the drawer
+ * and the pop-up scroll round it (`.scroll-hold`).
+ */
 function Message({ text, lang }: { text: string; lang?: string | undefined }) {
   const box = useRef<HTMLPreElement>(null);
   return (
-    <>
+    <div className="scroll-hold">
       <pre ref={box} className="ai-details-prompt" lang={lang}>
         {text}
       </pre>
       <ScrollEdges of={box} />
-    </>
+    </div>
   );
 }
 
@@ -378,12 +381,14 @@ function Details({ id, calls }: { id: string; calls: readonly AiCall[] }) {
       </dl>
       {call.pieces.length > 0 ? (
         <Section title="Prompt context" count={`${sent} of ${asked} sent`}>
-          <ul ref={pieces} className="ai-pieces">
-            {call.pieces.map((use) => (
-              <Piece key={use.name} use={use} open={expanded.has(use.name)} onToggle={() => toggle(use.name)} />
-            ))}
-          </ul>
-          <ScrollEdges of={pieces} />
+          <div className="scroll-hold">
+            <ul ref={pieces} className="ai-pieces">
+              {call.pieces.map((use) => (
+                <Piece key={use.name} use={use} open={expanded.has(use.name)} onToggle={() => toggle(use.name)} />
+              ))}
+            </ul>
+            <ScrollEdges of={pieces} />
+          </div>
         </Section>
       ) : null}
       <Section title="Log">

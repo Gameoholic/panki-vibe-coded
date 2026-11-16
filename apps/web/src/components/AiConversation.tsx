@@ -495,12 +495,13 @@ export function ConversationTurns<C>({ conversation, asking, where, of, foot = n
     <>
       {where === null ? (
         drawn.length > 0 ? (
-          <>
+          // Its own holder: the drawer and the pop-up scroll round it, and the fades must move with it (`.scroll-hold`).
+          <div className="scroll-hold">
             <div ref={box} className="ai-turns is-main">
               {drawn}
             </div>
             <ScrollEdges of={box} />
-          </>
+          </div>
         ) : null
       ) : folds ? (
         <>

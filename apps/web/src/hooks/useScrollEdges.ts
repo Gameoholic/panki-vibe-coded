@@ -18,7 +18,13 @@ const SLACK = 1;
  * over at all (`is-over`), which edges have more past them (`data-more`, "top bottom", or "left right" for a box
  * scrolling sideways, `axis` "x"), how far it's scrolled and how much of it shows (`--scroll-at`, `--scroll-seen`,
  * shares of its length along the axis), and whether the viewer is scrolling it (`is-scrolling`, until `BAR_STAYS_MS`
- * after the last scroll) or pulling its thumb (`is-dragging`). `app.css` draws the rest. Whichever element the box's ref
+ * after the last scroll) or pulling its thumb (`is-dragging`). `app.css` draws the rest.
+ *
+ * Where the overlay is placed is the one way it can go wrong: placed in a box outside a scroller the box stands in (the
+ * extension's column), it's put back by this script after each scroll, while the browser moves the box at once on its
+ * own thread, so for as long as that scroll goes on the fades stand where the box was, over what's round it. A box
+ * inside something that scrolls stands in a holder of its own with its `ScrollEdges` (`.scroll-hold`, nothing but the
+ * box): the overlay is then placed in the holder, which every scroll moves with the box. Whichever element the box's ref
  * holds after each render is the one followed, so a box that comes and goes (a menu opened and closed) is picked up as
  * it comes.
  */
@@ -101,8 +107,16 @@ function follow(el: HTMLElement, bar: HTMLElement, axis: "x" | "y"): () => void 
       bar.style.left = `${left}px`;
       landed = bar.getBoundingClientRect();
     }
+    // In the box's own holder (`.scroll-hold`) the two share every box round them, so each cuts both alike and every
+    // scroll moves both alike, the browser's own scrolling included: nothing for a script to cut, nothing to lag.
+    if (held()) {
+      bar.style.clipPath = "";
+      return;
+    }
     cut(landed);
   };
+  /** Whether the overlay stands in the box's own holder: placed in the box's parent, which is nothing but the box. */
+  const held = () => bar.offsetParent === el.parentElement && el.parentElement?.classList.contains("scroll-hold") === true;
   /**
    * Cut where a box round it cuts the box: a box that clips (a fold on its way, a column that scrolls) clips only what
    * its own containing block holds, and the overlay's may lie outside it, so its fades would stand over what's around.

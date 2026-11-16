@@ -2299,6 +2299,15 @@ canvas.media-frame {
 [data-scroll-edges] {
   scrollbar-width: none;
 }
+/* A scroller's own holder, for one inside something else that scrolls (the extension's column, the pop-up): nothing but
+   the box and its `ScrollEdges`, and the box the overlay is placed in, so every scroll round them moves the two as one,
+   the browser's own included, and nothing of the fades can stand outside the box (`useScrollEdges` → `held`). */
+.scroll-hold {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
 .scroll-edges {
   --scroll-bar: 4px;
   --scroll-fade: 40px;

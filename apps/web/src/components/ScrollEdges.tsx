@@ -15,7 +15,8 @@ type Props = {
  * Panki's look for a box that scrolls inside itself: a fade at an edge with more past it and a thin bar that shows
  * while it scrolls or the pointer is on it (`hooks/useScrollEdges.ts`, `app.css` → `.scroll-edges`). Rendered right
  * after its box, in the same place, so the two come and go together; laid over the box, never inside it, so nothing
- * of it moves with the box's scroll.
+ * of it moves with the box's scroll. A box inside something else that scrolls (the extension's column, the pop-up)
+ * stands with it in a holder of its own (`<div className="scroll-hold">`), so every scroll round them moves both at once.
  */
 export function ScrollEdges({ of, axis = "y", onPointerDown }: Props) {
   const edges = useRef<HTMLSpanElement>(null);
