@@ -42,7 +42,7 @@ The owner's words, not concrete:
 
 ## The order
 
-Steps 1 to 8 are built on local dev and unpushed; the owner looks at them on the dev server at their own pace (the owner, 2026-11-15). The open questions below are built as their proposed defaults. How they're built: `architecture/rules.md`.
+Steps 1 to 8 are built and on main, pushed 2026-11-16 (e6713d4); the owner tries them on prod at their own pace. The open questions below are built as their proposed defaults. How they're built: `architecture/rules.md`.
 
 - [x] 1. **Automations themselves and Proofread when a transcript is finished**: the registries, the automations on the server and in the extension's copy, Settings → Automations with the list and the editor, the caps, the row's last run and spend.
 - [x] 2. **Proofread as the transcript grows**: the triggers "a part comes in" and "after every chunk", Proofreading only the new lines.
