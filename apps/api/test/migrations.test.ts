@@ -20,6 +20,15 @@ function at52(): DatabaseSync {
   return db;
 }
 const version = (db: DatabaseSync) => (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
+/**
+ * The newest step's number, read from the migrations list itself: `migrate` runs every step there is by default, so a
+ * new step moves this and no test that means "up to date" names a number.
+ */
+const NEWEST = (() => {
+  const db = new DatabaseSync(":memory:", { enableForeignKeyConstraints: false });
+  migrate(db, NOW);
+  return version(db);
+})();
 const columnsOf = (db: DatabaseSync, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; type: string; notnull: number; dflt_value: unknown; pk: number }[]);
 
 let n = 0;
@@ -174,7 +183,7 @@ test("53 runs once: a database brought up to date stays as it is", () => {
   migrate(db, NOW);
   const once = all(db, "SELECT think_ms AS think FROM card_places ORDER BY id");
   migrate(db, NOW);
-  assert.equal(version(db), 55);
+  assert.equal(version(db), NEWEST);
   assert.deepEqual(all(db, "SELECT think_ms AS think FROM card_places ORDER BY id"), once);
 });
 
@@ -194,10 +203,91 @@ test("55 writes nothing: an account with data of its own, a new one and one that
   const chosen = at54({ weekEndsOn: "fri" });
   for (const db of [withData, fresh, chosen]) {
     migrate(db, NOW);
-    assert.equal(version(db), 55);
+    assert.equal(version(db), NEWEST);
     assert.deepEqual(all(db, "SELECT 1 FROM settings_changes WHERE key = 'weekEndsOn'"), []);
   }
   assert.equal(weekEndsOnOf(withData), undefined);
   assert.equal(weekEndsOnOf(fresh), undefined);
   assert.equal(weekEndsOnOf(chosen), JSON.stringify("fri"));
+});
+
+/** A database as step `until` left it, with the settings given kept as they're written (a string as is, anything else as JSON). */
+function atStep(until: number, settings: Record<string, unknown> = {}): DatabaseSync {
+  const db = new DatabaseSync(":memory:", { enableForeignKeyConstraints: false });
+  migrate(db, NOW, until);
+  assert.equal(version(db), until);
+  for (const [key, value] of Object.entries(settings)) insert(db, "settings", { key, value: typeof value === "string" ? value : JSON.stringify(value) });
+  return db;
+}
+/** Every row of every table, by table, as the database holds them. */
+function dump(db: DatabaseSync): Record<string, Row[]> {
+  const tables = all(db, "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").map((r) => String(r.name));
+  return Object.fromEntries(tables.map((t) => [t, all(db, `SELECT * FROM "${t}"`).map((r) => ({ ...r }))]));
+}
+const indexesOf = (db: DatabaseSync, table: string) => all(db, `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = '${table}' AND sql IS NOT NULL ORDER BY name`).map((r) => r.name);
+
+test("56 and 57 add their tables and touch nothing kept before", () => {
+  const db = atStep(55, { timeZone: "Asia/Jerusalem", rules: [] });
+  insert(db, "decks", {});
+  const before = dump(db);
+  migrate(db, NOW, 57);
+  assert.equal(version(db), 57);
+  assert.deepEqual(
+    columnsOf(db, "rule_runs").map((c) => c.name),
+    ["id", "rule_id", "action", "subject", "at", "outcome", "cost_micros", "detail"],
+  );
+  assert.deepEqual(indexesOf(db, "rule_runs"), ["rule_runs_at", "rule_runs_subject"]);
+  assert.deepEqual(
+    columnsOf(db, "card_proposals").map((c) => c.name),
+    ["id", "card_id", "field_id", "value", "reason", "source", "rule_id", "at", "decided", "decided_at"],
+  );
+  assert.deepEqual(indexesOf(db, "card_proposals"), ["card_proposals_card"]);
+  const after = dump(db);
+  assert.deepEqual(Object.keys(after).filter((t) => !(t in before)), ["card_proposals", "rule_runs"]);
+  for (const table of Object.keys(before)) assert.deepEqual(after[table], before[table], `${table} as it was`);
+});
+
+const rulesOf = (db: DatabaseSync) => (db.prepare("SELECT value FROM settings WHERE key = 'rules'").get() as { value: string } | undefined)?.value;
+const rulesLogged = (db: DatabaseSync) => all(db, "SELECT key, from_value AS fromValue, to_value AS toValue, at FROM settings_changes WHERE key = 'rules'").map((r) => ({ ...r }));
+
+test("58 adds Transcribe the entire video at the end of a kept list once, the rest as it was, and logs it", () => {
+  const live = { id: "transcribeLive", on: false, when: "videoPlays", do: "transcribeLive", mode: "hybrid", perDayMicros: 500_000 };
+  for (const kept of [[], [live], [live, { id: "mine", on: true, when: "videoSaved", do: "download" }]]) {
+    const db = atStep(57, { rules: kept });
+    migrate(db, NOW, 58);
+    const value = rulesOf(db);
+    assert.ok(value !== undefined);
+    const rules = JSON.parse(value) as Row[];
+    assert.equal(rules.length, kept.length + 1);
+    // Everything kept before, key for key and in its order, the old `mode` too.
+    assert.equal(JSON.stringify(rules.slice(0, kept.length)), JSON.stringify(kept));
+    const added = rules[kept.length] as Row;
+    assert.equal(added.id, "transcribeWhole");
+    assert.equal(added.do, "transcribeWhole");
+    assert.equal(added.on, true);
+    assert.deepEqual(rulesLogged(db), [{ key: "rules", fromValue: JSON.stringify(kept), toValue: value, at: NOW }]);
+    // Run again, nothing more.
+    migrate(db, NOW);
+    assert.equal(rulesOf(db), value);
+    assert.equal(rulesLogged(db).length, 1);
+  }
+});
+
+test("58 leaves a list that already transcribes the entire video, one that isn't a list, and an account that kept none", () => {
+  for (const kept of [
+    JSON.stringify([{ id: "other", on: false, when: "videoWatched", do: "transcribeWhole" }]),
+    JSON.stringify([{ id: "transcribeWhole", on: false, when: "videoSaved", do: "download" }]),
+    JSON.stringify({ not: "a list" }),
+    "not JSON",
+  ]) {
+    const db = atStep(57, { rules: kept });
+    migrate(db, NOW, 58);
+    assert.equal(rulesOf(db), kept);
+    assert.deepEqual(rulesLogged(db), []);
+  }
+  const none = atStep(57);
+  migrate(none, NOW, 58);
+  assert.equal(version(none), 58);
+  assert.equal(rulesOf(none), undefined);
+  assert.deepEqual(rulesLogged(none), []);
 });
