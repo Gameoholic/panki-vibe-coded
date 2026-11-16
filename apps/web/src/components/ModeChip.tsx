@@ -3,7 +3,7 @@ import { TRANSCRIBE_MODES, type TranscribeMode } from "@panki/contracts";
 import { Icon, type IconName } from "./Icon";
 
 /** Each transcription mode's icon. One home: wherever a mode is shown, it's with this. */
-export const MODE_ICONS: Record<TranscribeMode, IconName> = { full: "download", live: "lead", hybrid: "hybrid" };
+export const MODE_ICONS: Record<TranscribeMode, IconName> = { full: "download", live: "lead" };
 
 /**
  * A transcription mode named in a sentence: its icon and its name on a soft highlight of the accent, as every mention of

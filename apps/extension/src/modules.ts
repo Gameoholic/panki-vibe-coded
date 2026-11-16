@@ -354,6 +354,11 @@ export const Modules = z.object({
    * own, `BAR_CONTROLS.downloaded`). Shown to begin with.
    */
   downloadMark: z.boolean(),
+  /**
+   * Downloading, this browser's own (options page, Downloads): off, nothing downloads here, by hand or by an
+   * automation, and a download asked for waits, kept as it stands, until it's on again. On to begin with.
+   */
+  downloading: z.boolean(),
 });
 export type Modules = z.infer<typeof Modules>;
 export const DEFAULT_MODULES: Modules = {
@@ -394,6 +399,7 @@ export const DEFAULT_MODULES: Modules = {
   recapConfetti: true,
   recapLook: DEFAULT_RECAP_LOOK,
   downloadMark: true,
+  downloading: true,
 };
 
 /**

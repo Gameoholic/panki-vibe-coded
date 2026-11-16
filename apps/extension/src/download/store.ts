@@ -1,4 +1,4 @@
-/** @panki The videos downloaded in this browser, kept and listed (`startDownload`, `claimDownload`, `keepPiece`, `holdDownload`, `listDownloads`, `pieceFacts`, `pieceBytes`, `removeDownload`). Never a second store of them. */
+/** @panki The videos downloaded in this browser, kept and listed (`startDownload`, `claimDownload`, `keepPiece`, `holdDownload`, `releaseDownload`, `listDownloads`, `downloadRoom`, `pieceFacts`, `pieceBytes`, `removeDownload`). Never a second store of them. */
 import { DownloadVideo, KeptPiece, TROUBLE_MAX, coveredMsOf, coveredOf, retryAfterMs, stateOf, trackStretchesOf, type DownloadAbout, type DownloadJob, type DownloadRow, type HoldEnd, type PieceAsk } from "./download";
 
 /**
@@ -69,16 +69,16 @@ const piecesRead = (kept: unknown[]): KeptPiece[] => kept.flatMap((one) => {
 });
 
 /**
- * A video asked to be downloaded, at the quality set now. One asked for already is left as it is, but for one that
- * stopped, which is tried again at once.
+ * A video asked to be downloaded, at the quality set now, by hand or by a rule (`ruleId`). One asked for already is left
+ * as it is, but for one that stopped, which is tried again at once.
  */
-export async function startDownload(about: DownloadAbout, quality: number, now: number): Promise<void> {
+export async function startDownload(about: DownloadAbout, quality: number, now: number, ruleId: string | null = null): Promise<void> {
   const db = await open();
   const tx = db.transaction("videos", "readwrite");
   const videos = tx.objectStore("videos");
   const was = videoOf(await request(videos.get(about.videoId)));
   if (!was) {
-    const video: DownloadVideo = { ...about, quality, startedAt: now, doneAt: null, heldBy: null, heldAt: null, trouble: null, troubleAt: null, tries: 0 };
+    const video: DownloadVideo = { ...about, ruleId, quality, startedAt: now, doneAt: null, heldBy: null, heldAt: null, trouble: null, troubleAt: null, tries: 0 };
     videos.put(video);
   } else if (was.doneAt === null && was.troubleAt !== null) videos.put({ ...was, troubleAt: null } satisfies DownloadVideo);
   await finished(tx);
@@ -159,6 +159,19 @@ export async function holdDownload(videoId: string, tabId: number, end: HoldEnd,
   return end.kind === "going";
 }
 
+/**
+ * A download the page running it is to let go of (downloading switched off in this browser): no longer held, as it
+ * stands, with nothing of a stop counted against it, so it's taken up at once when downloading is on again.
+ */
+export async function releaseDownload(videoId: string, tabId: number): Promise<void> {
+  const db = await open();
+  const tx = db.transaction("videos", "readwrite");
+  const videos = tx.objectStore("videos");
+  const video = videoOf(await request(videos.get(videoId)));
+  if (video && video.doneAt === null && video.heldBy === tabId) videos.put({ ...video, heldBy: null, heldAt: null } satisfies DownloadVideo);
+  await finished(tx);
+}
+
 /** Every download, the one asked for last first: how each stands, how much of its video is in, and its size. */
 export async function listDownloads(now: number): Promise<DownloadRow[]> {
   const db = await open();
@@ -190,6 +203,16 @@ export async function pieceFacts(videoId: string): Promise<KeptPiece[]> {
   const video = videoOf(await request(tx.objectStore("videos").get(videoId)));
   if (!video || video.doneAt === null) return [];
   return piecesRead(await request(tx.objectStore("pieces").getAll(piecesOf(videoId))));
+}
+
+/** A download as it stands for a rule's room: the rule that asked for it (null by hand) and the bytes kept so far; null when there's none. */
+export async function downloadRoom(videoId: string): Promise<{ ruleId: string | null; bytes: number } | null> {
+  const db = await open();
+  const tx = db.transaction(["videos", "pieces"]);
+  const video = videoOf(await request(tx.objectStore("videos").get(videoId)));
+  if (!video) return null;
+  const kept = piecesRead(await request(tx.objectStore("pieces").getAll(piecesOf(videoId))));
+  return { ruleId: video.ruleId, bytes: kept.reduce((sum, piece) => sum + piece.size, 0) };
 }
 
 /** One piece's bytes; null when it isn't kept. */

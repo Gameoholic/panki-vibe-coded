@@ -1,6 +1,6 @@
 /** @panki What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). */
 import { z } from "zod";
-import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle, TranscribeMode } from "@panki/contracts";
+import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts";
 import { DEFAULT_DOWNLOAD_QUALITY, DEFAULT_DOWNLOAD_SPEED, DownloadQuality, DownloadSpeed } from "./download/download";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
@@ -119,9 +119,10 @@ const Stored = z.object({
    */
   subtitleSourceOn: z.string().catch(""),
   /**
-   * How transcribing behaves for this viewer (`transcribe/prefs.ts`): when it starts, whether the transcript replaces
-   * the site's captions on the picture. Set on the options page (Videos → Transcribing): what's client-side is the
-   * viewer's own, what costs Panki's settings, an admin's.
+   * How transcribing behaves for this viewer (`transcribe/prefs.ts`): whether the transcript replaces the site's
+   * captions on the picture. Set on the options page (Videos → Transcribing): what's client-side is the viewer's own,
+   * what costs Panki's settings, an admin's. `transcribeTrigger` (Auto or at a press) is kept and read by nothing:
+   * whether it starts by itself is the account's automation (`rules.ts`), the same in every browser.
    */
   transcribeTrigger: TranscribeTrigger.catch(DEFAULT_PREFS.trigger),
   // A browser that kept `transcribePaused` keeps it unread: what happens while paused is Panki's settings, an admin's.
@@ -142,8 +143,8 @@ const Stored = z.object({
   pickColour: MarkPaint.catch(DEFAULT_PREFS.pick),
   /** A subtitle word's colour where you added a card for it (`transcribe/prefs.ts` → `added`), set on the options page (Videos → Panki panel). */
   addedColour: MarkPaint.catch(DEFAULT_PREFS.added),
-  /** The transcription mode this viewer picked in the strip's menu (`transcribe/prefs.ts`); null, the one Panki's settings start everyone on. */
-  transcribeMode: TranscribeMode.nullable().catch(DEFAULT_PREFS.mode),
+  // A browser that kept `transcribeMode` (the mode picked in the strip's menu: Full, Live or Hybrid) keeps it unread:
+  // Live and Full are each an action and an automation of their own, and nothing is rewritten.
   /** Which of Panki's parts are on, and what happens where a video was stopped (`modules.ts`), set on the options page; `pankiOn` in the strip's head too. */
   pankiOn: z.boolean().catch(DEFAULT_MODULES.on),
   modulePanel: z.boolean().catch(DEFAULT_MODULES.panel),
@@ -230,6 +231,8 @@ const Stored = z.object({
   downloadSpeed: DownloadSpeed.catch(DEFAULT_DOWNLOAD_SPEED),
   /** The downloaded mark on a downloaded video wherever it shows (options page, Downloads; `modules.ts` → `downloadMark`). */
   downloadMark: z.boolean().catch(DEFAULT_MODULES.downloadMark),
+  /** Downloading in this browser at all, by hand or by an automation (options page, Downloads; `modules.ts` → `downloading`). */
+  downloadOn: z.boolean().catch(DEFAULT_MODULES.downloading),
   /** Reload Panki was pressed on the options page, which the reload closes: it's opened again as the extension comes back, and this cleared. */
   reopenOptions: z.boolean().catch(false),
   // A browser that kept `meaningPick` (which meanings a card got) keeps it unread: the ones ticked in the drawer are
@@ -247,7 +250,6 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   seek: store.seekLook,
   pick: store.pickColour,
   added: store.addedColour,
-  mode: store.transcribeMode,
 });
 
 /**
@@ -297,6 +299,7 @@ export const modulesOf = (store: Stored): Modules => ({
   recapConfetti: store.recapConfetti,
   recapLook: store.recapLook,
   downloadMark: store.downloadMark,
+  downloading: store.downloadOn,
 });
 
 /**

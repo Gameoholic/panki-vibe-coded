@@ -55,6 +55,7 @@ const SECTIONS = [
       "reviewLine.ts",
       "romaji.ts",
       "routes.ts",
+      "ruleKinds.ts",
       "shuffle.ts",
       "skeletonMemory.ts",
       "srsFlow.ts",

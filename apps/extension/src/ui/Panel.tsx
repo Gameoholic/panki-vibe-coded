@@ -75,6 +75,8 @@ import {
   type PankiAi,
   type PromptGaps,
   type PromptPieces,
+  type Rule,
+  type RuleCall,
   type SubtitleLine,
   type TouchUpAnswer,
   type TouchUpKey,
@@ -124,6 +126,7 @@ import {
   type Tone,
 } from "@web/components/AiConversation";
 import { FIELD_KINDS } from "@web/fieldKinds";
+import { ruleWords } from "@web/ruleKinds";
 import { useCalled } from "@web/hooks/useCalled";
 import { useHoist } from "@web/hooks/useHoist";
 import { count, langOf, wordFor } from "@web/words";
@@ -134,7 +137,8 @@ import { CLIENT } from "../client";
 import { wordKey, type Found } from "../dictionary/found";
 import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askAddExample, askAiState, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
+import { askAdd, askAddExample, askAiState, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askRules, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
+import { aiActionOf, automationOf } from "../automations";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, mappingOn, roleOf, roleOfKey, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { useLocal } from "../local";
 import { uuid } from "../uuid";
@@ -976,7 +980,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
    * conversation (`startConversation`), a later one is a commit there (`commit`: one on a branch that changes a field
    * merges the branch, and main's tip moving resets every other branch).
    */
-  async function sendTouch(sent: Sent, why: AiMessageWhy) {
+  async function sendTouch(sent: Sent, why: AiMessageWhy, rule?: RuleCall) {
     if (!aiSettings || !sendable(sent)) return;
     const ready = prepared(sent, aiSettings);
     const { run, required, read, send, opening, first, said } = ready;
@@ -1021,7 +1025,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           ? [...was.heardNotes, { after: was.conversation.main.length, lines: heardLinesNow, seconds: heardNow ? heardNow.to - heardNow.from : null }]
           : was.heardNotes,
     }));
-    const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }) });
+    const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }), ...(rule ? { rule } : {}) });
     const now = Date.now();
     if (!answer.ok) {
       const failed = failedCall(call, answer.message, now, answer.unread);
@@ -1095,6 +1099,28 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       void sendTouch(sent, why);
     });
   }
+  /**
+   * The Card drawer's automation (When the Card drawer opens → Ask Panki AI: its action): once the drawer could send as the
+   * first Send could (Panki AI known, the word looked up, a deck mapped), its one action sent as Send pressed with it
+   * ticked would send it, the automation named on the ask so Panki holds its caps and keeps its run, and never asked
+   * first: an automation never asks. What comes back stands in the drawer as a press's does. Once a drawer opening.
+   */
+  const automated = useRef(false);
+  const [automation, setAutomation] = useState<Rule | null>(null);
+  useEffect(() => {
+    void askRules().then((answer) => setAutomation(answer.ok ? automationOf(answer.rules, "drawerOpens", "drawerAction") : null));
+  }, []);
+  useEffect(() => {
+    if (automated.current || !automation || !ai.ai || looked === "" || found === null || phase.at !== "idle") return;
+    const action = aiActionOf(automation, book, "card");
+    const sent: Sent = { where: null, actions: action ? [action] : [], text: "" };
+    if (!action || !sendable(sent)) return;
+    automated.current = true;
+    // As a press of Send: every ticked action clears with it.
+    setTicked([]);
+    void sendTouch(sent, { kind: "rule", rule: ruleWords(automation, book) }, { id: automation.id, subject: looked.slice(0, 200) });
+  });
+
   /** What's typed where it's sent from, checked, then sent with the actions lit there; it stays in its box until it really goes. */
   function sendFrom(fieldId: string | null) {
     const where = placeOf(fieldId);
@@ -1493,6 +1519,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     };
     return Object.fromEntries(fieldIds.filter((id) => (filled[id] ?? "") !== "").map((id) => [id, sourceOf(id)]));
   }
+
 
   // The word said on Forvo, when the deck takes it: asked for once the dictionaries have answered, as the dictionary
   // has it (探す, not 探していた, which no one records), or as it's typed when they don't know it. Panki's server asks

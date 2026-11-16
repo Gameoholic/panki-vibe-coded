@@ -44,6 +44,7 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 | `/api/videos` | `videos.ts` | The account's cards from a video (the marks on its bar), and its thumbnail and channel picture, fetched once for everyone |
 | `/api/watching` | `watching.ts` | Time watched, where a video stopped, finished, saved videos, the glance on YouTube's thumbnails, each browser's Video tracking (`watching.md`) |
 | `/api/ai` | `ai.ts` | Panki AI's settings and keys (admin), templates, actions, and a message to each place (`ai.md`) |
+| `/api/rules` | `rules.ts` | How the automations stand today, and a page asking to run one (`rules.md`); the automations themselves are settings |
 | `/api/usage` | `usage.ts` | The usage ledger added up per account (admin) |
 | `/api/stats` | `stats.ts` | Every number of the Stats tab, for all decks or one; `?last=3&unit=week` adds a custom frame over the past (`Stats.custom`), `?next=` one ahead (`Stats.customAhead`); what's left of this week, month and year always (`Stats.calendarAhead`), the days named by the API |
 | `/api/space` | `space.ts` | What's left on the disk (anyone: they share it), and the storage report (admin) |
@@ -55,7 +56,6 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 - **An answer** carries `givenId`, the id the browser minted for that showing: the same `givenId` again keeps nothing more and returns the card; one that's another card's is `409`. It carries `exampleId` when the card was shown with an example: `400` when it isn't the card's, `409` when the card has a live pin and this isn't it. An answer whose rule is Bury or Suspend writes a hold, not a place.
 - **Undo** is `DELETE …/answers/:givenId`: the card as it stood before; `409` unless that answer is the last thing that happened to the card.
 - **`PUT …/hold`** suspends a card by hand from its row; **`DELETE …/hold`** lifts every hold that still stands.
-- **`PUT …/flag`** sets the flag; the same again writes nothing.
-- **A session** is `POST …/sessions` with the browser's id, stamped with the API's time and the signed-in device; its end, `PATCH`, is set once.
+- **`PUT …/flag`** sets the flag; the same again writes nothing.- **A session** is `POST …/sessions` with the browser's id, stamped with the API's time and the signed-in device; its end, `PATCH`, is set once.
 - **`GET …/cards`** pins an example on each card a review would take now that has examples and no live pin (`data-model.md` → "A card's other examples"): a read that writes, on purpose.
 - **The API never refuses an answer for being over the day's count;** it only stops offering new cards (`newCount` 0) until the day turns.

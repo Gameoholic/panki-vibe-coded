@@ -36,6 +36,9 @@ import {
   PieceResponse,
   RedoResponse,
   RedoStretchResponse,
+  RuleRunAnswer,
+  type RuleRunAsk,
+  type RuleRunStop,
   ServerDictionaryList,
   SettingsResponse,
   SrsTypeList,
@@ -303,6 +306,12 @@ export const panki = {
    */
   updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
     call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
+  /** A rule's run on a trigger a page heard (a video plays): Panki holds its caps and keeps the go or the stop as the rule's run. */
+  ruleRun: ({ address, token }: Door, ruleId: string, run: RuleRunAsk): Promise<RuleRunAnswer> =>
+    call(address, token, `/api/rules/${id(ruleId)}/runs`, json("POST", run), (b) => RuleRunAnswer.parse(b)),
+  /** A rule's run stopped part-way at a cap only this browser holds (a download grown past its MB), kept as the run's row. */
+  ruleStopped: ({ address, token }: Door, ruleId: string, stop: RuleRunStop): Promise<void> =>
+    call(address, token, `/api/rules/${id(ruleId)}/runs/stopped`, json("POST", stop), () => undefined),
   /** Videos as their thumbnails on YouTube are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
   glance: ({ address, token }: Door, videoIds: readonly string[]): Promise<VideoGlance[]> =>
     call(address, token, "/api/watching/glance", json("POST", { videoIds }), (b) => GlanceResponse.parse(b).videos),

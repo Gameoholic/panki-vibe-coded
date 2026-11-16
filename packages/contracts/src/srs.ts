@@ -1,6 +1,7 @@
 /** @panki SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). */
 import { z } from "zod";
 import { DEFAULT_REVIEW_SETTINGS, ReviewSettings } from "./reviewSettings";
+import { DEFAULT_RULES, DEFAULT_RULES_DAY_MICROS, RULE_MICROS_MAX, Rules } from "./rules";
 import { DEFAULT_STREAKS, StreakId, StreakRules } from "./streaks";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "./subtitleStyle";
 import { TranscribeLanguage } from "./transcription";
@@ -573,6 +574,18 @@ export const Settings = z.object({
    * Panki's line over YouTube's home, never a pop-up and nothing sent to a device. On to begin with.
    */
   reminderOnYouTube: z.boolean(),
+  /**
+   * **Rules** (Settings → Rules, `rules.ts`): every automatic run Panki makes for the account, each When → Do → At most,
+   * On or Off. What each did is `rule_runs`, read into its standing; nothing of it is kept here. New keys, so an account
+   * without them reads the defaults: no migration.
+   */
+  rules: Rules,
+  /**
+   * **Max spend for automations** a day (Settings → Automations): the account's one daily cap over every rule's spend, in
+   * micro-dollars. $5.00 to begin with. (`rulesStandingShown`, the Last runs switch that once stood beside it, is gone:
+   * a value kept for it stays in the table, read by nothing, and a `PATCH` naming it is stripped.)
+   */
+  rulesDayMicros: z.number().int().min(0).max(RULE_MICROS_MAX),
   /** How every review runs, the same for every deck (`ReviewSettings`), each key a setting of its own. */
   ...ReviewSettings.shape,
 });
@@ -601,6 +614,8 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderHour: 20,
   reminderInApp: true,
   reminderOnYouTube: true,
+  rules: DEFAULT_RULES,
+  rulesDayMicros: DEFAULT_RULES_DAY_MICROS,
   ...DEFAULT_REVIEW_SETTINGS,
 };
 export const SettingsUpdate = Settings.omit({ videoTracking: true }).partial();

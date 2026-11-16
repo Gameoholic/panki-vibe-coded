@@ -1,9 +1,7 @@
 import express, { Router, type Response } from "express";
-import type { z } from "zod";
 import {
   AI_PLACES,
   AI_PROVIDERS,
-  APP_LANGUAGES,
   AiActionId,
   AiActionUpdate,
   AiActionsArrange,
@@ -20,18 +18,14 @@ import {
   widerOf,
   AiProviderId,
   AiTemplateUpdate,
-  type AiRanOn,
   ExplainAsk,
   ExplainShape,
   NewAiTemplate,
   PankiAiUpdate,
   ProofreadAsk,
-  ProofreadShape,
   TEMPLATED_PLACE_IDS,
-  TRANSCRIBE_LANGUAGES,
   TemplateId,
   TouchUpAsk,
-  aiModelOf,
   aiSent,
   answerOfWire,
   customOf,
@@ -44,40 +38,32 @@ import {
   wordPromptOf,
   asksSomething,
   isError,
-  isFollowUp,
   isModelOf,
   keysFor,
-  lineTextOf,
   meaningsPiece,
   requiredFor,
   sendOf,
   sendPieces,
   sendTokens,
   cardPromptOf,
-  piecesAsSent,
-  proofreadPieces,
-  proofreadProblem,
-  proofreadTokens,
-  sentLength,
   cardPiecesOf,
   keysWithLines,
   sentenceLinesOf,
-  templateById,
-  tokenCostMicros,
   touchUpProblem,
   touchUpShape,
   type AiPlaceId,
-  type AiTemplate,
   type AiUnread,
-  type ExplainMessage,
   type ExplainProblem,
   type PankiAi,
   type PankiAiStatus,
   type PromptPieces,
+  type RuleActionId,
+  type RuleCall,
   type TouchUpAnswer,
 } from "@panki/contracts";
-import { AiError, PLAIN_ISSUE, safetyIdOf, type AiClient } from "../ai";
+import { ruled, type AiCalls, type Call, type Ran } from "../ai/calls";
 import type { DbOf } from "../app";
+import type { Rules } from "../rules";
 import { requireAdmin, signedIn } from "../session";
 import type { Shared } from "../shared";
 
@@ -93,22 +79,6 @@ const TEMPLATE_BODY_MAX = "256kb";
 const TEMPLATES_PATH = "/api/ai/templates";
 /** Whether a path's body is read by its own route here, past the 64 KB every other is held to (`app.ts`): a call's, or a template's. */
 export const readsOwnBody = (path: string): boolean => AI_CALL_PATHS.has(path) || path === TEMPLATES_PATH || path.startsWith(`${TEMPLATES_PATH}/`);
-
-/** Max answer length as each place's is called in Admin → Panki AI → Limits, for the failure that says to raise it. */
-const LIMIT_NAMES: Record<AiPlaceId, string> = { word: "Max answer length", card: "Max Touch up answer length", transcript: "Max Proofread answer length" };
-
-/**
- * A shape with one of Panki's rules on top: a rule broken is named in the issue, so the Log says which, as expected
- * against got. A message's knobs broken (`plain` set: Requires, Leave out) carry Panki's plain words too, which the
- * reader makes the failure's own message (`ai/index.ts`, `PLAIN_ISSUE`).
- */
-function ruled<T>(shape: z.ZodType<T>, problem: (value: T) => { broken: string | null; plain?: string | null }): z.ZodType<T> {
-  return shape.superRefine((value, ctx) => {
-    const { broken, plain } = problem(value);
-    if (broken === null) return;
-    ctx.addIssue({ code: "custom", message: broken, ...(plain ? { params: { [PLAIN_ISSUE]: plain } } : {}) });
-  });
-}
 
 /** A message without its wider subtitles: the first one, whose subtitles are the prompt's own. */
 function withoutWider<S extends { wider?: string | undefined }>(each: S): S {
@@ -135,7 +105,7 @@ const CONVERSATION_OF: Record<AiPlaceId, string> = { word: "a word's conversatio
  * a call to the provider with the key an admin typed or the server's own, read through the one reader, running a
  * template of the account's own or one of Panki's starters (AI step 5); the account's templates are its own to manage.
  */
-export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProviderId, string | null>, ai: AiClient, now: () => number) {
+export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProviderId, string | null>, calls: AiCalls, rules: Rules, now: () => number) {
   const router = Router();
 
   // The key typed in Settings goes back to an admin, to see what's there; the server's own never does, nor anything to
@@ -362,148 +332,28 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     res.status(400).json({ error: { message: "One of those actions isn't there any more." }, ai: statusOf(res) });
   };
 
-  /**
-   * The pieces as they're sent: cut as the page's Details say (`piecesAsSent`, the one cut), the account's two languages
-   * and its standing message (User instructions) its own whatever came.
-   */
-  const piecesFor = (res: Response, pieces: PromptPieces, settings: PankiAi): PromptPieces => {
-    const account = dbOf(res).getSettings();
-    return piecesAsSent(
-      { ...pieces, learningLanguage: TRANSCRIBE_LANGUAGES[account.language], language: APP_LANGUAGES[account.appLanguage], instructions: account.aiInstructions },
-      settings,
-    );
-  };
+  /** The pieces as they're sent (`AiCalls.piecesFor`): the account's two languages and User instructions its own whatever came. */
+  const piecesFor = (res: Response, pieces: PromptPieces, settings: PankiAi): PromptPieces => calls.piecesFor(dbOf(res), pieces, settings);
 
-  type Run<T> = {
-    place: AiPlaceId;
-    /** The filled prompt, then the conversation so far. */
-    prompt: string;
-    said: readonly ExplainMessage[];
-    maxTokens: number;
-    shape: z.ZodType<T>;
-    /** What it was done to, for the ledger: the word. */
-    ref: string;
-    /** The actions a card's conversation's send went with, for the ledger. */
-    actions?: readonly string[];
-  };
-  /** An answer read whole, what it came as, its tokens and what they cost, and what it ran on. */
-  type Ran<T> = { value: T; raw: string; inputTokens: number; outputTokens: number; costMicros: number; ranOn: AiRanOn };
   /**
-   * One place's call, the same for every place: Panki AI on and keyed, the whole held to Max request length, the
-   * provider asked through the one reader, and one usage row whatever came back that the provider billed (an answer
-   * read whole, or one cut short or in the wrong shape). Answers the value and what it cost, or null once it has
-   * refused with the reason.
+   * One place's call (`AiCalls.call`, the one a rule makes too), answered here: the value and what it cost, or null once
+   * it has refused with the reason.
    */
-  async function run<T>(res: Response, settings: PankiAi, { place, prompt, said, maxTokens, shape, ref, actions }: Run<T>): Promise<Ran<T> | null> {
-    const { name } = AI_PROVIDERS[settings.aiProvider];
-    if (!settings.aiOn) {
-      refuse(res, 409, "off", "Panki AI is off.");
+  async function run<T>(res: Response, settings: PankiAi, call: Call<T>, rule?: RuleCall, does?: RuleActionId): Promise<Ran<T> | null> {
+    // Sent for a rule: held to its caps before it goes, and kept as its run however it ends.
+    const ruled = rule && does ? rules.pageCall(dbOf(res), rule, does) : null;
+    if (rule && !ruled) {
+      refuse(res, 409, "capped", "That automation is off.");
       return null;
     }
-    const key = shared.key(settings.aiProvider) ?? serverKeys[settings.aiProvider];
-    if (key === null) {
-      refuse(res, 409, "noKey", `No key for ${name}.`);
-      return null;
-    }
-    const length = sentLength([prompt, ...said.map((m) => m.text)]);
-    if (length > settings.aiMaxRequestChars) {
-      refuse(res, 413, "tooLong", `Too long to send: ${length.toLocaleString("en")} characters, more than the ${settings.aiMaxRequestChars.toLocaleString("en")} Panki sends.`);
-      return null;
-    }
-    const model = aiModelOf(settings);
-    // What it runs on, told with the answer and with an answer that couldn't be used, so Details name it whatever the page last knew.
-    const ranOn: AiRanOn = { provider: settings.aiProvider, model: model.id };
-    const userId = signedIn(res).user.id;
-    const meter = (inputTokens: number, outputTokens: number) => {
-      const costMicros = tokenCostMicros(model, inputTokens, outputTokens);
-      shared.meter({ kind: "ai", service: settings.aiProvider, model: model.id, what: place, ref: ref.slice(0, 100) || null, userId, inputTokens, outputTokens, costMicros, ...(actions ? { actions } : {}) }, now());
-      return costMicros;
-    };
-    try {
-      const answer = await ai.answer({
-        provider: settings.aiProvider,
-        key,
-        model,
-        messages: [{ role: "user", text: prompt }, ...said],
-        maxTokens,
-        safetyId: safetyIdOf(userId),
-        shape,
-        name: place,
-        limit: LIMIT_NAMES[place],
-      });
-      return { value: answer.value, raw: answer.raw, inputTokens: answer.inputTokens, outputTokens: answer.outputTokens, costMicros: meter(answer.inputTokens, answer.outputTokens), ranOn };
-    } catch (e) {
-      if (!(e instanceof AiError)) throw e;
-      const costMicros = e.tokens ? meter(e.tokens.input, e.tokens.output) : 0;
-      // An answer that came back and couldn't be used goes to the page whole, with why, for the Log alone.
-      const unread: AiUnread | undefined =
-        e.raw !== null ? { raw: e.raw, detail: e.detail ?? "", inputTokens: e.tokens?.input ?? 0, outputTokens: e.tokens?.output ?? 0, costMicros, ranOn } : undefined;
-      refuse(res, 502, "provider", e.message, unread);
-      return null;
-    }
+    const called = await calls.call(settings, signedIn(res).user.id, ruled ? { ...call, before: ruled.before } : call);
+    ruled?.kept(called);
+    if (called.ok) return called.ran;
+    const { status, problem, message, unread } = called.refused;
+    refuse(res, status, problem, message, unread);
+    return null;
   }
 
-  /** What an ask comes to before it's sent: the template it runs, whether it's a follow-up, the messages, and what the ledger names it by. */
-  type Prepared = {
-    template: AiTemplate;
-    followUp: boolean;
-    /** The template's prompt filled, then the conversation so far with, for a follow-up, its Follow-up prompt filled last. */
-    prompt: string;
-    said: ExplainMessage[];
-    /** A follow-up's Follow-up prompt as filled and sent, handed back for the page to keep in `Said`; "" for a first ask. */
-    asked: string;
-    ref: string;
-    /** The pieces as they were sent (`piecesAsSent`): what an answer is held to beyond its shape. */
-    pieces: PromptPieces;
-  };
-  /** An ask that runs a template: the template by its id, the pieces, the meanings, and for a follow-up the conversation so far and its question. */
-  type TemplatedAsk = { templateId: TemplateId; pieces: PromptPieces; meanings: readonly string[]; said: readonly ExplainMessage[]; asking?: PromptPieces };
-  /**
-   * An ask made ready the same way for every templated place (Proofread's, since Explain's and Touch up's prompts are
-   * the admin's): the template it names, the account's own or a starter
-   * and the place's, filled by the server, never text the page sends; a follow-up held to Max follow-ups and Max
-   * follow-up length, its question the asker's (`asking`), filled into the template's Follow-up prompt over the pieces.
-   * `{Meaning}` is the list made here (`meaningsPiece`), the one an answer's rows are checked against, in the Follow-up
-   * prompt as in the first; the account's two languages its own whatever came (`piecesFor`). Null once it has refused.
-   */
-  function prepare(res: Response, settings: PankiAi, place: AiPlaceId, ask: TemplatedAsk, custom: readonly string[] = []): Prepared | null {
-    const template = templateById(ask.templateId, dbOf(res).listAiTemplates());
-    if (!template || template.place !== place) {
-      // With Panki AI as it stands, so the page takes the templates as they are now (one deleted on another device).
-      const message = template ? `That template isn't ${AI_PLACES[place].name}'s.` : "That template doesn't exist.";
-      res.status(400).json({ error: { message }, ai: statusOf(res) });
-      return null;
-    }
-    const followUp = isFollowUp(ask);
-    if (followUp) {
-      const question = ask.asking?.question?.trim() ?? "";
-      if (question === "") {
-        res.status(400).json({ error: { message: "A message needs words." } });
-        return null;
-      }
-      // Every follow-up so far is a question in the conversation sent, and this one the next.
-      if (ask.said.filter((m) => m.role === "user").length + 1 > settings.aiMaxFollowUps) {
-        refuse(res, 409, "followUps", `That's the most messages ${CONVERSATION_OF[place]} takes.`);
-        return null;
-      }
-      if (question.length > settings.aiMaxQuestionChars) {
-        refuse(res, 413, "tooLong", `That question is longer than the ${settings.aiMaxQuestionChars.toLocaleString("en")} characters Panki sends.`);
-        return null;
-      }
-    }
-    const meanings = ask.meanings.length + custom.length > 0 ? { dictMeaning: meaningsPiece(ask.meanings, custom) } : {};
-    const pieces = piecesFor(res, { ...ask.pieces, ...meanings }, settings);
-    const asking = piecesFor(res, { ...ask.asking, ...meanings }, settings);
-    // What's sent and what Max request length counts are one list (`aiSent`), as the page's "Up to" is worked out from.
-    const sent = aiSent(template, pieces, ask.said, asking);
-    const asked = followUp ? (sent[sent.length - 1] ?? "") : "";
-    if (followUp && asked.trim() === "") {
-      res.status(400).json({ error: { message: "This template's Follow-up prompt comes out empty." } });
-      return null;
-    }
-    const said: ExplainMessage[] = followUp ? [...ask.said, { role: "user", text: asked }] : [];
-    return { template, followUp, prompt: sent[0] ?? "", said, asked, ref: pieces.dictForm || pieces.word || "", pieces };
-  }
   /** The tokens and cost of an answer, and what it ran on, as every place's reply carries them. */
   const spent = ({ raw, inputTokens, outputTokens, costMicros, ranOn }: Ran<unknown>) => ({ raw, inputTokens, outputTokens, costMicros, ranOn });
 
@@ -570,7 +420,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       shape: ruled(ExplainShape, (wire) => explainProblem(explainOfWire(wire), held)),
       ref: pieces.dictForm || pieces.word || "",
       actions: send.actions,
-    });
+    }, ask.rule, "popupAction");
     if (!answer) return;
     const read = explainOfWire(answer.value);
     res.json({
@@ -657,7 +507,7 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     // card's Explain, Grammar…) empty, a key it leaves out (`leftOutFor`) answered. Nothing of such a message lands.
     const held = { meanings, now: card, requires: requiredFor(mapped, lit), reply: replyRequired(lit), leaves: leftOutFor(mapped, lit) };
     const shape = ruled(touchUpShape(keys, card, meanings.length + custom.length), (wire) => touchUpProblem(answerOfWire(wire, sentence), held));
-    const answer = await run(res, settings, { ...call, shape });
+    const answer = await run(res, settings, { ...call, shape }, ask.rule, "drawerAction");
     if (!answer) return;
     const read = answerOfWire(answer.value, sentence);
     res.json({ touchUp: { answer: meaningsInOrder(read.answer), reply: read.reply, asked, ...spent(answer) }, ai: statusOf(res) });
@@ -677,42 +527,17 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       res.status(400).json({ error: { message: "That request isn't valid." } });
       return;
     }
-    if (!shared.getTranscription().fixes) {
-      refuse(res, 403, "editingOff", "Editing Panki subtitles is switched off.");
+    const { videoId } = parsed.data;
+    const done = await calls.proofread(dbOf(res), signedIn(res).user.id, parsed.data);
+    if (!done.ok) {
+      const { status, problem, message, unread } = done.refused;
+      // A template that isn't there is the page's to take again, with Panki AI as it stands.
+      if (status === 400) res.status(400).json({ error: { message }, ai: statusOf(res) });
+      else refuse(res, status, problem, message, unread);
       return;
     }
-    const { videoId, run: runId } = parsed.data;
-    const lines = shared.proofreadLines(videoId, parsed.data.lines);
-    if (!lines) {
-      refuse(res, 409, "gone", "The transcript changed. Try again.");
-      return;
-    }
-    const around = shared.proofreadLines(videoId, parsed.data.around) ?? [];
-    const settings = shared.getAi();
-    const ask = prepare(res, settings, "transcript", { templateId: parsed.data.templateId, pieces: { ...parsed.data.pieces, ...proofreadPieces(lines, around) }, meanings: [], said: [] });
-    if (!ask) return;
-    const before = lines.map(lineTextOf);
-    const answer = await run(res, settings, {
-      place: "transcript",
-      prompt: ask.prompt,
-      said: [],
-      maxTokens: proofreadTokens(lines.length, settings.aiMaxProofreadTokens),
-      shape: ruled(ProofreadShape, (value) => ({ broken: proofreadProblem(value, before) })),
-      ref: videoId,
-    });
-    if (!answer) return;
-    // A line given back as it already reads changes nothing and isn't told of.
-    const changed = answer.value.lines
-      .map((l) => ({ line: l.line, text: l.text.trim(), reason: l.reason.trim() }))
-      .filter((l) => l.text !== before[l.line - 1])
-      .sort((a, b) => a.line - b.line);
-    const words = shared.proofreadFix(
-      videoId,
-      changed.map((l) => ({ wordIds: parsed.data.lines[l.line - 1] ?? [], text: l.text, reason: l.reason })),
-      { run: runId, model: answer.ranOn.model, templateId: ask.template.id, userId: signedIn(res).user.id },
-      now(),
-    );
-    res.json({ proofread: { lines: changed, words, ...spent(answer) }, transcript: shared.transcript(videoId), ai: statusOf(res) });
+    const { lines, words, ran } = done.done;
+    res.json({ proofread: { lines, words, ...spent(ran) }, transcript: shared.transcript(videoId), ai: statusOf(res) });
   });
 
   return router;

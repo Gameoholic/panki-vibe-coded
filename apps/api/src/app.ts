@@ -3,7 +3,10 @@ import type { AiProviderId, EngineId, Space, StorageReport, WordAudioSourceId } 
 import type { AuthDb } from "./authDb";
 import type { Db } from "./db";
 import type { AiClient } from "./ai";
+import { createAiCalls } from "./ai/calls";
+import { createRules } from "./rules";
 import { aiRouter, readsOwnBody } from "./routes/ai";
+import { rulesRouter } from "./routes/rules";
 import { accountRouter, loginRouter } from "./routes/auth";
 import type { Forvo } from "./forvo";
 import { cardsRouter } from "./routes/cards";
@@ -81,6 +84,10 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
 
   const deps = { auth, throttle: createThrottle(), now };
   const dbOf: DbOf = (res) => dbFor(signedIn(res).user.id);
+  // Panki AI's calls, made the same way by a place's route and by a rule; the rules hear what the server sees.
+  const calls = createAiCalls(shared, aiKeys, ai, now);
+  const rules = createRules(dbFor, shared, calls, now);
+  jobs.whenDone((done) => rules.downloaded(done));
 
   // Every answer says how what the extension keeps stands now (`kept.ts`): everyone's, the build's, and the account's
   // when the request is signed in.
@@ -110,10 +117,11 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
   app.use("/api/forvo", forvoRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), forvo, shared, wordAudioKeys.forvo, now));
   app.use("/api/dictionaries", dictionariesRouter(shared, dictionaryDir, now));
   app.use("/api/transcription", transcriptionRouter(dbOf, shared, engines, engineKeys, now));
-  app.use("/api/transcripts", transcriptsRouter(dbOf, shared, engines, engineKeys, jobs, now));
+  app.use("/api/transcripts", transcriptsRouter(dbOf, shared, engines, engineKeys, jobs, rules, now));
   app.use("/api/videos", videosRouter(dbOf, shared, now));
   app.use("/api/watching", watchingRouter(dbOf, auth, shared, now));
-  app.use("/api/ai", aiRouter(dbOf, shared, aiKeys, ai, now));
+  app.use("/api/ai", aiRouter(dbOf, shared, aiKeys, calls, rules, now));
+  app.use("/api/rules", rulesRouter(dbOf, rules));
   app.use("/api/usage", usageRouter(shared, auth));
   app.use("/api/stats", statsRouter(dbOf, now));
   app.use("/api/space", spaceRouter(space, storage));

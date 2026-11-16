@@ -33,7 +33,7 @@ import { createWatcher, SAVING_IDLE, type Saving } from "../watch/watcher";
 import { SavingMark } from "../ui/SavingMark";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type TranscribeMode, type VideoCard } from "@panki/contracts";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type VideoCard } from "@panki/contracts";
 import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
 import { createPlayback } from "../download/playback";
 import { createDownloads, stillOf } from "../download/runner";
@@ -3033,23 +3033,13 @@ function App() {
           where: downloadsNow.where?.videoId === here ? downloadsNow.where.words : null,
           playing: playingNow?.videoId === here ? playingNow.words : null,
           rows: downloadsNow.rows,
-          can: lengthHere() !== null,
+          can: modules.get().downloading && lengthHere() !== null,
+          why: modules.get().downloading ? null : "Downloading is off in this browser",
           onDownload: downloadHere,
           onRemove: () => void downloads.remove(here),
           watch: downloads.watch,
         }
       : null;
-  /** Whether it starts by itself, changed in the menu: this viewer's own, taken at once on the page and kept by the worker. */
-  function setAuto(on: boolean) {
-    const trigger = on ? "auto" : "press";
-    amendPrefs({ trigger });
-    void askPrefs({ trigger });
-  }
-  /** The mode this viewer transcribes in, picked in the menu: taken at once, kept by the worker. */
-  function setMode(mode: TranscribeMode) {
-    amendPrefs({ mode });
-    void askPrefs({ mode });
-  }
   /** How the transcript looks over the video, changed under the panel menu's Subtitle style: seen at once, kept by the worker. */
   function setStyle(style: SubtitleStyle) {
     amendPrefs({ style });
@@ -3175,12 +3165,10 @@ function App() {
                   at={video?.currentTime ?? null}
                   onStart={() => video && transcriber.start(video)}
                   onStop={() => transcriber.stop()}
+                  onOrder={() => video && transcriber.orderWhole(video)}
                   onRetranscribe={(stretch) => void transcriber.retranscribe(stretch.start, stretch.end)}
                   widen={widenPart}
                   onForget={() => void forgetAll()}
-                  onAuto={setAuto}
-                  onMode={setMode}
-                  onAnswer={(yes) => transcriber.answer(yes, duration)}
                   detail={transcriber.detail}
                   ai={engineOn ? proofreadPart() : null}
                   editing={

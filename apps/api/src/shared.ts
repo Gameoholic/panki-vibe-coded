@@ -709,6 +709,9 @@ export function openShared(dataDir: string) {
   const insertSettingChange = db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at, user_id) VALUES (?, ?, ?, ?, ?)");
 
   const selectTranscript = db.prepare("SELECT language FROM transcripts WHERE video_id = ?");
+  /** The videos a rule is proofreading on the server this moment, each with how many runs: a state of this process, as the whole-video downloads' line is. */
+  const proofreadingRuns = new Map<string, number>();
+  const proofreadingNow = { has: (videoId: string) => (proofreadingRuns.get(videoId) ?? 0) > 0 };
   const insertTranscript = db.prepare("INSERT OR IGNORE INTO transcripts (video_id, language, language_probability, created_at, updated_at) VALUES (?, NULL, NULL, ?, ?)");
   // Told a language and hearing words in it, the video is in that language by the teller's word, unless it's that already.
   const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
@@ -755,6 +758,8 @@ export function openShared(dataDir: string) {
   const insertJob = db.prepare("INSERT INTO transcript_jobs (id, video_id, engine, language, length_ms, state, asked_at, user_id) VALUES (?, ?, ?, ?, ?, 'running', ?, ?)");
   const selectJob = db.prepare(`SELECT ${jobColumns} FROM transcript_jobs WHERE id = ?`);
   const selectLatestJob = db.prepare(`SELECT ${jobColumns} FROM transcript_jobs WHERE video_id = ? ORDER BY asked_at DESC, rowid DESC LIMIT 1`);
+  // When the video's transcript, or a part of it, was last forgotten: a download that ended before then is history.
+  const selectLastForget = db.prepare("SELECT MAX(at) AS at FROM transcript_forgets WHERE video_id = ?");
   const selectRunningJobs = db.prepare(`SELECT ${jobColumns} FROM transcript_jobs WHERE state = 'running' ORDER BY asked_at ASC`);
   const startJob = db.prepare("UPDATE transcript_jobs SET started_at = ?, attempts = attempts + 1 WHERE id = ? AND state = 'running'");
   const failJob = db.prepare("UPDATE transcript_jobs SET state = 'failed', ended_at = ?, message = ? WHERE id = ? AND state = 'running'");
@@ -1075,14 +1080,28 @@ export function openShared(dataDir: string) {
               };
         return [{ ...now, ...fix, ...(unsureOf(w) ? { unsure: true } : {}), ...(w.lineMark ? { line: w.lineMark } : {}) }];
       });
-      const job = selectLatestJob.get(videoId) as JobRow | undefined;
+      // The latest download, unless it ended before the transcript was last forgotten (whole or a part): its words are
+      // gone, so it no longer says the video is transcribed, and the entire video can be asked for again.
+      const latest = selectLatestJob.get(videoId) as JobRow | undefined;
+      const forgotAt = (selectLastForget.get(videoId) as { at: number | null }).at;
+      const job = latest && !(latest.state !== "running" && forgotAt !== null && forgotAt >= (latest.endedAt ?? latest.askedAt)) ? latest : undefined;
       return Transcript.parse({
         videoId,
         language: row?.language ?? null,
         words,
         covered: mergeStretches(selectKeptStretches.all(videoId, videoId) as StretchRow[]),
         job: job ? wholeJobOf(job) : null,
+        ...(proofreadingNow.has(videoId) ? { proofreading: true } : {}),
       });
+    },
+    /**
+     * A rule's Proofread on the server under way on a video, or ended: while it is, the transcript says so, and a page
+     * reads it again until it's done. Only this process's runs: one cut short by a restart is simply not under way.
+     */
+    proofreading(videoId: string, going: boolean): void {
+      const runs = Math.max(0, (proofreadingRuns.get(videoId) ?? 0) + (going ? 1 : -1));
+      if (runs > 0) proofreadingRuns.set(videoId, runs);
+      else proofreadingRuns.delete(videoId);
     },
     /** Whether a whole video's own pieces, standing, cover a stretch of it: a chunk of that stretch isn't sent to the engine again. */
     coveredByJob(videoId: string, startMs: number, endMs: number): boolean {
@@ -1207,6 +1226,11 @@ export function openShared(dataDir: string) {
     /** Whether a part of the video is being transcribed again under this id: its pieces are taken only while it is. */
     redoRunning(videoId: string, redoId: string): boolean {
       return (selectRedo.get(redoId, videoId) as RedoRow | undefined)?.state === "running";
+    },
+    /** The stretch a part transcribed again records, widened to whole pieces; null for one that isn't this video's. */
+    redoOf(videoId: string, redoId: string): Stretch | null {
+      const row = selectRedo.get(redoId, videoId) as RedoRow | undefined;
+      return row ? { startMs: row.startMs, endMs: row.endMs } : null;
     },
     /**
      * A part transcribed again, done: in one transaction, what stood over the part asked stands aside, as a forget would

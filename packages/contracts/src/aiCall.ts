@@ -67,7 +67,7 @@ export function piecesUsed(template: string, pieces: PromptPieces, gaps: PromptG
  * Why a message was sent: pressed (`action` is the button's word, "Send"), a message sent from under a field, or Try
  * again after a failure. Nothing is sent by itself.
  */
-export type AiMessageWhy = { kind: "pressed"; action: string } | { kind: "message"; field?: string } | { kind: "retry" };
+export type AiMessageWhy = { kind: "pressed"; action: string } | { kind: "message"; field?: string } | { kind: "retry" } | { kind: "rule"; rule: string };
 
 /**
  * One part of what an answer said, as Details' Conversation shows Panki AI's answer (a list, the

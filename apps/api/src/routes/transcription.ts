@@ -57,11 +57,7 @@ export function transcriptionRouter(dbOf: DbOf, shared: Shared, engines: Engines
       res.status(400).json({ error: { message: "That setting isn't valid.", path: parsed.error.issues[0]?.path ?? [] } });
       return;
     }
-    // The mode everyone starts on is never one that's switched off: made the default, it's switched on with it.
-    const patch = parsed.data;
-    const merged = { ...shared.getTranscription(), ...patch };
-    if (merged.modesOff.includes(merged.mode)) patch.modesOff = merged.modesOff.filter((mode) => mode !== merged.mode);
-    shared.updateTranscription(patch, now(), signedIn(res).user.id);
+    shared.updateTranscription(parsed.data, now(), signedIn(res).user.id);
     res.json({ transcription: statusOf(res) });
   });
 

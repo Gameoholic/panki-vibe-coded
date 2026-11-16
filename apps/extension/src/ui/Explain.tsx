@@ -46,7 +46,10 @@ import {
   type PromptGaps,
   type PromptPieceId,
   type PromptPieces,
+  type RuleCall,
 } from "@panki/contracts";
+import { ruleWords } from "@web/ruleKinds";
+import { aiActionOf, automationOf } from "../automations";
 import { AiConversation, type Asking, type ConversationMark, type ConversationOf, type Failure } from "@web/components/AiConversation";
 import { KNOB_WORDS, MESSAGE_WORDS, ceilingOf, questionProblem, useAskFirst, whyNot, type ComposerProps } from "@web/components/AiRun";
 import { Icon } from "@web/components/Icon";
@@ -57,7 +60,7 @@ import type { Pointed } from "../capture/look";
 import { sentenceAround } from "../capture/selection";
 import type { Found } from "../dictionary/found";
 import { dictionaryPieces } from "../dictionary/pieces";
-import { askAiState, askExplain, type AiShown } from "../messages";
+import { askAiState, askExplain, askRules, type AiShown } from "../messages";
 import { glossaryText } from "./Glossary";
 
 /**
@@ -191,8 +194,8 @@ export type MorePieces = (pointed: Pointed, limits: PieceLimits) => VideoMore;
 /** Explain on the options page (the made-up answers are the web's `explainers/examples.ts`): made-up answers, drawn as an answer is, answering no press, never asking anyone. */
 export type ExplainExamples = { kind: "example"; answers: readonly ExampleAnswer[] };
 /**
- * Explain on a page: Panki AI through the worker, about the word pointed at, asked by a send alone (running by itself is
- * AI step 7's). `more` is what the page adds (a video's).
+ * Explain on a page: Panki AI through the worker, about the word pointed at, asked by a send, or once as the pop-up opens
+ * by the account's automation. `more` is what the page adds (a video's).
  */
 export type ExplainLive = { kind: "panki"; pointed: Pointed; more: MorePieces | null };
 export type ExplainSource = ExplainExamples | ExplainLive;
@@ -236,6 +239,7 @@ export function gapsOf(pieces: PromptPieces, onVideo: boolean): PromptGaps {
   for (const id of DICTIONARY_PIECES) if (!pieces[id]) gaps[id] = "notInDictionaries";
   return gaps;
 }
+
 
 /** The word's actions as the composer lists them, the account's in its order, the ticked ones on. */
 const switchesOf = (book: AccountActions, lit: readonly AiActionId[], disabled: boolean): ComposerProps["actions"] =>
@@ -362,7 +366,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
    * begins the conversation); the meanings it judged light the pop-up's rows; a part its actions required that didn't
    * come back is named under it, with Try again.
    */
-  async function sendExplain(sent: ExplainSend, why: AiMessageWhy) {
+  async function sendExplain(sent: ExplainSend, why: AiMessageWhy, rule?: RuleCall) {
     if (!read || !settings || running.current) return;
     running.current = true;
     const { send, first, said, template, asking: own, pieces, gaps } = prepared(sent, settings, read);
@@ -395,7 +399,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     setJudging(explainRequiredFor(litNow(book, "word", send.actions)).includes("meanings"));
     setSends((was) => was + 1);
     if (firstSend) setOpening(send);
-    const answer = await askExplain({ pieces, meanings: read.meanings, opening: first, said, ...(firstSend ? {} : { send }) });
+    const answer = await askExplain({ pieces, meanings: read.meanings, opening: first, said, ...(firstSend ? {} : { send }), ...(rule ? { rule } : {}) });
     running.current = false;
     if (!alive.current) return;
     const now = Date.now();
@@ -434,6 +438,30 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     // The worker keeps Panki AI as this answer said it stands: what's said beside Send follows any change.
     void readAi();
   }
+
+  /**
+   * The Word pop-up's automation (`rules.ts` → `popupOpens`: When the Word pop-up opens → Ask Panki AI: its action), on every
+   * word: once Panki AI is known and the word is read, its one action sent once, as pressing Send with it ticked would,
+   * the automation on the ask, so the server holds its caps and keeps the run. Never asked first: an automation never asks.
+   */
+  const ruled = useRef(false);
+  useEffect(() => {
+    if (ruled.current || !read || !shown) return;
+    ruled.current = true;
+    void askRules().then((answer) => {
+      if (!alive.current || !answer.ok) return;
+      const rule = automationOf(answer.rules, "popupOpens", "popupAction");
+      const action = rule ? aiActionOf(rule, book, "word") : null;
+      if (!rule || !action) return;
+      const sent: ExplainSend = { actions: [action], text: "" };
+      if (!sendable(sent)) return;
+      // As a press of Send: every ticked action clears with it.
+      setTicked([]);
+      void sendExplain(sent, { kind: "rule", rule: ruleWords(rule, book) }, { id: rule.id, subject: found.term.slice(0, 200) });
+    });
+    // Once, the first time both are in: another word is another Explain.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [read, shown]);
 
   /** A send pressed (Send, Try again): at once, or asking first over the account's Ask before a run over, at the foot. `then` once it goes. */
   function pressSend(sent: ExplainSend, why: AiMessageWhy, then?: () => void) {

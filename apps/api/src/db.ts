@@ -15,6 +15,7 @@ import {
   type AiActionUpdate,
   type NewAiAction,
   type PankiActionId,
+  type RuleRun,
   BURNED_PLACE,
   CALENDAR_WINDOWS,
   CALLED_CARDS_MAX,
@@ -1164,6 +1165,68 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // A database that ran this step before it did nothing may hold `weekEndsOn` "sat" for an account that had data of
     // its own, with its change row; it's read like any setting chosen. The step stays so every later one keeps its number.
   },
+  (db) => {
+    // 56. What each rule did (`rules.ts`): a row a run, never changed or deleted. The rule's id, the action it ran, what
+    // it was about (a video's id, a card's, a word), how it ended (`RuleOutcome`) and why, and what it cost at listed
+    // prices; who did it is the rule. A new table, so nothing kept before is touched.
+    db.exec(`
+      CREATE TABLE rule_runs (
+        id INTEGER PRIMARY KEY,
+        rule_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        outcome TEXT NOT NULL,
+        cost_micros INTEGER NOT NULL,
+        detail TEXT
+      );
+      CREATE INDEX rule_runs_at ON rule_runs (at);
+      CREATE INDEX rule_runs_subject ON rule_runs (rule_id, subject);
+    `);
+  },
+  (db) => {
+    // 57. Panki AI's proposals kept on a card (`CardProposal`): a rule's Touch up when a card is added, waiting for Accept
+    // or Dismiss. A row each, never changed but for how it was decided (`accepted`, `dismissed`, or `replaced` by a
+    // newer one for the same field) and when; the value and its source (JSON, `ValueSource`) as Panki AI proposed them,
+    // and the rule that ran it. A new table, so nothing kept before is touched.
+    db.exec(`
+      CREATE TABLE card_proposals (
+        id INTEGER PRIMARY KEY,
+        card_id TEXT NOT NULL REFERENCES cards(id),
+        field_id TEXT NOT NULL,
+        value TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        source TEXT NOT NULL,
+        rule_id TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        decided TEXT,
+        decided_at INTEGER
+      );
+      CREATE INDEX card_proposals_card ON card_proposals (card_id, decided);
+    `);
+  },
+  (db, now) => {
+    // 58. Transcribing became two rules, Transcribe live and Transcribe the whole video, both On for every account. An
+    // account that never kept its rules reads both as the defaults; one that kept them before the second existed gets it
+    // added once, here, at the end of its list, with its change row, unless it already has a rule doing it. Nothing else
+    // in the list is touched: a rule kept with a `mode` reads with it dropped. A list that doesn't read as JSON is left
+    // as it is.
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'rules'").get() as { value: string } | undefined;
+    if (!row) return;
+    let kept: unknown;
+    try {
+      kept = JSON.parse(row.value);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(kept)) return;
+    const has = (id: string) => kept.some((rule: unknown) => typeof rule === "object" && rule !== null && ((rule as Record<string, unknown>).do === "transcribeWhole" || (rule as Record<string, unknown>).id === id));
+    if (has("transcribeWhole")) return;
+    const whole = { id: "transcribeWhole", on: true, when: "videoWatched", do: "transcribeWhole", perRunMicros: null, perDayMicros: 2_000_000, maxMinutes: 30, maxMb: null, watchedSeconds: 20, words: null };
+    const next = JSON.stringify([...kept, whole]);
+    db.prepare("UPDATE settings SET value = ? WHERE key = 'rules'").run(next);
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('rules', ?, ?, ?)").run(row.value, next, now);
+  },
 ];
 
 /** Brings a database up to date, or up to step `until` alone (a test of one step starts from the step before it). */
@@ -1489,6 +1552,13 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   );
   const updateAiActionRow = db.prepare("UPDATE ai_actions SET name = ?, words = ?, knobs = ?, edited = ?, updated_at = ?, removed_at = ? WHERE id = ?");
   const insertAiActionChange = db.prepare(`INSERT INTO ai_action_changes (action_id, kind, "before", "after", at) VALUES (?, ?, ?, ?, ?)`);
+  // What each rule did (migration 56): a row a run, never changed; how a rule stands is worked out from them on every read.
+  const ruleRunColumns = "rule_id AS ruleId, at, subject, outcome, cost_micros AS costMicros, detail";
+  const insertRuleRunRow = db.prepare("INSERT INTO rule_runs (rule_id, action, subject, at, outcome, cost_micros, detail) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const selectRuleRunsSince = db.prepare(`SELECT ${ruleRunColumns} FROM rule_runs WHERE at >= ? ORDER BY id ASC`);
+  const selectRuleSpentOn = db.prepare("SELECT COALESCE(SUM(cost_micros), 0) AS micros FROM rule_runs WHERE rule_id = ? AND subject = ?");
+  const selectRuleRanOn = db.prepare("SELECT 1 FROM rule_runs WHERE rule_id = ? AND subject = ? LIMIT 1");
+  const selectWatchedMsOf = db.prepare("SELECT COALESCE(SUM(spent_ms), 0) AS ms FROM watch_stretches WHERE video_id = ? AND forgotten_at IS NULL");
   // Today's allowances, each deck's own: its new cards are used up by the cards started in it (an answer given from new).
   const countStartedSince = db.prepare(
     "SELECT COUNT(*) AS n FROM card_places WHERE reason = 'answer' AND undone_at IS NULL AND stage_from IS NULL AND burned_from = 0 AND node_from = '[]' AND at >= ? AND card_id IN (SELECT id FROM cards WHERE deck_id = ?)",
@@ -2468,6 +2538,31 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         }
         return settingsFrom(selectSettings.all() as SettingRow[]);
       });
+    },
+    /** A run of a rule kept, as it ended: who did it is the rule, the time the API's. */
+    insertRuleRun(run: Omit<RuleRun, "at"> & { action: string }, now: number): void {
+      insertRuleRunRow.run(run.ruleId, run.action, run.subject, now, run.outcome, run.costMicros, run.detail);
+    },
+    /** Every rule's runs today, the account's day, oldest first. */
+    ruleRunsToday(now: number): RuleRun[] {
+      return selectRuleRunsSince.all(todayAt(now).dayStart) as RuleRun[];
+    },
+    /** What a rule has spent on one subject (a video, a card, a word), ever, in micro-dollars: a video paid for once goes again with nothing new kept. */
+    ruleSpentOn(ruleId: string, subject: string): number {
+      return (selectRuleSpentOn.get(ruleId, subject) as { micros: number }).micros;
+    },
+    /** Whether a rule has run on a subject already, however it ended: a trigger heard once a video (a transcript whole) runs once, a cap reached included. */
+    ruleRanOn(ruleId: string, subject: string): boolean {
+      return selectRuleRanOn.get(ruleId, subject) !== undefined;
+    },
+    /** How long the account has watched a video, every visit Video tracking kept, in ms; 0 for one it never kept (or forgot). */
+    watchedMsOf(videoId: string): number {
+      return (selectWatchedMsOf.get(videoId) as { ms: number }).ms;
+    },
+    /** A video's length as the account's watching last read it off the player, in ms; null for one never watched with tracking on. */
+    watchedLength(videoId: string): number | null {
+      const row = selectWatchVideoLength.get(videoId) as { lengthMs: number | null } | undefined;
+      return row?.lengthMs ?? null;
     },
     /** The account's own Panki AI templates, every action's, in the order they were made; Panki's starters are the contracts'. */
     listAiTemplates(): AiTemplate[] {

@@ -1,4 +1,4 @@
-/** @panki Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `goTo`). Never a second way of reordering rows by themselves. */
+/** @panki Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `useSlide`, `goTo`). Never a second way of sliding rows to a new order. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** What `useHoist` gives back: the order to draw the rows in, the box's ref, and a way to go to a row. */
@@ -65,17 +65,37 @@ export function useHoist(all: readonly string[], up: readonly string[]): Hoist {
     if (!row || !active || !row.contains(active)) setHeld(null);
   });
 
-  // Every child's top as it stood at the last draw, so a change of order slides each from there to its new place.
+  // A focused element moved round the page can lose its focus: it's given back where it stands now.
+  useSlide(box, said, () => {
+    const was = focused.current;
+    if (box && was && was.isConnected && box.contains(was) && activeIn(box) !== was) was.focus({ preventScroll: true });
+  });
+  useLayoutEffect(() => {
+    lastShown.current = order;
+  });
+
+  const go = useCallback((key: string) => goToRow(box, key), [box]);
+  return { order, ref: setBox, go };
+}
+
+/**
+ * Every child of a box slid from where it stood to where it stands now each time `said` (the order, as words) changes,
+ * FLIP: its top as it was drawn last, taken again whenever the box changes size (a fold opening above it), and a child
+ * that didn't move left alone. `before` runs just before the slide (`useHoist` gives a moved focus back). The rows lifted
+ * in the drawer, and an automation moved to another trigger in Settings → Automations (`RuleFlow`). Nothing slides for
+ * someone who asked their device for less motion.
+ */
+export function useSlide(box: HTMLElement | null, said: string, before?: () => void) {
   const tops = useRef(new Map<Element, number>());
   const lastSaid = useRef(said);
   const settling = useRef(0);
+  const first = useRef(before);
+  first.current = before;
   useLayoutEffect(() => {
     if (!box) return;
     const now = topsIn(box);
     if (said !== lastSaid.current && !reduced()) {
-      // A focused element moved round the page can lose its focus: it's given back where it stands now.
-      const was = focused.current;
-      if (was && was.isConnected && box.contains(was) && activeIn(box) !== was) was.focus({ preventScroll: true });
+      first.current?.();
       const moving: HTMLElement[] = [];
       for (const [row, to] of now) {
         const from = tops.current.get(row);
@@ -87,21 +107,19 @@ export function useHoist(all: readonly string[], up: readonly string[]): Hoist {
       if (moving.length > 0) {
         void box.offsetHeight;
         for (const row of moving) {
-          row.style.transition = `transform ${HOIST_MS}ms ${HOIST_EASE}`;
+          row.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}`;
           row.style.transform = "";
         }
         const turn = ++settling.current;
         window.setTimeout(() => {
           if (settling.current !== turn) return;
           for (const row of moving) row.style.transition = "";
-        }, HOIST_MS + 20);
+        }, SLIDE_MS + 20);
       }
     }
     lastSaid.current = said;
-    lastShown.current = order;
     tops.current = now;
   });
-  // What's above a row can grow or shrink between draws (a fold opening): the tops are taken again as the box changes size.
   useEffect(() => {
     if (!box) return;
     const observer = new ResizeObserver(() => {
@@ -110,14 +128,11 @@ export function useHoist(all: readonly string[], up: readonly string[]): Hoist {
     observer.observe(box);
     return () => observer.disconnect();
   }, [box]);
-
-  const go = useCallback((key: string) => goToRow(box, key), [box]);
-  return { order, ref: setBox, go };
 }
 
 /** How long a row takes to slide to its new place, and how it eases: one home. */
-const HOIST_MS = 420;
-const HOIST_EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
+export const SLIDE_MS = 420;
+const SLIDE_EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
 /** How long a row stays lit once it's gone to: `.is-lit`'s animation (`app.css`, "The capture drawer's fields"). */
 const LIT_MS = 1500;
 /** How far above a row gone to it stands, so its lit outline isn't cut off by the scroller's edge. */

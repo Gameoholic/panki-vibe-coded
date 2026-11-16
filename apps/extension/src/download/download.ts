@@ -1,6 +1,6 @@
 /** @panki A download's numbers, qualities, speeds and shapes, and how much is in (`DOWNLOAD`, `DOWNLOAD_QUALITIES`, `DOWNLOAD_SPEEDS`, `DoorwayPiece`, `KeptPiece`, `DownloadRow`, `coveredOf`, `firstGap`). */
 import { z } from "zod";
-import { VideoId } from "@panki/contracts";
+import { RuleId, VideoId } from "@panki/contracts";
 import { FED_WORD, FEED_WORD, NOTE_WORD, PIECE_WORD } from "./mark";
 
 /**
@@ -182,10 +182,12 @@ export type DownloadAbout = z.infer<typeof DownloadAbout>;
 
 /**
  * A download as it's kept: what's known of the video, the quality it's downloaded at (the picture's height), when it was
- * asked for and when it was whole; which page is running it and when it last said so; and why it last stopped, with
- * how many times in a row, so it waits longer before each try.
+ * asked for and when it was whole; which page is running it and when it last said so; why it last stopped, with how
+ * many times in a row, so it waits longer before each try; and the rule that asked for it, whose MB it's held to (null
+ * for one asked for by hand, and for every one kept before rules asked for any).
  */
 export const DownloadVideo = DownloadAbout.extend({
+  ruleId: RuleId.nullable().default(null),
   quality: Ms.positive(),
   startedAt: z.number(),
   doneAt: z.number().nullable(),

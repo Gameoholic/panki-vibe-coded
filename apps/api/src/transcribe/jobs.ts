@@ -6,7 +6,7 @@ import { EngineError, type Engines } from "./engines";
 /**
  * Whole-video downloads: a video handed to the engine by its address, the engine fetching it and
  * transcribing all of it in one call, its words then replacing everything the video had (`shared.finishJob`). Asked
- * for by the extension (Full, and Hybrid behind its chunks) and run here, in the background of the API, so nothing
+ * for by the extension (Full: Transcribe the entire video, or its rule) and run here, in the background of the API, so nothing
  * waits on it: the extension reads the transcript again until it's done. One at a time per engine, each waiting for
  * the one before; never cancelled, since it's paid for as it starts. What it cost is read off the engine's account on
  * either side of it. Every step is said on the API's console, never with the key.
@@ -31,6 +31,8 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
   /** Each engine's downloads, one after another: the last one in line. */
   const lines: Partial<Record<EngineId, Promise<void>>> = {};
   const say = (videoId: string, words: string) => console.log(`Whole video ${videoId} · ${words}`);
+  /** Who hears of a download done: the rules (a transcript whole), told the video and who asked for it. */
+  const listeners: ((done: { videoId: string; userId: string }) => void)[] = [];
 
   function enqueue(engine: EngineId, id: string) {
     const before = lines[engine] ?? Promise.resolve();
@@ -76,6 +78,7 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
       if (done) {
         const took = ((now() - startedAt) / 1000).toFixed(1);
         say(job.videoId, `done in ${took} s · ${done.words ?? 0} words · replaced ${done.replaced ?? 0} chunks${credits === null ? "" : ` · ${credits} credits`}`);
+        for (const listener of listeners) listener({ videoId: job.videoId, userId: job.userId });
       }
     } catch (e) {
       if (!(e instanceof EngineError)) throw e;
@@ -90,6 +93,10 @@ export function createJobs(shared: Shared, engines: Engines, engineKeys: Record<
   }
 
   return {
+    /** Told of every download done from now on, once its words stand. */
+    whenDone(listener: (done: { videoId: string; userId: string }) => void) {
+      listeners.push(listener);
+    },
     /**
      * A video downloaded whole: the one under way when there is one, or a new one, asked for now, the engine told the
      * language of the account that asked (its own, else everyone's: the route's to say).

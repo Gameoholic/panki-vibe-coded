@@ -102,21 +102,21 @@ A new place or action follows these; one that can't is talked through first.
     - How many is the Touch up action's own words ("Three example sentences, short, everyday …"), edited in Settings → Panki AI as any action is; Panki takes any number of rows. No count knob.
     - The owner's data: no migration and nothing rewritten. A field changes kind only when the owner switches it; a value that isn't rows yet is read as rows (each pair of lines a row, the first its Situation, the next its sentence, no translation; a line left over a row of its own) and kept as rows once that card is saved. The owner means to delete the old field and make a new one instead.
   - [x] 4. Explain in the same format: the admin's prompt, Grammar, Conjugation and Nuance as actions, the pop-up's conversation.
-- [ ] **Rules**: automatic runs per card, video or pop-up, each with its cap. Proofread's automation lives here (when a transcription finishes, a part comes in, or after every chunk), and transcribing's own (starting by itself, the length limit) moves from the admin to each account. Downloading a video for offline viewing joins them, beside transcribing.
+- [ ] **Automations**: automatic runs per card, video or pop-up, each with its cap; Proofread's automation, transcribing's own and downloading among them. The plan: `docs/RULES.md`, steps 1 to 7 built on local dev, the owner to try.
 - [ ] **Touch up in Panki itself**: the Add screen and a card opened in a deck. Blocked while the field mapping lives in each browser; the way out is the mapping moving to the account.
 - [ ] **A model per action**: a provider and model per place or action, "Same as Panki AI's" to begin with, so Touch up can run on a stronger model than Explain.
 - [ ] **Credits**: everything metered paid from a balance per account, granted by an admin until billing; at zero, every paid button says so.
 - [ ] **Accounts**: sign-up, password reset, who may join, in place of `pnpm user:add`. Not AI work; next in the owner's order.
 - [ ] Later: **billing** (payment for credits, per-user model choice).
-- [ ] Later: **the outro, found by the AI**: where a video's own content ends, so it counts as finished from there, marked on the seek bar; a rule run once the transcript is whole.
+- [ ] Later: **the outro, found by the AI**: where a video's own content ends, so it counts as finished from there, marked on the seek bar; an automation run once the transcript is whole.
 - [ ] Later: **the three marks as a setting**: Fits / Close / Doesn't fit each a colour and a style, set on the Word pop-up tab with a preview.
 
 ## Open
 
-- **Panki's answer format** under a prompt is confusing in every form tried. Someone writing a prompt must know the fixed shape Panki requires and what it does with each part. Its title is settled ("Panki's answer format – the AI must send the data back in this shape"); what's under it is postponed, to come up before Rules at the latest.
+- **Panki's answer format** under a prompt is confusing in every form tried. Someone writing a prompt must know the fixed shape Panki requires and what it does with each part. Its title is settled ("Panki's answer format – the AI must send the data back in this shape"); what's under it is postponed to later (the owner, 2026-11-15), Automations going first.
 - **Example sentences on the review card**: All as a list to begin with, proposed; one a review, rotating, the other choice.
 - **Example sentences already in Paragraph fields**: converted when the field's kind is changed, proposed.
 - **A model per action, how it shows**: each choice's listed price beside it, and "Up to" worked out on that action's model, proposed.
 - **How many of each action a dollar buys**, shown beside the model.
-- **Rules or Credits**: where transcribing's move to each account lands.
+- **Automations or Credits**: where transcribing's move to each account lands.
 - **Credits**: what a credit is worth, and who pays for a transcript everyone shares.

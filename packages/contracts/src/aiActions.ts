@@ -16,6 +16,7 @@ import {
 import { adminPromptOf, type AdminPromptPlaceId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 import { PIECE_MAX, PromptPieces, Said } from "./prompt";
+import { RuleCall } from "./rules";
 import { MEANINGS_MAX, TouchUpNow, numberedSubtitles, subtitleLinesOf, type SubtitleLine } from "./touchUp";
 import { VALUE_MAX } from "./type";
 
@@ -519,6 +520,8 @@ export const TouchUpAsk = z.object({
   opening: TouchUpSend,
   said: Said.default([]),
   send: TouchUpSend.optional(),
+  /** Sent for a rule (a card added), the card it's about: held to the rule's caps and kept as its run. */
+  rule: RuleCall.optional(),
 });
 export type TouchUpAsk = z.infer<typeof TouchUpAsk>;
 /** The message being answered: the conversation's first, or the one after it. The card's and the word's alike. */
@@ -590,5 +593,7 @@ export const ExplainAsk = z.object({
   opening: ExplainSend,
   said: Said.default([]),
   send: ExplainSend.optional(),
+  /** Sent for a rule (the Word pop-up opening), the word it's about: held to the rule's caps and kept as its run. */
+  rule: RuleCall.optional(),
 });
 export type ExplainAsk = z.infer<typeof ExplainAsk>;

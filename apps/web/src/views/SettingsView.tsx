@@ -3,6 +3,7 @@ import {
   AI_PLACES,
   AI_PLACE_IDS,
   AI_LIMITS,
+  NO_ACCOUNT_ACTIONS,
   APP_LANGUAGES,
   WEEK_DAYS,
   WEEK_DAY_NAMES,
@@ -30,9 +31,7 @@ import {
   ENGINES,
   ENGINE_IDS,
   EngineKeyUpdate,
-  OVER_LIMIT_IDS,
   type TranscribePaused,
-  OVER_LIMIT_WORDS,
   PAUSE_WAIT_MAX,
   TRANSCRIBE_LANGUAGES,
   TRANSCRIBE_LANGUAGE_IDS,
@@ -48,7 +47,6 @@ import {
   type StorageReport,
   type Settings,
   type SettingsUpdate,
-  type TranscribeMode,
   type Transcription,
   type TranscriptionStatus,
   type TrackingDevice,
@@ -63,8 +61,6 @@ import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
 import { Form } from "../components/Form";
 import { Icon } from "../components/Icon";
-import { ModeChip } from "../components/ModeChip";
-import { ModeCompare } from "../components/ModeCompare";
 import { NumberField } from "../components/NumberField";
 import { PerDevice } from "../components/PerDevice";
 import { Segmented } from "../components/Segmented";
@@ -77,6 +73,7 @@ import { AiTemplatesTab } from "./AiTemplatesView";
 import type { SaveStatus } from "./SrsTypeView";
 import { KeysPanels } from "./KeysSettings";
 import { ReviewsPanel } from "./ReviewsPanel";
+import { RulesTab } from "./RulesTab";
 import { TextField } from "../components/TextField";
 import { Toggle } from "../components/Toggle";
 import { useSavedSoon } from "../hooks/useSavedSoon";
@@ -107,15 +104,16 @@ type Props = {
 
 /**
  * The page's tabs, as the extension's own page has them: the look and what every deck shares, the keys, Panki AI's templates (AI step 5), the
- * extension, and the account. The tab is in the address, so a reload stays on it (and the extension opens Panki at
+ * rules, the extension, and the account. The tab is in the address, so a reload stays on it (and the extension opens Panki at
  * `/settings#ai` for the templates); every tab is drawn and the others hidden, so a key half typed on one survives a
  * look at another. What an admin alone changes is a screen of its own, at the bar's far end (`AdminView`).
  */
-export type SettingsTab = "general" | "keys" | "ai" | "extension" | "account";
+export type SettingsTab = "general" | "keys" | "ai" | "automations" | "extension" | "account";
 const TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "keys", label: "Keybinds" },
   { id: "ai", label: "Panki AI" },
+  { id: "automations", label: "Automations" },
   { id: "extension", label: "Extension" },
   { id: "account", label: "Account" },
 ];
@@ -153,7 +151,6 @@ const DICTIONARY_TOO_BIG = `That file is over ${sizeWords(DICTIONARY_MAX_BYTES)}
 const KIND_WORDS: Record<FilesOfKind["kind"], string> = { video: "Video", audio: "Audio", image: "Images" };
 const KIND_ORDER: readonly FilesOfKind["kind"][] = ["video", "audio", "image"];
 const SPEED_OPTIONS = TRANSCRIBE_SPEEDS.map((speed) => ({ id: speed, label: `${speed}×` }));
-const OVER_LIMIT_OPTIONS = OVER_LIMIT_IDS.map((id) => ({ id, label: OVER_LIMIT_WORDS[id] }));
 // The words the extension's options page had for it, when it was each viewer's.
 const PAUSED_OPTIONS = [
   { id: "keep", label: "Keeps its lead" },
@@ -626,11 +623,10 @@ type TranscribingProps = {
 };
 
 /**
- * How transcribing runs, for everyone, each change saved a moment after it's made: the engine (the language is each account's own); the
- * transcription modes compared, which one everyone starts on and which are switched off, and the download limit; how
- * the chunks are cut; then the engine's key and its tally. (What's the viewer's own, whether it starts by itself, what
- * it does while paused, whether the transcript replaces the site's captions, and which mode they use, is on the
- * extension's page or the strip's menu: only what costs is set here.)
+ * How transcribing runs, for everyone, each change saved a moment after it's made: the engine (the language is each
+ * account's own) and the length limit no rule passes, then the engine's key and its tally; how the chunks are cut. (When
+ * a video is transcribed by itself, live or whole, is each account's rules, Settings → Rules; whether the transcript
+ * replaces the site's captions is the extension's: only what costs is set here.)
  */
 function Transcribing({ status, onStatus }: TranscribingProps) {
   const [current, patch, failure] = useSavedSoon<Transcription>(status.settings, async (change) => {
@@ -639,8 +635,6 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
     return next.settings;
   });
   const engine = ENGINES[current.engine];
-  /** A mode switched on or off; the default stays on (its switch can't be pressed). */
-  const setModeOn = (mode: TranscribeMode, on: boolean) => patch({ modesOff: on ? current.modesOff.filter((m) => m !== mode) : [...current.modesOff.filter((m) => m !== mode), mode] });
 
   return (
     <>
@@ -654,45 +648,20 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           </p>
         ) : null}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
+        {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen. A ceiling no rule
+            passes (`rules.ts` → `lengthStop`); a press is never held to it. */}
+        <Setting
+          id="downloadLimit"
+          label="Length limit"
+          control={<NumberField id="transcribe-download-limit" label="Length limit in minutes" value={current.downloadLimit} min={1} max={600} suffix="min" onChange={(downloadLimit) => patch({ downloadLimit })} />}
+          why="No automation transcribes a longer video."
+        />
         <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
           {/* Read again whenever the key changes: the saved key's text is the sign of that. */}
           <EngineAccountLines keyed={status.key !== null} turn={(status.saved ?? "").length} />
         </KeyPanel>
         {/* What's been transcribed and what it cost, from the usage ledger. */}
         <UsageSection kind="transcription" />
-      </section>
-      <section className="panel" aria-labelledby="modes-title">
-        <h2 id="modes-title" className="panel-title">
-          Transcription modes
-        </h2>
-        <ModeCompare mode={current.mode} modesOff={current.modesOff} estimate={status.estimate} onDefault={(mode) => patch({ mode })} onOn={setModeOn} />
-        {/* How much of a video is watched before the entire video is transcribed by itself. */}
-        <Setting
-          id="wholeAfter"
-          label="Minimum watch time before activating full transcription"
-          control={<NumberField id="transcribe-whole-after" label="Minimum watch time before activating full transcription, in seconds" value={current.wholeAfter} min={0} max={600} suffix="s" onChange={(wholeAfter) => patch({ wholeAfter })} />}
-          why={
-            <>
-              For <ModeChip mode="full" /> and <ModeChip mode="hybrid" /> only.
-            </>
-          }
-        />
-        {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen, the engine downloading and transcribing a video at once. */}
-        <Setting
-          id="downloadLimit"
-          label="Length limit"
-          control={<NumberField id="transcribe-download-limit" label="Length limit in minutes" value={current.downloadLimit} min={1} max={600} suffix="min" onChange={(downloadLimit) => patch({ downloadLimit })} />}
-          why={
-            <>
-              For <ModeChip mode="full" /> and <ModeChip mode="hybrid" /> only.
-            </>
-          }
-        />
-        <Setting
-          id="overLimit"
-          label="Videos over the length limit"
-          control={<Segmented idPrefix="transcribe-over-limit" label="Videos over the length limit" options={OVER_LIMIT_OPTIONS} value={current.overLimit} onChange={(overLimit) => patch({ overLimit })} />}
-        />
       </section>
       <section className="panel" aria-labelledby="chunks-title">
         <h2 id="chunks-title" className="panel-title">
@@ -1146,10 +1115,9 @@ function AdminPanel({ tab, onSaveStatus, onGuard }: { tab: AdminTab } & AdminEdi
           <Transcribing status={transcription} onStatus={setTranscription} />
         ) : failure ? null : (
           <>
-            {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki; the modes' chart is far taller on a phone. */}
-            {/* Transcribing, Word audio (both with their Usage) and Panki AI are not measured. */}
-            <LoadingPanel id="transcribing" title="Transcribing" rows={8} />
-            <LoadingPanel id="modes" title="Transcription modes" rows={19} />
+            {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki. */}
+            {/* Transcribing (with the length limit and its line now), Word audio (both with their Usage) and Panki AI are not measured. */}
+            <LoadingPanel id="transcribing" title="Transcribing" rows={10} />
             <LoadingPanel id="chunks" title="Chunks" rows={15} />
             <LoadingPanel id="fixing" title="Editing" rows={2} />
           </>
@@ -1379,7 +1347,8 @@ export function SettingsView({
   const signOutAllAt = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [signOutFailure, setSignOutFailure] = useState<string | null>(null);
-  const [tab, setTab] = useState<SettingsTab>(() => tabOfAddress(TABS) ?? "general");
+  // `#rules`, the tab's address before it was called Automations, still lands on it.
+  const [tab, setTab] = useState<SettingsTab>(() => tabOfAddress(TABS) ?? (window.location.hash === "#rules" ? "automations" : "general"));
   const shown = tab;
   function choose(next: SettingsTab) {
     setTab(next);
@@ -1407,7 +1376,7 @@ export function SettingsView({
 
   return (
     <>
-      {/* Five tabs since Panki AI joined them: on a phone, rows of three, as Admin's are. */}
+      {/* Six tabs: on a phone, two rows of three, as Admin's are. */}
       <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} wraps onChange={choose} />
       <div className="settings-tab" hidden={shown !== "general"}>
         {failure ? (
@@ -1552,6 +1521,20 @@ export function SettingsView({
           onNewAction={onNewAction}
           onArrange={onArrangeActions}
           onRestore={onRestoreAction}
+        />
+      </div>
+
+      {/* Every automatic paid run, each a rule the account sets, and the most they spend a day together. */}
+      <div className="settings-tab" hidden={shown !== "automations"}>
+        <RulesTab
+          open={shown === "automations"}
+          rules={current.rules}
+          dayMicros={current.rulesDayMicros}
+          kept={settings.rules}
+          book={ai?.actions ?? NO_ACCOUNT_ACTIONS}
+          failure={failure}
+          onRules={(rules) => patch({ rules })}
+          onDayMicros={(rulesDayMicros) => patch({ rulesDayMicros })}
         />
       </div>
 

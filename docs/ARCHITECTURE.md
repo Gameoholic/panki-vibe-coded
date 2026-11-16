@@ -20,6 +20,7 @@ This page is the index; the text lives in `docs/architecture/`, one file per are
 | [forvo.md](architecture/forvo.md) | Word audio from Forvo: server-side, kept for everyone, copied into the account on a pick |
 | [transcribing.md](architecture/transcribing.md) | Transcribing a video: the modes and the whole-video download, the silent player and its clock, the chunks, the follower, the source, the lines, editing by hand, the stitch |
 | [ai.md](architecture/ai.md) | Panki AI: the words, providers and the ledger, the server's call and the one reader, pieces and prompts, actions and knobs, the conversation, Explain, Touch up, value sources, Proofread |
+| [rules.md](architecture/rules.md) | Automations (rules in code): the registries, the rules as settings, the caps and where they're held, `rule_runs` and a rule's standing, the triggers the server hears and those a page hears |
 | [watching.md](architecture/watching.md) | Video tracking per browser, the modules, finished, where you stopped and `panki=at`, YouTube's own pages, the utilities and the player bar |
 | [downloads.md](architecture/downloads.md) | A video kept in this browser: the doorway script in YouTube's page, the hidden player kept, the pieces and their order, one page at a time, the store, the menu and the options tab, the downloaded mark, playing from the copy |
 | [updates.md](architecture/updates.md) | The extension kept up to date without a store: fingerprint and protocol, the zip, the scripts' rules |

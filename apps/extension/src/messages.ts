@@ -30,6 +30,9 @@ import {
   ProofreadAsk,
   Redo,
   RedoAsk,
+  RuleId,
+  RuleRunAnswer,
+  RuleRunAsk,
   SrsType,
   Stretch,
   SubtitleStyle,
@@ -278,6 +281,13 @@ export const Ask = z.discriminatedUnion("kind", [
    * can't run. `fresh` asks Panki again first (a template menu opened: one made in Panki a moment ago is in it).
    */
   z.object({ kind: z.literal("aiState"), fresh: z.boolean().optional() }),
+  /**
+   * The account's rules (Settings → Rules) as the worker keeps them: what a page runs by itself as it hears a trigger (a
+   * video plays). `fresh` asks Panki again first.
+   */
+  z.object({ kind: z.literal("rules"), fresh: z.boolean().optional() }),
+  /** A rule's run on a trigger the page heard, asked of Panki, which holds its caps and keeps the go or the stop. */
+  z.object({ kind: z.literal("ruleRun"), ruleId: RuleId, run: RuleRunAsk }),
   /** A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation so far. */
   z.object({ kind: z.literal("explain"), ask: ExplainAsk }),
   /** The card being added in the drawer touched up by Panki AI: its pieces, the dictionary's meanings and the keys it has fields for. */
@@ -314,6 +324,13 @@ export type AiShown = z.infer<typeof AiShown>;
 const AiState = z.union([z.object({ ok: z.literal(true), ai: AiShown.nullable() }), z.object({ ok: z.literal(false), message: z.string() })]);
 export type AiState = z.infer<typeof AiState>;
 
+/** The account's rules as a page is told them: the rules and every rule's daily cap, nothing else of its settings. */
+export const AccountRules = Settings.pick({ rules: true, rulesDayMicros: true });
+export type AccountRules = z.infer<typeof AccountRules>;
+/** The account's rules as they stand; null signed out. */
+const RulesState = z.union([z.object({ ok: z.literal(true), rules: AccountRules.nullable() }), z.object({ ok: z.literal(false), message: z.string() })]);
+export type RulesState = z.infer<typeof RulesState>;
+
 const LookState = z.union([
   z.object({
     ok: z.literal(true),
@@ -348,8 +365,11 @@ export type Latticed = z.infer<typeof Latticed>;
 /** `status` is Panki's own answer when it refused (a 409 with no key to transcribe with); none for a fault of the extension's. */
 const Failed = z.object({ ok: z.literal(false), message: z.string(), signedOut: z.boolean().optional(), status: z.number().optional() });
 const Done = z.union([z.object({ ok: z.literal(true) }), Failed]);
+/** A rule's run answered by Panki: go, or not and why. */
+const RuleRan = z.union([z.object({ ok: z.literal(true), answer: RuleRunAnswer }), Failed]);
+export type RuleRan = z.infer<typeof RuleRan>;
 /** This browser's own settings. */
-const Localled = z.union([z.object({ ok: z.literal(true), local: Local }), Failed]);
+const Localled =z.union([z.object({ ok: z.literal(true), local: Local }), Failed]);
 export type Localled = z.infer<typeof Localled>;
 const Voiced = z.union([z.object({ ok: z.literal(true), voices: z.array(ForvoVoice) }), Failed]);
 /** The recording as Panki keeps it: the file's id, which goes in the card's field, and its bytes, to hear it here. */
@@ -696,6 +716,16 @@ export async function askReloadPanki(reopen = false): Promise<void> {
 /** Panki AI as the worker keeps it (null signed out), for the pop-up's Explain; `fresh`, asked of Panki again first. */
 export async function askAiState(fresh = false): Promise<AiState> {
   const answer = AiState.safeParse(await ask({ kind: "aiState", fresh }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** The account's rules as the worker keeps them (null signed out); `fresh`, asked of Panki again first. */
+export async function askRules(fresh = false): Promise<RulesState> {
+  const answer = RulesState.safeParse(await ask({ kind: "rules", fresh }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** Whether a rule runs on a trigger this page heard: Panki's go, or its stop and why. */
+export async function askRuleRun(ruleId: string, run: RuleRunAsk): Promise<RuleRan> {
+  const answer = RuleRan.safeParse(await ask({ kind: "ruleRun", ruleId, run }));
   return answer.success ? answer.data : failed(answer.error);
 }
 /** A word explained by Panki AI, or a follow-up asked: its answer, or why there's none. */

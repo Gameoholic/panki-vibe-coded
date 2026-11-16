@@ -26,6 +26,12 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 - "Execute" means build it fully with sensible defaults and name them.
 - A batch that spans the API and the web may be split across `panki-api` and `panki-web`: the contracts written first, both briefs carrying the exact route surface; the lead integrates, runs the one typecheck/build gate and writes the docs. Never two agents in one file.
 
+## The conversation orchestrates
+
+- The owner's conversation stays free to chat (the owner, 2026-11-15): every change, however small (a rename, a fix, a build), goes to a session of its own, never done in the conversation itself, so the owner can keep talking while it runs.
+- Follow-ups on work a session already has go to that session; new work gets a new one. The conversation answers questions, reads what it needs to answer, keeps the plan and its page current, restarts `pnpm dev` once a session's change lands, and passes on what each session reports.
+- Two sessions never write the same files at once.
+
 ## Asking
 
 - Read for intent. Ask only when two readings lead to different work, in one short line.
@@ -38,7 +44,7 @@ How the owner wants Claude to work with them. How code is written is `docs/conve
 
 - Every message to the owner is one sentence at most, reports and brainstorming included. Playbacks and proposals go in the plan file (`docs/<EPIC>.md`), never in chat.
 - When the owner has asked several things since the last answer, the answer is a bullet per thing, each its one sentence, none left out.
-- Artifacts are for the owner's end, docs for Claude's. Anything the owner is to read in a brainstorm or a plan (the playback, the proposals, the order, a preview) is published as an artifact page as well, kept current with the plan file; the plan file in `docs/` is what Claude reads back.
+- Artifacts are for the owner's end, docs for Claude's. The owner reads a plan only as an artifact page, or in chat when it's short; never in a `docs/` file (the owner, 2026-11-15). So anything they're to read in a brainstorm or a plan (the playback, the proposals, the order, a preview) is published as an artifact page as well, kept current with the plan file; the plan file in `docs/` is what Claude reads back.
 - The owner doesn't read reports: a question that's needed comes first, alone, in one short line.
 - Say only what the owner couldn't guess: a reading of their words that could have gone another way, something left out, something that will surprise, a default chosen.
 - No summary of what was done, no checklist, no list of calls, no artifact link.
@@ -82,7 +88,7 @@ Every piece of UI built in Panki, the app and the extension, leans this way, and
 - **The owner is never asked to approve a command.** Every rule below is how: a step that would make the harness ask is done another way (Read, Grep, Glob, Edit, Write), and one that can't be is said in a line instead of run. Said again by the owner on 2026-11-12, after a turn of chained `sed`, `node -e` and piped commands.
 - Files are changed with Edit and Write, never through the shell: no `sed -i`, heredocs, `head`/`tail` splices, `cat >>`, `node` edit scripts, shell variables like `$TEMP`, or chained commands. Every file: the repo, the scratchpad, artifacts, memory. Each of those makes the harness ask the owner for permission.
 - A shell command is one plain step: `pnpm typecheck`, `pnpm build`, `git status`, `git add -A`, `git commit -m "…"`.
-- Every brief to a subagent or another session says, as its first rule: read, search and list with Read, Grep and Glob only, never a shell command (no `grep`, `sed`, `cat`, chains or pipes); the only shell steps allowed are the plain ones below.
+- Every brief to a subagent or another session, and every follow-up message to one, says, as its first rule: the owner is never asked to approve a command, so a step that would make the harness ask is done another way or said in a line instead of run (no `node -e`, scratch scripts written and run, chains or pipes); read, search and list with Read, Grep and Glob only, never a shell command (no `grep`, `sed`, `cat`); the only shell steps allowed are the plain ones below. Said again by the owner on 2026-11-16, after a session asked to run a `node -e` check.
 - A rename across many files is Grep, then Edit per file. A brief for another session spells this out as a rule and never allows a scripted rename.
 - Never start a shell command with `cd` or `Set-Location`. Run from the repo root with paths from there; `pnpm --dir <pkg> exec …` where a package folder matters; scratch scripts by absolute path. A hook refuses any Bash command starting with `cd`.
 - Never pipe a command's output into `grep`, `Select-String` or another filter. Run `pnpm typecheck` and `pnpm build` bare and read their whole output.

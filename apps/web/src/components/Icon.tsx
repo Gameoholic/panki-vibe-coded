@@ -35,6 +35,8 @@ const ICONS = {
   chevrons: ["M6 6l6 6-6 6", "M13 6l6 6-6 6"],
   down: ["M6 9l6 6 6-6"],
   up: ["M6 15l6-6 6 6"],
+  /** An arrow going up: Send in a conversation's composer, the button round and its word its label. */
+  send: ["M12 19V5", "M6 11l6-6 6 6"],
   /** One arrow going round: asked again (`review`, two arrows, is the Review door). */
   again: ["M20 12a8 8 0 1 1-2.3-5.7", "M20 4v4h-4"],
   close: ["M6 6l12 12", "M18 6L6 18"],
@@ -153,10 +155,9 @@ const ICONS = {
   flag: ["M5 21V4", "M5 4h12l-2.5 4.5L17 13H5"],
   /** A sun: a card put aside brought back, Unsnooze and Unsuspend. */
   wake: ["M12 3v2", "M12 19v2", "M3 12h2", "M19 12h2", "M12 8a4 4 0 1 0 0 8 4 4 0 1 0 0-8z"],
-  /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live), the download with a chunk's head start (Hybrid). */
+  /** The transcription modes' (`ModeChip.tsx` → `MODE_ICONS`): the whole video downloaded into a tray (Full), an arrow running ahead to a bar (Live). */
   download: ["M12 3v11", "M8 10l4 4 4-4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"],
   lead: ["M3 12h11", "M10 8l4 4-4 4", "M19 6v12"],
-  hybrid: ["M12 3v11", "M8 10l4 4 4-4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2", "M16 2l2 2-2 2", "M19.5 2l2 2-2 2"],
   /** A video kept in this browser to watch without signal: a tick over the download's tray, the mark wherever the video shows. */
   downloaded: ["M7.5 9.5l3 3 6-6.5", "M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
 } as const;

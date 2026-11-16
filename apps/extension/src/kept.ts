@@ -1,7 +1,7 @@
 /** @panki Anything kept of what Panki says, read again when its state header changes (`KEPT`, `readKept`, `putKept`, `peekKept`). Never a cache of its own. */
 import { z } from "zod";
-import { ExtensionBuild, TEMPLATED_PLACE_IDS, WordsInCards, type KeptKind, type KeptState, type PankiAiStatus } from "@panki/contracts";
-import { AiShown } from "./messages";
+import { ExtensionBuild, TEMPLATED_PLACE_IDS, WordsInCards, type KeptKind, type KeptState, type PankiAiStatus, type Settings } from "@panki/contracts";
+import { AccountRules, AiShown } from "./messages";
 import { panki, stateSeen } from "./panki";
 import type { Stored } from "./storage";
 
@@ -49,6 +49,9 @@ export function aiShownOf(ai: PankiAiStatus): AiShown {
   };
 }
 
+/** The account's rules as the worker hands them to a page: out of its settings, nothing else of them. */
+const rulesOf =(settings: Settings): AccountRules => ({ rules: settings.rules, rulesDayMicros: settings.rulesDayMicros });
+
 const MINUTE = 60_000;
 
 const signedIn = (token: string | null): string => {
@@ -62,6 +65,8 @@ export const KEPT = {
   words: entry({ schema: WordsInCards, kinds: ["words"], scope: "signIn", lifeMs: MINUTE, ask: (address, token) => panki.wordsInCards({ address, token: signedIn(token) }) }),
   /** Panki AI as it stands for everyone and for the account: what Explain, Touch up and Proofread are worked out from. */
   ai: entry({ schema: AiShown, kinds: ["shared", "account"], scope: "signIn", lifeMs: MINUTE, ask: async (address, token) => aiShownOf(await panki.ai({ address, token: signedIn(token) })) }),
+  /** The account's rules (Settings → Rules): what a page runs by itself as it hears a trigger, transcribing as a video plays. */
+  rules: entry({ schema: AccountRules, kinds: ["account"], scope: "signIn", lifeMs: MINUTE, ask: async (address, token) => rulesOf(await panki.settings({ address, token: signedIn(token) })) }),
   /** The build of the extension the Panki carries (`updates.ts`): anyone's, so asked with no sign-in. */
   build: entry({ schema: ExtensionBuild, kinds: ["build"], scope: "address", lifeMs: 60 * MINUTE, ask: (address) => panki.extensionBuild(address) }),
 } as const;

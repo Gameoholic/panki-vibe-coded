@@ -10,6 +10,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - Stats and the home board; themes; accounts, one database each.
 - The extension adding cards from YouTube.
 - Panki AI up to Proofread, with the player bar and the panel's views.
+- Example sentences as a field kind: rows of Situation, sentence and translation, Touch up answering rows, the review card's list with its translations a spoiler (`EXTENSION_PROTOCOL` 14).
 - The data kept for preservation; `pnpm backup` on the VPS.
 
 ## Built, not yet seen by the owner
@@ -73,9 +74,13 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-12: under or over its word by its measured height, the side with more room when it fits on neither.
 - 2026-10-15: word audio from Forvo (`architecture/forvo.md`).
 
+**Automations** (`architecture/rules.md`, `docs/RULES.md`)
+- 2026-11-16: Settings → Automations as A Flow (triggers joined to their automations, the editor in place), the cap and today's spend at the head (each automation's last-run line, its Last runs switch and History, a window's runs and spend behind a button, all since taken off; the owner); limits and the wait added and taken off, never empty boxes; Downloading On / Off per browser on the extension's Downloads tab.
+- 2026-11-15: Settings → Automations, every automatic run an automation (When → Do, optional limits on a video's length and a download's size in brackets inside When, an optional wait of seconds watched on a video playing, the account's one daily cap the only dollar limit), steps 1 to 8 on local dev, unpushed: Proofread when a transcript is finished, after every chunk and when a part is transcribed again, on the server; Start transcribing as a video plays and Transcribe the entire video in the background once it's been watched a while, in place of Auto transcribe, Hybrid, the Mode setting and the length limit's Warn first, the strip's menu offering the two by the same names, the one name each on every screen, with no automation switches of its own; Download when a video is saved for later; Ask Panki AI as the Card drawer opens, one of its actions after a colon (Touch up to begin with), its answer in the drawer; Ask Panki AI as the Word pop-up opens ("When the Word pop-up opens, ask Panki AI: Explain"), its title in the flow and History the action's own name, Panki AI's spark before it ("✦ Explain"). Migrations 56 (`rule_runs`) and 57 (`card_proposals`, now read by nothing), new tables only; 58 adds Transcribe the entire video in the background to an account's saved automations once. A new account starts with three, all On (Start transcribing, the entire video in the background, Download; none on the drawer or the pop-up) (`DEFAULT_RULES`); a saved account's are never changed by them.
+
 **Transcribing** (`architecture/transcribing.md`)
 - 2026-10-17: Panki subtitles, transcribed by ElevenLabs.
-- 2026-10-20: Full, Live and Hybrid.
+- 2026-10-20: Start transcribing and Transcribe the entire video in the background.
 
 **Watching** (`architecture/watching.md`)
 - 2026-10-21: video tracking, where you stopped, Continue watching, YouTube's home made Panki's.
@@ -90,10 +95,11 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-09: one answer shape; the words; actions of one's own, Requires, Leave out, Video context length, Clear conversation; Explain as the word's conversation.
 - 2026-11-10: the conversation's messages scrolling in their box; the whole block folded under its name; Actions….
 - 2026-11-12: the prompts neutral, how Panki AI writes moved to User instructions (Panki's own few lines to begin with); the Explanation left empty when it isn't needed, each field's own Touch up and the actions' grouping gone; the Sentence picked as whole subtitle lines by number, never reworded, and not asked off a video; a part that couldn't be used said under its reply; `{First message}`, where the admin's prompt puts the first message, at the end of Panki's own; User instructions out of the pop-up's and the drawer's conversations, a message's bubble naming its actions alone; the Sentence's clip move as a diff of each end and the length; on a video the Sentence read-only, the clip's words (no Lock), every subtitle line one number in every message, the card's Sentence sent with its lines ("part of" a choice that's good when it holds what the word needs).
+- 2026-11-16: the conversation's look, B Quiet, in the Card drawer, the Word pop-up and Settings → Panki AI's explainers: each message a soft bubble at the right, each reply plain text beside a small spark, one rounded composer, Send round in Panki's blue with an arrow.
 
 ## Under way
 
-- Panki AI: `docs/AI.md`, on main. Example sentences as a field kind (Touch up, steered, step 3) built on local dev, uncommitted, not yet seen: the kind (one per type, mapped to Touch up's examples by itself), rows of Situation, sentence and translation typed in where they stand (`ExampleRows`), Touch up answering rows (`ExamplesWire`) and its proposal row by row (`ExamplesDiff`), the review card's list with each translation a spoiler (the part's Translations: Show / Spoiler / Hide), the card list's sentences, search; `EXTENSION_PROTOCOL` 14. Next, the owner makes the new field and tries it.
+- Panki AI: `docs/AI.md`, on main, Touch up, steered done; Automations (`docs/RULES.md`) steps 1 to 7 on local dev, unpushed, for the owner to try; Panki's answer format later.
 - The docs: `docs/DOCS.md`.
 - Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 18 (time conditions in hours; Round 17: Week ends on; Round 16: Cards added, `EXTENSION_PROTOCOL` 11; Round 15: no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).
 - The Hold button is gone, on main and on prod.

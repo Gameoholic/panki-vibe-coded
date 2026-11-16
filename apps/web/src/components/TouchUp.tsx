@@ -1,4 +1,4 @@
-/** @panki Touch up as it's drawn: its head, a proposal under a field, examples row by row (`TouchUpAll`, `Tied`, `fieldShown`, `ExamplesDiff`, `proposes`, `UnmarkAi`). Never a second proposal. */
+/** @panki Touch up as it's drawn: its head, a proposal under a field, examples row by row (`Tied`, `fieldShown`, `ExamplesDiff`, `UnmarkAi`). One proposal. */
 import { Fragment, useState, type ReactNode } from "react";
 import {
   TOUCH_UP,

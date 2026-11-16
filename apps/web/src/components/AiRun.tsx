@@ -538,9 +538,10 @@ export type ComposerProps = {
 };
 
 /**
- * Where a conversation is sent from (Touch up, steered): a box growing as it's typed, and under it one row, the actions
- * as a dropdown ticking several (every action of the place in the registry's order), what the message can cost, and
- * Send with the spark; the row wraps on a phone, the dropdown first. Enter sends, Shift+Enter is a new line, and
+ * Where a conversation is sent from (Touch up, steered): one rounded box, what's typed growing from one line, and under
+ * it inside the box one row, the actions as a dropdown ticking several (every action of the place in the registry's
+ * order), what the message can cost, and Send, round in the accent with its arrow (the spark turning there while a
+ * message is out); the row wraps on a phone, the dropdown first. Enter sends, Shift+Enter is a new line, and
  * Ctrl+Enter sends here too, never reaching the form it stands in (the drawer's, whose submit is Add). A
  * conversation's foot, always there while Panki AI can answer.
  */
@@ -548,7 +549,7 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
   const box = useRef<HTMLTextAreaElement>(null);
   /** The conversation's settings, open above the box: closed whenever the composer comes, opened by its button alone. */
   const [knobsOpen, setKnobsOpen] = useState(false);
-  // The box grows with what's typed, from its two lines, as a multiline `TextField` does.
+  // The box grows with what's typed, from one line, as a multiline `TextField` does.
   useEffect(() => {
     const area = box.current;
     if (!area) return;
@@ -573,7 +574,7 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
           ref={box}
           id={`${id}-message`}
           className="composer-input"
-          rows={2}
+          rows={1}
           aria-label={MESSAGE_WORDS.ask[place]}
           aria-invalid={error ? true : undefined}
           placeholder={MESSAGE_WORDS.ask[place]}
@@ -584,34 +585,33 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={keys}
         />
+        <div className="composer-tools">
+          {actions.length > 0 ? (
+            <span className="composer-actions">
+              <Dropdown
+                id={`${id}-actions`}
+                label={MESSAGE_WORDS.actions}
+                options={actions.map((action) => ({ id: action.id, label: action.name, disabled: action.disabled }))}
+                values={actions.filter((action) => action.on && !action.disabled).map((action) => action.id)}
+                summary={actionsSummary(actions)}
+                onToggle={onToggle}
+                disabled={sending}
+                anchored
+              />
+            </span>
+          ) : null}
+          {hasKnobs(knobs) ? <KnobsButton id={id} open={knobsOpen} onToggle={() => setKnobsOpen((was) => !was)} disabled={false} /> : null}
+          {beside ? <span className="btn-beside">{beside}</span> : null}
+          <Button variant="primary" className="composer-send" aria-label={MESSAGE_WORDS.send} disabled={!canSend || sending} onClick={onSend}>
+            {sending ? <AiSpark working burst={burst} /> : <Icon name="send" />}
+          </Button>
+        </div>
       </div>
       {error ? (
         <p className="composer-error" role="alert">
           {error}
         </p>
       ) : null}
-      <div className="composer-tools">
-        {actions.length > 0 ? (
-          <span className="composer-actions">
-            <Dropdown
-              id={`${id}-actions`}
-              label={MESSAGE_WORDS.actions}
-              options={actions.map((action) => ({ id: action.id, label: action.name, disabled: action.disabled }))}
-              values={actions.filter((action) => action.on && !action.disabled).map((action) => action.id)}
-              summary={actionsSummary(actions)}
-              onToggle={onToggle}
-              disabled={sending}
-              anchored
-            />
-          </span>
-        ) : null}
-        {hasKnobs(knobs) ? <KnobsButton id={id} open={knobsOpen} onToggle={() => setKnobsOpen((was) => !was)} disabled={false} /> : null}
-        {beside ? <span className="btn-beside">{beside}</span> : null}
-        <Button variant="primary" className="composer-send" disabled={!canSend || sending} onClick={onSend}>
-          <AiSpark working={sending} burst={burst} />
-          {MESSAGE_WORDS.send}
-        </Button>
-      </div>
     </div>
   );
 }

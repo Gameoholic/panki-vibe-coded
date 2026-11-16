@@ -339,8 +339,8 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
   );
 }
 
-// Whether transcribing starts by itself is switched in the strip's menu alone (Auto transcribe); what it does while
-// paused is an admin's, in Panki's Settings → Admin.
+// Whether transcribing starts by itself is the account's automations (Panki's Settings → Automations, and the strip
+// menu's switches for them); what it does while paused is an admin's, in Panki's Settings → Admin.
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
 // What the choice made does, under it: the choice alone doesn't say.
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {

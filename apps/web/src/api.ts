@@ -33,6 +33,7 @@ import {
   MeResponse,
   MediaResponse,
   ReviewSessionResponse,
+  RulesStandingResponse,
   ServerDictionaryList,
   ServerDictionaryResponse,
   SettingsResponse,
@@ -194,6 +195,8 @@ export const api = {
   /** The account's settings, with what the ones left to Panki come to here (its time zone, its transcription language). */
   getSettings: (): Promise<SettingsAnswer> => request("/api/settings", undefined, (b) => SettingsResponse.parse(b)),
   updateSettings: (patch: SettingsUpdate): Promise<SettingsAnswer> => request("/api/settings", send("PATCH", patch), (b) => SettingsResponse.parse(b)),
+  /** Each of the account's rules' runs today and what every rule spent today together. */
+  rulesStanding: (): Promise<RulesStandingResponse> => request("/api/rules", undefined, (b) => RulesStandingResponse.parse(b)),
   /** All that's kept of the videos watched, in brief: how many, how long, since when. */
   watchHistory: (): Promise<WatchHistory> => request(WATCHING_PATH, undefined, (b) => WatchHistoryResponse.parse(b).history),
   /** The account's extensions, each with what it last said of its Video tracking and when it last sent (Data tracking's list, read-only). */

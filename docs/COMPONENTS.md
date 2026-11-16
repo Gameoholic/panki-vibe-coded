@@ -42,6 +42,7 @@ Paths from `apps/web/src/`.
 | Fold | `components/Fold.tsx` | Something that opens and closes by its height, fading as it goes (`Fold`). Never a second way of making something unfold. |
 | Form | `components/Form.tsx` | A form that validates in the app's words, never the browser's (`Form`). Never a bare `<form>`. |
 | FramePicker | `components/FramePicker.tsx` | A tile's custom time frame picked as an amount, "Last 3 weeks" or "Next 3 weeks", hanging from what opened it (`FramePicker`, `frameShort`). |
+| HangingPanel | `components/HangingPanel.tsx` | A panel of settings hanging from the button that opened it, Esc or a press outside closing it: a streak's (`HangingPanel`). Never a centred modal. |
 | HintMark | `components/HintMark.tsx` | A (?) after a label that opens words, not a scene (`HintMark`). |
 | Icon | `components/Icon.tsx` | Every icon, one registry (`Icon`, `IconName`); a missing one is drawn in here. Never an icon library. |
 | JudgedRow | `components/JudgedRow.tsx` | A meaning Panki AI judged, wherever it's listed, its reason folded under a chevron (`JudgedRow`, `WhyButton`, `meaningsChip`). Never a second drawing of one. |
@@ -53,10 +54,9 @@ Paths from `apps/web/src/`.
 | MediaView | `components/MediaView.tsx` | A file shown or played, anywhere (`MediaView`), and the player's bar alone (`MediaBar`). Never `<audio controls>` outside the Plain style, never a second player. |
 | Modal | `components/Modal.tsx` | The one centred pop-up over the dimmed page, for a question that can't wait (`Modal`). Never a second centred modal. |
 | ModeChip | `components/ModeChip.tsx` | A transcription mode named anywhere (`ModeChip`, `MODE_ICONS`). Never a mode's name as bare text in a sentence. |
-| ModeCompare | `components/ModeCompare.tsx` | The transcription modes compared side by side, and one set (`ModeCompare`). |
 | NoDecksYet | `components/NoDecksYet.tsx` | No decks yet, with the one way forward (`NoDecksYet`). |
-| NumberField | `components/NumberField.tsx` | A whole number typed or stepped with − and +: a wait, a setting, a count (`NumberField`). Never `<input type="number">` or `type="time"`. |
-| PerDevice | `components/PerDevice.tsx` | Saying a setting is kept on this device alone, the quiet tag (`PerDevice`). Never a line under a setting saying so. |
+| NumberField | `components/NumberField.tsx` | A number typed or stepped with − and +: a wait, a setting, a count, dollars to the cent (`NumberField`). Never `<input type="number">` or `type="time"`. |
+| PerDevice | `components/PerDevice.tsx` | Saying a web setting is kept on this device alone, the quiet tag (`PerDevice`). Never a line saying so; never in the extension's options. |
 | PitchAccent | `components/PitchAccent.tsx` | A pitch accent drawn over its reading, anywhere (`PitchAccent`, `PitchAccents`). Never a second drawing. |
 | PlacePill | `components/PlacePill.tsx` | Where a card stands, as a pill in its stage's colour (`PlacePill`, `StagePill`). |
 | PromptContext | `components/PromptContext.tsx` | What a prompt can use, a row a variable, pressed to go in at the caret (`PromptContext`, `CopyButton`, `PieceLimits`). Never a second list of the variables. |
@@ -65,6 +65,8 @@ Paths from `apps/web/src/`.
 | ReviewProgress | `components/ReviewProgress.tsx` | How far through a review its cards are, a thin bar across the top of the window (`ReviewProgress`). Never a second bar of it. |
 | ReviewScreen | `components/ReviewScreen.tsx` | The review's screen around its card (`ReviewScreen`, `ReviewCounts`, `ReviewButtons`, `answerLead`, `stepFor`). Never a second drawing of it. |
 | RightShare | `components/RightShare.tsx` | The share of a review's answers so far that were right, beside its counts (`RightShare`, `rightOf`). |
+| RuleEditor | `components/RuleEditor.tsx` | One automation's settings, When, its optional limits, Do, its action, opened in place (`RuleEditor`), and an amount typed (`AmountField`). |
+| RuleFlow | `components/RuleFlow.tsx` | Automations as a flow: each trigger a node, each automation a node joined to it by a line tinted by its use, opened in place (`RuleFlow`). Never a second drawing of them. |
 | ScrollEdges | `components/ScrollEdges.tsx` | A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. |
 | Segmented | `components/Segmented.tsx` | A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). |
 | Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, an `explain` scene, the `perDevice` tag (`Setting`). |
@@ -80,7 +82,7 @@ Paths from `apps/web/src/`.
 | Tip | `components/Tip.tsx` | The one hint bubble, on hover or focus, above its point or below it (`Tip`). Never a `title` attribute, never a hover bubble drawn by hand. |
 | TodayBar | `components/TodayBar.tsx` | Today's cards folded to their counts (`TodayBar`, `todayWords`). |
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
-| TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field, examples row by row (`TouchUpAll`, `Tied`, `fieldShown`, `ExamplesDiff`, `proposes`, `UnmarkAi`). Never a second proposal. |
+| TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field, examples row by row (`Tied`, `fieldShown`, `ExamplesDiff`, `UnmarkAi`). One proposal. |
 | aiScenes | `explainers/aiScenes.tsx` | What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). |
 | examples | `explainers/examples.ts` | The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. |
 | reviewScenes | `explainers/reviewScenes.tsx` | What Settings → General → Reviews' explainers play, on Panki's own review: Start cards blurred, Time left, Time studying (`BlurScene`, `TimeLeftScene`, `TimeStudyingScene`). |
@@ -100,7 +102,7 @@ Paths from `apps/web/src/`.
 | useDragPanel | `hooks/useDragPanel.ts` | A panel dragged anywhere over the screen and kept where it was put (`useDragPanel`); `FloatPanel` is its drawing. |
 | useGridDrag | `hooks/useGridDrag.ts` | A tile carried across a grid, with a mouse or a finger, to take another's place (`useGridDrag`). Never a second drag for a grid. |
 | useHeardKeys | `hooks/useHeardKeys.ts` | An action's keys heard on the window, pressed or held, a tap told from a hold (`useHeardKeys`): a player's keys and the full screen's. |
-| useHoist | `hooks/useHoist.ts` | Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `goTo`). Never a second way of reordering rows by themselves. |
+| useHoist | `hooks/useHoist.ts` | Rows lifted to the top of a list while they wait on something, sliding there and back (`useHoist`, `useSlide`, `goTo`). Never a second way of sliding rows to a new order. |
 | useHold | `hooks/useHold.ts` | A key held on a button until it does its thing, a tap told from a hold (`useHold`, `keepTap`, `keepDouble`, `TAP_MS`, `DOUBLE_MS`). |
 | usePlayback | `hooks/usePlayback.ts` | A sound or a clip played by one of the app's players, in any look (`usePlayback`). Never a second way of playing a file. |
 | useSavedSoon | `hooks/useSavedSoon.ts` | A handful of settings that save themselves a moment after each change (`useSavedSoon`). |
@@ -131,6 +133,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line moving on, what's left, how far through (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). |
 | romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | routes | `routes.ts` | Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). |
+| ruleKinds | `ruleKinds.ts` | Automations in words and fields: a sentence (`ruleWords`), optional limits and knobs (`RULE_LIMITS`, `RULE_KNOBS`), amounts, icons, a line's tint (`lineTint`). |
 | shuffle | `shuffle.ts` | A list shuffled, on a copy (`shuffle`). |
 | skeletonMemory | `skeletonMemory.ts` | The shapes screens really had, remembered on this device so a skeleton fits what comes (`rememberShape`, `shapeOf`). |
 | srsFlow | `srsFlow.ts` | Editing an SRS type's rules without touching the one in state: a scope's steps, answers and stages (`edit`, `scopeFlow`, `setStep`, `addStage`, `tree`). |
@@ -139,7 +142,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | themes | `themes.ts` | The themes, the only place one is listed (`THEMES`, `ThemeId`), and this device's choice read, kept and applied (`readTheme`, `writeTheme`, `applyTheme`). |
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
-| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); Today, its facts and every streak's checks. |
+| widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`, `WindowPick`); Today, its facts, every streak's checks. |
 | words | `words.ts` | How things are said in words, dates and times in the account's formats and days (`count`, `clock`, `dateWords`, `dayWords`, `setFormats`, `daysOf`, `agoWords`). |
 
 ## Contracts
@@ -178,6 +181,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | proofread | `proofread.ts` | Proofread as shapes: its answer, the rules it's held to, its batches, a transcript's undo (`ProofreadShape`, `proofreadProblem`, `batchesOf`, `TranscriptUndo`). |
 | recap | `recap.ts` | A finished video's recap as Panki works it out (`VideoRecap`, `RECAP`, `sessionsOf`, `watchedOf`): its cards, its watch sessions, its channel, what's next. |
 | reviewSettings | `reviewSettings.ts` | How every review runs, the account's, the same for every deck, and the defaults (`ReviewSettings`, `DEFAULT_REVIEW_SETTINGS`, `ExampleShown`, `againPlaceOf`). |
+| rules | `rules.ts` | Automations (rules in code): every automatic run, When a trigger → Do an action → At most a cap (`RULE_TRIGGERS`, `RULE_ACTIONS`, `Rule`, `ruleProblem`, `RuleStanding`). |
 | space | `space.ts` | What's left on the disk, what Panki's data takes of it, and bytes in words (`Space`, `StorageReport`, `sizeWords`). Measuring it is the API's alone. |
 | srs | `srs.ts` | SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). |
 | srsStarters | `srsStarters.ts` | The SRS types that come with the app, and a new type as a copy of another (`makeStarter`, `SRS_STARTER_IDS`, `copySrsType`, `emptySrsType`). |
@@ -185,6 +189,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords`, `goalRuleWords`). |
 | subtitleStyle | `subtitleStyle.ts` | How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). |
 | touchUp | `touchUp.ts` | Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). |
+| transcriptLines | `transcriptLines.ts` | A transcript's words cut into lines, the one rule of where a line ends, for the page's rows and the server's Proofread alike (`cutLines`, `lineWidthOf`). |
 | transcription | `transcription.ts` | A video transcribed, as shapes: engines, settings, modes, chunks, the transcript, a line fixed (`ENGINES`, `Transcription`, `TRANSCRIBE_MODES`, `Transcript`). |
 | type | `type.ts` | A card type and its fields, which kinds hold what, and what it demands of a card's values (`CardType`, `CardField`, `FieldKind`, `holdsFile`, `cardProblems`). |
 | unread | `unread.ts` | Why a Panki AI answer couldn't be used, said as Expected … Got … (`expectedGot`, `UNREAD_REASONS`, `issueWords`, `knobsBroken`). Never a label of whose rule it was. |
@@ -232,7 +237,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | storage | `storage.ts` | What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). |
 | subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |
 | proofreader | `transcribe/proofreader.ts` | Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |
-| transcriber | `transcribe/transcriber.ts` | A video transcribed by an engine in the viewer's mode, and its log (`createTranscriber`, `TranscribeState`, `logText`). Never a second reader of a video's words. |
+| transcriber | `transcribe/transcriber.ts` | A video transcribed by an engine, live and whole, and its log (`createTranscriber`, `TranscribeState`, `logText`, `wayRuleOf`). Never a second reader of a video's words. |
 | Burst | `ui/Burst.tsx` | The Add button's burst as a card lands: a ring rippling out and dots flying off (`Burst`). Never a second celebration. |
 | ClipPlayer | `ui/ClipPlayer.tsx` | A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). |
 | Column | `ui/Column.tsx` | The column the panel and the drawer stand in beside the video and in full screen, its left edge dragged for its width (`Column`). Never a second column. |

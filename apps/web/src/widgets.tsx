@@ -1,4 +1,4 @@
-/** @panki Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`); Today, its facts and every streak's checks. */
+/** @panki Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`, `WindowPick`); Today, its facts, every streak's checks. */
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from "react";
 import {
   FRAME_UNITS,
@@ -47,11 +47,10 @@ import { Dropdown } from "./components/Dropdown";
 import { Icon } from "./components/Icon";
 import { LinkView } from "./components/LinkView";
 import { FramePicker, frameShort } from "./components/FramePicker";
+import { HangingPanel } from "./components/HangingPanel";
 import { Segmented } from "./components/Segmented";
 import { Skeleton } from "./components/Skeleton";
 import { StreakEditor } from "./components/StreakEditor";
-import { useAnchored } from "./hooks/useAnchored";
-import { useDismiss } from "./hooks/useDismiss";
 import { useSavedSoon } from "./hooks/useSavedSoon";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { BURNED_TINT, NEW_WORDS, tintOf } from "./srsKinds";
@@ -211,8 +210,7 @@ function windowsOf(entry: TileEntry): FixedWindow[] {
   if (entry.ahead) return [...own, ...CALENDAR_WINDOWS];
   return [...own, ...own.flatMap((w) => CALENDAR_FOR[w] ?? [])];
 }
-function windowOptions(entry: TileEntry, way: FrameWay): { id: FixedWindow; label: string; under?: FixedWindow }[] {
-  const offered = windowsOf(entry);
+function windowOptions(offered: readonly FixedWindow[], way: FrameWay): { id: FixedWindow; label: string; under?: FixedWindow }[] {
   const group = (of: readonly FixedWindow[]) => {
     const here = of.filter((w) => offered.includes(w));
     const head = here[0];
@@ -1351,6 +1349,83 @@ function useFrameStats(frame: StatFrame | null, way: FrameWay, stats: Stats | nu
   return got && got.key === key ? got : { win: null, ahead: null, failure: null };
 }
 
+/**
+ * A tile's window, the one control for it wherever a window of days is picked (every tile; Settings → Automations'
+ * history): the small dropdown of the windows offered (`windowOptions`), the custom frame kept and Custom…, which hangs
+ * the `FramePicker` from it. Each pick is this device's, kept by the tile's id (`tilePicks.ts`); `onWindow` and
+ * `onFrame` say it to whoever draws the numbers.
+ */
+export function WindowPick({
+  tileId,
+  name,
+  offered,
+  way,
+  win,
+  frame,
+  onWindow,
+  onFrame,
+}: {
+  /** Its tile's id: the pick is kept by it, and its controls' ids are `tile-${tileId}-…`. */
+  tileId: string;
+  name: string;
+  offered: readonly FixedWindow[];
+  way: FrameWay;
+  win: WindowId;
+  frame: StatFrame | null;
+  onWindow: (win: WindowId) => void;
+  onFrame: (frame: StatFrame) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const at = useRef<HTMLSpanElement>(null);
+  const id = `tile-${tileId}`;
+  const pickId = tileId;
+  const options: { id: WindowId | "pick"; label: string; under?: WindowId }[] = [
+    ...windowOptions(offered, way),
+    ...(frame ? [{ id: "custom" as const, label: `${FRAME_LEAD[way]} ${frameShort(frame)}` }] : []),
+    { id: "pick" as const, label: "Custom…" },
+  ];
+  return (
+    <>
+      <span ref={at} className="w-window">
+        <Dropdown
+          id={`${id}-window`}
+          label={`${name}: window`}
+          size="sm"
+          anchored
+          options={options}
+          value={win}
+          onChange={(next) => {
+            if (next === "pick") {
+              setPicking(true);
+              return;
+            }
+            onWindow(next);
+            if (next === "custom") {
+              if (frame) writeTilePick(pickId, { window: "custom", frame });
+            } else writeTilePick(pickId, { window: next });
+          }}
+        />
+      </span>
+      {picking ? (
+        <FramePicker
+          idPrefix={`${id}-frame`}
+          anchor={at}
+          open={picking}
+          frame={frame}
+          lead={FRAME_LEAD[way]}
+          onClose={() => setPicking(false)}
+          onPick={(next) => {
+            setPicking(false);
+            onFrame(next);
+            onWindow("custom");
+            writeTilePick(pickId, { window: "custom", frame: next });
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
 type TileProps = {
   entry: TileEntry;
   stats: Stats | null;
@@ -1387,8 +1462,6 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   });
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
-  const windowAt = useRef<HTMLSpanElement>(null);
   const custom = useFrameStats(win === "custom" ? frame : null, way, stats);
   const loading = stats === null || ctx === null || (win === "custom" && custom.win === null && custom.ahead === null && custom.failure === null);
   const winStats = stats === null || win === null ? null : win === "custom" ? custom.win : ([...stats.windows, ...stats.calendar].find((w) => w.window === win) ?? null);
@@ -1399,11 +1472,6 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   // A day alone is drawn by the hour: no views over it, Today's or a range's of one day.
   const views = entry.views && shown && !(entry.noViewsOn && winStats?.unit === "one") ? entry.views : null;
   const isOpen = open && more !== null;
-  const options: { id: WindowId | "pick"; label: string; under?: WindowId }[] = [
-    ...windowOptions(entry, way),
-    ...(framed && frame ? [{ id: "custom" as const, label: `${FRAME_LEAD[way]} ${frameShort(frame)}` }] : []),
-    ...(framed ? [{ id: "pick" as const, label: "Custom…" }] : []),
-  ];
   return (
     <Widget
       id={entry.id}
@@ -1418,42 +1486,20 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
         entry.windows || more ? (
           <>
             {entry.windows && win ? (
-              <span ref={windowAt} className="w-window">
-                <Dropdown
-                  id={`tile-${entry.id}-window`}
-                  label={`${entry.name}: window`}
-                  size="sm"
-                  anchored
-                  options={options}
-                  value={win}
-                  onChange={(next) => {
-                    if (next === "pick") {
-                      setPicking(true);
-                      return;
-                    }
-                    setWin(next);
-                    setAt(null);
-                    if (next === "custom") {
-                      if (frame) writeTilePick(entry.id, { window: "custom", frame });
-                    } else writeTilePick(entry.id, { window: next });
-                  }}
-                />
-              </span>
-            ) : null}
-            {framed && picking ? (
-              <FramePicker
-                idPrefix={`tile-${entry.id}-frame`}
-                anchor={windowAt}
-                open={picking}
+              <WindowPick
+                tileId={entry.id}
+                name={entry.name}
+                offered={windowsOf(entry)}
+                way={way}
+                win={win}
                 frame={frame}
-                lead={FRAME_LEAD[way]}
-                onClose={() => setPicking(false)}
-                onPick={(next) => {
-                  setPicking(false);
-                  setFrame(next);
-                  setWin("custom");
+                onWindow={(next) => {
+                  setWin(next);
                   setAt(null);
-                  writeTilePick(entry.id, { window: "custom", frame: next });
+                }}
+                onFrame={(next) => {
+                  setFrame(next);
+                  setAt(null);
                 }}
               />
             ) : null}
@@ -1510,24 +1556,6 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   );
 }
 
-/** The panel a streak is made or changed in, hanging from the button that opened it as a question hangs from its button. */
-function StreakPanelFrame({ anchor, open, onClose, title, label, failure, children }: { anchor: RefObject<HTMLButtonElement | null>; open: boolean; onClose: () => void; title: string; label: string; failure: string | null; children: ReactNode }) {
-  const panel = useRef<HTMLDivElement>(null);
-  useAnchored(anchor, panel, open, undefined, "auto");
-  useDismiss(panel, open, onClose, anchor);
-  return (
-    <div ref={panel} className="menu tile-panel" role="dialog" aria-label={label} hidden={!open} data-no-drag>
-      <p className="panel-title">{title}</p>
-      {failure ? (
-        <p className="form-failure" role="alert">
-          {failure}
-        </p>
-      ) : null}
-      {children}
-    </div>
-  );
-}
-
 type SavedStreaks = { streaks: StreakRule[]; pillStreak: Settings["pillStreak"] };
 
 /**
@@ -1547,7 +1575,7 @@ function StreakPanel({ rule, ctx, open, anchor, onClose }: { rule: StreakRule; c
   const name = streakNameOf(streak);
   const streaks = ctx.settings.streaks;
   return (
-    <StreakPanelFrame anchor={anchor} open={open} onClose={onClose} title="Streak" label={`${name}: settings`} failure={failure}>
+    <HangingPanel anchor={anchor} open={open} onClose={onClose} title="Streak" label={`${name}: settings`} failure={failure}>
       <StreakEditor idPrefix={`tile-streak-${rule.id}`} streak={streak} anchored onChange={(change) => patch({ streaks: streaks.map((s) => (s.id === rule.id ? { ...streak, ...change } : s)) })} />
       <div className="tile-panel-foot">
         <Button ref={deleteAt} id={`tile-streak-${rule.id}-delete`} className="is-danger" aria-pressed={asking} aria-expanded={asking} onClick={() => setAsking(!asking)}>
@@ -1571,7 +1599,7 @@ function StreakPanel({ rule, ctx, open, anchor, onClose }: { rule: StreakRule; c
           />
         ) : null}
       </div>
-    </StreakPanelFrame>
+    </HangingPanel>
   );
 }
 
@@ -1598,7 +1626,7 @@ function NewStreakPanel({ ctx, anchor, onClose }: { ctx: WidgetContext; anchor: 
     }
   }
   return (
-    <StreakPanelFrame anchor={anchor} open onClose={onClose} title="New streak" label="New streak" failure={failure}>
+    <HangingPanel anchor={anchor} open onClose={onClose} title="New streak" label="New streak" failure={failure}>
       <StreakEditor idPrefix="tile-streak-new" streak={draft} anchored disabled={busy} onChange={(change) => setDraft((d) => ({ ...d, ...change }))} />
       <div className="tile-panel-foot">
         <Button id="tile-streak-new-cancel" onClick={onClose}>
@@ -1609,7 +1637,7 @@ function NewStreakPanel({ ctx, anchor, onClose }: { ctx: WidgetContext; anchor: 
           {busy ? "Creating…" : "Create"}
         </Button>
       </div>
-    </StreakPanelFrame>
+    </HangingPanel>
   );
 }
 

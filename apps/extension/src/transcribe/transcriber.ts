@@ -1,9 +1,13 @@
-/** @panki A video transcribed by an engine in the viewer's mode, and its log (`createTranscriber`, `TranscribeState`, `logText`). Never a second reader of a video's words. */
+/** @panki A video transcribed by an engine, live and whole, and its log (`createTranscriber`, `TranscribeState`, `logText`, `wayRuleOf`). Never a second reader of a video's words. */
 import {
   TRANSCRIBE_MODES,
+  TRANSCRIBE_MODE_IDS,
   VideoId,
-  modeOf,
-  overDownloadLimit,
+  WHOLE_MAX_MS,
+  type Rule,
+  type RuleActionId,
+  type RuleTriggerId,
+  type RuleRunAnswer,
   type Stretch,
   type TranscribeEstimate,
   type TranscribeLanguage,
@@ -13,7 +17,7 @@ import {
   type WholeJob,
 } from "@panki/contracts";
 import { aboutWords, clock } from "@web/words";
-import { askPiece, askPoll, askRedo, askRedoEnd, askTranscript, askWhole } from "../messages";
+import { askPiece, askPoll, askRedo, askRedoEnd, askRuleRun, askRules, askTranscript, askWhole, type AccountRules } from "../messages";
 import { localNow, onLocal } from "../local";
 import { engineWanted, sourceOf, type SubtitleSource } from "../subtitles";
 import type { TranscribePrefs } from "./prefs";
@@ -23,24 +27,27 @@ import type { CutPiece } from "./pieces";
 import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./silent";
 
 /**
- * Transcribing a video, in the mode this viewer uses (Panki's default for everyone until they pick another in the
- * strip's menu; `contracts/transcription.ts` → `TranscribeMode`), decided once as the video's length is known:
+ * Transcribing a video, two ways (`contracts/transcription.ts` → `TranscribeMode`), each an action of the strip's menu
+ * and a rule of the account's (`rules.ts`), so both run where both are wanted:
  *
+ * - Live: chunks. The silent player runs ahead of the viewer, as far as the lead allows, and waits for them there;
+ *   where they jump, it follows; what's been transcribed already (by anyone) it skips. Start transcribing, or by itself
+ *   by the rule When a video plays → Transcribe it live.
  * - Full: Panki's server has the engine download the whole video and transcribe it in one call; nothing plays here.
- * Whatever the mode, a download that fails leaves the chunks to carry on, or to start, from where the viewer is (`fallBack`).
- * - Live: chunks. The silent player runs ahead of the viewer, as far as the lead
- *   allows, and waits for them there; where they jump, it follows; what's been transcribed already (by anyone) it skips.
- * - Hybrid: both at once. The chunks give words within seconds, the whole video downloads behind them, and when it's
- *   in its words replace the chunks' and the silent player stops.
+ *   Transcribe the entire video, or by itself by the rule When a video has been watched → Transcribe the entire video. When
+ *   it's in, its words replace the chunks' and the silent player stops; when it fails, chunks running carry on, and
+ *   none start for it (`fallBack`).
  *
- * A video over the length limit is transcribed whole only as Panki's settings say: by itself, after a question to the
- * viewer (Warn first), or not at all. Everything starts by itself the moment the video plays when Auto transcribe is on
- * and the engine is the source picked (this browser's pick, `subtitles.ts`; with the site's captions or None picked
- * nothing is transcribed at all), or at a press in the menu. Every video is taken to be in the language Panki's settings
- * name, told to the engine, never asked. Every chunk and every download goes through Panki (the worker asks it); the
- * transcript that comes back is what the line under the player reads. The settings that cost are everyone's (an admin
- * sets them in Panki) and read with the transcript; how it behaves for this viewer (`prefs.ts`) and the source picked
- * are this browser's own, read as they stand (`local.ts`); nothing here keeps a setting of its own.
+ * Neither starts by itself but by its rule, the same in every browser: once the video's length is known, Panki is
+ * asked whether each rule runs on it (its caps, the video's length, the admin's length limit, the time watched, all
+ * held there), once a visit, or again once the video has been watched as much more as Panki said to wait; a stop is
+ * said in the Log. With the engine not the source picked (this browser's pick, `subtitles.ts`; the site's captions or
+ * None) nothing is transcribed at all. A press in the menu is never held to a rule or a limit. Every video
+ * is taken to be in the language Panki's settings name, told to the engine, never asked. Every chunk and every download
+ * goes through Panki (the worker asks it); the transcript that comes back is what the line under the player reads. The
+ * settings that cost are everyone's (an admin sets them in Panki) and read with the transcript, the rules with them;
+ * how it behaves for this viewer (`prefs.ts`) and the source picked are this browser's own, read as they stand
+ * (`local.ts`); nothing here keeps a setting of its own.
  *
  * Every decision is written down with its reason, so what this session did and why can always be read: in the strip
  * menu's Log, and on the page's console as "[Panki] 12:05:03 …".
@@ -68,7 +75,7 @@ export const FOLLOW = {
   /**
    * A video's page is left to itself for this long after it changes before a run starts by itself. The silent player's
    * frame is the same origin as the page, so it runs on the page's own thread, and a player booting in it while the
-   * page is still switching videos leaves the page unresponsive for seconds (Chrome's "page isn't responding"). A press on Transcribe doesn't wait, nor does asking for the whole video, which plays nothing here.
+   * page is still switching videos leaves the page unresponsive for seconds (Chrome's "page isn't responding"). A press on Start transcribing doesn't wait, nor does ordering the whole video, which plays nothing here.
    */
   settle: 4,
   /** How often the transcript is read again while the whole video is downloading on Panki. */
@@ -104,10 +111,24 @@ export type TranscribeStatus =
   | { kind: "signedOut" }
   | { kind: "failed"; message: string };
 
-/** The mode on this video, decided once its length is known: the mode, and whether the video is over the length limit. */
-export type Decided = { mode: TranscribeMode; long: boolean; seconds: number };
+/** The rule that runs each way by itself: its trigger (a video plays, each with its own wait) and its action. */
+const WAY_RULES: Record<TranscribeMode, { when: RuleTriggerId; do: RuleActionId }> = {
+  live: { when: "videoPlays", do: "transcribe" },
+  full: { when: "videoPlays", do: "transcribeWhole" },
+};
+/**
+ * The account's rule that runs a way by itself, as the menu's switch for it shows it: the first that's on, else the
+ * first; null when the account has none.
+ */
+export function wayRuleOf(rules: AccountRules | null, way: TranscribeMode): Rule | null {
+  const runs = (rule: Rule) => rule.when === WAY_RULES[way].when && rule.do === WAY_RULES[way].do;
+  return rules?.rules.find((r) => r.on && runs(r)) ?? rules?.rules.find(runs) ?? null;
+}
 
-/** A line of the Log: a mode named in it is said as the mode (drawn as its chip in the menu, by name on the console). */
+/** A way's rule on this video: as the menu shows it, Panki's word on it on this visit (null until it's given), and whether Panki is being asked. */
+export type WayRule = { rule: Rule | null; ruled: RuleRunAnswer | null; ruling: boolean };
+
+/** A line of the Log: a way named in it is said as the way (drawn as its chip in the menu, by name on the console). */
 export type LogPart = string | { mode: TranscribeMode };
 export type LogEntry = { at: number; parts: readonly LogPart[] };
 
@@ -128,22 +149,16 @@ export type TranscribeState = {
   status: TranscribeStatus;
   /** What the run has heard that isn't back from the engine yet: from the covered edge behind the silent player to where it stands, in ms (the whole video while it downloads with no chunks); null otherwise. It pulses on the seek bar. */
   working: Stretch | null;
-  /** What the mode came to on this video; null until its length is known. */
-  decided: Decided | null;
-  /** The question before downloading a video over the download limit (Warn first) is waiting for an answer. */
-  asking: boolean;
-  /** The whole video isn't downloaded here: it's over the download limit, and that's not allowed. */
-  refused: boolean;
-  /** The whole video couldn't be downloaded on this visit, and the chunks took over, whatever the mode. */
+  /** The video's length in seconds, once the player has said it on this visit; null until then. */
+  length: number | null;
+  /** Each way's rule on this video (`wayRuleOf`). */
+  ways: Record<TranscribeMode, WayRule>;
+  /** The whole video's order is on its way to Panki: it's as good as under way. */
+  ordering: boolean;
+  /** The whole video couldn't be transcribed on this visit. */
   fellBack: boolean;
   /** A part being transcribed again, in seconds: the transcript doesn't change until it's done, and nothing else starts meanwhile. */
   redoing: { from: number; to: number } | null;
-  /**
-   * The video is over the length limit and the mode picked is Full or Hybrid, with the
-   * entire video waiting on the viewer: asked first, or not allowed, and neither answered nor asked for on this visit.
-   * The strip's button carries a flag for it until the menu is opened.
-   */
-  limitPending: boolean;
   /** Every decision this page made, with its reason. */
   log: readonly LogEntry[];
 };
@@ -225,7 +240,8 @@ const sameTranscript = (a: Transcript | null, b: Transcript) =>
   a.covered.length === b.covered.length &&
   a.covered.at(-1)?.endMs === b.covered.at(-1)?.endMs &&
   a.job?.id === b.job?.id &&
-  a.job?.state === b.job?.state;
+  a.job?.state === b.job?.state &&
+  (a.proofreading ?? false) === (b.proofreading ?? false);
 
 export type Transcriber = ReturnType<typeof createTranscriber>;
 
@@ -255,28 +271,29 @@ export function createTranscriber() {
   let pieces: PieceTally = { back: 0, atEngine: null, last: null };
   /** Where the viewer was at the last look, in seconds. */
   let viewerAt = 0;
-  /** Seconds this video has played on this visit, and when it was last looked at, by `performance.now()` (null before the first look): the entire video waits for `wholeAfter` of them. */
+  /** Seconds this video has played on this visit, and when it was last looked at, by `performance.now()` (null before the first look): told to Panki with a rule's ask, which a watched threshold is held against. */
   let watched = 0;
   let lastLook: number | null = null;
-  /** That the entire video is waiting for the viewer to watch a little has been written down, once a visit. */
-  let saidWaiting = false;
-  /** What the mode came to on this video, and whether it has been decided before on it (a later decision is a change of mode). */
-  let decided: Decided | null = null;
-  let decidedOnce = false;
-  /** That there's nothing left to transcribe has been said since the mode was last decided: once each decision, so a mode changed on a video that's transcribed says why nothing happens. */
+  /** The video's length in seconds, once the player has said it on this visit (written down once). */
+  let length: number | null = null;
+  /** That there's nothing left to transcribe has been said on this visit. */
   let saidDone = false;
-  /** The whole-video download, on this visit to the video: asked for here; the question waiting, answered yes, answered no; not allowed; what went wrong. */
+  /** The whole-video download, on this visit to the video: asked for here; what went wrong. */
   let wholeAsked = false;
   /** The ask for the download is on its way to Panki: it's as good as under way. */
   let wholeInFlight = false;
-  let asking = false;
-  let confirmed = false;
-  let declined = false;
-  let refused = false;
   let wholeFailed: string | null = null;
-  /** The download failed and the chunks took over (`fallBack`); and whether the download was asked for by a press or by itself, which is how the chunks then start. */
+  /** The account's rules, read with the transcript (`load`); null signed out, or before they're in. */
+  let rules: AccountRules | null = null;
+  /**
+   * Each way's rule on this visit (`maybeAskRule`): Panki's word on it, whether the ask is on its way, and the seconds
+   * watched before it's asked (again, once Panki said to wait), with whether that wait has been written down.
+   */
+  type Asked = { ruled: RuleRunAnswer | null; ruling: boolean; askAt: number; saidWait: boolean };
+  const freshAsks = (): Record<TranscribeMode, Asked> => ({ live: { ruled: null, ruling: false, askAt: 0, saidWait: false }, full: { ruled: null, ruling: false, askAt: 0, saidWait: false } });
+  let asks = freshAsks();
+  /** The whole video failed on this visit (`fallBack`). */
   let fellBack = false;
-  let wholeBy: "auto" | "press" = "auto";
   /** The download as it was last seen, so a change in it is acted on once. */
   let seenJob: { id: string; state: WholeJob["state"] } | null = null;
   /** When the transcript was last read again for the download, by `performance.now()`. */
@@ -286,6 +303,7 @@ export function createTranscriber() {
   let redoing: RedoRun | null = null;
 
   const followers = new Set<() => void>();
+  const wayNow = (way: TranscribeMode): WayRule => ({ rule: wayRuleOf(rules, way), ruled: asks[way].ruled, ruling: asks[way].ruling });
   const snap = (): TranscribeState => ({
     videoId,
     transcript,
@@ -297,22 +315,13 @@ export function createTranscriber() {
     prefs: prefsNow(),
     status,
     working,
-    decided,
-    asking,
-    refused,
+    length,
+    ways: { live: wayNow("live"), full: wayNow("full") },
+    ordering: wholeInFlight,
     fellBack,
     redoing: redoing ? { from: redoing.from, to: redoing.to } : null,
-    limitPending: limitPending(),
     log,
   });
-  function limitPending(): boolean {
-    if (!decided || !settings || !decided.long || decided.mode === "live") return false;
-    if (settings.overLimit === "allowed" || status.kind === "done") return false;
-    // Nothing waits on the viewer until the entire video would be asked for: not while it waits for the minimum watch
-    // time (else the "!" goes up as the video opens, with no question in the menu yet).
-    if (!asking && !refused && watched < settings.wholeAfter) return false;
-    return !wholeAsked && !confirmed && !declined && !fellBack;
-  }
   /** Made at the first look, once this browser's settings are in; made again at every change. */
   let snapshot: TranscribeState | null = null;
   const tell = () => {
@@ -330,7 +339,7 @@ export function createTranscriber() {
     if (sameStatus(status, next)) return;
     const was = status;
     status = next;
-    if (next.kind === "blocked" && was.kind !== "blocked") note("blocked · the browser stopped the hidden player; Transcribe tries again");
+    if (next.kind === "blocked" && was.kind !== "blocked") note("blocked · the browser stopped the hidden player; Try again starts it from a press");
     if (next.kind === "noKey" && was.kind !== "noKey") note("not transcribing · no key for the engine in Settings → Admin");
     tell();
   };
@@ -353,23 +362,41 @@ export function createTranscriber() {
     return at - from > 0.5 ? { startMs: Math.round(from * 1000), endMs: Math.round(at * 1000) } : null;
   }
 
-  /**
-   * This browser's settings changed, here (the strip's menu) or anywhere else (the options page, another tab): taken at
-   * once. A change of mode is decided afresh on this video; a change of Auto transcribe is written down.
-   */
+  /** This browser's settings changed, here (the strip's menu) or anywhere else (the options page, another tab): taken at once. */
   onLocal((next, was) => {
     if (JSON.stringify(next.prefs) === JSON.stringify(was.prefs) && next.source === was.source) return;
-    if (next.prefs.mode !== was.prefs.mode) {
-      decided = null;
-      asking = false;
-      confirmed = false;
-      declined = false;
-      refused = false;
-      fellBack = false;
-    }
-    if (next.prefs.trigger !== was.prefs.trigger) note(next.prefs.trigger === "auto" ? "auto transcribe on" : "auto transcribe off · nothing starts by itself");
     tell();
   });
+
+  /** The rule that runs a way by itself, while one is on. */
+  function ruleOn(way: TranscribeMode): Rule | null {
+    const rule = wayRuleOf(rules, way);
+    return rule?.on ? rule : null;
+  }
+  /**
+   * Whether a way runs by itself on this video now: not with no rule on, after Stop or a failure (`autoBlocked`), or
+   * once Panki stopped the rule on it; waiting while Panki is asked, or about to be, or until the video is watched as
+   * much more as it said; going once it said go.
+   */
+  function autoNow(way: TranscribeMode): "go" | "wait" | "no" {
+    if (autoBlocked || !ruleOn(way)) return "no";
+    const ruled = asks[way].ruled;
+    if (ruled === null) return "wait";
+    return ruled.go ? "go" : "no";
+  }
+  /** The account's rules as they stand now, taken from the next look on: a way's rule switched On or Off is written down. */
+  function takeRules(next: AccountRules | null) {
+    if (JSON.stringify(next) === JSON.stringify(rules)) return;
+    const known = rules !== null;
+    const was = { live: ruleOn("live"), full: ruleOn("full") };
+    rules = next;
+    // The rules coming in as the page opens are no change.
+    for (const way of TRANSCRIBE_MODE_IDS) {
+      const now = ruleOn(way);
+      if (known && (was[way] === null) !== (now === null)) note({ mode: way }, now ? " by itself on" : " by itself off");
+    }
+    tell();
+  }
 
   const job = () => transcript?.job ?? null;
   const downloading = () => job()?.state === "running";
@@ -395,7 +422,7 @@ export function createTranscriber() {
     if (before === now.state) return;
     seenJob = { id: now.id, state: now.state };
     if (now.state === "running") {
-      if (!wholeAsked) note("entire video already transcribing · asked ",clock(Math.max(0, (Date.now() - now.askedAt) / 1000)), " ago");
+      if (!wholeAsked) note({ mode: "full" }, " already under way · started ", clock(Math.max(0, (Date.now() - now.askedAt) / 1000)), " ago");
       return;
     }
     if (before === null) return;
@@ -404,36 +431,23 @@ export function createTranscriber() {
       if (run) end();
       // What it heard is the news; the "transcribed already" that the next look would say after it is not (`saidDone`).
       saidDone = true;
-      note("entire video done · ",`${(now.words ?? 0).toLocaleString("en")} words · replaced ${now.replaced ?? 0} chunks`, stopped ? " · chunk player stopped" : "");
+      note({ mode: "full" }, " done · ", `${(now.words ?? 0).toLocaleString("en")} words · replaced ${now.replaced ?? 0} chunks`, stopped ? " · chunk player stopped" : "");
       return;
     }
     wholeFailed = now.message ?? "The entire video couldn't be transcribed.";
-    note("entire video failed · ", wholeFailed);
+    note({ mode: "full" }, " failed · ", wholeFailed);
     fallBack();
   }
 
-  /** What the mode comes to on this video now: what was decided, or the chunks alone once the download failed. */
-  const wayNow = (): TranscribeMode | null => (decided === null ? null : fellBack ? "live" : decided.mode);
-
   /**
-   * The whole video couldn't be downloaded: transcribing goes on in chunks from where the viewer is, whatever the mode
-   * (the site can refuse the engine's download). Under Hybrid the chunks are running already and carry on; under Full they start,
-   * at once when the download was asked for by a press, as anything starts by itself otherwise (`maybeStart`). The
-   * download is asked for again on the next visit to the video.
+   * The whole video couldn't be transcribed (the site can refuse the engine's download): chunks running carry on; none
+   * start for it, only by the live rule or Start transcribing. It's ordered again on the next visit.
    */
   function fallBack() {
-    if (fellBack || decided === null) return;
+    if (fellBack) return;
     fellBack = true;
-    if (run) {
-      note("chunks carry on · the entire video is asked for again on the next visit");
-      return;
-    }
-    note("falling back to ", { mode: "live" }, " · chunks from where you are");
-    if (wholeBy === "press" && videoId !== null) {
-      const at = startAt(viewerAt - FOLLOW.back, decided.seconds);
-      if (at !== null) begin(videoId, at, "press");
-      return;
-    }
+    if (run) note("the chunks carry on · the entire video is tried again on the next visit");
+    else note("no chunks running · they start by their automation or ", { mode: "live" });
     tell();
   }
 
@@ -441,6 +455,8 @@ export function createTranscriber() {
   function accept(next: Transcript) {
     if (next.videoId !== videoId) return;
     if (sameTranscript(transcript, next)) return;
+    const ruling = next.proofreading === true;
+    if (ruling !== (transcript?.proofreading === true)) note(ruling ? "Panki AI proofreading for an automation, on Panki" : "Panki AI's proofread for an automation done · its edits are in");
     transcript = next;
     watchJob();
     tell();
@@ -448,8 +464,11 @@ export function createTranscriber() {
 
   async function load(id: string) {
     const mine = turn;
-    const answer = await askTranscript(id);
+    const [answer, ruleAnswer] = await Promise.all([askTranscript(id), askRules()]);
     if (mine !== turn) return;
+    // Rules that can't be read are left as they were: nothing new starts by itself on rules never read.
+    if (ruleAnswer.ok) takeRules(ruleAnswer.rules);
+    else note("automations not read · ", ruleAnswer.message);
     if (!answer.ok) {
       if (answer.signedOut) setStatus({ kind: "signedOut" });
       else setStatus({ kind: "failed", message: answer.message });
@@ -465,84 +484,76 @@ export function createTranscriber() {
     tell();
   }
 
-  /** What the mode comes to on this video, once its length is known; written down as it's decided, and again when the mode changes under it. */
-  function decide(seconds: number) {
-    if (!settings) return;
-    const mode = modeOf(settings, prefsNow().mode);
-    const long = overDownloadLimit(settings, seconds);
-    decided = { mode, long, seconds };
+  /** The video's length, once the player says it: written down as the video is opened. */
+  function opened(seconds: number) {
+    length = seconds;
     saidDone = false;
-    // The length limit is said where it decides something: as the entire video is asked for (`whole`).
-    note(decidedOnce ? "mode now " : `opened · ${clock(seconds)} · `, { mode });
-    decidedOnce = true;
+    note(`opened · ${clock(seconds)}`);
     tell();
   }
 
+  /** Whether the whole video is to be ordered on this visit: none ordered here yet, and none under way. */
+  const wantsWhole = (): boolean => !wholeAsked && !wholeInFlight && job()?.state !== "running";
+
   /**
-   * Whether this visit should have the entire video transcribed by itself: the mode's way includes it, none is under
-   * way, and some of the video isn't transcribed (`maybeWhole`). An earlier one's words standing don't stop it: they
-   * cover the whole video, so nothing would be left; and chunks' coverage doesn't stop it either, so Hybrid still asks
-   * for the entire video where chunks came after one was forgotten.
+   * Panki asked whether a way's rule runs on this video, as soon as it would run something by itself: the length known,
+   * the engine picked with a key, the rule on, nothing blocking it and some of the video not transcribed (and for the
+   * whole video, none ordered). Panki holds every cap (the rule's minutes, the admin's length limit, the day's dollars,
+   * the time watched against this visit's `watched`) and keeps the go or the stop as the rule's run, so a video that
+   * would run nothing is never asked about. Once a visit, but for a not yet (`waitMs`): asked again once the video has
+   * been watched that much more. Until the answer, Live is loading; a stop is said in the Log, and a press still works.
    */
-  function wantsWhole(): boolean {
-    const way = wayNow();
-    if (way === null || way === "live") return false;
-    return job()?.state !== "running";
+  function maybeAskRule(way: TranscribeMode, id: string, duration: number | null) {
+    const asked = asks[way];
+    if (asked.ruled !== null || asked.ruling || watched < asked.askAt || redoing || !settings || !transcript || !key || duration === null) return;
+    const rule = ruleOn(way);
+    if (!rule || autoBlocked || !engineWanted(sourceNow())) return;
+    if (nextUncovered(transcript, 0, duration) === null || (way === "full" && !wantsWhole())) return;
+    asked.ruling = true;
+    const mine = turn;
+    const ask = { subject: id, lengthMs: Math.min(WHOLE_MAX_MS, Math.max(1, Math.round(duration * 1000))), watchedMs: Math.min(WHOLE_MAX_MS, Math.round(watched * 1000)) };
+    void askRuleRun(rule.id, ask).then((answer) => {
+      if (mine !== turn) return;
+      asked.ruling = false;
+      if (answer.ok && !answer.answer.go && answer.answer.waitMs > 0) {
+        asked.askAt = watched + answer.answer.waitMs / 1000;
+        if (!asked.saidWait) {
+          asked.saidWait = true;
+          note({ mode: way }, ` waits · until ${Math.ceil(answer.answer.waitMs / 1000)} s more of the video are watched`);
+        }
+        tell();
+        return;
+      }
+      // A failure to ask stops it as a stop does: nothing runs by itself on this video, a press still does.
+      const ruled = answer.ok ? answer.answer : { go: false, why: answer.message, waitMs: 0 };
+      asked.ruled = ruled;
+      if (ruled.go) note({ mode: way }, " by itself · within the automation's limits");
+      else note({ mode: way }, " not started by itself · ", ruled.why ?? "the automation didn't run");
+      if (!answer.ok && answer.signedOut) setStatus({ kind: "signedOut" });
+      tell();
+    });
   }
 
   /**
-   * The entire video, for a way that includes it: asked for once a visit by itself, as the length limit allows (Warn
-   * first asks), whether or not chunks are running, so a mode changed to Hybrid mid-video asks too. Never while a part is
+   * The whole video, ordered by itself once its rule said go, whether or not chunks are running. Never while a part is
    * transcribed again, and never once all of the video is transcribed.
    */
   function maybeWhole(id: string, duration: number | null) {
-    if (redoing || !settings || !transcript || !key || duration === null || !decided) return;
+    if (redoing || !settings || !transcript || !key || duration === null) return;
     if (!engineWanted(sourceNow())) return;
-    const auto = prefsNow().trigger === "auto" && !autoBlocked;
-    if (!auto || wholeAsked || declined || !wantsWhole()) return;
+    if (autoNow("full") !== "go" || !wantsWhole()) return;
     if (nextUncovered(transcript, 0, duration) === null) return;
-    // A video opened and left at once costs nothing: by itself, only once it has been watched a little (Panki's `wholeAfter`).
-    if (watched < settings.wholeAfter) {
-      if (!saidWaiting) {
-        saidWaiting = true;
-        note(`entire video waits · until ${settings.wholeAfter} s of it are watched`);
-      }
-      return;
-    }
-    whole(id, duration, "auto");
+    void whole(id, duration);
   }
 
-  /** The whole video downloaded, as the download limit allows: at once, after the viewer's yes (Warn first), or not at all. `by`: asked for by a press, or by itself. */
-  function whole(id: string, seconds: number, by: "auto" | "press") {
-    if (!settings) return;
-    wholeBy = by;
-    const limit = `the ${settings.downloadLimit}-minute length limit`;
-    if (overDownloadLimit(settings, seconds) && !confirmed) {
-      if (settings.overLimit === "notAllowed") {
-        if (!refused) {
-          refused = true;
-          note("entire video not transcribed · ", clock(seconds), ` is over ${limit}, and that's not allowed`);
-        }
-        return;
-      }
-      if (settings.overLimit === "warn") {
-        if (!asking) {
-          asking = true;
-          note("asking first · ", clock(seconds), ` is over ${limit}`);
-        }
-        return;
-      }
-    }
-    void askForWhole(id, seconds);
-  }
-
-  async function askForWhole(id: string, seconds: number) {
+  /** The whole video ordered: downloaded and transcribed on Panki, by itself or at a press. */
+  async function whole(id: string, seconds: number) {
     wholeAsked = true;
-    asking = false;
     wholeFailed = null;
+    fellBack = false;
     const takes = wholeSeconds(estimate, seconds * 1000);
     const measured = estimate && estimate.secondsPerMinute !== null ? ` (${estimate.secondsPerMinute.toFixed(1)} s/min, ${estimate.jobs} ${estimate.jobs === 1 ? "entire video" : "entire videos"} in 30 days)` : "";
-    note("entire video asked · ", takes === null ? "no data yet on how long it takes" : `about ${aboutWords(takes).slice(1)}${measured}`);
+    note({ mode: "full" }, " started · ", takes === null ? "no data yet on how long it takes" : `about ${aboutWords(takes).slice(1)}${measured}`);
     const mine = turn;
     wholeInFlight = true;
     const answer = await askWhole(id, seconds * 1000);
@@ -550,22 +561,22 @@ export function createTranscriber() {
     wholeInFlight = false;
     if (!answer.ok) {
       wholeFailed = answer.message;
-      note("entire video not asked · ", answer.message);
+      note({ mode: "full" }, " not started · ", answer.message);
       if (answer.signedOut) setStatus({ kind: "signedOut" });
       else if (answer.status === 409) {
         key = false;
         setStatus({ kind: "noKey" });
       } else if (answer.status === 403) tell();
-      // Panki's settings said no (403) is a choice, not a failure; anything else, the chunks take over.
+      // Panki's settings said no (403: the whole video switched off) is a choice, not a failure; anything else is the whole video failing.
       else fallBack();
       return;
     }
     accept(answer.transcript);
   }
 
-  /** The transcript read again while the download is under way, every `FOLLOW.poll` seconds. */
+  /** The transcript read again while the download is under way, or a rule is proofreading it on Panki, every `FOLLOW.poll` seconds. */
   function poll(id: string) {
-    if (!downloading() || performance.now() - lastPoll < FOLLOW.poll * 1000) return;
+    if (!(downloading() || transcript?.proofreading === true) || performance.now() - lastPoll < FOLLOW.poll * 1000) return;
     lastPoll = performance.now();
     const mine = turn;
     void askPoll(id).then((answer) => {
@@ -662,7 +673,7 @@ export function createTranscriber() {
     run = mine;
     mine.silent.go(at);
     const what = redo ? `chunks of ${clock(redo.from)}–${clock(redo.to)} started` : `chunks started at ${clock(at)}`;
-    note(`${what} · first chunk ${shape.firstChunk} s`, by === "press" && !redo ? " · Transcribe pressed" : "");
+    note(`${what} · first chunk ${shape.firstChunk} s`, ...(by === "press" && !redo ? [" · ", { mode: "live" as const }, " pressed"] : []));
     // Loading until its silent player is up: then the run itself says how it stands (`steer`).
     setStatus({ kind: "loading", run: true });
   }
@@ -682,8 +693,8 @@ export function createTranscriber() {
       setStatus({ kind: "noKey" });
       return;
     }
-    // The video's length decides whether it's over the length limit: loading until the player says it.
-    if (duration === null || !decided) {
+    // The video's length is what the rules are asked with: loading until the player says it.
+    if (duration === null || length === null) {
       setStatus({ kind: "loading", run: false });
       return;
     }
@@ -697,22 +708,19 @@ export function createTranscriber() {
       setStatus({ kind: "done" });
       return;
     }
-    const auto = prefsNow().trigger === "auto" && !autoBlocked;
-    // (The entire video, for a way that includes it, is asked for by `maybeWhole`, every look, run or no run.)
-    if (wayNow() === "full") {
+    // (The whole video is ordered by `maybeWhole`, every look, run or no run.)
+    const auto = autoNow("live");
+    if (auto === "no") {
+      // No chunks start by themselves here: the whole video under way is what's transcribing, else nothing is, and
+      // Start transcribing is the way.
       if (downloading() || wholeInFlight) setStatus({ kind: "whole" });
-      else if (wholeFailed !== null) setStatus({ kind: "failed", message: wholeFailed });
-      else setStatus({ kind: "off" });
+      else if (status.kind === "done" || status.kind === "loading" || status.kind === "whole") setStatus({ kind: "off" });
       return;
     }
-    if (!auto) {
-      // Nothing starts by itself here; something is left to transcribe, so Transcribe is the way.
-      if (status.kind === "done" || status.kind === "loading" || status.kind === "whole") setStatus({ kind: "off" });
-      return;
-    }
-    // The page has just changed video: left to settle before a second player is opened on its thread. A run is about
-    // to start by itself, so it's loading, not "not transcribing".
-    if (performance.now() - changedAt < FOLLOW.settle * 1000) {
+    // Panki is asked whether the live rule runs on this video, or the page has just changed video: left to settle
+    // before a second player is opened on its thread. A run may be about to start by itself, so it's loading, not "not
+    // transcribing".
+    if (auto === "wait" || performance.now() - changedAt < FOLLOW.settle * 1000) {
       setStatus({ kind: "loading", run: false });
       return;
     }
@@ -806,12 +814,6 @@ export function createTranscriber() {
       end();
       note("chunk player stopped · subtitles no longer from the engine");
       setStatus({ kind: "off" });
-      return;
-    }
-    // The mode changed to one with no chunks: the run stops.
-    if (wayNow() === "full") {
-      end();
-      note("chunk player stopped · ", { mode: "full" }, " has no chunks");
       return;
     }
     const r = mine.silent.report();
@@ -933,21 +935,15 @@ export function createTranscriber() {
       autoBlocked = false;
       changedAt = performance.now();
       pieces = { back: 0, atEngine: null, last: null };
-      decided = null;
-      decidedOnce = false;
+      length = null;
       saidDone = false;
       wholeAsked = false;
       wholeInFlight = false;
       watched = 0;
       lastLook = null;
-      saidWaiting = false;
-      asking = false;
-      confirmed = false;
-      declined = false;
-      refused = false;
+      asks = freshAsks();
       wholeFailed = null;
       fellBack = false;
-      wholeBy = "auto";
       seenJob = null;
       lastPoll = 0;
       // Loading until the transcript and the settings are in, and it can be said how it stands.
@@ -971,7 +967,9 @@ export function createTranscriber() {
       if (lastLook !== null && !paused) watched += Math.min(1, (lookAt - lastLook) / 1000);
       lastLook = lookAt;
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-      if (!decided && settings && transcript && duration !== null) decide(duration);
+      if (length === null && settings && transcript && duration !== null) opened(duration);
+      maybeAskRule("live", id, duration);
+      maybeAskRule("full", id, duration);
       poll(id);
       maybeWhole(id, duration);
       if (run) steer(run, t, paused, duration);
@@ -983,36 +981,37 @@ export function createTranscriber() {
       }
     },
     /**
-     * Transcribe pressed, the menu's one way to start, one button whatever the mode: what the mode does,
-     * the language never asked. Live, chunks from where the viewer is; Full, the entire video; Hybrid, both. Under Full
-     * and Hybrid alike the entire video is asked for again even over words an earlier one left: a press is for it, and over the length limit it's the same question either way
-     * (Hybrid is to transcribe the entire video anyway; its chunks are only for speed). A run the
-     * browser blocked is tried again.
+     * Start transcribing pressed: Live, chunks from where the viewer is, the language never asked, never held to an
+     * automation or the length limit. A run the browser blocked is tried again.
      */
     start(video: HTMLVideoElement) {
       const id = videoId;
       if (!id || !settings) return;
       autoBlocked = false;
-      declined = false;
-      wholeFailed = null;
       if (run) {
         run.silent.resume();
         return;
       }
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
-      // Pressed, the whole video is asked for again even after it failed: a press is what Try again is.
-      const way = wayNow();
-      if (duration !== null && !wholeInFlight && !downloading() && (way === "full" || way === "hybrid")) whole(id, duration, "press");
-      if (wayNow() === "full") {
-        tell();
-        return;
-      }
       const at = startAt(video.currentTime - FOLLOW.back, duration);
       if (at === null) {
         setStatus({ kind: "done" });
         return;
       }
       begin(id, at, "press");
+    },
+    /**
+     * Transcribe the entire video pressed: Full, the whole video downloaded and transcribed on Panki, chunks running or not,
+     * even over words an earlier one left or after one failed on this visit (a press is what Try again is), never held
+     * to an automation or the length limit. Not while one is on its way or under way.
+     */
+    orderWhole(video: HTMLVideoElement) {
+      const id = videoId;
+      const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
+      if (!id || !settings || duration === null || wholeInFlight || downloading()) return;
+      autoBlocked = false;
+      void whole(id, duration);
+      tell();
     },
     /**
      * "Re-transcribe a part": the part recorded again in chunks
@@ -1046,27 +1045,11 @@ export function createTranscriber() {
       note(`re-transcribing ${clock(redo.from)}–${clock(redo.to)}${widened} · the transcript stays as it is until it's done`);
       begin(id, redo.from, "press", redo);
     },
-    /** The question before transcribing a long video whole answered: transcribe it, or don't (Hybrid's chunks go on either way). */
-    answer(yes: boolean, duration: number | null) {
-      const id = videoId;
-      if (!id || !asking) return;
-      asking = false;
-      if (yes && duration !== null) {
-        confirmed = true;
-        wholeBy = "press";
-        note("answered · transcribe the entire video");
-        void askForWhole(id, duration);
-        return;
-      }
-      declined = true;
-      note("answered · cancel · the entire video isn't transcribed");
-    },
-    /** Stop pressed: the chunks stop, and nothing more of this video starts by itself until Transcribe is pressed, or another video plays. A whole-video download under way can't be stopped (it's paid for as it starts) and comes in all the same. */
+    /** Stop transcribing pressed: the chunks stop, and nothing more of this video starts by itself until Start transcribing is pressed, or another video plays. A whole-video download under way can't be stopped (it's paid for as it starts) and comes in all the same. */
     stop() {
       giveUpRedo("stopped by you");
       end();
       autoBlocked = true;
-      asking = false;
       note("stopped by you · nothing more starts by itself on this video", downloading() ? " · the entire video still comes in" : "");
       setStatus({ kind: "off" });
     },

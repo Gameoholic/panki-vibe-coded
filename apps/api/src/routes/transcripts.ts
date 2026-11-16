@@ -13,8 +13,6 @@ import {
   TranscriptUndo,
   VideoId,
   WholeAsk,
-  modesOn,
-  overDownloadLimit,
   type EngineId,
   type PieceResponse,
   type RedoResponse,
@@ -26,6 +24,7 @@ import { signedIn } from "../session";
 import type { Shared } from "../shared";
 import { EngineError, type Engines, type Heard } from "../transcribe/engines";
 import type { Jobs } from "../transcribe/jobs";
+import type { Rules } from "../rules";
 
 const MB = 1024 * 1024;
 const NOT_A_PIECE = "That isn't a chunk of the video.";
@@ -74,7 +73,7 @@ function videoOf(req: Request, res: Response): string | null {
  * handed to the engine the settings name, its words kept with their times) or downloaded whole by the engine in the
  * background (`transcribe/jobs.ts`), and fixed by hand a word or a line at a time.
  */
-export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, jobs: Jobs, now: () => number) {
+export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, engineKeys: Record<EngineId, string | null>, jobs: Jobs, rules: Rules, now: () => number) {
   const router = Router();
 
   /** The language the engine is told: the asking account's own, nothing Panki-wide. */
@@ -87,10 +86,10 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     res.json({ transcript: shared.transcript(videoId) });
   });
 
-  // The whole video downloaded and transcribed by the engine, in the background: the answer is the transcript with the
-  // download under way in it (the one already under way, when there is one). As the settings say: never when every mode
-  // that downloads is switched off, nor over the download limit where that's not allowed. Warn first is the extension's
-  // to ask; asked here, it goes ahead.
+  // The whole video ordered (Full): downloaded and transcribed by the engine, in the background; the answer is the
+  // transcript with the download under way in it (the one already under way, when there is one). The length limit is a
+  // ceiling on rules (`Rules.startRun`, asked before a rule orders it); a press is the viewer's own choice and goes ahead
+  // whatever the length.
   router.post("/:videoId/whole", (req, res) => {
     const videoId = videoOf(req, res);
     if (!videoId) return;
@@ -102,14 +101,6 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
     const settings = shared.getTranscription();
     if ((shared.key(settings.engine) ?? engineKeys[settings.engine]) === null) {
       res.status(409).json({ error: { message: NO_KEY } });
-      return;
-    }
-    if (!modesOn(settings).some((mode) => mode !== "live")) {
-      res.status(403).json({ error: { message: "Transcribing the entire video is switched off." } });
-      return;
-    }
-    if (settings.overLimit === "notAllowed" && overDownloadLimit(settings, parsed.data.lengthMs / 1000)) {
-      res.status(403).json({ error: { message: "Not allowed over the length limit." } });
       return;
     }
     jobs.ask(videoId, parsed.data.lengthMs, signedIn(res).user.id, toldFor(res));
@@ -166,6 +157,7 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
       // Listened through and nothing said: heard, so covered, and no engine to ask.
       if (nothing) {
         shared.insertQuiet({ id: ids.pieceId, videoId: ids.videoId, startMs: meta.start, endMs: meta.end, userId, redoId }, now());
+        if (redoId === null) rules.pieceIn(userId, ids.videoId, null);
         const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs: null };
         res.status(201).json(answer);
         return;
@@ -196,6 +188,8 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
         heard.words.map((w) => ({ text: w.text, startMs: meta.sound + w.startMs, endMs: meta.sound + w.endMs, logprob: w.logprob ?? null })),
         now(),
       );
+      // A rule hears the chunk once its words stand (a part transcribed again: once the part is done).
+      if (redoId === null) rules.pieceIn(userId, ids.videoId, { startMs: meta.sound, endMs: meta.end });
       const answer: PieceResponse = { transcript: shared.transcript(ids.videoId), engineMs };
       res.status(201).json(answer);
     },
@@ -340,6 +334,9 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
       res.status(409).json({ error: { message: REDO_GONE } });
       return;
     }
+    // A rule hears the part once its words stand.
+    const part = shared.redoOf(videoId, redoId.data);
+    if (part) rules.partIn(signedIn(res).user.id, videoId, part);
     res.json({ transcript: shared.transcript(videoId) });
   });
 

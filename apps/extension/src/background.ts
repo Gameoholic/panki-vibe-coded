@@ -1,5 +1,5 @@
 import "./setup";
-import { PIECE_MIME, UPDATE_NEEDED_STATUS, mediaMimeFor, type CardSource, type WordsInCards } from "@panki/contracts";
+import { PIECE_MIME, UPDATE_NEEDED_STATUS, WHOLE_MAX_MS, mediaMimeFor, type CardSource, type Rule, type SaveVideo, type SavedVideo, type WordsInCards } from "@panki/contracts";
 import { routePath } from "@web/routes";
 import { hostPattern } from "./address";
 import { latticeOf, lookUp } from "./dictionary/lookup";
@@ -7,9 +7,9 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Bytes, type Claimed, type Done, type DownloadsChanged, type Facts, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type AiState, type RuleRan, type RulesState,type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Bytes, type Claimed, type Done, type DownloadsChanged, type Facts, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { base64Of as textOfBytes, bytesOf } from "./download/bytes";
-import { claimDownload, holdDownload, keepPiece, listDownloads, pieceBytes, pieceFacts, removeDownload, startDownload } from "./download/store";
+import { claimDownload, downloadRoom, holdDownload, keepPiece, listDownloads, pieceBytes, pieceFacts, releaseDownload, removeDownload, startDownload } from "./download/store";
 import { CLIENT } from "./client";
 import { ExplainRefused, PankiError, panki, type Door } from "./panki";
 import { forgetSignIn, localChange, localOf, readStore, writeStore, type Stored } from "./storage";
@@ -109,13 +109,19 @@ type DownloadAsk = Extract<Ask, { kind: "download" | "downloadClaim" | "download
 const DOWNLOAD_KINDS = new Set<Ask["kind"]>(["download", "downloadClaim", "downloadPiece", "downloadHold", "downloads", "undownload", "downloadFacts", "downloadBytes"]);
 const isDownloadAsk = (ask: Ask): ask is DownloadAsk => DOWNLOAD_KINDS.has(ask.kind);
 
+/** Said where downloading is switched off in this browser (options page, Downloads). */
+const DOWNLOADING_OFF = "Downloading is off in this browser";
+
 /**
  * Downloads (`download/store.ts`): this browser's own, so they need no sign-in and nothing goes to Panki. A video asked
  * for is kept at the quality set now; the page running one is known by its tab, which a page's message can't make up.
+ * With downloading switched off here nothing new is asked for, nothing is handed to a page to run, and a page running
+ * one lets go of it as its next piece or word comes (`releaseDownload`): it waits, kept as it stands, until it's on again.
  */
 async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSender): Promise<Done | Claimed | Going | Listed | Facts | Bytes> {
   const now = Date.now();
   try {
+    const off = !(await readStore()).downloadOn;
     if (ask.kind === "downloads") return { ok: true, rows: await listDownloads(now) };
     if (ask.kind === "downloadFacts") return { ok: true, pieces: await pieceFacts(ask.videoId) };
     if (ask.kind === "downloadBytes") {
@@ -128,13 +134,18 @@ async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSende
       return { ok: true };
     }
     if (ask.kind === "download") {
+      if (off) return { ok: false, message: `${DOWNLOADING_OFF}.` };
       await startDownload(ask.about, Number((await readStore()).downloadQuality), now);
       void tellChanged();
       return { ok: true };
     }
     const tabId = sender.tab?.id;
     if (tabId === undefined) return { ok: false, message: "Only a page can run a download." };
-    if (ask.kind === "downloadClaim") return { ok: true, job: await claimDownload(tabId, Number((await readStore()).downloadSpeed), now) };
+    if (ask.kind === "downloadClaim") return { ok: true, job: off ? null : await claimDownload(tabId, Number((await readStore()).downloadSpeed), now) };
+    if (off && (ask.kind === "downloadPiece" || ask.end.kind === "going")) {
+      await releaseDownload(ask.videoId, tabId);
+      return { ok: true, going: false };
+    }
     if (ask.kind === "downloadHold") {
       const going = await holdDownload(ask.videoId, tabId, ask.end, now);
       // Whole: every page's marks follow at once.
@@ -147,10 +158,72 @@ async function downloading(ask: DownloadAsk, sender: chrome.runtime.MessageSende
     } catch {
       return { ok: false, message: "The piece didn't arrive whole." };
     }
-    return { ok: true, going: await keepPiece(ask.videoId, tabId, ask.piece, bytes, now) };
+    const going = await keepPiece(ask.videoId, tabId, ask.piece, bytes, now);
+    return { ok: true, going: going && !(await pastRuleRoom(ask.videoId)) };
   } catch (e) {
     console.error("Panki:", e);
     return { ok: false, message: "The downloads couldn't be read." };
+  }
+}
+
+/** The bytes in a megabyte, as a download's size is said (`sizeWords`). */
+const MB = 1024 * 1024;
+
+/**
+ * A download a rule asked for, grown past the rule's MB: let go as Remove lets one go, every page told, and the stop told
+ * to Panki as the rule's run. Whether it was let go. A rule gone, or rules that can't be read, hold it to nothing.
+ */
+async function pastRuleRoom(videoId: string): Promise<boolean> {
+  const room = await downloadRoom(videoId);
+  if (!room?.ruleId) return false;
+  const store = await readStore();
+  let rule: Rule | undefined;
+  try {
+    rule = (await readKept("rules", store)).rules.find((each) => each.id === room.ruleId);
+  } catch {
+    return false;
+  }
+  if (!rule || rule.maxMb === null || room.bytes <= rule.maxMb * MB) return false;
+  await removeDownload(videoId);
+  void tellChanged();
+  const why = `Larger than ${rule.maxMb.toLocaleString("en")} MB`;
+  console.info(`[Panki] automation: ${videoId} let go · ${why}`);
+  if (store.address && store.token) {
+    await panki.ruleStopped({ address: store.address, token: store.token }, rule.id, { subject: videoId, why }).catch((e: unknown) => console.error("Panki: an automation's stop wasn't told.", e instanceof Error ? e.message : e));
+  }
+  return true;
+}
+
+/**
+ * A video saved for later, downloaded in this browser when the account has an automation for it (When a video is saved
+ * for later → Download it) and downloading is on here: the first one on, asked of Panki with the video's length (its caps held there), and on its go
+ * asked for as Download this video asks, at the Download quality set now, with no still. A video downloaded or asked for
+ * already is left as it is. What it came to goes to the worker's console; nothing stops the save.
+ */
+async function downloadByRule(door: Door, store: Stored, videoId: string, about: SaveVideo, saved: readonly SavedVideo[]): Promise<void> {
+  try {
+    const rule = (await readKept("rules", store)).rules.find((each) => each.on && each.when === "videoSaved" && each.do === "download");
+    if (!rule || (await downloadRoom(videoId)) !== null) return;
+    // Not asked of Panki at all: a run this browser won't make is no run.
+    if (!store.downloadOn) {
+      console.info(`[Panki] automation: ${videoId} not downloaded · ${DOWNLOADING_OFF.toLowerCase()}`);
+      return;
+    }
+    const lengthMs = saved.find((video) => video.videoId === videoId)?.lengthMs || about.lengthMs || null;
+    if (lengthMs === null) {
+      console.info(`[Panki] automation: ${videoId} not downloaded · its length isn't known`);
+      return;
+    }
+    const answer = await panki.ruleRun(door, rule.id, { subject: videoId, lengthMs: Math.min(WHOLE_MAX_MS, lengthMs), watchedMs: 0 });
+    if (!answer.go) {
+      console.info(`[Panki] automation: ${videoId} not downloaded · ${answer.why ?? "the automation didn't run"}`);
+      return;
+    }
+    await startDownload({ videoId, title: about.title, channel: about.channel, durationMs: lengthMs, still: null }, Number((await readStore()).downloadQuality), Date.now(), rule.id);
+    console.info(`[Panki] automation: ${videoId} downloading`);
+    void tellChanged();
+  } catch (e) {
+    console.error("Panki: an automation's download wasn't asked for.", e instanceof Error ? e.message : e);
   }
 }
 /** Every page told the downloads changed, so a downloaded mark comes and goes everywhere at once. */
@@ -316,24 +389,38 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 /**
- * Panki AI as the pop-up is told it, kept as `kept.ts` keeps it (`ai`): null signed out, or when the sign-in turns out
- * to be no good any more (forgotten here too). `fresh` asks Panki first (the templates arrow opened). Never the key
- * itself: what's kept and handed on is `AiShown`, without an admin's `saved`.
+ * Something of the account's kept as `kept.ts` keeps it, as a page is told it: null signed out, or when the sign-in
+ * turns out to be no good any more (forgotten here too). Signed out is an answer, not a failure: the page says why.
  */
-async function aiState(store: Stored, fresh = false): Promise<AiState> {
-  if (!store.address || !store.token) return { ok: true, ai: null };
+async function signedInKept<T>(store: Stored, read: (store: Stored) => Promise<T>): Promise<{ ok: true; value: T | null } | { ok: false; message: string }> {
+  if (!store.address || !store.token) return { ok: true, value: null };
   try {
-    return { ok: true, ai: await readKept("ai", store, fresh) };
+    return { ok: true, value: await read(store) };
   } catch (e) {
     if (e instanceof PankiError && e.status === 401) {
       await forgetSignIn();
-      return { ok: true, ai: null };
+      return { ok: true, value: null };
     }
     if (e instanceof PankiError && e.status === UPDATE_NEEDED_STATUS) void checkForUpdate();
     if (e instanceof PankiError) return { ok: false, message: e.message };
     console.error("Panki:", e);
     return { ok: false, message: "Something went wrong." };
   }
+}
+
+/**
+ * Panki AI as the pop-up is told it (`ai`). `fresh` asks Panki first (the templates arrow opened). Never the key
+ * itself: what's kept and handed on is `AiShown`, without an admin's `saved`.
+ */
+async function aiState(store: Stored, fresh = false): Promise<AiState> {
+  const read = await signedInKept(store, (s) => readKept("ai", s, fresh));
+  return read.ok ? { ok: true, ai: read.value } : read;
+}
+
+/** The account's rules as a page is told them (`rules`): what it runs by itself as it hears a trigger. */
+async function rulesState(store: Stored, fresh = false): Promise<RulesState> {
+  const read = await signedInKept(store, (s) => readKept("rules", s, fresh));
+  return read.ok ? { ok: true, rules: read.value } : read;
 }
 
 /** A video's transcript with what runs transcribing, asked of Panki in one go: Panki's alone (this browser's own settings are `Local`'s). */
@@ -360,7 +447,7 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | ExplainAnswer | TouchUpAnswered | ProofreadAnswered | Claimed | Going | Listed> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | RulesState | RuleRan | ExplainAnswer | TouchUpAnswered | ProofreadAnswered | Claimed | Going | Listed> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -405,14 +492,13 @@ async function answer(
     return { ok: true };
   }
   if (ask.kind === "prefs") {
-    const { trigger, overVideo, style, markUnder, markOver, mode } = ask.prefs;
+    const { trigger, overVideo, style, markUnder, markOver } = ask.prefs;
     await writeStore({
       ...(trigger !== undefined ? { transcribeTrigger: trigger } : {}),
       ...(overVideo !== undefined ? { transcribeOverVideo: overVideo } : {}),
       ...(style !== undefined ? { subtitleStyle: style } : {}),
       ...(markUnder !== undefined ? { markUnder } : {}),
       ...(markOver !== undefined ? { markOver } : {}),
-      ...(mode !== undefined ? { transcribeMode: mode } : {}),
     });
     return { ok: true };
   }
@@ -446,6 +532,7 @@ async function answer(
   }
   // Signed out is an answer here, not a failure: the pop-up greys Explain and says why.
   if (ask.kind === "aiState") return aiState(await readStore(), ask.fresh === true);
+  if (ask.kind === "rules") return rulesState(await readStore(), ask.fresh === true);
   const store = await readStore();
   if (!store.address || !store.token) return { ok: false, message: SIGN_IN_FIRST, signedOut: true };
   const door: Door = { address: store.address, token: store.token };
@@ -503,8 +590,15 @@ async function answer(
     }
     if (ask.kind === "glance") return { ok: true, videos: await panki.glance(door, ask.videoIds) };
     // Saved for later, the account's own on Panki: a save from a thumbnail's button, or one taken back.
-    if (ask.kind === "save") return { ok: true, videos: await panki.save(door, ask.videoId, ask.about) };
+    if (ask.kind === "save") {
+      const videos = await panki.save(door, ask.videoId, ask.about);
+      // Heard here, in the browser that saved it: downloads are each browser's own.
+      if (ask.about) void downloadByRule(door, store, ask.videoId, ask.about, videos);
+      return { ok: true, videos };
+    }
     if (ask.kind === "called") return { ok: true, cards: await panki.cardsCalled(door, ask.words) };
+    // The account's rules: a run asked on a trigger the page heard, Panki holding every cap; a rule switched from a page.
+    if (ask.kind === "ruleRun") return { ok: true, answer: await panki.ruleRun(door, ask.ruleId, ask.run) };
     // Panki AI, through Panki's server, which holds the key and calls the provider. Its answer, or its reasoned refusal,
     // says how Panki AI stands now: kept in place of what was.
     if (ask.kind === "explain") {

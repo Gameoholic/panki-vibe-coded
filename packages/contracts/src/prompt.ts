@@ -197,9 +197,10 @@ export const isFollowUp = (ask: { said: readonly unknown[] }): boolean => ask.sa
 
 /**
  * Why a place didn't answer, for the page to say: Panki AI off, no key, too long, too many follow-ups, the provider's
- * own failure; for Proofread, editing Panki subtitles switched off (Admin's), or the transcript changed under the page.
+ * own failure; for Proofread, editing Panki subtitles switched off (Admin's), or the transcript changed under the page;
+ * for a run by a rule, one of its caps reached (`capped`), which only a rule's ask is ever answered with.
  */
-export const ExplainProblem = z.enum(["off", "noKey", "tooLong", "followUps", "provider", "editingOff", "gone"]);
+export const ExplainProblem = z.enum(["off", "noKey", "tooLong", "followUps", "provider", "editingOff", "gone", "capped"]);
 export type ExplainProblem = z.infer<typeof ExplainProblem>;
 /**
  * An answer the provider gave that couldn't be used, as Details' Log tells of it, so what Panki AI answered shows

@@ -1,17 +1,15 @@
 /** @panki The strip's menu, everything about transcribing this video (`TranscribeMenu`, `statusWords`, `startWords`, `Seconds`). Never a second menu on the strip. */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AiSpark } from "@web/components/AiWaiting";
-import { ENGINES, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, TRANSCRIBE_MODE_IDS, modeOf, modesOn, soundCostMicros, type TranscribeMode, type WholeJob } from "@panki/contracts";
+import { ENGINES, RULE_ACTIONS, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, soundCostMicros, type WholeJob } from "@panki/contracts";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
-import { Dropdown } from "@web/components/Dropdown";
 import { Fold } from "@web/components/Fold";
 import { Form } from "@web/components/Form";
 import { Icon } from "@web/components/Icon";
 import { MODE_ICONS, ModeChip } from "@web/components/ModeChip";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { TextField } from "@web/components/TextField";
-import { Toggle } from "@web/components/Toggle";
 import { useDismiss } from "@web/hooks/useDismiss";
 import { aboutWords, clock, estimateWords, hmsWords, tookWords } from "@web/words";
 import { parseStamp } from "../capture/words";
@@ -22,12 +20,11 @@ import { logText, timeOfDay, wholeSeconds, type LogPart, type TranscribeDetail, 
 /**
  * The strip's menu: everything about transcribing this video, in one place at the right of the head. How much of the
  * video is transcribed and how it stands, with Details (how it stands in full, to debug by) and Log (every decision
- * this page made, with its reason) folded under it; the question before downloading a long video whole (Warn first),
- * or what was done about the download limit instead; then what to do: start, one item whatever the mode, saying what
- * it does there, or stop (the entire video and a part of it as items of their own would go against what Live and Full
- * are); the Mode this viewer transcribes in and Auto transcribe, whether it starts by itself (both this viewer's own);
- * and a part transcribed again (its two times typed), or the whole transcript forgotten, which asks in place. The panel stands under its
- * button, closes on a press outside or Escape, and is this file's alone; what each item does is the strip's
+ * this page made, with its reason) folded under it; then what to do, the two ways as actions of their own: Start
+ * transcribing (Live) or Stop transcribing while it runs, and Transcribe the entire video in the background (Full), greyed with why where it's on its way,
+ * under way or done; a part transcribed again (its two times typed), or the whole transcript forgotten, which asks in
+ * place. The automations aren't here: they're Panki's Settings → Automations alone. The panel stands
+ * under its button, closes on a press outside or Escape, and is this file's alone; what each item does is the strip's
  * (`content/youtube.tsx`).
  */
 
@@ -53,20 +50,17 @@ type Props = {
   /** The video's length and where the viewer is, in seconds; null when the player doesn't say. */
   duration: number | null;
   at: number | null;
+  /** Start transcribing: Live, chunks from where the viewer is. */
   onStart: () => void;
   onStop: () => void;
+  /** Transcribe the entire video: Full, in the background on Panki. */
+  onOrder: () => void;
   /** A part of the video transcribed again, the transcript left as it is until all of it is in. */
   onRetranscribe: (stretch: Seconds) => void;
   /** The stretch a part typed will really come to, said before it's asked for. */
   widen: (stretch: Seconds) => Promise<Seconds | null>;
   /** The whole transcript forgotten, for everyone. */
   onForget: () => void;
-  /** Whether transcribing is to start by itself on every video played: this viewer's own. */
-  onAuto: (on: boolean) => void;
-  /** The mode this viewer transcribes in, picked here: this viewer's own. */
-  onMode: (mode: TranscribeMode) => void;
-  /** The question before transcribing a long video whole, answered: transcribe it, or don't. */
-  onAnswer: (yes: boolean) => void;
   /** How it stands in full, this moment (`Transcriber.detail`), asked for while Details are open. */
   detail: () => TranscribeDetail;
   /** Panki AI's part (AI step 6, Proofread): drawn by the strip, which runs it; none where the transcript isn't Panki's. */
@@ -119,10 +113,23 @@ export function statusWords(status: TranscribeStatus): { words: string; live: bo
       return null;
   }
 }
-/** What the one item that starts it says: Transcribe, chunks following the viewer wherever they go (never "from here"); the entire video under Full; or to start over what stopped it. */
-export function startWords(status: TranscribeStatus, way: TranscribeMode | null): string {
-  if (status.kind === "blocked" || status.kind === "failed") return "Try again";
-  return way === "full" ? "Transcribe the entire video" : "Transcribe";
+/** What the item that starts Live says: Start transcribing, chunks following the viewer wherever they go (never "from here"); or to start over what stopped it. */
+export function startWords(status: TranscribeStatus): string {
+  return status.kind === "blocked" || status.kind === "failed" ? "Try again" : TRANSCRIBE_MODES.live.name;
+}
+
+/** Why Transcribe the entire video can't be pressed, said beside it: on its way, under way, or done; null when it can. */
+function orderWhy(state: TranscribeState, duration: number | null): string | null {
+  if (state.ordering || state.transcript?.job?.state === "running") return "under way";
+  // Done: greyed with nothing beside it, the transcript itself says so.
+  if (state.transcript?.job?.state === "done") return "";
+  if (duration === null) return "waiting for the video's length";
+  return null;
+}
+/** What the whole video costs at the engine's listed price (never measured), said beside Transcribe the entire video. */
+function orderCost(state: TranscribeState, duration: number | null): string | null {
+  if (!state.settings || duration === null) return null;
+  return estimateWords(soundCostMicros(ENGINES[state.settings.engine].centsPerHour, duration * 1000));
 }
 
 /**
@@ -145,14 +152,13 @@ const LOOKS: Record<TranscribeStatus["kind"], { words: string; look: Look }> = {
   signedOut: { words: "Signed out", look: "trouble" },
 };
 /**
- * The button's word and look: a run begun whose silent player isn't up yet says so; a video not downloaded for being
- * over the download limit says that. How it's being transcribed (the entire video downloading, chunks, or both) is
- * never on the button, only that it is; the menu and its Details say how, and how long a download has left.
+ * The button's word and look: a run begun whose silent player isn't up yet says so. How it's being transcribed (the
+ * entire video downloading, chunks, or both) is never on the button, only that it is; the menu and its Details say
+ * how, and how long a download has left.
  */
 function chipOf(state: TranscribeState): { words: string; look: Look } {
   const { status } = state;
   if (status.kind === "loading" && status.run) return { words: "Preparing", look: "loading" };
-  if (status.kind === "off" && state.refused) return { words: "Not transcribing · over the limit", look: "quiet" };
   return LOOKS[status.kind];
 }
 
@@ -161,14 +167,26 @@ function chipOf(state: TranscribeState): { words: string; look: Look } {
  * long it has left as measured so far, in brackets: "transcribing the entire video in the background (~40 s left)", and
  * once it's taking longer than that, the seconds over, counting: "(-3 s)".
  */
-function entireWords(state: TranscribeState): string {
-  const words = "transcribing the entire video in the background";
+function entireWords(state: TranscribeState, words = "transcribing the entire video in the background"): string {
   const job = downloadOf(state);
   const left = job ? wholeLeft(state, job, Date.now()) : null;
   if (left === null) return words;
   const over = Math.floor(-left);
   return `${words} (${left > 0 ? `${aboutWords(left)} left` : over === 0 ? "0 s" : `-${over} s`})`;
 }
+/**
+ * The status line beside the dot, with the entire video's background transcription added where chunks are running
+ * too: "Transcribing · until 0:39 · entire video in the background (~8 s left)". Where the entire video is all
+ * that's going, the line is that alone, with its time left. Null while there's nothing to say.
+ */
+function statusLine(state: TranscribeState): { words: string; live: boolean } | null {
+  const status = statusWords(state.status);
+  if (!downloadOf(state)) return status;
+  if (state.status.kind === "whole" || !status) return { words: entireWords(state, "Transcribing the entire video in the background"), live: true };
+  return { words: `${status.words} · ${entireWords(state, "entire video in the background")}`, live: status.live };
+}
+/** How often the status line's time left is said afresh while the menu is open, in ms. */
+const LEFT_MS = 1000;
 
 /** How often the Details are read afresh while they're open, in ms. */
 const DETAIL_MS = 500;
@@ -213,7 +231,8 @@ function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
   switch (status.kind) {
     case "loading":
       if (!detail.loaded) return "Asking Panki for this video's transcript";
-      if (state.decided === null) return "Waiting for the video's length";
+      if (state.length === null) return "Waiting for the video's length";
+      if (state.ways.live.ruling) return "Checking the Start transcribing automation's limits";
       return detail.settling > 0 ? `Starting in ${Math.ceil(detail.settling)} s, once the page has settled` : "Starting";
     case "whole": {
       const words = entireWords(state);
@@ -232,9 +251,10 @@ function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
       return status.message;
     default:
       if (settings && !engineWanted(state.source)) return `Subtitles are set to ${SUBTITLE_SOURCES[state.source].name}`;
-      if (state.asking) return "Waiting for your answer";
       if (detail.stopped) return "Stopped on this video";
-      if (state.prefs.trigger !== "auto") return "Auto transcribe is off";
+      if (!state.ways.live.rule?.on) return `The ${RULE_ACTIONS.transcribe.name} automation is off`;
+      // Panki stopped the automation on this video: its words ("Longer than 30 min").
+      if (state.ways.live.ruled && !state.ways.live.ruled.go) return state.ways.live.ruled.why ?? `The ${RULE_ACTIONS.transcribe.name} automation is off`;
       return "Not started";
   }
 }
@@ -263,25 +283,11 @@ function Details({ state, detail, live }: { state: TranscribeState; detail: () =
     return () => clearInterval(timer);
   }, [live, detail]);
 
-  const { settings, decided } = state;
+  const { settings } = state;
   const run = now.run;
   const silent = run?.silent ?? null;
   const rows: [string, ReactNode][] = [["Status", nowWords(state, now)]];
-  if (decided && settings) {
-    rows.push([
-      "Mode",
-      <>
-        <ModeChip mode={decided.mode} />
-        {state.fellBack ? (
-          <>
-            {" · entire video failed, falling back to "}
-            <ModeChip mode="live" />
-          </>
-        ) : null}
-        {` · ${ENGINES[settings.engine].name}${state.language ? ` · ${TRANSCRIBE_LANGUAGES[state.language]}` : ""}`}
-      </>,
-    ]);
-  }
+  if (settings) rows.push(["Engine", `${ENGINES[settings.engine].name}${state.language ? ` · ${TRANSCRIBE_LANGUAGES[state.language]}` : ""}`]);
   // A part transcribed again: what stands there doesn't change until all of it is in.
   if (state.redoing) rows.push(["Re-transcribing", `${stretchWords(state.redoing.from, state.redoing.to)} · the transcript changes once it's done`]);
   if (run && settings && !state.redoing) {
@@ -381,20 +387,12 @@ function Covered({ state, duration }: { state: TranscribeState; duration: number
   );
 }
 
-/** What transcribing the entire video would come to, at the engine's listed prices (never measured): its credits, and dollars. */
-function costWords(state: TranscribeState, seconds: number): string {
-  if (!state.settings) return "";
-  const engine = ENGINES[state.settings.engine];
-  const minutes = seconds / 60;
-  return `${Math.round(engine.creditsPerMinute * minutes).toLocaleString("en")} credits · ${estimateWords(soundCostMicros(engine.centsPerHour, seconds * 1000))}`;
-}
-
 /** Which question is open under the items, if any. */
 type Asking = "redo" | "proofread" | "forgetAll" | null;
 /** Which of the two folds under the status is open, if either. */
 type Unfolded = "details" | "log" | null;
 
-export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetranscribe, widen, onForget, onAuto, onMode, onAnswer, detail, ai, editing }: Props) {
+export function TranscribeMenu({ state, duration, at, onStart, onStop, onOrder, onRetranscribe, widen, onForget, detail, ai, editing }: Props) {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<Asking>(null);
   /** Forget the transcript…, which its question hangs from. */
@@ -407,54 +405,41 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
   useEffect(() => {
     if (!open) setAsking(null);
   }, [open]);
-  // A video over the length limit flags the button until the menu is opened on it while it's so (the question waiting
-  // in it, or the limit said): the menu never opens by itself for it, the flag says it instead.
-  const [seenOn, setSeenOn] = useState<string | null>(null);
+  // While the entire video is being transcribed in the background, its time left counts down on the status line.
+  const [, tick] = useState(0);
+  const inBackground = downloadOf(state) !== null;
   useEffect(() => {
-    if (open && state.limitPending && state.videoId) setSeenOn(state.videoId);
-  }, [open, state.limitPending, state.videoId]);
-  const flagged = state.limitPending && seenOn !== state.videoId;
-
-  const { settings, decided } = state;
-  const status = statusWords(state.status);
+    if (!open || !inBackground) return;
+    const timer = setInterval(() => tick((n) => n + 1), LEFT_MS);
+    return () => clearInterval(timer);
+  }, [open, inBackground]);
+  const status = statusLine(state);
   const chip = chipOf(state);
   const transcribing = state.status.kind === "running" || state.status.kind === "held" || (state.status.kind === "loading" && state.status.run);
   const canStart = state.key && state.status.kind !== "noKey" && state.status.kind !== "signedOut";
   const hasAny = (state.transcript?.covered.length ?? 0) > 0;
-  const on = settings ? modesOn(settings) : [];
-  const mode = settings ? modeOf(settings, state.prefs.mode) : null;
-  const long = decided?.long ?? (settings !== null && duration !== null && duration > settings.downloadLimit * 60);
-  const notAllowed = settings !== null && long && settings.overLimit === "notAllowed";
-  const limitWords = settings ? `Over the ${settings.downloadLimit}-minute length limit` : "";
+  const whyNotOrder = orderWhy(state, duration);
   const ask = (which: Asking) => setAsking(asking === which ? null : which);
   const unfold = (which: Unfolded) => setUnfolded(unfolded === which ? null : which);
   const done = (what: () => void) => {
     what();
     setOpen(false);
   };
-  // What the start item does is what the mode comes to here (once a download failed, the chunks are what's left); under
-  // Full, over the download limit where that's not allowed, it can't be done.
-  const way = state.fellBack ? "live" : (decided?.mode ?? null);
-  const refusedHere = way === "full" && notAllowed;
-  const showStart = canStart && !transcribing && state.status.kind !== "done" && state.status.kind !== "whole";
+  // Chunks can start while the whole video is under way too: both at once, its words replacing theirs when it's in.
+  const showStart = canStart && !transcribing && state.status.kind !== "done";
 
   return (
     <div ref={rootRef} className="strip-menu-wrap">
       <Button
-        className={`capture-tool strip-menu-button is-${chip.look}${flagged ? " is-flagged" : ""}`}
+        className={`capture-tool strip-menu-button is-${chip.look}`}
         aria-expanded={open}
         aria-controls="panki-transcribe-menu"
-        aria-label={`Transcription: ${chip.words}${flagged ? `, ${limitWords.toLowerCase()}` : ""}`}
+        aria-label={`Transcription: ${chip.words}`}
         onClick={() => setOpen((was) => !was)}
       >
         <i className="strip-menu-dot" aria-hidden="true" />
         {chip.words}
         <Icon name="down" />
-        {flagged ? (
-          <span className="strip-menu-badge" aria-hidden="true">
-            !
-          </span>
-        ) : null}
       </Button>
       {open ? (
         <div id="panki-transcribe-menu" className="strip-menu" role="dialog" aria-label="Transcription">
@@ -485,44 +470,13 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
               <Log state={state} />
             </Fold>
           </div>
-          {state.asking && settings && duration !== null ? (
-            <div className="strip-menu-question">
-              <p>
-                This video is {Math.round(duration / 60)} minutes. Transcribing all of it would cost about <b>{costWords(state, duration)}</b>.
-              </p>
-              <div className="strip-menu-question-actions">
-                <Button variant="primary" onClick={() => done(() => onAnswer(true))}>
-                  <Icon name="subtitles" />
-                  Transcribe
-                </Button>
-                {/* No to the entire video: under Hybrid the chunks go on, which is what saying no comes to there, said so anyone
-                    gets it ("Chunks only" wouldn't), with Live's own icon, since that's what's left. */}
-                <Button variant="ghost" onClick={() => onAnswer(false)}>
-                  {decided?.mode === "hybrid" ? <Icon name="lead" /> : null}
-                  {decided?.mode === "hybrid" ? "Only what I watch" : "Cancel"}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {/* The download failed: the chunks carry on, or took over. */}
+          {/* The whole video failed on this visit: chunks running carry on; none start for it. */}
           {state.fellBack ? (
             <p className="strip-menu-notice">
-              Entire video failed, falling back to <ModeChip mode="live" />
+              <ModeChip mode="full" /> failed{transcribing ? " · the chunks carry on" : null}
             </p>
           ) : null}
-          {/* Over the length limit: it's not allowed, or (the button flagged it) Transcribe asks first. */}
-          {decided && settings && decided.long && !state.asking && !state.fellBack && ((state.refused && decided.mode !== "live") || state.limitPending) ? (
-            <p className="strip-menu-notice">
-              {limitWords}
-              {state.refused && decided.mode === "hybrid" ? (
-                <>
-                  {" · "}
-                  <ModeChip mode="live" />
-                </>
-              ) : null}
-            </p>
-          ) : null}
-          {/* Three parts, each named: Panki AI, the transcript, the settings. Step 7's rules (proofreading by itself, transcribing's own) land as rows under Settings, the parts above them unmoved. */}
+          {/* Two parts, each named: Panki AI and the transcript. The automations are Panki's Settings → Automations alone. */}
           {ai && hasAny ? (
             <div className="strip-menu-items">
               {ai.headed ? null : (
@@ -563,14 +517,20 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
               {transcribing ? (
                 <Button variant="item" onClick={() => done(onStop)}>
                   <Icon name="stop" />
-                  Stop
+                  Stop transcribing
                 </Button>
               ) : showStart ? (
-                // Over the limit, the menu stays open: the question the press asks comes up in it.
-                <Button variant="item" disabled={refusedHere} onClick={() => (state.limitPending ? onStart() : done(onStart))}>
-                  <Icon name="subtitles" />
-                  {startWords(state.status, way)}
-                  {refusedHere ? <span className="strip-menu-why">not allowed over the limit</span> : null}
+                <Button variant="item" onClick={() => done(onStart)}>
+                  <Icon name={MODE_ICONS.live} />
+                  {startWords(state.status)}
+                </Button>
+              ) : null}
+              {/* The whole video, chunks running or not: what it costs at the engine's listed price, or why it can't be ordered. */}
+              {canStart && state.status.kind !== "done" ? (
+                <Button variant="item" disabled={whyNotOrder !== null} onClick={() => done(onOrder)}>
+                  <Icon name={MODE_ICONS.full} />
+                  {TRANSCRIBE_MODES.full.name}
+                  {(whyNotOrder ?? orderCost(state, duration)) ? <span className="strip-menu-why">{whyNotOrder ?? orderCost(state, duration)}</span> : null}
                 </Button>
               ) : null}
               {/* Editing by hand made plain, so it can be found: the rows open for editing until Done. */}
@@ -611,33 +571,6 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onRetrans
               ) : null}
             </div>
           ) : null}
-          <div className="strip-menu-items">
-            <p className="strip-menu-label">Settings</p>
-            {settings && mode ? (
-              <div className="strip-menu-row">
-                <span>Mode</span>
-                <Dropdown
-                  id="panki-transcribe-mode"
-                  label="Mode"
-                  value={mode}
-                  disabled={on.length < 2}
-                  options={TRANSCRIBE_MODE_IDS.map((id) => ({
-                    id,
-                    label: TRANSCRIBE_MODES[id].name,
-                    icon: MODE_ICONS[id],
-                    disabled: !on.includes(id),
-                    // Which one is everyone's default isn't said here.
-                    ...(on.includes(id) ? {} : { note: "off" }),
-                  }))}
-                  onChange={onMode}
-                />
-              </div>
-            ) : null}
-            <div className="strip-menu-row">
-              <span>Auto transcribe</span>
-              <Toggle id="panki-transcribe-auto" says={{ on: "On", off: "Off" }} on={state.prefs.trigger === "auto"} onChange={onAuto} />
-            </div>
-          </div>
         </div>
       ) : null}
     </div>

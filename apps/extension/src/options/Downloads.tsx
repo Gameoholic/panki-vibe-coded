@@ -4,7 +4,6 @@ import { sizeWords } from "@panki/contracts";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { PerDevice } from "@web/components/PerDevice";
 import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Skeleton } from "@web/components/Skeleton";
@@ -80,7 +79,7 @@ function DownloadListRow({ row, onRemoved }: { row: DownloadRow; onRemoved: () =
 }
 
 /**
- * The Downloads tab, all of it this browser's: every download, the one asked for last first, with how much room they
+ * The Downloads tab, all of it this browser's: whether this browser downloads at all; every download, the one asked for last first, with how much room they
  * take together, drawn as a bar of each one's share; the quality a video is downloaded at, kept with each as it's
  * asked for; and whether a downloaded video wears its mark wherever it shows.
  */
@@ -89,13 +88,15 @@ export function DownloadsTab({ store, onChanged }: { store: Stored; onChanged: (
   const total = rows?.reduce((sum, row) => sum + row.bytes, 0) ?? 0;
   return (
     <>
-      <div className="settings-tab-head">
-        <PerDevice />
-      </div>
       <section className="panel" aria-labelledby="downloads-title">
         <h2 id="downloads-title" className="panel-title">
           Downloads
         </h2>
+        <Setting
+          id="download-on"
+          label="Downloading"
+          control={<Toggle id="download-on-switch" says={{ on: "On", off: "Off" }} on={store.downloadOn} onChange={(downloadOn) => void writeStore({ downloadOn }).then(onChanged)} />}
+        />
         {rows === null ? (
           <Skeleton shape="kept" count={2} />
         ) : rows.length === 0 ? (

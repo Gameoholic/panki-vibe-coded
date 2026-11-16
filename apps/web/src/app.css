@@ -4483,7 +4483,14 @@ mark.sub-blur {
   font-size: 13px;
   border-radius: 8px;
 }
-/* What follows the number, like the ":00" of an hour: as big and as dark as the number, so the two read as one thing. */
+/* What stands before the number, like a dollar amount's "$", and what follows it, like the ":00" of an hour: as big and
+   as dark as the number, so the two read as one thing. */
+.numfield-prefix {
+  margin-inline: 2px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+}
 .numfield-suffix {
   margin-left: 2px;
   font-size: 16px;
@@ -4627,8 +4634,10 @@ mark.sub-blur {
   font-size: 15px;
   font-weight: 800;
 }
-/* A streak's editor (components/StreakEditor.tsx), hanging from its tile or from the dashed tile a new one is made from. */
-.streak-edit {
+/* A streak's editor (components/StreakEditor.tsx), hanging from its tile or from the dashed tile a new one is made from;
+   a rule's (components/RuleEditor.tsx), hanging from its row or from New rule. */
+.streak-edit,
+.rule-edit {
   container-type: inline-size;
   display: grid;
   gap: 10px;
@@ -4863,152 +4872,6 @@ mark.sub-blur {
 .btn-item .dropdown-icon {
   width: 16px;
   height: 16px;
-}
-
-/* The transcription modes compared (components/ModeCompare.tsx): a column per mode and a row per way they differ, the
-   names of the rows down the left. Every column is a subgrid of the chart's rows, so a row lines up across them however
-   its cells wrap. The default's column is lit; a mode switched off is faded but for its switch. */
-.mode-compare {
-  display: grid;
-  grid-template-columns: minmax(84px, 0.6fr) repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(var(--mode-rows), auto);
-  column-gap: 6px;
-}
-.mode-col {
-  grid-row: 1 / -1;
-  display: grid;
-  grid-template-rows: subgrid;
-  min-width: 0;
-  border-radius: var(--radius-sm);
-}
-.mode-col.is-default {
-  background: var(--accent-soft);
-  box-shadow: inset 0 3px 0 var(--accent);
-}
-.mode-cell {
-  min-width: 0;
-  padding: 10px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  line-height: 1.4;
-}
-.mode-cell.mode-head {
-  border-top: 0;
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  padding-top: 14px;
-}
-.mode-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-  font-size: 16px;
-  font-weight: 800;
-}
-.mode-title .icon {
-  color: var(--accent);
-}
-.mode-default {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-.mode-about {
-  color: var(--muted);
-}
-.mode-name {
-  color: var(--muted);
-  font-weight: 700;
-}
-.mode-says {
-  position: relative;
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  gap: 6px;
-  align-items: start;
-}
-.mode-says small {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.mode-mark {
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
-  stroke-width: 2.5;
-}
-.mode-says.is-yes .mode-mark {
-  color: var(--good);
-}
-.mode-says.is-no .mode-mark {
-  color: var(--danger);
-}
-.mode-says.is-some .mode-mark {
-  color: var(--muted);
-}
-/* The row's name in a cell: for a screen reader, and seen only on a phone, where each mode is a card of its own. */
-.mode-row-name {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-/* The switch and Make default, from the top of the row: a column with the switch alone (the default's) holds it level
-   with the others' switches rather than in the middle of the row's height. */
-.mode-cell.mode-foot {
-  display: flex;
-  align-items: center;
-  align-content: flex-start;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.mode-col.is-off .mode-head,
-.mode-col.is-off .mode-says {
-  opacity: 0.45;
-}
-.mode-compare + .setting {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-@media (max-width: 640px) {
-  .mode-compare {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-    row-gap: 10px;
-  }
-  .mode-col {
-    grid-row: auto;
-    grid-template-rows: none;
-    border: 1px solid var(--line);
-  }
-  .mode-col.mode-names {
-    display: none;
-  }
-  .mode-says {
-    grid-template-columns: 16px minmax(0, 1fr);
-  }
-  .mode-row-name {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip-path: none;
-    grid-column: 1 / -1;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 700;
-  }
 }
 
 /* A card row's place and due time on its right, then (where cards can be changed) edit with delete under it, each a
@@ -7209,6 +7072,269 @@ mark.sub-blur {
     text-align: left;
   }
 }
+/* Settings → Automations (views/RulesTab.tsx): what every automation spent today, quiet under the cap over them all. */
+.rules-spent {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* The flow (components/RuleFlow.tsx): one grid, each trigger's node at the left spanning its automations' rows, a gap
+   the lines cross, the automations' nodes at the right, each trigger's set apart from the one above; the lines drawn
+   over it all, under the nodes' presses. */
+.rule-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) 48px minmax(0, 1.35fr);
+  align-items: start;
+  row-gap: 10px;
+  padding: 6px 0;
+}
+.rule-flow > .rule-trigger {
+  grid-column: 1;
+  align-self: center;
+}
+.rule-flow > .rule-node {
+  grid-column: 3;
+}
+.rule-flow > .is-later {
+  margin-top: 12px;
+}
+.rule-flow-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.rule-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 14px;
+  font-weight: 700;
+  transition: border-color 0.2s ease;
+}
+@media (hover: hover) {
+  .rule-trigger:hover {
+    border-color: var(--line-strong);
+  }
+}
+.rule-trigger-icon,
+.rule-node-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+}
+.rule-trigger-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.rule-trigger-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A trigger's port, on its right edge where its lines leave: a new automation on it. */
+.quiet-icon.rule-port {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  z-index: 2;
+  translate: 0 -50%;
+}
+.quiet-icon.rule-port > .btn-icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), color 0.15s ease, border-color 0.15s ease;
+}
+@media (hover: hover) {
+  .quiet-icon.rule-port > .btn-icon:not(:disabled):hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: scale(1.12);
+  }
+}
+.rule-node {
+  min-width: 0;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition: border-color 0.2s ease;
+}
+.rule-node.is-open {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.rule-node.is-draft {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+.rule-node-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.btn.rule-node-open {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  text-align: left;
+}
+.rule-node-icon {
+  width: 30px;
+  height: 30px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.rule-node.is-off .rule-node-icon {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.rule-node.is-off .rule-node-name {
+  opacity: 0.55;
+}
+.rule-node-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 5px;
+}
+.rule-node-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.rule-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rule-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rule-node-line {
+  margin: 0;
+  padding-left: 40px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.rule-node-line.is-problem {
+  color: var(--danger);
+}
+.rule-node-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+/* A line from a trigger to an automation: its tint by how much it's used (`ruleKinds.ts` → `lineTint`, as `color`),
+   plain and dashed while Off or unused, dashed and moving while one is being made, faint while another trigger's are lit. */
+.rule-line {
+  color: var(--accent);
+  transition: opacity 0.2s ease;
+}
+.rule-line path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke 0.3s ease;
+}
+.rule-line circle {
+  fill: currentColor;
+}
+.rule-line.is-plain {
+  color: var(--line-strong);
+}
+.rule-line.is-plain path {
+  stroke-dasharray: 4 5;
+}
+.rule-line.is-draft path {
+  stroke-dasharray: 6 6;
+  animation: rule-march 1s linear infinite;
+}
+.rule-line.is-dim {
+  opacity: 0.18;
+}
+@keyframes rule-march {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rule-line.is-draft path {
+    animation: none;
+  }
+}
+/* A limit's row in an automation's editor: its amount, and the × beside it that takes it off. */
+.rule-limit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Adding a limit an automation doesn't have: quiet, dashed, as something not there yet. */
+.btn.rule-limit-add {
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+}
+@media (hover: hover) {
+  .btn.rule-limit-add:not(:disabled):hover {
+    border-color: var(--accent);
+    color: var(--fg);
+  }
+}
+@media (max-width: 640px) {
+  .rule-flow {
+    grid-template-columns: minmax(0, 0.75fr) 28px minmax(0, 1.25fr);
+  }
+  .rule-trigger {
+    padding: 8px 18px 8px 10px;
+    font-size: 13px;
+  }
+  .rule-trigger-icon,
+  .rule-node-icon:not(.is-ai) {
+    display: none;
+  }
+  /* Panki AI's spark stays before an automation's title asking it ("✦ Explain"), as a mark, not a box. */
+  .rule-node-icon.is-ai {
+    width: auto;
+    height: auto;
+    background: none;
+  }
+  .rule-node-line {
+    padding-left: 0;
+  }
+}
 /* Setting the extension up on a computer (Settings → Extension): the steps, numbered, as they're done. */
 .setup-steps {
   display: grid;
@@ -8564,11 +8690,6 @@ mark.sub-blur {
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-/* That one hairline is the conversation's: its composer draws none of its own under the head. */
-.look-word .composer {
-  padding-top: 0;
-  border-top: 0;
-}
 .look-head {
   display: flex;
   flex-wrap: wrap;
@@ -8690,9 +8811,18 @@ mark.sub-blur {
   padding-top: 10px;
 }
 .ai-turns.is-main {
+  gap: 22px;
   max-height: var(--ai-turns-max);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+/* The head's name inside a conversation, in plain case on the page's own ink: the strip menu's keeps its small capitals. */
+.ai-explain > .ai-status .ai-status-name {
+  gap: 7px;
+  font-size: 13.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
 }
 /* The head's name as the press that folds the body away: the name's own look, the chevron after it turning as it opens. */
 .btn.ai-status-name {
@@ -8719,11 +8849,38 @@ mark.sub-blur {
 }
 .ai-explain-turn {
   display: grid;
+  gap: 12px;
+}
+/* A reply on the page itself, no bubble: the spark small in a column at its left, the reply, its failure or nothing
+   yet beside it (AiConversation.tsx → `Turn`). The mark is the first line's height, so the spark sits on that line. */
+.ai-reply-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+.ai-reply-mark {
+  display: grid;
+  place-items: center;
+  height: 25px;
+  color: var(--accent);
+}
+.ai-reply-mark > .ai-spark {
+  width: 15px;
+  height: 15px;
+}
+.ai-reply-body {
+  display: grid;
   gap: 8px;
+  min-width: 0;
+  min-height: 25px;
 }
 .ai-explain-answer {
   display: grid;
-  gap: 8px;
+  gap: 11px;
+  font-size: 15.5px;
+  line-height: 1.6;
   animation: intro-rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 /* The model's words as it wrote them: its single line breaks kept, nothing of it read as markup. */
@@ -8736,10 +8893,11 @@ mark.sub-blur {
   justify-self: end;
   max-width: 85%;
   margin: 0;
-  padding: 5px 10px;
-  border-radius: 12px;
+  padding: 8px 14px;
+  border-radius: 18px;
   background: var(--surface-2);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.45;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -8792,11 +8950,11 @@ mark.sub-blur {
 
 /* Touch up in the drawer (AI step 3): its head over the card's fields, a proposal under each field it's for. */
 .touch-up.ai-explain {
-  --scroll-surface: var(--surface-2);
+  --scroll-surface: var(--surface);
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--surface);
 }
 .touch-up-all {
   display: flex;
@@ -8870,13 +9028,10 @@ mark.sub-blur {
   border-radius: 10px;
   background: color-mix(in srgb, var(--judgement) 8%, var(--surface));
 }
-/* Every action's conversation (AiConversation.tsx): a bubble stands out from the box it's in, Touch up's head's
-   second surface or a field's tinted note (the pop-up's own surface for Explain). The run is its press, the spark and
+/* Every action's conversation (AiConversation.tsx): a bubble stands out from the box it's in, its own second surface
+   in the drawer's box and the pop-up alike, a deeper tint on a field's tinted note. The run is its press, the spark and
    the template's name; a branch's follow-up has the forward sign and the field's name at its head, quiet, pressed to
    go there. */
-.touch-up .ai-explain-question {
-  background: var(--surface);
-}
 .touch-up-foot .ai-explain-question,
 .touch-up-open .ai-explain-question {
   background: color-mix(in srgb, var(--fg) 8%, var(--surface));
@@ -8910,27 +9065,28 @@ mark.sub-blur {
   color: var(--muted);
   font-size: 13px;
 }
-/* A conversation's composer (AiRun.tsx → `Composer`): the box with what's typed, then one row under it, the actions'
-   dropdown at its left, what the message can cost and Send at its right; on a narrow column the row wraps, the
-   dropdown first. */
+/* A conversation's composer (AiRun.tsx → `Composer`): one rounded box lifted a little off the page, what's typed, then
+   one row under it inside the box, the actions' dropdown at its left, what the message can cost and Send, round, at
+   its right; on a narrow column the row wraps, the dropdown first. No hairline over it. */
 .composer {
   display: grid;
   gap: 6px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
 }
 .composer-box {
   display: grid;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 12px 10px 10px 14px;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: 20px;
   background: var(--surface);
+  box-shadow: 0 2px 12px -6px color-mix(in srgb, var(--fg) 25%, transparent);
 }
 .composer-box:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-color: transparent;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 2px 12px -6px color-mix(in srgb, var(--fg) 25%, transparent);
 }
 .composer-box.is-error {
   border-color: var(--danger);
@@ -8938,7 +9094,7 @@ mark.sub-blur {
 .composer-input {
   display: block;
   width: 100%;
-  min-height: 48px;
+  min-height: 24px;
   max-height: 10em;
   margin: 0;
   padding: 0;
@@ -8962,7 +9118,17 @@ mark.sub-blur {
   margin-right: auto;
 }
 /* The conversation's settings button, beside the actions at the left (`AiRun.tsx` → `KnobsButton`); its Tip hangs from it. */
-/* The actions' button lit only while one is ticked; with none it's the quiet unset look of any dropdown. */
+/* The actions' button a small pill: lit only while one is ticked, the quiet second surface while none is. */
+.composer-actions .dropdown-button {
+  gap: 5px;
+  padding: 4px 10px;
+  border-color: transparent;
+  border-radius: 99px;
+  font-size: 13.5px;
+}
+.composer-actions .dropdown-button:not(.is-lit) {
+  background: var(--surface-2);
+}
 .composer-actions .dropdown-button.is-lit {
   background: var(--accent-soft);
   color: var(--accent);
@@ -9033,10 +9199,30 @@ mark.sub-blur {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px 10px;
+  gap: 6px 8px;
+}
+/* Send, round in the accent with its arrow, the spark in the arrow's place while a message is out; greyed it's the
+   strong line's grey, whole rather than faded, so it never reads as a paler blue. */
+.btn.composer-send {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+}
+.btn.composer-send > .icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.25;
 }
 .btn.composer-send > .ai-spark {
-  color: var(--accent-ink);
+  width: 16px;
+  height: 16px;
+}
+.btn.composer-send:disabled {
+  background: var(--line-strong);
+  color: var(--surface);
+  opacity: 1;
 }
 .btn.ai-about {
   justify-self: end;
@@ -9220,17 +9406,6 @@ mark.sub-blur {
     animation: none;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
   }
-}
-/* A question on its way: the spark turning under it, where the reply will stand (AiConversation.tsx → `Turn`). */
-.ai-answering {
-  display: flex;
-  align-items: center;
-  min-height: 22px;
-  color: var(--accent);
-}
-.ai-answering > .ai-spark {
-  width: 18px;
-  height: 18px;
 }
 .touch-up-diff {
   margin-top: 6px;

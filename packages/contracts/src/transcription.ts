@@ -66,27 +66,24 @@ export const TRANSCRIBE_LANGUAGES: Record<TranscribeLanguage, string> = {
 };
 
 /**
- * How a video is transcribed (a 16-minute video comes back whole in 41 s): the engine fetching the whole video itself,
- * in one call (Full); chunks heard by a hidden player running ahead of the viewer (Live); or chunks while the whole
- * video is transcribed in the background, whose transcript then replaces them (Hybrid). One registry. An admin sets the
- * mode everyone starts on and can switch the others off; a viewer picks among those left, in the strip's menu. A stored
- * "auto", a mode that's gone, reads as nothing.
+ * The two ways a video is transcribed, one registry: **Live**, chunks heard by a hidden player running ahead of the
+ * viewer, following them; and **Full**, the whole video ordered in the background, the engine fetching it itself in one
+ * call (a 16-minute video comes back whole in 41 s), its words replacing every chunk's when it's in. Not a setting to
+ * pick between: each is an action of its own (Start transcribing, Transcribe the entire video in the background) and a rule of its own
+ * (`rules.ts`), so both run where both are wanted. A stored "hybrid" or "auto", a way that's gone, reads as nothing.
  */
-export const TranscribeMode = z.enum(["full", "live", "hybrid"]);
+export const TranscribeMode = z.enum(["full", "live"]);
 export type TranscribeMode = z.infer<typeof TranscribeMode>;
 export const TRANSCRIBE_MODE_IDS = TranscribeMode.options;
 export const TRANSCRIBE_MODES: Record<TranscribeMode, { name: string }> = {
-  full: { name: "Full" },
-  live: { name: "Live" },
-  hybrid: { name: "Hybrid" },
+  // On screen a way is only ever the strip menu's own words for it; Live and Full are code words.
+  full: { name: "Transcribe the entire video in the background" },
+  live: { name: "Start transcribing" },
 };
 
-/** What's done about a whole-video download for a video longer than the download limit: it goes ahead, it isn't done, or the viewer is asked first. */
-/** In the order they're offered, left to right: from the most free to the strictest. */
+/** What was done about a whole-video download for a video over the length limit, before rules held it: read by nothing (`Transcription.overLimit`). */
 export const OverLimit = z.enum(["allowed", "warn", "notAllowed"]);
 export type OverLimit = z.infer<typeof OverLimit>;
-export const OVER_LIMIT_IDS = OverLimit.options;
-export const OVER_LIMIT_WORDS: Record<OverLimit, string> = { allowed: "Allowed", notAllowed: "Not allowed", warn: "Warn first" };
 
 /** The longest a chunk's length and its wait for a pause may be set to, in seconds: together they're the longest sound a chunk can be (`PIECE_MAX_MS`). */
 export const CHUNK_LENGTH_MAX = 60;
@@ -119,17 +116,17 @@ export const Transcription = z.object({
   paused: TranscribePaused,
   engine: EngineId,
   // The language a video is told in is each account's own (`Settings.language`), not a setting here.
-  /** The mode everyone starts on, until a viewer picks another. Never switched off (`modesOn`). */
-  mode: TranscribeMode,
-  /** The modes switched off for everyone; one that's gone since (Auto) read as nothing. */
-  modesOff: z.preprocess((value) => (Array.isArray(value) ? value.filter((mode) => TRANSCRIBE_MODE_IDS.some((id) => id === mode)) : value), z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length)),
   /**
-   * Seconds of a video the viewer watches (played, on that visit) before the entire video is transcribed by itself, so
-   * a video opened and left at once costs nothing; 0 is at once. A press on Transcribe doesn't wait.
+   * `mode`, `modesOff` and `wholeAfter` are from when a viewer picked a mode (the admin's default and switches) and the
+   * whole video waited on seconds watched on a visit: read by nothing, since each way is its own action and rule (a
+   * stored "hybrid" reads as the default), kept in the shape since an older extension parses them.
    */
+  mode: TranscribeMode,
+  modesOff: z.preprocess((value) => (Array.isArray(value) ? value.filter((mode) => TRANSCRIBE_MODE_IDS.some((id) => id === mode)) : value), z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length)),
   wholeAfter: z.number().int().min(0).max(600),
-  /** Minutes: a video longer than this is over the download limit, for the whole-video download. */
+  /** **Length limit** in minutes: a ceiling no rule passes, so no rule transcribes (or downloads) a longer video (`rules.ts` → `lengthStop`). A press is never held to it. */
   downloadLimit: z.number().int().min(1).max(600),
+  /** What a press on a video over the length limit did, before rules held the limit: read by nothing, kept in the shape since an older extension parses it. */
   overLimit: OverLimit,
   /** Seconds of video the first chunk is, on a new video or after a jump. */
   firstChunk: z.number().int().min(1).max(CHUNK_LENGTH_MAX),
@@ -151,15 +148,15 @@ export type Transcription = z.infer<typeof Transcription>;
  * The chunks run only three minutes ahead: whatever the hidden player has run ahead over is paid for, and a video left
  * early stops it, so the lead is all a quit video costs (about a cent of sound, where ten minutes is about four). At 4×
  * the lead fills at three minutes of video a minute. The chunks: 3 s, each next 1.5× the last (4.5, 7, 10, 15, 23, 34),
- * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest. A video over half an hour
- * asks before it's transcribed whole.
+ * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest. No rule transcribes a
+ * video over half an hour.
  */
 export const DEFAULT_TRANSCRIPTION: Transcription = {
   speed: 4,
   lead: 3,
   paused: "keep",
   engine: "elevenlabs",
-  mode: "hybrid",
+  mode: "live",
   modesOff: [],
   wholeAfter: 10,
   downloadLimit: 30,
@@ -174,14 +171,6 @@ export const DEFAULT_TRANSCRIPTION: Transcription = {
 export const TranscriptionUpdate = Transcription.partial();
 export type TranscriptionUpdate = z.infer<typeof TranscriptionUpdate>;
 
-/** The modes a viewer can pick among: every one not switched off, and the default always. */
-export const modesOn = (settings: Pick<Transcription, "mode" | "modesOff">): TranscribeMode[] =>
-  TRANSCRIBE_MODE_IDS.filter((mode) => mode === settings.mode || !settings.modesOff.includes(mode));
-/** The mode a viewer transcribes in: their own pick while it's on, the default otherwise. */
-export const modeOf = (settings: Pick<Transcription, "mode" | "modesOff">, picked: TranscribeMode | null): TranscribeMode =>
-  picked !== null && modesOn(settings).includes(picked) ? picked : settings.mode;
-/** Whether a video of this many seconds is over the download limit. */
-export const overDownloadLimit = (settings: Pick<Transcription, "downloadLimit">, seconds: number): boolean => seconds > settings.downloadLimit * 60;
 /** The length of the chunk after one of `seconds`: grown by the growth, up to the chunk length. The first is the first chunk's. */
 export const nextChunk = (settings: Pick<Transcription, "chunkGrowth" | "chunkLength">, seconds: number): number => Math.min(settings.chunkLength, seconds * settings.chunkGrowth);
 
@@ -331,6 +320,8 @@ export const Transcript = z.object({
   words: z.array(TranscriptWord),
   covered: z.array(Stretch),
   job: WholeJob.nullable(),
+  /** Panki AI is proofreading it for a rule, on the server: a page reads it again until it's done, so the edits show. Left out when not. */
+  proofreading: z.boolean().optional(),
 });
 export type Transcript = z.infer<typeof Transcript>;
 export const TranscriptResponse = z.object({ transcript: Transcript });

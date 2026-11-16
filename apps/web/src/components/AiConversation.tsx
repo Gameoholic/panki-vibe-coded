@@ -12,10 +12,11 @@ import { ScrollEdges } from "./ScrollEdges";
 
 /**
  * Every Panki AI place's conversation drawn as one (`@panki/contracts` → `conversation.ts`, the one model): the head
- * (`AiStatus`), each message as its bubble at the right (one with actions headed by the spark and their names joined by
- * a comma, what was typed under them; typed words alone as they are), then its answer's reply as plain paragraphs and what it changed ("Changed:" and a chip each,
+ * (`AiStatus`), each message as a soft bubble at the right (one with actions headed by the spark and their names joined by
+ * a comma, what was typed under them; typed words alone as they are), then its answer's reply as plain paragraphs on
+ * the page, no bubble, beside a small spark, and what it changed ("Changed:" and a chip each,
  * "Changed nothing"), a branch merged into main as one block with its field's mark and its messages that changed
- * nothing folded, the message on its way with the spark turning under it, a failure with Try again, and the composer
+ * nothing folded, the message on its way with the spark turning where its reply will stand, a failure with Try again, and the composer
  * or the next message folded at the foot; main's messages scroll inside their box once there are more than fit, the
  * newest in view, and the whole block folds under its head's name. What's a place's own is what it hands in (`ConversationOf`): what a commit
  * changed as chips and where a chip goes, Panki's own notes under a reply, a field's name where it has branches, what
@@ -190,12 +191,14 @@ const pressOf = (turn: Drawn): readonly string[] => (turn.actions && turn.action
 
 /**
  * One turn: its question (a message with actions as its press: the spark and their names joined by a comma, what
- * what was typed under them as a quiet note, never what the actions or User instructions say; the same for every action, a place's default or not), then its reply, Panki's
- * notes and what it changed, the spark while it's on its way, or the failure with Try again.
+ * what was typed under them as a quiet note, never what the actions or User instructions say; the same for every action, a place's default or not), then, beside
+ * the spark at its left, its reply as plain text on the page with Panki's notes and what it changed, or the failure with
+ * Try again; while it's on its way, the spark turning there alone, where the reply will stand.
  */
 function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
   const about = turn.about;
   const press = pressOf(turn);
+  const waiting = turn.reply === null && turn.failure === null;
   return (
     <div className="ai-explain-turn">
       {about && turn.run === null ? (
@@ -215,29 +218,32 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
       ) : (
         <p className="ai-explain-question">{turn.question}</p>
       )}
-      {turn.reply === null && turn.failure === null ? (
-        <div className="ai-answering" role="status" aria-label={CONVERSATION_WORDS.answering}>
-          <AiSpark working />
+      <div className="ai-reply-row">
+        <span className="ai-reply-mark" {...(waiting ? { role: "status", "aria-label": CONVERSATION_WORDS.answering } : {})}>
+          <AiSpark working={waiting} />
+        </span>
+        <div className="ai-reply-body">
+          {waiting ? null : turn.failure ? (
+            <div className="ai-explain-failure">
+              <p className="form-failure" role="alert">
+                {turn.failure.message}
+              </p>
+              {turn.failure.retry ? (
+                <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn)}>
+                  <AiSpark />
+                  {CONVERSATION_WORDS.tryAgain}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <AnswerText text={turn.reply ?? ""}>
+              {turn.notes}
+              {turn.chips !== null ? <Changed chips={turn.chips} onGo={onGo} /> : null}
+              {turn.failed.length > 0 ? <Failed chips={turn.failed} onGo={onGo} /> : null}
+            </AnswerText>
+          )}
         </div>
-      ) : turn.failure ? (
-        <div className="ai-explain-failure">
-          <p className="form-failure" role="alert">
-            {turn.failure.message}
-          </p>
-          {turn.failure.retry ? (
-            <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn)}>
-              <AiSpark />
-              {CONVERSATION_WORDS.tryAgain}
-            </Button>
-          ) : null}
-        </div>
-      ) : (
-        <AnswerText text={turn.reply ?? ""}>
-          {turn.notes}
-          {turn.chips !== null ? <Changed chips={turn.chips} onGo={onGo} /> : null}
-          {turn.failed.length > 0 ? <Failed chips={turn.failed} onGo={onGo} /> : null}
-        </AnswerText>
-      )}
+      </div>
     </div>
   );
 }

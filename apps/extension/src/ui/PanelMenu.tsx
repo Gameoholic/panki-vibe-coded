@@ -40,6 +40,8 @@ export type DownloadMenu = {
   playing: string | null;
   rows: readonly DownloadRow[] | null;
   can: boolean;
+  /** Why it can't be downloaded, said beside Download this video when no one could guess it (downloading off in this browser); null otherwise. */
+  why: string | null;
   onDownload: () => void;
   onRemove: () => void;
   watch: () => () => void;
@@ -65,6 +67,7 @@ function DownloadRows({ download, onList }: { download: DownloadMenu; onList: ()
         <Button variant="item" disabled={!download.can} onClick={download.onDownload}>
           <Icon name="download" />
           Download this video
+          {download.why ? <span className="strip-menu-why">{download.why}</span> : null}
         </Button>
       ) : (
         <Button

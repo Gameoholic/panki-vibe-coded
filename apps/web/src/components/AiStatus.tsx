@@ -54,6 +54,9 @@ function whyWords(why: AiMessageWhy): string {
       return why.field ? `You sent a message on ${why.field}` : "You sent a message";
     case "retry":
       return "You pressed Try again";
+    case "rule":
+      // An automation's sentence, as Settings → Automations says it ("When the Word pop-up opens, Explain the word…").
+      return `An automation: ${why.rule}`;
   }
 }
 

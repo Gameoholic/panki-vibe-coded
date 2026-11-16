@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle, TranscribeMode } from "@panki/contracts";
+import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "@panki/contracts";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "../seekLook";
 
 /**
@@ -10,7 +10,11 @@ import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "../seekLook";
  * settings (`messages.ts` → `Local`, `local.ts`).
  */
 
-/** When transcribing starts: on every video played, or only at a press on Transcribe. */
+/**
+ * When transcribing started, as this browser kept it: on every video played, or only at a press. Read by nothing:
+ * whether it starts by itself is the account's automation (`rules.ts`, When a video plays → Transcribe it live), so every browser
+ * follows the same one. Still in the shape, since a browser that kept it still has it.
+ */
 export const TranscribeTrigger = z.enum(["auto", "press"]);
 export type TranscribeTrigger = z.infer<typeof TranscribeTrigger>;
 // What it does while the video is paused is an admin's, Panki's `Transcription.paused`; a browser that kept a
@@ -37,8 +41,7 @@ export const TranscribePrefs = z.object({
    * the same word elsewhere tinted by its stage: the subtitles' own, apart from the seek bar's mark of the same.
    */
   added: MarkPaint,
-  /** The transcription mode this viewer picked in the strip's menu, among those an admin left on; null for the one everyone starts on (`modeOf`). */
-  mode: TranscribeMode.nullable(),
+  // There's no mode to pick: Live and Full are each an action and an automation of their own (`transcriber.ts`).
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: "accent", added: "violet", mode: null };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: "accent", added: "violet" };
