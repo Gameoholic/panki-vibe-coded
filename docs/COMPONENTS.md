@@ -14,7 +14,7 @@ Paths from `apps/web/src/`.
 | --- | --- | --- |
 | Mark | `brand/Mark.tsx` | The mark, パ on its tile (`Mark`). Never a second drawing of it. |
 | AiConversation | `components/AiConversation.tsx` | Any place's conversation with Panki AI (`AiConversation`, `ConversationTurns`). Never a second drawing of a conversation. |
-| AiRun | `components/AiRun.tsx` | Sending to Panki AI: its cost (`ceilingOf`), asking first (`useAskFirst`), `TemplateMenu`, `FieldMessage`, the `Composer`. Never a second cost, question or message box. |
+| AiRun | `components/AiRun.tsx` | Sending to Panki AI: its cost (`ceilingOf`), asking first (`useAskFirst`), `TemplateMenu`, `FieldMessage`, the `Composer`, `useStop`. Never a second cost, question, message box or Stop. |
 | AiStatus | `components/AiStatus.tsx` | The head over anything Panki AI answered: how the call stands and exactly what it sent (`AiStatus`). |
 | AiWaiting | `components/AiWaiting.tsx` | Any wait on Panki AI (`AiWaiting`), and the AI's spark (`AiSpark`). Never a spinner, never a second spark. |
 | AlreadyIn | `components/AlreadyIn.tsx` | Saying a card being added is called the same as one already there (`AlreadyIn`, `useAddAnyway`, `exampleTargetOf`). |
@@ -154,7 +154,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | accountActions | `accountActions.ts` | Each account's own Panki AI actions as kept and told: the places with actions, what one requires or leaves out (`AccountActions`, `KeptAction`, `TOUCH_UP_KEYS`). |
 | ai | `ai.ts` | Panki AI's settings: providers and models, the places, one registry, templates and limits (`AI_PLACES`, `AI_PROVIDERS`, `PankiAi`, `AiTemplate`). |
 | aiActions | `aiActions.ts` | Panki's own actions, one registry, and how a message's actions are sent (`AI_ACTIONS`, `AiAction`, `PANKI_DEFAULTS`, `ExplainSend`, `TouchUpSend`). |
-| aiCall | `aiCall.ts` | One call to Panki AI as its page tells of it, for `AiStatus` (`AiCall`, `AiMessageWhy`, `piecesAsSent`, `answeredCall`, `failedCall`). Never sent, never kept. |
+| aiCall | `aiCall.ts` | One call to Panki AI as its page tells of it, for `AiStatus` (`AiCall`, `AiMessageWhy`, `piecesAsSent`, `answeredCall`, `failedCall`, `stoppedCall`). Never sent, never kept. |
 | aiTemplates | `aiTemplates.ts` | Panki AI's templates: Panki's starters, one registry, beside each account's own (`AI_STARTERS`, `templatesOf`, `defaultTemplateOf`, `ASK_OVER`). |
 | api | `api.ts` | The shape of every error the API sends (`ApiErrorBody`). |
 | auth | `auth.ts` | Who is signed in: accounts, sessions, signing in (`User`, `Session`, `Login`, `MeResponse`, `PASSWORD_MIN`). |

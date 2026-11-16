@@ -1,5 +1,5 @@
-/** @panki Sending to Panki AI: its cost (`ceilingOf`), asking first (`useAskFirst`), `TemplateMenu`, `FieldMessage`, the `Composer`. Never a second cost, question or message box. */
-import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+/** @panki Sending to Panki AI: its cost (`ceilingOf`), asking first (`useAskFirst`), `TemplateMenu`, `FieldMessage`, the `Composer`, `useStop`. Never a second cost, question, message box or Stop. */
+import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import {
   AI_PROVIDERS,
   CONVERSATION_REACHES,
@@ -58,6 +58,8 @@ export const MESSAGE_WORDS = {
   sendFor: (micros: number) => `Send for up to ${estimateWords(micros)}?`,
   send: "Send",
   sending: "Sending…",
+  /** The composer's round button while a message is on its way: cuts it there. */
+  stop: "Stop",
   /** The arrow beside Proofread's button, for a screen reader. */
   templates: "Templates",
   /** A message under a field, its branch's: its folded quiet line, its box and its group. */
@@ -134,6 +136,44 @@ export function useAskFirst() {
     });
   }
   return { asked, press, cancel: () => setAsked(null), at: (where: string) => (asked?.where === where ? asked : null) };
+}
+
+/**
+ * Stop, the one way every place has it: the message the person sent on its way, by a name of its own (`begin`, with
+ * what the place draws once it's stopped), cut by the place's `cut` with that name when Stop is pressed, and drawn as
+ * stopped at once, never waiting on the cut. Its answer, whenever it comes, is passed over (`end` says whether it
+ * still counts). A message an automation sends is never begun here, so it's never stopped.
+ */
+export function useStop(cut: (name: string) => void) {
+  const out = useRef<{ name: string; stopped: () => void } | null>(null);
+  const [stoppable, setStoppable] = useState(false);
+  return {
+    /** A message on its way that Stop may cut: its name, for `cut` and `end`. */
+    begin(stopped: () => void): string {
+      const name = crypto.randomUUID();
+      out.current = { name, stopped };
+      setStoppable(true);
+      return name;
+    },
+    /** Its answer is in: true while it still counts, false once Stop cut it. */
+    end(name: string): boolean {
+      if (out.current?.name !== name) return false;
+      out.current = null;
+      setStoppable(false);
+      return true;
+    },
+    /** Stop pressed: the composer's `onStop` while a begun message is on its way, null otherwise. */
+    onStop: stoppable
+      ? () => {
+          const now = out.current;
+          if (!now) return;
+          out.current = null;
+          setStoppable(false);
+          cut(now.name);
+          now.stopped();
+        }
+      : null,
+  };
 }
 
 /**
@@ -522,7 +562,10 @@ export type ComposerProps = {
   value: string;
   error?: string | undefined;
   actions: readonly ComposerAction[];
-  /** A call is out: the box read-only, the actions still, Send's spark turning. */
+  /**
+   * A call is out: Send's spark turning and Send going nowhere until the answer is in, while the box and the actions
+   * stay as ever, so the next message is typed and ticked in the meantime.
+   */
   sending: boolean;
   /** Whether Send would send anything: an action lit that asks something, or words typed, and Panki AI able to answer. */
   canSend: boolean;
@@ -535,17 +578,24 @@ export type ComposerProps = {
   onChange: (value: string) => void;
   onToggle: (id: string) => void;
   onSend: () => void;
+  /**
+   * Stop, while a message the person sent is on its way (`useStop`): Send gives way to it in its place, the filled
+   * square. None while nothing can be stopped, an automation's message among them: the spark turns there then.
+   */
+  onStop?: (() => void) | null;
 };
 
 /**
  * Where a conversation is sent from (Touch up, steered): one rounded box, what's typed growing from one line, and under
  * it inside the box one row, the actions as a dropdown ticking several (every action of the place in the registry's
- * order), what the message can cost, and Send, round in the accent with its arrow (the spark turning there while a
- * message is out); the row wraps on a phone, the dropdown first. Enter sends, Shift+Enter is a new line, and
+ * order), what the message can cost, and Send, round in the accent with its arrow (Stop in its place while a message
+ * the person sent is out, the spark turning there for one they can't stop; the box and the actions staying live for
+ * the next one, and Send and Enter going nowhere until the answer is in, nothing queued; Escape stops nothing); the
+ * row wraps on a phone, the dropdown first. Enter sends, Shift+Enter is a new line, and
  * Ctrl+Enter sends here too, never reaching the form it stands in (the drawer's, whose submit is Add). A
  * conversation's foot, always there while Panki AI can answer.
  */
-export function Composer({ id, place, value, error, actions, sending, canSend, beside, burst, knobs, onChange, onToggle, onSend }: ComposerProps) {
+export function Composer({ id, place, value, error, actions, sending, canSend, beside, burst, knobs, onChange, onToggle, onSend, onStop = null }: ComposerProps) {
   const box = useRef<HTMLTextAreaElement>(null);
   /** The conversation's settings, open above the box: closed whenever the composer comes, opened by its button alone. */
   const [knobsOpen, setKnobsOpen] = useState(false);
@@ -561,6 +611,13 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
     e.preventDefault();
     e.stopPropagation();
     if (canSend && !sending) onSend();
+  };
+  // A press of Send or Stop never takes the focus from the box, so typing goes on while the answer comes; one from the
+  // keyboard hands it back there, since the button changes under it.
+  const keepFocus = (e: MouseEvent) => e.preventDefault();
+  const press = (go: () => void) => (e: MouseEvent) => {
+    go();
+    if (e.detail === 0) box.current?.focus();
   };
   return (
     <div className="composer" role="group" aria-label={MESSAGE_WORDS.ask[place]}>
@@ -579,7 +636,6 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
           aria-invalid={error ? true : undefined}
           placeholder={MESSAGE_WORDS.ask[place]}
           value={value}
-          readOnly={sending}
           autoComplete="off"
           lang={/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(value) ? "ja" : undefined}
           onChange={(e) => onChange(e.target.value)}
@@ -595,16 +651,21 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
                 values={actions.filter((action) => action.on && !action.disabled).map((action) => action.id)}
                 summary={actionsSummary(actions)}
                 onToggle={onToggle}
-                disabled={sending}
                 anchored
               />
             </span>
           ) : null}
           {hasKnobs(knobs) ? <KnobsButton id={id} open={knobsOpen} onToggle={() => setKnobsOpen((was) => !was)} disabled={false} /> : null}
           {beside ? <span className="btn-beside">{beside}</span> : null}
-          <Button variant="primary" className="composer-send" aria-label={MESSAGE_WORDS.send} disabled={!canSend || sending} onClick={onSend}>
-            {sending ? <AiSpark working burst={burst} /> : <Icon name="send" />}
-          </Button>
+          {sending && onStop ? (
+            <Button key="stop" variant="primary" className="composer-send" aria-label={MESSAGE_WORDS.stop} onMouseDown={keepFocus} onClick={press(onStop)}>
+              <Icon name="stop" className="is-solid" />
+            </Button>
+          ) : (
+            <Button key="send" variant="primary" className="composer-send" aria-label={MESSAGE_WORDS.send} disabled={!canSend || sending} onMouseDown={keepFocus} onClick={press(onSend)}>
+              {sending ? <AiSpark working burst={burst} /> : <Icon name="send" />}
+            </Button>
+          )}
         </div>
       </div>
       {error ? (

@@ -1,4 +1,4 @@
-/** @panki One call to Panki AI as its page tells of it, for `AiStatus` (`AiCall`, `AiMessageWhy`, `piecesAsSent`, `answeredCall`, `failedCall`). Never sent, never kept. */
+/** @panki One call to Panki AI as its page tells of it, for `AiStatus` (`AiCall`, `AiMessageWhy`, `piecesAsSent`, `answeredCall`, `failedCall`, `stoppedCall`). Never sent, never kept. */
 import { AI_PROVIDERS, aiModelOf, type AiProviderId, type AiRanOn, type AiTemplate, type PankiAi } from "./ai";
 import type { PromptPieceId } from "./pieces";
 import { aiSent, ceilingMicros, variablesIn, type AiUnread, type ExplainMessage, type PromptPieces } from "./prompt";
@@ -84,11 +84,15 @@ export type AiVerdict = { name: string; tag: { words: string; look: AiVerdictLoo
 /** A verdict as one line of text, for Copy. */
 export const verdictLine = (v: AiVerdict): string => [v.name + ":", v.tag?.words ?? "", v.value, v.reason].filter((part) => part.trim() !== "").join(" · ");
 
-/** How a call stands: on its way, answered (the provider's own counts, and what they came to), or failed (and why). */
+/**
+ * How a call stands: on its way, answered (the provider's own counts, and what they came to), failed (and why), or
+ * stopped by the person while it was on its way (no fault, and nothing came back to count).
+ */
 export type AiOutcome =
   | { kind: "thinking" }
   | { kind: "answered"; inputTokens: number; outputTokens: number; costMicros: number; cut: boolean; ms: number; verdicts: readonly AiVerdict[]; raw: string }
-  | { kind: "failed"; message: string; ms: number; unread: AiUnread | null };
+  | { kind: "failed"; message: string; ms: number; unread: AiUnread | null }
+  | { kind: "stopped"; ms: number };
 
 export type AiCall = {
   /** What it is, as Details name it among a conversation's calls: "Explain", "Message 2". */
@@ -182,6 +186,9 @@ export const failedCall = (call: AiCall, message: string, now: number, unread: A
   ...(unread?.ranOn ?? {}),
   outcome: { kind: "failed", message, ms: now - call.sentAt, unread },
 });
+
+/** The call once Stop cut it on its way. */
+export const stoppedCall = (call: AiCall, now: number): AiCall => ({ ...call, outcome: { kind: "stopped", ms: now - call.sentAt } });
 
 /** The model a call ran on, by name, and its provider's: "Claude Haiku 5.5 · Anthropic". A model since taken out of the registry is said by its id. */
 export function modelWords(call: Pick<AiCall, "provider" | "model">): string {

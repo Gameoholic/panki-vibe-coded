@@ -9295,6 +9295,9 @@ mark.sub-blur {
   width: 12px;
   height: 12px;
   stroke-width: 2.5;
+}
+/* The tick of a proposal accepted, green; every other chip's icon is in its own chip's colour (a failed one's × red). */
+.btn.ai-chip.is-accepted > .icon {
   color: var(--good);
 }
 .btn.ai-chip:is(.is-accepted, .is-dismissed, .is-replaced) {

@@ -27,8 +27,8 @@ const Answer = z.object({
 const TextBlock = z.object({ type: z.literal("text"), text: z.string() });
 
 export function createAnthropic(fetcher: typeof fetch): ProviderClient {
-  return async ({ key, model, messages, maxTokens, safetyId, format }) => {
-    const body = await postTo(fetcher, "anthropic", API, { "x-api-key": key, "anthropic-version": VERSION }, {
+  return async ({ key, model, messages, maxTokens, safetyId, format, signal }) => {
+    const body = await postTo(fetcher, "anthropic", API, signal, { "x-api-key": key, "anthropic-version": VERSION }, {
       model: model.id,
       max_tokens: maxTokens,
       metadata: { user_id: safetyId },

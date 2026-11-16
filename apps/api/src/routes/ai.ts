@@ -332,6 +332,19 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     res.status(400).json({ error: { message: "One of those actions isn't there any more." }, ai: statusOf(res) });
   };
 
+  /**
+   * The person's Stop, as the server hears it: the page cut its request (an `AbortController` there), so the connection
+   * closes before an answer went. Through nginx too, which closes its own request to the API when the page's closes. A
+   * signal aborted then, handed to the provider's call so it's cut as well.
+   */
+  const stopOf = (res: Response): AbortSignal => {
+    const stop = new AbortController();
+    res.on("close", () => {
+      if (!res.writableFinished) stop.abort();
+    });
+    return stop.signal;
+  };
+
   /** The pieces as they're sent (`AiCalls.piecesFor`): the account's two languages and User instructions its own whatever came. */
   const piecesFor = (res: Response, pieces: PromptPieces, settings: PankiAi): PromptPieces => calls.piecesFor(dbOf(res), pieces, settings);
 
@@ -346,8 +359,11 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       refuse(res, 409, "capped", "That automation is off.");
       return null;
     }
-    const called = await calls.call(settings, signedIn(res).user.id, ruled ? { ...call, before: ruled.before } : call);
+    // A message the person sent is theirs to stop (`stopOf`); an automation's never is.
+    const called = await calls.call(settings, signedIn(res).user.id, ruled ? { ...call, before: ruled.before } : { ...call, signal: stopOf(res) });
     ruled?.kept(called);
+    // Stopped: the page has gone from the request, and nothing is answered.
+    if (!called.ok && called.stopped) return null;
     if (called.ok) return called.ran;
     const { status, problem, message, unread } = called.refused;
     refuse(res, status, problem, message, unread);

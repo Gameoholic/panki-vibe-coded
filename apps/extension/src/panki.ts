@@ -124,7 +124,8 @@ function refusedOf(e: unknown): unknown {
 /** Where Panki is and the sign-in to it. */
 export type Door = { address: string; token: string };
 
-type Init = { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; headers?: Record<string, string>; body?: string | Blob };
+/** `signal`: the person's Stop, which cuts the request on its way (a Panki AI message's). */
+type Init = { method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; headers?: Record<string, string>; body?: string | Blob; signal?: AbortSignal | undefined };
 
 /** The protocol this extension was built with, on every call: Panki refuses one too old for it (the contracts' `extension.ts`). */
 const PROTOCOL = { [EXTENSION_HEADER]: String(EXTENSION_PROTOCOL) };
@@ -171,9 +172,10 @@ async function call<T>(address: string, token: string | null, path: string, init
       credentials: "omit",
       headers: { ...init.headers, ...PROTOCOL, ...(token ? { authorization: `Bearer ${token}` } : {}) },
       ...(init.body === undefined ? {} : { body: init.body }),
+      ...(init.signal ? { signal: init.signal } : {}),
     });
   } catch {
-    throw new PankiError("Couldn't reach Panki.", 0);
+    throw new PankiError(init.signal?.aborted ? STOPPED : "Couldn't reach Panki.", 0);
   }
   await noteState(address, res.headers.get(STATE_HEADER));
   const body: unknown = res.status === 204 ? null : await res.json().catch(() => null);
@@ -184,7 +186,9 @@ async function call<T>(address: string, token: string | null, path: string, init
   return parse(body);
 }
 
-const json = (method: "POST" | "PUT" | "PATCH", body: unknown): Init => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+/** A request cut by Stop, as the worker says it: the page that pressed it has said so already and passes this over. */
+const STOPPED = "Stopped.";
+const json = (method: "POST" | "PUT" | "PATCH", body: unknown): Init =>({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 const id = encodeURIComponent;
 
 export const panki = {
@@ -348,17 +352,17 @@ export const panki = {
    * A refusal Panki explains (off, no key, too long, the provider's failure) is an `ExplainRefused`, with Panki AI as
    * it stands; anything else is a `PankiError` as ever.
    */
-  explain: async ({ address, token }: Door, ask: ExplainAsk): Promise<z.infer<typeof ExplainResponse>> => {
+  explain: async ({ address, token }: Door, ask: ExplainAsk, signal?: AbortSignal): Promise<z.infer<typeof ExplainResponse>> => {
     try {
-      return await call(address, token, "/api/ai/word", json("POST", ask), (b) => ExplainResponse.parse(b));
+      return await call(address, token, "/api/ai/word", { ...json("POST", ask), signal }, (b) => ExplainResponse.parse(b));
     } catch (e) {
       throw refusedOf(e);
     }
   },
   /** The drawer's card touched up by Panki AI, through Panki's server: refused as Explain is, its refusals the same family. */
-  touchUp: async ({ address, token }: Door, ask: TouchUpAsk): Promise<z.infer<typeof TouchUpResponse>> => {
+  touchUp: async ({ address, token }: Door, ask: TouchUpAsk, signal?: AbortSignal): Promise<z.infer<typeof TouchUpResponse>> => {
     try {
-      return await call(address, token, "/api/ai/card", json("POST", ask), (b) => TouchUpResponse.parse(b));
+      return await call(address, token, "/api/ai/card", { ...json("POST", ask), signal }, (b) => TouchUpResponse.parse(b));
     } catch (e) {
       throw refusedOf(e);
     }

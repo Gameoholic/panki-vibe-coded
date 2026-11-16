@@ -22,11 +22,11 @@ import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
-import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, useProfile, writeStore, type Profile, type Stored } from "../storage";
+import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, shortSkipOf, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
 import { setVideoTracking, videoTrackingOn } from "../watch/tracking";
@@ -681,25 +681,27 @@ function HomePanel({ store, onChanged }: { store: Stored; onChanged: () => void 
  * control bar, laid out, is a panel of its own after this one (`PlayerBarPanel`).
  */
 function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => void }) {
+  const skip = shortSkipOf(store);
   return (
     <section className="panel" aria-labelledby="utilities-title">
       <SceneTitle id="utilities" titleId="utilities-title" store={store} />
       {/* Shown or hidden as its neighbours say it, Shown to begin with. */}
       <Setting id="shorts" label="Shorts" control={<Toggle id="shorts-on" says={{ on: "Shown", off: "Hidden" }} on={store.moduleShorts} onChange={(moduleShorts) => void writeStore({ moduleShorts }).then(onChanged)} />} />
       {/* The speed button and the video's end time are rows of the player bar, a panel of its own after this one. */}
-      {/* One group, its switch and the two rows it greys, so they don't read as three settings apart. */}
+      {/* One group, its choice and the two rows Off greys, so they don't read as three settings apart. */}
       <div className="seek-group">
         <h3 className="seek-group-title">Short skip with the arrow keys</h3>
         <Setting
           id="short-skip"
           label="Short skip"
-          control={<Toggle id="short-skip-on" says={{ on: "On", off: "Off" }} on={store.shortSkip} onChange={(shortSkip) => void writeStore({ shortSkip }).then(onChanged)} />}
+          control={<Segmented idPrefix="short-skip" label="Short skip" options={SHORT_SKIP_OPTIONS} value={skip} onChange={(shortSkipBy) => void writeStore({ shortSkipBy }).then(onChanged)} />}
+          why={SHORT_SKIP_WHY[skip]}
         />
         <Setting
           id="short-skip-key"
           label="Key to hold"
           control={
-            <Segmented idPrefix="short-skip-key" label="Key to hold" options={SKIP_KEY_OPTIONS} value={store.shortSkipKey} disabled={!store.shortSkip} onChange={(shortSkipKey) => void writeStore({ shortSkipKey }).then(onChanged)} />
+            <Segmented idPrefix="short-skip-key" label="Key to hold" options={SKIP_KEY_OPTIONS} value={store.shortSkipKey} disabled={skip === "off"} onChange={(shortSkipKey) => void writeStore({ shortSkipKey }).then(onChanged)} />
           }
         />
         <Setting
@@ -714,7 +716,7 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
               max={SKIP_SECONDS_MAX}
               step={0.1}
               suffix=" s"
-              disabled={!store.shortSkip}
+              disabled={skip === "off"}
               onChange={(shortSkipSeconds) => void writeStore({ shortSkipSeconds }).then(onChanged)}
             />
           }
@@ -723,6 +725,18 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
     </section>
   );
 }
+/** How a short skip goes, as the options page names each way. */
+const SHORT_SKIP_OPTIONS: readonly { id: ShortSkip; label: string }[] = [
+  { id: "off", label: "Off" },
+  { id: "time", label: "By time" },
+  { id: "line", label: "By line" },
+];
+// Said only where the choice alone doesn't: By line on a video with no subtitles goes by the seconds.
+const SHORT_SKIP_WHY: Record<ShortSkip, string | null> = {
+  off: null,
+  time: null,
+  line: "Where a video has no subtitles, it skips by the seconds below.",
+};
 /** The keys a short skip can be held with, as the options page names them. */
 const SKIP_KEY_OPTIONS: readonly { id: SkipKey; label: string }[] = [
   { id: "shift", label: "Shift" },

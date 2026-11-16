@@ -25,6 +25,8 @@ const STATUS = {
   thinking: { words: "Thinking", look: "going" },
   answered: { words: "Answered", look: "ready" },
   failed: { words: "Failed", look: "trouble" },
+  // No fault, so neither red nor green: the button's own quiet look.
+  stopped: { words: "Stopped", look: "quiet" },
 } as const;
 
 /** What Details say, one home. */
@@ -219,15 +221,22 @@ function rowsOf(call: AiCall, now: number): Row[] {
       ? `Waiting for ${provider} · ${seconds(Math.max(0, now - call.sentAt))}`
       : outcome.kind === "answered"
         ? `Answered in ${seconds(outcome.ms)}${outcome.cut ? `, ${WORDS.cut}` : ""}`
-        : `Failed after ${seconds(outcome.ms)}: ${outcome.message}`;
+        : outcome.kind === "stopped"
+          ? `Stopped after ${seconds(outcome.ms)}`
+          : `Failed after ${seconds(outcome.ms)}: ${outcome.message}`;
   // In and out a row each, as the provider counted them; out against Max answer length. An
   // answer that couldn't be used was metered too, and says so.
   const metered = meteredOf(call);
   const tokensIn = metered ? n(metered.inputTokens) : outcome.kind === "thinking" ? WORDS.counting : WORDS.noTokens;
   const tokensOut = metered ? `${n(metered.outputTokens)} of ${n(call.maxAnswerTokens)}` : outcome.kind === "thinking" ? `At most ${n(call.maxAnswerTokens)}` : WORDS.noTokens;
   const cost =
-    // Once it's run, what it came to alone: the ceiling was the button's, before it ran.
-    metered ? estimateWords(metered.costMicros) : outcome.kind === "thinking" ? `Up to ${estimateWords(call.ceilingMicros)}` : WORDS.nothingMetered;
+    // Once it's run, what it came to alone: the ceiling was the button's, before it ran. A stopped one may still have
+    // been billed for what it sent, with nothing back to count it by: its most stands.
+    metered
+      ? estimateWords(metered.costMicros)
+      : outcome.kind === "thinking" || outcome.kind === "stopped"
+        ? `Up to ${estimateWords(call.ceilingMicros)}`
+        : WORDS.nothingMetered;
   const note = outcome.kind === "failed" && outcome.unread && outcome.unread.detail !== "" ? outcome.unread.detail : undefined;
   return [
     { name: "Status", words: status, ...(note !== undefined ? { note } : {}) },

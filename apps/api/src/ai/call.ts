@@ -14,9 +14,10 @@ export type AiMessage = { role: "user" | "assistant"; text: string };
 /**
  * One call: the key, the model, the conversation so far, the most the answer may be in the provider's own tokens, and
  * who it's for as an opaque hash (`safetyIdOf`), so a provider tells one of Panki's accounts from another when it looks
- * for abuse rather than holding the whole key to it.
+ * for abuse rather than holding the whole key to it. `signal`, when there is one, is the person's Stop: the provider's
+ * request is cut with it, so nothing more is waited on or read.
  */
-export type AiAsk = { key: string; model: AiModel; messages: readonly AiMessage[]; maxTokens: number; safetyId: string };
+export type AiAsk = { key: string; model: AiModel; messages: readonly AiMessage[]; maxTokens: number; safetyId: string; signal?: AbortSignal | undefined };
 /**
  * The fixed shape an answer is asked in (AI.md: every call answers in one): a name for it and its JSON Schema, as every
  * provider takes one (`schemaFor`). Each client asks for it in its provider's own way.
@@ -45,21 +46,26 @@ export type ProviderClient = (ask: ShapedAsk) => Promise<ProviderAnswer>;
  * What went wrong with a provider, in plain words; always the provider's fault as the API answers it (502).
  * For an answer it did give that couldn't be used (cut short, declined, not JSON, not the shape, against one of Panki's
  * rules): `tokens`, what the provider billed, metered all the same since it was paid for; `raw`, the text exactly as it
- * came; and `detail`, the technical reason, for Details' Log alone (the message stays plain).
+ * came; and `detail`, the technical reason, for Details' Log alone (the message stays plain). `stopped`: no fault at
+ * all, the person pressed Stop and the request was cut (`AiAsk.signal`).
  */
 export class AiError extends Error {
   readonly tokens: { input: number; output: number } | null;
   readonly raw: string | null;
   readonly detail: string | null;
   readonly status: number;
-  constructor(message: string, said: { tokens?: { input: number; output: number }; raw?: string; detail?: string; status?: number } = {}) {
+  readonly stopped: boolean;
+  constructor(message: string, said: { tokens?: { input: number; output: number }; raw?: string; detail?: string; status?: number; stopped?: boolean } = {}) {
     super(message);
     this.tokens = said.tokens ?? null;
     this.raw = said.raw ?? null;
     this.detail = said.detail ?? null;
     this.status = said.status ?? 502;
+    this.stopped = said.stopped ?? false;
   }
 }
+/** The words of a call cut by Stop, on the server's side: never shown, since no one is waiting for the answer. */
+export const STOPPED = "Stopped.";
 
 /** How long a provider may take to answer: a few paragraphs come back in seconds; under nginx's `proxy_read_timeout`, so the API answers first. */
 const TIMEOUT_MS = 60_000;
@@ -73,10 +79,12 @@ export const Tokens = z.number().int().nonnegative();
 /**
  * Sends a provider a call, within the deadline, and gives back its answer as it came, unread: each client reads its
  * own. A refusal is said in plain words, the provider's own sentence when it gave one. The body is read inside
- * the deadline too, so a provider that stalls part-way is said as slow.
+ * the deadline too, so a provider that stalls part-way is said as slow. `stop` cuts it as the deadline does, at once,
+ * the person's Stop; it's then a stop, not a failure (`AiError.stopped`), the request already on its way.
  */
-export async function postTo(fetcher: typeof fetch, provider: AiProviderId, url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
+export async function postTo(fetcher: typeof fetch, provider: AiProviderId, url: string, stop: AbortSignal | undefined, headers: Record<string, string>, body: unknown): Promise<unknown> {
   const { name } = AI_PROVIDERS[provider];
+  const deadline = AbortSignal.timeout(TIMEOUT_MS);
   let res: Response;
   let raw: string;
   try {
@@ -84,10 +92,11 @@ export async function postTo(fetcher: typeof fetch, provider: AiProviderId, url:
       method: "POST",
       headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: stop ? AbortSignal.any([deadline, stop]) : deadline,
     });
     raw = await res.text();
   } catch (e) {
+    if (stop?.aborted) throw new AiError(STOPPED, { stopped: true });
     throw new AiError(timedOut(e) ? `${name} took too long to answer.` : `Couldn't reach ${name}.`);
   }
   let answer: unknown = null;

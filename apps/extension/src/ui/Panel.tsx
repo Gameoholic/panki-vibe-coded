@@ -27,6 +27,7 @@ import {
   customOf,
   exampleFieldsOf,
   failedCall,
+  stoppedCall,
   historyOf,
   mainRuns,
   DEFAULT_ACTION_SECONDS,
@@ -85,7 +86,7 @@ import {
   type ValueSource,
   type ValueSources,
 } from "@panki/contracts";
-import { KNOB_WORDS, MESSAGE_WORDS, ceilingOf, questionProblem, useAskFirst } from "@web/components/AiRun";
+import { KNOB_WORDS, MESSAGE_WORDS, ceilingOf, questionProblem, useAskFirst, useStop } from "@web/components/AiRun";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { AlreadyIn, EXAMPLE_WORDS, exampleTargetOf, useAddAnyway } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
@@ -118,11 +119,13 @@ import {
   AiConversation,
   CONVERSATION_WORDS,
   ConversationTurns,
+  STOPPED,
   type Asking,
   type ChipState,
   type ConversationFoot,
   type ConversationMark,
   type ConversationOf,
+  type Failure,
   type Tone,
 } from "@web/components/AiConversation";
 import { FIELD_KINDS } from "@web/fieldKinds";
@@ -137,7 +140,7 @@ import { CLIENT } from "../client";
 import { wordKey, type Found } from "../dictionary/found";
 import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
 import { wordsNow } from "../dictionary/useWords";
-import { askAdd, askAddExample, askAiState, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askRules, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
+import { askAdd, askAddExample, askAiState, askAiStop, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askRules, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
 import { aiActionOf, automationOf } from "../automations";
 import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, mappingOn, roleOf, roleOfKey, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { useLocal } from "../local";
@@ -223,8 +226,8 @@ type Touch = {
   busy: false | "requiring" | "follow";
   /** The keys a send on its way requires. */
   working: readonly TouchUpKey[];
-  /** Why the conversation's first send gave no answer, with Try again; a later send's failure is its own turn's. */
-  failure: { message: string; retry: boolean } | null;
+  /** Why the conversation's first send gave no answer (or that it was stopped), with Try again; a later send's is its own turn's. */
+  failure: Failure | null;
   /** The last send that failed, what Try again sends again. */
   retry: Sent | null;
   /** Whether a run has answered: from then each field it judges keeps its follow-ups under it. */
@@ -622,6 +625,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const [follows, setFollows] = useState<Record<string, { text: string; error?: string }>>({});
   /** Ask before a run over: every send, each asked where its answer would go. */
   const touchGate = useAskFirst();
+  /** Stop, for a message sent here (never the drawer's automation), cut in the worker by its name. */
+  const touchStop = useStop((name) => void askAiStop(name));
   /** The last round's id in this drawer: each round of the conversation has its own. */
   const roundIds = useRef(0);
   /** What Panki AI wrote into each field, by field id, once accepted. */
@@ -1025,7 +1030,22 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           ? [...was.heardNotes, { after: was.conversation.main.length, lines: heardLinesNow, seconds: heardNow ? heardNow.to - heardNow.from : null }]
           : was.heardNotes,
     }));
-    const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }), ...(rule ? { rule } : {}) });
+    // Stopped, it stands as a failure does, where it was asked, Try again sending it again; nothing of it lands on the
+    // card, and whatever answer comes is passed over.
+    const stop = rule
+      ? undefined
+      : touchStop.begin(() =>
+          setTouch((was) => ({
+            ...was,
+            calls: was.calls.map((each) => (each === call ? stoppedCall(call, Date.now()) : each)),
+            busy: false,
+            working: [],
+            retry: sent,
+            ...(firstSend ? { failure: STOPPED, asking: null } : { asking: { ...pending, failure: STOPPED } }),
+          })),
+        );
+    const answer = await askTouchUp({ pieces: first.pieces, meanings: first.meanings, keys: touchKeys, now: read.now, opening, said, ...(firstSend ? {} : { send }), ...(rule ? { rule } : {}) }, stop);
+    if (stop !== undefined && !touchStop.end(stop)) return;
     const now = Date.now();
     if (!answer.ok) {
       const failed = failedCall(call, answer.message, now, answer.unread);
@@ -1246,6 +1266,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             if (action.success) setTicked(litActions.includes(action.data) ? litActions.filter((each) => each !== action.data) : [...litActions, action.data]);
           },
           onSend: () => sendFrom(null),
+          onStop: touchStop.onStop,
         },
       };
     }

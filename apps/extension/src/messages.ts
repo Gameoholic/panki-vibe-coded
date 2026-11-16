@@ -111,6 +111,9 @@ export const NO_UPDATE: UpdateState = { state: "unknown", own: null, latest: nul
 export const RecordingAsk = MediaRecording.omit({ client: true, build: true });
 export type RecordingAsk = z.infer<typeof RecordingAsk>;
 
+/** The name a page gives a Panki AI message it may stop: its own, unique while the page is open (`askAiStop`). */
+export const AiStopId = z.string().min(1).max(64);
+
 /** A tab of the options page a page sends the viewer to: the sign-in, a deck's field mapping, the video's settings, or the downloads. */
 export const OptionsTab = z.enum(["account", "decks", "videos", "youtube", "downloads"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
@@ -288,10 +291,15 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rules"), fresh: z.boolean().optional() }),
   /** A rule's run on a trigger the page heard, asked of Panki, which holds its caps and keeps the go or the stop. */
   z.object({ kind: z.literal("ruleRun"), ruleId: RuleId, run: RuleRunAsk }),
-  /** A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation so far. */
-  z.object({ kind: z.literal("explain"), ask: ExplainAsk }),
-  /** The card being added in the drawer touched up by Panki AI: its pieces, the dictionary's meanings and the keys it has fields for. */
-  z.object({ kind: z.literal("touchUp"), ask: TouchUpAsk }),
+  /**
+   * A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation
+   * so far. `stop`, the page's name for it, for a message the person may stop (`aiStop`); none for an automation's.
+   */
+  z.object({ kind: z.literal("explain"), ask: ExplainAsk, stop: AiStopId.optional() }),
+  /** The card being added in the drawer touched up by Panki AI: its pieces, the dictionary's meanings and the keys it has fields for. `stop` as Explain's. */
+  z.object({ kind: z.literal("touchUp"), ask: TouchUpAsk, stop: AiStopId.optional() }),
+  /** Stop pressed: the message the page named so cut on its way to Panki, which cuts the provider's call with it. */
+  z.object({ kind: z.literal("aiStop"), stop: AiStopId }),
   /** Lines of a video's Panki subtitles proofread by Panki AI (AI step 6): the lines by their words' ids, and the pieces only the page has. */
   z.object({ kind: z.literal("proofread"), ask: ProofreadAsk }),
   /** Panki AI's edits on a video's transcript taken back, a word's or a run's, one step each. */
@@ -728,23 +736,30 @@ export async function askRuleRun(ruleId: string, run: RuleRunAsk): Promise<RuleR
   const answer = RuleRan.safeParse(await ask({ kind: "ruleRun", ruleId, run }));
   return answer.success ? answer.data : failed(answer.error);
 }
-/** A word explained by Panki AI, or a follow-up asked: its answer, or why there's none. */
-export async function askExplain(explain: ExplainAsk): Promise<Explanation> {
-  const answer = ExplainAnswer.safeParse(await ask({ kind: "explain", ask: explain }));
+/**
+ * A word explained by Panki AI, or a follow-up asked: its answer, or why there's none. `stop` names it for Stop
+ * (`askAiStop`); an automation's message goes without one.
+ */
+export async function askExplain(explain: ExplainAsk, stop?: string): Promise<Explanation> {
+  const answer = ExplainAnswer.safeParse(await ask({ kind: "explain", ask: explain, ...(stop ? { stop } : {}) }));
   if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
   const got = answer.data;
   if (got.ok) return got;
   if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
   return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
 }
-/** The drawer's card touched up by Panki AI: its proposals, or why there are none. */
-export async function askTouchUp(touchUp: TouchUpAsk): Promise<TouchUpResult> {
-  const answer = TouchUpAnswered.safeParse(await ask({ kind: "touchUp", ask: touchUp }));
+/** The drawer's card touched up by Panki AI: its proposals, or why there are none. `stop` as Explain's. */
+export async function askTouchUp(touchUp: TouchUpAsk, stop?: string): Promise<TouchUpResult> {
+  const answer = TouchUpAnswered.safeParse(await ask({ kind: "touchUp", ask: touchUp, ...(stop ? { stop } : {}) }));
   if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
   const got = answer.data;
   if (got.ok) return got;
   if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
   return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** Stop pressed on the message the page named `stop`: cut on its way, the provider's call with it. Its own ask answers as a failure, which the page passes over. */
+export async function askAiStop(stop: string): Promise<void> {
+  await ask({ kind: "aiStop", stop });
 }
 /** Lines of a video's transcript proofread by Panki AI: its edits and the transcript after, or why there are none. */
 export async function askProofread(proofread: ProofreadAsk): Promise<ProofreadResult> {

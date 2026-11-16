@@ -32,8 +32,8 @@ const Answer = z.object({
 const Part = z.object({ text: z.string(), thought: z.boolean().optional() });
 
 export function createGoogle(fetcher: typeof fetch): ProviderClient {
-  return async ({ key, model, messages, maxTokens, format }) => {
-    const body = await postTo(fetcher, "google", `${API}/${encodeURIComponent(model.id)}:generateContent`, { "x-goog-api-key": key }, {
+  return async ({ key, model, messages, maxTokens, format, signal }) => {
+    const body = await postTo(fetcher, "google", `${API}/${encodeURIComponent(model.id)}:generateContent`, signal, { "x-goog-api-key": key }, {
       contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.text }] })),
       generationConfig: {
         maxOutputTokens: maxTokens,

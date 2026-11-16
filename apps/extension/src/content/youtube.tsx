@@ -44,7 +44,7 @@ import { WatchingControl } from "../ui/WatchingControl";
 import type { Cut } from "../roles";
 import { paintCss } from "../seekLook";
 import { comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
-import { createLineSource } from "../transcribe/lineSource";
+import { createLineSource, lineSkipTo } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
 import { createProofreader, type ProofreadScope } from "../transcribe/proofreader";
 import { createTranscriber } from "../transcribe/transcriber";
@@ -3416,18 +3416,21 @@ function typedElsewhere(e: KeyboardEvent): boolean {
 }
 
 /**
- * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on by the seconds set, in place of the
- * site's 5 s, and held down it goes on skipping, kept from the site. There with Panki on or off; never while typing, in
- * Panki's own places, or while an ad plays. Whether it took the key.
+ * A short skip (a YouTube utility): ← or → with the chosen key held goes back or on, in place of the site's 5 s, by the
+ * seconds set or by a line of the subtitles the panel shows (`lineSkipTo`), by the seconds where there's no line to go
+ * to; held down it goes on skipping, kept from the site. There with Panki on or off; never while typing, in Panki's own
+ * places, or while an ad plays. Whether it took the key.
  */
 function shortSkip(e: KeyboardEvent): boolean {
   const on = active();
-  if (!on.shortSkip || !video || (e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !SKIP_HELD[on.shortSkipKey](e)) return false;
+  if (on.shortSkip === "off" || !video || (e.key !== "ArrowLeft" && e.key !== "ArrowRight") || !SKIP_HELD[on.shortSkipKey](e)) return false;
   if (typedElsewhere(e) || adPlaying()) return false;
   e.preventDefault();
   e.stopImmediatePropagation();
+  const back = e.key === "ArrowLeft";
   const end = Number.isFinite(video.duration) ? video.duration : Infinity;
-  video.currentTime = Math.max(0, Math.min(end, video.currentTime + (e.key === "ArrowLeft" ? -1 : 1) * on.shortSkipSeconds));
+  const byLine = on.shortSkip === "line" ? lineSkipTo(lines.snapshot(), video.currentTime, back) : null;
+  video.currentTime = Math.max(0, Math.min(end, byLine ?? video.currentTime + (back ? -1 : 1) * on.shortSkipSeconds));
   return true;
 }
 

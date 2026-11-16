@@ -21,7 +21,7 @@ import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
 import { barShows, barSide, isPankiBar, resumeTo, type BarControl, type BarLayout } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
-import { barOf, type Stored } from "../storage";
+import { barOf, shortSkipOf, type Stored } from "../storage";
 import { Burst } from "../ui/Burst";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
@@ -810,6 +810,9 @@ function ReminderScene({ store }: { store: Stored }) {
   );
 }
 
+/** A short skip by line in the example: how far back the line before starts, and on the next, in seconds, and what's shown as it goes. */
+const SKIP_LINES = { back: 3.6, on: 3.2, backWords: "Previous line", onWords: "Next line" };
+
 /** YouTube utilities, each as it's set: the speed button, when the video will end, a short skip, Shorts shown or gone. */
 function UtilitiesScene({ store }: { store: Stored }) {
   // The speed button is the real one, and plays on a video of its own: one that's never shown and never played.
@@ -857,24 +860,25 @@ function UtilitiesScene({ store }: { store: Stored }) {
       setEnds(true);
       await t.wait(1000);
     }
-    if (store.shortSkip) {
+    const skipBy = shortSkipOf(store);
+    if (skipBy !== "off") {
       const key = keyWordOf(store.shortSkipKey);
-      const by = store.shortSkipSeconds;
-      const step = (by / LENGTH) * 100;
-      const words = `${by} s`;
+      // By time, the seconds set each way; by line, back to the line before (the one playing has only just begun) and
+      // on to the next, as far as the example's lines lie apart.
+      const by = skipBy === "line" ? SKIP_LINES : { back: store.shortSkipSeconds, on: store.shortSkipSeconds, backWords: `−${store.shortSkipSeconds} s`, onWords: `+${store.shortSkipSeconds} s` };
       await t.move([30, 30], 400);
       t.hold(key);
       await t.wait(250);
       t.hold("←");
-      setAt((a) => a - step);
-      setSkip(`−${words}`);
+      setAt((a) => a - (by.back / LENGTH) * 100);
+      setSkip(by.backWords);
       await t.wait(500);
       t.letGo("←");
       setSkip(null);
       await t.wait(200);
       t.hold("→");
-      setAt((a) => a + step);
-      setSkip(`+${words}`);
+      setAt((a) => a + (by.on / LENGTH) * 100);
+      setSkip(by.onWords);
       await t.wait(500);
       t.letGo("→");
       t.letGo(key);

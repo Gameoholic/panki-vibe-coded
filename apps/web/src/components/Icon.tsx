@@ -126,7 +126,7 @@ const ICONS = {
   /** Panki on or off, and Video tracking turned off. */
   power: ["M12 3v9", "M7 6.5a7.5 7.5 0 1 0 10 0"],
   copy: ["M9 9h11v11H9z", "M5 15H4V4h11v1"],
-  /** A square: transcribing stopped (`pause` is a player's). */
+  /** A square: transcribing stopped (`pause` is a player's); filled (`className="is-solid"`), Stop in a conversation's composer, cutting a message on its way. */
   stop: ["M6 6h12v12H6z"],
   /** Up into a tray: a file sent to Panki or brought into the extension (a dictionary). */
   upload: ["M12 15V4", "M8 8l4-4 4 4", "M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"],

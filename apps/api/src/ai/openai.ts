@@ -25,8 +25,8 @@ const Answer = z.object({
 });
 
 export function createOpenAi(fetcher: typeof fetch): ProviderClient {
-  return async ({ key, model, messages, maxTokens, safetyId, format }) => {
-    const body = await postTo(fetcher, "openai", API, { authorization: `Bearer ${key}` }, {
+  return async ({ key, model, messages, maxTokens, safetyId, format, signal }) => {
+    const body = await postTo(fetcher, "openai", API, signal, { authorization: `Bearer ${key}` }, {
       model: model.id,
       messages: messages.map((m) => ({ role: m.role, content: m.text })),
       max_completion_tokens: maxTokens,

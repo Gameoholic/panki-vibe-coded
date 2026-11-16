@@ -62,6 +62,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-14: Downloads step 2, downloading seen working in Chrome: Download this video in the Panki panel's menu, run in the background by one YouTube page at a time, the pieces YouTube's player is handed copied in a hidden frame at 4×; Downloading / Waiting / Downloaded, Remove; the options page's Downloads tab with Download quality (`architecture/downloads.md`).
 - 2026-11-14: Downloads step 3: the downloaded mark on a downloaded video's every thumbnail, Panki's home shelves, the recap's Next up and the player bar (Downloaded), live on every page; Downloaded mark Shown / Hidden on the Downloads tab (`architecture/downloads.md` → On screen); Download speed, 1× to 16×, 4× to begin with, beside Download quality.
 - 2026-11-14: Downloads step 4, B on trial: a downloaded video's copy put into YouTube's own player where it runs short with no signal, what it did said under Downloaded in the panel's menu and in the console (`architecture/downloads.md` → Playing from the copy).
+- 2026-11-16: Short skip Off, By time or By line, By line a subtitle line back or on (← within 1 s of a line's start to the line before), by the seconds without subtitles; a kept On reads as By time (`architecture/watching.md`).
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
 - 2026-11-05: what the extension keeps of Panki's, one registry; 2026-11-07: this browser's own settings (`architecture/kept.md`).
 
@@ -96,6 +97,8 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-10: the conversation's messages scrolling in their box; the whole block folded under its name; Actions….
 - 2026-11-12: the prompts neutral, how Panki AI writes moved to User instructions (Panki's own few lines to begin with); the Explanation left empty when it isn't needed, each field's own Touch up and the actions' grouping gone; the Sentence picked as whole subtitle lines by number, never reworded, and not asked off a video; a part that couldn't be used said under its reply; `{First message}`, where the admin's prompt puts the first message, at the end of Panki's own; User instructions out of the pop-up's and the drawer's conversations, a message's bubble naming its actions alone; the Sentence's clip move as a diff of each end and the length; on a video the Sentence read-only, the clip's words (no Lock), every subtitle line one number in every message, the card's Sentence sent with its lines ("part of" a choice that's good when it holds what the word needs).
 - 2026-11-16: the conversation's look, B Quiet, in the Card drawer, the Word pop-up and Settings → Panki AI's explainers: each message a soft bubble at the right, each reply plain text beside a small spark, one rounded composer, Send round in Panki's blue with an arrow.
+- 2026-11-16: the composer typed in while Panki AI answers, the actions ticked too, Send waiting for the answer, what's typed meanwhile kept as it lands.
+- 2026-11-16: Stop in Send's place while a message is on its way, in the drawer and the pop-up: the message cut, and the provider's call with it, its turn "Stopped" with Try again, the head's status Stopped; never an automation's.
 
 ## Under way
 

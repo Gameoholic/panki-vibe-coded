@@ -31,6 +31,7 @@ import {
   widerOf,
   startCall,
   startConversation,
+  stoppedCall,
   type AccountActions,
   type AiCall,
   type AiMessageWhy,
@@ -50,8 +51,8 @@ import {
 } from "@panki/contracts";
 import { ruleWords } from "@web/ruleKinds";
 import { aiActionOf, automationOf } from "../automations";
-import { AiConversation, type Asking, type ConversationMark, type ConversationOf, type Failure } from "@web/components/AiConversation";
-import { KNOB_WORDS, MESSAGE_WORDS, ceilingOf, questionProblem, useAskFirst, whyNot, type ComposerProps } from "@web/components/AiRun";
+import { AiConversation, STOPPED, type Asking, type ConversationMark, type ConversationOf, type Failure } from "@web/components/AiConversation";
+import { KNOB_WORDS, MESSAGE_WORDS, ceilingOf, questionProblem, useAskFirst, useStop, whyNot, type ComposerProps } from "@web/components/AiRun";
 import { Icon } from "@web/components/Icon";
 import { goTo } from "@web/hooks/useHoist";
 import { meaningsChip } from "@web/components/JudgedRow";
@@ -60,7 +61,7 @@ import type { Pointed } from "../capture/look";
 import { sentenceAround } from "../capture/selection";
 import type { Found } from "../dictionary/found";
 import { dictionaryPieces } from "../dictionary/pieces";
-import { askAiState, askExplain, askRules, type AiShown } from "../messages";
+import { askAiState, askAiStop, askExplain, askRules, type AiShown } from "../messages";
 import { glossaryText } from "./Glossary";
 
 /**
@@ -282,6 +283,8 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
   const [reachSet, setReachSet] = useState<number | null>(null);
   const [marks, setMarks] = useState<readonly ConversationMark[]>([]);
   const gate = useAskFirst();
+  /** Stop, for a message pressed here (never the automation's), cut in the worker by its name. */
+  const stopper = useStop((name) => void askAiStop(name));
   /** A call on its way: a second press waits for it. */
   const running = useRef(false);
   /** How many runs and messages were sent here, for each one's name in Details ("Explain 2", "Message 3"). */
@@ -399,7 +402,22 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     setJudging(explainRequiredFor(litNow(book, "word", send.actions)).includes("meanings"));
     setSends((was) => was + 1);
     if (firstSend) setOpening(send);
-    const answer = await askExplain({ pieces, meanings: read.meanings, opening: first, said, ...(firstSend ? {} : { send }), ...(rule ? { rule } : {}) });
+    // Stopped, it stands as a failure does, Try again sending it again; nothing of it lands, and whatever answer comes is passed over.
+    const stop = rule
+      ? undefined
+      : stopper.begin(() => {
+          running.current = false;
+          setCalls((was) => was.map((each) => (each === call ? stoppedCall(call, Date.now()) : each)));
+          setBusy(false);
+          setJudging(false);
+          setRetry(sent);
+          if (firstSend) {
+            setAsking(null);
+            setFailure(STOPPED);
+          } else setAsking({ ...pending, failure: STOPPED });
+        });
+    const answer = await askExplain({ pieces, meanings: read.meanings, opening: first, said, ...(firstSend ? {} : { send }), ...(rule ? { rule } : {}) }, stop);
+    if (stop !== undefined && !stopper.end(stop)) return;
     running.current = false;
     if (!alive.current) return;
     const now = Date.now();
@@ -588,6 +606,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
             if (parsed.success) setTicked(lit.includes(parsed.data) ? lit.filter((each) => each !== parsed.data) : [...lit, parsed.data]);
           },
           onSend: sendFromComposer,
+          onStop: stopper.onStop,
         },
       }}
     />

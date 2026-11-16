@@ -16,7 +16,8 @@ import { ScrollEdges } from "./ScrollEdges";
  * a comma, what was typed under them; typed words alone as they are), then its answer's reply as plain paragraphs on
  * the page, no bubble, beside a small spark, and what it changed ("Changed:" and a chip each,
  * "Changed nothing"), a branch merged into main as one block with its field's mark and its messages that changed
- * nothing folded, the message on its way with the spark turning where its reply will stand, a failure with Try again, and the composer
+ * nothing folded, the message on its way with the spark turning where its reply will stand, a failure with Try again
+ * (a message stopped on its way the same, said quietly as "Stopped"), and the composer
  * or the next message folded at the foot; main's messages scroll inside their box once there are more than fit, the
  * newest in view, and the whole block folds under its head's name. What's a place's own is what it hands in (`ConversationOf`): what a commit
  * changed as chips and where a chip goes, Panki's own notes under a reply, a field's name where it has branches, what
@@ -28,6 +29,8 @@ import { ScrollEdges } from "./ScrollEdges";
 export const CONVERSATION_WORDS = {
   /** The spark turning where a reply will stand, for a screen reader. */
   answering: "Panki AI is answering",
+  /** Where the reply would stand, for a message the person stopped on its way. */
+  stopped: "Stopped",
   tryAgain: "Try again",
   /** Before the chips of what a reply changed (`Changed`), and in their place when it changed nothing. */
   changed: "Changed:",
@@ -58,7 +61,37 @@ export type ChangeChip = { id: string; name: string; tone: Tone; state: ChipStat
 /** Something a reply couldn't give, as its chip draws it: where a press goes (`id`), its name, and why, in Panki's words. */
 export type FailedChip = { id: string; name: string; why: string };
 
-export type Failure = { message: string; retry: boolean };
+/**
+ * Why a message gave no answer, with Try again where another go could pass; `stopped`, no fault at all: the person
+ * pressed Stop (`STOPPED`), said quietly as Panki's own note rather than in red.
+ */
+export type Failure = { message: string; retry: boolean; stopped?: boolean };
+/** A message the person stopped on its way, as its turn says it: Try again sends it again. */
+export const STOPPED: Failure = { message: CONVERSATION_WORDS.stopped, retry: true, stopped: true };
+
+/** A failure, or a stop, where the answer would stand: its words, then Try again where it can go again. */
+function FailureNote({ failure, canRun, onRetry }: { failure: Failure; canRun: boolean; onRetry: () => void }) {
+  return (
+    <div className="ai-explain-failure">
+      {failure.stopped ? (
+        <p className="ai-explain-cut is-stopped" role="status">
+          <Icon name="stop" />
+          {failure.message}
+        </p>
+      ) : (
+        <p className="form-failure" role="alert">
+          {failure.message}
+        </p>
+      )}
+      {failure.retry ? (
+        <Button className="ai-explain-button" disabled={!canRun} onClick={onRetry}>
+          <AiSpark />
+          {CONVERSATION_WORDS.tryAgain}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
 /**
  * A message on its way, not yet a commit: one carrying one of its place's defaults (`run`, the name it goes by in
  * Details) or not, with every action it went with by name (`actions`, what its bubble heads with), sent on main
@@ -224,17 +257,7 @@ function Turn({ turn, canRun, onRetry, onGo }: TurnProps & { turn: Drawn }) {
         </span>
         <div className="ai-reply-body">
           {waiting ? null : turn.failure ? (
-            <div className="ai-explain-failure">
-              <p className="form-failure" role="alert">
-                {turn.failure.message}
-              </p>
-              {turn.failure.retry ? (
-                <Button className="ai-explain-button" disabled={!canRun} onClick={() => onRetry(turn)}>
-                  <AiSpark />
-                  {CONVERSATION_WORDS.tryAgain}
-                </Button>
-              ) : null}
-            </div>
+            <FailureNote failure={turn.failure} canRun={canRun} onRetry={() => onRetry(turn)} />
           ) : (
             <AnswerText text={turn.reply ?? ""}>
               {turn.notes}
@@ -461,21 +484,7 @@ export function AiConversation<C>({ ref, className, inert = false, calls, burst,
       <AiStatus calls={calls} burst={burst} always={always} fold={{ open, onToggle: () => setOpen(!open), controls: `${id}-body` }} />
       <Fold open={open} arrives={false}>
         <div id={`${id}-body`} className="ai-explain-body">
-          {failure ? (
-            <div className="ai-explain-failure">
-              <p className="form-failure" role="alert">
-                {failure.message}
-              </p>
-              {failure.retry ? (
-                <Button className="ai-explain-button" disabled={!place.of.canRun || busy} onClick={onRunAgain}>
-                  <AiSpark />
-                  {CONVERSATION_WORDS.tryAgain}
-                </Button>
-              ) : null}
-            </div>
-          ) : (
-            tools
-          )}
+          {failure ? <FailureNote failure={failure} canRun={place.of.canRun && !busy} onRetry={onRunAgain} /> : tools}
           <ConversationTurns {...place} where={null} />
         </div>
       </Fold>

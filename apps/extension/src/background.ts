@@ -444,6 +444,26 @@ async function stamped(source: CardSource | undefined): Promise<{ source?: CardS
   return { source: build ? { ...source, capture: { ...source.capture, build } } : source };
 }
 
+/**
+ * Panki AI messages a page may stop, while they're on their way: each by the tab that sent it and the page's own name
+ * for it, so one tab's Stop never reaches another's message. Cutting the request is the whole of it: Panki hears its
+ * request close and cuts the provider's call (`routes/ai.ts` → `stopOf`).
+ */
+const stoppable = new Map<string, AbortController>();
+const stopKey = (sender: chrome.runtime.MessageSender, stop: string) => `${sender.tab?.id ?? "page"}:${sender.frameId ?? 0}:${stop}`;
+/** A call made stoppable by the page's name for it, for as long as it's on its way; one with no name, as it was. */
+async function whileStoppable<T>(sender: chrome.runtime.MessageSender, stop: string | undefined, go: (signal?: AbortSignal) => Promise<T>): Promise<T> {
+  if (stop === undefined) return go();
+  const key = stopKey(sender, stop);
+  const controller = new AbortController();
+  stoppable.set(key, controller);
+  try {
+    return await go(controller.signal);
+  } finally {
+    stoppable.delete(key);
+  }
+}
+
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
@@ -530,6 +550,10 @@ async function answer(
     await writeStore({ recapLook: ask.look });
     return { ok: true };
   }
+  if (ask.kind === "aiStop") {
+    stoppable.get(stopKey(sender, ask.stop))?.abort();
+    return { ok: true };
+  }
   // Signed out is an answer here, not a failure: the pop-up greys Explain and says why.
   if (ask.kind === "aiState") return aiState(await readStore(), ask.fresh === true);
   if (ask.kind === "rules") return rulesState(await readStore(), ask.fresh === true);
@@ -603,7 +627,7 @@ async function answer(
     // says how Panki AI stands now: kept in place of what was.
     if (ask.kind === "explain") {
       try {
-        const answered = await panki.explain(door, ask.ask);
+        const answered = await whileStoppable(sender, ask.stop, (signal) => panki.explain(door, ask.ask, signal));
         await putKept("ai", store, aiShownOf(answered.ai));
         return { ok: true, explain: answered.explain };
       } catch (e) {
@@ -614,7 +638,7 @@ async function answer(
     }
     if (ask.kind === "touchUp") {
       try {
-        const answered = await panki.touchUp(door, ask.ask);
+        const answered = await whileStoppable(sender, ask.stop, (signal) => panki.touchUp(door, ask.ask, signal));
         await putKept("ai", store, aiShownOf(answered.ai));
         return { ok: true, touchUp: answered.touchUp };
       } catch (e) {

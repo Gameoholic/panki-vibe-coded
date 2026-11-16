@@ -236,6 +236,13 @@ export const SHELF_MAX = 5;
 export const CLIP_ROOM_MAX = 2;
 export const ClipRoom = z.number().min(0).max(CLIP_ROOM_MAX);
 
+/**
+ * How a short skip goes (`Modules.shortSkip`): not at all, the arrows left to the site; by `shortSkipSeconds`; or a
+ * subtitle line back or on, by the seconds where there's no line to go to (`content/youtube.tsx` → `shortSkip`).
+ */
+export const SHORT_SKIPS = ["off", "time", "line"] as const;
+export const ShortSkip = z.enum(SHORT_SKIPS);
+export type ShortSkip = z.infer<typeof ShortSkip>;
 /** The key held with ← or → for a short skip (`Modules.shortSkip`): one, held alone. */
 export const SKIP_KEYS = ["shift", "ctrl", "alt"] as const;
 export const SkipKey = z.enum(SKIP_KEYS);
@@ -334,10 +341,10 @@ export const Modules = z.object({
   /** The key that keeps the player bar visible, or lets it fade again (`barKept`; `content/youtube.tsx` → `PAGE_KEYS`). X to begin with. */
   barKey: BoundKey,
   /**
-   * ← or → with `shortSkipKey` held goes back or on by `shortSkipSeconds` in place of the site's 5 s (a YouTube
-   * utility): on, Shift, 2.5 s to begin with.
+   * ← or → with `shortSkipKey` held goes back or on in place of the site's 5 s (a YouTube utility), by
+   * `shortSkipSeconds` or by a subtitle line (`ShortSkip`): by time, Shift, 2.5 s to begin with.
    */
-  shortSkip: z.boolean(),
+  shortSkip: ShortSkip,
   shortSkipKey: SkipKey,
   shortSkipSeconds: SkipSeconds,
   /**
@@ -392,7 +399,7 @@ export const DEFAULT_MODULES: Modules = {
   bar: DEFAULT_BAR,
   barKept: false,
   barKey: "x",
-  shortSkip: true,
+  shortSkip: "time",
   shortSkipKey: "shift",
   shortSkipSeconds: 2.5,
   recap: true,

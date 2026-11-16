@@ -29,6 +29,32 @@ export type LinesView = {
   widest: number;
 };
 
+/**
+ * ← by a line within this many seconds of a line's start goes to the line before it, as a music player's previous
+ * does; later in the line, back to its own start.
+ */
+const RESTART_WITHIN = 1;
+/** A time this close to a line's start counts as at it, so a jump that lands a hair before the line doesn't read as the line before. Seconds. */
+const AT_START = 0.05;
+
+/**
+ * Where a skip by a line lands (`content/youtube.tsx` → `shortSkip`): back, the start of the line the video is in or
+ * the one before it (`RESTART_WITHIN`); on, the start of the next. Null where there's no line to go to. `lines` are in
+ * order of their start.
+ */
+export function lineSkipTo(lines: readonly Line[], time: number, back: boolean): number | null {
+  if (!back) return lines.find((line) => line.start > time + AT_START)?.start ?? null;
+  let line: Line | null = null;
+  let before: Line | null = null;
+  for (const each of lines) {
+    if (each.start > time + AT_START) break;
+    before = line;
+    line = each;
+  }
+  if (!line) return null;
+  return time - line.start > RESTART_WITHIN ? line.start : (before?.start ?? null);
+}
+
 /** A line said stays on the picture this long after its last word, as a subtitle lingers (a one-word line flashed by otherwise), unless the next line begins sooner. Seconds. */
 const HOLD = 2;
 const EMPTY: readonly Line[] = [];

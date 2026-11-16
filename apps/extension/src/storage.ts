@@ -4,7 +4,7 @@ import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts"
 import { DEFAULT_DOWNLOAD_QUALITY, DEFAULT_DOWNLOAD_SPEED, DownloadQuality, DownloadSpeed } from "./download/download";
 import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
-import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
+import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
@@ -210,8 +210,12 @@ const Stored = z.object({
   /** The speed button's and the end time's own switches, before they were rows of the player bar: read once into its layout, never written again. */
   speedControl: z.boolean().catch(true),
   endTime: z.boolean().catch(true),
-  /** A short skip with ← or → and a key held (`modules.ts` → `shortSkip`). */
-  shortSkip: z.boolean().catch(DEFAULT_MODULES.shortSkip),
+  /**
+   * A short skip with ← or → and a key held: Off, By time or By line (`modules.ts` → `ShortSkip`); null until it's
+   * first picked, read until then from `shortSkip`, the On / Off switch it was (`shortSkipOf`), never written again.
+   */
+  shortSkipBy: ShortSkip.nullable().catch(null),
+  shortSkip: z.boolean().nullable().catch(null),
   shortSkipKey: SkipKey.catch(DEFAULT_MODULES.shortSkipKey),
   shortSkipSeconds: SkipSeconds.catch(DEFAULT_MODULES.shortSkipSeconds),
   /** The Video recap as a video is finished, and its confetti (options page, Videos → Video recap; `modules.ts` → `recap`). */
@@ -260,6 +264,13 @@ export const barOf = (store: Stored): BarLayout =>
   store.playerBarLayout ??
   DEFAULT_BAR.map((control) => (control.id === "speed" ? { ...control, shown: store.speedControl } : control.id === "endTime" ? { ...control, shown: store.endTime } : control));
 
+/**
+ * How a short skip goes: as picked once it has been; before that as its old switch stood, On by time and Off off; and
+ * in a browser that kept neither, the default.
+ */
+export const shortSkipOf = (store: Pick<Stored, "shortSkipBy" | "shortSkip">): ShortSkip =>
+  store.shortSkipBy ?? (store.shortSkip === null ? DEFAULT_MODULES.shortSkip : store.shortSkip ? "time" : "off");
+
 /** Which parts are on, as one value, as a page gets them. */
 export const modulesOf = (store: Stored): Modules => ({
   on: store.pankiOn,
@@ -292,7 +303,7 @@ export const modulesOf = (store: Stored): Modules => ({
   bar: barOf(store),
   barKept: store.playerBarKept,
   barKey: store.playerBarKey,
-  shortSkip: store.shortSkip,
+  shortSkip: shortSkipOf(store),
   shortSkipKey: store.shortSkipKey,
   shortSkipSeconds: store.shortSkipSeconds,
   recap: store.videoRecap,

@@ -16,6 +16,7 @@ import {
   sentLength,
   templateById,
   tokenCostMicros,
+  tokensAbout,
   type AiPlaceId,
   type AiRanOn,
   type AiTemplate,
@@ -28,6 +29,7 @@ import {
 } from "@panki/contracts";
 import type { Db } from "../db";
 import type { Shared } from "../shared";
+import { STOPPED } from "./call";
 import { AiError, PLAIN_ISSUE, safetyIdOf, type AiClient } from "./index";
 
 /**
@@ -56,7 +58,8 @@ export function ruled<T>(shape: z.ZodType<T>, problem: (value: T) => { broken: s
 export type Refused = { status: number; problem: ExplainProblem; message: string; unread?: AiUnread };
 /** An answer read whole, what it came as, its tokens and what they cost, and what it ran on. */
 export type Ran<T> = { value: T; raw: string; inputTokens: number; outputTokens: number; costMicros: number; ranOn: AiRanOn };
-export type Called<T> = { ok: true; ran: Ran<T> } | { ok: false; refused: Refused; costMicros: number };
+/** `stopped`: the person pressed Stop while it was on its way (`Call.signal`); no one waits for its answer. */
+export type Called<T> = { ok: true; ran: Ran<T> } | { ok: false; refused: Refused; costMicros: number; stopped?: boolean };
 
 export type Call<T> = {
   place: AiPlaceId;
@@ -74,6 +77,12 @@ export type Call<T> = {
    * A reason stops it there, nothing spent.
    */
   before?: (ceilingMicros: number) => Refused | null;
+  /**
+   * The person's Stop: the page that asked gave up on it (its request closed). The provider's request is cut, and what
+   * it had taken is metered as Panki counts it, kept high: the whole prompt in, since it was sent, and nothing out,
+   * since nothing came back to count. A message an automation sent has none: Stop never stops an automation.
+   */
+  signal?: AbortSignal;
 };
 
 /** What a Proofread's lines came to: the lines it changed, by their number in the lines sent, and how many words. */
@@ -94,7 +103,7 @@ export type ProofreadAskCore = {
 
 export function createAiCalls(shared: Shared, serverKeys: Readonly<Record<string, string | null>>, ai: AiClient, now: () => number) {
   /** One place's call, the same for every place and every rule. */
-  async function call<T>(settings: PankiAi, userId: string, { place, prompt, said, maxTokens, shape, ref, actions, before }: Call<T>): Promise<Called<T>> {
+  async function call<T>(settings: PankiAi, userId: string, { place, prompt, said, maxTokens, shape, ref, actions, before, signal }: Call<T>): Promise<Called<T>> {
     const { name } = AI_PROVIDERS[settings.aiProvider];
     if (!settings.aiOn) return { ok: false, refused: { status: 409, problem: "off", message: "Panki AI is off." }, costMicros: 0 };
     const key = shared.key(settings.aiProvider) ?? serverKeys[settings.aiProvider] ?? null;
@@ -114,14 +123,19 @@ export function createAiCalls(shared: Shared, serverKeys: Readonly<Record<string
       shared.meter({ kind: "ai", service: settings.aiProvider, model: model.id, what: place, ref: ref.slice(0, 100) || null, userId, inputTokens, outputTokens, costMicros, ...(actions ? { actions } : {}) }, now());
       return costMicros;
     };
+    const messages = [{ role: "user" as const, text: prompt }, ...said];
+    const stoppedWith = (costMicros: number): Called<T> => ({ ok: false, refused: { status: 499, problem: "provider", message: STOPPED }, costMicros, stopped: true });
+    // Stopped before it went: nothing sent, nothing spent.
+    if (signal?.aborted) return stoppedWith(0);
     try {
       const answer = await ai.answer({
         provider: settings.aiProvider,
         key,
         model,
-        messages: [{ role: "user", text: prompt }, ...said],
+        messages,
         maxTokens,
         safetyId: safetyIdOf(userId),
+        signal,
         shape,
         name: place,
         limit: LIMIT_NAMES[place],
@@ -129,6 +143,7 @@ export function createAiCalls(shared: Shared, serverKeys: Readonly<Record<string
       return { ok: true, ran: { value: answer.value, raw: answer.raw, inputTokens: answer.inputTokens, outputTokens: answer.outputTokens, costMicros: meter(answer.inputTokens, answer.outputTokens), ranOn } };
     } catch (e) {
       if (!(e instanceof AiError)) throw e;
+      if (e.stopped) return stoppedWith(meter(messages.reduce((sum, m) => sum + tokensAbout(m.text), 0), 0));
       const costMicros = e.tokens ? meter(e.tokens.input, e.tokens.output) : 0;
       // An answer that came back and couldn't be used goes to the page whole, with why, for the Log alone.
       const unread: AiUnread | undefined =

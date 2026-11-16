@@ -265,6 +265,8 @@ function ExplainScene({ ai, showCostOver }: SceneProps) {
     onChange: nothing,
     onToggle: nothing,
     onSend: nothing,
+    // A pressed send, so Stop stands in Send's place while it thinks, as it does for real.
+    onStop: nothing,
   };
   return (
     <Stage site={WATCH} script={script}>
@@ -453,6 +455,8 @@ function TouchUpScene({ ai, showCostOver }: SceneProps) {
     onChange: nothing,
     onToggle: nothing,
     onSend: nothing,
+    // A pressed send, so Stop stands in Send's place while it thinks, as it does for real.
+    onStop: nothing,
   };
   /** A field Touch up reworks: dimmed under the sweep while it thinks, then tied to what it says of it. */
   const touched = (shown: ReturnType<typeof fieldShown>, box: (labelEnd: ReactNode) => ReactNode) => {
