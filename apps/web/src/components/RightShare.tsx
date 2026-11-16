@@ -1,5 +1,6 @@
 /** @panki The share of a review's answers so far that were right, beside its counts (`RightShare`, `rightOf`). */
 import { missOf, type SrsAnswer } from "@panki/contracts";
+import { percentWords } from "../words";
 
 /**
  * How many of the answers given were right, of how many were judged, as Right and Toughest cards judge them
@@ -17,8 +18,8 @@ export function rightOf(given: Readonly<Record<string, number>>, answers: readon
   return { right, of };
 }
 
-/** "75% right" after a review's counts, rounded once to a whole percent; nothing before the first answer that's judged. */
+/** "75% right" after a review's counts, to the whole percent down (`percentWords`), so one miss never reads 100%; nothing before the first answer that's judged. */
 export function RightShare({ right, of }: { right: number; of: number }) {
   if (of === 0) return null;
-  return <span className="review-right">{`${Math.round((right * 100) / of)}% right`}</span>;
+  return <span className="review-right">{`${percentWords(right, of)} right`}</span>;
 }

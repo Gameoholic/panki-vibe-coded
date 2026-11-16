@@ -4,7 +4,7 @@ import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon, type IconName } from "@web/components/Icon";
 import { Toggle } from "@web/components/Toggle";
-import { count, durationWords } from "@web/words";
+import { count, durationLeftWords, durationWords } from "@web/words";
 import type { PillLayout, PillPart } from "../modules";
 
 /**
@@ -92,12 +92,12 @@ export function pillValue(part: PillPart, n: PillNumbers): PartValue | null {
  */
 function streakValue(s: PillStreak): PartValue {
   const run = periodCountWords(s.per, s.current);
-  const hoursLeft = s.hoursLeft !== null ? `, ${s.hoursLeft} h left` : "";
+  const left = s.hoursLeft !== null ? `${durationLeftWords(s.hoursLeft * 3600)} left` : null;
   return {
     icon: "flame",
     words: STREAK_PERIODS[s.per].unitOnPill ? run : s.current.toLocaleString("en"),
-    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${s.counted ? "" : ", doesn't count yet"}${hoursLeft}`,
-    left: s.hoursLeft !== null ? `· ${s.hoursLeft} h left` : null,
+    said: `${s.name ? `${s.name}, ${run}` : `${run} streak`}${s.counted ? "" : ", doesn't count yet"}${left !== null ? `, ${left}` : ""}`,
+    left: left !== null ? `· ${left}` : null,
     state: s.hoursLeft !== null ? "risk" : s.counted ? "plain" : "pending",
   };
 }

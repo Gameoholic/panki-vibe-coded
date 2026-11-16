@@ -16,7 +16,7 @@ import {
   type Transcription,
   type WholeJob,
 } from "@panki/contracts";
-import { aboutWords, clock } from "@web/words";
+import { aboutWords, clock, durationLeftWords, durationWords, tenthsWords } from "@web/words";
 import { askPiece, askPoll, askRedo, askRedoEnd, askRuleRun, askRules, askTranscript, askWhole, type AccountRules } from "../messages";
 import { localNow, onLocal } from "../local";
 import { engineWanted, sourceOf, type SubtitleSource } from "../subtitles";
@@ -519,7 +519,7 @@ export function createTranscriber() {
         asked.askAt = watched + answer.answer.waitMs / 1000;
         if (!asked.saidWait) {
           asked.saidWait = true;
-          note({ mode: way }, ` waits · until ${Math.ceil(answer.answer.waitMs / 1000)} s more of the video are watched`);
+          note({ mode: way }, ` waits · until ${durationLeftWords(answer.answer.waitMs / 1000, "seconds")} more of the video are watched`);
         }
         tell();
         return;
@@ -627,7 +627,7 @@ export function createTranscriber() {
     }
     if (piece.wav) {
       const words = answer.transcript.words.filter((w) => w.startMs >= piece.soundMs && w.startMs < piece.endMs).length;
-      const heard = answer.engineMs === null ? " · the entire video has it already" : ` · ${words} words · ${(answer.engineMs / 1000).toFixed(1)} s at the engine`;
+      const heard = answer.engineMs === null ? " · the entire video has it already" : ` · ${words} words · ${tenthsWords(answer.engineMs)} at the engine`;
       note(`chunk ${tally.back} back · `, clock(piece.soundMs / 1000), "–", clock(piece.endMs / 1000), heard);
     }
     accept(answer.transcript);
@@ -666,7 +666,7 @@ export function createTranscriber() {
         {
           stray: (to, back) => note("YouTube moved the chunk player to ", clock(to), " · put back at ", clock(back)),
           stuck: (at, seconds, state, again) =>
-            note("chunk player stuck loading at ", clock(at), ` for ${Math.round(seconds)} s (${state}) · `, again ? "opened it again there" : "given up"),
+            note("chunk player stuck loading at ", clock(at), ` for ${durationWords(seconds, "seconds")} (${state}) · `, again ? "opened it again there" : "given up"),
         },
       ),
     };

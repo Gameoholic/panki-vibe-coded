@@ -17,7 +17,7 @@ import { bareOf, defaultTemplateOf, inEndZone, momentWanted, runsOf, templateByI
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { MESSAGE_WORDS, MessageAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
-import { clock } from "@web/words";
+import { clock, percentOf } from "@web/words";
 import { isModifier, keyOf, pressed, sameKey } from "@web/keys";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
@@ -531,7 +531,7 @@ function followFinish(player: HTMLVideoElement | null) {
   if (!inEnd) seenBefore = true;
   // Taken back before its end (a word in the recap pressed, the bar dragged), the video is being watched again: the recap goes.
   if (!inEnd && recapped.get() !== null) recapped.set(null);
-  const percent = Math.min(100, Math.floor((player.currentTime / player.duration) * 100));
+  const percent = Math.min(100, percentOf(player.currentTime, player.duration));
   if (percent !== now.percent) finishHere.set({ ...now, percent });
   const played = player.ended || (!player.paused && !player.seeking);
   if (!now.finished && inEnd && seenBefore && played && !finishing && performance.now() >= finishRetryAt) void sayFinished(true, "end");

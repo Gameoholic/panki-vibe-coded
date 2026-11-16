@@ -1,7 +1,7 @@
 /** @panki The head over anything Panki AI answered: how the call stands and exactly what it sent (`AiStatus`). */
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AI_PROVIDERS, PIECE_GAPS, PIECE_SOURCES, SOURCE_WORDS, modelWords, verdictLine, type AiCall, type AiMessageWhy, type AiVerdict, type PieceUse } from "@panki/contracts";
-import { count, estimateWords, langOf } from "../words";
+import { count, estimateWords, langOf, tenthsWords } from "../words";
 import { AiSpark } from "./AiWaiting";
 import { Button } from "./Button";
 import { Fold } from "./Fold";
@@ -45,8 +45,8 @@ const WORDS = {
 /** How often Details are drawn afresh while a call they show is on its way, for its seconds, in ms. */
 const TICK_MS = 250;
 
-const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
-const n = (count: number) => count.toLocaleString("en");
+const seconds = tenthsWords;
+const n =(count: number) => count.toLocaleString("en");
 
 function whyWords(why: AiMessageWhy): string {
   switch (why.kind) {

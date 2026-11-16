@@ -132,7 +132,7 @@ import { FIELD_KINDS } from "@web/fieldKinds";
 import { ruleWords } from "@web/ruleKinds";
 import { useCalled } from "@web/hooks/useCalled";
 import { useHoist } from "@web/hooks/useHoist";
-import { count, langOf, wordFor } from "@web/words";
+import { count, durationWords, langOf, wordFor } from "@web/words";
 import { CLIP_MAX_SECONDS, RecordCancelled, RecordError, RecordTouched, base64Of } from "../capture/record";
 import { Burst } from "./Burst";
 import { pick, spanOver, stamp, textOf } from "../capture/words";
@@ -350,7 +350,7 @@ const TOUCH_WORDS = {
    * ones, how many lines and over how long a stretch.
    */
   heard: (lines: number, seconds: number | null, later: boolean) =>
-    `${later ? "This message also heard" : "Panki AI heard"} ${lines} ${lines === 1 ? "line" : "lines"} of the video${seconds === null ? "" : ` (${seconds < 90 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`})`}.`,
+    `${later ? "This message also heard" : "Panki AI heard"} ${lines} ${lines === 1 ? "line" : "lines"} of the video${seconds === null ? "" : ` (${durationWords(seconds, "seconds")})`}.`,
   /** The lines a Heard note opens, as a screen reader names them. */
   heardLabel: "Subtitles Panki AI heard",
 };

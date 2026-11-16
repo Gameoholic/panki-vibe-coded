@@ -1,6 +1,6 @@
 /** @panki Downloads on a YouTube page: asked for, run in the background by one page at a time, and how they stand (`createDownloads`, `stillOf`). */
 import { DownloadsChanged, askDownload, askDownloadClaim, askDownloadHold, askDownloadPiece, askDownloads, askUndownload } from "../messages";
-import { clock } from "@web/words";
+import { clock, durationWords } from "@web/words";
 import { createSilentPlayer, type SilentPlayer, type SilentReport } from "../transcribe/silent";
 import { uuid } from "../uuid";
 import {
@@ -62,7 +62,7 @@ export type Downloads = {
 /** Why a run stopped, in words a row shows. */
 const NOTHING = "YouTube's player gave nothing to copy.";
 const BLOCKED = "The browser wouldn't play it in the background.";
-const STUCK_AT = (at: number) => `A part at ${Math.floor(at / 60_000)}:${String(Math.floor((at % 60_000) / 1000)).padStart(2, "0")} wouldn't come in.`;
+const STUCK_AT = (at: number) => `A part at ${clock(at / 1000)} wouldn't come in.`;
 /** How often the same missing part is gone back for in one run before it's stopped. */
 const GAP_TRIES = 2;
 /** How often the list is read again while something's showing it. */
@@ -188,7 +188,7 @@ export function createDownloads(): Downloads {
       stray: (to, back) => say(`YouTube moved the hidden player to ${clock(to)}, put back at ${clock(back)}`),
       stuck: (at, seconds, state, again) => {
         mine.stuck = state;
-        say(`hidden player stuck loading at ${clock(at)} for ${Math.round(seconds)} s (${state}), ${again ? "opened it again there" : "given up"}`);
+        say(`hidden player stuck loading at ${clock(at)} for ${durationWords(seconds, "seconds")} (${state}), ${again ? "opened it again there" : "given up"}`);
       },
     });
     const mine: Run = { job, mark, player, before, stretches: [...job.covered], queue: Promise.resolve(), sending: 0, heard: { awake: false, streams: 0, copied: 0, other: 0 }, where: null, stuck: null, starts: new Map(), kept: 0, from: (gap ?? 0) / 1000, toldAt: Date.now(), gaps: new Map() };

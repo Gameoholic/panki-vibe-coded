@@ -14,6 +14,12 @@ Every string the owner sees is product copy: it says what the thing is or does f
 - **It reads like a professional product.** Read each label as on a paid product's settings page. A setting has a plain noun for a label ("Field name", "Position"), never a quirky phrase ("Its name: Over it"). Standard terms over the house's own poetic phrasing.
 - **A switch says what's true right now.** Its words are its current state ("On" / "Off", "Required" / "Optional", "Shown" / "Hidden"), never one label that stays the same when it flips. `Toggle` takes both (`says: { on, off }`). A mode (Edit / Preview) is a `Segmented` pair, not a switch.
 
+## Times and shares
+
+- **One rounding, in the app and the extension alike.** Time done and a share of something done round down; time still to go rounds up. So nothing reads as more done than it is, nothing reads 100% or a condition met before it is, and nothing reads "0 min" left while something remains. Why: Today's tile said Time watching "1 h" (59.6 min rounded) while the streak right under it said "Time watching ≥ 1 h" failed, "(59 min)".
+- **Always through the shared formatters, never by hand where it's shown** (`apps/web/src/words.ts`, which the extension imports as `@web/words`): time done `durationWords` ("3 h 12 min"; under a minute "0 min", "<1 min" or "45 s"), `durationParts` for a figure, `tenthsWords` ("2.3 s", how long a step took), `hmsWords`, `tookWords`, `clock`; time left `durationLeftWords` ("5 h", "3 min", "40 s"), `aboutWords` ("~3 min"); a share `percentOf` / `percentWords` ("84%", "87.5%"). A streak's condition is said by the contracts' `minutesWords` with its `Rounding`: what it holds down, what's left up, its own number to the nearest. No `Math.round(x / 60)`, no "h", "min", "s" or "%" put together where a time or share is shown.
+- Not time done or left, so not bound by this: a setting's own number ("30 s", "Hold 0.5 s"), a schedule's interval (an SRS stage's wait, "next review in 3 d"), a clip's exact length ("2.35 s"), a change against before ("↑ 12%"), a value kept (`data.md`'s round once, half-up).
+
 ## The owner's names
 
 When the owner names a label, use it exactly, everywhere. A code name that differs stays in the code; existing code is renamed only when touched, and the report says so.

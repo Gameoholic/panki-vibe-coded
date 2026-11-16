@@ -101,7 +101,7 @@ const zeros = (n: number) => Array.from({ length: n }, () => 0);
  * back the ms of it no stretch added before had covered, then counts it covered. Fed in the order watched, the adds sum
  * to each video's covered length counted once (the union of its spans), whatever the rewatching.
  */
-function coverage(): (videoId: string, fromMs: number, toMs: number) => number {
+export function coverage(): (videoId: string, fromMs: number, toMs: number) => number {
   const covered = new Map<string, [number, number][]>();
   return (videoId, fromMs, toMs) => {
     const [a, b] = fromMs <= toMs ? [fromMs, toMs] : [toMs, fromMs];

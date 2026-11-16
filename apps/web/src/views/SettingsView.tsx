@@ -80,7 +80,7 @@ import { useSavedSoon } from "../hooks/useSavedSoon";
 import { ledger } from "../ledger";
 import { THEMES, applyTheme, readTheme, shownTheme, writeTheme, type ThemeId } from "../themes";
 import { rememberShape, shapeOf } from "../skeletonMemory";
-import { DEVICE_ZONE, VIDEO_TRACKING_WHY, count, dateWords, daysOf, durationWords, estimateWords, hourOfDayWords, sinceWords, tokenWords, type DayReader } from "../words";
+import { DEVICE_ZONE, VIDEO_TRACKING_WHY, count, dateWords, daysOf, durationWords, estimateWords, hourOfDayWords, percentWords, sinceWords, tokenWords, type DayReader } from "../words";
 
 type Props = {
   settings: Settings;
@@ -609,7 +609,7 @@ function EngineAccountLines({ keyed, turn }: { keyed: boolean; turn: number }) {
         {planWords(account.plan)} · {STATUS_WORDS[account.status] ?? account.status}
       </p>
       <p className="setting-why">
-        {account.used.toLocaleString("en")} of {account.limit.toLocaleString("en")} credits used{account.limit > 0 ? ` (${Math.round((account.used / account.limit) * 100)}%)` : ""}
+        {account.used.toLocaleString("en")} of {account.limit.toLocaleString("en")} credits used{account.limit > 0 ? ` (${percentWords(account.used, account.limit)})` : ""}
         {account.resetsAt !== null ? ` · resets ${dateWords(account.resetsAt)}` : ""}
       </p>
     </>

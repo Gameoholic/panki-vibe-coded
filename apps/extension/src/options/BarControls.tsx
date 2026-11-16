@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@web/components/Icon";
-import { clock, hourWords } from "@web/words";
+import { clock, hourWords, percentOf } from "@web/words";
 import { BAR_CONTROLS, DEFAULT_BAR, barSide, type BarControl, type BarLayout } from "../modules";
 import { DownloadedControl } from "../ui/DownloadedMark";
 import { SaveControl } from "../ui/SaveControl";
@@ -55,7 +55,7 @@ export function BarControls({ layout, video, classOf }: { layout: BarLayout; vid
       </span>
     ),
     endTime: <span className="yt-end">Ends at {hourWords(Date.now() + (BAR_LENGTH - BAR_PLAYED) * 1000)}</span>,
-    watching: <WatchingControl finished={finished} percent={Math.floor((BAR_PLAYED / BAR_LENGTH) * 100)} onToggle={() => setFinished((was) => !was)} />,
+    watching: <WatchingControl finished={finished} percent={percentOf(BAR_PLAYED, BAR_LENGTH)} onToggle={() => setFinished((was) => !was)} />,
     speed: <SpeedControl video={video} />,
     save: <SaveControl saved={saved} onToggle={() => setSaved((was) => !was)} />,
     // The made-up video is downloaded, so the mark shows where it stands.

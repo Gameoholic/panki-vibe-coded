@@ -44,6 +44,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-12: Today's streaks a line each, pressed to open their conditions, a counted one not met yet with how far it's got ("Cards added ≥ 100 (37)"); on the home a tile's settings and Show more only while arranging.
 - 2026-11-12: Card types and SRS types one door of two rows on the home (`components/Door.tsx`); a stored layout drops the old SRS types door.
 - 2026-11-12: a time condition said in hours from an hour up ("≥ 1.5 h"), entered in min or h, up to the day's or the week's length (`STREAKS.md` → Round 18).
+- 2026-11-17: one rounding for every time and share shown, in the app and the extension: done down (Today, Stats, a condition's "(59 min)", the header bar, the panel, the strip's menu, Right's and the review's "% right", a download's and a video's %), left up (a streak's hours left, a video's and a review's time left, transcribing's waits), so 59.6 min watched reads "59 min" beside "Time watching ≥ 1 h" not met; a Stats column's cap says "1.5 h" as a condition does (`conventions/in-app-text.md` → Times and shares).
 
 **The extension** (`architecture/extension.md`)
 - 2026-10-11: the capture drawer; the line under the player; the YouTube metadata field; Field mapping and Media.

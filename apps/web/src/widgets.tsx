@@ -11,6 +11,7 @@ import {
   goalHaveWords,
   goalRuleWords,
   goalSaysWords,
+  minutesWords,
   periodCountWords,
   streakNameOf,
   placeInWeek,
@@ -55,7 +56,7 @@ import { useSavedSoon } from "./hooks/useSavedSoon";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { BURNED_TINT, NEW_WORDS, tintOf } from "./srsKinds";
 import { readTilePick, writeTilePick } from "./tilePicks";
-import { count, dayWords, durationWords, fullDayWords, hourOfDayWords, hourSpanWords, langOf, leftWords, monthWords, monthYearWords, shortDayWords } from "./words";
+import { count, dayWords, durationLeftWords, durationParts, durationWords, fullDayWords, hourOfDayWords, hourSpanWords, langOf, leftWords, monthWords, monthYearWords, percentOf, percentWords, shortDayWords, tenthsOf, tenthsWords } from "./words";
 
 /**
  * The widgets, one registry: every tile Stats shows (all of them, in this order, but the streaks') and the home can carry
@@ -159,19 +160,15 @@ type TileEntry = {
 // Every date and time here is the account's formats', from `words.ts` (`dayWords`, `shortDayWords`, `hourOfDayWords`…).
 const num = (n: number) => n.toLocaleString();
 const DOW_LONG = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"] as const;
+// Time spent is time done, and a share a share of something done: each is rounded down by `words.ts`, never here.
 /** Time spent, from ms: "48 min", "3 h 12 min". */
 const spent = (ms: number) => durationWords(ms / 1000);
 /** Time spent as a figure's parts: "48" "min", or "3" "h" "12" "min". */
-function spentParts(ms: number): [string, string][] {
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) return [[num(minutes), "min"]];
-  const rest = minutes % 60;
-  return rest ? [[num(Math.floor(minutes / 60)), "h"], [String(rest), "min"]] : [[num(Math.floor(minutes / 60)), "h"]];
-}
-/** Time spent on a column's cap, short: "1.5 h", "40 min". */
-const spentCap = (ms: number) => (ms >= 3_600_000 ? `${(ms / 3_600_000).toFixed(1)} h` : `${Math.round(ms / 60_000)} min`);
+const spentParts = (ms: number) => durationParts(ms / 1000);
+/** Time spent on a column's cap, short, as a time condition says it: "1.5 h", "40 min". */
+const spentCap = (ms: number) => minutesWords(Math.floor(Math.max(0, ms) / 60_000), "down");
 /** A share to one decimal, as a number: 87.5. */
-const pct1 = (part: number, of: number) => (of === 0 ? 0 : Math.round((part / of) * 1000) / 10);
+const pct1 = (part: number, of: number) => percentOf(part, of, 1);
 const sayReviews = (n: number) => count(n, "review", "reviews");
 const sayCards = (n: number) => count(n, "card", "cards");
 /** Where the largest value stands; the first of equals. */
@@ -321,7 +318,7 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
     const said = (j: number) => `${hourSpanWords(hourAt(j, dayStart))} · ${say(hours[j] ?? 0)}`;
     return {
       chart: <Columns values={hours} labels={hours.map((_, j) => hourLabel(j, dayStart))} words={said} now={now} ahead={now >= 0 ? now + 1 : -1} cap={capOf} onAt={onAt} />,
-      foot: total === 0 ? null : win.unit === "one" ? `Busiest: ${said(best)}` : `Busiest: ${hourSpanWords(hourAt(best, dayStart))} · ${Math.round(((hours[best] ?? 0) / total) * 100)}% of the total`,
+      foot: total === 0 ? null : win.unit === "one" ? `Busiest: ${said(best)}` : `Busiest: ${hourSpanWords(hourAt(best, dayStart))} · ${percentWords(hours[best] ?? 0, total)} of the total`,
     };
   }
   if (view === "weekday" && weekdays) {
@@ -562,8 +559,8 @@ function SavedRows({ videos, onStale }: { videos: readonly SavedVideo[]; onStale
 
 // ---------- Today ----------
 
-/** The time left of a streak's period: the days while there's more than one, then the hours until the day turns. */
-const timeLeftOf = (streak: StreakState) => `${streak.daysLeft > 1 ? count(streak.daysLeft, "day", "days") : `${num(streak.hoursLeft)} h`} left`;
+/** The time left of a streak's period: the days while there's more than one, then the hours until the day turns (whole hours up, as the API counts them). */
+const timeLeftOf = (streak: StreakState) => `${streak.daysLeft > 1 ? count(streak.daysLeft, "day", "days") : durationLeftWords(streak.hoursLeft * 3600)} left`;
 
 /**
  * What today held, as facts read from today's numbers (every deck, the account's day): reviews, new cards against the
@@ -795,7 +792,7 @@ export const WIDGETS: readonly TileEntry[] = [
       const r = win.right;
       if (r.of === 0) return { empty: zeroOf(win, "0 reviews") };
       const share = pct1(r.right, r.of);
-      const shareRow = (key: string, name: string, x: { right: number; of: number }, tint?: CSSProperties): RowSpec => ({ key, name, n: pct1(x.right, x.of), says: `${pct1(x.right, x.of)}%`, lang: langOf(name), ...(tint ? { tint } : {}) });
+      const shareRow = (key: string, name: string, x: { right: number; of: number }, tint?: CSSProperties): RowSpec => ({ key, name, n: pct1(x.right, x.of), says: percentWords(x.right, x.of, 1), lang: langOf(name), ...(tint ? { tint } : {}) });
       const countRow = (row: RowSpec, x: { right: number; of: number }): RowSpec => ({ ...row, says: `${num(x.right)} of ${num(x.of)}` });
       const stageRows = r.stages.map((s) => shareRow(s.key, s.name, s, s.colour ? tintOf(s.colour) : undefined));
       let chart: ReactNode;
@@ -807,10 +804,10 @@ export const WIDGETS: readonly TileEntry[] = [
           r.series.map((s) => s.start),
           ctx.settings.weekEndsOn,
         );
-        chart = <LineChart values={values} labels={labels} words={(j) => `${words[j] ?? ""} · ${values[j] ?? 0}% right`} fmt={(v) => `${Math.round(v)}%`} onAt={onAt} />;
+        chart = <LineChart values={values} labels={labels} words={(j) => `${words[j] ?? ""} · ${values[j] ?? 0}% right`} fmt={(v) => percentWords(v, 100)} onAt={onAt} />;
       }
       return {
-        figure: { parts: [[`${share}%`, "right"]], delta: r.before && r.before.of > 0 ? pointsOf(share, pct1(r.before.right, r.before.of), beforeWords(win)) : null },
+        figure: { parts: [[percentWords(r.right, r.of, 1), "right"]], delta: r.before && r.before.of > 0 ? pointsOf(share, pct1(r.before.right, r.before.of), beforeWords(win)) : null },
         chart,
         foot: `${num(r.right)} right of ${count(r.of, "answer", "answers")}`,
         more: (
@@ -929,7 +926,7 @@ export const WIDGETS: readonly TileEntry[] = [
       return {
         figure: { parts: [[num(s.n), s.n === 1 ? "new card" : "new cards"]], delta: deltaOf(s.n, s.before, beforeWords(win), true) },
         chart: <Columns values={values} ticks={ticks} labels={labels} words={(j) => `${words[j] ?? ""} · ${num(values[j] ?? 0)} of ${num(ticks[j] ?? 0)}`} now={values.length - 1} onAt={onAt} />,
-        foot: win.unit === "month" ? (s.limit > 0 ? `${Math.round((s.n / s.limit) * 100)}% of the limit` : null) : `Limit reached on ${num(s.daysReached)} of ${count(s.daysWithLimit, "day", "days")}`,
+        foot: win.unit === "month" ? (s.limit > 0 ? `${percentWords(s.n, s.limit)} of the limit` : null) : `Limit reached on ${num(s.daysReached)} of ${count(s.daysWithLimit, "day", "days")}`,
       };
     },
   },
@@ -943,7 +940,7 @@ export const WIDGETS: readonly TileEntry[] = [
       if (!win) return { empty: "" };
       const t = win.tough;
       if (t.misses === 0) return { empty: zeroOf(win, "0 misses") };
-      const rate = (c: { misses: number; of: number }) => (c.of === 0 ? 0 : Math.round((c.misses / c.of) * 100));
+      const rate = (c: { misses: number; of: number }) => percentOf(c.misses, c.of);
       // The stage missed most, of those with enough answers to say so.
       const judged = win.right.stages.filter((s) => s.of >= 20);
       const missRates = judged.map((s) => 100 - pct1(s.right, s.of));
@@ -964,7 +961,7 @@ export const WIDGETS: readonly TileEntry[] = [
             ))}
           </div>
         ),
-        foot: worst ? `Missed most in ${worst.name} · ${Math.round(missRates[argmax(missRates)] ?? 0)}%` : null,
+        foot: worst ? `Missed most in ${worst.name} · ${missRates[argmax(missRates)] ?? 0}%` : null,
         more:
           t.cards.length > 5 ? (
             <MoreBlock title={`${sayCards(t.missedCards)} missed`}>
@@ -1008,7 +1005,7 @@ export const WIDGETS: readonly TileEntry[] = [
         { key: "web", name: "Web pages", n: a.sources.web, says: "from web pages" },
       ];
       const top = sources[argmax(sources.map((s) => s.n))] ?? sources[0];
-      const topWords = top ? `${Math.round((top.n / a.n) * 100)}% ${top.says}` : null;
+      const topWords = top ? `${percentWords(top.n, a.n)} ${top.says}` : null;
       let chart: ReactNode;
       let foot: string | null;
       if (view === "source") {
@@ -1041,7 +1038,7 @@ export const WIDGETS: readonly TileEntry[] = [
       let chart: ReactNode;
       // A card each answer, a review's or a new card's: the time covers both, so a card's share is over both counts.
       const cards = win.reviews.n + win.started.n;
-      let foot: string | null = `${count(t.sessions, "session", "sessions")} · ${cards > 0 ? (t.ms / cards / 1000).toFixed(1) : "0"} s a card`;
+      let foot: string | null = `${count(t.sessions, "session", "sessions")} · ${cards > 0 ? tenthsWords(t.ms / cards) : "0 s"} a card`;
       // The time on each side of the flip: the front to it, the back after it.
       if (view === "side" && win.unit !== "one") {
         const sides = [
@@ -1075,8 +1072,8 @@ export const WIDGETS: readonly TileEntry[] = [
       const side = PACE_SIDES.find((s) => s.id === view) ?? PACE_SIDES[2];
       const p = win.pace[side.id];
       if (win.pace.total.ms === null) return { empty: zeroOf(win, "0 cards timed") };
-      const seconds = (ms: number) => (ms / 1000).toFixed(1);
-      const values = p.series.map((s) => (s.ms === null ? null : Math.round(s.ms / 100) / 10));
+      const seconds = (ms: number) => tenthsOf(ms).toFixed(1);
+      const values = p.series.map((s) => (s.ms === null ? null : tenthsOf(s.ms)));
       const { labels, words } = stretchesOf(
         win,
         p.series.map((s) => s.start),

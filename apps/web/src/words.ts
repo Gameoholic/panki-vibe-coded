@@ -1,4 +1,4 @@
-/** @panki How things are said in words, dates and times in the account's formats and days (`count`, `clock`, `dateWords`, `dayWords`, `setFormats`, `daysOf`, `agoWords`). */
+/** @panki Words, dates and times in the account's formats (`count`, `dateWords`, `daysOf`); every time and share, done down, left up (`durationWords`, `percentOf`, `durationLeftWords`). */
 import { DEFAULT_SETTINGS, dayOf, daysBetween, type DateFormat, type Day, type Settings, type TimeFormat } from "@panki/contracts";
 /**
  * What Video tracking does, said under it in the extension, where it's switched, and in Panki's Settings, where it's
@@ -57,56 +57,108 @@ export function keyWords(key: string): string {
   return at < 0 ? cap : `${key.slice(0, at)}+${cap}`;
 }
 
+// ---------- Time and shares: the one rounding ----------
+//
+// Every length of time and every share Panki shows is rounded here, in the app and the extension alike, and never by
+// hand where it's shown. Time done and a share of something done round down, so nothing reads as more than it is: 59.6
+// minutes watched is "59 min", as a streak's condition counts it, never "1 h" beside "Time watching ≥ 1 h" not met, and
+// nothing reads 100% before it's all of it. Time still to go rounds up, so it never reads as less than it is and never
+// "0 min" while something remains. A streak's condition says its minutes through the contracts' `minutesWords`, by the
+// same rule (`Rounding`).
+
+/** A length of time in whole hours, minutes and seconds, rounded down to the second. */
+function partsOf(seconds: number): { hours: number; minutes: number; seconds: number } {
+  const whole = Math.max(0, Math.floor(seconds));
+  return { hours: Math.floor(whole / 3600), minutes: Math.floor(whole / 60) % 60, seconds: whole % 60 };
+}
+
 /** Seconds as a time on a player, "0:03", "12:34", and past the hour "1:02:03". */
 export function clock(seconds: number): string {
-  const whole = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor(whole / 60) % 60;
-  const rest = String(whole % 60).padStart(2, "0");
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
+  const { hours, minutes, seconds: rest } = partsOf(seconds);
+  const ss = String(rest).padStart(2, "0");
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${ss}` : `${minutes}:${ss}`;
 }
 
-/** A wait that's only roughly known, "~40 s", "~3 min": how long transcribing takes, as measured so far. */
-export function aboutWords(seconds: number): string {
-  return seconds < 90 ? `~${Math.max(1, Math.round(seconds))} s` : `~${Math.round(seconds / 60)} min`;
-}
-
-/** Seconds as a length of time in words, to the minute: "3 h 12 min", "48 min", "3 h", "0 min". */
-export function durationWords(seconds: number): string {
-  const minutes = Math.round(Math.max(0, seconds) / 60);
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours === 0) return `${rest} min`;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+/** Time done as a figure's parts, to the whole minute down: [["48", "min"]], [["3", "h"], ["12", "min"]], [["3", "h"]]. */
+export function durationParts(seconds: number): [string, string][] {
+  const { hours, minutes } = partsOf(seconds);
+  if (hours === 0) return [[String(minutes), "min"]];
+  const h: [string, string] = [hours.toLocaleString("en"), "h"];
+  return minutes === 0 ? [h] : [h, [String(minutes), "min"]];
 }
 
 /**
- * What's left of a video stopped part-way, and how much of it was watched: "3 min left · 84%". The time left is to the whole minute up, so a few seconds short is
- * never "0 min"; the share is to the whole percent down, so a video never reads 100% before it's done. Continue
- * watching's cards and tiles all say it this way.
+ * Time done in words, to the whole minute down: "3 h 12 min", "48 min", "3 h". Under a minute, `under` says how: "0 min"
+ * (`zero`, as a day's total reads), "<1 min" (`less`, a clock that's started), or the whole seconds down, "45 s"
+ * (`seconds`, where seconds matter).
  */
-export function leftWords(stoppedAtMs: number, lengthMs: number): string {
-  const left = durationWords(Math.ceil(Math.max(0, lengthMs - stoppedAtMs) / 60_000) * 60);
-  const share = lengthMs > 0 ? Math.min(99, Math.floor((stoppedAtMs / lengthMs) * 100)) : 0;
-  return `${left} left · ${share}%`;
+export function durationWords(seconds: number, under: "zero" | "less" | "seconds" = "zero"): string {
+  const parts = partsOf(seconds);
+  if (parts.hours === 0 && parts.minutes === 0) return under === "seconds" ? `${parts.seconds} s` : under === "less" ? "<1 min" : "0 min";
+  return durationParts(seconds)
+    .map(([n, unit]) => `${n} ${unit}`)
+    .join(" ");
 }
 
-/** How long something took, in full words: "26 seconds", "2 minutes 5 seconds", "1 hour 3 minutes" (seconds left out past the hour). */
+/**
+ * Time still to go in words, rounded up: to the whole minute, "3 min", "1 h 5 min"; with `seconds`, under a minute and a
+ * half in whole seconds, "40 s". A streak's hours left, a video's time left, a review's, a wait.
+ */
+export function durationLeftWords(seconds: number, under: "minute" | "seconds" = "minute"): string {
+  const left = Math.max(0, seconds);
+  if (under === "seconds" && left < 90) return `${Math.ceil(left)} s`;
+  return durationWords(Math.ceil(left / 60) * 60);
+}
+
+/** A wait that's only roughly known, "~40 s", "~3 min", rounded up as time left is: how long transcribing takes, as measured so far. */
+export function aboutWords(seconds: number): string {
+  return `~${durationLeftWords(seconds, "seconds")}`;
+}
+
+/** Time done to the tenth of a second down, from ms, as a number: 2.3. Whole ms to start with, so the division is exact. */
+export function tenthsOf(ms: number): number {
+  return Math.floor(Math.max(0, ms) / 100) / 10;
+}
+/** Time done to the tenth of a second down, from ms: "2.3 s", "0.0 s". How long an answer or a step took. */
+export function tenthsWords(ms: number): string {
+  return `${tenthsOf(ms).toFixed(1)} s`;
+}
+
+/**
+ * A share of a whole as a percent, rounded down to `decimals` places, so nothing reads 100% before it's all of it: 99.6%
+ * done is 99. Nothing to share of is 0. Multiplied before it's divided, so a whole share comes out whole.
+ */
+export function percentOf(part: number, of: number, decimals = 0): number {
+  if (!(of > 0)) return 0;
+  const scale = 10 ** decimals;
+  return Math.floor((Math.max(0, part) * 100 * scale) / of) / scale;
+}
+/** A share of a whole as said, rounded down (`percentOf`): "84%", "87.5%". */
+export function percentWords(part: number, of: number, decimals = 0): string {
+  return `${percentOf(part, of, decimals)}%`;
+}
+
+/**
+ * What's left of a video stopped part-way, and how much of it was watched: "3 min left · 84%". The time left rounded up
+ * (`durationLeftWords`), the share down and never 100% before the video's done. Continue watching's cards and tiles all
+ * say it this way.
+ */
+export function leftWords(stoppedAtMs: number, lengthMs: number): string {
+  const left = durationLeftWords(Math.max(0, lengthMs - stoppedAtMs) / 1000);
+  return `${left} left · ${Math.min(99, percentOf(stoppedAtMs, lengthMs))}%`;
+}
+
+/** How long something took, in full words, rounded down: "26 seconds", "2 minutes 5 seconds", "1 hour 3 minutes" (seconds left out past the hour). */
 export function tookWords(seconds: number): string {
-  const whole = Math.max(0, Math.round(seconds));
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor(whole / 60) % 60;
-  const rest = whole % 60;
+  const { hours, minutes, seconds: rest } = partsOf(seconds);
   const parts = hours > 0 ? [count(hours, "hour", "hours"), minutes > 0 ? count(minutes, "minute", "minutes") : ""] : [minutes > 0 ? count(minutes, "minute", "minutes") : "", rest > 0 || minutes === 0 ? count(rest, "second", "seconds") : ""];
   return parts.filter(Boolean).join(" ");
 }
 
-/** A length of time packed tight, "21m49s", "1h3m5s", "49s": the hours and the minutes left out while they're 0. */
+/** A length of time packed tight, rounded down: "21m49s", "1h3m5s", "49s", the hours and the minutes left out while they're 0. */
 export function hmsWords(seconds: number): string {
-  const whole = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor(whole / 60) % 60;
-  return `${hours > 0 ? `${hours}h` : ""}${minutes > 0 ? `${minutes}m` : ""}${whole % 60}s`;
+  const { hours, minutes, seconds: rest } = partsOf(seconds);
+  return `${hours > 0 ? `${hours}h` : ""}${minutes > 0 ? `${minutes}m` : ""}${rest}s`;
 }
 
 /**

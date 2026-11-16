@@ -143,7 +143,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | unsaved | `unsaved.ts` | Saving on purpose: what a screen with unsaved work hands the app so leaving asks first (`UnsavedGuard`, `SaveState`, `SAVE_WORDS`). |
 | waveform | `waveform.ts` | A file's sound as bars for a voice note, read once, none when it can't be read, never made up (`waveOf`). |
 | widgets | `widgets.tsx` | Every tile Stats and the home show, one registry (`WIDGETS`, `widgetOf`) in one anatomy (`Tile`, `StreakTile`, `Widget`, `WindowPick`); Today, its facts, every streak's checks. |
-| words | `words.ts` | How things are said in words, dates and times in the account's formats and days (`count`, `clock`, `dateWords`, `dayWords`, `setFormats`, `daysOf`, `agoWords`). |
+| words | `words.ts` | Words, dates and times in the account's formats (`count`, `dateWords`, `daysOf`); every time and share, done down, left up (`durationWords`, `percentOf`, `durationLeftWords`). |
 
 ## Contracts
 
@@ -186,7 +186,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | srs | `srs.ts` | SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). |
 | srsStarters | `srsStarters.ts` | The SRS types that come with the app, and a new type as a copy of another (`makeStarter`, `SRS_STARTER_IDS`, `copySrsType`, `emptySrsType`). |
 | stageColour | `stageColour.ts` | A stage's colour for the app, the API and the extension alike: its own, else the ramp's; Burned's; New's (`stageColourAt`, `placeColour`, `STAGE_RAMP`). |
-| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords`, `goalRuleWords`). |
+| streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords` by `Rounding`). |
 | subtitleStyle | `subtitleStyle.ts` | How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). |
 | touchUp | `touchUp.ts` | Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). |
 | transcriptLines | `transcriptLines.ts` | A transcript's words cut into lines, the one rule of where a line ends, for the page's rows and the server's Proofread alike (`cutLines`, `lineWidthOf`). |

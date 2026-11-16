@@ -1,4 +1,4 @@
-/** @panki Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords`, `goalRuleWords`). */
+/** @panki Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords` by `Rounding`). */
 import { z } from "zod";
 
 /**
@@ -76,14 +76,22 @@ const COUNT_MAX: Record<StreakPer, number> = { day: 999, week: 999 };
 export const GOAL_N_MAX = TIME_MAX.week;
 
 /**
+ * Which way a length of time is rounded to its words: time done `down`, so it never reads as more than it is (119 min
+ * watched is "1.9 h", never "2 h" while "≥ 2 h" isn't met); time still to go `up`, so it never reads as less; a
+ * condition's own number to the `nearest`, as it was set.
+ */
+export type Rounding = "down" | "up" | "nearest";
+const ROUNDED: Record<Rounding, (n: number) => number> = { down: Math.floor, up: Math.ceil, nearest: Math.round };
+
+/**
  * Whole minutes as a length of time, the one way every time goal is written (its rule, how far it is, what's left):
  * under an hour in minutes ("45 min"), from an hour up in hours to one decimal where it isn't whole ("1 h", "1.5 h",
  * "1.2 h", "10 h"; a point, the one way the owner writes it, whatever the device's locale: the hours never reach a
- * thousand). Nothing is rounded but the display.
+ * thousand), the tenth rounded as `rounding` says. Nothing is rounded but the display.
  */
-export function minutesWords(minutes: number): string {
+export function minutesWords(minutes: number, rounding: Rounding = "nearest"): string {
   if (minutes < 60) return `${minutes.toLocaleString()} min`;
-  return `${String(Math.round(minutes / 6) / 10)} h`;
+  return `${String(ROUNDED[rounding](minutes / 6) / 10)} h`;
 }
 
 export type GoalKindEntry = {
@@ -128,8 +136,8 @@ export const GOAL_KINDS: Record<GoalKind, GoalKindEntry> = {
 export const goalInMinutes = (kind: GoalKind): boolean => GOAL_KINDS[kind].left.kind === "minutes";
 /** The most a goal of a kind takes on a streak of a type. */
 export const goalMax = (kind: GoalKind, per: StreakPer): number => GOAL_KINDS[kind].max[per];
-/** A goal's number as it's written: a count as is, minutes as `minutesWords` has them. */
-const goalAmountWords = (kind: GoalKind, n: number): string => (goalInMinutes(kind) ? minutesWords(n) : n.toLocaleString());
+/** A goal's number as it's written: a count as is, minutes as `minutesWords` has them, rounded as `rounding` says. */
+const goalAmountWords = (kind: GoalKind, n: number, rounding: Rounding): string => (goalInMinutes(kind) ? minutesWords(n, rounding) : n.toLocaleString());
 
 /** Whether a kind of goal fits a streak type. */
 export const goalFits = (kind: GoalKind, per: StreakPer): boolean => GOAL_KINDS[kind].fits.includes(per);
@@ -245,24 +253,24 @@ export const streakNameOf = (streak: { name: string }): string => streak.name.tr
 export function goalLeftWords(kind: GoalKind, left: number): string {
   const words = GOAL_KINDS[kind].left;
   if (words.kind === "count") return `${left.toLocaleString()} ${left === 1 ? words.one : words.many}`;
-  if (words.kind === "minutes") return `${minutesWords(left)} ${words.doing}`;
+  if (words.kind === "minutes") return `${minutesWords(left, "up")} ${words.doing}`;
   return words.words;
 }
 
 /** A goal as its rule, in words: "Reviews ≥ 20", "Time studying ≥ 15 min", "Time watching ≥ 1.5 h", "All reviews done" (`need` is `goalNeed`'s). */
 export function goalRuleWords(kind: GoalKind, need: number): string {
   const entry = GOAL_KINDS[kind];
-  return entry.numbered ? `${entry.name} ≥ ${goalAmountWords(kind, need)}` : entry.name;
+  return entry.numbered ? `${entry.name} ≥ ${goalAmountWords(kind, need, "nearest")}` : entry.name;
 }
 
-/** What a counted goal holds so far in its period, in its own unit: "37", "12 min", "1.5 h". Null for one without a count ("All reviews done"). */
+/** What a counted goal holds so far in its period, in its own unit, time rounded down: "37", "12 min", "1.5 h". Null for one without a count ("All reviews done"). */
 export function goalHaveWords(kind: GoalKind, have: number): string | null {
-  return GOAL_KINDS[kind].numbered ? goalAmountWords(kind, have) : null;
+  return GOAL_KINDS[kind].numbered ? goalAmountWords(kind, have, "down") : null;
 }
 
-/** How far a counted goal is in its period: "37 / 50", "12 min / 1.5 h". One without a count is shown by its mark alone. */
+/** How far a counted goal is in its period, what it holds rounded down: "37 / 50", "12 min / 1.5 h". One without a count is shown by its mark alone. */
 export function goalSaysWords(kind: GoalKind, have: number, need: number): string {
-  return `${goalAmountWords(kind, have)} / ${goalAmountWords(kind, need)}`;
+  return `${goalAmountWords(kind, have, "down")} / ${goalAmountWords(kind, need, "nearest")}`;
 }
 
 /** A goal over the period going on: what it holds so far and what it needs (`StreakState.groups`). */

@@ -1,10 +1,10 @@
 /** @panki A download in words, the same in the panel's menu and on the options page (`shareOf`, `downloadWords`, `totalWords`). */
 import { sizeWords } from "@panki/contracts";
-import { agoWords, daysOf } from "@web/words";
+import { agoWords, daysOf, percentOf } from "@web/words";
 import type { DownloadRow } from "./download";
 
-/** How much of the video is in, as a whole percent, never 100 before it's whole. */
-export const shareOf = (row: DownloadRow): number => (row.state === "done" ? 100 : Math.min(99, Math.floor((row.coveredMs * 100) / row.durationMs)));
+/** How much of the video is in, as a whole percent down (`percentOf`), never 100 before it's whole. */
+export const shareOf = (row: DownloadRow): number => (row.state === "done" ? 100 : Math.min(99, percentOf(row.coveredMs, row.durationMs)));
 
 /**
  * How a download stands, as its row's line under its name: whole, its size, quality and when ("412 MB · 720p · Today");

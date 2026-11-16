@@ -9,10 +9,7 @@ import { Tip } from "./Tip";
 const TICK_MS = 1000;
 
 /** Whole minutes as the line says them: "<1 min" before the first, then "12 min", "1 h 5 min". */
-const minutesWords = (ms: number) => {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  return minutes === 0 ? "<1 min" : durationWords(minutes * 60);
-};
+const minutesWords = (ms: number) => durationWords(ms / 1000, "less");
 
 /**
  * "12 min elapsed" after a review's counts: plain clock time since its session started (`from`), away or not, a

@@ -11,7 +11,7 @@ import { MODE_ICONS, ModeChip } from "@web/components/ModeChip";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { TextField } from "@web/components/TextField";
 import { useDismiss } from "@web/hooks/useDismiss";
-import { aboutWords, clock, estimateWords, hmsWords, tookWords } from "@web/words";
+import { aboutWords, clock, durationLeftWords, durationWords, estimateWords, hmsWords, percentOf, tenthsWords, tookWords } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { engineWanted, SUBTITLE_SOURCES } from "../subtitles";
 import type { SilentPage, SilentReport, SilentStage } from "../transcribe/silent";
@@ -171,8 +171,8 @@ function entireWords(state: TranscribeState, words = "transcribing the entire vi
   const job = downloadOf(state);
   const left = job ? wholeLeft(state, job, Date.now()) : null;
   if (left === null) return words;
-  const over = Math.floor(-left);
-  return `${words} (${left > 0 ? `${aboutWords(left)} left` : over === 0 ? "0 s" : `-${over} s`})`;
+  const over = Math.max(0, -left);
+  return `${words} (${left > 0 ? `${aboutWords(left)} left` : `${over >= 1 ? "-" : ""}${durationWords(over, "seconds")}`})`;
 }
 /**
  * The status line beside the dot, with the entire video's background transcription added where chunks are running
@@ -195,8 +195,8 @@ const PAGE_WORDS: Record<SilentPage, string> = { embed: "Embed page", watch: "Wa
 
 /** What the silent player is doing, as the Details say it. */
 const STAGE_WORDS: Record<SilentStage, (r: SilentReport) => string> = {
-  opening: (r) => `Opening the video in the background (${PAGE_WORDS[r.page].toLowerCase()}) · ${Math.floor(r.pageAge)} s`,
-  finding: (r) => `Waiting for the background player to appear · ${Math.floor(r.pageAge)} s`,
+  opening: (r) => `Opening the video in the background (${PAGE_WORDS[r.page].toLowerCase()}) · ${durationWords(r.pageAge, "seconds")}`,
+  finding: (r) => `Waiting for the background player to appear · ${durationWords(r.pageAge, "seconds")}`,
   seeking: (r) => `Going to ${clock(r.at)}`,
   starting: () => "Starting the background player",
   listening: (r) => `Waiting for the first sound at ${clock(r.at)}`,
@@ -233,7 +233,7 @@ function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
       if (!detail.loaded) return "Asking Panki for this video's transcript";
       if (state.length === null) return "Waiting for the video's length";
       if (state.ways.live.ruling) return "Checking the Start transcribing automation's limits";
-      return detail.settling > 0 ? `Starting in ${Math.ceil(detail.settling)} s, once the page has settled` : "Starting";
+      return detail.settling > 0 ? `Starting in ${durationLeftWords(detail.settling, "seconds")}, once the page has settled` : "Starting";
     case "whole": {
       const words = entireWords(state);
       return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
@@ -262,7 +262,7 @@ function nowWords(state: TranscribeState, detail: TranscribeDetail): string {
 /** A stretch of the video, as the Details say it: "3:12–3:40". */
 const stretchWords = (from: number, to: number) => `${clock(from)}–${clock(to)}`;
 /** Milliseconds as the Details say a time taken: "4.1 s". */
-const secondsWords = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+const secondsWords = tenthsWords;
 
 /** A Log line with each mode drawn as its chip. */
 function LogLine({ parts }: { parts: readonly LogPart[] }) {
@@ -379,7 +379,7 @@ function Covered({ state, duration }: { state: TranscribeState; duration: number
   const seconds = duration === null ? ms / 1000 : Math.min(ms / 1000, duration);
   if (duration === null || duration <= 0) return <>{hmsWords(seconds)} transcribed</>;
   const all = state.status.kind === "done" || seconds >= duration;
-  const share = all ? 100 : Math.min(99, Math.floor((seconds / duration) * 100));
+  const share = all ? 100 : Math.min(99, percentOf(seconds, duration));
   return (
     <>
       {hmsWords(seconds)} transcribed <span className={`strip-menu-share ${all ? "is-all" : ""}`.trim()}>({share}%)</span>

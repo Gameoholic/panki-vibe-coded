@@ -20,7 +20,7 @@ import { Mark } from "@web/brand/Mark";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Icon, iconPaths } from "@web/components/Icon";
-import { agoWords, clock, daysOf, langOf, leftWords, sinceWords, type DayReader } from "@web/words";
+import { agoWords, clock, daysOf, durationLeftWords, langOf, leftWords, sinceWords, type DayReader } from "@web/words";
 import { parseStamp } from "../capture/words";
 import { askGlance, askHome, askOpenPanki, askOptions, askSave, askWatchMark } from "../messages";
 import { SHELF_MAX, switchInPill, type Modules } from "../modules";
@@ -569,7 +569,7 @@ export function createFeed(deps: {
               <span key={s.id} className="yh-risk">
                 <Icon name="flame" />
                 <b lang={langOf(name)}>{name}</b>
-                {left ? ` · ${left} to go` : ""} · {s.hoursLeft} h left
+                {left ? ` · ${left} to go` : ""} · {durationLeftWords(s.hoursLeft * 3600)} left
               </span>
             );
           })}

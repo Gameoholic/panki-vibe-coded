@@ -20,8 +20,8 @@ const LOOKS: Record<Shown, { icon: IconName; tone: string }> = {
   lost: { icon: "cloudLost", tone: "is-lost" },
 };
 
-/** A length of watching in words: seconds under a minute ("45 s"), the app's minutes and hours after ("2 min"). */
-const spanWords = (ms: number) => (ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : durationWords(ms / 1000));
+/** A length of watching in words, rounded down: seconds under a minute ("45 s"), the app's minutes and hours after ("2 min"). */
+const spanWords = (ms: number) => durationWords(ms / 1000, "seconds");
 /** How long a save reads as "just now" before its seconds start counting. */
 const JUST_NOW_MS = 3_000;
 /** "Saved 12 s ago", "Saved just now". */

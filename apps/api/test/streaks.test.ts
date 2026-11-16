@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GOAL_KINDS, StreakRule as StreakRuleSchema, goalMax, goalRuleWords, goalSaysWords, groupsSwitchedTo, minutesWords, streakLeftWords, type StreakRule } from "@panki/contracts";
+import { GOAL_KINDS, StreakRule as StreakRuleSchema, goalHaveWords, goalMax, goalRuleWords, goalSaysWords, groupsSwitchedTo, minutesWords, streakLeftWords, type StreakRule } from "@panki/contracts";
 import { dayTalliesOf, streakStatesOf, type TallyInput } from "../src/streaks";
 
 /*
@@ -94,6 +94,15 @@ test("a time goal is written in minutes under an hour and in hours from an hour 
   assert.equal(goalSaysWords("watching", 12, 90), "12 min / 1.5 h");
   assert.equal(goalSaysWords("reviews", 37, 50), "37 / 50");
   assert.equal(streakLeftWords([{ kind: "watching", have: 30, need: 120 }, { kind: "reviews", have: 8, need: 20 }]), "1.5 h watching and 12 reviews");
+});
+
+test("time done is written rounded down and time left rounded up, so a condition never reads met when it isn't", () => {
+  assert.equal(minutesWords(119), "2 h");
+  assert.equal(minutesWords(119, "down"), "1.9 h");
+  assert.equal(minutesWords(61, "up"), "1.1 h");
+  assert.equal(goalSaysWords("watching", 119, 120), "1.9 h / 2 h");
+  assert.equal(goalHaveWords("watching", 59), "59 min");
+  assert.equal(streakLeftWords([{ kind: "watching", have: 59, need: 120 }]), "1.1 h watching");
 });
 
 test("a time goal asks at most its period's minutes, a day's or a week's, and a switch of type brings it down to fit", () => {

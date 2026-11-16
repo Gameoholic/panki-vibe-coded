@@ -1,11 +1,11 @@
 /** @panki About how long a review has left, beside its counts, its finish time on the clock pointed at or pressed (`TimeLeft`, `timeWords`). */
 import { useLayoutEffect, useRef, useState } from "react";
-import { durationWords, hourWords } from "../words";
+import { durationLeftWords, hourWords } from "../words";
 import { Button } from "./Button";
 import { Tip } from "./Tip";
 
-/** A time left in words, rough as it is, to the minute and never "0 min": "~14 min", "~1 h 5 min". The review's counts and its Start say it so. */
-export const timeWords = (ms: number) => `~${durationWords(Math.max(60, ms / 1000))}`;
+/** A time left in words, rough as it is, to the whole minute up and never "0 min": "~14 min", "~1 h 5 min". The review's counts and its Start say it so. */
+export const timeWords = (ms: number) => `~${durationLeftWords(Math.max(60, ms / 1000))}`;
 
 /**
  * "~14 min left" after a review's counts. Pointed at, the app's hint says when that is on the clock ("Done by

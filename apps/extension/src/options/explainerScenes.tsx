@@ -10,7 +10,7 @@ import { TextField } from "@web/components/TextField";
 import { IN_DECKS } from "@web/explainers/examples";
 import { SiteTop, WATCH, WATCHED, WatchPage, videoAt } from "@web/explainers/site";
 import newsPicture from "@web/explainers/thumbs/news-picture.png";
-import { hourWords } from "@web/words";
+import { clock, durationLeftWords, hourWords } from "@web/words";
 import type { KnownMoment } from "../capture/known";
 import { HOVER_KEEP } from "../capture/look";
 import { keyWordOf, type LookKey } from "../lookSettings";
@@ -792,7 +792,7 @@ function ReminderScene({ store }: { store: Stored }) {
                   <Mark size={18} />
                   <span className="yh-risk">
                     <Icon name="flame" />
-                    <b>{SAMPLE_STREAK.name}</b> · {REMINDER_LEFT} to go · {REMINDER_HOURS} h left
+                    <b>{SAMPLE_STREAK.name}</b> · {REMINDER_LEFT} to go · {durationLeftWords(REMINDER_HOURS * 3600)} left
                   </span>
                 </p>
                 <div className="yh-actions">
@@ -902,7 +902,7 @@ function UtilitiesScene({ store }: { store: Stored }) {
             <span className="ex-controls">
               <Icon name="pause" />
               <span className="ex-time">
-                {Math.floor(played / 60)}:{String(Math.floor(played % 60)).padStart(2, "0")} / 18:40
+                {clock(played)} / 18:40
               </span>
               {ends ? <span className="yt-end">Ends at {hourWords(Date.now() + ((LENGTH - played) / rate) * 1000)}</span> : null}
               <span className="ex-grow" />
@@ -1044,7 +1044,7 @@ function SeekScene({ store }: { store: Stored }) {
             <span className="ex-controls">
               <Icon name="pause" />
               <span className="ex-time">
-                {Math.floor(at / 60)}:{String(Math.floor(at % 60)).padStart(2, "0")} / {WATCHED.length}
+                {clock(at)} / {WATCHED.length}
               </span>
               <span className="ex-grow" />
               <Icon name="settings" />
