@@ -60,7 +60,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-12: Keep player bar visible keybind, X, the one way to keep the player bar on the video or let it fade, kept for every video; the two Keep the bar visible switches gone (`architecture/watching.md`).
 - 2026-11-12: the Clip's ends stop at sentences, exactly where the clip as said would, the ticks there, Shift for exactly where it's put; Accept's move striped on the bar, green in and red out, the times struck and new; what Panki AI heard on the bar, hatched outside it with a notch at each end, and a note under each message that opens the lines it heard; Room around a clip on the options page.
 - 2026-11-14: Downloads step 2, downloading seen working in Chrome: Download this video in the Panki panel's menu, run in the background by one YouTube page at a time, the pieces YouTube's player is handed copied in a hidden frame at 4×; Downloading / Waiting / Downloaded, Remove; the options page's Downloads tab with Download quality (`architecture/downloads.md`).
-- 2026-11-14: Downloads step 3: the downloaded mark on a downloaded video's every thumbnail, Panki's home shelves, the recap's Next up and the player bar (Downloaded), live on every page; Downloaded mark Shown / Hidden on the Downloads tab (`architecture/downloads.md` → On screen); Download speed, 1× to 16×, 4× to begin with, beside Download quality.
+- 2026-11-14: Downloads step 3: the downloaded mark on a downloaded video's every thumbnail, Panki's home shelves, the recap's what's next and the player bar (Downloaded), live on every page; Downloaded mark Shown / Hidden on the Downloads tab (`architecture/downloads.md` → On screen); Download speed, 1× to 16×, 4× to begin with, beside Download quality.
 - 2026-11-14: Downloads step 4, B on trial: a downloaded video's copy put into YouTube's own player where it runs short with no signal, what it did said under Downloaded in the panel's menu and in the console (`architecture/downloads.md` → Playing from the copy).
 - 2026-11-16: Short skip Off, By time or By line, By line a subtitle line back or on (← to the start of the line playing, and from its start, or pressed again after a skip by a line, to the line before), by the seconds without subtitles; a kept On reads as By time (`architecture/watching.md`).
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
@@ -88,7 +88,8 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-10-25: Finished; the video end time; Words that are in your decks on the seek bar; Recently watched.
 - 2026-11-10: a finished video leaving Saved for later; "Ends at".
 - 2026-11-13: how saving what's watched stands, an icon in the Panki panel's head (saved, sending, waiting, lost), its words on hover or a press (`architecture/watching.md` → How saving stands).
-- 2026-11-13: the Video recap as a video is finished, in five looks on trial (A Corner, B Sessions, H Flashcards, J Sessions, K Next up) turned by a developer button on it; Videos → Video recap with Confetti on the options page (`architecture/watching.md` → The Video recap, `RECAP.md`).
+- 2026-11-13: the Video recap as a video is finished; Videos → Video recap with Confetti on the options page (`architecture/watching.md` → The Video recap, `RECAP.md`).
+- 2026-11-16: the Video recap in J Sessions alone, the other four looks and the developer button gone, its head the headline, the facts and ×; K's Continue watching and Saved for later inside it under the strip, high above the seek bar; a session break, a clear tick where one session starts after another (`RECAP.md` step 3).
 
 **Panki AI** (`architecture/ai.md`)
 - 2026-11-05: the clip follows the Sentence; an AI value edited by hand stays the AI's.
@@ -110,7 +111,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - The Hold button is gone, on main and on prod.
 - Blur: `docs/BLUR.md`, on main and on prod (migration 53, `EXTENSION_PROTOCOL` 8; the extension rebuilt and reloaded by hand).
 - Line, the sentence's field kind: `docs/SENTENCE.md`, steps 1 to 3 on main and on prod (`EXTENSION_PROTOCOL` 12); the owner backs up and switches their field by hand.
-- The Video recap: `docs/RECAP.md`, step 2 built on local dev; next, the owner picks one of the five by living with them.
+- The Video recap: `docs/RECAP.md`, steps 1 to 3 done, J Sessions the one look, on main, unpushed until the owner says.
 - Downloads: `docs/DOWNLOADS.md`, steps 2 to 4 on main and on prod (`EXTENSION_PROTOCOL` as it was; the extension rebuilt and reloaded by hand); next, the owner tries playing from the copy (B), and keeps it or asks for A.
 - The extension's polish round: the owner sends what's off, a change at a time.
 - Then the owner picks from `docs/BACKLOG.md`.

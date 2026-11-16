@@ -69,7 +69,6 @@ import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { FieldMap } from "./roles";
 import { MarkPaint } from "./seekLook";
-import { RecapLook } from "./watch/recapLooks";
 
 /**
  * What the pieces of the extension say to each other. A page's script (the line under a player, the capture panel)
@@ -261,8 +260,6 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("fullPanel"), shown: z.boolean() }),
   /** The player bar kept visible by its key, or let fade again. */
   z.object({ kind: z.literal("barKept"), kept: z.boolean() }),
-  /** The look the Video recap is drawn in, turned by the developer button on it. */
-  z.object({ kind: z.literal("recapLook"), look: RecapLook }),
   /** A video's recap as it's finished: its cards, its watch sessions, its channel, what's next. */
   z.object({ kind: z.literal("recap"), videoId: VideoId }),
   /** Videos as their thumbnails are marked: how far the account got, its cards from each, whether Panki has its subtitles. */
@@ -674,10 +671,6 @@ export async function askFullPanel(shown: boolean): Promise<void> {
 /** The player bar kept visible or let fade, kept for every video from now on. */
 export async function askBarKept(kept: boolean): Promise<void> {
   await ask({ kind: "barKept", kept });
-}
-/** The Video recap's look, turned by the developer button on it, kept for every video from now on. */
-export async function askRecapLook(look: RecapLook): Promise<void> {
-  await ask({ kind: "recapLook", look });
 }
 /** A video's recap as it's finished, worked out by Panki from what it keeps. */
 export async function askRecap(videoId: string): Promise<Recapped> {

@@ -1,22 +1,18 @@
-/** @panki The Video recap on the picture as a video is finished, in the look on trial (`Recap`, `RecapFace`). Never a nag: nothing in it asks anything of the viewer. */
+/** @panki The Video recap as a video is finished: the words added over a strip of the watch sessions (`Recap`, `RecapFace`). Never a nag: nothing in it asks anything of the viewer. */
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { daysBetween, youtubeUrl, type ContinueVideo, type Day, type RecapCard, type SavedVideo, type VideoRecap, type WatchSession } from "@panki/contracts";
-import { Mark } from "@web/brand/Mark";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
-import { ScrollEdges } from "@web/components/ScrollEdges";
 import { clock, count, dayWords, hourWords, langOf, ordinalWords } from "@web/words";
 import { thumbnailAt } from "../content/feed";
 import { DownloadedMark } from "./DownloadedMark";
-import { RECAP_LOOKS, type RecapLook } from "../watch/recapLooks";
 
 /**
  * The Video recap: a short "well done" on the picture as a video is finished, saying what the video was to the
- * account in this viewing: the cards added from it, its watch sessions, the words in the decks heard in it, which of
- * its channel's videos it is, and in one look what's next. It asks nothing and offers no task; × or the next video
- * takes it off. It's drawn in one of the looks on trial (`watch/recapLooks.ts`), turned by the developer button in its
- * head. Laid out at a player's size and scaled to the player it stands in, so it reads the same on the page and in full
- * screen.
+ * account in this viewing: the cards added from it over a strip of its watch sessions, the words in the decks heard in
+ * it, which of its channel's videos it is, and under them what's next (Continue watching, Saved for later). It asks
+ * nothing and offers no task; × or the next video takes it off. Laid out at a player's size and scaled to the player
+ * it stands in, so it reads the same on the page and in full screen.
  */
 
 /** The size the recap is laid out at: a player 960 wide, as the page of ways drew it; it's scaled to the player it stands in, within these. */
@@ -24,14 +20,18 @@ const REF_WIDTH = 960;
 const SCALE_MIN = 0.7;
 const SCALE_MAX = 1.4;
 /** The words fly up out of their marks on the seek bar one after another: when the first sets off, in s, and how far apart. */
-const FLY = { start: 0.1, step: 0.11 };
+const FLY = { start: 0.5, step: 0.11 };
 /** Confetti: how many pieces, how long they fall, and the colours they're cut from (the marks' own, the same whatever the theme). */
 const CONFETTI = { pieces: 150, lastsMs: 3_500 };
 const CONFETTI_TOKENS = ["--mark-yellow", "--mark-orange", "--mark-red", "--mark-pink", "--mark-violet", "--mark-blue", "--mark-cyan", "--mark-green", "--mark-white"] as const;
-/** How a card's flashcard leans as it lands in H, and which are lifted, in turn. */
-const LEANS = [-5, 3, -2, 4, -3, 2];
-/** How many of Saved for later K's row offers beside Continue watching's. */
-const K_SAVED = 1;
+/**
+ * What's next under the strip: how many of Saved for later stand beside Continue watching's, and the least height the
+ * recap needs (its own px) for them to stand well above the seek bar, whose marks open as the pointer comes near it;
+ * on a picture shorter than that they're left out, so the recap stays inside it.
+ */
+const NEXT = { saved: 1, room: 380 };
+/** A session's start drawn as a break on the strip only this far (a share of the video, %) from its start: at the very start there's nothing before it to break from. */
+const BREAK_FROM = 0.5;
 
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -45,16 +45,13 @@ type Props = {
   heard: number | null;
   /** The video's length, in ms, for where on it each card and session is: Panki's, else the player's. */
   lengthMs: number;
-  look: RecapLook;
   confetti: boolean;
   /** Where you added a card's color, as CSS: the words and their cards wear it. */
   added: string;
   /** Takes the video to a moment, in s. */
   onGo: (seconds: number) => void;
   onClose: () => void;
-  /** The developer button: the next look. */
-  onNextLook: () => void;
-  /** The videos that wear the downloaded mark where K shows them: those downloaded whole, none while the mark is hidden. */
+  /** The videos that wear the downloaded mark in what's next: those downloaded whole, none while the mark is hidden. */
   downloaded: ReadonlySet<string>;
 };
 
@@ -87,21 +84,14 @@ export function Recap(props: Props) {
       {frame ? (
         <div className="recap-stage" style={{ width: frame.w, height: frame.h, transform: `scale(${frame.s})` }}>
           {props.confetti && !still() ? <Confetti frame={frame} burst={burst} /> : null}
-          {/* A look turned to is drawn afresh, so it comes in as it would at the video's end. */}
-          <LookOf key={props.look} {...props} frame={frame} onBurst={setBurst} />
+          <Sheet {...props} frame={frame} onBurst={setBurst} />
         </div>
       ) : null}
     </div>
   );
 }
 
-type LookProps = Props & { frame: Frame; onBurst: (burst: Burst) => void };
-
-function LookOf(props: LookProps) {
-  if (props.look === "A" || props.look === "B") return <CornerLook {...props} />;
-  if (props.look === "J") return <SheetLook {...props} />;
-  return <HaulLook {...props} />;
-}
+type SheetProps = Props & { frame: Frame; onBurst: (burst: Burst) => void };
 
 /**
  * "Nice! 6 cards · 2 examples added": the cards added, and apart from them the examples given to cards already there,
@@ -116,7 +106,7 @@ const shown = (faces: readonly RecapFace[]) => faces.filter((face) => face.card.
 /** Where on the recap's foot a moment of the video stands: its mark on the seek bar just under it. */
 const barAt = (frame: Frame, lengthMs: number, ms: number) => ({ x: lengthMs > 0 ? (frame.w * Math.min(ms, lengthMs)) / lengthMs : frame.w / 2, y: frame.h + 4 });
 /** Confetti from each card's mark on the seek bar, or from the bar's middle when none was added. */
-const fromMarks = ({ faces, frame, lengthMs }: LookProps): Origin[] => (faces.length > 0 ? faces.map((f) => ({ ...barAt(frame, lengthMs, f.card.startMs), spread: 0.9 })) : [{ x: frame.w / 2, y: frame.h, spread: 1.6 }]);
+const fromMarks = ({ faces, frame, lengthMs }: SheetProps): Origin[] => (faces.length > 0 ? faces.map((f) => ({ ...barAt(frame, lengthMs, f.card.startMs), spread: 0.9 })) : [{ x: frame.w / 2, y: frame.h, spread: 1.6 }]);
 
 /** The card's words with its reading over them, when it has one that isn't the words themselves. */
 function Words({ face }: { face: RecapFace }) {
@@ -143,10 +133,9 @@ function whenWords(session: WatchSession, today: Day): string {
   return `${day} ${hourWords(session.startedAt)}–${hourWords(session.endedAt)}`;
 }
 
-/** The facts under the words: how it was watched, the words of the decks heard in it, which of its channel's videos it is. Each left out when it isn't known. */
-function Facts({ recap, heard, sessions, className }: { recap: VideoRecap; heard: number | null; sessions: boolean; className: string }) {
+/** The facts beside the headline: the words of the decks heard in it, which of its channel's videos it is. Each left out when it isn't known. */
+function Facts({ recap, heard }: { recap: VideoRecap; heard: number | null }) {
   const parts: ReactNode[] = [];
-  if (sessions && recap.sessions.length > 0) parts.push(count(recap.sessions.length, "watch session", "watch sessions"));
   if (heard !== null) parts.push(`${count(heard, "word", "words")} in your decks heard`);
   if (recap.channel)
     parts.push(
@@ -156,7 +145,7 @@ function Facts({ recap, heard, sessions, className }: { recap: VideoRecap; heard
     );
   if (parts.length === 0) return null;
   return (
-    <div className={className}>
+    <div className="recap-ss-facts">
       {parts.map((part, i) => (
         <Fragment key={i}>
           {i > 0 ? <i className="recap-sep">·</i> : null}
@@ -167,33 +156,15 @@ function Facts({ recap, heard, sessions, className }: { recap: VideoRecap; heard
   );
 }
 
-/** The head's two buttons: the developer button turning to the next look, and ×. */
-function HeadButtons({ look, onNextLook, onClose }: Pick<Props, "look" | "onNextLook" | "onClose">) {
-  return (
-    <>
-      {/* Temporary, while a look is picked by living with them: it goes with the other looks. */}
-      <Button className="recap-dev" aria-label="Next recap look" onClick={onNextLook}>
-        <Icon name="swap" />
-        {look} {RECAP_LOOKS[look].name}
-      </Button>
-      <Button className="btn-icon recap-x" aria-label="Close" onClick={onClose}>
-        <Icon name="close" />
-      </Button>
-    </>
-  );
-}
-
 /**
  * The words fly up out of their marks on the seek bar to where they're laid out, one after another (each chip marked
- * `data-fly` with its card's moment, in ms); nothing moves for a viewer who asked for less motion, nor when the words
- * run past their room (`scroller`), where a box that scrolls would cut their flight off.
+ * `data-fly` with its card's moment, in ms); nothing moves for a viewer who asked for less motion.
  */
-function useFly(root: RefObject<HTMLElement | null>, { frame, lengthMs }: LookProps, start = FLY.start, scroller?: RefObject<HTMLElement | null>) {
+function useFly(root: RefObject<HTMLElement | null>, { frame, lengthMs }: SheetProps) {
   useLayoutEffect(() => {
     const el = root.current;
     const stage = el?.closest<HTMLElement>(".recap-stage");
-    const box = scroller?.current;
-    if (!el || !stage || still() || (box && box.scrollHeight > box.clientHeight + 1)) return;
+    if (!el || !stage || still()) return;
     const at = stage.getBoundingClientRect();
     const scale = stage.offsetWidth > 0 ? at.width / stage.offsetWidth : 1;
     el.querySelectorAll<HTMLElement>("[data-fly]").forEach((chip, i) => {
@@ -204,171 +175,58 @@ function useFly(root: RefObject<HTMLElement | null>, { frame, lengthMs }: LookPr
       chip.style.transform = `translate(${from.x - end.x}px, ${from.y - end.y}px) scale(0.15)`;
       chip.style.opacity = "0";
       chip.getBoundingClientRect();
-      const delay = start + i * FLY.step;
+      const delay = FLY.start + i * FLY.step;
       chip.style.transition = `transform 0.75s cubic-bezier(0.2, 1.25, 0.35, 1) ${delay}s, opacity 0.2s ${delay}s`;
       chip.style.transform = "";
       chip.style.opacity = "";
     });
-    // Once, as the look comes in: a resize afterwards moves nothing.
+    // Once, as the recap comes in: a resize afterwards moves nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
 
-/** The watch sessions on the video's length, each its own color, then each a row: when, and which part of the video. */
-function Sessions({ recap, lengthMs }: { recap: VideoRecap; lengthMs: number }) {
-  return (
-    <div className="recap-sess">
-      <SessionBar sessions={recap.sessions} lengthMs={lengthMs} className="recap-sess-bar" />
-      {recap.sessions.map((s, i) => (
-        <div key={s.startedAt} className="recap-sess-row" style={{ "--d": `${0.3 + i * 0.25}s` } as CSSProperties}>
-          <span className={`recap-dot is-s${(i % 3) + 1}`} />
-          <span className="recap-sess-when">
-            {whenWords(s, recap.today)}
-            {i === recap.sessions.length - 1 ? <span className="recap-sess-fin">finished</span> : null}
-          </span>
-          <span className="recap-sess-span">
-            {clock(s.fromMs / 1000)}–{clock(s.toMs / 1000)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+/** Where a moment stands along the video, as a share of its length (%). */
+const shareOn = (lengthMs: number) => (ms: number) => (lengthMs > 0 ? Math.min(100, (ms / lengthMs) * 100) : 0);
+/** Whether a session's start is drawn as a session break: every one after the first, but one at the very start of the video. */
+const breaks = (i: number, at: number) => i > 0 && at >= BREAK_FROM;
 
-/** Each session as the part of the video it ran over, on a track as long as the video. */
-function SessionBar({ sessions, lengthMs, className }: { sessions: readonly WatchSession[]; lengthMs: number; className: string }) {
-  const share = (ms: number) => (lengthMs > 0 ? Math.min(100, (ms / lengthMs) * 100) : 0);
+/**
+ * Each session as the part of the video it ran over, on a track as long as the video; where one starts after another,
+ * a session break: a tick in the picture's ink taller than the bar, edged in its dark so it reads on any color under it.
+ */
+function SessionBar({ sessions, lengthMs }: { sessions: readonly WatchSession[]; lengthMs: number }) {
+  const share = shareOn(lengthMs);
   return (
-    <div className={className}>
+    <div className="recap-ss-bar">
       {sessions.map((s, i) => (
         <i key={s.startedAt} className={`is-s${(i % 3) + 1}`} style={{ left: `${share(s.fromMs)}%`, width: `${Math.max(0.6, share(s.toMs) - share(s.fromMs))}%`, "--d": `${0.25 + i * 0.25}s` } as CSSProperties} />
       ))}
-    </div>
-  );
-}
-
-/** A: the corner card, its words as chips, the facts under them. B: the same with the watch sessions drawn on the video's length. */
-function CornerLook(props: LookProps) {
-  const { recap, faces, heard, lengthMs, look, onGo, onBurst } = props;
-  const card = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = card.current;
-    if (!el) return;
-    onBurst({ origins: [{ x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + 10, spread: 1.7 }], delayMs: 250 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const body = useRef<HTMLDivElement>(null);
-  const chips = shown(faces);
-  const sessions = look === "B" && recap.sessions.length > 0;
-  return (
-    <div ref={card} className="recap-corner recap-card">
-      <div className="recap-c-head">
-        <Mark size={22} />
-        <b>{headline(recap)}</b>
-        <HeadButtons {...props} />
-      </div>
-      {/* The card is never taller than the picture: past that, the words and the sessions scroll between its head and its facts. */}
-      {chips.length > 0 || sessions ? (
-        <>
-          <div ref={body} className="recap-c-body">
-            {chips.length > 0 ? (
-              <div className="recap-chips">
-                {chips.map((face) => (
-                  <Button key={face.card.cardId} className="recap-wchip" onClick={() => onGo(face.card.startMs / 1000)}>
-                    <Words face={face} />
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-            {sessions ? <Sessions recap={recap} lengthMs={lengthMs} /> : null}
-          </div>
-          <ScrollEdges of={body} />
-        </>
-      ) : null}
-      <Facts recap={recap} heard={heard} sessions={look === "A"} className="recap-facts" />
+      {sessions.map((s, i) => (breaks(i, share(s.fromMs)) ? <b key={s.startedAt} className="recap-ss-break" style={{ left: `${share(s.fromMs)}%`, "--d": `${0.25 + i * 0.25}s` } as CSSProperties} /> : null))}
     </div>
   );
 }
 
 /**
- * Whether a box of words runs past the room it has (the haul under its head, above K's row): then it scrolls, and its
- * words come in where they are rather than flying up from the seek bar, which a box that scrolls would cut off. Read
- * again as the player changes size.
+ * The words over a strip of the video split into its watch sessions, each word over the moment it came from, each
+ * session named under it; under the strip, what's next while the picture has the room.
  */
-function useRunsOver(box: RefObject<HTMLElement | null>, frame: Frame): boolean {
-  const [over, setOver] = useState(false);
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (el) setOver(el.scrollHeight > el.clientHeight + 1);
-  }, [box, frame]);
-  return over;
-}
-
-/** H: the words over the picture's top as small flashcards, reading and meaning, leaning a little. K: the words as chips, with what's next along the picture's foot. */
-function HaulLook(props: LookProps) {
-  const { recap, faces, heard, look, onGo, onBurst } = props;
-  const haul = useRef<HTMLDivElement>(null);
-  const row = useRef<HTMLDivElement>(null);
-  const over = useRunsOver(row, props.frame);
-  useFly(haul, props, FLY.start, row);
-  useLayoutEffect(() => {
-    onBurst({ origins: fromMarks(props), delayMs: 350 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return (
-    <>
-      <div ref={haul} className={look === "K" ? "recap-haul is-above-next" : "recap-haul"}>
-        <div className="recap-haul-head recap-glass">
-          <b>{headline(recap)}</b>
-          <HeadButtons {...props} />
-        </div>
-        <div ref={row} className={over ? "recap-haul-row is-over" : "recap-haul-row"}>
-          {shown(faces).map((face, i) =>
-            look === "H" ? (
-              <Button key={face.card.cardId} className="recap-fchip" data-fly={face.card.startMs} onClick={() => onGo(face.card.startMs / 1000)}>
-                <span className="recap-fci recap-glass" style={{ "--lean": `${LEANS[i % LEANS.length] ?? 0}deg`, "--lift": `${i % 2 ? 6 : 0}px` } as CSSProperties}>
-                  <span className="recap-fc-r" lang={langOf(face.reading)}>
-                    {face.reading !== face.card.words ? face.reading : ""}
-                  </span>
-                  <span className="recap-fc-w" lang={langOf(face.card.words)}>
-                    {face.card.words}
-                  </span>
-                  <span className="recap-fc-m" lang={langOf(face.meaning)}>
-                    {face.meaning}
-                  </span>
-                </span>
-              </Button>
-            ) : (
-              <Button key={face.card.cardId} className="recap-hchip recap-glass" data-fly={face.card.startMs} onClick={() => onGo(face.card.startMs / 1000)}>
-                <Words face={face} />
-              </Button>
-            ),
-          )}
-        </div>
-        {over ? <ScrollEdges of={row} /> : null}
-        <Facts recap={recap} heard={heard} sessions className="recap-haul-facts recap-glass" />
-      </div>
-      {look === "K" ? <NextRow continuing={recap.continuing} saved={recap.saved.slice(0, K_SAVED)} downloaded={props.downloaded} /> : null}
-    </>
-  );
-}
-
-/** J: the words over a strip of the video split into its watch sessions, each word over the moment it came from, each session named under it. */
-function SheetLook(props: LookProps) {
-  const { recap, faces, heard, lengthMs, onGo, onBurst } = props;
+function Sheet(props: SheetProps) {
+  const { recap, faces, heard, lengthMs, frame, onGo, onClose, onBurst } = props;
   const sheet = useRef<HTMLDivElement>(null);
-  useFly(sheet, props, 0.5);
+  useFly(sheet, props);
   useLayoutEffect(() => {
     onBurst({ origins: fromMarks(props), delayMs: 600 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const share = (ms: number) => (lengthMs > 0 ? Math.min(100, (ms / lengthMs) * 100) : 0);
+  const share = shareOn(lengthMs);
   return (
     <div ref={sheet} className="recap-sheet recap-glass">
       <div className="recap-ss-head">
         <b>{headline(recap)}</b>
-        <Facts recap={recap} heard={heard} sessions={false} className="recap-ss-facts" />
-        <HeadButtons {...props} />
+        <Facts recap={recap} heard={heard} />
+        <Button className="btn-icon recap-x" aria-label="Close" onClick={onClose}>
+          <Icon name="close" />
+        </Button>
       </div>
       <div className="recap-ss-track">
         {shown(faces).map((face, i) => (
@@ -381,26 +239,27 @@ function SheetLook(props: LookProps) {
             <span className="recap-ss-stem" style={{ left: `${share(face.card.startMs)}%`, "--d": `${0.85 + i * 0.1}s` } as CSSProperties} />
           </Fragment>
         ))}
-        <SessionBar sessions={recap.sessions} lengthMs={lengthMs} className="recap-ss-bar" />
+        <SessionBar sessions={recap.sessions} lengthMs={lengthMs} />
         <div className="recap-ss-labels">
           {recap.sessions.map((s, i) => (
-            <span key={s.startedAt} style={{ left: `${share(s.fromMs)}%`, width: `${Math.max(0, share(s.toMs) - share(s.fromMs))}%`, "--d": `${0.2 + i * 0.25}s` } as CSSProperties}>
+            <span key={s.startedAt} className={breaks(i, share(s.fromMs)) ? "is-after-break" : undefined} style={{ left: `${share(s.fromMs)}%`, width: `${Math.max(0, share(s.toMs) - share(s.fromMs))}%`, "--d": `${0.2 + i * 0.25}s` } as CSSProperties}>
               {whenWords(s, recap.today)}
             </span>
           ))}
         </div>
       </div>
+      {frame.h >= NEXT.room ? <NextRow continuing={recap.continuing} saved={recap.saved.slice(0, NEXT.saved)} downloaded={props.downloaded} /> : null}
     </div>
   );
 }
 
-/** K's foot: the top of Continue watching and of Saved for later, each a link to it; a shelf with nothing in it left out. */
+/** What's next: the top of Continue watching and of Saved for later, each a link to it; a shelf with nothing in it left out. */
 function NextRow({ continuing, saved, downloaded }: { continuing: readonly ContinueVideo[]; saved: readonly SavedVideo[]; downloaded: ReadonlySet<string> }) {
   if (continuing.length === 0 && saved.length === 0) return null;
   return (
     <div className="recap-nxrow">
       {continuing.length > 0 ? (
-        <div className="recap-nxg recap-glass">
+        <div className="recap-nxg">
           <span className="recap-nx-title">Continue watching</span>
           <div className="recap-nx-pair">
             {continuing.map((v) => (
@@ -410,7 +269,7 @@ function NextRow({ continuing, saved, downloaded }: { continuing: readonly Conti
         </div>
       ) : null}
       {saved.length > 0 ? (
-        <div className="recap-nxg recap-glass">
+        <div className="recap-nxg">
           <span className="recap-nx-title">Saved for later</span>
           <div className="recap-nx-pair">
             {saved.map((v) => (
@@ -444,7 +303,7 @@ function NextVideo({ videoId, title, channel, lengthMs, progress, downloaded }: 
   );
 }
 
-/** Confetti thrown up from the burst's places a moment after the look comes in, gone in a few seconds; drawn on a canvas under the look. */
+/** Confetti thrown up from the burst's places a moment after the recap comes in, gone in a few seconds; drawn on a canvas under the recap. */
 function Confetti({ frame, burst }: { frame: Frame; burst: Burst | null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {

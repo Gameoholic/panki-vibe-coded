@@ -252,7 +252,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | PanelButton | `ui/PanelButton.tsx` | The Panki panel's button in the screen's corner while it's folded in full screen, and Hide panel (`PanelButton`, `HidePanelButton`). Never a second way back. |
 | PanelMenu | `ui/PanelMenu.tsx` | The Panki panel's one menu on its head (`PanelMenu`). Never a second menu on the head. |
 | PankiPill | `ui/PankiPill.tsx` | Panki's pill in YouTube's header bar and its numbers (`PankiPill`, `pillNumbersOf`, `pillValue`, `SAMPLE_NUMBERS`, `SAMPLE_STREAK`). Never a second drawing of the pill. |
-| Recap | `ui/Recap.tsx` | The Video recap on the picture as a video is finished, in the look on trial (`Recap`, `RecapFace`). Never a nag: nothing in it asks anything of the viewer. |
+| Recap | `ui/Recap.tsx` | The Video recap as a video is finished: the words added over a strip of the watch sessions (`Recap`, `RecapFace`). Never a nag: nothing in it asks anything of the viewer. |
 | Rename | `ui/Rename.tsx` | A name of one's own on a row, renamed in place (`Rename`). Never a second rename in place. |
 | ResumeOffer | `ui/ResumeOffer.tsx` | Going on from where a video was stopped, offered on the picture (`ResumeOffer`). Never a second drawing of the offer. |
 | SaveControl | `ui/SaveControl.tsx` | Save for later as a control of the player's bar (`SaveControl`). |

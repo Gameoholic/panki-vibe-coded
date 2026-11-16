@@ -4352,14 +4352,10 @@
 
 /* ---------- The Video recap (`ui/Recap.tsx`) ----------
    On the picture as a video is finished, over everything but the player's controls at its foot (`--recap-foot`, written
-   by the page as it's placed). Laid out at a player 960 wide and scaled to the player it's in (`.recap-stage`). The card
-   in the corner is Panki's own surface; what stands over the picture is glass on the picture's dark, in the picture's
-   ink, whatever the theme. The words and their cards wear Where you added a card's color (`--recap-added`). Only what
-   it draws takes a press: the rest of the picture is the player's. The looks are on trial (`watch/recapLooks.ts`): the
-   rules of the four not picked go with them. */
+   by the page as it's placed). Laid out at a player 960 wide and scaled to the player it's in (`.recap-stage`). It's
+   glass on the picture's dark, in the picture's ink, whatever the theme. The words wear Where you added a card's color
+   (`--recap-added`). Only what it draws takes a press: the rest of the picture is the player's. */
 .recap {
-  --recap-spring: cubic-bezier(0.2, 1.4, 0.4, 1);
-  --recap-ease: cubic-bezier(0.2, 0.9, 0.3, 1.1);
   --recap-ink-soft: color-mix(in srgb, var(--theater-ink) 75%, transparent);
   position: absolute;
   left: 0;
@@ -4394,9 +4390,6 @@
 .recap rt {
   font-size: 10px;
   font-weight: 500;
-  color: var(--muted);
-}
-.recap-glass rt {
   color: color-mix(in srgb, var(--theater-ink) 70%, transparent);
 }
 .recap-sep {
@@ -4404,236 +4397,30 @@
   font-style: normal;
   opacity: 0.55;
 }
-.recap-facts {
-  font-size: 13px;
-  color: var(--muted);
-}
 
-/* The head's buttons: the developer button turning the look (dashed, so it reads as not for keeps), and ×. */
-.recap .btn.recap-dev {
-  flex: none;
-  height: 26px;
-  gap: 5px;
-  padding: 0 8px;
-  border: 1px dashed var(--line-strong);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.recap .btn.recap-dev .icon {
-  width: 13px;
-  height: 13px;
-}
+/* The head's ×, at its end whether or not facts stand beside the headline. */
 .recap .btn.recap-x {
   flex: none;
   width: 28px;
   height: 28px;
+  margin-left: auto;
   padding: 0;
   border: 0;
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--recap-ink-soft);
 }
 .recap .btn.recap-x .icon {
   width: 16px;
   height: 16px;
 }
-.recap-glass .btn.recap-dev,
-.recap-glass .btn.recap-x {
-  color: var(--recap-ink-soft);
-}
-.recap-glass .btn.recap-dev {
-  border-color: color-mix(in srgb, var(--theater-ink) 40%, transparent);
-}
 @media (hover: hover) {
   .recap .btn.recap-x:hover {
-    background: var(--surface-2);
-    color: var(--fg);
-  }
-  .recap-glass .btn.recap-x:hover,
-  .recap-glass .btn.recap-dev:hover {
     background: color-mix(in srgb, var(--theater-ink) 14%, transparent);
     color: var(--theater-ink);
   }
 }
 
-/* A and B: the card in the picture's bottom-left corner. */
-.recap-corner {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  width: 340px;
-  /* Never taller than the picture: the head and the facts stay, what's between them scrolls (`.recap-c-body`). */
-  max-height: calc(100% - 32px);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 12px 14px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  color: var(--fg);
-  pointer-events: auto;
-  animation: recap-rise 0.55s var(--recap-spring) both;
-}
-.recap-c-head {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.recap-corner > .recap-facts {
-  flex: none;
-}
-.recap-c-body {
-  flex: 0 1 auto;
-  min-height: 0;
-  display: grid;
-  gap: 10px;
-  overflow-y: auto;
-}
-.recap-c-head b {
-  flex: 1;
-  min-width: 0;
-  font-size: 17px;
-  font-weight: 800;
-}
-.recap-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.recap .btn.recap-wchip {
-  align-items: flex-end;
-  padding: 2px 9px 4px;
-  border: 1px solid color-mix(in srgb, var(--recap-added) 55%, var(--line));
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--recap-added) 12%, var(--surface));
-  color: var(--fg);
-  font: 400 16px/1.25 var(--font-ja);
-}
-@media (hover: hover) {
-  .recap .btn.recap-wchip:hover {
-    border-color: var(--recap-added);
-  }
-}
-
-/* B: the watch sessions, on the video's length and a row each. */
-.recap-sess {
-  display: grid;
-  gap: 6px;
-}
-.recap-sess-bar {
-  position: relative;
-  height: 8px;
-  border-radius: 3px;
-  background: var(--surface-2);
-}
-.recap-sess-bar i,
-.recap-ss-bar i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: 3px;
-  transform-origin: left;
-  animation: recap-sweep 0.5s cubic-bezier(0.3, 0, 0.2, 1) both;
-  animation-delay: var(--d);
-}
-.recap-corner .is-s1 {
-  background: var(--accent);
-}
-.recap-corner .is-s2 {
-  background: var(--mid);
-}
-.recap-corner .is-s3 {
-  background: var(--good);
-}
-.recap-sess-row {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  animation: recap-fade 0.3s both;
-  animation-delay: var(--d);
-}
-.recap-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.recap-sess-when {
-  overflow: hidden;
-  font-weight: 600;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.recap-sess-fin {
-  margin-left: 6px;
-  color: var(--good);
-  font-size: 11px;
-  font-weight: 700;
-}
-.recap-sess-span {
-  color: var(--muted);
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* H and K: the words over the picture's top, flown up out of their marks on the seek bar. */
-.recap-haul {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 26px;
-  /* Never past the picture's foot, nor into K's row: the head and the facts stay, the words scroll (`.is-over`). */
-  max-height: calc(100% - 26px - var(--recap-haul-below, 16px));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  pointer-events: none;
-}
-.recap-haul.is-above-next {
-  --recap-haul-below: 136px;
-}
-.recap-haul-head {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px 4px 14px;
-  border-radius: 12px;
-  pointer-events: auto;
-  animation: recap-fade 0.4s both 0.7s;
-}
-.recap-haul-head b {
-  font-size: 18px;
-  font-weight: 800;
-}
-.recap-haul-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: 900px;
-  flex: 0 1 auto;
-  min-height: 0;
-}
-/* Words past their room: they scroll, with room for H's cards to lean and rise inside it. */
-.recap-haul-row.is-over {
-  align-content: flex-start;
-  padding: 8px 6px;
-  overflow-y: auto;
-  pointer-events: auto;
-}
-.recap-haul-row + .scroll-edges {
-  --scroll-surface: transparent;
-}
+/* The words over a strip of the video split into its watch sessions, each word flown up out of its mark on the seek bar. */
 .recap .btn.recap-hchip {
   align-items: flex-end;
   padding: 4px 12px 6px;
@@ -4648,57 +4435,6 @@
     background: color-mix(in srgb, var(--theater) 85%, var(--theater-ink) 8%);
   }
 }
-.recap-haul-facts {
-  flex: none;
-  padding: 3px 12px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--theater) 50%, transparent);
-  color: color-mix(in srgb, var(--theater-ink) 85%, transparent);
-  font-size: 14px;
-  animation: recap-fade 0.4s both 1.2s;
-}
-/* H: each word a small flashcard, reading over it and meaning under it, leaning a little; pointing at one straightens it. */
-.recap .btn.recap-fchip {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--theater-ink);
-  pointer-events: auto;
-}
-.recap-fci {
-  display: grid;
-  justify-items: center;
-  min-width: 96px;
-  max-width: 200px;
-  padding: 6px 12px 8px;
-  border: 1.5px solid var(--recap-added);
-  border-radius: 12px;
-  transform: rotate(var(--lean, 0deg)) translateY(var(--lift, 0px));
-  transition: transform 0.25s var(--recap-ease);
-}
-@media (hover: hover) {
-  .recap .btn.recap-fchip:hover .recap-fci {
-    transform: rotate(0deg) translateY(-6px) scale(1.04);
-  }
-}
-.recap-fc-r {
-  min-height: 1em;
-  color: color-mix(in srgb, var(--theater-ink) 70%, transparent);
-  font: 400 11px/1.4 var(--font-ja);
-}
-.recap-fc-w {
-  font: 400 24px/1.25 var(--font-ja);
-}
-.recap-fc-m {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--recap-ink-soft);
-  font-size: 12px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* J: the words over a strip of the video split into its watch sessions. */
 .recap-sheet {
   position: absolute;
   left: 24px;
@@ -4761,7 +4497,13 @@
   background: color-mix(in srgb, var(--theater-ink) 12%, transparent);
 }
 .recap-ss-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   border-radius: 4px;
+  transform-origin: left;
+  animation: recap-sweep 0.5s cubic-bezier(0.3, 0, 0.2, 1) both;
+  animation-delay: var(--d);
 }
 .recap-sheet .is-s1 {
   background: var(--mark-blue);
@@ -4788,27 +4530,41 @@
   animation: recap-fade 0.3s both;
   animation-delay: var(--d);
 }
-
-/* K: Continue watching and Saved for later along the picture's foot, clear of the next video's countdown in its middle. */
-.recap-nxrow {
+/* A session break: where a session starts after another, a tick in the picture's ink taller than the bar, edged in its
+   dark so it reads over any session's color and any picture; the session's words start just past it. */
+.recap-ss-break {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
+  z-index: 1;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--theater-ink);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--theater) 85%, transparent);
+  animation: recap-fade 0.3s both;
+  animation-delay: var(--d);
+}
+.recap-ss-labels span.is-after-break {
+  box-sizing: border-box;
+  padding-left: 6px;
+}
+
+/* What's next under the strip: Continue watching and Saved for later, inside the recap so they stand well above the seek
+   bar (`NEXT.room` in `Recap.tsx`), clear of its marks and of the subtitles over the picture's foot. */
+.recap-nxrow {
   display: flex;
   justify-content: center;
   gap: 14px;
-  pointer-events: none;
-  animation: recap-rise 0.5s var(--recap-ease) both 0.9s;
+  margin-top: 10px;
+  animation: recap-fade 0.4s both 0.9s;
 }
 .recap-nxg {
   display: grid;
   gap: 6px;
   padding: 8px 10px 10px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--theater) 72%, transparent);
-  backdrop-filter: blur(12px);
-  pointer-events: auto;
+  background: color-mix(in srgb, var(--theater-ink) 6%, transparent);
 }
 .recap-nx-title {
   color: color-mix(in srgb, var(--theater-ink) 70%, transparent);
@@ -4851,7 +4607,7 @@
   object-fit: cover;
   display: block;
 }
-/* The downloaded mark on K's small pictures: as small as the length beside it, in the same inset. */
+/* The downloaded mark on what's next's small pictures: as small as the length beside it, in the same inset. */
 .recap-nx-th .downloaded-mark {
   left: 3px;
   bottom: 5px;
@@ -4905,12 +4661,6 @@
   text-overflow: ellipsis;
 }
 
-@keyframes recap-rise {
-  from {
-    transform: translateY(14px) scale(0.94);
-    opacity: 0;
-  }
-}
 @keyframes recap-fade {
   from {
     opacity: 0;

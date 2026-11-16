@@ -10,7 +10,6 @@ import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
 import { sourceOf, sourceShownOf } from "./subtitles";
 import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
-import { RecapLook } from "./watch/recapLooks";
 
 /**
  * What the extension keeps on this browser, in its own storage: where Panki is, the sign-in, what fills each deck's
@@ -221,8 +220,7 @@ const Stored = z.object({
   /** The Video recap as a video is finished, and its confetti (options page, Videos → Video recap; `modules.ts` → `recap`). */
   videoRecap: z.boolean().catch(DEFAULT_MODULES.recap),
   recapConfetti: z.boolean().catch(DEFAULT_MODULES.recapConfetti),
-  /** The look the recap is drawn in while one is picked, as the developer button on it last turned it (`watch/recapLooks.ts`). */
-  recapLook: RecapLook.catch(DEFAULT_MODULES.recapLook),
+  // A browser that kept `recapLook` (which of the recap's looks on trial it was drawn in) keeps it unread: there's one.
   /**
    * Video tracking, this browser's own, so some devices can send while others don't: whether the videos watched here are noted and sent to Panki. Set on the options page
    * (Videos → Data tracking). Null until it's settled, once, by `watch/tracking.ts`: Off for a browser new to Panki,
@@ -308,7 +306,6 @@ export const modulesOf = (store: Stored): Modules => ({
   shortSkipSeconds: store.shortSkipSeconds,
   recap: store.videoRecap,
   recapConfetti: store.recapConfetti,
-  recapLook: store.recapLook,
   downloadMark: store.downloadMark,
   downloading: store.downloadOn,
 });

@@ -1,7 +1,6 @@
 /** @panki Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). */
 import { z } from "zod";
 import type { IconName } from "@web/components/Icon";
-import { DEFAULT_RECAP_LOOK, RecapLook } from "./watch/recapLooks";
 
 /**
  * Which of Panki's parts are on in this browser, each switched on the options page under the panel of what it's about,
@@ -353,8 +352,6 @@ export const Modules = z.object({
    */
   recap: z.boolean(),
   recapConfetti: z.boolean(),
-  /** Which look the recap is drawn in while one is picked (`watch/recapLooks.ts`), turned by the developer button on it. */
-  recapLook: RecapLook,
   /**
    * The downloaded mark (`ui/DownloadedMark.tsx`): a video downloaded whole in this browser wears it wherever it shows,
    * every thumbnail of the site's, Panki's shelves, the recap's and the player bar (where it's also a row of the bar's
@@ -404,7 +401,6 @@ export const DEFAULT_MODULES: Modules = {
   shortSkipSeconds: 2.5,
   recap: true,
   recapConfetti: true,
-  recapLook: DEFAULT_RECAP_LOOK,
   downloadMark: true,
   downloading: true,
 };

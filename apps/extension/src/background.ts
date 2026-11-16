@@ -546,10 +546,6 @@ async function answer(
     await writeStore({ playerBarKept: ask.kept });
     return { ok: true };
   }
-  if (ask.kind === "recapLook") {
-    await writeStore({ recapLook: ask.look });
-    return { ok: true };
-  }
   if (ask.kind === "aiStop") {
     stoppable.get(stopKey(sender, ask.stop))?.abort();
     return { ok: true };

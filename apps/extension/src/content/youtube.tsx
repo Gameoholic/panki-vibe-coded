@@ -23,7 +23,7 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRecapLook, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
 import { amendLocal, loadLocal, localNow, onLocal, useLocal } from "../local";
 import type { TranscribePrefs } from "../transcribe/prefs";
@@ -55,7 +55,6 @@ import { Notice, Panel, type Capture, type Chars as SentenceChars, type ClipOffe
 import { HidePanelButton, PanelButton } from "../ui/PanelButton";
 import { ResumeOffer } from "../ui/ResumeOffer";
 import { Recap, type RecapFace } from "../ui/Recap";
-import { nextRecapLook } from "../watch/recapLooks";
 import { EndTime } from "../ui/EndTime";
 import type { PieceLimits, VideoMore } from "../ui/Explain";
 import { SpeedControl } from "../ui/SpeedControl";
@@ -2175,7 +2174,7 @@ function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "onReac
 /**
  * The Video recap while one stands for the video on the page (`ui/Recap.tsx`): each card's reading and meaning from the
  * fields this browser's mapping for its deck fills with the dictionary's (nothing when it maps none), the words in the
- * decks heard from Panki's subtitles in the parts watched, in the look and with the confetti as this browser has them.
+ * decks heard from Panki's subtitles in the parts watched, with the confetti as this browser has it.
  */
 function RecapHere() {
   const now = useSyncExternalStore(recapped.subscribe, recapped.get);
@@ -2197,23 +2196,16 @@ function RecapHere() {
     video.currentTime = seconds;
     void video.play();
   };
-  const nextLook = () => {
-    const look = nextRecapLook(local.modules.recapLook);
-    modules.amend({ recapLook: look });
-    void askRecapLook(look);
-  };
   return (
     <Recap
       recap={recap}
       faces={faces}
       heard={heard}
       lengthMs={length}
-      look={local.modules.recapLook}
       confetti={local.modules.recapConfetti}
       added={paintCss(local.prefs.added)}
       onGo={go}
       onClose={() => recapped.set(null)}
-      onNextLook={nextLook}
       downloaded={local.modules.downloadMark ? done : NONE_DOWNLOADED}
     />
   );
