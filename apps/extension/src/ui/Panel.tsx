@@ -8,7 +8,6 @@ import {
   roleOf,
   roleOfKey,
   valuesFor,
-  type Cut,
   type DictionaryRoleId,
   type RoleId,
   APP_LANGUAGES,
@@ -409,7 +408,7 @@ export type Made = { file: Blob; recording: RecordingAsk | null };
 /**
  * A cut of the page's video the panel can shape, hear and ask for: a stretch of it, in the video's own seconds.
  * Whoever offers it holds where its ends are; the panel draws it and says what was asked of it. A capture off a video
- * offers two: the sentence's clip, and the picked word's own sound.
+ * offers one: the sentence's clip.
  */
 export type ClipOffer = {
   video: HTMLVideoElement;
@@ -418,10 +417,7 @@ export type ClipOffer = {
   end: number | null;
   /** The whole of the video. */
   limit: { from: number; to: number };
-  /** The stretch its bar shows from edge to edge and its ends keep inside (the word's: its sentence's clip); null for a bar that shows the cut with room around it. */
-  within: { from: number; to: number } | null;
-  /** When each word that was heard begins. */
-  /** Where its ends stop as they're pulled, and the ticks on its bar: the clip's at sentences, the word's at words. */
+  /** Where its ends stop as they're pulled, and the ticks on its bar: at sentences. */
   ticks: readonly Tick[];
   /** Whether any of it is being played right now: round and round, or once after an end was moved. */
   playing: boolean;
@@ -450,11 +446,11 @@ export type ClipOffer = {
 /** A clip's two ends, both known, in the video's seconds. */
 type ClipEnds = { start: number; end: number };
 
-/** What's said while a stretch is being recorded. */
-const RECORDING: Record<Cut, string> = { clip: "Recording the clip…", word: "Recording the word…" };
-/** What a recording is called once the card has it: "its clip", "the word's audio". */
-function madeWords(of: Cut, soundOnly: boolean): string {
-  return `${of === "word" ? "the word's" : "its"} ${soundOnly ? "audio" : "clip"}`;
+/** What's said while the clip is being recorded. */
+const RECORDING = "Recording the clip…";
+/** What a recording is called once the card has it: "its clip", "its audio". */
+function madeWords(soundOnly: boolean): string {
+  return `its ${soundOnly ? "audio" : "clip"}`;
 }
 const capitalised = (words: string) => words.slice(0, 1).toUpperCase() + words.slice(1);
 
@@ -525,8 +521,8 @@ const ADDED_MS = 1000;
 type Phase =
   | { at: "idle" }
   | { at: "adding" }
-  | { at: "recording"; what: Cut; seconds: number; of: number | null }
-  | { at: "sending"; what: Cut }
+  | { at: "recording"; seconds: number; of: number | null }
+  | { at: "sending" }
   | { at: "done"; deck: string; note: string | null };
 
 type Props = {
@@ -538,8 +534,6 @@ type Props = {
   prefer?: { term: string; reading: string } | null;
   /** On a video with something taken: the sentence's clip. Null anywhere else. */
   clip: ClipOffer | null;
-  /** On a video with a word picked: that word's own stretch. Null anywhere else. */
-  wordClip: ClipOffer | null;
   /** Whether the drawer unfolds as it comes; off when it takes the place of one that was open. */
   arrives: boolean;
   onClose: () => void;
@@ -581,7 +575,7 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
  * written exactly so, endings undone). Which of their words it is (when there's more than one) and, if the meanings
  * are picked by hand, which meanings, are chosen just above the first such field; anything filled can be typed over.
  */
-export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, arrives, onClose, onAdded, onTouching }: Props) {
+export function Panel({ capture, picked, onPick, prefer = null, clip, arrives, onClose, onAdded, onTouching }: Props) {
   // Minted once for the panel, so pressing Add again after a lost connection is the same card, not a second one.
   const [cardId] = useState(uuid);
   const [state, setState] = useState<State | null>(lastKnown);
@@ -766,7 +760,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   // What fills each field is the card type's (`CardField.fills`), the same in every browser.
   const map = loaded && deck && type ? mapOf(type) : {};
   const fieldOf = (role: RoleId) => type?.fields.find((f) => f.id === map[role]) ?? null;
-  const wordField = fieldOf("word");
   const sentenceField = fieldOf("sentence");
   const sentence = written ?? capture.sentence;
   /** The dictionary's word this is: the one chosen, or the first found. */
@@ -1652,29 +1645,16 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const said = word.trim();
   /** Where the word is in the sentence: the stretch that's lit. */
   const lit = said === "" ? null : whereIs(sentence, said, near);
-  /** Everything this deck takes that's recorded off a video: which stretch, with its picture or as sound alone, and the field it goes in. */
+  /** Everything this deck takes that's recorded off a video: the clip, with its picture or as sound alone, and the field it goes in. */
   const recorded = ROLE_IDS.flatMap((role) => {
     const cut = ROLES[role].cut;
     const field = fieldOf(role);
     return cut && field ? [{ ...cut, field }] : [];
   });
-  /** What a stretch's bar is called: the fields it goes into, by their own names. */
-  const namesOf = (of: Cut) =>
-    recorded
-      .filter((piece) => piece.of === of)
-      .map((piece) => piece.field.name)
-      .join(" · ");
-  const offers: Record<Cut, ClipOffer | null> = { clip, word: wordClip };
-  /**
-   * The recordings this card gets: what the deck takes and the page has to give. One stretch may be recorded twice,
-   * once each way. The clip's last: a recording leaves the video where it stopped, so it's left at the clip's end.
-   */
-  const cuts = recorded
-    .flatMap((piece) => {
-      const offer = offers[piece.of];
-      return offer ? [{ ...piece, offer }] : [];
-    })
-    .sort((a, b) => (a.of === b.of ? 0 : a.of === "clip" ? 1 : -1));
+  /** What the clip's bar is called: the fields it goes into, by their own names. */
+  const clipNames = recorded.map((piece) => piece.field.name).join(" · ");
+  /** The recordings this card gets: what the deck takes and the page has to give. */
+  const cuts = clip ? recorded.map((piece) => ({ ...piece, offer: clip })) : [];
 
   // The first of the card's fields takes the keys as soon as there is one, without the page being moved to it: on a video
   // the drawer stands beside something being watched. Never the conversation's message box, which stands above the
@@ -1739,14 +1719,13 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     const filled: Record<string, string> = { ...toSend };
     let note: string | null = null;
     for (const cut of making) {
-      const what = cut.of;
-      const words = madeWords(cut.of, cut.soundOnly);
+      const words = madeWords(cut.soundOnly);
       let why: string | null = null;
       let touched = false;
       try {
-        const { file, recording } = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", what, seconds, of }), cancel.signal);
+        const { file, recording } = await cut.offer.record(cut.soundOnly, (seconds, of) => setPhase({ at: "recording", seconds, of }), cancel.signal);
         if (cancelled()) return;
-        setPhase({ at: "sending", what });
+        setPhase({ at: "sending" });
         const mediaId = uuid();
         // It goes with what's said in it, as heard on the video (a card plays a clip with its subtitles; a sound keeps
         // its words too), and how it was recorded, so it can be recorded again later.
@@ -1999,8 +1978,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     );
   }
 
-  /** A cut of the video: its bar with the two ends, playing it, and where it begins and ends, each to be typed over. */
-  function cutBlock(what: Cut, offer: ClipOffer, name: string) {
+  /** The clip: its bar with the two ends, playing it, and where it begins and ends, each to be typed over. */
+  function cutBlock(offer: ClipOffer, name: string) {
     const off = busy || offer.end === null;
     /** The ends held as they are: Panki AI working on the card holds them too, though the cut can still be played. */
     const held = still || offer.end === null;
@@ -2008,21 +1987,21 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       offer.move(which, seconds, "exact");
       offer.settle(which);
     };
-    // The clip's alone: where Accept on the waiting Sentence would put it, and what Panki AI heard of the video.
-    const proposed = what === "clip" ? clipProposed() : null;
-    const heard = what === "clip" ? touch.heard : null;
+    // Where Accept on the waiting Sentence would put it, and what Panki AI heard of the video.
+    const proposed = clipProposed();
+    const heard = touch.heard;
     // An end Accept would move: struck red, its new time green after it, as the Touch up diff draws a change.
     const moves = (now: number, to: number | undefined) => to !== undefined && Math.abs(to - now) >= 0.005;
     const stampAt = (which: ClipEnd, at: number, to: number | undefined) =>
       moves(at, to) ? (
         <>
           <span className="capture-stamp-was">
-            <Stamp id={`panki-${what}-${which}`} name={which === "start" ? "Where it starts" : "Where it ends"} at={at} disabled={still} onSet={set(which)} />
+            <Stamp id={`panki-clip-${which}`} name={which === "start" ? "Where it starts" : "Where it ends"} at={at} disabled={still} onSet={set(which)} />
           </span>{" "}
           <Mark>{stamp(to ?? at)}</Mark>
         </>
       ) : (
-        <Stamp id={`panki-${what}-${which}`} name={which === "start" ? "Where it starts" : "Where it ends"} at={at} disabled={still} onSet={set(which)} />
+        <Stamp id={`panki-clip-${which}`} name={which === "start" ? "Where it starts" : "Where it ends"} at={at} disabled={still} onSet={set(which)} />
       );
     return (
       <div className="field capture-clip">
@@ -2038,7 +2017,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           ticks={offer.ticks}
           disabled={held}
           anchor={offer.anchor}
-          within={offer.within}
           onMove={offer.move}
           onSettle={offer.settle}
           onHear={offer.hear}
@@ -2069,19 +2047,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             </span>
           )}
         </div>
-      </div>
-    );
-  }
-
-  /** The word's own stretch, on a video, when the deck takes it: its bar once a word is picked, and before that what to do to get one. */
-  function wordBlock() {
-    const names = namesOf("word");
-    if (!clip || names === "") return null;
-    if (wordClip) return cutBlock("word", wordClip, names);
-    return (
-      <div className="field capture-clip">
-        <span className="field-label">{names}</span>
-        <p className="empty">No word picked.</p>
       </div>
     );
   }
@@ -2169,7 +2134,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
         </>
       );
     }
-    const clipNames = namesOf("clip");
     // Only where the deck keeps the sentence: with none on the card there's nothing for the word to be missing from.
     const stray = lit === null && said !== "" && sentence.trim() !== "" && sentenceField !== null;
     /** A card already called what this one would be, said under the field it's called by, with a way to it in Panki. */
@@ -2278,15 +2242,12 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           )}
           {unmarkOffer(field)}
           {already(field)}
-          {/* The word's sound stands under the word, and the meanings to tick under where they go. */}
-          {isWord ? wordBlock() : null}
+          {/* The meanings to tick stand under where they go. */}
           {role === "dictMeaning" ? meaningsBlock() : null}
         </>
       );
     };
     const standIns: Record<string, ReactNode | StandIn> = {};
-    /** The stretch being played on the page's video right now, if either is. */
-    const playing: Cut | null = clip?.playing ? "clip" : wordClip?.playing ? "word" : null;
     if (voiceField && voice) standIns[voiceField.id] = <MediaView kind="audio" src={voice.url} label={voiceField.name} player={voiceField.id} />;
     for (const cut of cuts) {
       standIns[cut.field.id] = (subtitles) => (
@@ -2297,8 +2258,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           soundOnly={cut.soundOnly}
           playing={cut.offer.playing}
           pausedAt={cut.offer.pausedAt}
-          // The word's sound being played isn't the sentence's clip playing: that one's picture holds still meanwhile.
-          held={playing !== null && playing !== cut.of}
           label={cut.field.name}
           onToggle={busy ? nothing : cut.offer.toggle}
           // What the clip will be kept with, at its ends as they stand: the card will play it with these.
@@ -2311,10 +2270,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
       <Form ref={hoist.ref} onSubmit={() => void add()} className={`add-form ${busy ? "is-working" : ""}`.trim()}>
         {top(deck.name)}
         {/* The clip comes first of the card: it's what stands level with the video it's cut from. */}
-        {clip && clipNames !== "" ? cutBlock("clip", clip, clipNames) : null}
+        {clip && clipNames !== "" ? cutBlock(clip, clipNames) : null}
         {chooser}
-        {/* With no field for the word, its sound still belongs up here with the rest that's cut from the video. */}
-        {wordField ? null : wordBlock()}
         {/* The card's own fields, in the card's own order (but those whose Touch up proposal waits, at the top): what
             the extension fills, and what's typed. Each in a row of its own, which slides as the order changes. */}
         {hoist.order.map((fieldId) => {
@@ -2394,7 +2351,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
             <span className="media-track" aria-hidden="true">
               <i style={{ width: `${share * 100}%` }} />
             </span>
-            <span>{phase.at === "sending" ? "Sending…" : phase.at === "recording" ? RECORDING[phase.what] : ""}</span>
+            <span>{phase.at === "sending" ? "Sending…" : phase.at === "recording" ? RECORDING : ""}</span>
           </div>
         </Fold>
         {failure ? (

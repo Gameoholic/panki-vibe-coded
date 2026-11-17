@@ -69,7 +69,7 @@ export const MediaCues = z.array(SubtitleCue).max(CUES_MAX);
 export type MediaCues = z.infer<typeof MediaCues>;
 export const MediaCuesBody = z.object({ cues: MediaCues });
 
-/** Which of a capture's two cuts a recording is: the sentence's clip, or the picked word's own stretch of it. */
+/** Which cut of a capture a recording is: the sentence's clip; or the picked word's own stretch of it, kept on recordings from when that was cut too. */
 export const RecordingCut = z.enum(["clip", "word"]);
 export type RecordingCut = z.infer<typeof RecordingCut>;
 

@@ -33,7 +33,7 @@ import { createWatcher, SAVING_IDLE, type Saving } from "../watch/watcher";
 import { SavingMark } from "../ui/SavingMark";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, mapOf, subtitleVars, withinBound, type CardType, type Cut, type Deck, type SubtitleStyle, type VideoCard } from "@panki/contracts";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, mapOf, subtitleVars, withinBound, type CardType, type Deck, type SubtitleStyle, type VideoCard } from "@panki/contracts";
 import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
 import { createPlayback } from "../download/playback";
 import { createDownloads, stillOf } from "../download/runner";
@@ -1495,10 +1495,6 @@ function sentenceStops(text: string, beats: readonly Beat[]): Stops {
   }
   return { starts, ends };
 }
-/** The word's own stops: every word's edges, the word's bar being a cut out of one sentence. */
-function wordStops(beats: readonly Beat[]): Stops {
-  return { starts: beats.map((beat, i) => beginsAt(beat, beats[i - 1])), ends: beats.flatMap((beat, i) => endsAt(beat, beats[i + 1]) ?? []) };
-}
 /** Stops as a bar's ticks. */
 const ticksOf = (stops: Stops): Tick[] => [...stops.starts.map((at) => ({ at, kind: "start" as const })), ...stops.ends.map((at) => ({ at, kind: "end" as const }))];
 
@@ -1628,10 +1624,11 @@ function videoSource(start: number, end: number | null): Pick<Capture, "source" 
 type Ends = { start: number; end: number | null };
 
 /**
- * The stretch of the video a picked word was said in, as far as the captions tell: from when its first piece appeared
- * to when what follows its last did (a transcript's: to when its last was over), with the same margin either side as a
- * sentence gets. Captions written a word at a time give about the word; a caption shown whole gives only its whole
- * line, and the ends are then put by hand. Null with no word picked.
+ * The stretch of the video a picked word was said in, as far as the captions tell, kept inside its sentence's clip:
+ * from when its first piece appeared to when what follows its last did (a transcript's: to when its last was over),
+ * with the same margin either side as a sentence gets. Nothing is cut or recorded from it: it's kept with the card
+ * (`CaptureFacts.word`), where the review's time left reads how far into its clip the word starts (`Card.wordAtMs`).
+ * Null with no word picked.
  */
 function wordStretch(clip: Clip): Ends | null {
   const pick = clip.pick;
@@ -1640,21 +1637,9 @@ function wordStretch(clip: Clip): Ends | null {
   const first = said[0];
   const last = said.at(-1);
   if (!first || !last) return null;
-  const start = beginsAt(first, clip.beats[clip.beats.indexOf(first) - 1]);
+  const start = Math.max(clip.start, beginsAt(first, clip.beats[clip.beats.indexOf(first) - 1]));
   const end = endsAt(last, clip.beats[clip.beats.indexOf(last) + 1]);
-  return { start, end: end === null ? null : Math.max(end, start + CLIP_MIN) };
-}
-
-/**
- * A word's stretch kept inside its sentence's clip: the word is cut out of the clip, so neither of its ends is ever
- * outside the clip's own (the word's bar runs from the clip's start to the clip's end). While
- * the clip's end isn't known yet, only its start holds the word back.
- */
-function inside(word: Ends, clip: Ends): Ends {
-  if (clip.end === null) return { start: Math.max(word.start, clip.start), end: word.end };
-  const start = Math.min(Math.max(word.start, clip.start), Math.max(clip.start, clip.end - CLIP_MIN));
-  const end = word.end === null ? null : Math.max(Math.min(word.end, clip.end), Math.min(clip.end, start + CLIP_MIN));
-  return { start, end };
+  return { start, end: end === null ? null : clip.end === null ? end : Math.min(end, clip.end) };
 }
 
 /** A clip is being recorded right now: its ends are what they were when that began, and can't be pulled about under it. */
@@ -1666,10 +1651,10 @@ const holdForAi = (on: boolean) => {
 };
 
 /**
- * Records a cut (the clip, or the word's own) as it stands when it's asked for, with how it was made. `read` gives its
- * ends afresh each time: they may still be settling.
+ * Records the clip as it stands when it's asked for, with how it was made. `read` gives its ends afresh each time: they
+ * may still be settling.
  */
-async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal): Promise<Made> {
+async function recordClip(read: () => Ends | null, soundOnly: boolean, onProgress: (seconds: number, of: number | null) => void, signal?: AbortSignal): Promise<Made> {
   const player = video;
   if (!player) throw new RecordError("The video is gone.");
   replay.stop();
@@ -1683,7 +1668,7 @@ async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean,
   recording = true;
   try {
     const { file, facts } = await recordStretch(player, { from: clip.start, until: (now) => now >= end, expectedEnd: end, soundOnly }, onProgress, signal);
-    return { file, recording: recordingOf(cut, clip.start, end, facts) };
+    return { file, recording: recordingOf(clip.start, end, facts) };
   } finally {
     recording = false;
   }
@@ -1693,17 +1678,17 @@ async function recordClip(cut: Cut, read: () => Ends | null, soundOnly: boolean,
 const msOf = (seconds: number) => Math.max(0, Math.round(seconds * 1000));
 
 /**
- * How a cut was recorded off this video, for recording it again later (the contracts' `MediaRecording`, less who made
- * it, which the worker adds); null off a video Panki can't name, or when it doesn't read as one. A part the browser
- * didn't say is left out.
+ * How the clip was recorded off this video, for recording it again later (the contracts' `MediaRecording`, less who
+ * made it, which the worker adds); null off a video Panki can't name, or when it doesn't read as one. A part the
+ * browser didn't say is left out.
  */
-function recordingOf(cut: Cut, start: number, end: number, facts: RecordFacts): RecordingAsk | null {
+function recordingOf(start: number, end: number, facts: RecordFacts): RecordingAsk | null {
   const id = videoId();
   if (!id) return null;
   const said = Object.fromEntries(
     Object.entries({ width: facts.width, height: facts.height, frameRate: facts.frameRate, videoBits: facts.videoBits, audioBits: facts.audioBits }).filter(([, value]) => value !== null),
   );
-  const asked = RecordingAsk.safeParse({ url: youtubeUrl({ videoId: id, seconds: Math.floor(start) }), cut, startMs: msOf(start), endMs: msOf(end), stoppedMs: msOf(facts.stoppedAt), ...said });
+  const asked = RecordingAsk.safeParse({ url: youtubeUrl({ videoId: id, seconds: Math.floor(start) }), cut: "clip", startMs: msOf(start), endMs: msOf(end), stoppedMs: msOf(facts.stoppedAt), ...said });
   return asked.success ? asked.data : null;
 }
 
@@ -1711,9 +1696,10 @@ function recordingOf(cut: Cut, start: number, end: number, facts: RecordFacts): 
  * What the page knows of how a capture off the video was taken, for the card to keep (the contracts' `CaptureFacts`;
  * the drawer adds what it knows, the worker the build): words picked on the line or a stretch with none, which
  * subtitles the line was, who put the clip's ends (`clipBy`: where its words were said, by hand, or by an accepted
- * Sentence; how it was said only for words picked, a stretch's being always put), and the picked word's own stretch.
+ * Sentence; how it was said only for words picked, a stretch's being always put), and the picked word's stretch as it
+ * was said (`wordStretch`).
  */
-function takenFacts(taken: "caption" | "stretch", clipBy: ClipBy | null, word: (Ends & { byHand: boolean }) | null, clip: { start: number; end: number | null }): CaptureFacts {
+function takenFacts(taken: "caption" | "stretch", clipBy: ClipBy | null, word: Ends | null, clip: { start: number; end: number | null }): CaptureFacts {
   const mode = lines.get().mode;
   const endMs = (clip.end ?? clip.start) * 1000;
   // The words of the clip's stretch Panki AI's Proofread edited (AI step 6): kept, since the Sentence carries no spark for them.
@@ -1729,7 +1715,7 @@ function takenFacts(taken: "caption" | "stretch", clipBy: ClipBy | null, word: (
     ...(mode === "transcript" ? { subtitles: "panki" as const } : mode === "captions" ? { subtitles: "youtube" as const } : {}),
     ...(clipBy === "said" || clipBy === "hand" ? { clipByHand: clipBy === "hand" } : {}),
     ...(clipBy === "sentence" ? { clipByHand: false, clipBySentence: true } : {}),
-    ...(word ? { word: { startMs: msOf(word.start), ...(word.end === null ? {} : { endMs: msOf(word.end) }), byHand: word.byHand } } : {}),
+    ...(word ? { word: { startMs: msOf(word.start), ...(word.end === null ? {} : { endMs: msOf(word.end) }), byHand: false } } : {}),
     ...(proofread.length > 0 ? { proofread } : {}),
   };
 }
@@ -1761,12 +1747,10 @@ document.addEventListener(
  * What the drawer is open on: the captions that were under the player, with the words picked in them and where the
  * clip's ends were put; a stretch of the video taken by itself, with no words to go by; or words selected on the page.
  * `turn` tells one capture from the next, and `moved` counts the times a capture went to another sentence of the same
- * lines. `wordTrim` is where the ends of the picked word's own sound were put by hand (as it was said, until they are),
- * and `wordTurn` counts the times another word was picked: its sound starts over from that word. `bySentence` is that
- * the clip's ends were last put by an accepted Touch up Sentence, not by hand.
+ * lines. `bySentence` is that the clip's ends were last put by an accepted Touch up Sentence, not by hand.
  */
 type Taking = (
-  | { of: "caption"; turn: number; lineIds: readonly number[]; chars: Chars | null; trim: Trim; moved: number; wordTrim: Trim; wordTurn: number; bySentence?: boolean }
+  | { of: "caption"; turn: number; lineIds: readonly number[]; chars: Chars | null; trim: Trim; moved: number; bySentence?: boolean }
   | { of: "stretch"; turn: number; trim: { start: number; end: number }; bySentence?: boolean }
   | { of: "selection"; turn: number; taken: Taken; chars: SentenceChars | null }
   | { of: "nothing" }
@@ -2367,14 +2351,11 @@ function App() {
   /** Every word that's been heard and is still kept, with when; worked out again only when the lines change, as long as the transcript is. */
   const heardText = useMemo(() => (clip ? transcriptOf(view.lines) : null), [clip !== null, view.lines]);
   const heard = useMemo(() => (heardText ? beatsOf(heardText.parts) : []), [heardText]);
-  /** Where a pulled end stops, and the ticks on each bar: the clip's at sentences, the word's at words. */
+  /** Where a pulled end of the clip stops, at sentences, and the ticks on its bar. */
   // Room around a clip changed on the options page: every stop is worked out again (the page is drawn again for any change of `modules`).
   const clipRoom = `${leadNow()}/${tailNow()}`;
   const sentenceEdges = useMemo(() => (heardText ? sentenceStops(heardText.text, heard) : NO_STOPS), [heardText, heard, clipRoom]);
-  const wordEdges = useMemo(() => wordStops(heard), [heard, clipRoom]);
   const clipTicks = useMemo(() => ticksOf(sentenceEdges), [sentenceEdges]);
-  // A word's bar ticks where each word begins alone: its ends fall on the next word's start.
-  const wordTicks = useMemo(() => ticksOf({ starts: wordEdges.starts, ends: [] }), [wordEdges]);
 
   /** The transcript's words by id, as it stands: which words Panki AI edited, and the editors' lines. */
   const wordsById = useMemo(() => new Map((tx.transcript?.words ?? []).map((w) => [w.id, w])), [tx.transcript]);
@@ -2658,19 +2639,12 @@ function App() {
     for (const [name, value] of Object.entries(subtitleVars(style))) over.host.style.setProperty(name, value);
   }, [style]);
 
-  /** The picked word's own stretch: where its ends were put, or else as the captions say it was said. */
-  const wordTrim = taking?.of === "caption" ? taking.wordTrim : AS_SAID;
-  const wordAsPut: Ends | null = !clip || !clip.pick ? null : wordTrim.start !== null && wordTrim.end !== null ? { start: wordTrim.start, end: wordTrim.end } : wordStretch(clip);
-  const wordEnds = clip && wordAsPut ? inside(wordAsPut, { start: clip.start, end: clip.end }) : null;
-
-  // Each cut's ends as they are this instant. What's asked of them in one go (an end moved, then the cut played)
+  // The clip's ends as they are this instant. What's asked of them in one go (an end moved, then the clip played)
   // can't wait for the screen to be drawn again, so each change is written here as it's made.
-  const ends = useRef<Record<Cut, Ends | null>>({ clip: null, word: null });
+  const ends = useRef<Ends | null>(null);
   useEffect(() => {
-    ends.current = { clip: clip ? { start: clip.start, end: clip.end } : null, word: wordEnds };
+    ends.current = clip ? { start: clip.start, end: clip.end } : null;
   });
-  /** Which of the two was last played: the one the replay is of, while there is one. */
-  const played = useRef<Cut>("clip");
 
   // The video stops by itself at the clip's end, once for each clip (`stopAt`): a new capture, or the clip taken to
   // another sentence, is a new clip; an end pulled elsewhere is the same clip, stopping at its new end if it hasn't yet.
@@ -2739,21 +2713,16 @@ function App() {
     const open = taking?.of === "caption" && !taking.added && sameIds(taking.lineIds, lineIds) ? taking : null;
     // The clip's words are counted in its own text, which may begin sooner than the lines taken do.
     const inClip = open && chars && clip ? reread(chars, clip.base, clip.parts) : null;
-    // Another word: its own sound is that word's, as it was said, whatever was done to the last one's. The same word
-    // pressed again keeps what was done to it.
-    const sameWord = open !== null && open.chars !== null && chars !== null && open.chars.from === chars.from && open.chars.to === chars.to;
-    const word = open && sameWord ? { wordTrim: open.wordTrim, wordTurn: open.wordTurn } : { wordTrim: AS_SAID, wordTurn: (open?.wordTurn ?? -1) + 1 };
     if (open && clip && inClip && inClip.from >= clip.from && inClip.to <= clip.to) {
-      if (!sameWord && played.current === "word") replay.stop();
-      setTaking({ ...open, chars, ...word });
+      setTaking({ ...open, chars });
       return;
     }
     hold(there.waitsFor);
     if (open) {
-      setTaking({ ...open, chars, trim: AS_SAID, moved: open.moved + 1, ...word });
+      setTaking({ ...open, chars, trim: AS_SAID, moved: open.moved + 1 });
     } else {
       setTurn(turn + 1);
-      setTaking({ of: "caption", turn: turn + 1, lineIds, chars, trim: AS_SAID, moved: 0, ...word, fresh: taking === null });
+      setTaking({ of: "caption", turn: turn + 1, lineIds, chars, trim: AS_SAID, moved: 0, fresh: taking === null });
     }
   }
   /** A word pressed under the player. While a capture is open on lines that are still there, it's another pick in that capture; otherwise it starts one on what's there now. */
@@ -2831,77 +2800,65 @@ function App() {
   }
 
   /**
-   * Writes down where a cut's ends are now. Both, always: from the first move on it's a stretch of the video, not a
-   * sentence or a word as it was said. `by` is who put the clip's: a hand on a bar, or an accepted Sentence.
+   * Writes down where the clip's ends are now. Both, always: from the first move on it's a stretch of the video, not a
+   * sentence as it was said. `by` is who put them: a hand on a bar, or an accepted Sentence.
    */
-  function setEnds(cut: Cut, next: { start: number; end: number }, by: "hand" | "sentence" = "hand") {
-    if (cut === "word") {
-      if (taking?.of !== "caption") return;
-      setTaking({ ...taking, wordTrim: next });
-    } else {
-      if (taking?.of !== "caption" && taking?.of !== "stretch") return;
-      setTaking({ ...taking, trim: next, bySentence: by === "sentence" });
-    }
-    ends.current = { ...ends.current, [cut]: next };
-    if (played.current === cut) replay.retarget({ from: next.start, to: next.end });
+  function setEnds(next: { start: number; end: number }, by: "hand" | "sentence" = "hand") {
+    if (taking?.of !== "caption" && taking?.of !== "stretch") return;
+    setTaking({ ...taking, trim: next, bySentence: by === "sentence" });
+    ends.current = next;
+    replay.retarget({ from: next.start, to: next.end });
   }
   /**
-   * An end is moved: to the nearest of its cut's stops (the clip's at sentences, the word's at words), or exactly
-   * where it's put (Shift held, the arrow keys, a time typed). Never past the other end, nor out of the video (the
-   * word's: nor out of the clip), nor to a cut too long to keep. And not at all while something is being recorded.
+   * An end is moved: to the nearest sentence's edge, or exactly where it's put (Shift held, the arrow keys, a time
+   * typed). Never past the other end, nor out of the video, nor to a clip too long to keep. And not at all while
+   * something is being recorded.
    */
-  function moveEnd(cut: Cut, which: ClipEnd, to: number, by: MoveBy) {
-    const now = ends.current[cut];
+  function moveEnd(which: ClipEnd, to: number, by: MoveBy) {
+    const now = ends.current;
     if (recording || touching || !video || !clip || !now || now.end === null) return;
-    const around = ends.current.clip;
-    const limit = cut === "word" && around && around.end !== null ? { from: around.start, to: around.end } : limitOf(video);
-    const stops = by === "snap" ? (cut === "clip" ? sentenceEdges : wordEdges) : NO_STOPS;
+    const limit = limitOf(video);
+    const stops = by === "snap" ? sentenceEdges : NO_STOPS;
     if (which === "start") {
-      setEnds(cut, { start: restAt(to, Math.max(limit.from, now.end - CLIP_MAX_SECONDS), now.end - CLIP_MIN, stops.starts), end: now.end });
+      setEnds({ start: restAt(to, Math.max(limit.from, now.end - CLIP_MAX_SECONDS), now.end - CLIP_MIN, stops.starts), end: now.end });
     } else {
-      setEnds(cut, { start: now.start, end: restAt(to, now.start + CLIP_MIN, Math.min(limit.to, now.start + CLIP_MAX_SECONDS), stops.ends) });
+      setEnds({ start: now.start, end: restAt(to, now.start + CLIP_MIN, Math.min(limit.to, now.start + CLIP_MAX_SECONDS), stops.ends) });
     }
   }
   /**
-   * An end was let go, so the cut is heard. The start: it plays from there, through to its end. The end: its last
-   * second plays, up to there. Either way it stops where the cut does; one already going round carries on round from
+   * An end was let go, so the clip is heard. The start: it plays from there, through to its end. The end: its last
+   * second plays, up to there. Either way it stops where the clip does; one already going round carries on round from
    * that point instead.
    */
-  function hearCut(cut: Cut, which: ClipEnd) {
-    const now = ends.current[cut];
+  function hearCut(which: ClipEnd) {
+    const now = ends.current;
     if (!now || now.end === null) return;
-    hearFrom(cut, which === "start" ? now.start : Math.max(now.start, now.end - CUT));
+    hearFrom(which === "start" ? now.start : Math.max(now.start, now.end - CUT));
   }
-  /** Plays a cut from a moment inside it (an end let go, or a press on the cut's bar): to its end, or on round if it was going round. */
-  function hearFrom(cut: Cut, from: number) {
-    const now = ends.current[cut];
+  /** Plays the clip from a moment inside it (an end let go, or a press on its bar): to its end, or on round if it was going round. */
+  function hearFrom(from: number) {
+    const now = ends.current;
     if (recording || !video || !now || now.end === null) return;
-    const round = replay.mode() === "round" && played.current === cut;
-    played.current = cut;
+    const round = replay.mode() === "round";
     replay.play(video, { from: now.start, to: now.end }, round ? "round" : "once", Math.max(now.start, Math.min(now.end, from)));
   }
-  /** Where a cut paused, if it did and that moment is still inside its ends: Play goes on from there. Null for a cut never played, played out, or whose ends moved past it. */
-  function restOf(cut: Cut, now: Ends): number | null {
+  /** Where the clip paused, if it did and that moment is still inside its ends: Play goes on from there. Null for a clip never played, played out, or whose ends moved past it. */
+  function restOf(now: Ends): number | null {
     const rest = replay.rested();
-    return rest !== null && played.current === cut && now.end !== null && rest >= now.start && rest < now.end - REST_MARGIN ? rest : null;
+    return rest !== null && now.end !== null && rest >= now.start && rest < now.end - REST_MARGIN ? rest : null;
   }
-  /**
-   * Play a cut, round and round; or, while any of it is playing (round, or once after an end was moved), pause it where
-   * it is, Play then going on from there. Asked of one while the other plays, it takes over.
-   */
-  function toggleCut(cut: Cut) {
-    const now = ends.current[cut];
+  /** Play the clip, round and round; or, while any of it is playing (round, or once after an end was moved), pause it where it is, Play then going on from there. */
+  function toggleCut() {
+    const now = ends.current;
     if (!video || !now || now.end === null) return;
-    if (replay.mode() !== null && played.current === cut) {
+    if (replay.mode() !== null) {
       replay.stop();
       return;
     }
-    // What's played is what will be recorded: from here on the cut is this stretch, and doesn't shift with the
+    // What's played is what will be recorded: from here on the clip is this stretch, and doesn't shift with the
     // captions as the player draws them again.
-    const pinned = taking?.of === "caption" && (cut === "word" ? taking.wordTrim.end !== null : taking.trim.end !== null);
-    if (taking?.of === "caption" && !pinned) setEnds(cut, { start: now.start, end: now.end });
-    const from = restOf(cut, now) ?? now.start;
-    played.current = cut;
+    if (taking?.of === "caption" && taking.trim.end === null) setEnds({ start: now.start, end: now.end });
+    const from = restOf(now) ?? now.start;
     replay.play(video, { from: now.start, to: now.end }, "round", from);
   }
 
@@ -2972,7 +2929,6 @@ function App() {
           onPick={(chars) => setTaking({ ...taking, chars })}
           prefer={taking.prefer ?? null}
           clip={null}
-          wordClip={null}
           arrives={taking.fresh}
           onClose={close}
         />
@@ -2984,49 +2940,41 @@ function App() {
     const moved = taking.of === "caption" ? taking.moved : 0;
     const facts =
       taking.of === "caption"
-        ? takenFacts("caption", taking.bySentence ? "sentence" : taking.trim.start !== null ? "hand" : "said", wordEnds ? { ...wordEnds, byHand: taking.wordTrim.start !== null } : null, clip)
+        ? takenFacts("caption", taking.bySentence ? "sentence" : taking.trim.start !== null ? "hand" : "said", wordStretch(clip), clip)
         : takenFacts("stretch", taking.bySentence ? "sentence" : null, null, clip);
     const capture: Capture = { sentence, moved, ...videoSource(clip.start, clip.end), facts, more: videoPieces };
     const player = video;
-    /** A cut as the drawer is handed it: where it stands, and what can be asked of it. */
-    const offerOf = (cut: Cut, now: Ends, anchor: number): ClipOffer | null =>
-      player
-        ? {
-            video: player,
-            start: now.start,
-            end: now.end,
-            limit: limitOf(player),
-            // The word is cut out of the clip: its bar is the clip, end to end.
-            within: cut === "word" && clip.end !== null ? { from: clip.start, to: clip.end } : null,
-            ticks: cut === "clip" ? clipTicks : wordTicks,
-            playing: replaying !== null && played.current === cut,
-            pausedAt: replaying === null ? restOf(cut, now) : null,
-            anchor,
-            move: (which, to, by) => moveEnd(cut, which, to, by),
-            settle: (which) => hearCut(cut, which),
-            hear: (at) => hearFrom(cut, at),
-            toggle: () => toggleCut(cut),
-            record: (soundOnly, onProgress, signal) => recordClip(cut, () => ends.current[cut], soundOnly, onProgress, signal),
-            // What's said in it, from the lines being read right now (the transcript or the captions), at its ends as they stand.
-            cues: () => {
-              const at = ends.current[cut];
-              return at && at.end !== null ? cuesOf(lines.get().lines, at.start, at.end) : [];
+    /** The clip as the drawer is handed it: where it stands, and what can be asked of it. */
+    const now: Ends = { start: clip.start, end: clip.end };
+    const offer: ClipOffer | null = player
+      ? {
+          video: player,
+          start: now.start,
+          end: now.end,
+          limit: limitOf(player),
+          ticks: clipTicks,
+          playing: replaying !== null,
+          pausedAt: replaying === null ? restOf(now) : null,
+          anchor: moved,
+          move: (which, to, by) => moveEnd(which, to, by),
+          settle: (which) => hearCut(which),
+          hear: (at) => hearFrom(at),
+          toggle: () => toggleCut(),
+          record: (soundOnly, onProgress, signal) => recordClip(() => ends.current, soundOnly, onProgress, signal),
+          // What's said in it, from the lines being read right now (the transcript or the captions), at its ends as they stand.
+          cues: () => {
+            const at = ends.current;
+            return at && at.end !== null ? cuesOf(lines.get().lines, at.start, at.end) : [];
+          },
+          // The clip follows an accepted Touch up Sentence: its words looked for in the lines kept, nearest where the clip stands.
+          follow: {
+            endsFor: (words: string) => endsOfWords(words, ends.current?.start ?? now.start, limitOf(player)),
+            moveTo: (to: { start: number; end: number }) => {
+              if (!recording) setEnds(to, "sentence");
             },
-            // The clip follows an accepted Touch up Sentence: its words looked for in the lines kept, nearest where the clip stands.
-            ...(cut === "clip"
-              ? {
-                  follow: {
-                    endsFor: (words: string) => endsOfWords(words, ends.current.clip?.start ?? now.start, limitOf(player)),
-                    moveTo: (to: { start: number; end: number }) => {
-                      if (!recording) setEnds("clip", to, "sentence");
-                    },
-                  },
-                }
-              : {}),
-          }
-        : null;
-    const offer = offerOf("clip", { start: clip.start, end: clip.end }, moved);
-    const wordOffer = wordEnds && taking.of === "caption" ? offerOf("word", wordEnds, taking.wordTurn) : null;
+          },
+        }
+      : null;
     return (
       <Panel
         key={`${taking.of}-${taking.turn}`}
@@ -3040,7 +2988,6 @@ function App() {
         }}
         prefer={taking.prefer ?? null}
         clip={offer}
-        wordClip={wordOffer}
         arrives={taking.fresh}
         onClose={close}
         onAdded={() => {
@@ -3131,7 +3078,7 @@ function App() {
     if (answer.ok) transcriber.take(answer.transcript);
   }
   /** The clip as it's marked on the player's seek bar, once it has both ends. */
-  const clipMark: ClipMark | null = clip && clip.end !== null && !taking?.added ? { start: clip.start, end: clip.end, onMove: (which, to, by) => moveEnd("clip", which, to, by), onSettle: (which) => hearCut("clip", which) } : null;
+  const clipMark: ClipMark | null = clip && clip.end !== null && !taking?.added ? { start: clip.start, end: clip.end, onMove: (which, to, by) => moveEnd(which, to, by), onSettle: (which) => hearCut(which) } : null;
   /** The strip open as the editor (B). */
   const editing = editorOpen && showsTranscript && fixesOn;
   /** Nothing to show where the words would be: why, and the press that changes it when there is one. */

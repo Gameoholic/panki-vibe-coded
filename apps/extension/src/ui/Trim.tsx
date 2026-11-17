@@ -39,11 +39,6 @@ type Props = {
   disabled: boolean;
   /** Changes when the clip went somewhere else by itself (another sentence was taken): the bar goes there with it. */
   anchor: number;
-  /**
-   * When given, the bar is exactly this stretch, edge to edge, and has no edges of its own to pull: for a cut made out
-   * of another (a word out of its sentence's clip), whose bar is the other cut from its start to its end.
-   */
-  within?: Stretch | null;
   onMove: (which: ClipEnd, to: number, by: MoveBy) => void;
   /** An end has been let go where it is. */
   onSettle: (which: ClipEnd) => void;
@@ -77,7 +72,7 @@ const round = (seconds: number) => Math.round(seconds * 100) / 100;
  * where the pointer is, or stops at the edges of words while Alt is held; the arrow keys on it move it a tenth of a
  * second. The thin line is where the video stands; a press on the clip between its ends plays it from there.
  */
-export function Trim({ video, start, end, limit, ticks, disabled, anchor, within = null, onMove, onSettle, onHear, proposed = null, heard = null }: Props) {
+export function Trim({ video, start, end, limit, ticks, disabled, anchor, onMove, onSettle, onHear, proposed = null, heard = null }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
   /** An edge of the bar being pulled: where the pointer took hold, and what the bar showed and how much a pixel was worth just then. */
@@ -92,7 +87,7 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
     setAnchored(anchor);
     setEnds({ start, last });
     setView(around(start, last, limit));
-  } else if (!within) {
+  } else {
     let { from, to } = free;
     // The clip never leaves the bar: an end put outside it (a time typed in, a sentence that went on being said)
     // takes that edge of the bar with it, and the other edge stays.
@@ -106,8 +101,8 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
     if (start !== ends.start || last !== ends.last) setEnds({ start, last });
     if (from !== free.from || to !== free.to) setView({ from, to });
   }
-  /** What the bar shows: the stretch it's been told to be, or else its own. */
-  const view = within ?? free;
+  /** What the bar shows: its own stretch, pulled about by its edges. */
+  const view = free;
 
   const span = Math.max(0.1, view.to - view.from);
   const share = (time: number) => Math.max(0, Math.min(100, ((time - view.from) / span) * 100));
@@ -123,8 +118,8 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
       tabIndex: disabled ? -1 : 0,
       "aria-label": ENDS[which],
       "aria-orientation": "horizontal",
-      "aria-valuemin": round((within ?? limit).from),
-      "aria-valuemax": round((within ?? limit).to),
+      "aria-valuemin": round(limit.from),
+      "aria-valuemax": round(limit.to),
       "aria-valuenow": round(at),
       "aria-valuetext": stamp(at),
       "aria-disabled": disabled,
@@ -231,13 +226,8 @@ export function Trim({ video, start, end, limit, ticks, disabled, anchor, within
         </div>
         {cuts.map((cut, i) => (cut ? <span key={i}>{stretchOn(share, "trim-diff is-out", cut.from, cut.to)}</span> : null))}
         <Now video={video} view={view} />
-        {/* A bar that is another cut from end to end has nothing either side of it to take in. */}
-        {within ? null : (
-          <>
-            <span {...edge("from")} />
-            <span {...edge("to")} />
-          </>
-        )}
+        <span {...edge("from")} />
+        <span {...edge("to")} />
       </div>
     </div>
   );

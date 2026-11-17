@@ -15,8 +15,6 @@ type Props = {
   playing: boolean;
   /** Where it paused, in the video's seconds, while that's inside the clip: the bar stands there. Null otherwise. */
   pausedAt: number | null;
-  /** Something else is being played on the page's video right now (the word's sound, while this is the sentence's clip): the picture here holds still, since it isn't this that's playing. */
-  held: boolean;
   /** What the clip is, in the viewer's own words (its field's name). */
   label: string;
   onToggle: () => void;
@@ -33,7 +31,7 @@ const PICTURE = 480;
  * player. Nothing is recorded or fetched for it: a clip is made once, when its card is added. Its subtitles follow
  * the picture, so they hold still with it too.
  */
-export function ClipPlayer({ video, start, end, soundOnly, playing, pausedAt, held, label, onToggle, subtitles }: Props) {
+export function ClipPlayer({ video, start, end, soundOnly, playing, pausedAt, label, onToggle, subtitles }: Props) {
   const picture = useRef<HTMLCanvasElement>(null);
   const [now, setNow] = useState(start);
   /** The moment of the video the picture shows; null before it shows any. */
@@ -48,9 +46,8 @@ export function ClipPlayer({ video, start, end, soundOnly, playing, pausedAt, he
   };
 
   useEffect(() => {
-    // The page's one video is what every cut is heard on. While another cut has it, what it shows isn't this clip
-    // playing, so it isn't drawn here: the picture stays as it was, and catches up once the video is let go.
-    if (soundOnly || held) return;
+    // A clip kept as sound alone has no picture to draw.
+    if (soundOnly) return;
     let frame = 0;
     /** The moment of the video last drawn; a picture is only drawn again when the video has moved. */
     let drawn = -1;
@@ -78,7 +75,7 @@ export function ClipPlayer({ video, start, end, soundOnly, playing, pausedAt, he
       cancelAnimationFrame(frame);
       video.removeEventListener("seeked", again);
     };
-  }, [video, soundOnly, held]);
+  }, [video, soundOnly]);
 
   // The bar follows the video the way the app's player follows its file: as often as the video says where it is.
   useEffect(() => {

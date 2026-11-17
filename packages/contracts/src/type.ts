@@ -21,7 +21,8 @@ export const FieldKind = z.enum(["text", "long", "line", "examples", "media", "i
 /**
  * What can fill a field by itself, the Field mapping's pieces: the ids live here so the API refuses one that doesn't
  * exist, and a field can name one (`CardField.fills`); what each is called, where it comes from and which kinds of field
- * take it is `roles.ts` → `ROLES`.
+ * take it is `roles.ts` → `ROLES`. A field kept naming a piece that's no longer one (`wordAudio`, the picked word's own
+ * stretch cut from the video as sound) reads as none (`CardField.fills`).
  */
 export const ROLE_IDS = [
   "word",
@@ -34,7 +35,6 @@ export const ROLE_IDS = [
   "dictPitch",
   "sentence",
   "clip",
-  "wordAudio",
   "forvoAudio",
   "source",
   "explanation",

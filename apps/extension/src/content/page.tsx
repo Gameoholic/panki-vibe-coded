@@ -72,7 +72,6 @@ function OnPage({ taken, prefer, arrives, onClose }: { taken: Taken | null; pref
       onPick={setPicked}
       prefer={prefer}
       clip={null}
-      wordClip={null}
       arrives={arrives}
       onClose={onClose}
       // The new card's word is one of the cards' now.

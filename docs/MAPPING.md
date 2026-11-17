@@ -15,6 +15,7 @@ The owner's words, not concrete:
 - **Proposal: it keeps its name, Field mapping**, set in Panki's card type editor, beside each field's kind; the extension's Decks tab loses its own and points there.
 - ~~**Proposal: a browser's mapping is carried over once**~~ (the owner, 2026-11-17: not needed, set by hand): every card type's Field mapping starts at None and the owner sets it in the card type editor; a browser's old per-deck mapping is read by nothing.
 - **Every mapping None to begin with, none locked** (the owner, 2026-11-17): a Line and an Example sentences field are mapped by hand like any other, and can be set back to None; a field's kind only greys what it can't take.
+- **Word audio (YouTube) goes** (the owner, 2026-11-17: never used): the picked word's own stretch is no longer a piece, nor a bar or a recording in the drawer; a field kept mapped to it reads as None, nothing rewritten, and a card holding such a file keeps it. Forvo's is called **Word audio** alone, its Source column already saying Forvo.
 - **A deck's Field mapping on / off switch goes** (the owner, 2026-11-17): a card type with no mapping is simply typed into.
 - **The capture drawer keeps filling by itself** (the owner): mining must be fast, and the whole card is seen before Add.
 - **Touch up in Panki is for cards already there** (the owner, 2026-11-17): a card opened in a deck, its Panki AI conversation as in the drawer, every change a proposal to Accept or Dismiss.

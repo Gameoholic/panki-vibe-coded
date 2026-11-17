@@ -77,8 +77,9 @@ test("written onto the fields and read back, a map is the same; a piece given to
 });
 
 test("a field's kept piece that's no longer one reads as none, and a type refuses a piece on two fields", () => {
-  const read = NewCardType.parse({ id: id(9), name: "T", fields: [{ ...field(WORD, "text"), fills: "reading" }] });
+  const read = NewCardType.parse({ id: id(9), name: "T", fields: [{ ...field(WORD, "text"), fills: "reading" }, { ...field(CLIP, "media"), fills: "wordAudio" }] });
   assert.equal(read.fields[0]?.fills, null);
+  assert.equal(read.fields[1]?.fills, null);
   const twice = NewCardType.safeParse({ id: id(9), name: "T", fields: [field(WORD, "text", "word"), field(NOTE, "text", "word")] });
   assert.equal(twice.success, false);
 });

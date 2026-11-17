@@ -28,9 +28,6 @@ export const DICTIONARY_ROLE: Record<DataKind, RoleId> = {
 };
 export type DictionaryRoleId = Extract<RoleId, `dict${string}`>;
 
-/** The two stretches of a video a capture has: the sentence's clip, and the picked word's own, cut out of it. */
-export type Cut = "clip" | "word";
-
 /**
  * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video itself,
  * Forvo (word audio recorded by people, fetched with Panki's key), or Touch up. Prompt context's own, with how each is
@@ -43,8 +40,8 @@ type Role = {
   from: Source;
   /** Whether a field can take it. */
   takes: (field: Pick<CardField, "kind">) => boolean;
-  /** For a piece that's recorded off the video: which stretch it is, and whether it's kept as sound alone or with its picture. */
-  cut?: { of: Cut; soundOnly: boolean };
+  /** For a piece that's recorded off the video (the clip): whether it's kept as sound alone or with its picture. */
+  cut?: { soundOnly: boolean };
   /** For a piece the dictionary gives: which kind of its data it is, and so what a dictionary needs to provide to fill it. */
   dictionary?: DataKind;
 };
@@ -84,14 +81,11 @@ export const ROLES: Record<RoleId, Role> = {
   dictFrequency: fromDictionary("frequency"),
   dictPitch: fromDictionary("pitch"),
   sentence: { name: PIECE_NAMES.sentence, from: "text", takes: holdsSentence },
-  // What's recorded off the video: the line with its picture, the clip the drawer plays and moves (`clip`), and the
-  // word alone as a sound. The line as a sound alone and the word with its picture were pieces once; a map naming them
-  // lets them go.
-  clip: { name: "Clip", from: "video", takes: holdsClip, cut: { of: "clip", soundOnly: false } },
-  // Named for where it's from, beside Forvo's.
-  wordAudio: { name: "Word audio (YouTube)", from: "video", takes: holdsClip, cut: { of: "word", soundOnly: true } },
-  // The word said by someone on Forvo, beside the word cut from the video: both are kept to choose from.
-  forvoAudio: { name: "Word audio (Forvo)", from: "forvo", takes: holdsSound },
+  // What's recorded off the video: the line with its picture, the clip the drawer plays and moves. The line as a sound
+  // alone, the word with its picture and the word alone as a sound were pieces once; a field naming one reads as none.
+  clip: { name: "Clip", from: "video", takes: holdsClip, cut: { soundOnly: false } },
+  // The word said by someone on Forvo: Word audio, where it's from said in the Source column beside it.
+  forvoAudio: { name: "Word audio", from: "forvo", takes: holdsSound },
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
   // (the video's name, the channel's name and address) is kept beside the card as its `source`, all one piece.
   source: { name: PIECE_NAMES.source, from: "video", takes: (field) => holdsLink(field.kind) },
