@@ -951,6 +951,10 @@ export function createTranscriber() {
       tell();
       if (next) void load(next);
     },
+    /** A line in the Log from another part of the page (the watcher's), written down as the transcriber's own are, on the console too. */
+    say(...parts: LogPart[]) {
+      note(...parts);
+    },
     /** Asks Panki again: the settings may have changed, or the sign-in. */
     refresh() {
       if (videoId) void load(videoId);

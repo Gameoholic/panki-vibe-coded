@@ -17,7 +17,7 @@ const LOOKS: Record<Shown, { icon: IconName; tone: string }> = {
   unsaved: { icon: "cloudSending", tone: "is-sending" },
   sending: { icon: "cloudSending", tone: "is-sending" },
   waiting: { icon: "cloudOff", tone: "is-waiting" },
-  lost: { icon: "cloudLost", tone: "is-lost" },
+  error: { icon: "cloudLost", tone: "is-lost" },
 };
 
 /** A length of watching in words, rounded down: seconds under a minute ("45 s"), the app's minutes and hours after ("2 min"). */
@@ -27,17 +27,16 @@ const JUST_NOW_MS = 3_000;
 /** "Saved 12 s ago", "Saved just now". */
 const savedWords = (at: number, now: number) => (now - at < JUST_NOW_MS ? "Saved just now" : `Saved ${spanWords(now - at)} ago`);
 
-/** What the tip says, a line each: what the icon means now, then what's waiting or gone and since when. */
+/** What the tip says, a line each: what the icon means now, then what's waiting and since when. */
 function wordsOf(saving: Saving, state: Shown, now: number): { lines: string[]; loss: string | null } {
-  if (state === "lost") {
-    return { lines: [`Video tracking · ${spanWords(saving.lostMs)} not saved`, saving.savedAt !== null ? `Panki couldn't be reached. ${savedWords(saving.savedAt, now)}` : "Panki couldn't be reached"], loss: null };
-  }
+  const saved = saving.savedAt === null ? [] : [savedWords(saving.savedAt, now)];
+  if (state === "error") return { lines: ["Video tracking · Something went wrong", ...(saving.problem ? [saving.problem] : []), ...saved], loss: "Some of this video may not be saved" };
   if (state === "waiting") {
     const since = saving.waitingSince === null ? "" : `, since ${hourWords(saving.waitingSince)}`;
-    return { lines: ["Video tracking · Can't reach Panki", `${spanWords(saving.waitingMs)} watched waiting${since}`], loss: "Closing this tab loses it" };
+    return { lines: ["Video tracking · Not sent yet", saving.problem ?? "Panki couldn't be reached", `${spanWords(saving.waitingMs)} watched waiting${since}`], loss: "Closing this tab loses it" };
   }
   if (state === "sending") return { lines: ["Video tracking · Sending…"], loss: null };
-  if (state === "unsaved") return { lines: ["Video tracking · Not saved yet", ...(saving.savedAt === null ? [] : [savedWords(saving.savedAt, now)])], loss: null };
+  if (state === "unsaved") return { lines: ["Video tracking · Not saved yet", ...saved], loss: null };
   return { lines: [`Video tracking · ${saving.savedAt === null ? "Saved" : savedWords(saving.savedAt, now)}`], loss: null };
 }
 
@@ -45,11 +44,11 @@ function wordsOf(saving: Saving, state: Shown, now: number): { lines: string[]; 
  * How saving what's watched here stands, among the Panki panel's head: only an icon, never words in the head, in one
  * of three colours: green while Panki holds everything watched (a cloud ticked), yellow while something watched isn't
  * with it yet, the stretch playing included, so leaving now would lose it (an arrow up), red once a send failed (struck
- * through while it waits, a ! once some gave way). Its words (how long ago, how
- * much waits and since when, what was lost) are the app's `Tip` under it while a mouse rests on it or it has the
- * keyboard's focus, and the same tip on a press with a finger, closed by a press outside or Esc. A press sends what's
- * watched now (`onSendNow`): the stretch playing closed and everything waiting sent. Shown while the video is noted, or
- * while something still waits or gave way (`watch/watcher.ts` → `Saving`).
+ * through while it waits, tried again until it lands) or the watcher's own code failed (a !), every red with what went
+ * wrong in its tip. Its words (how long ago, how much waits and since when) are the app's `Tip` under it while a mouse
+ * rests on it or it has the keyboard's focus, and the same tip on a press with a finger, closed by a press outside or Esc. A press sends what's watched now (`onSendNow`):
+ * the stretch playing closed and everything waiting sent. Shown while the video is noted, or while something still
+ * waits or went wrong (`watch/watcher.ts` → `Saving`).
  */
 export function SavingMark({ saving, onSendNow }: { saving: Saving; onSendNow: () => void }) {
   const [over, setOver] = useState<{ x: number; y: number } | null>(null);
@@ -82,7 +81,7 @@ export function SavingMark({ saving, onSendNow }: { saving: Saving; onSendNow: (
   }, [open]);
 
   const state: Shown | null = saving.state === "sending" ? (slow ? "sending" : held) : saving.state === "idle" ? null : saving.state;
-  if (state === null || (!saving.noting && state !== "waiting" && state !== "lost")) return null;
+  if (state === null || (!saving.noting && state !== "waiting" && state !== "error")) return null;
   const look = LOOKS[state];
   const words = wordsOf(saving, state, now);
   // Under it, since the head stands at the top of the panel, where a tip over it is cut off (`Tip`'s `below`).

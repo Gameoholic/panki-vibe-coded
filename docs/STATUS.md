@@ -90,6 +90,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-10: a finished video leaving Saved for later; "Ends at".
 - 2026-11-13: how saving what's watched stands, an icon in the Panki panel's head (saved, sending, waiting, lost), its words on hover or a press (`architecture/watching.md` → How saving stands).
 - 2026-11-13: the Video recap as a video is finished; Videos → Video recap with Confetti on the options page (`architecture/watching.md` → The Video recap, `RECAP.md`).
+- 2026-11-17: what's watched noted from the moment a video opens by this browser's Video tracking and Panki on alone, never by Panki answering: a failed ask about the video (which had stopped noting silently till the next video) touches nothing, is said in the Log and asked again 15 s later; the saving icon red with what went wrong for every failure of saving (a send, stretches given way, the watcher's own code), the watcher ticked first and guarded; the icon in the Update needed head too; what waits to be sent kept in the tab however much (no 100 cap), tried again every 15 s until it lands; `pnpm watch:report` and its `--scan` (`architecture/watching.md` → Watching).
 - 2026-11-16: the Video recap in J Sessions alone, the other four looks and the developer button gone, its head the headline, the facts and ×; K's Continue watching and Saved for later inside it under the strip, high above the seek bar; a session break, a clear tick where one session starts after another (`RECAP.md` step 3).
 
 **Panki AI** (`architecture/ai.md`)

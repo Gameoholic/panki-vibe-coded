@@ -1261,7 +1261,7 @@ type ExampleValueRow = { exampleId: string; fieldId: string; value: string; medi
 type CardReads = { values: ValueRow[]; examples: ExampleRow[]; exampleValues: ExampleValueRow[] };
 type StageRow = { id: string; name: string; n: number; unit: string; colour: string | null };
 type IdRow = { id: string; removedAt: number | null };
-type SettingRow = { key: string; value: string };
+export type SettingRow = { key: string; value: string };
 /** A card's last card_places row, joined on; every column null when it has none (a new card). */
 type PlaceRow = { placeId: number | null; stageId: string | null; past: number | null; node: string | null; burned: number | null };
 /**
@@ -1314,7 +1314,7 @@ type LimitChangeRow = { deckId: string; fromValue: string; toValue: string; at: 
 type DictionaryMoveRow = { id: string; title: string; revision: string; description: string; bytes: number; uploadedAt: number; sha256: string };
 /** A stretch watched, with its video as YouTube showed it; the video's columns are null when its words never came. */
 type WatchStretchRow = { videoId: string; fromMs: number; toMs: number; spentMs: number; at: number; title: string | null; channel: string | null; lengthMs: number | null };
-type WatchMarkRow = { videoId: string; kind: string; at: number };
+export type WatchMarkRow = { videoId: string; kind: string; at: number };
 type AiTemplateRow = { id: string; action: string; name: string; prompt: string; followUp: string; judges: number };
 
 /**
@@ -1367,7 +1367,22 @@ type VideoSaid = { counted: boolean; putAwayAt: number | null; finished: boolean
  * uncount; a video never marked counts), when it was last put away from Continue watching, and whether it's finished
  * (its latest finish or unfinish, whoever made it) and since when.
  */
-function marksOf(rows: readonly WatchMarkRow[]): Map<string, VideoSaid> {
+/** The account's settings from its stored rows, over the defaults. */
+export function settingsFrom(rows: readonly SettingRow[]): Settings {
+  const stored = new Map(rows.map((row) => [row.key, row.value]));
+  const merged: Record<string, unknown> = { ...DEFAULT_SETTINGS };
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+    const raw = stored.get(key);
+    if (raw === undefined) continue;
+    // A stored value that no longer fits its setting's rule reads as the default: normalised on read, never rewritten.
+    const parsed = Settings.shape[key].safeParse(JSON.parse(raw));
+    if (parsed.success) merged[key] = parsed.data;
+  }
+  return Settings.parse(merged);
+}
+
+/** What the viewer said of each video, read from its marks oldest first: the latest of each sort stands. */
+export function marksOf(rows: readonly WatchMarkRow[]): Map<string, VideoSaid> {
   const said = new Map<string, VideoSaid>();
   for (const row of rows) {
     const video = said.get(row.videoId) ?? { counted: true, putAwayAt: null, finished: false, finishedAt: null };
@@ -1981,18 +1996,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     return srsTypeOf(deck.srsTypeId);
   }
 
-  function settingsFrom(rows: SettingRow[]): Settings {
-    const stored = new Map(rows.map((row) => [row.key, row.value]));
-    const merged: Record<string, unknown> = { ...DEFAULT_SETTINGS };
-    for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
-      const raw = stored.get(key);
-      if (raw === undefined) continue;
-      // A stored value that no longer fits its setting's rule reads as the default: normalised on read, never rewritten.
-      const parsed = Settings.shape[key].safeParse(JSON.parse(raw));
-      if (parsed.success) merged[key] = parsed.data;
-    }
-    return Settings.parse(merged);
-  }
   /**
    * The zone the account's days turn over in: its own (Settings), since two people on one Panki can live hours apart.
    * Empty only until the account first opens Panki or the extension, which write the device's zone; until then the

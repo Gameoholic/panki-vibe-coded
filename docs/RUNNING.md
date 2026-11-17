@@ -19,6 +19,8 @@ Run, build, deploy, load the extension; where the data lives.
 | `pnpm space` | Disk used per account (video, audio, images, the rest) and what's left. |
 | `pnpm backup [dir]` | Snapshot all the data, safe while the API runs (Backing up). |
 | `pnpm pace:backtest <panki.sqlite>` | How far off a review's time left would have been over the past 30 days' sessions, each way of working it out side by side, a card's clips among them; read-only, run on a copy (a backup's), its full path. |
+| `pnpm watch:report <panki.sqlite> <yyyy-mm-dd>` | One of the account's days of watching: each stretch kept, each video's share, the day's Time watching as the Today tile and the streaks count it, and the skips, pauses, rewatches, waits and gaps between; read-only, run on a copy (a backup's), its full path. |
+| `pnpm watch:report <panki.sqlite> --scan` | Every day kept, for watching that played on with nothing kept (a finish by end, or a later stretch, past where the stretches stopped), the time lost and each such day's time goals with it; read-only, run on a copy. |
 | `pnpm icons` | Redraw the app icons from the mark. |
 | `pnpm docs:check` | Fails when what loads every session (the memory index at `PANKI_MEMORY_INDEX` included) passes 40 KB, or a doc under `docs/` 60 KB. |
 | `pnpm docs:components` | Write `docs/COMPONENTS.md` from each piece's header comment. |

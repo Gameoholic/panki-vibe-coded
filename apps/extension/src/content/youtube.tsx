@@ -498,7 +498,7 @@ function downloadHere() {
 /** How saving what's watched here stands, for the panel's head (`ui/SavingMark.tsx`). */
 const savingHere = cell<Saving>(SAVING_IDLE);
 const watcher = createWatcher({
-  send: async (batch) => (await askWatch(batch)).ok,
+  send: askWatch,
   about: aboutVideo,
   isAd: adPlaying,
   onSaving: savingHere.set,
@@ -776,24 +776,48 @@ function setPanelView(view: PanelView) {
   void askPanelView(view);
 }
 
+/** How long after Panki didn't answer about the video it's asked again by itself; a focus or the page shown again asks sooner. */
+const SEEN_RETRY_MS = 15_000;
+/** The ask about the video tried again, while one is set. */
+let seenRetry: ReturnType<typeof setTimeout> | null = null;
+/** How many of the video's stretches this page had closed as it opened (`watcher.closed`): one more by Panki's first answer, and the stop it gives may be this viewing's. */
+let closedAtOpen = 0;
+/** Whether the Log has said Panki isn't answering about this video, so it's said once, and once more when it answers. */
+let seenFailing = false;
+/** Whether this video's watching is noted, by this browser's own choices alone: its Video tracking, and Panki on. Never by an answer of Panki's. */
+const notingWanted = () => localNow().tracking && modules.get().on;
+
 /**
- * Asks Panki how this video stands in the account's watching. With the answer the watcher starts (or doesn't: this
- * browser's Video tracking is off), and, the first time for this video, where it was stopped the time before is offered, gone to
- * or only marked, as the options page says. Read again with the focus, it keeps the stop it first had: the mark is
- * where it was stopped the time before, not where this viewing is.
+ * Asks Panki how this video stands in the account's watching: where it was stopped the time before (offered, gone to
+ * or only marked, as the options page says, from the first answer for this video; read again with the focus, it keeps
+ * the stop it first had), whether it counts and whether it's finished. Whether it's noted is never Panki's answer but
+ * this browser's own choices (`notingWanted`), followed at once. An ask that fails touches nothing that's noted or sent:
+ * it's said in the Log and asked again `SEEN_RETRY_MS` later, a focus or the page shown asking sooner; where it was
+ * stopped and whether it's finished wait for the answer. A stretch of this viewing sent before the first answer may be
+ * the stop it gives, so that stop is neither marked nor gone to.
  */
 async function readSeen() {
   const id = watching;
   if (!id) return;
+  if (seenRetry !== null) {
+    clearTimeout(seenRetry);
+    seenRetry = null;
+  }
+  watcher.video(id, notingWanted());
   const answer = await askWatched(id);
   if (watching !== id) return;
   if (!answer.ok) {
-    watcher.video(id, false);
+    transcriber.say(seenFailing ? "watching: asked Panki again, still no answer · " : "watching: Panki didn't answer about this video · ", `${answer.message} · `, notingWanted() ? "what's watched is still saved · " : "", `asked again in ${SEEN_RETRY_MS / 1000} s`);
+    seenFailing = true;
+    seenRetry = setTimeout(() => void readSeen(), SEEN_RETRY_MS);
     return;
   }
+  if (seenFailing) transcriber.say("watching: asked Panki again, it answered about this video");
+  seenFailing = false;
   const was = seen.get();
   const first = was === null || was.videoId !== id;
-  const stoppedAt = answer.video.stoppedAtMs === null ? null : answer.video.stoppedAtMs / 1000;
+  const early = watcher.closed(id) > closedAtOpen;
+  const stoppedAt = answer.video.stoppedAtMs === null || early ? null : answer.video.stoppedAtMs / 1000;
   // `on` is this browser's own Video tracking (`Local`'s `tracking`): off, nothing is noted and nothing offered here.
   const on = localNow().tracking;
   seen.set({ videoId: id, on, stoppedAt: first ? stoppedAt : was.stoppedAt, counted: answer.video.counted });
@@ -802,7 +826,7 @@ async function readSeen() {
   const same = had !== null && had.videoId === id;
   finishHere.set(on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
   // Nothing is noted, and nothing offered, while Panki is switched off altogether.
-  watcher.video(id, on && modules.get().on);
+  watcher.video(id, notingWanted());
   if (first && on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
 }
 
@@ -1251,8 +1275,14 @@ function look() {
     offered.set(null);
     offerAway.set(false);
     resuming = null;
-    // Nothing is noted of the new video until Panki says the account keeps it.
-    watcher.video(now, false);
+    seenFailing = false;
+    if (seenRetry !== null) {
+      clearTimeout(seenRetry);
+      seenRetry = null;
+    }
+    // The new video is noted from the start by this browser's own choices, never waiting on Panki (`readSeen`).
+    closedAtOpen = now === null ? 0 : watcher.closed(now);
+    watcher.video(now, now !== null && notingWanted());
     void readSeen();
     savedHere.set(null);
     void readSaved();
@@ -3137,6 +3167,8 @@ function App() {
         <div className="strip is-off">
           <div className="strip-head">
             <span className="strip-name">Panki</span>
+            {/* What's watched is still noted while Panki refuses it: its sends failing say so here too. */}
+            <SavingMark saving={savingNow} onSendNow={() => void watcher.sendNow()} />
             <div className="strip-tools">
               <UpdateMenu update={updateNow} onReloading={reloadPage} />
             </div>
@@ -3381,9 +3413,11 @@ function followPlayer() {
   // Transcribing follows the viewer's player, looked at a few times a second; the lines again with it, for a page whose
   // frames aren't drawn (a tab behind another).
   setInterval(() => {
+    // What's watched first, and on its own: nothing else looked at here failing can keep it from being noted (the
+    // watcher says its own failures itself).
+    watcher.tick(video);
     transcriber.tick(video);
     lines.refresh();
-    watcher.tick(video);
     followFinish(video);
     // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
     tryResume();

@@ -19,7 +19,8 @@
     "user:admin": "pnpm --filter @panki/api run user:admin",
     "space": "pnpm --filter @panki/api run space",
     "backup": "pnpm --filter @panki/api run backup",
-    "pace:backtest": "pnpm --filter @panki/api run pace:backtest"
+    "pace:backtest": "pnpm --filter @panki/api run pace:backtest",
+    "watch:report": "pnpm --filter @panki/api run watch:report"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
