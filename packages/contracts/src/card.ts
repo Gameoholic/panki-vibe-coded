@@ -6,9 +6,10 @@ import { DeckId } from "./deck";
 import { ExtensionFingerprint } from "./extension";
 import { MediaCues, MediaKind } from "./media";
 import type { ExampleShown } from "./reviewSettings";
+import type { FieldMap } from "./roles";
 import { CardPlace, HexColour, HoldKind } from "./srs";
 import { Stretch } from "./transcription";
-import { CardFieldId, CardTypeId, VALUE_MAX, exampleFieldsOf, holdsLine, holdsWords, wordsFieldOf, type CardField, type CardType } from "./type";
+import { CardFieldId, CardTypeId, VALUE_MAX, exampleFieldsOf, holdsWords, wordsFieldOf, type CardType } from "./type";
 
 /** Minted by the browser, so a retried POST returns the card that already exists instead of a second one. */
 export const CardId = z.uuid();
@@ -182,7 +183,7 @@ export const CardExample = NewCardExample.omit({ source: true, sources: true }).
   sources: ValueSources.default({}),
   /** Where it came from, as far as a list names it: the page or the video, and what it was called; null for one typed. */
   source: CardSource.pick({ url: true, title: true }).nullable(),
-  /** Derived on every read: whether it was taken from a video (its source holds the video's stretch), so its Line is the clip's words (`lineLocked`); false from an older server. */
+  /** Derived on every read: whether it was taken from a video (its source holds the video's stretch), so the field mapped to the Line is the clip's words (`lineLocked`); false from an older server. */
   fromVideo: z.boolean().default(false),
   /** Stamped by the API, ms since epoch. */
   createdAt: z.number().int().nonnegative(),
@@ -190,11 +191,12 @@ export const CardExample = NewCardExample.omit({ source: true, sources: true }).
 export type CardExample = z.infer<typeof CardExample>;
 
 /**
- * Whether a field's value is read-only on a card or an example: a Line on one taken from a video is the clip's words,
- * shaped only by the clip's ends as it was made, so it always says what the clip plays. Every other field, and a Line
- * typed or from a page, is edited as any.
+ * Whether a field's value is read-only on a card or an example: the field its card type's Field mapping fills with the
+ * Line (`map`, `roles.ts` → `mapOf`), on one taken from a video, is the clip's words, shaped only by the clip's ends as
+ * it was made, so it always says what the clip plays (the drawer holds it so too). Every other field, and the Line typed
+ * or from a page, is edited as any.
  */
-export const lineLocked = (field: { kind: CardField["kind"] }, card: { fromVideo: boolean } | null | undefined): boolean => holdsLine(field.kind) && card?.fromVideo === true;
+export const lineLocked = (field: { id: string }, card: { fromVideo: boolean } | null | undefined, map: FieldMap): boolean => map.sentence === field.id && card?.fromVideo === true;
 
 /** Changing an example: any of its values, by field id, and their sources; a field left out keeps what it has, a value sent with no source is `OWNER`'s. */
 export const CardExampleUpdate = z.object({ values: CardValues, sources: ValueSources.optional() });

@@ -28,8 +28,8 @@
 ## How it would work (Claude's proposal)
 
 - **Line** in the kinds list beside Text and Paragraph. At most one per card type, so there's never a question which one is the sentence.
-- **In the drawer**, the type's Sentence field is the Field mapping's Sentence by itself (the mapping's own pick stays for a type with none).
-- **On a card from a video** (one with a clip, `card_sources`), the Sentence is read-only everywhere, in the drawer and in the deck: the clip's words. In the deck, changing it would mean cutting the clip again, which is a later step of its own if ever.
+- **In the drawer**, the Line goes into the field the card type's Field mapping fills with it, picked by hand like any (`MAPPING.md`: every mapping None to begin with, none locked, the owner, 2026-11-17). A Line field mapped to None is typed into as any field.
+- **On a card from a video** (one with a clip, `card_sources`), the field mapped to the Line is read-only everywhere, in the drawer and in the deck: the clip's words. In the deck, changing it would mean cutting the clip again, which is a later step of its own if ever.
 - **On a card from a page or typed**, it's an ordinary field, edited as now.
 - **Shown as a sentence**: the word lit in it, as the drawer shows it, in the card editor and on the review card's layout as it is today otherwise.
 - **Read-only looks read-only**: its box quieter than an editable field, no typing cursor (the drawer's too).
@@ -37,8 +37,8 @@
 ## The order
 
 - [x] 1. The kind: `line` in `FieldKind`, at most one per type (`NewCardType.fields`, the type editor greying Line on the others), `EXTENSION_PROTOCOL` 12; Line in the web's `FIELD_KINDS`, words to light in like Text and Paragraph (`holdsProse`).
-- [x] 2. The drawer: the type's Line is the mapping's Sentence by itself (`roles.ts` → `cleanMap`; no other piece goes there); the read-only look (`.field-input.is-readonly`).
-- [x] 3. The deck: a card or an example taken from a video (`Card.fromVideo`, `CardExample.fromVideo`, its source holding the video's stretch) has its Line read-only in the card editor (`lineLocked`), the card's word lit in it.
+- [x] 2. The drawer: a Line field takes the Line or nothing (`roles.ts`; no other piece goes there), mapped by hand since `MAPPING.md`; the read-only look (`.field-input.is-readonly`).
+- [x] 3. The deck: a card or an example taken from a video (`Card.fromVideo`, `CardExample.fromVideo`, its source holding the video's stretch) has the field mapped to the Line read-only in the card editor (`lineLocked`, by the mapping since `MAPPING.md`), the card's word lit in it.
 - [ ] 4. The owner backs up and switches the field on prod, by hand.
 
 ## Settled (the owner, 2026-11-12)

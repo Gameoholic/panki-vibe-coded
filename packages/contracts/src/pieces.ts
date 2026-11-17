@@ -43,12 +43,12 @@ export type PromptPieceId = z.infer<typeof PromptPieceId>;
 
 /**
  * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video, Forvo,
- * the account's own settings, the card being added as it stands, Touch up (the field mapping's Explanation and
- * Example sentences, which only it fills), a follow-up as it's asked (its question, and the field it was asked
+ * the account's own settings, the card being added as it stands, Panki AI (the Field mapping's Explanation and
+ * Example sentences, which only it fills, whichever action asks), a follow-up as it's asked (its question, and the field it was asked
  * from: a template's Follow-up prompt's alone, AI step 5), or Panki's own transcript of a video (Proofread's, AI step 6).
  */
 export type PieceSource = "text" | "dictionary" | "video" | "forvo" | "settings" | "card" | "ai" | "followUp" | "message" | "transcript" | "panki";
-/** How a source is said, beside every piece: the field mapping's Source column and Prompt context's alike. */
+/** How a source is said, beside every piece: the Field mapping's Source column and Prompt context's alike. */
 export const SOURCE_WORDS: Record<PieceSource, string> = {
   text: "Subtitles or page",
   dictionary: "Dictionary",
@@ -56,9 +56,9 @@ export const SOURCE_WORDS: Record<PieceSource, string> = {
   forvo: "Forvo",
   settings: "Your settings",
   card: "The card",
-  // The field mapping's Explanation and Example sentences, which only Touch up fills: named for that action, as
-  // `AI_ACTIONS.touchUp` is (aiActions.ts reads this file, so the name can't be read from there).
-  ai: "Touch up",
+  // The Field mapping's Explanation and Example sentences: Panki AI's whatever action fills them, so named for it, never
+  // for one action.
+  ai: "Panki AI",
   // What was typed in a message after the first, and the field it was sent from: a template's Follow-up prompt's pieces.
   followUp: "Your message",
   // What a message says: its actions' words, then what was typed.

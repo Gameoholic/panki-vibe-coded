@@ -204,8 +204,9 @@ body {
   background: var(--accent-soft);
   color: var(--accent);
 }
-/* Admin, an admin's alone, at the bar's far right on a computer; on a phone one more cell of the bar. */
-.btn-tab.is-end {
+/* The bar's end group (`is-end`: Admin, an admin's alone, then Search), at its far right on a computer, its first one
+   pushing it there, whichever that is; on a phone each one more cell of the bar. */
+:where(:not(.is-end)) + .btn-tab.is-end {
   margin-left: auto;
 }
 @media (hover: hover) {
@@ -8494,15 +8495,9 @@ mark.sub-blur {
   height: 14px;
 }
 
-/* Search every deck (`SearchPalette`): the bar's Search at its right, Admin past it, and the palette hanging from the top
-   of the window over whatever screen is open, under the one pop-up (`Modal`). Nothing behind it is dimmed: a dimmed
-   page is the pop-up's alone. */
-.btn-tab.tab-search {
-  margin-left: auto;
-}
-.tab-search ~ .btn-tab.is-end {
-  margin-left: 0;
-}
+/* Search every deck (`SearchPalette`): the bar's Search, last of its end group (`.btn-tab.is-end`), and the palette
+   hanging from the top of the window over whatever screen is open, under the one pop-up (`Modal`). Nothing behind it is
+   dimmed: a dimmed page is the pop-up's alone. */
 .tab-search .key {
   color: var(--muted);
 }
@@ -8742,8 +8737,7 @@ mark.search-lit {
   .app:has(.main :is(input, textarea):focus) .tabs {
     display: none;
   }
-  .btn-tab.is-end,
-  .btn-tab.tab-search {
+  .btn-tab.is-end {
     margin-left: 0;
   }
   /* Search on a phone: one more cell of the bar, its keycap left to a computer; the palette nearly the width of the screen, from its top. */

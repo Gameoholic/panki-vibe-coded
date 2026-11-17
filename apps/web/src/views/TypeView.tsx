@@ -8,7 +8,6 @@ import {
   holdsLine,
   holdsWords,
   mapOf,
-  mappingFixed,
   roleOf,
   withMap,
   withRole,
@@ -340,7 +339,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                     value={field.kind}
                     onChange={(kind) => edit(field.id, { kind })}
                   />
-                  {/* What fills it by itself as a card is added from a page or a video; a Line and Example sentences take theirs whatever's set. */}
+                  {/* What fills it by itself as a card is added from a page or a video: None to begin with for every field, picked by hand. */}
                   <span className="field-fill">
                     <span className="field-fill-label" aria-hidden="true">
                       Field mapping
@@ -351,7 +350,6 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                       options={fillOptions(field)}
                       value={roleOf(map, field.id) ?? TYPED}
                       columns={{ choice: "Fill with", note: "Source" }}
-                      disabled={mappingFixed(field)}
                       onChange={(role) => fill(field.id, role === TYPED ? null : role)}
                     />
                   </span>

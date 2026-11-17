@@ -8,8 +8,8 @@ export const CardTypeId = z.uuid();
 export const CardFieldId = z.uuid();
 export const FieldSide = z.enum(["front", "back"]);
 /**
- * What a field holds: one line of text, several, the sentence the card's word was met in (a Line: on a card from a
- * video, the clip's words, read-only wherever it's shown; `holdsLine`), a file (media: a clip or a sound, whichever is
+ * What a field holds: one line of text, several, the sentence the card's word was met in (a Line: mapped to the Line,
+ * on a card from a video, the clip's words, read-only wherever it's shown; `holdsLine`), a file (media: a clip or a sound, whichever is
  * put there; or a picture), a link to a YouTube video, a pitch accent (drawn as the line over its reading,
  * `pitch.ts`), or example sentences (rows of a situation, a sentence and its translation, `examples.ts`). The ids live
  * here so the API refuses a kind that doesn't exist; the word for each and how it's filled in and shown is the web's
@@ -83,8 +83,9 @@ export function holdsPitch(kind: FieldKind): boolean {
 }
 
 /**
- * Whether a field is a Line: the sentence the card's word was met in, a type's one (`NewCardType`). On a card from a
- * video it's the clip's words, read-only in the drawer and in the deck (`lineLocked`); otherwise words like any.
+ * Whether a field is a Line: the sentence the card's word was met in, a type's one (`NewCardType`), which takes the Line
+ * or nothing in the Field mapping (`roles.ts`). Mapped to the Line, on a card from a video it's the clip's words,
+ * read-only in the drawer and in the deck (`lineLocked`); otherwise words like any.
  */
 export function holdsLine(kind: FieldKind): boolean {
   return kind === "line";
@@ -96,7 +97,7 @@ export function holdsProse(kind: FieldKind): boolean {
 
 /**
  * Whether a field holds example sentences: its value is then rows (`examples.ts` → `examplesOf`), each edited where it
- * stands and drawn as a list on the card. A type's one (`NewCardType`), as Touch up fills it.
+ * stands and drawn as a list on the card. A type's one (`NewCardType`), as Panki AI fills it.
  */
 export function holdsExamples(kind: FieldKind): boolean {
   return kind === "examples";
@@ -152,7 +153,7 @@ export const NewCardType = z.object({
     .array(CardField)
     .min(1)
     .refine((fields) => fields.filter((field) => holdsLine(field.kind)).length <= 1, { message: "A card type has one Line field at most." })
-    // One field of example sentences at most, the one Touch up fills.
+    // One field of example sentences at most, the one Panki AI fills.
     .refine((fields) => fields.filter((field) => holdsExamples(field.kind)).length <= 1, { message: "A card type has one Example sentences field at most." })
     // A piece fills one field at most, so where it goes is never in doubt.
     .refine((fields) => new Set(fields.flatMap((field) => (field.fills ? [field.fills] : []))).size === fields.filter((field) => field.fills).length, {

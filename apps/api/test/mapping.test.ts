@@ -35,13 +35,16 @@ test("a type's save keeps what fills each field, and reads it back", () => {
     const saved = db.updateType(TYPE, { name: "Words", fields: [field(WORD, "text", "word"), field(LINE, "line", "sentence"), field(MEANING, "text", "dictMeaning"), field(NOTE, "text")] }, NOW);
     assert.deepEqual(mapOf(saved), { word: WORD, sentence: LINE, dictMeaning: MEANING });
     assert.deepEqual(mapOf(db.getType(TYPE) ?? saved), { word: WORD, sentence: LINE, dictMeaning: MEANING });
+    // Set back to None, the Line is typed into as any field.
+    const back = db.updateType(TYPE, { name: "Words", fields: [field(WORD, "text", "word"), field(LINE, "line"), field(MEANING, "text", "dictMeaning"), field(NOTE, "text")] }, NOW);
+    assert.deepEqual(mapOf(back), { word: WORD, dictMeaning: MEANING });
   });
 });
 
-test("a type starts with every field on None, its Line taking the sentence whatever's set", () => {
+test("a type starts with every field on None, its Line too", () => {
   withDb((db) => {
     const made = db.insertType(TYPE_MADE, NOW);
     assert.ok(made.fields.every((f) => f.fills === null));
-    assert.deepEqual(mapOf(made), { sentence: LINE });
+    assert.deepEqual(mapOf(made), {});
   });
 });

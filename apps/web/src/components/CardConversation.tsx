@@ -589,7 +589,7 @@ export function useCardConversation({ on, type, map, values, held, write, onGo }
     return verdict !== null && proposes(verdict);
   }
   const decide = (key: TouchUpKey, how: "accepted" | "dismissed") => setTouch((was) => ({ ...was, decided: { ...was.decided, [key]: true }, conversation: settled(was.conversation, key, how) }));
-  /** Panki AI's words into their field: its own where only Touch up fills the field, a correction anywhere else. */
+  /** Panki AI's words into their field: its own where only Panki AI fills the field, a correction anywhere else. */
   function writeAi(field: CardField, text: string) {
     const role = roleOf(map, field.id);
     const source = aiSourceOf();

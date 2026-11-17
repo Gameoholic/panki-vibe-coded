@@ -1371,7 +1371,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   function writeAi(field: CardField, text: string, aiWords?: string) {
     const role = roleOf(map, field.id);
     const ai = aiSourceOf();
-    // A field only Touch up fills is its own; any other it corrected (so only the first's name is sparked).
+    // A field only Panki AI fills is its own; any other it corrected (so only the first's name is sparked).
     const source = ai && (role === null || ROLES[role].from !== "ai") ? { ...ai, corrected: true } : ai;
     const holder = role === "sentence" ? "sentence" : isDictRole(role) ? "dict" : "typed";
     // On a video the Sentence is the clip's words alone: Accept moves the clip to the lines (`accept`), and they follow.

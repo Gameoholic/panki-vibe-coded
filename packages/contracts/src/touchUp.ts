@@ -23,7 +23,7 @@ import { KNOB_BREACHES, expectedGot, knobsBroken } from "./unread";
 
 /**
  * Each key: the field mapping's role whose field it goes to (`roles.ts` → `ROLES`, by the same id), and that role's
- * name, the one it has everywhere. Explanation and Example sentences are roles nothing but Touch up fills (Source
+ * name, the one it has everywhere. Explanation and Example sentences are roles nothing but Panki AI fills (Source
  * "Panki AI"), so their names are born here and `roles.ts` reads them from it.
  */
 export const TOUCH_UP: Record<TouchUpKey, { role: string; name: string }> = {

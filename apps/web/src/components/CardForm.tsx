@@ -307,10 +307,12 @@ export function CardForm(props: Props) {
   const [marked, setMarked] = useState<Record<string, true>>({});
   /** What Panki AI wrote into the form, accepted from the card's conversation: saved as its own, by field id. */
   const [aiWrote, setAiWrote] = useState<Record<string, AiWrote>>({});
+  /** What fills each field, the card type's Field mapping: which field is the Line, which the Meaning. */
+  const map = mapOf(type);
   const talk = useCardConversation({
     on: "touchUp" in props && props.touchUp === true,
     type,
-    map: mapOf(type),
+    map,
     values: draft,
     held: busy,
     write: (field, text, source) => {
@@ -486,8 +488,8 @@ export function CardForm(props: Props) {
             // What Panki AI wrote is marked as the drawer marks it, changed by hand or not, until it's marked as the owner's;
             // once it holds other words than it did, the offer to do that stands under it.
             const ai = aiSourceFor(card, field.id, value, marked[field.id] === true, aiWrote[field.id]);
-            // A Line taken from a video is the clip's words, read-only, the card's word lit in it where it's there.
-            const locked = lineLocked(field, card);
+            // The field the Field mapping fills with the Line, on a card taken from a video, is the clip's words, read-only, the card's word lit in it where it's there.
+            const locked = lineLocked(field, card, map);
             const wordAt = locked && calledBy ? value.indexOf(calledBy) : -1;
             // While Panki AI works on the card nothing in it is changed, so an answer is never drawn against a card that moved under it.
             const still = locked || talk.touching;

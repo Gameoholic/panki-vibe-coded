@@ -235,8 +235,8 @@ function screenOf(route: Route, { decks, types, srsTypes, ai }: Lists): Screen |
 }
 
 /**
- * The fixed places in the bar. A new one is a row here, nowhere else. `admin`: there for an admin alone, at the bar's
- * far end on a computer, the top right of the site.
+ * The fixed places in the bar. A new one is a row here, nowhere else. `admin`: there for an admin alone, opening the
+ * bar's end group at the top right of the site on a computer, Search after it.
  */
 type TabId = "home" | "settings" | "stats" | "streaks" | "admin";
 const TABS: readonly { id: TabId; label: string; icon: IconName; to: Screen; admin?: true }[] = [
@@ -1490,9 +1490,9 @@ export function App() {
                   <span>{t.label}</span>
                 </Button>
               ))}
-          {/* Searching every deck, at the bar's right on a computer (Admin past it), one more cell of the bar on a phone. */}
+          {/* Searching every deck, last of the bar's end group (Admin before it) on a computer, one more cell of the bar on a phone. */}
           {checking ? null : (
-            <Button ref={searchAt} id="tab-search" variant="tab" className="tab-search" aria-expanded={searching} aria-haspopup="dialog" onClick={() => setSearching((open) => !open)}>
+            <Button ref={searchAt} id="tab-search" variant="tab" className="tab-search is-end" aria-expanded={searching} aria-haspopup="dialog" onClick={() => setSearching((open) => !open)}>
               <Icon name="search" />
               <span>Search</span>
               <KeyCap bind={binds.search} />

@@ -10,7 +10,7 @@ import { FieldKind, holdsFile, type MediaKind } from "@panki/contracts";
 export const FIELD_KINDS: Record<FieldKind, { name: string; multiline: boolean }> = {
   text: { name: "Text", multiline: false },
   long: { name: "Paragraph", multiline: true },
-  // The sentence the word was met in: on a card from a video the clip's words, read-only (`lineLocked`). One per type.
+  // The sentence the word was met in: mapped to the Line, on a card from a video the clip's words, read-only (`lineLocked`). One per type.
   line: { name: "Line", multiline: true },
   // Rows of a situation, a sentence and its translation, edited row by row (`ExampleRows`), drawn as a list on the card. One per type.
   examples: { name: "Example sentences", multiline: false },

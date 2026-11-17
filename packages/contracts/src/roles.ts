@@ -50,7 +50,7 @@ type Role = {
 };
 
 type Takes = Role["takes"];
-/** Words of any piece but the sentence: a Line is the sentence's alone (`cleanMap`). */
+/** Words of any piece but the sentence: a Line takes the sentence or nothing. */
 const holdsText: Takes = (field) => holdsWords(field.kind) && !holdsLine(field.kind);
 /** The sentence goes in words, a Line above all. */
 const holdsSentence: Takes = (field) => holdsWords(field.kind);
@@ -95,11 +95,12 @@ export const ROLES: Record<RoleId, Role> = {
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
   // (the video's name, the channel's name and address) is kept beside the card as its `source`, all one piece.
   source: { name: PIECE_NAMES.source, from: "video", takes: (field) => holdsLink(field.kind) },
-  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself: the word in
-  // general, and made-up sentences as rows of a situation, a sentence and its translation. Two fields, not one, so the
-  // layout places each on its own. Nothing fills them as a card is captured; their names are Touch up's (`TOUCH_UP`).
+  // What only Panki AI fills, whichever action asks, always its words and always proposed, never written by itself:
+  // the word in general, and made-up sentences as rows of a situation, a sentence and its translation. Two fields, not
+  // one, so the layout places each on its own. Nothing fills them as a card is captured; their names are its keys'
+  // (`TOUCH_UP`).
   explanation: { name: TOUCH_UP.explanation.name, from: "ai", takes: holdsText },
-  // Rows of examples go only where rows are kept, and nothing else goes there but what's typed.
+  // Rows of examples go only where rows are kept, and nothing else goes there: Example sentences takes them or nothing.
   examples: { name: TOUCH_UP.examples.name, from: "ai", takes: (field) => holdsExamples(field.kind) },
 };
 
@@ -115,21 +116,16 @@ export const DICTIONARY_ROLES = ROLE_IDS.filter((role): role is DictionaryRoleId
  */
 export type FieldMap = Partial<Record<RoleId, string>>;
 
-/** Whether a field takes its piece whatever's set: a Line is always the sentence, Example sentences always Touch up's examples. */
-const fixedRoleOf = (field: Pick<CardField, "kind">): RoleId | null => (holdsLine(field.kind) ? "sentence" : holdsExamples(field.kind) ? "examples" : null);
-
-/** The map with only what still holds: a field that's been hidden, or changed to a kind its piece can't go in, drops out. */
+/**
+ * The map with only what still holds: a field that's been hidden, or changed to a kind its piece can't go in, drops out.
+ * Every field is mapped by hand, a Line and Example sentences too: a field's kind only says what it can take, never
+ * what fills it.
+ */
 export function cleanMap(map: FieldMap, type: Pick<CardType, "fields">): FieldMap {
   const clean: FieldMap = {};
   for (const role of ROLE_IDS) {
     const field = type.fields.find((f) => f.id === map[role]);
     if (field && ROLES[role].takes(field)) clean[role] = field.id;
-  }
-  // A type's Line is the sentence by itself, whatever the map says: no other piece goes there (`holdsText`). Its
-  // Example sentences field is Touch up's examples by itself, the same way: it's the one field rows go in.
-  for (const field of type.fields) {
-    const fixed = fixedRoleOf(field);
-    if (fixed) clean[fixed] = field.id;
   }
   return clean;
 }
@@ -145,9 +141,6 @@ export function mapOf(type: Pick<CardType, "fields">): FieldMap {
 export function withMap<F extends CardField>(fields: readonly F[], map: FieldMap): F[] {
   return fields.map((field) => ({ ...field, fills: roleOf(map, field.id) }));
 }
-
-/** Whether a field takes its piece whatever's set, so the Field mapping shows it and can't change it. */
-export const mappingFixed = (field: Pick<CardField, "kind">): boolean => fixedRoleOf(field) !== null;
 
 /** The piece a field takes, or null when nothing fills it. */
 export function roleOf(map: FieldMap, fieldId: string): RoleId | null {
